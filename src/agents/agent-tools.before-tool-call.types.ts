@@ -98,7 +98,8 @@ export type HookBlockedReason =
   | "plugin-before-tool-call"
   | "plugin-approval"
   | "plugin-approval-unavailable"
-  | "tool-loop";
+  | "tool-loop"
+  | "governance-policy";
 
 type HookBlockedOutcome = {
   blocked: true;

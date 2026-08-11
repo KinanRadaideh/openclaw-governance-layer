@@ -284,7 +284,7 @@ function resolveControlUiReadAuthToken(
   return resolveAssistantMediaAuthToken(req);
 }
 
-async function authorizeControlUiReadRequest(
+export async function authorizeControlUiReadRequest(
   req: IncomingMessage,
   res: ServerResponse,
   opts?: {

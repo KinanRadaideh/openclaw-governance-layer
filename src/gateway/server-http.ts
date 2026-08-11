@@ -111,6 +111,9 @@ const getManagedMediaAttachmentsModule = createLazyRuntimeModule(
 );
 const getMcpAppStandaloneModule = createLazyRuntimeModule(() => import("./mcp-app-standalone.js"));
 const getPluginIconHttpModule = createLazyRuntimeModule(() => import("./plugin-icon-http.js"));
+const getGovernanceAuthModule = createLazyRuntimeModule(
+  () => import("./governance-dashboard-auth.js"),
+);
 const getModelsHttpModule = createLazyRuntimeModule(() => import("./models-http.js"));
 const getOpenAiHttpModule = createLazyRuntimeModule(() => import("./openai-http.js"));
 const getOpenResponsesHttpModule = createLazyRuntimeModule(() => import("./openresponses-http.js"));
@@ -526,6 +529,17 @@ export function createGatewayHttpServer(opts: {
         "board-widget",
         scopedRequestPath.startsWith("/__openclaw__/board/"),
         async () => (await getBoardHttpModule()).handleBoardHttpRequest(req, res),
+      );
+      addAdmittedStage(
+        "governance-auth",
+        scopedRequestPath.startsWith("/control-ui/governance/"),
+        async () =>
+          (await getGovernanceAuthModule()).handleGovernanceAuthRequest(
+            req,
+            res,
+            scopedRequestPath,
+            routeAuth,
+          ),
       );
       const userProfileAvatarPath = canonicalizeUserProfileAvatarPath(
         scopedRequestPath,

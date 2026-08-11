@@ -19,6 +19,10 @@ import type { AuthRateLimiter } from "./auth-rate-limit.js";
 import type { ResolvedGatewayAuth } from "./auth.js";
 import type { ChatAbortControllerEntry } from "./chat-abort.js";
 import type { ControlUiRootState } from "./control-ui.js";
+import {
+  installGovernanceActiveSessions,
+  installGovernanceAgentTerminator,
+} from "./governance-agent-termination.js";
 import type { HooksConfigResolved } from "./hooks.js";
 import type { AuthorizedGatewayHttpRequest } from "./http-auth-utils.js";
 import { createSandboxHostHttpServer } from "./mcp-app-sandbox-http.js";
@@ -43,6 +47,7 @@ import {
   attachWorkerGatewayUpgradeHandler,
   createGatewayHttpServer,
 } from "./server-http.js";
+import { createChatAbortOps } from "./server-methods/chat-abort-runtime.js";
 import type { GatewayRequestContext } from "./server-methods/types.js";
 import type { DedupeEntry } from "./server-shared.js";
 import type { HookClientIpConfig, HooksRequestHandler } from "./server/hooks-request-handler.js";
@@ -525,6 +530,24 @@ export async function createGatewayRuntimeState(params: {
   const chatAbortControllers = new Map<string, ChatAbortControllerEntry>();
   const chatQueuedTurns = new Map<string, import("./chat-queued-turns.js").QueuedChatTurnEntry>();
   const toolEventRecipients = chatRunState.toolEventRecipients;
+
+  // Give the governance kill switch the ability to abort in-flight runs
+  // (design requirement #7). Registered here because this is where the live
+  // run registry is created; the closure reads it per call so the kill switch
+  // always sees current runs rather than a startup snapshot.
+  const resolveGovernanceAbortOps = () => {
+    const context = params.getGatewayRequestContext?.();
+    return context ? createChatAbortOps(context) : undefined;
+  };
+  installGovernanceActiveSessions(resolveGovernanceAbortOps);
+  installGovernanceAgentTerminator(() => {
+    // Reuse the Gateway's own ops factory rather than assembling the object
+    // here: it wires node notification and run-bound approval cancellation,
+    // so an abort triggered by the kill switch behaves exactly like an
+    // operator-initiated one.
+    const context = params.getGatewayRequestContext?.();
+    return context ? createChatAbortOps(context) : undefined;
+  });
 
   return {
     httpServer,

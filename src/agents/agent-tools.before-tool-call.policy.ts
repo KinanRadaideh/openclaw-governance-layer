@@ -1,3 +1,4 @@
+import { evaluateGovernancePolicy } from "../governance/policy-engine.js";
 /**
  * Ordered before_tool_call policy chain.
  *
@@ -149,6 +150,54 @@ export async function runBeforeToolCallHook(args: {
     const policyRegistry = getGlobalHookRunnerRegistry() ?? undefined;
     const shouldRunTrustedPolicies = hasTrustedToolPolicies(policyRegistry);
     const normalizedParams = isPlainObject(params) ? params : {};
+    const earlyDeriveOptions =
+      args.ctx?.cwd || args.ctx?.sandbox
+        ? {
+            ...(args.ctx.cwd ? { cwd: args.ctx.cwd } : {}),
+            ...(args.ctx.sandbox ? { sandbox: args.ctx.sandbox } : {}),
+          }
+        : undefined;
+    const earlyDerivedToolParams = deriveToolParams(toolName, normalizedParams, earlyDeriveOptions);
+    // Governance policy gate: the outermost security boundary. Must run
+    // ahead of the "nothing else is registered" short-circuit a few lines
+    // below (skill-workshop result / trusted policies / plugin hooks) —
+    // otherwise a deployment with no plugins active would never reach it.
+    const governanceDecision = await evaluateGovernancePolicy(
+      {
+        toolName,
+        params: normalizedParams,
+        ...(earlyDerivedToolParams.derivedPaths
+          ? { derivedPaths: earlyDerivedToolParams.derivedPaths }
+          : {}),
+      },
+      {
+        ...(args.ctx?.agentId && { agentId: args.ctx.agentId }),
+        ...(args.ctx?.sessionKey && { sessionKey: args.ctx.sessionKey }),
+      },
+    );
+    if (governanceDecision && "block" in governanceDecision && governanceDecision.block) {
+      return {
+        blocked: true,
+        kind: "veto",
+        deniedReason: "governance-policy",
+        reason: governanceDecision.blockReason,
+        params,
+      };
+    }
+    if (governanceDecision && "requireApproval" in governanceDecision) {
+      const governanceApprovalOutcome = await resolveBeforeToolCallApprovalOutcome({
+        result: governanceDecision,
+        approvalMode: args.approvalMode,
+        toolName,
+        ...(args.toolCallId ? { toolCallId: args.toolCallId } : {}),
+        ...(args.ctx ? { ctx: args.ctx } : {}),
+        signal: args.signal,
+        baseParams: params,
+      });
+      if (governanceApprovalOutcome) {
+        return governanceApprovalOutcome;
+      }
+    }
     const initialCorePolicyResult = await resolveSkillWorkshopToolApproval({
       toolName,
       toolParams: normalizedParams,

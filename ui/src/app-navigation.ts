@@ -189,7 +189,7 @@ export const SETTINGS_NAVIGATION_GROUPS = [
   },
   {
     labelKey: "nav.settingsGroupSecurity",
-    routes: ["security", "approvals"],
+    routes: ["security", "governance", "approvals"],
   },
   {
     labelKey: "nav.settingsGroupSystem",
@@ -223,6 +223,7 @@ const NAVIGATION_ICONS: NavigationItem = {
   activity: "activity",
   apps: "layoutGrid",
   approvals: "badgeCheck",
+  governance: "shieldCheck",
   workboard: "kanban",
   worktrees: "folder",
   channels: "link",
@@ -329,6 +330,7 @@ const NAVIGATION_COPY: Record<NavigationRouteId, { titleKey: string; subtitleKey
   activity: { titleKey: "tabs.activity", subtitleKey: "subtitles.activity" },
   apps: { titleKey: "tabs.apps", subtitleKey: "subtitles.apps" },
   approvals: { titleKey: "tabs.approvals", subtitleKey: "subtitles.approvals" },
+  governance: { titleKey: "tabs.governance", subtitleKey: "subtitles.governance" },
   workboard: { titleKey: "tabs.workboard", subtitleKey: "subtitles.workboard" },
   worktrees: { titleKey: "tabs.worktrees", subtitleKey: "subtitles.worktrees" },
   channels: { titleKey: "tabs.channels", subtitleKey: "subtitles.channels" },

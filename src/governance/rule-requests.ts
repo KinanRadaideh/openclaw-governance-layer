@@ -1,0 +1,154 @@
+// Rule requests: the User tier's concrete capability.
+//
+// Design doc §1.6 grants Users "limited, scoped permissions to modify
+// non-critical agent parameters" — narrower than an Administrator, but more
+// than a Viewer's strict read-only access. Interpreted here as: a User may
+// *propose* an allow-rule, but only an Administrator may grant it.
+//
+// This keeps the security property intact (no privilege is created by a
+// non-administrator) while giving the tier a real, enforceable job. It also
+// closes a genuine product gap: before this, an operator whose legitimate
+// action was denied had no in-product way to ask for access — the "silent
+// failure with no path forward" that the design doctrine treats as the worst
+// outcome.
+import { mkdir } from "node:fs/promises";
+import { readJsonIfExists, writeJsonAtomic } from "../infra/json-files.js";
+import { withFileLock } from "./file-lock.js";
+import { governanceHomeDir, ruleRequestsFilePath } from "./paths.js";
+import type { ResourceKind } from "./policy-types.js";
+
+export type RuleRequestStatus = "pending" | "approved" | "rejected";
+
+export type RuleRequest = {
+  id: string;
+  resourceKind: ResourceKind;
+  pattern: string;
+  /**
+   * Agent the requester wants the rule scoped to. Absent means they are asking
+   * for a **global** rule binding every agent.
+   *
+   * This is carried on the request, not decided at approval time, so the
+   * Administrator reviews and grants exactly the scope that was asked for.
+   * Without it every approval produced a global rule, silently widening a
+   * single-agent request into an installation-wide grant.
+   */
+  agentId?: string;
+  reason: string;
+  requestedBy: string;
+  requestedAt: string;
+  status: RuleRequestStatus;
+  decidedBy?: string;
+  decidedAt?: string;
+  /** Set when an approval created a rule, linking request to granted policy. */
+  createdRuleId?: string;
+};
+
+type RuleRequestsFile = { version: 1; requests: RuleRequest[] };
+
+/** Bounds the queue so a User cannot exhaust disk by spamming requests. */
+export const MAX_PENDING_REQUESTS_PER_USER = 20;
+
+/**
+ * Total retained requests. The per-user pending cap stops a burst, but decided
+ * requests were never removed, so a patient requester could grow the file
+ * without limit over time. Pruning drops the oldest **decided** entries only —
+ * a pending request is somebody waiting on an answer and is never discarded.
+ */
+export const MAX_STORED_RULE_REQUESTS = 500;
+
+/** Drops the oldest decided requests until the store is within its cap. */
+function pruneDecided(requests: RuleRequest[]): RuleRequest[] {
+  if (requests.length <= MAX_STORED_RULE_REQUESTS) {
+    return requests;
+  }
+  const pending = requests.filter((request) => request.status === "pending");
+  const decided = requests.filter((request) => request.status !== "pending");
+  const keepDecided = Math.max(0, MAX_STORED_RULE_REQUESTS - pending.length);
+  // `requests` is append-ordered, so the tail is the most recent.
+  return [...pending, ...decided.slice(-keepDecided)];
+}
+
+async function ensureHomeDir(): Promise<void> {
+  await mkdir(governanceHomeDir(), { recursive: true, mode: 0o700 });
+}
+
+async function readFileOrEmpty(): Promise<RuleRequestsFile> {
+  const existing = await readJsonIfExists<RuleRequestsFile>(ruleRequestsFilePath());
+  return existing ?? { version: 1, requests: [] };
+}
+
+export async function listRuleRequests(): Promise<RuleRequest[]> {
+  return (await readFileOrEmpty()).requests;
+}
+
+export type SubmitRuleRequestInput = {
+  resourceKind: ResourceKind;
+  pattern: string;
+  reason: string;
+  requestedBy: string;
+  agentId?: string;
+};
+
+export async function submitRuleRequest(input: SubmitRuleRequestInput): Promise<RuleRequest> {
+  await ensureHomeDir();
+  return withFileLock(ruleRequestsFilePath(), async () => {
+    const file = await readFileOrEmpty();
+    const pending = file.requests.filter(
+      (request) => request.status === "pending" && request.requestedBy === input.requestedBy,
+    ).length;
+    if (pending >= MAX_PENDING_REQUESTS_PER_USER) {
+      throw new Error(
+        `You already have ${MAX_PENDING_REQUESTS_PER_USER} pending requests; wait for a decision before submitting more.`,
+      );
+    }
+    const request: RuleRequest = {
+      id: `req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      resourceKind: input.resourceKind,
+      pattern: input.pattern,
+      ...(input.agentId ? { agentId: input.agentId } : {}),
+      reason: input.reason,
+      requestedBy: input.requestedBy,
+      requestedAt: new Date().toISOString(),
+      status: "pending",
+    };
+    file.requests = pruneDecided([...file.requests, request]);
+    await writeJsonAtomic(ruleRequestsFilePath(), file, { mode: 0o600 });
+    return request;
+  });
+}
+
+/**
+ * Records an administrator's decision. Returns the updated request, or
+ * undefined when the id is unknown or the request was already decided —
+ * decisions are single-shot so a stale dashboard cannot double-apply one.
+ */
+export async function decideRuleRequest(params: {
+  id: string;
+  approve: boolean;
+  decidedBy: string;
+  createdRuleId?: string;
+}): Promise<RuleRequest | undefined> {
+  await ensureHomeDir();
+  return withFileLock(ruleRequestsFilePath(), async () => {
+    const file = await readFileOrEmpty();
+    const request = file.requests.find((candidate) => candidate.id === params.id);
+    if (!request || request.status !== "pending") {
+      return undefined;
+    }
+    request.status = params.approve ? "approved" : "rejected";
+    request.decidedBy = params.decidedBy;
+    request.decidedAt = new Date().toISOString();
+    if (params.createdRuleId) {
+      request.createdRuleId = params.createdRuleId;
+    }
+    await writeJsonAtomic(ruleRequestsFilePath(), file, { mode: 0o600 });
+    return request;
+  });
+}
+
+/** Reads one pending request without deciding it, for validation before granting. */
+export async function findPendingRuleRequest(id: string): Promise<RuleRequest | undefined> {
+  const file = await readFileOrEmpty();
+  const request = file.requests.find((candidate) => candidate.id === id);
+  return request?.status === "pending" ? request : undefined;
+}

@@ -116,6 +116,11 @@ const coreCliCommandCatalog = defineCommandDescriptorCatalog([
     hasSubcommands: false,
   },
   {
+    name: "governance",
+    description: "Policy-based governance layer: default-deny tool policy and audit ledger",
+    hasSubcommands: true,
+  },
+  {
     name: "sessions",
     description: "List stored conversation sessions",
     hasSubcommands: true,

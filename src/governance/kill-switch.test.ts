@@ -1,0 +1,160 @@
+// Kill-switch behaviour and the evidence for design requirement #7
+// ("suspend or terminate an active agent session within one second").
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  clearAgentTerminator,
+  hasAgentTerminator,
+  registerAgentTerminator,
+  terminateAgentRuns,
+} from "./agent-terminator.js";
+import { tailLedger } from "./audit-ledger.js";
+import { lockDownAgent, releaseAgentLockdown } from "./kill-switch.js";
+import { evaluateGovernancePolicy } from "./policy-engine.js";
+import { addRule, loadPolicy, savePolicy } from "./policy-store.js";
+import { defaultPolicyDocument } from "./policy-types.js";
+
+let dir: string;
+
+beforeEach(async () => {
+  dir = await mkdtemp(join(tmpdir(), "governance-kill-"));
+  process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  await savePolicy(defaultPolicyDocument());
+  clearAgentTerminator();
+});
+
+afterEach(async () => {
+  clearAgentTerminator();
+  delete process.env.OPENCLAW_GOVERNANCE_DIR;
+  await rm(dir, { recursive: true, force: true });
+});
+
+describe("lockdown", () => {
+  it("blocks every subsequent governed action, even an allowlisted one", async () => {
+    await addRule({ resourceKind: "command", pattern: "^ls$" });
+    expect(
+      await evaluateGovernancePolicy(
+        { toolName: "exec", params: { command: "ls" } },
+        { agentId: "agent-a" },
+      ),
+    ).toBeUndefined();
+
+    await lockDownAgent("agent-a", "admin");
+
+    const decision = await evaluateGovernancePolicy(
+      { toolName: "exec", params: { command: "ls" } },
+      { agentId: "agent-a" },
+    );
+    expect(decision && "block" in decision).toBe(true);
+  });
+
+  it("does not affect other agents", async () => {
+    await addRule({ resourceKind: "command", pattern: "^ls$" });
+    await lockDownAgent("agent-a");
+    const other = await evaluateGovernancePolicy(
+      { toolName: "exec", params: { command: "ls" } },
+      { agentId: "agent-b" },
+    );
+    expect(other).toBeUndefined();
+  });
+
+  it("is reversible", async () => {
+    await addRule({ resourceKind: "command", pattern: "^ls$" });
+    await lockDownAgent("agent-a");
+    await releaseAgentLockdown("agent-a");
+    expect((await loadPolicy()).lockedAgents).not.toContain("agent-a");
+    expect(
+      await evaluateGovernancePolicy(
+        { toolName: "exec", params: { command: "ls" } },
+        { agentId: "agent-a" },
+      ),
+    ).toBeUndefined();
+  });
+
+  it("records who engaged it in the tamper-evident trail", async () => {
+    await lockDownAgent("agent-a", "kinan");
+    const entries = await tailLedger();
+    const killEntry = entries.find((entry) => entry.toolName === "governance.kill");
+    expect(killEntry).toBeDefined();
+    expect(killEntry?.ruleId).toBe("kill-switch:kinan");
+    expect(killEntry?.agentId).toBe("agent-a");
+  });
+});
+
+describe("in-flight termination", () => {
+  it("aborts runs belonging to the agent", async () => {
+    const aborted: string[] = [];
+    registerAgentTerminator((agentId) => {
+      aborted.push(agentId);
+      return { abortedRunIds: ["run-1", "run-2"] };
+    });
+    const result = await lockDownAgent("agent-a");
+    expect(aborted).toEqual(["agent-a"]);
+    expect(result.termination.supported).toBe(true);
+    expect(result.termination.abortedRunIds).toEqual(["run-1", "run-2"]);
+  });
+
+  it("reports honestly when no terminator is registered", async () => {
+    // The CLI and unit tests run with no Gateway. Lockdown must still apply,
+    // and the result must not imply an in-flight run was stopped.
+    expect(hasAgentTerminator()).toBe(false);
+    const result = await lockDownAgent("agent-a");
+    expect(result.termination.supported).toBe(false);
+    expect(result.termination.abortedRunIds).toEqual([]);
+    expect((await loadPolicy()).lockedAgents).toContain("agent-a");
+  });
+
+  it("still locks down when the terminator throws", async () => {
+    // A half-applied kill switch is worse than a slow one.
+    registerAgentTerminator(() => {
+      throw new Error("gateway exploded");
+    });
+    const result = await lockDownAgent("agent-a");
+    expect(result.termination.error).toMatch(/exploded/);
+    expect((await loadPolicy()).lockedAgents).toContain("agent-a");
+  });
+
+  it("locks before aborting, so no action slips through the gap", async () => {
+    // If the abort ran first, the agent could legally start a fresh action
+    // between the abort and the lock landing.
+    let lockedWhenAborted: boolean | undefined;
+    registerAgentTerminator(async () => {
+      lockedWhenAborted = (await loadPolicy()).lockedAgents.includes("agent-a");
+      return { abortedRunIds: [] };
+    });
+    await lockDownAgent("agent-a");
+    expect(lockedWhenAborted).toBe(true);
+  });
+});
+
+describe("requirement #7 — termination latency", () => {
+  it("completes well inside the one-second bound", async () => {
+    registerAgentTerminator(() => ({ abortedRunIds: ["run-1"] }));
+    const result = await lockDownAgent("agent-a");
+    // The whole operation: policy write (with cross-process lock), abort
+    // signal, and the audit-ledger append.
+    expect(result.elapsedMs).toBeLessThan(1000);
+    expect(result.termination.elapsedMs).toBeLessThan(1000);
+  });
+
+  it("stays inside the bound with many in-flight runs", async () => {
+    const runIds = Array.from({ length: 250 }, (_unused, index) => `run-${index}`);
+    registerAgentTerminator(() => ({ abortedRunIds: runIds }));
+    const result = await lockDownAgent("agent-a");
+    expect(result.termination.abortedRunIds).toHaveLength(250);
+    expect(result.elapsedMs).toBeLessThan(1000);
+  });
+
+  it("measures the abort itself, not just the bookkeeping", async () => {
+    // A terminator that takes real time must be reflected in the measurement,
+    // otherwise the number proves nothing.
+    registerAgentTerminator(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      return { abortedRunIds: ["slow"] };
+    });
+    const outcome = await terminateAgentRuns("agent-a");
+    expect(outcome.elapsedMs).toBeGreaterThanOrEqual(100);
+  });
+});
