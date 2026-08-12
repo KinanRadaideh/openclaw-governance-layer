@@ -11,6 +11,9 @@ import {
   recordLoginFailure,
   resetLoginThrottle,
 } from "./login-throttle.js";
+import { evaluateGovernancePolicy } from "./policy-engine.js";
+import { lockAgent, savePolicy } from "./policy-store.js";
+import { defaultPolicyDocument } from "./policy-types.js";
 import { checkRegexSafety } from "./regex-safety.js";
 import { listRuleRequests, submitRuleRequest } from "./rule-requests.js";
 import { createUser, deleteUser, LastRootError, listUsers, setUserRole } from "./user-store.js";
@@ -170,5 +173,38 @@ describe("the rule-request cap holds when the queue is full of pending items", (
       });
     }
     expect((await listRuleRequests()).length).toBeLessThanOrEqual(MAX_STORED_RULE_REQUESTS);
+  });
+});
+
+describe("the kill switch is not suspended by monitor mode", () => {
+  it("blocks a locked agent even when the posture is monitor", async () => {
+    // Monitor means policy *decisions* are recorded rather than acted on. The
+    // kill switch is not a policy decision — it is a person deciding, during an
+    // incident, that this agent stops now. Once monitor became the shipped
+    // default, treating the stop as advisory meant a fresh install had an
+    // emergency stop that did not stop anything.
+    await savePolicy({ ...defaultPolicyDocument(), mode: "monitor" });
+    await lockAgent("agent-a");
+    const decision = await evaluateGovernancePolicy(
+      { toolName: "exec", params: { command: "ls" } },
+      { agentId: "agent-a" },
+    );
+    expect(decision).toEqual({
+      block: true,
+      blockReason: expect.stringContaining("locked down"),
+    });
+  });
+
+  it("records the stop even when the posture is off, and does not block", async () => {
+    // `off` is the one posture that exempts it, because `off` means the gate is
+    // not running at all rather than running quietly.
+    await savePolicy({ ...defaultPolicyDocument(), mode: "off" });
+    await lockAgent("agent-a");
+    expect(
+      await evaluateGovernancePolicy(
+        { toolName: "exec", params: { command: "ls" } },
+        { agentId: "agent-a" },
+      ),
+    ).toBeUndefined();
   });
 });

@@ -108,9 +108,18 @@ export async function evaluateGovernancePolicy(
       ruleId: "kill-switch",
       decision: "deny",
     });
-    return doc.mode === "monitor"
-      ? undefined
-      : { block: true, blockReason: `governance: agent "${ctx.agentId}" is locked down` };
+    // Lockdown blocks in every posture except `off`, monitor included.
+    //
+    // Monitor means "policy *decisions* are recorded, not acted on". The kill
+    // switch is not a policy decision — it is a person deciding, during an
+    // incident, that this agent stops now. Treating it as something monitor
+    // mode suspends made the emergency stop merely advisory, and once monitor
+    // became the default posture that meant a fresh installation shipped with
+    // an emergency stop that did not stop anything.
+    //
+    // `off` still exempts it, because `off` means the gate is not running at
+    // all and says so plainly.
+    return { block: true, blockReason: `governance: agent "${ctx.agentId}" is locked down` };
   }
 
   if (!spec) {

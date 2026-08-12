@@ -609,6 +609,29 @@ Requirement #3 is still met - the paper asks for a default-deny policy model,
 which this is - and the deviation is one toggle wide, stated prominently in the
 dashboard, and recorded here.
 
+**The property that makes monitor mode worth having** is that the decision
+written to the ledger is the decision the policy _reached_, not the outcome that
+occurred. Every entry marked `deny` in monitor mode is an action that would have
+been blocked under enforce. The log is therefore a truthful prediction of what
+switching posture would do, which is what allows an operator to rehearse
+enforcement before committing to it. An earlier implementation recorded `allow`
+in monitor mode on the grounds that the action had in fact proceeded; that
+produced a log which disagreed with its own reasoning and could predict nothing.
+Corrected, and covered by a test.
+
+**One thing is deliberately exempt.** Agent lockdown - the kill switch - blocks
+in every posture except `off`. Monitor suspends _policy decisions_; the kill
+switch is not one. It is an operator deciding during an incident that a specific
+agent stops now. While monitor was an opt-in posture, treating the stop as
+advisory was a tolerable quirk; the moment monitor became the default it meant
+every fresh installation shipped with an emergency stop that did not stop
+anything, so the exemption was made explicit.
+
+**Honest cost, for the evaluation chapter:** while in monitor, nothing is
+blocked. The layer is a camera, not a lock. This is why posture is displayed
+prominently rather than buried in settings - an operator must never be unclear
+about whether they are protected or merely observed.
+
 ### 4.x.11 Validating the gate against the host, not against itself
 
 Worth reporting in its own right, because it is a methodological finding rather
