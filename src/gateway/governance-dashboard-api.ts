@@ -48,6 +48,7 @@ import { readSystemStatus } from "../governance/system-status.js";
 import {
   createUser,
   deleteUser,
+  LastRootError,
   listUsers,
   setUserAssignedAgents,
   setUserRole,
@@ -55,6 +56,35 @@ import {
 import { readJsonBodyOrError, sendInvalidRequest, sendJson } from "./http-common.js";
 
 const MAX_BODY_BYTES = 8192;
+
+/**
+ * Reads a request body that must be a JSON **object**.
+ *
+ * Every route below immediately destructures the result. That is safe for an
+ * object, and safe for an empty body (the reader substitutes `{}`), but JSON's
+ * other valid top-level values are not: `const { id } = null` throws a
+ * TypeError, which escaped the handler as a 500 on all fourteen mutating
+ * routes. An array or a bare number destructures without throwing but yields
+ * `undefined` for every field, which is merely confusing rather than wrong.
+ * Rejecting the whole class here keeps each route's own validation to the
+ * fields it actually cares about.
+ *
+ * Returns `undefined` when a response has already been sent.
+ */
+async function readJsonObjectBodyOrError(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<Record<string, unknown> | undefined> {
+  const body = await readJsonBodyOrError(req, res, MAX_BODY_BYTES);
+  if (body === undefined) {
+    return undefined;
+  }
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    sendInvalidRequest(res, "request body must be a JSON object");
+    return undefined;
+  }
+  return body as Record<string, unknown>;
+}
 
 function requireRole(
   res: ServerResponse,
@@ -201,7 +231,7 @@ export async function handleGovernanceApiRequest(
     if (!requireRole(res, session, "user")) {
       return true;
     }
-    const body = await readJsonBodyOrError(req, res, MAX_BODY_BYTES);
+    const body = await readJsonObjectBodyOrError(req, res);
     if (body === undefined) {
       return true;
     }
@@ -232,7 +262,7 @@ export async function handleGovernanceApiRequest(
     if (!requireRole(res, session, "root")) {
       return true;
     }
-    const body = await readJsonBodyOrError(req, res, MAX_BODY_BYTES);
+    const body = await readJsonObjectBodyOrError(req, res);
     if (body === undefined) {
       return true;
     }
@@ -284,7 +314,7 @@ export async function handleGovernanceApiRequest(
     if (!requireRole(res, session, "user")) {
       return true;
     }
-    const body = await readJsonBodyOrError(req, res, MAX_BODY_BYTES);
+    const body = await readJsonObjectBodyOrError(req, res);
     if (body === undefined) {
       return true;
     }
@@ -339,7 +369,7 @@ export async function handleGovernanceApiRequest(
     if (!requireRole(res, session, "administrator")) {
       return true;
     }
-    const body = await readJsonBodyOrError(req, res, MAX_BODY_BYTES);
+    const body = await readJsonObjectBodyOrError(req, res);
     if (body === undefined) {
       return true;
     }
@@ -395,7 +425,7 @@ export async function handleGovernanceApiRequest(
     if (!requireRole(res, session, "administrator")) {
       return true;
     }
-    const body = await readJsonBodyOrError(req, res, MAX_BODY_BYTES);
+    const body = await readJsonObjectBodyOrError(req, res);
     if (body === undefined) {
       return true;
     }
@@ -413,7 +443,7 @@ export async function handleGovernanceApiRequest(
     if (!requireRole(res, session, "administrator")) {
       return true;
     }
-    const body = await readJsonBodyOrError(req, res, MAX_BODY_BYTES);
+    const body = await readJsonObjectBodyOrError(req, res);
     if (body === undefined) {
       return true;
     }
@@ -435,7 +465,7 @@ export async function handleGovernanceApiRequest(
     if (!requireRole(res, session, "user")) {
       return true;
     }
-    const body = await readJsonBodyOrError(req, res, MAX_BODY_BYTES);
+    const body = await readJsonObjectBodyOrError(req, res);
     if (body === undefined) {
       return true;
     }
@@ -473,7 +503,7 @@ export async function handleGovernanceApiRequest(
     if (!requireRole(res, session, "user")) {
       return true;
     }
-    const body = await readJsonBodyOrError(req, res, MAX_BODY_BYTES);
+    const body = await readJsonObjectBodyOrError(req, res);
     if (body === undefined) {
       return true;
     }
@@ -545,7 +575,7 @@ export async function handleGovernanceApiRequest(
     if (!requireRole(res, session, "user")) {
       return true;
     }
-    const body = await readJsonBodyOrError(req, res, MAX_BODY_BYTES);
+    const body = await readJsonObjectBodyOrError(req, res);
     if (body === undefined) {
       return true;
     }
@@ -597,7 +627,7 @@ export async function handleGovernanceApiRequest(
     if (!requireRole(res, session, "root")) {
       return true;
     }
-    const body = await readJsonBodyOrError(req, res, MAX_BODY_BYTES);
+    const body = await readJsonObjectBodyOrError(req, res);
     if (body === undefined) {
       return true;
     }
@@ -627,7 +657,7 @@ export async function handleGovernanceApiRequest(
     if (!requireRole(res, session, "root")) {
       return true;
     }
-    const body = await readJsonBodyOrError(req, res, MAX_BODY_BYTES);
+    const body = await readJsonObjectBodyOrError(req, res);
     if (body === undefined) {
       return true;
     }
@@ -643,9 +673,20 @@ export async function handleGovernanceApiRequest(
       sendJson(res, 409, { error: { message: roleGuard.reason, type: "would_lock_out" } });
       return true;
     }
-    if (!(await setUserRole(userId, role))) {
-      sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
-      return true;
+    // The snapshot guard above catches the ordinary case; the store re-checks
+    // the same invariant inside its write lock so two simultaneous demotions
+    // cannot both pass. That second refusal surfaces as this error.
+    try {
+      if (!(await setUserRole(userId, role))) {
+        sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
+        return true;
+      }
+    } catch (err) {
+      if (err instanceof LastRootError) {
+        sendJson(res, 409, { error: { message: err.message, type: "would_lock_out" } });
+        return true;
+      }
+      throw err;
     }
     // A role change must bind immediately, not at next login: an operator
     // demoted for cause keeps their elevated cookie otherwise.
@@ -671,7 +712,7 @@ export async function handleGovernanceApiRequest(
       });
       return true;
     }
-    const body = await readJsonBodyOrError(req, res, MAX_BODY_BYTES);
+    const body = await readJsonObjectBodyOrError(req, res);
     if (body === undefined) {
       return true;
     }
@@ -700,7 +741,7 @@ export async function handleGovernanceApiRequest(
     if (!requireRole(res, session, "root")) {
       return true;
     }
-    const body = await readJsonBodyOrError(req, res, MAX_BODY_BYTES);
+    const body = await readJsonObjectBodyOrError(req, res);
     if (body === undefined) {
       return true;
     }
@@ -714,9 +755,17 @@ export async function handleGovernanceApiRequest(
       sendJson(res, 409, { error: { message: deleteGuard.reason, type: "would_lock_out" } });
       return true;
     }
-    if (!(await deleteUser(userId))) {
-      sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
-      return true;
+    try {
+      if (!(await deleteUser(userId))) {
+        sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
+        return true;
+      }
+    } catch (err) {
+      if (err instanceof LastRootError) {
+        sendJson(res, 409, { error: { message: err.message, type: "would_lock_out" } });
+        return true;
+      }
+      throw err;
     }
     // Sessions outlive the account otherwise, for up to the session TTL.
     await revokeSessionsForUser(userId);
@@ -737,7 +786,7 @@ export async function handleGovernanceApiRequest(
     if (!requireRole(res, session, "user")) {
       return true;
     }
-    const body = await readJsonBodyOrError(req, res, MAX_BODY_BYTES);
+    const body = await readJsonObjectBodyOrError(req, res);
     if (body === undefined) {
       return true;
     }

@@ -129,6 +129,115 @@ function containsQuantifier(body: string): boolean {
   return false;
 }
 
+/** Splits a group body on top-level `|`, ignoring classes, escapes, and nesting. */
+function topLevelBranches(body: string): string[] {
+  const branches: string[] = [];
+  let depth = 0;
+  let inClass = false;
+  let start = 0;
+  for (let index = 0; index < body.length; index += 1) {
+    if (isEscaped(body, index)) {
+      continue;
+    }
+    const char = body[index];
+    if (inClass) {
+      if (char === "]") {
+        inClass = false;
+      }
+      continue;
+    }
+    if (char === "[") {
+      inClass = true;
+    } else if (char === "(") {
+      depth += 1;
+    } else if (char === ")") {
+      depth -= 1;
+    } else if (char === "|" && depth === 0) {
+      branches.push(body.slice(start, index));
+      start = index + 1;
+    }
+  }
+  branches.push(body.slice(start));
+  return branches;
+}
+
+/**
+ * A conservative signature of what a branch can start with.
+ *
+ * Two branches whose signatures collide can both consume the same next
+ * character, which is the condition for ambiguity. Deliberately coarse: any
+ * construct we do not model returns `undefined`, meaning "unknown", and unknown
+ * branches are not accused of colliding. Over-rejecting valid patterns would
+ * push operators toward catch-alls, which is a worse outcome than missing an
+ * exotic case.
+ */
+function firstTokenSignature(branch: string): string | undefined {
+  const trimmed = branch.replace(/^\(\?[:=!<][^)]*\)/, "").replace(/^\^/, "");
+  const head = trimmed[0];
+  if (head === undefined) {
+    // An empty branch — as in `(a|)+` — matches at any position, so it collides
+    // with everything.
+    return "";
+  }
+  if (head === "\\") {
+    return trimmed.slice(0, 2);
+  }
+  if (head === "[") {
+    const close = trimmed.indexOf("]", trimmed[1] === "^" ? 3 : 2);
+    return close === -1 ? undefined : trimmed.slice(0, close + 1);
+  }
+  if (head === "(" || head === "." || head === "|") {
+    return undefined;
+  }
+  return head;
+}
+
+/**
+ * True when a quantified group's alternatives overlap, e.g. `(a|a)+`, `(a|a?)+`.
+ *
+ * This is the second classic catastrophic-backtracking family and the checker
+ * originally missed it entirely: `^(a|a)+$` was accepted, and against a
+ * 28-character non-matching input it pinned a CPU core for over thirteen
+ * minutes before being killed. That matters here specifically because the
+ * pattern is written by the least-privileged tier that can author a rule and is
+ * then run, on the Gateway's only thread, against agent-controlled text — so a
+ * User with one assigned agent could hang the whole installation.
+ */
+function hasAmbiguousAlternation(pattern: string): boolean {
+  for (let index = 0; index < pattern.length; index += 1) {
+    if (pattern[index] !== "(" || isEscaped(pattern, index)) {
+      continue;
+    }
+    const end = findGroupEnd(pattern, index);
+    if (end === -1 || !isQuantified(pattern, end)) {
+      continue;
+    }
+    const inner = pattern.slice(index + 1, end);
+    const branches = topLevelBranches(inner);
+    if (branches.length < 2) {
+      continue;
+    }
+    const seen = new Set<string>();
+    for (const branch of branches) {
+      const signature = firstTokenSignature(branch);
+      if (signature === undefined) {
+        continue;
+      }
+      // An empty alternative — `(a|)+` — matches at every position, so the
+      // repetition can iterate without consuming input and every other branch
+      // overlaps it.
+      if (signature === "") {
+        return true;
+      }
+      if (seen.has(signature)) {
+        return true;
+      }
+      seen.add(signature);
+    }
+  }
+  return false;
+}
+
 /** Checks an operator-supplied rule pattern for known-dangerous constructions. */
 export function checkRegexSafety(pattern: string): RegexSafety {
   if (hasNestedQuantifier(pattern)) {
@@ -136,6 +245,13 @@ export function checkRegexSafety(pattern: string): RegexSafety {
       safe: false,
       reason:
         "pattern nests a quantifier inside a quantified group (e.g. (a+)+), which can cause catastrophic backtracking; rewrite it without the nested repetition",
+    };
+  }
+  if (hasAmbiguousAlternation(pattern)) {
+    return {
+      safe: false,
+      reason:
+        "pattern repeats a group whose alternatives can match the same text (e.g. (a|a)+), which can cause catastrophic backtracking; make the alternatives distinct or drop the repetition",
     };
   }
   return { safe: true };

@@ -28,6 +28,7 @@ import {
   type GovernancePolicyDocument,
   type GovernancePolicyRule,
   type GovernanceActiveSessionsView,
+  type GovernanceKillResult,
   type GovernancePendingDecision,
   type GovernanceRuleConflict,
   type GovernanceRuleRequest,
@@ -104,9 +105,11 @@ class GovernancePage extends OpenClawLightDomElement {
   @state() private requestKind: GovernancePolicyRule["resourceKind"] = "command";
   @state() private requestPattern = "";
   @state() private requestReason = "";
+  @state() private requestAgentId = "";
   @state() private activeSessions: GovernanceActiveSessionsView | null = null;
   /** Clash notice shown after adding a rule that an earlier rule already covers. */
   @state() private conflictNotice: GovernanceRuleConflict[] | null = null;
+  @state() private killNotice: GovernanceKillResult | null = null;
   @state() private pendingDecisions: GovernancePendingDecision[] = [];
 
   private api(): GovernanceApi {
@@ -204,6 +207,9 @@ class GovernancePage extends OpenClawLightDomElement {
           title: bootstrapping ? t("governance.login.bootstrapTitle") : t("governance.login.title"),
         },
         html`
+          ${this.error
+            ? html`<div class="settings-empty" role="alert">${this.error}</div>`
+            : nothing}
           <div class="settings-row settings-row--stacked">
             <div class="settings-row__text">
               <span class="settings-row__desc">
@@ -460,6 +466,46 @@ class GovernancePage extends OpenClawLightDomElement {
     ]);
   }
 
+  /**
+   * Engages the kill switch and keeps the evidence of what it achieved.
+   *
+   * Both call sites go through here so neither can quietly drop the outcome.
+   */
+  private async engageKillSwitch(agentId: string): Promise<void> {
+    this.killNotice = null;
+    this.killNotice = await this.api().setLockdown(agentId, true);
+  }
+
+  /**
+   * States plainly whether the in-flight run was actually stopped.
+   *
+   * "Locked down" alone is a half-truth: it guarantees the agent takes no
+   * *further* governed action, not that whatever it is doing right now has
+   * ceased. When termination was unavailable, or matched no run, the operator
+   * has to know to go and check.
+   */
+  private renderKillNotice(): TemplateResult | typeof nothing {
+    const notice = this.killNotice;
+    if (!notice) {
+      return nothing;
+    }
+    const aborted = notice.abortedRunIds?.length ?? 0;
+    if (notice.inFlightTerminationSupported === false) {
+      return html`<div class="settings-empty" role="alert">
+        ${t("governance.kill.noticeNoTermination")}
+      </div>`;
+    }
+    if (aborted === 0) {
+      return html`<div class="settings-empty" role="alert">
+        ${t("governance.kill.noticeNoRuns")}
+      </div>`;
+    }
+    return html`<div class="settings-empty" role="status">
+      ${t("governance.kill.noticeStopped")} ${aborted}
+      ${notice.elapsedMs === undefined ? nothing : html`(${notice.elapsedMs}ms)`}
+    </div>`;
+  }
+
   private renderConflictNotice(): TemplateResult | typeof nothing {
     const conflicts = this.conflictNotice;
     if (!conflicts || conflicts.length === 0) {
@@ -566,7 +612,7 @@ class GovernancePage extends OpenClawLightDomElement {
                 ? html`<button
                     class="btn btn--danger"
                     ?disabled=${this.busy}
-                    @click=${() => this.run(() => this.api().setLockdown(entry.agentId, true))}
+                    @click=${() => this.run(() => this.engageKillSwitch(entry.agentId))}
                   >
                     ${t("governance.sessions.stop")}
                   </button>`
@@ -683,7 +729,17 @@ class GovernancePage extends OpenClawLightDomElement {
       ...pending.map((request) =>
         renderSettingsRow({
           title: html`<code>${request.pattern}</code>`,
-          description: `${request.resourceKind} · ${t("governance.requests.by")} ${request.requestedBy} — ${request.reason}`,
+          // Scope is stated first and unambiguously. An approver deciding from
+          // pattern and reason alone cannot tell a single-agent request from
+          // one that will bind every agent in the installation, and those are
+          // very different decisions.
+          description: html`${renderSettingsStatus(
+            request.agentId
+              ? { kind: "ok", label: `${t("governance.requests.scopeAgent")} ${request.agentId}` }
+              : { kind: "warn", label: t("governance.requests.scopeGlobal") },
+          )}
+          ${request.resourceKind} · ${t("governance.requests.by")} ${request.requestedBy} —
+          ${request.reason}`,
           control: canDecide
             ? html`
                 <div class="settings-row__control" style="gap:0.5rem">
@@ -760,18 +816,35 @@ class GovernancePage extends OpenClawLightDomElement {
                     this.requestReason = (e.target as HTMLInputElement).value;
                   }}
                 />
+                <input
+                  class="input"
+                  type="text"
+                  aria-label=${t("governance.requests.agentLabel")}
+                  placeholder=${t("governance.requests.agentPlaceholder")}
+                  .value=${this.requestAgentId}
+                  @input=${(e: Event) => {
+                    this.requestAgentId = (e.target as HTMLInputElement).value;
+                  }}
+                />
                 <button
                   class="btn btn--primary"
                   ?disabled=${this.busy || !this.requestPattern || !this.requestReason}
                   @click=${() =>
                     this.run(async () => {
+                      const agentId = this.requestAgentId.trim();
                       await this.api().submitRuleRequest({
                         resourceKind: this.requestKind,
                         pattern: this.requestPattern,
                         reason: this.requestReason,
+                        // Sent only when non-empty: an empty string would be a
+                        // request for an agent literally named "", whereas an
+                        // absent field is the deliberate "installation-wide"
+                        // choice the server understands.
+                        ...(agentId ? { agentId } : {}),
                       });
                       this.requestPattern = "";
                       this.requestReason = "";
+                      this.requestAgentId = "";
                     })}
                 >
                   ${t("governance.requests.submitButton")}
@@ -941,7 +1014,7 @@ class GovernancePage extends OpenClawLightDomElement {
               ?disabled=${this.busy || !this.killAgentId}
               @click=${() =>
                 this.run(async () => {
-                  await this.api().setLockdown(this.killAgentId, true);
+                  await this.engageKillSwitch(this.killAgentId.trim());
                   this.killAgentId = "";
                 })}
             >
@@ -976,7 +1049,7 @@ class GovernancePage extends OpenClawLightDomElement {
     return renderSettingsPage(
       html`
         ${this.error ? html`<div class="settings-empty" role="alert">${this.error}</div>` : nothing}
-        ${this.renderConflictNotice()} ${this.renderIdentityRow()}
+        ${this.renderKillNotice()} ${this.renderConflictNotice()} ${this.renderIdentityRow()}
         ${this.renderPendingDecisionsSection()} ${this.renderActiveSessionsSection()}
         ${this.renderPolicySection()} ${this.renderLedgerSection()}
         ${this.renderRuleRequestsSection()} ${this.renderSystemSection()}

@@ -28,7 +28,7 @@ const NOW = 1_800_000_000_000;
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-expiry-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
-  await savePolicy({ ...defaultPolicyDocument(), ask: "off" });
+  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
 });
 
 afterEach(async () => {

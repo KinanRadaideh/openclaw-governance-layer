@@ -92,10 +92,37 @@ export type PolicyDocument = {
  */
 export const DEFAULT_HITL_TIMEOUT_SECONDS = 300;
 
+/**
+ * The policy a fresh installation starts with.
+ *
+ * Posture is `monitor`, not `enforce`, and that is a deliberate decision rather
+ * than a weakening.
+ *
+ * The rule *semantics* are default-deny either way: no rule means no
+ * permission, and monitor mode records exactly the verdict enforce would have
+ * reached. What differs is whether the verdict is acted on. Starting in
+ * `enforce` with an empty allowlist means every governed action is refused from
+ * the first second — the agent cannot read a file or run a command until
+ * somebody has written rules for work they have not yet observed. That is not a
+ * secure default so much as an unusable one, and an unusable control gets
+ * switched off wholesale, which is strictly worse than one that starts by
+ * watching.
+ *
+ * It also had a concrete cost that went unnoticed: because this default applies
+ * whenever no policy file exists, it silently changed the behaviour of
+ * OpenClaw's own test suite, regressing 19 tests in the native-harness relay
+ * that had nothing to do with governance.
+ *
+ * Monitor mode is what produces the evidence needed to write the first rules —
+ * a real log of what the agent actually does — which is what
+ * `docs-notes/WRITING-PERMISSIONS.md` already instructs operators to do before
+ * enforcing. Switching to enforce is one toggle, and the dashboard states the
+ * current posture prominently.
+ */
 export function defaultPolicyDocument(): PolicyDocument {
   return {
     version: 1,
-    mode: "enforce",
+    mode: "monitor",
     ask: "on-miss",
     agentAsk: {},
     hitlTimeoutSeconds: DEFAULT_HITL_TIMEOUT_SECONDS,

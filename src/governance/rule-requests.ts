@@ -65,7 +65,10 @@ function pruneDecided(requests: RuleRequest[]): RuleRequest[] {
   const decided = requests.filter((request) => request.status !== "pending");
   const keepDecided = Math.max(0, MAX_STORED_RULE_REQUESTS - pending.length);
   // `requests` is append-ordered, so the tail is the most recent.
-  return [...pending, ...decided.slice(-keepDecided)];
+  // `slice(-0)` is `slice(0)` — the whole array, not an empty one. Once pending
+  // filled the budget this silently returned every decided request ever made
+  // and the cap stopped existing.
+  return [...pending, ...(keepDecided === 0 ? [] : decided.slice(-keepDecided))];
 }
 
 async function ensureHomeDir(): Promise<void> {

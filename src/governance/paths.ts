@@ -6,12 +6,40 @@
 // touch a real operator's governance state, and so a deployment can place the
 // ledger on separate storage (e.g. an append-only or remote-backed volume)
 // without a code change.
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+
+/**
+ * Per-process sandbox used when a test forgets to set the override.
+ *
+ * The override was documented as the thing that keeps tests off real operator
+ * state, but that only held for tests that knew to set it. Governance is
+ * evaluated inside `runBeforeToolCallHook`, so *every* pre-existing OpenClaw
+ * test that drives a tool call reaches it — and those tests predate governance
+ * and set nothing. In practice they were reading the developer's live
+ * `policy.json` (making unrelated test outcomes depend on local rules) and
+ * appending to the real audit ledger, which had grown to 340 KB of test noise
+ * inside a file whose entire purpose is being a trustworthy record.
+ *
+ * Under a test runner with no override, fall back to a throwaway directory
+ * instead of the home tree, so the documented guarantee is actually true.
+ */
+let testSandboxDir: string | undefined;
+
+function isTestRun(): boolean {
+  return Boolean(process.env.VITEST || process.env.VITEST_WORKER_ID);
+}
 
 export function governanceHomeDir(): string {
   const override = process.env.OPENCLAW_GOVERNANCE_DIR?.trim();
-  return override ? override : join(homedir(), ".openclaw", "governance");
+  if (override) {
+    return override;
+  }
+  if (isTestRun()) {
+    testSandboxDir ??= join(tmpdir(), `openclaw-governance-test-${process.pid}`);
+    return testSandboxDir;
+  }
+  return join(homedir(), ".openclaw", "governance");
 }
 
 export function usersFilePath(): string {

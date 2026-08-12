@@ -25,7 +25,9 @@ let dir: string;
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-r3-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
-  await savePolicy(defaultPolicyDocument());
+  // The shipped default posture is `monitor` so a fresh install is not bricked;
+  // these authorization checks is about enforcement, so it says so explicitly.
+  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce" });
   clearActiveSessionsSupplier();
 });
 

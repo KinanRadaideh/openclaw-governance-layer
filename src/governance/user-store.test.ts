@@ -161,6 +161,9 @@ describe("session tokens", () => {
 
   it("propagates a role change into an already-issued session", async () => {
     const user = await createUser({ username: "frank", password: "pw12345678", role: "root" });
+    // A second Root so the demotion below is a legitimate operation rather than
+    // one the store refuses for stranding the installation without a Root.
+    await createUser({ username: "grace", password: "pw12345678", role: "root" });
     const session = await issueSession({ id: user.id, username: user.username, role: user.role });
     await setUserRole(user.id, "viewer");
     await updateSessionsRoleForUser(user.id, "viewer");

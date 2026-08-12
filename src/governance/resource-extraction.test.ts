@@ -11,7 +11,7 @@ let dir: string;
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-extract-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
-  await savePolicy({ ...defaultPolicyDocument(), ask: "off" });
+  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
 });
 
 afterEach(async () => {
@@ -54,7 +54,7 @@ describe("resource extraction edge cases", () => {
   it("matches path rules written with forward slashes on Windows-style paths", async () => {
     await addRule({ resourceKind: "path", pattern: "^src/allowed[.]ts$" });
     const decision = await evaluateGovernancePolicy(
-      { toolName: "write_file", params: { path: "src\\allowed.ts" } },
+      { toolName: "write", params: { path: "src\\allowed.ts" } },
       ctx,
     );
     expect(verdict(decision)).toBe("allow");
@@ -64,15 +64,12 @@ describe("resource extraction edge cases", () => {
     await addRule({ resourceKind: "path", pattern: "^ok[.]txt$" });
     expect(
       verdict(
-        await evaluateGovernancePolicy({ toolName: "read_file", params: { path: "ok.txt" } }, ctx),
+        await evaluateGovernancePolicy({ toolName: "read", params: { path: "ok.txt" } }, ctx),
       ),
     ).toBe("allow");
     expect(
       verdict(
-        await evaluateGovernancePolicy(
-          { toolName: "read_file", params: { file_path: "ok.txt" } },
-          ctx,
-        ),
+        await evaluateGovernancePolicy({ toolName: "read", params: { file_path: "ok.txt" } }, ctx),
       ),
     ).toBe("allow");
   });

@@ -101,6 +101,16 @@ export type GovernanceRuleRequest = {
   decidedBy?: string;
   decidedAt?: string;
   createdRuleId?: string;
+  /**
+   * Agent the request is for; absent means installation-wide.
+   *
+   * Omitting this field from the client type is what silently turned every
+   * dashboard-submitted request into a global grant: the server scopes the
+   * approved rule from `pending.agentId`, so a request that never carried one
+   * was approved as a rule binding every agent. The approver saw only the
+   * pattern and had no way to tell.
+   */
+  agentId?: string;
 };
 
 export type GovernanceSystemStatus = {
@@ -126,6 +136,23 @@ export type GovernanceUserRecord = {
 };
 
 const BASE = "/control-ui/governance";
+
+/**
+ * What the kill switch actually achieved.
+ *
+ * The lockdown always lands — it is a policy write. Terminating the run already
+ * in flight is separate and can fail to be available at all (no terminator
+ * registered: the gateway is still starting, or the request came from a context
+ * that does not own the run registry). Discarding this and reporting a flat
+ * success let the console show "locked down" while the runaway run kept going,
+ * which is the exact opposite of what an emergency stop must communicate.
+ */
+export type GovernanceKillResult = {
+  ok: true;
+  elapsedMs?: number;
+  abortedRunIds?: string[];
+  inFlightTerminationSupported?: boolean;
+};
 
 export class GovernanceApi {
   constructor(
@@ -241,8 +268,11 @@ export class GovernanceApi {
     });
   }
 
-  setLockdown(agentId: string, locked: boolean): Promise<{ ok: true }> {
-    return this.request<{ ok: true }>("kill", { method: "POST", body: { agentId, locked } });
+  setLockdown(agentId: string, locked: boolean): Promise<GovernanceKillResult> {
+    return this.request<GovernanceKillResult>("kill", {
+      method: "POST",
+      body: { agentId, locked },
+    });
   }
 
   listPendingDecisions(): Promise<GovernancePendingDecision[]> {
@@ -280,6 +310,8 @@ export class GovernanceApi {
     resourceKind: GovernancePolicyRule["resourceKind"];
     pattern: string;
     reason: string;
+    /** Omit only when deliberately asking for an installation-wide rule. */
+    agentId?: string;
   }): Promise<GovernanceRuleRequest> {
     return this.request<GovernanceRuleRequest>("rule-requests", { method: "POST", body: input });
   }

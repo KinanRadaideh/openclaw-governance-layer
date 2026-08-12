@@ -65,7 +65,26 @@ export function getBeforeToolCallPolicyDiagnosticState(): BeforeToolCallPolicyDi
   };
 }
 
-/** Return true when any before_tool_call policy could affect tool execution. */
+/**
+ * Return true when any before_tool_call policy could affect tool execution.
+ *
+ * NOTE (governance, unresolved): this reports only *plugin* policies, and it
+ * gates whether the native (Codex) harness relays `pre_tool_use` at all —
+ * `shouldRelayEvent` in src/agents/harness/native-hook-relay-events.ts. On a
+ * plugin-free install with the app-server backend and loop-detection relay
+ * disabled, it answers false, the relay is skipped, and those sessions execute
+ * tools without ever entering `runBeforeToolCallHook`: no governance gate, no
+ * ledger entry, no kill switch.
+ *
+ * Making it return true unconditionally does close the hole, but it also forces
+ * the relay on in configurations that deliberately disable it, and it fails 30
+ * existing harness tests that pin exactly that behaviour. Correcting it
+ * properly means teaching the relay layer about governance as a distinct signal
+ * from plugin policies, and revising those tests — a change to host behaviour
+ * that deserves its own commit rather than being smuggled into a QA pass.
+ * Tracked in GOVERNANCE.md as an open finding; in-process (non-Codex) sessions,
+ * which is every configuration used so far, are unaffected.
+ */
 export function hasBeforeToolCallPolicy(): boolean {
   const state = getBeforeToolCallPolicyDiagnosticState();
   return state.hasBeforeToolCallHook || state.trustedToolPolicies.length > 0;
@@ -184,6 +203,7 @@ export async function runBeforeToolCallHook(args: {
         params,
       };
     }
+    let governanceApprovalResolution: PluginApprovalResolution | undefined;
     if (governanceDecision && "requireApproval" in governanceDecision) {
       const governanceApprovalOutcome = await resolveBeforeToolCallApprovalOutcome({
         result: governanceDecision,
@@ -195,7 +215,20 @@ export async function runBeforeToolCallHook(args: {
         baseParams: params,
       });
       if (governanceApprovalOutcome) {
-        return governanceApprovalOutcome;
+        // Only a refusal or a deferral ends the chain here. A *granted*
+        // governance approval must fall through to every layer below —
+        // skill-workshop approval, voice confirmation, trusted tool policies,
+        // and plugin hooks — exactly as the trusted-policy and hook branches
+        // further down already do.
+        //
+        // Returning unconditionally meant a human clicking "Allow once" on a
+        // governance escalation silently bypassed all of them, so installing
+        // this security layer could turn a call that another layer would have
+        // vetoed into one that runs. A gate must never be able to widen access.
+        if (governanceApprovalOutcome.blocked || governanceApprovalOutcome.deferredApproval) {
+          return governanceApprovalOutcome;
+        }
+        governanceApprovalResolution = governanceApprovalOutcome.approvalResolution;
       }
     }
     const initialCorePolicyResult = await resolveSkillWorkshopToolApproval({
@@ -357,8 +390,9 @@ export async function runBeforeToolCallHook(args: {
         blocked: false as const,
         params: policyAdjustedParams,
       };
-      if (trustedApprovalResolution) {
-        allowed.approvalResolution = trustedApprovalResolution;
+      const earlyResolution = trustedApprovalResolution ?? governanceApprovalResolution;
+      if (earlyResolution) {
+        allowed.approvalResolution = earlyResolution;
       }
       return allowed;
     }
@@ -388,7 +422,7 @@ export async function runBeforeToolCallHook(args: {
     }
 
     let finalParams = policyAdjustedParams;
-    let finalApprovalResolution = trustedApprovalResolution;
+    let finalApprovalResolution = trustedApprovalResolution ?? governanceApprovalResolution;
     if (hookResult?.requireApproval) {
       const approvalOutcome = await resolveBeforeToolCallApprovalOutcome({
         result: hookResult,

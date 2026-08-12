@@ -14,7 +14,7 @@
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 15 * 60 * 1000;
 const LOCKOUT_MS = 15 * 60 * 1000;
-const MAX_TRACKED_KEYS = 1000;
+export const MAX_TRACKED_KEYS = 1000;
 
 type AttemptRecord = { failures: number; firstFailureAtMs: number; lockedUntilMs?: number };
 
@@ -30,13 +30,47 @@ function prune(nowMs: number): void {
     }
   }
   // Bound memory even under a distributed guessing attempt.
-  while (attempts.size > MAX_TRACKED_KEYS) {
-    const oldest = attempts.keys().next().value;
-    if (oldest === undefined) {
-      break;
+  //
+  // Locked records are evicted last. Map iteration is insertion-ordered and
+  // `record.failures += 1` mutates in place without re-inserting, so an account
+  // under active attack stays pinned at the *front* of the queue — meaning the
+  // naive "delete the oldest key" was guaranteed to throw away the attacker's
+  // own lockout first. Five failed guesses against `root`, then a thousand
+  // logins with throwaway usernames, and the lockout was gone: the bound
+  // intended to protect memory was a complete bypass of the throttle.
+  if (attempts.size > MAX_TRACKED_KEYS) {
+    for (const [key, record] of attempts) {
+      if (attempts.size <= MAX_TRACKED_KEYS) {
+        break;
+      }
+      if (record.lockedUntilMs === undefined || record.lockedUntilMs <= nowMs) {
+        attempts.delete(key);
+      }
     }
-    attempts.delete(oldest);
+    // Still over budget means every record is an active lockout. Shedding the
+    // oldest of those is the only remaining option, and it is the safe end to
+    // shed from: it expires soonest anyway.
+    while (attempts.size > MAX_TRACKED_KEYS) {
+      const oldest = attempts.keys().next().value;
+      if (oldest === undefined) {
+        break;
+      }
+      attempts.delete(oldest);
+    }
   }
+}
+
+/**
+ * Canonical throttle key for a submitted username.
+ *
+ * Must fold the same way account lookup does. It previously used only
+ * `trim().toLowerCase()` while `user-store` resolved accounts through NFKC, so
+ * `adｍin` (fullwidth U+FF4D) authenticated against the real `admin` account
+ * while counting against a *separate* throttle bucket — one fresh five-attempt
+ * quota per Unicode variant, of which there are thousands.
+ */
+export function loginThrottleKey(username: string): string {
+  return username.normalize("NFKC").trim().toLowerCase();
 }
 
 export type ThrottleState = { allowed: boolean; retryAfterSeconds?: number };

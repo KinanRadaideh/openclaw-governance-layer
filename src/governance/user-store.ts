@@ -161,6 +161,47 @@ export async function createUser(input: CreateUserInput): Promise<GovernanceUser
   });
 }
 
+/**
+ * Thrown when a write would leave the installation with no Root account.
+ *
+ * The guard also runs at the API boundary against a snapshot, which is enough
+ * for a single request but not for two arriving together: both read "2 roots",
+ * both pass, both write, and the installation is left with zero Roots — with no
+ * password reset and no second bootstrap, that is unrecoverable. The invariant
+ * therefore has to be re-checked inside the same lock as the write, exactly as
+ * `onlyAsFirstAccount` does for creation.
+ */
+export class LastRootError extends Error {
+  constructor() {
+    super("This would remove the last Root account");
+    this.name = "LastRootError";
+  }
+}
+
+/**
+ * True when a change to one account would strand the installation with no Root.
+ *
+ * "No Roots" is only unrecoverable while *other* accounts survive: bootstrap
+ * refuses to run once any account exists, and there is no password reset. If
+ * the change empties the account list entirely, bootstrap becomes available
+ * again, so that case is deliberately allowed — it is a teardown, not a
+ * lockout.
+ */
+function wouldStrandWithoutRoot(
+  users: readonly GovernanceUser[],
+  userId: string,
+  nextRole: GovernanceRole | "deleted",
+): boolean {
+  if (!users.some((u) => u.id === userId)) {
+    return false;
+  }
+  const remaining = users.filter((u) => !(u.id === userId && nextRole === "deleted"));
+  if (remaining.length === 0) {
+    return false;
+  }
+  return !remaining.some((u) => (u.id === userId ? nextRole === "root" : u.role === "root"));
+}
+
 export async function setUserRole(userId: string, role: GovernanceRole): Promise<boolean> {
   await ensureHomeDir();
   return withFileLock(usersFilePath(), async () => {
@@ -168,6 +209,9 @@ export async function setUserRole(userId: string, role: GovernanceRole): Promise
     const user = file.users.find((u) => u.id === userId);
     if (!user) {
       return false;
+    }
+    if (wouldStrandWithoutRoot(file.users, userId, role)) {
+      throw new LastRootError();
     }
     user.role = role;
     await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });
@@ -201,6 +245,9 @@ export async function deleteUser(userId: string): Promise<boolean> {
   await ensureHomeDir();
   return withFileLock(usersFilePath(), async () => {
     const file = await readUsersFile();
+    if (wouldStrandWithoutRoot(file.users, userId, "deleted")) {
+      throw new LastRootError();
+    }
     const before = file.users.length;
     file.users = file.users.filter((u) => u.id !== userId);
     await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });

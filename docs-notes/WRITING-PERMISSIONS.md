@@ -262,11 +262,11 @@ Copy, adapt, and always keep the anchors.
 
 **Network**
 
-| Goal                      | Pattern                           |
-| ------------------------- | --------------------------------- |
-| One host                  | `^api[.]example[.]com$`           |
-| A host and its subdomains | `^([a-z0-9-]+[.])*example[.]com$` |
-| Two specific hosts        | `^(api\|cdn)[.]example[.]com$`    |
+| Goal                      | Pattern                            |
+| ------------------------- | ---------------------------------- |
+| One host                  | `^api[.]example[.]com$`            |
+| A host and its subdomains | `^([a-z0-9.-]+[.])?example[.]com$` |
+| Two specific hosts        | `^(api\|cdn)[.]example[.]com$`     |
 
 ---
 

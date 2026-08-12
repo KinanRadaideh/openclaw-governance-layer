@@ -580,6 +580,35 @@ hard to read at a glance — the opposite of what an oversight tool should do.
 Clearing an override is distinct from pinning it to the current default: a
 cleared agent follows future changes to the default, a pinned one does not.
 
+### 4.x.12 Default posture: why the shipped default is monitor
+
+A default-deny control has a real dilemma at install time. The rule semantics
+say "no rule, no permission", and on a fresh install there are no rules - so a
+literal reading refuses everything the moment the layer is switched on.
+
+The first implementation did exactly that, and the consequence was measurable
+rather than theoretical: it regressed 19 of OpenClaw's own tests, because the
+default applies whenever no policy file exists. An operator installing the fork
+would have found an agent unable to read a file or run a command, and no way to
+write sensible rules, because they had no record of what the agent needed.
+
+The shipped default is now `monitor`. The distinction worth drawing in the
+report is between the _policy semantics_ and the _enforcement posture_:
+
+- **Semantics stay default-deny.** An unmatched action is recorded as `deny` -
+  the verdict the policy actually reached. Nothing is treated as permitted.
+- **Posture starts at observe.** That verdict is recorded rather than acted on.
+
+Monitor mode therefore produces precisely the artefact needed to author the
+first real ruleset: a truthful log of what the agent does and what enforcement
+would have blocked. This is the standard progression for deployed security
+controls, and it is what this project's own operator guide already instructs
+readers to do before enforcing.
+
+Requirement #3 is still met - the paper asks for a default-deny policy model,
+which this is - and the deviation is one toggle wide, stated prominently in the
+dashboard, and recorded here.
+
 ### 4.x.11 Validating the gate against the host, not against itself
 
 Worth reporting in its own right, because it is a methodological finding rather

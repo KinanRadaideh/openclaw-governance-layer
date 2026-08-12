@@ -3596,12 +3596,21 @@ export const en: TranslationMap = {
       emptyHint: "A User can request access here when an action outside their scope is denied.",
       submit: "Request a rule",
       submitHint:
-        "Ask an Administrator to allow something outside the agents you manage. Approving creates the rule.",
+        "Ask an Administrator to allow something outside the agents you manage. Approving creates the rule. Naming an agent scopes the rule to it; leaving the agent blank asks for a rule binding every agent.",
       reasonPlaceholder: "Why do you need this?",
+      agentLabel: "Agent this request is for",
+      agentPlaceholder: "Agent id (blank = every agent)",
+      scopeAgent: "for agent",
+      scopeGlobal: "EVERY AGENT",
       submitButton: "Submit request",
     },
     kill: {
       title: "Emergency kill switch",
+      noticeStopped: "Lockdown engaged. In-flight runs aborted:",
+      noticeNoRuns:
+        "Lockdown engaged, but no in-flight run matched that agent id. The agent will be blocked from further actions; check whether the id is correct and whether anything is still executing.",
+      noticeNoTermination:
+        "Lockdown engaged, but in-flight termination is unavailable here — anything the agent is doing right now continues until it finishes. Further actions are blocked.",
       engage: "Lock down an agent",
       hint: "Immediately denies every future governed action from this agent. Root only.",
       agentIdPlaceholder: "Agent id",

@@ -22,7 +22,7 @@ beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-qa5-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
   resetLedgerCursorForTests();
-  await savePolicy({ ...defaultPolicyDocument(), ask: "off" });
+  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
 });
 
 afterEach(async () => {
@@ -143,7 +143,7 @@ describe("an approved escalation grants only what was reviewed", () => {
     // The HITL prompt names one agent. Creating a global rule from that answer
     // grants every other agent the same access, which is broader than what the
     // approver was shown.
-    await savePolicy({ ...defaultPolicyDocument(), ask: "on-miss" });
+    await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "on-miss" });
     const decision = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "npm test" } },
       ctx,

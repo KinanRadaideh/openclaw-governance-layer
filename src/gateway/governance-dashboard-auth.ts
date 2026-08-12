@@ -10,6 +10,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   checkLoginAllowed,
+  loginThrottleKey,
   recordLoginFailure,
   recordLoginSuccess,
 } from "../governance/login-throttle.js";
@@ -121,7 +122,7 @@ export async function handleGovernanceAuthRequest(
     }
     // Throttle per username so guessing one account cannot be parallelised,
     // and a flood against many accounts cannot lock out a single victim.
-    const throttleKey = username.trim().toLowerCase();
+    const throttleKey = loginThrottleKey(username);
     const throttle = checkLoginAllowed(throttleKey);
     if (!throttle.allowed) {
       if (throttle.retryAfterSeconds !== undefined) {

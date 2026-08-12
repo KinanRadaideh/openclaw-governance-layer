@@ -21,7 +21,7 @@ beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-cr-sec-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
   resetLedgerCursorForTests();
-  await savePolicy({ ...defaultPolicyDocument(), ask: "off" });
+  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
 });
 
 afterEach(async () => {
