@@ -253,6 +253,10 @@ door is not a gate.
 
 ### Sixth QA pass (multi-agent audit)
 
+> A plain-language walkthrough of this round — what broke, why it mattered, and
+> what was done — is in `docs-notes/QA-IN-PLAIN-TERMS.md`. This table is the
+> engineering record; that document is the explanation.
+
 Four independent auditors were run in parallel over separate areas - the
 integration seam with OpenClaw core, the dashboard UI, the domain modules, and
 the test suite itself - each instructed to report only findings backed by a
