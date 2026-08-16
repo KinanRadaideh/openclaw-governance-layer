@@ -3,11 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  MAX_PENDING_REQUESTS_PER_USER,
+  attachCreatedRule,
   decideRuleRequest,
   findPendingRuleRequest,
   listRuleRequests,
+  reopenRuleRequest,
   submitRuleRequest,
-  MAX_PENDING_REQUESTS_PER_USER,
 } from "./rule-requests.js";
 
 let dir: string;
@@ -122,5 +124,80 @@ describe("rule requests", () => {
       ),
     );
     expect(await listRuleRequests()).toHaveLength(10);
+  });
+});
+
+describe("two administrators deciding at once", () => {
+  it("only one approval wins, and only one rule is created", async () => {
+    // Before the fix the rule was created *before* the decision was claimed, so
+    // both callers passed the pending check, both created a rule, and the loser
+    // still got a success. The installation ended up with a duplicate
+    // permission and an orphaned rule nothing referenced.
+    const request = await submitRuleRequest({
+      resourceKind: "command",
+      pattern: "^git status$",
+      reason: "build check",
+      requestedBy: "malek",
+    });
+    const results = await Promise.all([
+      decideRuleRequest({ id: request.id, approve: true, decidedBy: "kinan" }),
+      decideRuleRequest({ id: request.id, approve: true, decidedBy: "malek-admin" }),
+    ]);
+    const winners = results.filter(Boolean);
+    expect(winners).toHaveLength(1);
+  });
+
+  it("a decision is single-shot even when the two disagree", async () => {
+    const request = await submitRuleRequest({
+      resourceKind: "command",
+      pattern: "^curl .*$",
+      reason: "fetch",
+      requestedBy: "malek",
+    });
+    const [first, second] = await Promise.all([
+      decideRuleRequest({ id: request.id, approve: true, decidedBy: "kinan" }),
+      decideRuleRequest({ id: request.id, approve: false, decidedBy: "other" }),
+    ]);
+    expect([first, second].filter(Boolean)).toHaveLength(1);
+    const stored = (await listRuleRequests()).find((entry) => entry.id === request.id);
+    // Whichever landed, the stored state must be one of the two decisions and
+    // not some blend of them.
+    expect(["approved", "rejected"]).toContain(stored?.status);
+  });
+
+  it("reopening returns a claimed request to the queue", async () => {
+    // Used when the rule could not be created after the decision was claimed:
+    // without it the requester is told yes, still cannot act, and no
+    // administrator sees the request any more.
+    const request = await submitRuleRequest({
+      resourceKind: "command",
+      pattern: "^ls$",
+      reason: "listing",
+      requestedBy: "malek",
+    });
+    await decideRuleRequest({ id: request.id, approve: true, decidedBy: "kinan" });
+    await attachCreatedRule(request.id, "rule-123");
+    await reopenRuleRequest(request.id);
+    const stored = (await listRuleRequests()).find((entry) => entry.id === request.id);
+    expect(stored?.status).toBe("pending");
+    expect(stored?.decidedBy).toBeUndefined();
+    expect(stored?.createdRuleId).toBeUndefined();
+    // And it can be decided again.
+    expect(
+      await decideRuleRequest({ id: request.id, approve: true, decidedBy: "kinan" }),
+    ).toBeDefined();
+  });
+
+  it("records the rule id against the request it came from", async () => {
+    const request = await submitRuleRequest({
+      resourceKind: "command",
+      pattern: "^ls$",
+      reason: "listing",
+      requestedBy: "malek",
+    });
+    await decideRuleRequest({ id: request.id, approve: true, decidedBy: "kinan" });
+    await attachCreatedRule(request.id, "rule-abc");
+    const stored = (await listRuleRequests()).find((entry) => entry.id === request.id);
+    expect(stored?.createdRuleId).toBe("rule-abc");
   });
 });

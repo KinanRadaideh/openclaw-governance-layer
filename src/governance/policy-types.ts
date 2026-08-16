@@ -15,9 +15,35 @@ export type AskMode = "off" | "on-miss";
 /** The three resource families the policy engine understands how to gate. */
 export type ResourceKind = "command" | "path" | "network";
 
+/**
+ * Which of the three shipped tiers a rule belongs to.
+ *
+ * `core` rules are immutable and reasserted from source on every load; the
+ * other two live in `policy.json` and can be edited. Absent means `admin`, so
+ * every rule written before tiers existed keeps its meaning.
+ */
+export type RuleTier = "core" | "baseline" | "admin";
+
+/**
+ * Whether a rule grants or forbids.
+ *
+ * The language was allow-only, because denial was the default and needed no
+ * expression. The supervisor's three-tier model requires restrictions that
+ * survive a later broad grant — "credential access is refused, whatever else
+ * anybody permits" — and an allow-only language cannot say that: adding rules
+ * could only ever widen access.
+ *
+ * Absent means `allow`, so every existing rule keeps its meaning.
+ */
+export type RuleEffect = "allow" | "deny";
+
 export type PolicyRule = {
   id: string;
   resourceKind: ResourceKind;
+  /** Absent means `allow` — see `RuleEffect`. */
+  effect?: RuleEffect;
+  /** Absent means `admin` — see `RuleTier`. */
+  tier?: RuleTier;
   /** Regular expression (string form) tested against the extracted resource string. */
   pattern: string;
   description?: string;
@@ -66,7 +92,40 @@ export type PolicyDocument = {
    * to reason about at a glance — the opposite of what an oversight tool
    * should do.
    */
+  /**
+   * Per-agent posture overrides, used to switch one agent into `monitor`.
+   *
+   * Monitor is no longer the shipped default (see `defaultPolicyDocument`); it
+   * is an opt-in observation tool. Making it per-agent means an operator can
+   * watch one agent's behaviour while the rest of the installation stays
+   * enforcing, which is what makes it usable for policy discovery rather than a
+   * blunt instrument.
+   *
+   * Authority follows the existing tiers with no new machinery: a User may set
+   * it for an agent assigned to them, an Administrator for any agent or
+   * installation-wide, and Root inherits both.
+   */
+  agentMode: Record<string, GovernanceMode>;
   agentAsk: Record<string, AskMode>;
+  /**
+   * Per-**user** overrides of `ask`, set by Root.
+   *
+   * Chapter 1 §1.6 puts this toggle on two axes: an Administrator sets it for
+   * specific *agents*, and Root sets it for specific *users*. Only the agent
+   * axis was built, so the paper described a capability the system did not have
+   * (QA finding A4).
+   *
+   * The two axes answer different questions. Per-agent asks "how much do we
+   * trust this agent's behaviour?" — a property of the workload. Per-user asks
+   * "how much do we trust this person's judgement when they act through an
+   * agent?" — a property of the operator. A new hire and a senior engineer
+   * driving the same agent are exactly the case the second axis exists for, and
+   * no amount of per-agent configuration expresses it.
+   *
+   * Precedence is deliberate and is documented in `resolveAskMode`: the
+   * stricter of the two wins.
+   */
+  userAsk: Record<string, AskMode>;
   /**
    * How long an escalation waits for a human before timing out, in seconds.
    *
@@ -95,36 +154,33 @@ export const DEFAULT_HITL_TIMEOUT_SECONDS = 300;
 /**
  * The policy a fresh installation starts with.
  *
- * Posture is `monitor`, not `enforce`, and that is a deliberate decision rather
- * than a weakening.
+ * **`enforce`, with rules already in it.** The previous default was `monitor`,
+ * and the reasoning was sound as far as it went: `enforce` with an empty
+ * allowlist refuses every action, the agent cannot read a file or run a command
+ * until somebody writes rules for work they have not yet observed, and an
+ * unusable control gets switched off wholesale — which is strictly worse than
+ * one that starts by watching.
  *
- * The rule *semantics* are default-deny either way: no rule means no
- * permission, and monitor mode records exactly the verdict enforce would have
- * reached. What differs is whether the verdict is acted on. Starting in
- * `enforce` with an empty allowlist means every governed action is refused from
- * the first second — the agent cannot read a file or run a command until
- * somebody has written rules for work they have not yet observed. That is not a
- * secure default so much as an unusable one, and an unusable control gets
- * switched off wholesale, which is strictly worse than one that starts by
- * watching.
+ * The flaw was in the premise, not the reasoning. `enforce` is only unusable
+ * when it starts *empty*. Shipping a starting policy (see baseline-policy.ts)
+ * makes the agent useful from the first second and restricted from the first
+ * second, which is what the report's default-deny posture actually claims. The
+ * observation period that monitor provided is still available — as an opt-in
+ * tool for discovering rules, per agent, rather than as the price of a usable
+ * installation.
  *
- * It also had a concrete cost that went unnoticed: because this default applies
- * whenever no policy file exists, it silently changed the behaviour of
- * OpenClaw's own test suite, regressing 19 tests in the native-harness relay
- * that had nothing to do with governance.
- *
- * Monitor mode is what produces the evidence needed to write the first rules —
- * a real log of what the agent actually does — which is what
- * `docs-notes/WRITING-PERMISSIONS.md` already instructs operators to do before
- * enforcing. Switching to enforce is one toggle, and the dashboard states the
- * current posture prominently.
+ * The rules themselves are seeded by the policy store on first load, not listed
+ * here, so there is exactly one place that decides what an installation ships
+ * with.
  */
 export function defaultPolicyDocument(): PolicyDocument {
   return {
     version: 1,
-    mode: "monitor",
+    mode: "enforce",
     ask: "on-miss",
+    agentMode: {},
     agentAsk: {},
+    userAsk: {},
     hitlTimeoutSeconds: DEFAULT_HITL_TIMEOUT_SECONDS,
     rules: [],
     lockedAgents: [],
@@ -136,9 +192,67 @@ export function defaultPolicyDocument(): PolicyDocument {
  * installation default otherwise. Centralised so every caller — the engine,
  * the API, the dashboard — reads the same precedence.
  */
-export function resolveAskMode(doc: PolicyDocument, agentId: string | undefined): AskMode {
+/** True only for a value the engine knows how to act on. */
+export function isAskMode(value: unknown): value is AskMode {
+  return value === "off" || value === "on-miss";
+}
+
+/**
+ * Resolves the escalation behaviour for one agent, optionally on behalf of one
+ * user.
+ *
+ * **Precedence: the stricter setting wins.** `off` (deny outright) is stricter
+ * than `on-miss` (ask a human, which can end in allow), so if either the agent
+ * or the user is set to `off`, the answer is `off`.
+ *
+ * Chosen over "the more specific axis wins" because the two axes are not a
+ * hierarchy — neither Root's opinion of a person nor an Administrator's opinion
+ * of an agent is the more authoritative one. They are independent judgements,
+ * and the only combination rule that cannot be used to *widen* access is to
+ * take the stricter. A precedence order instead would let setting one axis
+ * quietly loosen a restriction placed on the other, which is exactly the
+ * surprise a governance layer must not contain.
+ */
+export function resolveAskMode(
+  doc: PolicyDocument,
+  agentId: string | undefined,
+  usernames: readonly string[] = [],
+): AskMode {
+  const agentSetting = resolveAgentAsk(doc, agentId);
+  // An agent can be assigned to more than one account, so there may be several
+  // user settings in play. Taking the strictest among them is the same rule as
+  // combining the two axes, applied within one of them.
+  const userSettings = usernames
+    .filter((username) => Object.hasOwn(doc.userAsk, username))
+    .map((username) => doc.userAsk[username])
+    .filter(isAskMode);
+  if (agentSetting === "off" || userSettings.includes("off")) {
+    return "off";
+  }
+  return userSettings.at(0) ?? agentSetting;
+}
+
+/** The agent axis alone. Split out so the two axes stay independently readable. */
+function resolveAgentAsk(doc: PolicyDocument, agentId: string | undefined): AskMode {
   if (agentId && Object.hasOwn(doc.agentAsk, agentId)) {
-    return doc.agentAsk[agentId] as AskMode;
+    const override = doc.agentAsk[agentId];
+    // A corrupted override is treated as **absent**, not as a value.
+    //
+    // The old code cast whatever was in the map straight to `AskMode`. A
+    // hand-edited or truncated `policy.json` holding `"agentAsk": {"a": "yes"}`
+    // therefore reached the engine, where the test is `askMode === "off"`, so
+    // an unrecognised string fell through to "ask a human" — the *more*
+    // permissive of the two branches, since an escalation can end in allow
+    // while `off` denies outright. A setting nobody can parse must never be the
+    // reason an action gets a chance to be approved.
+    //
+    // Falling back to the installation default (rather than jumping straight to
+    // deny) is the documented meaning of "no override for this agent", and
+    // `doc.ask` is itself validated on load — so this resolves to a value that
+    // was actually chosen by somebody.
+    if (isAskMode(override)) {
+      return override;
+    }
   }
   return doc.ask;
 }

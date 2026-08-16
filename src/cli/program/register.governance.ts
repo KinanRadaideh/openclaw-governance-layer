@@ -2,6 +2,7 @@
 // tamper-evident audit ledger, and trigger the kill switch from the terminal.
 import type { Command } from "commander";
 import { listActiveSessions } from "../../governance/active-sessions.js";
+import { CLI_ACTOR } from "../../governance/admin-audit.js";
 import { tailLedger, verifyLedgerChain } from "../../governance/audit-ledger.js";
 import { lockDownAgent, releaseAgentLockdown } from "../../governance/kill-switch.js";
 import { decidePendingDecision, listPendingDecisions } from "../../governance/pending-decisions.js";
@@ -10,12 +11,17 @@ import {
   loadPolicy,
   removeRule,
   setAgentAskMode,
+  setAskMode,
+  setHitlTimeout,
   setMode,
-  updatePolicy,
 } from "../../governance/policy-store.js";
 import type { AskMode, GovernanceMode, ResourceKind } from "../../governance/policy-types.js";
 import { detectRuleConflicts } from "../../governance/rule-conflicts.js";
-import { resolveRuleTtl, validateRulePattern } from "../../governance/rule-validation.js";
+import {
+  describeRuleRisks,
+  resolveRuleTtl,
+  validateRulePattern,
+} from "../../governance/rule-validation.js";
 import { defaultRuntime } from "../../runtime.js";
 import { runCommandWithRuntime } from "../cli-utils.js";
 
@@ -41,7 +47,7 @@ export function registerGovernanceCommands(program: Command): void {
     .action(async (mode: string) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
         assertGovernanceMode(mode);
-        await setMode(mode);
+        await setMode(mode, CLI_ACTOR);
         defaultRuntime.log(`mode set to ${mode}`);
       });
     });
@@ -52,9 +58,7 @@ export function registerGovernanceCommands(program: Command): void {
     .action(async (mode: string) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
         assertAskMode(mode);
-        await updatePolicy((doc) => {
-          doc.ask = mode;
-        });
+        await setAskMode(mode, CLI_ACTOR);
         defaultRuntime.log(`ask set to ${mode}`);
       });
     });
@@ -98,14 +102,20 @@ export function registerGovernanceCommands(program: Command): void {
             ...(agentId ? { agentId } : {}),
             ...(expiresAt ? { expiresAt } : {}),
           });
-          const rule = await addRule({
-            resourceKind: options.kind,
-            pattern: validated.pattern,
-            ...(options.description ? { description: options.description } : {}),
-            ...(expiresAt ? { expiresAt } : {}),
-            ...(agentId ? { agentId } : {}),
-          });
+          const rule = await addRule(
+            {
+              resourceKind: options.kind,
+              pattern: validated.pattern,
+              ...(options.description ? { description: options.description } : {}),
+              ...(expiresAt ? { expiresAt } : {}),
+              ...(agentId ? { agentId } : {}),
+            },
+            CLI_ACTOR,
+          );
           defaultRuntime.log(JSON.stringify(rule, null, 2));
+          for (const risk of describeRuleRisks(validated.pattern, options.kind)) {
+            defaultRuntime.log(`warning: ${risk.message}`);
+          }
           for (const conflict of conflicts) {
             defaultRuntime.log(
               `warning: an earlier rule already covers this (${conflict.existingPattern}) — ${conflict.message}`,
@@ -120,7 +130,7 @@ export function registerGovernanceCommands(program: Command): void {
     .description("Remove a rule by id")
     .action(async (id: string) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
-        const removed = await removeRule(id);
+        const removed = await removeRule(id, CLI_ACTOR);
         defaultRuntime.log(removed ? `removed ${id}` : `no rule with id ${id}`);
         if (!removed) {
           defaultRuntime.exit(1);
@@ -134,12 +144,12 @@ export function registerGovernanceCommands(program: Command): void {
     .action(async (agentId: string, mode: string) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
         if (mode === "default") {
-          await setAgentAskMode(agentId, undefined);
+          await setAgentAskMode(agentId, undefined, CLI_ACTOR);
           defaultRuntime.log(`agent "${agentId}" now follows the installation default`);
           return;
         }
         assertAskMode(mode);
-        await setAgentAskMode(agentId, mode);
+        await setAgentAskMode(agentId, mode, CLI_ACTOR);
         defaultRuntime.log(`agent "${agentId}" ask set to ${mode}`);
       });
     });
@@ -153,9 +163,7 @@ export function registerGovernanceCommands(program: Command): void {
         if (!Number.isFinite(value) || value < 5 || value > 86_400) {
           throw new Error("seconds must be a number between 5 and 86400");
         }
-        await updatePolicy((doc) => {
-          doc.hitlTimeoutSeconds = Math.round(value);
-        });
+        await setHitlTimeout(Math.round(value), CLI_ACTOR);
         defaultRuntime.log(`escalation timeout set to ${Math.round(value)}s`);
       });
     });

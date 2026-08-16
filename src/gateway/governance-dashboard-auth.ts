@@ -8,6 +8,7 @@
 // replacement for it. Named human accounts and roles do not exist anywhere
 // else in OpenClaw; this file and src/governance/* are what add them.
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { BOOTSTRAP_ACTOR } from "../governance/admin-audit.js";
 import {
   checkLoginAllowed,
   loginThrottleKey,
@@ -201,7 +202,13 @@ export async function handleGovernanceAuthRequest(
     // throwing; surface that as a 400 rather than letting it escape as a 500.
     let user;
     try {
-      user = await createUser({ username, password, role: "root", onlyAsFirstAccount: true });
+      user = await createUser(
+        { username, password, role: "root", onlyAsFirstAccount: true },
+        // No authenticated actor exists yet — this call is what establishes the
+        // first one. Attributing it to the account being created would read as
+        // if that account had authorised its own existence.
+        BOOTSTRAP_ACTOR,
+      );
     } catch (err) {
       if (err instanceof AccountsAlreadyExistError) {
         sendJson(res, 409, {

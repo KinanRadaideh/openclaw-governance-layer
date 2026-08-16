@@ -20,24 +20,39 @@ import {
   canViewAgent,
   type GovernanceActor,
 } from "../governance/permissions.js";
+// Every policy mutation below goes through a named setter that requires an
+// actor. `updatePolicy` — the raw read-modify-write — is deliberately no longer
+// imported here: it is the one way to change policy state without recording who
+// did it, and keeping it out of the HTTP surface is what stops a future route
+// from quietly reintroducing an unaudited change.
 import {
   addRule,
+  ImmutableRuleError,
   loadPolicy,
   removeRule,
   setAgentAskMode,
+  setAskMode,
+  setHitlTimeout,
   setMode,
-  updatePolicy,
+  setUserAskMode,
+  TooManyRulesError,
 } from "../governance/policy-store.js";
-import type { PolicyDocument, ResourceKind } from "../governance/policy-types.js";
+import type { ResourceKind } from "../governance/policy-types.js";
 import { isGovernanceRole, roleAtLeast, type GovernanceRole } from "../governance/roles.js";
 import { detectRuleConflicts } from "../governance/rule-conflicts.js";
 import {
+  attachCreatedRule,
   decideRuleRequest,
   findPendingRuleRequest,
   listRuleRequests,
+  reopenRuleRequest,
   submitRuleRequest,
 } from "../governance/rule-requests.js";
-import { resolveRuleTtl, validateRulePattern } from "../governance/rule-validation.js";
+import {
+  describeRuleRisks,
+  resolveRuleTtl,
+  validateRulePattern,
+} from "../governance/rule-validation.js";
 import {
   revokeSessionsForUser,
   updateSessionsAssignedAgents,
@@ -48,9 +63,11 @@ import { readSystemStatus } from "../governance/system-status.js";
 import {
   createUser,
   deleteUser,
+  DuplicateRootError,
   LastRootError,
   listUsers,
   setUserAssignedAgents,
+  setUserPassword,
   setUserRole,
 } from "../governance/user-store.js";
 import { readJsonBodyOrError, sendInvalidRequest, sendJson } from "./http-common.js";
@@ -276,9 +293,7 @@ export async function handleGovernanceApiRequest(
       sendInvalidRequest(res, "seconds must be a number between 5 and 86400");
       return true;
     }
-    await updatePolicy((doc) => {
-      doc.hitlTimeoutSeconds = Math.round(seconds);
-    });
+    await setHitlTimeout(Math.round(seconds), session.username);
     sendJson(res, 200, await loadPolicy());
     return true;
   }
@@ -385,30 +400,56 @@ export async function handleGovernanceApiRequest(
       });
       return true;
     }
-    let createdRuleId: string | undefined;
-    if (approve) {
-      // The rule is created from the *stored* request, never from the
-      // approving client's payload, so an administrator cannot be tricked into
-      // granting something broader than what was reviewed.
-      const rule = await addRule({
-        resourceKind: pending.resourceKind,
-        pattern: pending.pattern,
-        // Grant exactly the scope that was requested and reviewed. Dropping
-        // this turned every approval into a global rule, silently widening a
-        // single-agent request into an installation-wide grant.
-        ...(pending.agentId ? { agentId: pending.agentId } : {}),
-        description: `Requested by ${pending.requestedBy}: ${pending.reason}`,
-        createdBy: session.username,
+    // Claim the decision *before* creating the rule. The reverse order let two
+    // administrators approving simultaneously both pass the pending check and
+    // both create a rule; only one `decideRuleRequest` then succeeded, so the
+    // installation ended up with a duplicate permission, an orphaned rule
+    // nothing referenced, and a `200` telling the loser their approval had
+    // worked. Claiming first makes the decision the single point of contention.
+    const decided = await decideRuleRequest({ id, approve, decidedBy: session.username });
+    if (!decided) {
+      sendJson(res, 409, {
+        error: {
+          message: "That request was already decided by someone else.",
+          type: "already_decided",
+        },
       });
-      createdRuleId = rule.id;
+      return true;
     }
-    const decided = await decideRuleRequest({
-      id,
-      approve,
-      decidedBy: session.username,
-      ...(createdRuleId ? { createdRuleId } : {}),
-    });
-    sendJson(res, 200, decided ?? { ok: true });
+    if (approve) {
+      try {
+        // The rule is created from the *stored* request, never from the
+        // approving client's payload, so an administrator cannot be tricked
+        // into granting something broader than what was reviewed.
+        const rule = await addRule(
+          {
+            resourceKind: decided.resourceKind,
+            pattern: decided.pattern,
+            // Grant exactly the scope that was requested and reviewed. Dropping
+            // this turned every approval into a global rule, silently widening
+            // a single-agent request into an installation-wide grant.
+            ...(decided.agentId ? { agentId: decided.agentId } : {}),
+            description: `Requested by ${decided.requestedBy}: ${decided.reason}`,
+            createdBy: session.username,
+          },
+          session.username,
+        );
+        await attachCreatedRule(id, rule.id);
+        decided.createdRuleId = rule.id;
+      } catch (err) {
+        // The decision is claimed but the permission does not exist. Putting the
+        // request back is the only state that stays true: otherwise the
+        // requester is told yes, still cannot act, and no administrator sees it
+        // in the queue any more.
+        await reopenRuleRequest(id);
+        if (err instanceof TooManyRulesError) {
+          sendJson(res, 409, { error: { message: err.message, type: "too_many_rules" } });
+          return true;
+        }
+        throw err;
+      }
+    }
+    sendJson(res, 200, decided);
     return true;
   }
 
@@ -434,7 +475,7 @@ export async function handleGovernanceApiRequest(
       sendInvalidRequest(res, "mode must be enforce, monitor, or off");
       return true;
     }
-    await setMode(mode);
+    await setMode(mode, session.username);
     sendJson(res, 200, await loadPolicy());
     return true;
   }
@@ -452,9 +493,7 @@ export async function handleGovernanceApiRequest(
       sendInvalidRequest(res, "ask must be off or on-miss");
       return true;
     }
-    await updatePolicy((doc: PolicyDocument) => {
-      doc.ask = ask;
-    });
+    await setAskMode(ask, session.username);
     sendJson(res, 200, await loadPolicy());
     return true;
   }
@@ -492,7 +531,36 @@ export async function handleGovernanceApiRequest(
       });
       return true;
     }
-    await setAgentAskMode(agentId.trim(), ask === null ? undefined : ask);
+    await setAgentAskMode(agentId.trim(), ask === null ? undefined : ask, session.username);
+    sendJson(res, 200, await loadPolicy());
+    return true;
+  }
+
+  // Root only: the per-*user* escalation override (Chapter 1 §1.6 assigns this
+  // axis to Root, as against the per-agent axis an Administrator controls).
+  if (route === "policy/user-ask" && req.method === "POST") {
+    if (!requireRole(res, session, "root")) {
+      return true;
+    }
+    const body = await readJsonObjectBodyOrError(req, res);
+    if (body === undefined) {
+      return true;
+    }
+    const { username, ask } = body as { username?: unknown; ask?: unknown };
+    if (typeof username !== "string" || !username.trim()) {
+      sendInvalidRequest(res, "username is required");
+      return true;
+    }
+    // `null` clears the override; anything else must be a known mode.
+    if (ask !== null && ask !== "off" && ask !== "on-miss") {
+      sendInvalidRequest(res, "ask must be off, on-miss, or null to clear");
+      return true;
+    }
+    if (!isSafeObjectKey(username.trim())) {
+      sendInvalidRequest(res, "username is not a valid key");
+      return true;
+    }
+    await setUserAskMode(username.trim(), ask === null ? undefined : ask, session.username);
     sendJson(res, 200, await loadPolicy());
     return true;
   }
@@ -559,15 +627,35 @@ export async function handleGovernanceApiRequest(
       ...(scopedAgentId ? { agentId: scopedAgentId } : {}),
       ...(ttl.expiresAt ? { expiresAt: ttl.expiresAt } : {}),
     });
-    const rule = await addRule({
-      resourceKind,
-      pattern: validatedRulePattern.pattern,
-      ...(typeof description === "string" && description ? { description } : {}),
-      ...(ttl.expiresAt ? { expiresAt: ttl.expiresAt } : {}),
-      ...(scopedAgentId ? { agentId: scopedAgentId } : {}),
-      createdBy: session.username,
+    let rule;
+    try {
+      rule = await addRule(
+        {
+          resourceKind,
+          pattern: validatedRulePattern.pattern,
+          ...(typeof description === "string" && description ? { description } : {}),
+          ...(ttl.expiresAt ? { expiresAt: ttl.expiresAt } : {}),
+          ...(scopedAgentId ? { agentId: scopedAgentId } : {}),
+          createdBy: session.username,
+        },
+        session.username,
+      );
+    } catch (err) {
+      // A full ruleset is a state conflict the operator can resolve by removing
+      // rules, not a malformed request, so it is reported as such.
+      if (err instanceof TooManyRulesError) {
+        sendJson(res, 409, { error: { message: err.message, type: "too_many_rules" } });
+        return true;
+      }
+      throw err;
+    }
+    // Warnings ride alongside conflicts: both are "this is not what you
+    // probably think it is", and neither blocks the write.
+    sendJson(res, 200, {
+      ...rule,
+      conflicts,
+      warnings: describeRuleRisks(validatedRulePattern.pattern, resourceKind),
     });
-    sendJson(res, 200, { ...rule, conflicts });
     return true;
   }
 
@@ -603,7 +691,17 @@ export async function handleGovernanceApiRequest(
       });
       return true;
     }
-    sendJson(res, 200, { ok: await removeRule(id) });
+    try {
+      sendJson(res, 200, { ok: await removeRule(id, session.username) });
+    } catch (err) {
+      // A core rule. Refused for every tier including Root, so this is a
+      // statement about the rule rather than about the caller — 409, not 403.
+      if (err instanceof ImmutableRuleError) {
+        sendJson(res, 409, { error: { message: err.message, type: "immutable_rule" } });
+        return true;
+      }
+      throw err;
+    }
     return true;
   }
 
@@ -645,7 +743,7 @@ export async function handleGovernanceApiRequest(
       return true;
     }
     try {
-      sendJson(res, 200, await createUser({ username, password, role }));
+      sendJson(res, 200, await createUser({ username, password, role }, session.username));
     } catch (err) {
       // createUser enforces uniqueness and the password policy by throwing.
       sendInvalidRequest(res, err instanceof Error ? err.message : "could not create account");
@@ -677,13 +775,19 @@ export async function handleGovernanceApiRequest(
     // the same invariant inside its write lock so two simultaneous demotions
     // cannot both pass. That second refusal surfaces as this error.
     try {
-      if (!(await setUserRole(userId, role))) {
+      if (!(await setUserRole(userId, role, session.username))) {
         sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
         return true;
       }
     } catch (err) {
       if (err instanceof LastRootError) {
         sendJson(res, 409, { error: { message: err.message, type: "would_lock_out" } });
+        return true;
+      }
+      // Refusing a second Root is a rejected request, not a conflict of state:
+      // the caller asked for something the model does not allow at all.
+      if (err instanceof DuplicateRootError) {
+        sendInvalidRequest(res, err.message);
         return true;
       }
       throw err;
@@ -699,6 +803,40 @@ export async function handleGovernanceApiRequest(
   // agent management, not account management, so it sits at Administrator —
   // an Administrator can delegate an agent without being able to create the
   // account that receives it.
+  // Root only: set another account's password. The recovery path whose absence
+  // made a hash that could no longer be verified unrecoverable — bootstrap
+  // refuses once any account exists, so there was no way back.
+  if (route === "users/password" && req.method === "POST") {
+    if (!requireRole(res, session, "root")) {
+      return true;
+    }
+    const body = await readJsonObjectBodyOrError(req, res);
+    if (body === undefined) {
+      return true;
+    }
+    const { userId, password } = body as { userId?: unknown; password?: unknown };
+    if (typeof userId !== "string" || typeof password !== "string") {
+      sendInvalidRequest(res, "userId and password are required");
+      return true;
+    }
+    try {
+      if (!(await setUserPassword(userId, password, session.username))) {
+        sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
+        return true;
+      }
+    } catch (err) {
+      // The store enforces the length policy by throwing.
+      sendInvalidRequest(res, err instanceof Error ? err.message : "could not set password");
+      return true;
+    }
+    // Every existing session for that account is revoked: a password reset is
+    // usually a response to it being compromised, so leaving the old cookies
+    // working would defeat the point.
+    await revokeSessionsForUser(userId);
+    sendJson(res, 200, { ok: true });
+    return true;
+  }
+
   if (route === "users/agents" && req.method === "POST") {
     if (!requireRole(res, session, "administrator")) {
       return true;
@@ -726,7 +864,7 @@ export async function handleGovernanceApiRequest(
       return true;
     }
     const normalized = (agentIds as string[]).map((id) => id.trim()).filter(Boolean);
-    if (!(await setUserAssignedAgents(userId, normalized))) {
+    if (!(await setUserAssignedAgents(userId, normalized, session.username))) {
       sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
       return true;
     }
@@ -756,7 +894,7 @@ export async function handleGovernanceApiRequest(
       return true;
     }
     try {
-      if (!(await deleteUser(userId))) {
+      if (!(await deleteUser(userId, session.username))) {
         sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
         return true;
       }
@@ -812,6 +950,10 @@ export async function handleGovernanceApiRequest(
     sendJson(res, 200, {
       ok: true,
       elapsedMs: Math.round(outcome.elapsedMs * 10) / 10,
+      // Both measurements, so the dashboard can distinguish "we asked" from
+      // "it stopped" rather than presenting one number as if it were the other.
+      dispatchMs: Math.round(outcome.termination.dispatchMs * 10) / 10,
+      stoppedConfirmed: outcome.termination.stoppedConfirmed,
       abortedRunIds: outcome.termination.abortedRunIds,
       inFlightTerminationSupported: outcome.termination.supported,
     });

@@ -151,3 +151,41 @@ describe("what is deliberately NOT reported", () => {
     expect(detectRuleConflicts([], candidate(), NOW)).toEqual([]);
   });
 });
+
+describe("QA pass: clash warnings must not overstate coverage", () => {
+  const base = { resourceKind: "command" as const, createdAt: "2026-01-01T00:00:00.000Z" };
+
+  it("does not claim a new rule is redundant when the catch-all covering it expires first", () => {
+    // The catch-all lapses in a minute; the candidate is indefinite. Telling
+    // the operator it "grants nothing additional" is backwards — after the
+    // catch-all lapses the candidate is the only thing granting access, and an
+    // operator who believes the message may delete it.
+    const soon = new Date(Date.now() + 60_000).toISOString();
+    const conflicts = detectRuleConflicts([{ ...base, id: "r1", pattern: ".*", expiresAt: soon }], {
+      resourceKind: "command",
+      pattern: "^ls$",
+    });
+    expect(conflicts).toEqual([]);
+  });
+
+  it("still reports a catch-all that genuinely covers the candidate", () => {
+    const conflicts = detectRuleConflicts([{ ...base, id: "r1", pattern: ".*" }], {
+      resourceKind: "command",
+      pattern: "^ls$",
+    });
+    expect(conflicts.at(0)?.kind).toBe("covered-by-catch-all");
+  });
+
+  it("recognises the catch-all patterns that were missed", () => {
+    // Matching uses RegExp.test, which is a substring search, so an unanchored
+    // pattern matches far more than it appears to. `^` and `$` are zero-width
+    // and match every string; `.` and `.+` match every non-empty one.
+    for (const pattern of ["^", "$", ".", ".+", "^.+$", "(.+)", "[\\s\\S]*"]) {
+      const conflicts = detectRuleConflicts([{ ...base, id: "r1", pattern }], {
+        resourceKind: "command",
+        pattern: "^ls$",
+      });
+      expect(conflicts.at(0)?.kind, `pattern ${pattern}`).toBe("covered-by-catch-all");
+    }
+  });
+});

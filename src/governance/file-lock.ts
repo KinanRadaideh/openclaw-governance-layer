@@ -16,9 +16,37 @@ import { open, rm, stat } from "node:fs/promises";
 // test suite and a Gateway ran concurrently.
 const RETRY_BASE_DELAY_MS = 5;
 const RETRY_MAX_DELAY_MS = 60;
-const DEFAULT_TIMEOUT_MS = 30_000;
-/** A lock older than this is treated as abandoned by a crashed process. */
-const STALE_LOCK_MS = 60_000;
+export const DEFAULT_TIMEOUT_MS = 30_000;
+/**
+ * A lock older than this is treated as abandoned by a crashed process.
+ *
+ * **Must stay comfortably below `DEFAULT_TIMEOUT_MS`.** It was 60s against a 30s
+ * wait, which made the self-healing path unreachable: a process that crashed
+ * holding the lock left every later writer to give up at 30s, while the lock did
+ * not become reclaimable until 60s. The reaper existed, and no waiter ever lived
+ * long enough to run it — so a crash wedged governance writes until somebody
+ * deleted the file by hand.
+ *
+ * 15s is safe because there is **no heartbeat**: the lock file's mtime is set
+ * once, at creation, and never refreshed. The threshold therefore has to exceed
+ * the longest legitimate critical section, and those are all short — a
+ * read-modify-write of a small JSON document, or an append to the ledger with a
+ * cached chain head. Milliseconds in practice.
+ *
+ * The invariant is asserted below rather than left as a comment, because the two
+ * constants drifting apart is exactly how the original defect happened.
+ */
+const STALE_LOCK_MS = 15_000;
+/** Exposed so the ordering invariant above can be asserted in tests. */
+export const STALE_LOCK_MS_FOR_TESTS = STALE_LOCK_MS;
+
+// A stale lock must become reclaimable while a waiter is still waiting, or the
+// reaper is dead code.
+if (STALE_LOCK_MS >= DEFAULT_TIMEOUT_MS) {
+  throw new Error(
+    `governance file-lock misconfigured: STALE_LOCK_MS (${STALE_LOCK_MS}) must be below DEFAULT_TIMEOUT_MS (${DEFAULT_TIMEOUT_MS})`,
+  );
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -115,7 +143,7 @@ export async function withFileLock<T>(
     } finally {
       // Release must never mask the critical section's own outcome, and must
       // never leave a stale lock behind: a failed release would block every
-      // later writer until the staleness reaper kicks in 60s later.
+      // later writer until the staleness reaper reclaims it.
       await releaseLock(lockPath);
     }
   }

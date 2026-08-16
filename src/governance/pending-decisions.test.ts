@@ -6,6 +6,7 @@ import {
   decidePendingDecision,
   listPendingDecisions,
   recordTimedOutEscalation,
+  MAX_PENDING_UNDECIDED,
   MAX_STORED_PENDING_DECISIONS,
 } from "./pending-decisions.js";
 
@@ -109,5 +110,55 @@ describe("concurrency", () => {
       ),
     );
     expect(await listPendingDecisions()).toHaveLength(12);
+  });
+});
+
+describe("unanswered escalations do not grow without bound", () => {
+  const question = {
+    agentId: "agent-a",
+    toolName: "exec",
+    resourceKind: "command" as const,
+    resource: "rm -rf /tmp/x",
+    waitedMs: 1000,
+  };
+
+  it("counts a repeated question instead of storing it again", async () => {
+    for (let i = 0; i < 50; i += 1) {
+      await recordTimedOutEscalation(question);
+    }
+    const stored = await listPendingDecisions();
+    expect(stored).toHaveLength(1);
+    expect(stored.at(0)?.occurrences).toBe(50);
+    // The repetition is itself the diagnosis of a stuck agent.
+    expect(stored.at(0)?.lastTimedOutAt).toBeDefined();
+  });
+
+  it("keeps genuinely different questions apart", async () => {
+    await recordTimedOutEscalation(question);
+    await recordTimedOutEscalation({ ...question, resource: "cat /etc/shadow" });
+    await recordTimedOutEscalation({ ...question, agentId: "agent-b" });
+    expect(await listPendingDecisions()).toHaveLength(3);
+  });
+
+  it("caps distinct undecided questions so the file cannot grow without limit", async () => {
+    for (let i = 0; i < MAX_PENDING_UNDECIDED + 25; i += 1) {
+      await recordTimedOutEscalation({ ...question, resource: `command-${i}` });
+    }
+    const stored = await listPendingDecisions();
+    expect(stored.length).toBeLessThanOrEqual(MAX_PENDING_UNDECIDED);
+    // Newest kept: the oldest unanswered questions are the ones dropped.
+    expect(stored.some((entry) => entry.resource.endsWith(`-${MAX_PENDING_UNDECIDED + 24}`))).toBe(
+      true,
+    );
+  });
+
+  it("a repeat does not resurrect an already-decided question", async () => {
+    const first = await recordTimedOutEscalation(question);
+    await decidePendingDecision({ id: first.id, allow: false, decidedBy: "kinan" });
+    await recordTimedOutEscalation(question);
+    const stored = await listPendingDecisions();
+    // The decided one stays decided; the new timeout is a new pending entry.
+    expect(stored.filter((entry) => entry.status === "pending")).toHaveLength(1);
+    expect(stored.filter((entry) => entry.status === "denied")).toHaveLength(1);
   });
 });

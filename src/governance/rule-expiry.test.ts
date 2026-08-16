@@ -4,12 +4,16 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { isShippedRule } from "./baseline-policy.js";
+import { matchesPattern, resetPatternCacheForTests } from "./pattern-match.js";
 import { evaluateGovernancePolicy } from "./policy-engine.js";
 import {
   addRule,
   loadPolicy,
+  MAX_POLICY_RULES,
   pruneExpiredPolicyRules,
   savePolicy,
+  TooManyRulesError,
   updatePolicy,
 } from "./policy-store.js";
 import {
@@ -72,26 +76,32 @@ describe("indefinite rules", () => {
 
 describe("time-limited rules", () => {
   it("apply before expiry and stop after", async () => {
+    // A command no shipped baseline rule covers. `ls` would be allowed by the
+    // baseline set regardless of this rule's expiry, so the test would pass
+    // whatever expiry did — it has to exercise a grant that is genuinely the
+    // only thing permitting the action.
+    const pattern = "^deploy-service$";
     await addRule({
       resourceKind: "command",
-      pattern: "^ls$",
+      pattern,
       expiresAt: new Date(Date.now() + 60_000).toISOString(),
     });
     const allowed = await evaluateGovernancePolicy(
-      { toolName: "exec", params: { command: "ls" } },
+      { toolName: "exec", params: { command: "deploy-service" } },
       { agentId: "a" },
     );
     expect(allowed).toBeUndefined();
 
-    // Move the rule's expiry into the past rather than waiting.
+    // Move the rule's expiry into the past rather than waiting. Located by
+    // pattern, not by index: index 0 is a shipped core rule now.
     await updatePolicy((doc) => {
-      const target = doc.rules[0];
+      const target = doc.rules.find((rule) => rule.pattern === pattern);
       if (target) {
         target.expiresAt = new Date(Date.now() - 1000).toISOString();
       }
     });
     const denied = await evaluateGovernancePolicy(
-      { toolName: "exec", params: { command: "ls" } },
+      { toolName: "exec", params: { command: "deploy-service" } },
       { agentId: "a" },
     );
     expect(denied && "block" in denied).toBe(true);
@@ -163,6 +173,67 @@ describe("retention of lapsed rules", () => {
       ];
     });
     expect(await pruneExpiredPolicyRules()).toBe(2);
-    expect((await loadPolicy()).rules.map((r) => r.id)).toEqual(["keep"]);
+    const operatorIds = (await loadPolicy()).rules
+      .filter((entry) => !isShippedRule(entry))
+      .map((r) => r.id);
+    expect(operatorIds).toEqual(["keep"]);
+  });
+});
+
+describe("the ruleset is bounded", () => {
+  it("refuses a rule once the ceiling is reached", async () => {
+    const doc = defaultPolicyDocument();
+    doc.rules = Array.from({ length: MAX_POLICY_RULES }, (_unused, index) => ({
+      id: `r${index}`,
+      resourceKind: "command" as const,
+      pattern: `^cmd-${index}$`,
+      createdAt: new Date().toISOString(),
+    }));
+    await savePolicy(doc);
+    await expect(
+      addRule({ resourceKind: "command", pattern: "^one-more$" }, "kinan"),
+    ).rejects.toBeInstanceOf(TooManyRulesError);
+  });
+
+  it("recovers on its own when the ceiling was reached through lapsed rules", async () => {
+    // Pruning runs before the check, so an installation full of expired grants
+    // is not told it is full — it simply cleans up and accepts the new rule.
+    const longAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const doc = defaultPolicyDocument();
+    doc.rules = Array.from({ length: MAX_POLICY_RULES }, (_unused, index) => ({
+      id: `r${index}`,
+      resourceKind: "command" as const,
+      pattern: `^cmd-${index}$`,
+      createdAt: longAgo,
+      expiresAt: longAgo,
+    }));
+    await savePolicy(doc);
+    await expect(
+      addRule({ resourceKind: "command", pattern: "^one-more$" }, "kinan"),
+    ).resolves.toMatchObject({ pattern: "^one-more$" });
+  });
+});
+
+describe("pattern compilation is cached", () => {
+  it("returns the same verdict from the cache as from a cold compile", () => {
+    resetPatternCacheForTests();
+    expect(matchesPattern("^ls$", "ls")).toBe(true);
+    expect(matchesPattern("^ls$", "ls")).toBe(true);
+    expect(matchesPattern("^ls$", "rm")).toBe(false);
+  });
+
+  it("keeps failing closed on a malformed pattern, every time", () => {
+    resetPatternCacheForTests();
+    for (let i = 0; i < 3; i += 1) {
+      expect(matchesPattern("([unclosed", "anything")).toBe(false);
+    }
+  });
+
+  it("does not let a cached expression carry state between calls", () => {
+    resetPatternCacheForTests();
+    // Guards against the classic /g lastIndex bug if flags are ever introduced.
+    for (let i = 0; i < 5; i += 1) {
+      expect(matchesPattern("a", "banana"), `call ${i}`).toBe(true);
+    }
   });
 });

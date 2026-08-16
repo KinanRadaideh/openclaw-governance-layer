@@ -82,10 +82,17 @@ describe("username hygiene", () => {
     // "admin" composed differently must not yield two accounts that look
     // identical in the operator list — an impersonation vector in a product
     // whose whole purpose is knowing who did what.
-    await createUser({ username: "admın", password: "pw12345678", role: "root" });
-    // Same string in a decomposed/compatibility form.
+    await createUser({ username: "admin", password: "pw12345678", role: "root" });
+    // A *genuinely different* byte sequence that NFKC folds onto the same name:
+    // fullwidth Latin small letter A (U+FF41). The earlier version of this test
+    // passed the identical string twice, so it compared "admin" with "admin"
+    // and proved nothing about the folding it claimed to exercise — it would
+    // have passed with normalization removed entirely.
+    const fullwidth = "ａdmin";
+    expect(fullwidth).not.toBe("admin");
+    expect(fullwidth.normalize("NFKC")).toBe("admin");
     await expect(
-      createUser({ username: "admın", password: "pw12345678", role: "viewer" }),
+      createUser({ username: fullwidth, password: "pw12345678", role: "viewer" }),
     ).rejects.toThrow(/already exists/);
   });
 
@@ -121,7 +128,7 @@ describe("session token handling", () => {
     expect(await verifySession(session.token.toUpperCase())).toBeUndefined();
   });
 
-  it("does not write the raw token into any error or record it twice", async () => {
+  it("stores a session token exactly once, and nowhere but the session store", async () => {
     const user = await createUser({ username: "tok2", password: "pw12345678", role: "viewer" });
     const session = await issueSession({
       id: user.id,
@@ -131,6 +138,17 @@ describe("session token handling", () => {
     });
     const raw = await readFile(join(dir, "sessions.json"), "utf8");
     // Exactly one occurrence: the stored session itself.
+    //
+    // Renamed deliberately. This was called "does not write the raw token",
+    // which promised that the token is not stored in the clear — while
+    // asserting the opposite, since finding it once *requires* it to be there.
+    // A name that contradicts its assertion is worse than no test: it would
+    // have failed the moment somebody improved the storage, making the
+    // improvement look like a regression. What is actually guaranteed is that
+    // the token is written once, to the session store, and leaks nowhere else.
+    // Hashing tokens at rest remains open — tracked as B12.
     expect(raw.split(session.token).length - 1).toBe(1);
+    const users = await readFile(join(dir, "users.json"), "utf8");
+    expect(users).not.toContain(session.token);
   });
 });

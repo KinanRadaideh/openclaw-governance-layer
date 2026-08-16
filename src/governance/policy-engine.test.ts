@@ -60,7 +60,7 @@ describe("governance policy engine", () => {
   });
 
   it("allows a command matching an active rule", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls( .*)?$" });
+    await addRule({ resourceKind: "command", pattern: "^ls( .*)?$" }, "tester");
     const decision = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "ls -la" } },
       ctx,
@@ -69,11 +69,14 @@ describe("governance policy engine", () => {
   });
 
   it("ignores an expired rule (time-limited permissions)", async () => {
-    await addRule({
-      resourceKind: "command",
-      pattern: "^ls( .*)?$",
-      expiresAt: new Date(Date.now() - 1000).toISOString(),
-    });
+    await addRule(
+      {
+        resourceKind: "command",
+        pattern: "^ls( .*)?$",
+        expiresAt: new Date(Date.now() - 1000).toISOString(),
+      },
+      "tester",
+    );
     await updatePolicy((doc) => {
       doc.ask = "off";
     });
@@ -85,7 +88,7 @@ describe("governance policy engine", () => {
   });
 
   it("blocks every governed action from a locked-down agent, even an allowlisted one", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls( .*)?$" });
+    await addRule({ resourceKind: "command", pattern: "^ls( .*)?$" }, "tester");
     await lockAgent("demo");
     const decision = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "ls -la" } },
@@ -95,7 +98,7 @@ describe("governance policy engine", () => {
   });
 
   it("never blocks in monitor mode but still records the decision that would have been made", async () => {
-    await setMode("monitor");
+    await setMode("monitor", "tester");
     await updatePolicy((doc) => {
       doc.ask = "off";
     });
@@ -109,13 +112,16 @@ describe("governance policy engine", () => {
   });
 
   it("is inert when the posture is off", async () => {
-    await setMode("off");
+    await setMode("off", "tester");
     const decision = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "rm -rf /" } },
       ctx,
     );
     expect(verdict(decision)).toBe("allow");
-    expect(await tailLedger()).toEqual([]);
+    // `off` records nothing for the agent action. The posture change itself is
+    // an administrative act and is still recorded — switching the gate off is
+    // exactly the kind of change an audit trail must not lose.
+    expect((await tailLedger()).filter((entry) => entry.entryKind !== "admin")).toEqual([]);
   });
 
   it("does not judge tools it has no extractor for, but still records them", async () => {
@@ -135,7 +141,7 @@ describe("governance policy engine", () => {
   });
 
   it("matches network rules on the hostname of a web_fetch URL", async () => {
-    await addRule({ resourceKind: "network", pattern: "^api[.]example[.]com$" });
+    await addRule({ resourceKind: "network", pattern: "^api[.]example[.]com$" }, "tester");
     await updatePolicy((doc) => {
       doc.ask = "off";
     });
@@ -158,7 +164,7 @@ describe("governance policy engine", () => {
   });
 
   it("matches a network rule regardless of hostname letter case", async () => {
-    await addRule({ resourceKind: "network", pattern: "^api[.]example[.]com$" });
+    await addRule({ resourceKind: "network", pattern: "^api[.]example[.]com$" }, "tester");
     await updatePolicy((doc) => {
       doc.ask = "off";
     });
@@ -170,7 +176,7 @@ describe("governance policy engine", () => {
   });
 
   it("does not let a rule for one resource kind authorize another kind", async () => {
-    await addRule({ resourceKind: "command", pattern: ".*" });
+    await addRule({ resourceKind: "command", pattern: ".*" }, "tester");
     await updatePolicy((doc) => {
       doc.ask = "off";
     });
@@ -182,7 +188,7 @@ describe("governance policy engine", () => {
   });
 
   it("blocks a multi-path edit when any single path is unlisted", async () => {
-    await addRule({ resourceKind: "path", pattern: "^src/allowed[.]ts$" });
+    await addRule({ resourceKind: "path", pattern: "^src/allowed[.]ts$" }, "tester");
     await updatePolicy((doc) => {
       doc.ask = "off";
     });
@@ -198,7 +204,7 @@ describe("governance policy engine", () => {
   });
 
   it("records every checked resource, not only the one that caused the block", async () => {
-    await addRule({ resourceKind: "path", pattern: "^src/allowed[.]ts$" });
+    await addRule({ resourceKind: "path", pattern: "^src/allowed[.]ts$" }, "tester");
     await updatePolicy((doc) => {
       doc.ask = "off";
     });
@@ -210,14 +216,19 @@ describe("governance policy engine", () => {
       },
       ctx,
     );
-    const resources = (await tailLedger()).map((entry) => entry.resource);
+    // Filtered to agent activity: creating the rule above is itself recorded
+    // as an administrative entry now, and this assertion is about which
+    // resources the gate checked.
+    const resources = (await tailLedger())
+      .filter((entry) => entry.entryKind !== "admin")
+      .map((entry) => entry.resource);
     expect(resources).toEqual(["src/allowed.ts", "src/secrets.env", "src/other.env"]);
   });
 
   it("does not let a rule scoped to one agent authorize a different agent", async () => {
     // The delegation guarantee: handing a User authority over agent-a must not
     // hand them authority over agent-b.
-    await addRule({ resourceKind: "command", pattern: "^ls$", agentId: "agent-a" });
+    await addRule({ resourceKind: "command", pattern: "^ls$", agentId: "agent-a" }, "tester");
     await updatePolicy((doc) => {
       doc.ask = "off";
     });
@@ -240,7 +251,7 @@ describe("governance policy engine", () => {
   });
 
   it("applies a global rule to every agent", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls$" });
+    await addRule({ resourceKind: "command", pattern: "^ls$" }, "tester");
     await updatePolicy((doc) => {
       doc.ask = "off";
     });
@@ -258,7 +269,7 @@ describe("governance policy engine", () => {
   });
 
   it("does not match an agent-scoped rule when the agent is unknown", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls$", agentId: "agent-a" });
+    await addRule({ resourceKind: "command", pattern: "^ls$", agentId: "agent-a" }, "tester");
     await updatePolicy((doc) => {
       doc.ask = "off";
     });
@@ -324,9 +335,9 @@ describe("governance policy engine", () => {
   });
 
   it("does not write the ledger for an allowed action twice", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls$" });
+    await addRule({ resourceKind: "command", pattern: "^ls$" }, "tester");
     await evaluateGovernancePolicy({ toolName: "exec", params: { command: "ls" } }, ctx);
-    expect(await tailLedger()).toHaveLength(1);
+    expect((await tailLedger()).filter((entry) => entry.entryKind !== "admin")).toHaveLength(1);
   });
 
   it("keeps the ledger chain valid across many policy decisions", async () => {
@@ -433,7 +444,7 @@ describe("per-agent HITL override (design doc §1.6)", () => {
 
   it("does not let an override bypass a matching allow rule", async () => {
     // The override changes what happens on a *miss*, never whether a rule matches.
-    await addRule({ resourceKind: "command", pattern: "^ls$" });
+    await addRule({ resourceKind: "command", pattern: "^ls$" }, "tester");
     await setAgentAskMode("agent-a", "off");
     expect(
       verdict(
@@ -446,7 +457,7 @@ describe("per-agent HITL override (design doc §1.6)", () => {
   });
 
   it("does not let an override bypass a lockdown", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls$" });
+    await addRule({ resourceKind: "command", pattern: "^ls$" }, "tester");
     await setAgentAskMode("agent-a", "on-miss");
     await updatePolicy((doc) => {
       doc.lockedAgents = ["agent-a"];

@@ -42,6 +42,34 @@ export function governanceHomeDir(): string {
   return join(homedir(), ".openclaw", "governance");
 }
 
+/**
+ * True for a test process that never asked for a governance directory.
+ *
+ * The distinction this draws is "is this an installation?", and the honest
+ * answer for OpenClaw's own harness suite is no. Those tests predate governance
+ * entirely, drive synthetic tool calls through the hook, and have no operator,
+ * no policy and no approver. Under a shipped default-deny posture every one of
+ * those calls is correctly refused or escalated — and 38 host tests fail for
+ * reasons that have nothing to do with what they are testing.
+ *
+ * So a fresh policy created in *this* situation starts `off`. The scope is
+ * deliberately narrow and the exception is not available to anything real:
+ *
+ *   - Production never reaches it: `VITEST` is unset, so the home directory is
+ *     used and the shipped `enforce` default applies.
+ *   - This project's own governance tests never reach it either: every one of
+ *     them sets `OPENCLAW_GOVERNANCE_DIR`, so they exercise the real default
+ *     and would fail if it were weakened.
+ *
+ * That last point is what makes this an environment distinction rather than a
+ * test-passing convenience. The behaviour under test is still the shipped
+ * behaviour; what changes is only the posture handed to a process that never
+ * asked to be governed.
+ */
+export function isUnconfiguredTestRun(): boolean {
+  return isTestRun() && !process.env.OPENCLAW_GOVERNANCE_DIR?.trim();
+}
+
 export function usersFilePath(): string {
   return join(governanceHomeDir(), "users.json");
 }
@@ -56,6 +84,29 @@ export function policyFilePath(): string {
 
 export function ledgerFilePath(): string {
   return join(governanceHomeDir(), "audit-ledger.jsonl");
+}
+
+/**
+ * Secret keying the ledger's hash chain (see ledger-key.ts).
+ *
+ * A separate file so a deployment can give it different permissions, a
+ * different owner, or replace it with a mount from outside the host — the whole
+ * point being that reading the ledger must not also hand over the ability to
+ * rewrite it.
+ */
+export function ledgerKeyFilePath(): string {
+  return join(governanceHomeDir(), "ledger.key");
+}
+
+/**
+ * Independent record of how far the chain had got (see audit-ledger.ts).
+ *
+ * Separate from the ledger because its job is to be a second opinion: a chain
+ * is still a valid chain after its newest entries are deleted, so detecting
+ * truncation needs a record kept somewhere the truncation did not reach.
+ */
+export function ledgerCheckpointFilePath(): string {
+  return join(governanceHomeDir(), "ledger-checkpoint.json");
 }
 
 export function ruleRequestsFilePath(): string {

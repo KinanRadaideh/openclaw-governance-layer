@@ -42,24 +42,36 @@ function runsForAgent(ops: ChatAbortOps, agentId: string): Array<[string, string
  * snapshot captured at startup.
  */
 export function installGovernanceAgentTerminator(resolveOps: () => ChatAbortOps | undefined): void {
-  registerAgentTerminator((agentId) => {
-    const ops = resolveOps();
-    if (!ops) {
-      return { abortedRunIds: [] };
-    }
-    const abortedRunIds: string[] = [];
-    for (const [runId, sessionKey] of runsForAgent(ops, agentId)) {
-      const { aborted } = abortChatRunById(ops, {
-        runId,
-        sessionKey,
-        stopReason: KILL_SWITCH_STOP_REASON,
-      });
-      if (aborted) {
-        abortedRunIds.push(runId);
+  registerAgentTerminator(
+    (agentId) => {
+      const ops = resolveOps();
+      if (!ops) {
+        return { abortedRunIds: [] };
       }
-    }
-    return { abortedRunIds };
-  });
+      const abortedRunIds: string[] = [];
+      for (const [runId, sessionKey] of runsForAgent(ops, agentId)) {
+        const { aborted } = abortChatRunById(ops, {
+          runId,
+          sessionKey,
+          stopReason: KILL_SWITCH_STOP_REASON,
+        });
+        if (aborted) {
+          abortedRunIds.push(runId);
+        }
+      }
+      return { abortedRunIds };
+    },
+    // The probe reads the same live registry the terminator acted on, so
+    // "gone from chatAbortControllers" is the Gateway's own definition of a run
+    // having finished — not a governance-side guess at what stopping means.
+    (runIds) => {
+      const ops = resolveOps();
+      if (!ops) {
+        return [];
+      }
+      return runIds.filter((runId) => ops.chatAbortControllers.has(runId));
+    },
+  );
 }
 
 /**

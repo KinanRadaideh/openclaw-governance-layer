@@ -13,6 +13,7 @@
 // outcome.
 import { mkdir } from "node:fs/promises";
 import { readJsonIfExists, writeJsonAtomic } from "../infra/json-files.js";
+import { ADMIN_ACTIONS, recordAdminAction } from "./admin-audit.js";
 import { withFileLock } from "./file-lock.js";
 import { governanceHomeDir, ruleRequestsFilePath } from "./paths.js";
 import type { ResourceKind } from "./policy-types.js";
@@ -94,7 +95,7 @@ export type SubmitRuleRequestInput = {
 
 export async function submitRuleRequest(input: SubmitRuleRequestInput): Promise<RuleRequest> {
   await ensureHomeDir();
-  return withFileLock(ruleRequestsFilePath(), async () => {
+  const created = await withFileLock(ruleRequestsFilePath(), async () => {
     const file = await readFileOrEmpty();
     const pending = file.requests.filter(
       (request) => request.status === "pending" && request.requestedBy === input.requestedBy,
@@ -118,6 +119,14 @@ export async function submitRuleRequest(input: SubmitRuleRequestInput): Promise<
     await writeJsonAtomic(ruleRequestsFilePath(), file, { mode: 0o600 });
     return request;
   });
+  await recordAdminAction({
+    actor: created.requestedBy,
+    action: ADMIN_ACTIONS.ruleRequestSubmit,
+    target: `requested ${created.resourceKind} ${created.pattern}: ${created.reason}`,
+    subjectId: created.id,
+    ...(created.agentId ? { agentId: created.agentId } : {}),
+  });
+  return created;
 }
 
 /**
@@ -132,7 +141,7 @@ export async function decideRuleRequest(params: {
   createdRuleId?: string;
 }): Promise<RuleRequest | undefined> {
   await ensureHomeDir();
-  return withFileLock(ruleRequestsFilePath(), async () => {
+  const decided = await withFileLock(ruleRequestsFilePath(), async () => {
     const file = await readFileOrEmpty();
     const request = file.requests.find((candidate) => candidate.id === params.id);
     if (!request || request.status !== "pending") {
@@ -146,6 +155,66 @@ export async function decideRuleRequest(params: {
     }
     await writeJsonAtomic(ruleRequestsFilePath(), file, { mode: 0o600 });
     return request;
+  });
+  if (!decided) {
+    return undefined;
+  }
+  // This is the "administrative approval" of design requirement #5 in its most
+  // literal form: one person asked for a permission and another granted it.
+  await recordAdminAction({
+    actor: params.decidedBy,
+    action: ADMIN_ACTIONS.ruleRequestDecide,
+    outcome: params.approve ? "allow" : "deny",
+    target:
+      `${params.approve ? "approved" : "rejected"} ${decided.requestedBy}'s request for ` +
+      `${decided.resourceKind} ${decided.pattern}`,
+    subjectId: decided.id,
+    ...(decided.agentId ? { agentId: decided.agentId } : {}),
+  });
+  return decided;
+}
+
+/**
+ * Records the rule that a granted request produced.
+ *
+ * Separate from `decideRuleRequest` because the decision must be claimed
+ * *before* the rule is created — see the ordering note there — so the rule's id
+ * does not exist yet at claim time. Safe to do afterwards: the request is
+ * already claimed, so no other administrator can be acting on it.
+ */
+export async function attachCreatedRule(id: string, createdRuleId: string): Promise<void> {
+  await withFileLock(ruleRequestsFilePath(), async () => {
+    const file = await readFileOrEmpty();
+    const request = file.requests.find((candidate) => candidate.id === id);
+    if (!request) {
+      return;
+    }
+    request.createdRuleId = createdRuleId;
+    await writeJsonAtomic(ruleRequestsFilePath(), file, { mode: 0o600 });
+  });
+}
+
+/**
+ * Returns a claimed request to the pending state.
+ *
+ * Used when the rule could not be created after the decision was claimed — a
+ * full ruleset, for instance. Without it the request would be marked approved
+ * with no permission behind it: the requester is told yes and still cannot act,
+ * and no administrator sees it in the queue any more. Reverting keeps the
+ * stored state matching what actually happened.
+ */
+export async function reopenRuleRequest(id: string): Promise<void> {
+  await withFileLock(ruleRequestsFilePath(), async () => {
+    const file = await readFileOrEmpty();
+    const request = file.requests.find((candidate) => candidate.id === id);
+    if (!request) {
+      return;
+    }
+    request.status = "pending";
+    delete request.decidedBy;
+    delete request.decidedAt;
+    delete request.createdRuleId;
+    await writeJsonAtomic(ruleRequestsFilePath(), file, { mode: 0o600 });
   });
 }
 

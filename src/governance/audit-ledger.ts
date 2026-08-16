@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 // Tamper-evident audit ledger: an append-only JSONL file where each entry's
 // hash covers its own fields plus the previous entry's hash (SHA-256 hash
 // chaining). Altering or deleting a historical line breaks every hash after
@@ -9,17 +9,30 @@ import { createHash } from "node:crypto";
 // pseudonymization, but no entry-to-entry hash chain anywhere, so a writer
 // with direct database access can edit or delete rows undetected.
 //
-// Known limitation, by construction: hash chaining proves that no *interior*
-// record was altered or removed, but it cannot by itself detect truncation of
-// the newest records, because a prefix of a valid chain is still a valid
-// chain. Detecting that needs an external anchor (a counter-signed checkpoint
-// or an off-host copy of the latest hash), which is out of scope here and
-// recorded as future work.
-import { appendFile, mkdir, readdir, readFile, rename, stat } from "node:fs/promises";
+// Two properties beyond plain chaining, added after QA findings B3 and B4:
+//
+//   1. **Keyed.** Entry hashes are HMAC-SHA256 under a per-installation secret
+//      (ledger-key.ts), so recomputing the chain forward after an edit needs the
+//      key and not merely the algorithm. Unkeyed chaining detected accidental
+//      corruption and casual editing; it did not detect a patient adversary,
+//      which is the one the requirement is about.
+//   2. **Anchored.** Each append also records the new head in a separate
+//      checkpoint file, because a chain cannot detect its own tail being cut
+//      off — a prefix of a valid chain is still a valid chain, so every
+//      surviving entry verifies and nothing points at what is gone.
+//
+// Both anchors live on the same host as the ledger, so an attacker with full
+// filesystem access can still defeat them. What changed is that reading the
+// ledger is no longer sufficient, and both now require *coordinated* edits to
+// two files plus a secret. Genuinely closing it means holding the key or the
+// checkpoint off the machine — deployment rather than code, and still recorded
+// as future work.
+import { appendFile, mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { redactToolPayloadText } from "../logging/redact.js";
 import { withFileLock } from "./file-lock.js";
-import { governanceHomeDir, ledgerFilePath } from "./paths.js";
+import { loadLedgerKey } from "./ledger-key.js";
+import { governanceHomeDir, ledgerCheckpointFilePath, ledgerFilePath } from "./paths.js";
 
 /**
  * `ungoverned` records an action the policy layer did not evaluate — a tool
@@ -43,6 +56,43 @@ export type LedgerEntry = {
   decision: LedgerDecision;
   prevHash: string;
   hash: string;
+  /**
+   * Marks an entry as an administrative action rather than an agent action.
+   *
+   * Design requirement #5 asks for agent actions, policy decisions **and
+   * administrative approvals**. The first two were recorded from the start; the
+   * third was not recorded anywhere, so the ledger could say everything about
+   * what an agent did and nothing about who changed the rules it was judged by.
+   * For an accountability system that is the more important half.
+   *
+   * Absent on agent entries — see `canonicalPayload` for why absence rather
+   * than an explicit `"agent"` value.
+   */
+  entryKind?: "admin";
+  /**
+   * The named account responsible for an administrative action, or `"cli"` for
+   * a change made through the command line, which has no login by design.
+   *
+   * A real field rather than a value smuggled into `ruleId`, because "who did
+   * this" is the question the administrative trail exists to answer, and an
+   * auditor must be able to filter on it without parsing strings.
+   */
+  actor?: string;
+  /**
+   * Marks an entry whose hash is a keyed HMAC rather than a bare SHA-256.
+   *
+   * Present on everything written since the ledger key was introduced. Absent
+   * on older entries, which are still verified with the original unkeyed hash
+   * so an existing ledger does not fail wholesale — the same presence-based
+   * migration used for the administrative fields.
+   *
+   * The chain may cross from unkeyed to keyed **once and never back**:
+   * `verifyLedgerChain` rejects an unkeyed entry appearing after a keyed one.
+   * Without that rule an attacker could rewrite history in the old format, which
+   * needs no key, and the migration would have handed back exactly the property
+   * it was introduced to provide.
+   */
+  keyed?: true;
 };
 
 const GENESIS_HASH = "0".repeat(64);
@@ -69,8 +119,33 @@ function clampResource(resource: string): string {
   return resource.slice(0, MAX_LEDGER_RESOURCE_LENGTH - suffix.length) + suffix;
 }
 
+/**
+ * The exact bytes an entry's hash is taken over.
+ *
+ * Adding administrative fields raised a problem specific to an append-only
+ * hash-chained log: the hash covers a fixed list of fields, so extending that
+ * list changes the hash of *every* entry, and a ledger written before the
+ * change would fail verification wholesale. A log whose own format migration
+ * makes all its history look tampered with is not much of a tamper-evident log.
+ *
+ * Resolved by keying the payload shape on **whether the administrative fields
+ * are present**, rather than on a version number:
+ *
+ *   - an agent entry carries neither field and is hashed over the original ten,
+ *     so every entry written before this change still verifies, unchanged;
+ *   - an administrative entry carries both and is hashed over twelve.
+ *
+ * Presence is the discriminator precisely because presence is then itself
+ * covered. Adding an `actor` to an old agent entry switches it to the twelve
+ * field form and the recomputed hash no longer matches what is stored; stripping
+ * the `actor` off an administrative entry switches it the other way, with the
+ * same result. Both are detected. That is the property a version field would
+ * *not* have given us for free — the version number would need protecting too,
+ * and would still leave the question of what to do about entries written before
+ * versions existed.
+ */
 function canonicalPayload(e: Omit<LedgerEntry, "hash">): string {
-  return JSON.stringify([
+  const base = [
     e.seq,
     e.timestamp,
     e.agentId,
@@ -81,11 +156,33 @@ function canonicalPayload(e: Omit<LedgerEntry, "hash">): string {
     e.ruleId,
     e.decision,
     e.prevHash,
-  ]);
+  ];
+  const withAdmin =
+    e.entryKind === undefined && e.actor === undefined
+      ? base
+      : [...base, e.entryKind ?? "", e.actor ?? ""];
+  // `keyed` joins the covered fields for the same reason `actor` did: a flag
+  // that selects how an entry is verified must itself be verified, or stripping
+  // it becomes a way to downgrade an entry to the weaker scheme.
+  return JSON.stringify(e.keyed ? [...withAdmin, "keyed"] : withAdmin);
 }
 
-function hashEntry(e: Omit<LedgerEntry, "hash">): string {
-  return createHash("sha256").update(canonicalPayload(e)).digest("hex");
+/**
+ * The entry's fingerprint.
+ *
+ * Keyed entries use HMAC-SHA256, so recomputing the chain forward after an edit
+ * requires the installation's ledger key rather than just the algorithm. Entries
+ * predating the key keep their original unkeyed hash so history still verifies.
+ */
+function hashEntry(e: Omit<LedgerEntry, "hash">, key: Buffer | undefined): string {
+  const payload = canonicalPayload(e);
+  if (e.keyed) {
+    if (!key) {
+      throw new Error("ledger entry is keyed but no ledger key is available");
+    }
+    return createHmac("sha256", key).update(payload).digest("hex");
+  }
+  return createHash("sha256").update(payload).digest("hex");
 }
 
 type LedgerRecord =
@@ -259,10 +356,15 @@ export type AppendLedgerEntryInput = {
   resource: string;
   ruleId: string;
   decision: LedgerDecision;
+  /** Set only by `recordAdminAction` (admin-audit.ts). */
+  entryKind?: "admin";
+  /** Set only by `recordAdminAction` (admin-audit.ts). */
+  actor?: string;
 };
 
 export async function appendLedgerEntry(input: AppendLedgerEntryInput): Promise<LedgerEntry> {
   await mkdir(governanceHomeDir(), { recursive: true, mode: 0o700 });
+  const key = await loadLedgerKey();
   // The lock covers read-head + append as one unit, across processes.
   return withFileLock(ledgerFilePath(), async () => {
     const prior = await readChainHead();
@@ -279,11 +381,23 @@ export async function appendLedgerEntry(input: AppendLedgerEntryInput): Promise<
       ruleId: input.ruleId,
       decision: input.decision,
       prevHash: prior.hash,
+      // Spread conditionally: writing `entryKind: undefined` would put the key
+      // on the object, and `canonicalPayload` keys the hashed shape on whether
+      // these fields are present.
+      ...(input.entryKind ? { entryKind: input.entryKind } : {}),
+      ...(input.actor ? { actor: input.actor } : {}),
+      // Everything written from now on is keyed.
+      keyed: true as const,
     };
-    const entry: LedgerEntry = { ...withoutHash, hash: hashEntry(withoutHash) };
+    const entry: LedgerEntry = { ...withoutHash, hash: hashEntry(withoutHash, key) };
     // JSON.stringify escapes newlines, so one entry is always exactly one line.
     await appendFile(ledgerFilePath(), `${JSON.stringify(entry)}\n`, { mode: 0o600 });
     cachedHead = { seq: entry.seq, hash: entry.hash, fileSize: await activeFileSize() };
+    // Written after the entry, never before: a checkpoint ahead of the ledger is
+    // the signal for truncation, so it must only ever describe an entry that
+    // genuinely reached the file. A crash between the two leaves the checkpoint
+    // one behind, which reports nothing — the safe direction to fail.
+    await writeCheckpoint(entry);
     await rotateIfNeeded();
     return entry;
   });
@@ -313,6 +427,54 @@ export type LedgerVerification = {
   reason?: string;
 };
 
+type LedgerCheckpoint = { seq: number; hash: string; updatedAt: string };
+
+/**
+ * Records how far the chain had got, in a file of its own.
+ *
+ * This is what makes truncation detectable (QA finding B4). A hash chain cannot
+ * detect its own tail being cut off, because a prefix of a valid chain is still
+ * a valid chain — every remaining entry verifies and nothing points at what is
+ * missing. Detecting it needs a record kept somewhere the deletion did not
+ * reach, so verification can ask "the ledger says it ends at 400; something
+ * that watched it grow says 500".
+ *
+ * A local file is a weaker anchor than an off-host one: an attacker who deletes
+ * ledger entries can delete this too. It is still worth having — it closes the
+ * casual case, it makes the tampering require two coordinated edits instead of
+ * one, and a missing checkpoint is itself reported rather than passing quietly.
+ * A genuinely strong anchor means copying this value off the machine, which is
+ * deployment rather than code and stays recorded as future work.
+ */
+async function writeCheckpoint(entry: LedgerEntry): Promise<void> {
+  const checkpoint: LedgerCheckpoint = {
+    seq: entry.seq,
+    hash: entry.hash,
+    updatedAt: new Date().toISOString(),
+  };
+  try {
+    await writeFile(ledgerCheckpointFilePath(), JSON.stringify(checkpoint), {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+  } catch {
+    // A checkpoint that cannot be written must never fail the append it
+    // describes: losing the action from the audit trail would be a worse
+    // outcome than losing the ability to detect truncation of it.
+  }
+}
+
+async function readCheckpoint(): Promise<LedgerCheckpoint | undefined> {
+  try {
+    const parsed = JSON.parse(await readFile(ledgerCheckpointFilePath(), "utf8")) as
+      | LedgerCheckpoint
+      | undefined;
+    return typeof parsed?.seq === "number" && typeof parsed?.hash === "string" ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Recomputes the chain from genesis and reports the first entry that doesn't match. */
 export async function verifyLedgerChain(): Promise<LedgerVerification> {
   // Archives first, then the active file. The chain is continuous across
@@ -322,9 +484,15 @@ export async function verifyLedgerChain(): Promise<LedgerVerification> {
   for (const segment of [...(await listArchives()), ledgerFilePath()]) {
     records.push(...(await readLedgerRecords(segment)));
   }
+  const key = await loadLedgerKey();
   let expectedPrevHash = GENESIS_HASH;
   let checked = 0;
   let expectedSeq = 1;
+  // Once the chain is keyed it must stay keyed. Otherwise an attacker rewrites
+  // history in the old unkeyed format — which needs no secret — and the keying
+  // is worth nothing.
+  let seenKeyed = false;
+  let lastEntry: LedgerEntry | undefined;
   for (const record of records) {
     if (!record.ok) {
       return {
@@ -350,8 +518,16 @@ export async function verifyLedgerChain(): Promise<LedgerVerification> {
         reason: "prevHash does not match the preceding entry's hash",
       };
     }
+    if (seenKeyed && !entry.keyed) {
+      return {
+        ok: false,
+        entriesChecked: checked,
+        brokenAtSeq: entry.seq,
+        reason: "unkeyed entry appears after a keyed one; the chain was downgraded",
+      };
+    }
     const { hash, ...withoutHash } = entry;
-    if (hashEntry(withoutHash) !== hash) {
+    if (hashEntry(withoutHash, key) !== hash) {
       return {
         ok: false,
         entriesChecked: checked,
@@ -359,9 +535,38 @@ export async function verifyLedgerChain(): Promise<LedgerVerification> {
         reason: "entry hash does not match its own recomputed content hash",
       };
     }
+    seenKeyed ||= entry.keyed === true;
     expectedPrevHash = hash;
     expectedSeq += 1;
     checked += 1;
+    lastEntry = entry;
+  }
+
+  // The chain itself is intact. Now ask the independent record whether it is
+  // *complete*: a prefix of a valid chain is still a valid chain, so everything
+  // above passes just as happily on a file whose newest entries were deleted.
+  const checkpoint = await readCheckpoint();
+  if (checkpoint) {
+    const lastSeq = lastEntry?.seq ?? 0;
+    if (checkpoint.seq > lastSeq) {
+      return {
+        ok: false,
+        entriesChecked: checked,
+        brokenAtSeq: lastSeq,
+        reason:
+          `ledger ends at entry ${lastSeq} but the checkpoint records entry ` +
+          `${checkpoint.seq}: ${checkpoint.seq - lastSeq} entr` +
+          `${checkpoint.seq - lastSeq === 1 ? "y was" : "ies were"} removed from the end`,
+      };
+    }
+    if (checkpoint.seq === lastSeq && lastEntry && checkpoint.hash !== lastEntry.hash) {
+      return {
+        ok: false,
+        entriesChecked: checked,
+        brokenAtSeq: lastSeq,
+        reason: "the final entry does not match the checkpoint recorded when it was written",
+      };
+    }
   }
   return { ok: true, entriesChecked: checked };
 }

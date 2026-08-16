@@ -1,4 +1,3 @@
-import { terminateAgentRuns, type TerminationOutcome } from "./agent-terminator.js";
 // Kill switch: the administrator's emergency stop for a runaway agent.
 //
 // Two things happen together, and both are required for design requirement #7
@@ -16,7 +15,8 @@ import { terminateAgentRuns, type TerminationOutcome } from "./agent-terminator.
 //
 // Ordering is deliberate: lock first, then abort. Aborting first would leave a
 // window in which the agent's next tool call is still permitted.
-import { appendLedgerEntry } from "./audit-ledger.js";
+import { ADMIN_ACTIONS, recordAdminAction, UNKNOWN_ACTOR } from "./admin-audit.js";
+import { terminateAgentRuns, type TerminationOutcome } from "./agent-terminator.js";
 import { lockAgent, unlockAgent } from "./policy-store.js";
 
 export type KillSwitchResult = {
@@ -40,17 +40,33 @@ export async function lockDownAgent(agentId: string, actor?: string): Promise<Ki
   const termination = await terminateAgentRuns(agentId);
   const elapsedMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
 
-  // The stop is itself a governance decision and belongs in the tamper-evident
+  // The stop is itself an administrative act and belongs in the tamper-evident
   // trail, alongside the actions it prevented.
-  await appendLedgerEntry({
+  //
+  // Recorded through recordAdminAction so the operator lands in the `actor`
+  // field. This used to be written as `ruleId: "kill-switch:alice"`, which put
+  // the most important fact about an emergency stop — who ordered it — inside a
+  // field named after something else, where no filter would find it.
+  await recordAdminAction({
+    actor: actor ?? UNKNOWN_ACTOR,
+    action: ADMIN_ACTIONS.agentLock,
     agentId,
-    toolName: "governance.kill",
-    resourceKind: "command",
-    resource: termination.supported
-      ? `lockdown engaged; aborted ${termination.abortedRunIds.length} in-flight run(s) in ${elapsedMs.toFixed(1)}ms`
-      : `lockdown engaged; no in-flight termination available (${elapsedMs.toFixed(1)}ms)`,
-    ruleId: actor ? `kill-switch:${actor}` : "kill-switch",
-    decision: "deny",
+    subjectId: agentId,
+    outcome: "deny",
+    // Both numbers, and whether the stop was actually observed. Recording only
+    // the total let "we asked in under a second" be read as "it stopped in
+    // under a second" — the two are different claims and requirement #7 is
+    // about the second one (QA finding A3).
+    target: !termination.supported
+      ? `lockdown engaged; no in-flight termination available (${elapsedMs.toFixed(1)}ms)`
+      : termination.stoppedConfirmed
+        ? `lockdown engaged; aborted ${termination.abortedRunIds.length} in-flight run(s); ` +
+          `signalled in ${termination.dispatchMs.toFixed(1)}ms, confirmed stopped in ${elapsedMs.toFixed(1)}ms`
+        : `lockdown engaged; aborted ${termination.abortedRunIds.length} in-flight run(s); ` +
+          `signalled in ${termination.dispatchMs.toFixed(1)}ms, stop NOT confirmed after ${elapsedMs.toFixed(1)}ms` +
+          (termination.stillRunningRunIds?.length
+            ? ` (${termination.stillRunningRunIds.length} still running)`
+            : " (no probe available to observe)"),
   });
 
   return { agentId, elapsedMs, termination };
@@ -59,12 +75,11 @@ export async function lockDownAgent(agentId: string, actor?: string): Promise<Ki
 /** Releases a lockdown. Does not restart anything that was aborted. */
 export async function releaseAgentLockdown(agentId: string, actor?: string): Promise<void> {
   await unlockAgent(agentId);
-  await appendLedgerEntry({
+  await recordAdminAction({
+    actor: actor ?? UNKNOWN_ACTOR,
+    action: ADMIN_ACTIONS.agentRelease,
     agentId,
-    toolName: "governance.kill",
-    resourceKind: "command",
-    resource: "lockdown released",
-    ruleId: actor ? `kill-switch:${actor}` : "kill-switch",
-    decision: "allow",
+    subjectId: agentId,
+    target: "lockdown released",
   });
 }

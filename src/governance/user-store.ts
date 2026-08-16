@@ -8,8 +8,9 @@ import { randomBytes } from "node:crypto";
 // changes, not a correctness requirement today.
 import { mkdir } from "node:fs/promises";
 import { readJsonIfExists, writeJsonAtomic } from "../infra/json-files.js";
+import { ADMIN_ACTIONS, recordAdminAction } from "./admin-audit.js";
 import { withFileLock } from "./file-lock.js";
-import { hashPassword, verifyPassword } from "./password.js";
+import { hashPassword, needsRehash, verifyPassword } from "./password.js";
 import { governanceHomeDir, usersFilePath } from "./paths.js";
 import type { GovernanceRole } from "./roles.js";
 
@@ -72,6 +73,21 @@ export async function findUserByUsername(username: string): Promise<GovernanceUs
   return file.users.find((u) => canonicalUsername(u.username) === normalized);
 }
 
+/**
+ * Usernames of the accounts an agent is assigned to.
+ *
+ * The bridge between the per-*user* escalation axis and a tool call, which
+ * carries an agent but no person. Until an account is wired into the chat path
+ * (A1), "the user behind this agent" is exactly the account it was assigned to,
+ * which is the relationship an Administrator already curates.
+ */
+export async function findUsersForAgent(agentId: string): Promise<string[]> {
+  const file = await readUsersFile();
+  return file.users
+    .filter((user) => user.assignedAgents.includes(agentId))
+    .map((user) => user.username);
+}
+
 export async function countUsers(): Promise<number> {
   return (await readUsersFile()).users.length;
 }
@@ -126,9 +142,21 @@ function canonicalUsername(username: string): string {
   return username.normalize("NFKC").trim().toLowerCase();
 }
 
-export async function createUser(input: CreateUserInput): Promise<GovernanceUserRecord> {
+/**
+ * `actor` is required on every account mutator, matching the policy mutators in
+ * policy-store.ts: an account or role change without a recorded author is a
+ * compile error, not a review finding.
+ *
+ * Ledger writes are made after the account lock is released, and only once the
+ * write has actually succeeded — a rejected change (duplicate username, last
+ * Root guard) leaves no entry, because nothing happened.
+ */
+export async function createUser(
+  input: CreateUserInput,
+  actor: string,
+): Promise<GovernanceUserRecord> {
   await ensureHomeDir();
-  return withFileLock(usersFilePath(), async () => {
+  const created = await withFileLock(usersFilePath(), async () => {
     const file = await readUsersFile();
     if (input.onlyAsFirstAccount && file.users.length > 0) {
       throw new AccountsAlreadyExistError();
@@ -147,6 +175,9 @@ export async function createUser(input: CreateUserInput): Promise<GovernanceUser
     if (file.users.some((u) => canonicalUsername(u.username) === canonical)) {
       throw new Error(`username "${normalized}" already exists`);
     }
+    if (wouldCreateSecondRoot(file.users, input.role)) {
+      throw new DuplicateRootError();
+    }
     const user: GovernanceUser = {
       id: `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       username: normalized,
@@ -159,6 +190,16 @@ export async function createUser(input: CreateUserInput): Promise<GovernanceUser
     await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });
     return toRecord(user);
   });
+  await recordAdminAction({
+    actor,
+    action: ADMIN_ACTIONS.userCreate,
+    // The role is the security-relevant part of creating an account, so it is
+    // recorded alongside the name rather than left to be inferred from a later
+    // role-change entry that may never exist.
+    target: `account ${created.username} created with role ${created.role}`,
+    subjectId: created.id,
+  });
+  return created;
 }
 
 /**
@@ -176,6 +217,43 @@ export class LastRootError extends Error {
     super("This would remove the last Root account");
     this.name = "LastRootError";
   }
+}
+
+/**
+ * Thrown when a write would produce a second Root account.
+ *
+ * The installation has exactly one Root. Only the lower bound was enforced
+ * before — `LastRootError` stops the last Root being removed — which left the
+ * two halves of one invariant unevenly guarded.
+ *
+ * The upper bound is not cosmetic. Root is the tier that manages people, and a
+ * second Root can delete the first; the moment two exist, "you cannot remove
+ * the last Root" stops protecting the operator who set the system up. Capping
+ * at one is what makes the existing lockout guard mean something.
+ */
+export class DuplicateRootError extends Error {
+  constructor() {
+    super("A Root account already exists; there can be only one");
+    this.name = "DuplicateRootError";
+  }
+}
+
+/**
+ * True when the change would leave the installation with two or more Roots.
+ *
+ * Checked inside the same lock as the write, for the reason spelled out on
+ * `wouldStrandWithoutRoot`: a snapshot check outside the lock lets two
+ * simultaneous promotions both read "one Root", both pass, and both write.
+ */
+function wouldCreateSecondRoot(
+  users: readonly GovernanceUser[],
+  role: GovernanceRole,
+  excludeUserId?: string,
+): boolean {
+  if (role !== "root") {
+    return false;
+  }
+  return users.some((u) => u.role === "root" && u.id !== excludeUserId);
 }
 
 /**
@@ -202,21 +280,46 @@ function wouldStrandWithoutRoot(
   return !remaining.some((u) => (u.id === userId ? nextRole === "root" : u.role === "root"));
 }
 
-export async function setUserRole(userId: string, role: GovernanceRole): Promise<boolean> {
+export async function setUserRole(
+  userId: string,
+  role: GovernanceRole,
+  actor: string,
+): Promise<boolean> {
   await ensureHomeDir();
-  return withFileLock(usersFilePath(), async () => {
+  const changed = await withFileLock(usersFilePath(), async () => {
     const file = await readUsersFile();
     const user = file.users.find((u) => u.id === userId);
     if (!user) {
-      return false;
+      return undefined;
     }
     if (wouldStrandWithoutRoot(file.users, userId, role)) {
       throw new LastRootError();
     }
+    // Promotion to Root is refused while another Root exists. Transferring the
+    // role means demoting the current Root first, which is deliberate: it makes
+    // handing over the installation an explicit two-step act rather than
+    // something that can happen by accident.
+    if (wouldCreateSecondRoot(file.users, role, userId)) {
+      throw new DuplicateRootError();
+    }
+    const previous = user.role;
     user.role = role;
     await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });
-    return true;
+    return { username: user.username, previous };
   });
+  if (!changed) {
+    return false;
+  }
+  await recordAdminAction({
+    actor,
+    action: ADMIN_ACTIONS.userRoleChange,
+    // Both roles, because a privilege escalation is only visible as a
+    // transition — "now an administrator" does not say whether that was a
+    // promotion or a demotion.
+    target: `account ${changed.username} role ${changed.previous} -> ${role}`,
+    subjectId: userId,
+  });
+  return true;
 }
 
 /**
@@ -227,32 +330,61 @@ export async function setUserRole(userId: string, role: GovernanceRole): Promise
 export async function setUserAssignedAgents(
   userId: string,
   agentIds: readonly string[],
+  actor: string,
 ): Promise<boolean> {
   await ensureHomeDir();
-  return withFileLock(usersFilePath(), async () => {
+  const changed = await withFileLock(usersFilePath(), async () => {
     const file = await readUsersFile();
     const user = file.users.find((u) => u.id === userId);
     if (!user) {
-      return false;
+      return undefined;
     }
+    const previous = user.assignedAgents;
     user.assignedAgents = normalizeAgentIds(agentIds);
     await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });
-    return true;
+    return { username: user.username, previous, next: user.assignedAgents };
   });
+  if (!changed) {
+    return false;
+  }
+  await recordAdminAction({
+    actor,
+    action: ADMIN_ACTIONS.userAgentsChange,
+    target:
+      `account ${changed.username} agents [${changed.previous.join(", ")}]` +
+      ` -> [${changed.next.join(", ")}]`,
+    subjectId: userId,
+  });
+  return true;
 }
 
-export async function deleteUser(userId: string): Promise<boolean> {
+export async function deleteUser(userId: string, actor: string): Promise<boolean> {
   await ensureHomeDir();
-  return withFileLock(usersFilePath(), async () => {
+  const deleted = await withFileLock(usersFilePath(), async () => {
     const file = await readUsersFile();
     if (wouldStrandWithoutRoot(file.users, userId, "deleted")) {
       throw new LastRootError();
     }
-    const before = file.users.length;
+    const user = file.users.find((u) => u.id === userId);
+    if (!user) {
+      return undefined;
+    }
     file.users = file.users.filter((u) => u.id !== userId);
     await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });
-    return file.users.length < before;
+    return { username: user.username, role: user.role };
   });
+  if (!deleted) {
+    return false;
+  }
+  await recordAdminAction({
+    actor,
+    action: ADMIN_ACTIONS.userDelete,
+    // Name and role are captured here because the account record is gone: after
+    // this point the ledger is the only place that says who existed.
+    target: `account ${deleted.username} (role ${deleted.role}) deleted`,
+    subjectId: userId,
+  });
+  return true;
 }
 
 /**
@@ -286,5 +418,93 @@ export async function authenticate(
     return undefined;
   }
   const ok = await verifyPassword(password, user.passwordHash);
-  return ok ? toRecord(user) : undefined;
+  if (!ok) {
+    return undefined;
+  }
+  // A successful sign-in is the only moment the plaintext exists, so it is the
+  // only moment a stored hash can be strengthened without asking anybody to do
+  // anything. Raising `CURRENT_SCRYPT_PARAMS` therefore migrates the
+  // installation on its own, one login at a time, with no window in which
+  // somebody is locked out — the property whose absence made the cost
+  // effectively permanent (B9).
+  if (needsRehash(user.passwordHash)) {
+    await upgradeStoredPassword(user.id, user.passwordHash, password);
+  }
+  return toRecord(user);
+}
+
+/**
+ * Re-hashes one account's password at the current cost.
+ *
+ * Best-effort by design: a failure here must never turn a valid sign-in into a
+ * failed one. The old hash still verifies, so the worst outcome is that the
+ * upgrade is retried at the next login.
+ *
+ * The compare-and-swap on `passwordHash` matters because this runs outside the
+ * caller's control flow: if the password changed between the read and this
+ * write — a reset landing at the same moment — the stale value must not be
+ * written back over the new one.
+ */
+async function upgradeStoredPassword(
+  userId: string,
+  expectedHash: string,
+  password: string,
+): Promise<void> {
+  try {
+    const rehashed = await hashPassword(password);
+    await withFileLock(usersFilePath(), async () => {
+      const file = await readUsersFile();
+      const user = file.users.find((u) => u.id === userId);
+      if (!user || user.passwordHash !== expectedHash) {
+        return;
+      }
+      user.passwordHash = rehashed;
+      await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });
+    });
+  } catch {
+    // Deliberately swallowed; see above.
+  }
+}
+
+/**
+ * Sets an account's password on behalf of Root.
+ *
+ * The recovery path whose absence made B9 severe: without it, a stored hash that
+ * could not be verified — because the cost parameters moved, or the record was
+ * corrupted — had no route back, since bootstrap refuses once any account
+ * exists. Restricted to Root at the API boundary, like every other account
+ * operation, and audited like one.
+ */
+export async function setUserPassword(
+  userId: string,
+  password: string,
+  actor: string,
+): Promise<boolean> {
+  await ensureHomeDir();
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    throw new Error(`password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+  }
+  const hashed = await hashPassword(password);
+  const changed = await withFileLock(usersFilePath(), async () => {
+    const file = await readUsersFile();
+    const user = file.users.find((u) => u.id === userId);
+    if (!user) {
+      return undefined;
+    }
+    user.passwordHash = hashed;
+    await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });
+    return user.username;
+  });
+  if (!changed) {
+    return false;
+  }
+  await recordAdminAction({
+    actor,
+    action: ADMIN_ACTIONS.userPasswordReset,
+    // The password itself is never recorded, obviously — only that it was
+    // replaced, by whom, and for whom.
+    target: `password reset for account ${changed}`,
+    subjectId: userId,
+  });
+  return true;
 }

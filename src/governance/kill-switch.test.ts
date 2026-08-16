@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { ADMIN_ACTIONS } from "./admin-audit.js";
 import {
   clearAgentTerminator,
   hasAgentTerminator,
@@ -78,10 +79,25 @@ describe("lockdown", () => {
   it("records who engaged it in the tamper-evident trail", async () => {
     await lockDownAgent("agent-a", "kinan");
     const entries = await tailLedger();
-    const killEntry = entries.find((entry) => entry.toolName === "governance.kill");
+    const killEntry = entries.find((entry) => entry.toolName === ADMIN_ACTIONS.agentLock);
     expect(killEntry).toBeDefined();
-    expect(killEntry?.ruleId).toBe("kill-switch:kinan");
+    // The operator lands in `actor`, a field named after what it holds. This
+    // was previously written as `ruleId: "kill-switch:kinan"` — the most
+    // important fact about an emergency stop, stored in a field named after
+    // something else, where no filter on "who did this" would find it.
+    expect(killEntry?.actor).toBe("kinan");
+    expect(killEntry?.entryKind).toBe("admin");
     expect(killEntry?.agentId).toBe("agent-a");
+  });
+
+  it("records a release, so a lockdown and its lifting are both accountable", async () => {
+    await lockDownAgent("agent-a", "kinan");
+    await releaseAgentLockdown("agent-a", "malek");
+    const release = (await tailLedger()).find(
+      (entry) => entry.toolName === ADMIN_ACTIONS.agentRelease,
+    );
+    expect(release?.actor).toBe("malek");
+    expect(release?.agentId).toBe("agent-a");
   });
 });
 

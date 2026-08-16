@@ -10,6 +10,8 @@
 // src/gateway/exec-approval-manager.ts) instead of reimplementing that
 // machinery here; returning `undefined` lets the call proceed to every other
 // existing check unchanged.
+import { parseAgentSessionKey } from "../sessions/session-key-utils.js";
+import { HITL_ACTOR } from "./admin-audit.js";
 import {
   appendLedgerEntry,
   MAX_LEDGER_RESOURCE_LENGTH,
@@ -20,6 +22,7 @@ import { recordTimedOutEscalation } from "./pending-decisions.js";
 import { addRule, loadPolicy } from "./policy-store.js";
 import { isRuleExpired, resolveAskMode } from "./policy-types.js";
 import { resolveGovernedTool } from "./resource-extraction.js";
+import { findUsersForAgent } from "./user-store.js";
 
 type ToolCallEvent = {
   toolName: string;
@@ -30,6 +33,13 @@ type ToolCallEvent = {
 type ToolCallContext = {
   agentId?: string;
   sessionKey?: string;
+  /**
+   * Workspace root, used to decide whether a path is inside the project (and so
+   * recorded in short form) or outside it (recorded absolute). Supplied from
+   * `HookContext.cwd` at the call site. Absent falls back to the process cwd,
+   * which keeps the engine usable in tests and from the CLI.
+   */
+  cwd?: string;
 };
 
 /**
@@ -78,13 +88,82 @@ function summarizeUngovernedParams(params: Record<string, unknown>): string {
   }
 }
 
+/**
+ * The agent this call belongs to, from the explicit id or, failing that, the
+ * session key.
+ *
+ * Two QA findings shared this root cause (B6 and B7). `agentId` is optional on
+ * the hook context and is genuinely absent on some paths, while the session key
+ * (`agent:<id>:<channel>`) still identifies the agent. The kill-switch
+ * *termination* code already resolved it this way
+ * (`governance-agent-termination.ts`), but the *blocking* code did not, so:
+ *
+ *   - B6 — a locked agent kept working whenever the id was absent, because
+ *     the lockdown check read only `ctx.agentId`. An emergency stop that holds
+ *     on some code paths and not others is not an emergency stop.
+ *   - B7 — an "allow always" approval created a rule with no `agentId`, and a
+ *     rule with no agent is **global**. Approving one action for one agent
+ *     silently granted it to every agent in the installation.
+ *
+ * One resolution point, used by both, so the two cannot drift apart again.
+ */
+function resolveEffectiveAgentId(ctx: ToolCallContext): string | undefined {
+  return ctx.agentId ?? parseAgentSessionKey(ctx.sessionKey)?.agentId;
+}
+
+/**
+ * Records an action the host's loop detector refused before governance saw it.
+ *
+ * That check runs above the governance gate in `runBeforeToolCallHook`, so
+ * these attempts never reached the ledger — a hole in requirement #5, and a
+ * misleading one. An agent stuck in a retry loop would be repeatedly refused
+ * while the audit trail showed nothing at all, so a reviewer reading it would
+ * conclude the agent had simply stopped trying.
+ *
+ * Deliberately not routed through the policy engine: no rule was consulted, so
+ * presenting it as a policy verdict would misattribute the decision. The rule
+ * id names the host control that actually made it.
+ *
+ * Never throws. A failure to log must not convert a blocked call into an error
+ * the caller has to handle — the block itself already happened.
+ */
+export async function recordLoopDetectorBlock(input: {
+  toolName: string;
+  params: Record<string, unknown>;
+  agentId?: string;
+  sessionKey?: string;
+  reason: string;
+}): Promise<void> {
+  try {
+    const doc = await loadPolicy();
+    if (doc.mode === "off") {
+      // The gate is not running; recording would imply oversight that is not
+      // happening, exactly as in the main evaluation path.
+      return;
+    }
+    const spec = resolveGovernedTool(input.toolName);
+    await appendLedgerEntry({
+      agentId: input.agentId,
+      sessionKey: input.sessionKey,
+      toolName: input.toolName,
+      resourceKind: spec?.resourceKind ?? "unknown",
+      resource: summarizeUngovernedParams(input.params),
+      ruleId: "loop-detector",
+      decision: "deny",
+    });
+  } catch {
+    // See above.
+  }
+}
+
 export async function evaluateGovernancePolicy(
   event: ToolCallEvent,
   ctx: ToolCallContext,
 ): Promise<GovernancePolicyDecision> {
   const spec = resolveGovernedTool(event.toolName);
   const doc = await loadPolicy();
-  if (doc.mode === "off") {
+  const agentId = resolveEffectiveAgentId(ctx);
+  if ((agentId ? (doc.agentMode[agentId] ?? doc.mode) : doc.mode) === "off") {
     // The gate is switched off entirely; recording would imply oversight that
     // is not happening.
     return undefined;
@@ -98,9 +177,9 @@ export async function evaluateGovernancePolicy(
   // return came first. An emergency stop that only covers the tools we happened
   // to enumerate is not an emergency stop — the whole point of the kill switch
   // is that it holds when the specific rules do not.
-  if (ctx.agentId && doc.lockedAgents.includes(ctx.agentId)) {
+  if (agentId && doc.lockedAgents.includes(agentId)) {
     await appendLedgerEntry({
-      agentId: ctx.agentId,
+      agentId,
       sessionKey: ctx.sessionKey,
       toolName: event.toolName,
       resourceKind: spec?.resourceKind ?? "unknown",
@@ -119,7 +198,7 @@ export async function evaluateGovernancePolicy(
     //
     // `off` still exempts it, because `off` means the gate is not running at
     // all and says so plainly.
-    return { block: true, blockReason: `governance: agent "${ctx.agentId}" is locked down` };
+    return { block: true, blockReason: `governance: agent "${agentId}" is locked down` };
   }
 
   if (!spec) {
@@ -129,7 +208,7 @@ export async function evaluateGovernancePolicy(
     // it as `ungoverned` is what makes coverage gaps visible instead of
     // invisible: an auditor can ask which tools are slipping past the policy.
     await appendLedgerEntry({
-      agentId: ctx.agentId,
+      agentId,
       sessionKey: ctx.sessionKey,
       toolName: event.toolName,
       resourceKind: "unknown",
@@ -140,7 +219,7 @@ export async function evaluateGovernancePolicy(
     return undefined;
   }
 
-  const resources = spec.extract(event);
+  const resources = await spec.extract(event, ctx.cwd);
   if (resources.length === 0) {
     // A governed tool whose payload yielded nothing to check — typically a
     // shape the extractor does not recognise. We still do not fail closed on
@@ -148,7 +227,7 @@ export async function evaluateGovernancePolicy(
     // but the attempt is recorded so the blind spot is discoverable rather
     // than silent.
     await appendLedgerEntry({
-      agentId: ctx.agentId,
+      agentId,
       sessionKey: ctx.sessionKey,
       toolName: event.toolName,
       resourceKind: spec.resourceKind,
@@ -159,19 +238,85 @@ export async function evaluateGovernancePolicy(
     return undefined;
   }
 
+  // ---------------------------------------------------------------------
+  // Core denials, first and unconditionally.
+  //
+  // Evaluated before allow rules, before the posture is consulted, and before
+  // any per-agent override. Two properties depend on this position:
+  //
+  //   * **Deny beats allow.** The tier exists so a restriction survives a later
+  //     broad grant. Checking allows first and denies second would make that
+  //     false the moment somebody wrote a wide rule.
+  //   * **Monitor does not suspend them.** Monitor means policy *opinions* are
+  //     recorded rather than acted on. These are the restrictions the
+  //     installation declines to merely have an opinion about — and since a
+  //     User can switch their own agent into monitor, the alternative would make
+  //     monitor a one-click lift of every core protection.
+  // ---------------------------------------------------------------------
+  //
+  // **Every** deny rule, not only core ones. Restricting this pass to
+  // `tier === "core"` left a deny rule at any other tier falling between two
+  // stools: the allow pass excludes anything with `effect: "deny"`, and this
+  // pass excluded anything not core, so the rule was dropped entirely. An
+  // operator would see their restriction listed in the policy and have it do
+  // nothing whatsoever — the worst possible failure for a rule whose purpose is
+  // to forbid. Core and non-core denials differ in *mutability*, not in force.
+  //
+  // Agent scoping and expiry apply here exactly as they do to allowances.
+  // Without the scope check a deny written for one agent silently became
+  // installation-wide, which is the mirror image of the agent-scoped allow bug
+  // fixed earlier and just as surprising.
+  const now = Date.now();
+  const denials = doc.rules.filter(
+    (rule) =>
+      rule.effect === "deny" &&
+      rule.resourceKind === spec.resourceKind &&
+      !isRuleExpired(rule, now) &&
+      (rule.agentId === undefined || rule.agentId === agentId),
+  );
+  for (const resource of resources) {
+    const denied = denials.find((rule) => matchesPattern(rule.pattern, resource));
+    if (!denied) {
+      continue;
+    }
+    await appendLedgerEntry({
+      agentId,
+      sessionKey: ctx.sessionKey,
+      toolName: event.toolName,
+      resourceKind: spec.resourceKind,
+      resource,
+      ruleId: denied.id,
+      decision: "deny",
+    });
+    return {
+      block: true,
+      blockReason:
+        `governance: ${spec.resourceKind} "${resource}" is refused by a ` +
+        `${denied.tier ?? "admin"}-tier deny rule (${denied.description ?? denied.pattern})` +
+        `${denied.tier === "core" ? ". Core rules cannot be overridden by policy." : "."}`,
+    };
+  }
+
   // Per-agent HITL override (design doc §1.6), falling back to the
   // installation default when this agent has none.
-  const askMode = resolveAskMode(doc, ctx.agentId);
-  const now = Date.now();
+  // The per-user axis costs a second file read, so it is only consulted when
+  // somebody has actually set one. An installation that does not use the
+  // feature pays nothing for it on the gate's hot path.
+  const owningUsers =
+    agentId && Object.keys(doc.userAsk).length > 0 ? await findUsersForAgent(agentId) : [];
+  const askMode = resolveAskMode(doc, agentId, owningUsers);
   const activeRules = doc.rules.filter(
     (rule) =>
       rule.resourceKind === spec.resourceKind &&
+      // Deny rules are handled above; only allowances participate here, or a
+      // core denial would read as a grant.
+      rule.effect !== "deny" &&
       !isRuleExpired(rule, now) &&
       // A rule authorizes an agent only if it is global (no agentId) or was
       // written for this exact agent. Without this check an agent-scoped rule
       // would authorize every agent, silently converting a delegated,
       // single-agent grant into an installation-wide one.
-      (rule.agentId === undefined || rule.agentId === ctx.agentId),
+      (rule.agentId === undefined || rule.agentId === agentId),
   );
 
   // Every resource in the call is evaluated and recorded before any verdict is
@@ -188,7 +333,7 @@ export async function evaluateGovernancePolicy(
     const decision: LedgerDecision = matched ? "allow" : askMode === "off" ? "deny" : "ask";
 
     await appendLedgerEntry({
-      agentId: ctx.agentId,
+      agentId,
       sessionKey: ctx.sessionKey,
       toolName: event.toolName,
       resourceKind: spec.resourceKind,
@@ -202,7 +347,11 @@ export async function evaluateGovernancePolicy(
     }
   }
 
-  if (firstMiss === undefined || doc.mode === "monitor") {
+  // The posture that applies to *this* agent: its own override when set,
+  // otherwise the installation setting. Monitor reaching here suspends only
+  // baseline and admin verdicts — core denials already returned above.
+  const effectiveMode = agentId ? (doc.agentMode[agentId] ?? doc.mode) : doc.mode;
+  if (firstMiss === undefined || effectiveMode === "monitor") {
     return undefined;
   }
 
@@ -219,7 +368,7 @@ export async function evaluateGovernancePolicy(
       requireApproval: {
         title: `Governance: unlisted ${spec.resourceKind}`,
         description:
-          `Agent "${ctx.agentId ?? "unknown"}" wants to run "${event.toolName}" against ` +
+          `Agent "${agentId ?? "unknown"}" wants to run "${event.toolName}" against ` +
           `${spec.resourceKind} "${resource}", which no policy rule currently covers.`,
         severity: "warning",
         // Bound the wait (design doc §1.6, window set by the Root). OpenClaw's
@@ -234,7 +383,7 @@ export async function evaluateGovernancePolicy(
           // it was blocked from doing.
           if (resolutionDecision === "timeout" || resolutionDecision === "cancelled") {
             await recordTimedOutEscalation({
-              agentId: ctx.agentId ?? "unknown",
+              agentId: agentId ?? "unknown",
               ...(ctx.sessionKey ? { sessionKey: ctx.sessionKey } : {}),
               toolName: event.toolName,
               resourceKind: spec.resourceKind,
@@ -242,7 +391,7 @@ export async function evaluateGovernancePolicy(
               waitedMs: Math.max(1, doc.hitlTimeoutSeconds) * 1000,
             });
             await appendLedgerEntry({
-              agentId: ctx.agentId,
+              agentId,
               sessionKey: ctx.sessionKey,
               toolName: event.toolName,
               resourceKind: spec.resourceKind,
@@ -254,7 +403,7 @@ export async function evaluateGovernancePolicy(
           }
           const finalDecision: LedgerDecision = resolutionDecision === "deny" ? "deny" : "allow";
           await appendLedgerEntry({
-            agentId: ctx.agentId,
+            agentId,
             sessionKey: ctx.sessionKey,
             toolName: event.toolName,
             resourceKind: spec.resourceKind,
@@ -266,16 +415,25 @@ export async function evaluateGovernancePolicy(
                 : finalDecision,
           });
           if (resolutionDecision === "allow-always") {
-            await addRule({
-              resourceKind: spec.resourceKind,
-              pattern: escapeRegExp(resource),
-              // Grant exactly the scope the approver was shown. The prompt
-              // names one agent ("Agent X wants to run..."), so a global rule
-              // here would silently hand every other agent in the installation
-              // the same access off the back of a single-agent decision.
-              ...(ctx.agentId ? { agentId: ctx.agentId } : {}),
-              description: `HITL allow-always grant for ${event.toolName}`,
-            });
+            await addRule(
+              {
+                resourceKind: spec.resourceKind,
+                pattern: escapeRegExp(resource),
+                // Grant exactly the scope the approver was shown. The prompt
+                // names one agent ("Agent X wants to run..."), so a global rule
+                // here would silently hand every other agent in the installation
+                // the same access off the back of a single-agent decision.
+                ...(agentId ? { agentId } : {}),
+                description: `HITL allow-always grant for ${event.toolName}`,
+              },
+              // A permission created by a human clicking "allow always" on an
+              // escalation. The approval arrives through OpenClaw's own
+              // approval machinery, which reports the decision but not which
+              // person made it, so the origin is recorded rather than a name
+              // that would be invented. Narrowing this to a real identity is
+              // part of the same work as A6 (CLI attribution).
+              HITL_ACTOR,
+            );
           }
         },
       },

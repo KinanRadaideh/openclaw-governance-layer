@@ -1,9 +1,11 @@
 // QA round 6: defects found by auditing this layer against the host and against
 // adversarial concurrency, rather than against its own assumptions.
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { tailLedger } from "./audit-ledger.js";
+import { DEFAULT_TIMEOUT_MS, STALE_LOCK_MS_FOR_TESTS } from "./file-lock.js";
 import {
   checkLoginAllowed,
   loginThrottleKey,
@@ -11,8 +13,9 @@ import {
   recordLoginFailure,
   resetLoginThrottle,
 } from "./login-throttle.js";
+import { usersFilePath } from "./paths.js";
 import { evaluateGovernancePolicy } from "./policy-engine.js";
-import { lockAgent, savePolicy } from "./policy-store.js";
+import { addRule, loadPolicy, lockAgent, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
 import { checkRegexSafety } from "./regex-safety.js";
 import { listRuleRequests, submitRuleRequest } from "./rule-requests.js";
@@ -103,9 +106,28 @@ describe("the login throttle cannot be flushed by an attacker", () => {
 });
 
 describe("the last Root cannot be removed by two requests at once", () => {
+  /**
+   * Puts the store into a two-Root state by writing the file directly.
+   *
+   * `createUser` refuses a second Root since B11, so the state cannot be built
+   * through the normal path any more — but it can still *exist*: an
+   * installation created before that rule, or a hand-edited `users.json`, will
+   * have it. The concurrency guard has to hold for those, so the test now
+   * constructs the state it is about rather than asking the API to create
+   * something the API is right to refuse.
+   */
   async function twoRoots() {
     await createUser({ username: "root-a", password: "correct-horse", role: "root" });
-    await createUser({ username: "root-b", password: "correct-horse", role: "root" });
+    const raw = JSON.parse(await readFile(usersFilePath(), "utf8")) as {
+      users: Array<Record<string, unknown>>;
+    };
+    const first = raw.users[0] as Record<string, unknown>;
+    raw.users.push({
+      ...first,
+      id: "user-root-b",
+      username: "root-b",
+    });
+    await writeFile(usersFilePath(), JSON.stringify(raw), { mode: 0o600 });
     const users = await listUsers();
     return users.map((user) => user.id);
   }
@@ -206,5 +228,116 @@ describe("the kill switch is not suspended by monitor mode", () => {
         { agentId: "agent-a" },
       ),
     ).toBeUndefined();
+  });
+});
+
+describe("the agent id is resolved from the session when it is not passed explicitly", () => {
+  // B6 and B7 shared one root cause: the blocking path read `ctx.agentId` only,
+  // while the termination path already fell back to the session key. The two
+  // disagreed about which agent a call belonged to.
+  beforeEach(async () => {
+    await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
+  });
+
+  it("blocks a locked agent identified only by its session key (B6)", async () => {
+    await lockAgent("agent-a");
+    const decision = await evaluateGovernancePolicy(
+      { toolName: "exec", params: { command: "ls" } },
+      // No agentId — exactly the shape that slipped past the kill switch.
+      { sessionKey: "agent:agent-a:main" },
+    );
+    expect(decision && "block" in decision).toBe(true);
+  });
+
+  it("records the lockdown against the agent, not against 'unknown'", async () => {
+    await lockAgent("agent-a");
+    await evaluateGovernancePolicy(
+      { toolName: "exec", params: { command: "ls" } },
+      { sessionKey: "agent:agent-a:main" },
+    );
+    const entry = (await tailLedger()).at(-1);
+    expect(entry?.agentId).toBe("agent-a");
+  });
+
+  it("keeps an agent-scoped rule from authorizing a different agent by session key", async () => {
+    await addRule({ resourceKind: "command", pattern: "^ls$", agentId: "agent-a" }, "tester");
+    const allowed = await evaluateGovernancePolicy(
+      { toolName: "exec", params: { command: "ls" } },
+      { sessionKey: "agent:agent-a:main" },
+    );
+    expect(allowed).toBeUndefined();
+    const blocked = await evaluateGovernancePolicy(
+      { toolName: "exec", params: { command: "ls" } },
+      { sessionKey: "agent:agent-b:main" },
+    );
+    expect(blocked && "block" in blocked).toBe(true);
+  });
+
+  it("leaves the agent genuinely unknown when the session key is not an agent key", async () => {
+    // The fallback must not invent an identity. A non-agent session key yields
+    // no agent, and the call is governed as unattributed rather than being
+    // wrongly bound to someone.
+    await lockAgent("agent-a");
+    const decision = await evaluateGovernancePolicy(
+      { toolName: "exec", params: { command: "ls" } },
+      { sessionKey: "channel:whatsapp:12345" },
+    );
+    expect(decision && "block" in decision && decision.block).toBeTruthy();
+    const entry = (await tailLedger()).at(-1);
+    expect(entry?.agentId).toBe("unknown");
+  });
+});
+
+describe("QA pass: corrupted settings must not resolve to the more permissive branch", () => {
+  it("treats an unparseable per-agent ask override as absent", async () => {
+    // A hand-edited or truncated policy.json. The old code cast the value
+    // straight to AskMode; the engine tests `=== "off"`, so anything
+    // unrecognised fell through to "ask a human" — which can end in allow,
+    // while `off` denies outright.
+    await savePolicy({
+      ...defaultPolicyDocument(),
+      mode: "enforce",
+      ask: "off",
+      agentAsk: { "agent-a": "yes-please" as never },
+    });
+    const decision = await evaluateGovernancePolicy(
+      { toolName: "exec", params: { command: "rm -rf /" } },
+      { agentId: "agent-a" },
+    );
+    // Falls back to the installation default, which is `off` -> deny.
+    expect(decision && "block" in decision).toBe(true);
+  });
+
+  it("drops the bad entry on load rather than carrying it in memory", async () => {
+    await savePolicy({
+      ...defaultPolicyDocument(),
+      agentAsk: { good: "off", bad: 42 as never },
+    });
+    const doc = await loadPolicy();
+    expect(doc.agentAsk).toEqual({ good: "off" });
+  });
+
+  it("still honours a valid per-agent override", async () => {
+    await savePolicy({
+      ...defaultPolicyDocument(),
+      mode: "enforce",
+      ask: "off",
+      agentAsk: { "agent-a": "on-miss" },
+    });
+    const decision = await evaluateGovernancePolicy(
+      { toolName: "exec", params: { command: "whatever" } },
+      { agentId: "agent-a" },
+    );
+    expect(decision && "requireApproval" in decision).toBe(true);
+  });
+});
+
+describe("QA pass: a crashed process must not wedge the lock past the wait", () => {
+  it("declares a lock abandoned well before a waiter gives up", async () => {
+    // The reaper only runs inside a waiting caller, so a staleness threshold at
+    // or above the wait timeout makes it dead code: every waiter times out
+    // before the lock becomes reclaimable, and a crash wedges governance writes
+    // until somebody deletes the file by hand.
+    expect(STALE_LOCK_MS_FOR_TESTS).toBeLessThan(DEFAULT_TIMEOUT_MS);
   });
 });

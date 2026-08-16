@@ -1,4 +1,4 @@
-import { evaluateGovernancePolicy } from "../governance/policy-engine.js";
+import { evaluateGovernancePolicy, recordLoopDetectorBlock } from "../governance/policy-engine.js";
 /**
  * Ordered before_tool_call policy chain.
  *
@@ -153,6 +153,23 @@ export async function runBeforeToolCallHook(args: {
           args.ctx,
         );
         if (intervention) {
+          // Record it before returning. This branch sits *above* the governance
+          // gate, so an action stopped by the host's loop detector used to
+          // leave no trace in the audit ledger at all — a hole in design
+          // requirement #5's "100% of agent actions", and a misleading one:
+          // the agent tried repeatedly, was refused, and the record showed
+          // nothing, so a reviewer would conclude it had simply stopped.
+          //
+          // Logged as `deny` with a rule id naming the loop detector, so the
+          // reason is attributable to the host control rather than looking like
+          // a policy decision governance made.
+          await recordLoopDetectorBlock({
+            toolName,
+            params: isPlainObject(params) ? params : {},
+            ...(args.ctx?.agentId ? { agentId: args.ctx.agentId } : {}),
+            ...(args.ctx?.sessionKey ? { sessionKey: args.ctx.sessionKey } : {}),
+            reason: intervention.reason,
+          });
           return {
             blocked: true,
             kind: "veto",
@@ -192,6 +209,11 @@ export async function runBeforeToolCallHook(args: {
       {
         ...(args.ctx?.agentId && { agentId: args.ctx.agentId }),
         ...(args.ctx?.sessionKey && { sessionKey: args.ctx.sessionKey }),
+        // Workspace root for path canonicalization: paths inside it are
+        // governed in short form, paths outside it absolute. Same `cwd` the
+        // host already uses to derive path facts a few lines above, so the
+        // gate and the host agree on what "inside the project" means.
+        ...(args.ctx?.cwd && { cwd: args.ctx.cwd }),
       },
     );
     if (governanceDecision && "block" in governanceDecision && governanceDecision.block) {

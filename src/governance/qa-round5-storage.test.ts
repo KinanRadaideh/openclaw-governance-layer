@@ -14,6 +14,7 @@ import {
   tailLedger,
   verifyLedgerChain,
 } from "./audit-ledger.js";
+import { isShippedRule } from "./baseline-policy.js";
 import { addRule, loadPolicy, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument, type PolicyDocument } from "./policy-types.js";
 import { resolveRuleTtl, validateRulePattern, MAX_RULE_TTL_MINUTES } from "./rule-validation.js";
@@ -86,7 +87,9 @@ describe("a corrupted policy document degrades to default-deny, not to a crash",
       JSON.stringify({ version: 1, mode: "enforce", rules: "not-an-array" }),
     );
     const doc = await loadPolicy();
-    expect(doc.rules).toEqual([]);
+    // Filtered to operator rules: an installation now ships with core and
+    // baseline rules, which are reasserted on every load by design.
+    expect(doc.rules.filter((rule) => !isShippedRule(rule))).toEqual([]);
     expect(() => doc.rules.filter(Boolean)).not.toThrow();
   });
 
@@ -103,7 +106,7 @@ describe("a corrupted policy document degrades to default-deny, not to a crash",
       }),
     );
     const doc = await loadPolicy();
-    expect(doc.rules.map((rule) => rule.id)).toEqual(["ok"]);
+    expect(doc.rules.filter((rule) => !isShippedRule(rule)).map((rule) => rule.id)).toEqual(["ok"]);
   });
 
   it("falls back on an unrecognised mode rather than trusting it", async () => {
@@ -162,7 +165,8 @@ describe("a rule keeps its generated id", () => {
     const rule = await addRule({ id: undefined, resourceKind: "command", pattern: "^ls$" });
     expect(typeof rule.id).toBe("string");
     expect(rule.id).not.toBe("");
-    expect((await loadPolicy()).rules[0]?.id).toBe(rule.id);
+    const operatorRules = (await loadPolicy()).rules.filter((entry) => !isShippedRule(entry));
+    expect(operatorRules[0]?.id).toBe(rule.id);
   });
 });
 

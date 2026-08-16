@@ -9,6 +9,7 @@
 // tool's parameter schema, extraction is declared per tool name here, in one
 // place, so adding governance for a new tool is a one-line addition instead of
 // a change buried in the policy engine.
+import { normalizeGovernedPath } from "./path-normalize.js";
 import type { ResourceKind } from "./policy-types.js";
 
 type ToolCallLike = {
@@ -17,9 +18,15 @@ type ToolCallLike = {
   derivedPaths?: readonly string[];
 };
 
+/**
+ * `cwd` is the workspace root path resources are made relative to. Extraction
+ * is async because path canonicalization follows symbolic links, which is a
+ * filesystem read — see path-normalize.ts. Command and network extraction have
+ * no such need and simply ignore both.
+ */
 export type GovernedToolSpec = {
   resourceKind: ResourceKind;
-  extract: (event: ToolCallLike) => string[];
+  extract: (event: ToolCallLike, cwd?: string) => Promise<string[]>;
 };
 
 /** Caps a resource string so one pathological payload cannot bloat the ledger. */
@@ -31,16 +38,6 @@ function asString(value: unknown): string | undefined {
 
 function clamp(value: string): string {
   return value.length > MAX_RESOURCE_LENGTH ? value.slice(0, MAX_RESOURCE_LENGTH) : value;
-}
-
-/**
- * Normalizes a path resource so one rule works on both Linux and Windows.
- * Without this, a rule authored as `^src/config\.json$` silently fails to
- * match `src\config.json` on a Windows host — a rule that looks correct but
- * never fires is worse than no rule at all.
- */
-function normalizePathResource(value: string): string {
-  return clamp(value.replaceAll("\\", "/"));
 }
 
 /**
@@ -61,15 +58,25 @@ function extractNetworkResource(rawUrl: string): string {
   return clamp(rawUrl);
 }
 
-function extractPaths(event: ToolCallLike): string[] {
+/**
+ * Both branches go through the same normalizer, which is the point.
+ *
+ * `derivedPaths` (populated for `apply_patch` only) arrives already absolute,
+ * while `params.path` arrives exactly as the model wrote it. Feeding both to
+ * `normalizeGovernedPath` is what makes one rule behave identically no matter
+ * which tool the agent reached for — previously a documented pattern such as
+ * `^src/.*$` could match a `read` and never match an `apply_patch` of the very
+ * same file.
+ */
+async function extractPaths(event: ToolCallLike, cwd?: string): Promise<string[]> {
   if (event.derivedPaths && event.derivedPaths.length > 0) {
-    return event.derivedPaths.map(normalizePathResource);
+    return Promise.all(event.derivedPaths.map((path) => normalizeGovernedPath(path, cwd)));
   }
   const path = asString(event.params.path) ?? asString(event.params.file_path);
-  return path ? [normalizePathResource(path)] : [];
+  return path ? [await normalizeGovernedPath(path, cwd)] : [];
 }
 
-function extractCommand(event: ToolCallLike): string[] {
+async function extractCommand(event: ToolCallLike): Promise<string[]> {
   const command = asString(event.params.command);
   return command ? [clamp(command)] : [];
 }
@@ -115,7 +122,7 @@ export const GOVERNED_TOOLS: Record<string, GovernedToolSpec> = Object.assign(
     apply_patch: { resourceKind: "path", extract: extractPaths },
     web_fetch: {
       resourceKind: "network",
-      extract: (event) => {
+      extract: async (event) => {
         const url = asString(event.params.url);
         return url ? [extractNetworkResource(url)] : [];
       },

@@ -1,8 +1,9 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { hashPassword, verifyPassword } from "./password.js";
+import { hashPassword, needsRehash, verifyPassword } from "./password.js";
+import { usersFilePath } from "./paths.js";
 import { roleAtLeast } from "./roles.js";
 import {
   issueSession,
@@ -17,6 +18,7 @@ import {
   createUser,
   deleteUser,
   listUsers,
+  setUserPassword,
   setUserRole,
 } from "./user-store.js";
 
@@ -160,9 +162,15 @@ describe("session tokens", () => {
   });
 
   it("propagates a role change into an already-issued session", async () => {
-    const user = await createUser({ username: "frank", password: "pw12345678", role: "root" });
-    // A second Root so the demotion below is a legitimate operation rather than
-    // one the store refuses for stranding the installation without a Root.
+    // An Administrator, not a Root. This test is about a role change reaching
+    // an already-issued session; using Root forced the setup to create a second
+    // Root, which the store now refuses (B11: exactly one Root). A Root is
+    // still created so demoting this account does not strand the installation.
+    const user = await createUser({
+      username: "frank",
+      password: "pw12345678",
+      role: "administrator",
+    });
     await createUser({ username: "grace", password: "pw12345678", role: "root" });
     const session = await issueSession({ id: user.id, username: user.username, role: user.role });
     await setUserRole(user.id, "viewer");
@@ -209,5 +217,84 @@ describe("session tokens", () => {
     const { writeFile } = await import("node:fs/promises");
     await writeFile(path, JSON.stringify(file));
     expect(await verifySession(session.token)).toBeUndefined();
+  });
+});
+
+describe("password cost can be raised later (B9)", () => {
+  it("records the cost parameters alongside the hash", async () => {
+    const stored = await hashPassword("correct-horse-battery");
+    expect(stored.startsWith("scrypt:N=")).toBe(true);
+    expect(await verifyPassword("correct-horse-battery", stored)).toBe(true);
+  });
+
+  it("verifies a password hashed at a weaker setting than today's", async () => {
+    // The defect: without recorded parameters, raising the cost re-derived every
+    // existing password with settings it was never hashed under, so every
+    // comparison failed and — with no reset path — the installation was locked
+    // out for good.
+    const weak = await hashPassword("correct-horse-battery", { N: 1024, r: 8, p: 1 });
+    expect(await verifyPassword("correct-horse-battery", weak)).toBe(true);
+    expect(await verifyPassword("wrong-password", weak)).toBe(false);
+    expect(needsRehash(weak)).toBe(true);
+  });
+
+  it("still verifies the legacy format that recorded no parameters", async () => {
+    const legacy = `scrypt:${"ab".repeat(8)}:${"cd".repeat(32)}`;
+    // Cannot match a real password, but must be parsed rather than crash, and
+    // must be flagged for upgrade.
+    expect(await verifyPassword("anything", legacy)).toBe(false);
+    expect(needsRehash(legacy)).toBe(true);
+  });
+
+  it("does not flag a hash already at the current setting", async () => {
+    expect(needsRehash(await hashPassword("correct-horse-battery"))).toBe(false);
+  });
+
+  it("upgrades a weak hash in place on a successful sign-in", async () => {
+    const user = await createUser(
+      { username: "malek", password: "correct-horse-battery", role: "viewer" },
+      "root",
+    );
+    // Downgrade the stored hash to simulate an account created before the cost
+    // was raised, then sign in.
+    const weak = await hashPassword("correct-horse-battery", { N: 1024, r: 8, p: 1 });
+    const raw = JSON.parse(await readFile(usersFilePath(), "utf8")) as {
+      users: Array<{ id: string; passwordHash: string }>;
+    };
+    const record = raw.users.find((u) => u.id === user.id);
+    if (record) {
+      record.passwordHash = weak;
+    }
+    await writeFile(usersFilePath(), JSON.stringify(raw), { mode: 0o600 });
+
+    expect(await authenticate("malek", "correct-horse-battery")).toBeDefined();
+
+    const after = JSON.parse(await readFile(usersFilePath(), "utf8")) as {
+      users: Array<{ id: string; passwordHash: string }>;
+    };
+    const upgraded = after.users.find((u) => u.id === user.id)?.passwordHash ?? "";
+    expect(needsRehash(upgraded)).toBe(false);
+    // Still the same password, now stored more strongly.
+    expect(await verifyPassword("correct-horse-battery", upgraded)).toBe(true);
+  });
+
+  it("lets Root set another account's password, and records it", async () => {
+    const user = await createUser(
+      { username: "malek", password: "correct-horse-battery", role: "viewer" },
+      "root",
+    );
+    expect(await setUserPassword(user.id, "a-brand-new-secret", "root-user")).toBe(true);
+    expect(await authenticate("malek", "a-brand-new-secret")).toBeDefined();
+    expect(await authenticate("malek", "correct-horse-battery")).toBeUndefined();
+  });
+
+  it("refuses a reset that would set a password below the minimum length", async () => {
+    const user = await createUser(
+      { username: "malek", password: "correct-horse-battery", role: "viewer" },
+      "root",
+    );
+    await expect(setUserPassword(user.id, "short", "root-user")).rejects.toThrow();
+    // The old password must still work after a refused reset.
+    expect(await authenticate("malek", "correct-horse-battery")).toBeDefined();
   });
 });

@@ -55,11 +55,70 @@ export type CandidateRule = {
   agentId?: string;
 };
 
-/** Patterns that match every possible resource string of their kind. */
-const CATCH_ALL_PATTERNS = new Set([".*", "^.*$", "^.*", ".*$", "(.*)", "^(.*)$", ""]);
+/**
+ * Patterns that match every resource string of their kind.
+ *
+ * Longer than it first appears, because matching uses `RegExp.prototype.test`,
+ * which is a **substring** search. An unanchored pattern therefore matches far
+ * more than it looks like it does:
+ *
+ *   - `^` and `$` are zero-width and match at the edge of *every* string.
+ *   - `.` and `.+` match any non-empty string, anywhere inside it.
+ *
+ * The original list held seven spellings of `.*` and missed all of the above, so
+ * an operator could add a rule permitting literally everything and be told
+ * nothing. The list is still a fixed set rather than an attempt to decide
+ * regular-expression universality in general, which is not tractable — but it
+ * now covers the spellings a person actually writes.
+ */
+export const UNIVERSAL_PATTERNS = new Set([
+  // Every-character spellings.
+  ".*",
+  "^.*$",
+  "^.*",
+  ".*$",
+  "(.*)",
+  "^(.*)$",
+  "[\\s\\S]*",
+  "[\\s\\S]*$",
+  "^[\\s\\S]*$",
+  // Any-non-empty spellings. A governed resource is never the empty string —
+  // an empty command or path yields no resource at all — so these are
+  // universal in practice.
+  ".",
+  ".+",
+  "^.+$",
+  "^.+",
+  ".+$",
+  "(.+)",
+  "^(.+)$",
+  "[\\s\\S]+",
+  // Zero-width anchors, which match every string including the empty one.
+  "^",
+  "$",
+  "",
+]);
 
 function isCatchAll(pattern: string): boolean {
-  return CATCH_ALL_PATTERNS.has(pattern.trim());
+  return UNIVERSAL_PATTERNS.has(pattern.trim());
+}
+
+/**
+ * True when `existing` remains in force for at least as long as `candidate`.
+ *
+ * An indefinite existing rule covers any candidate. A time-limited one only
+ * covers a candidate that lapses no later than it does — a candidate with no
+ * expiry outlives every time-limited rule.
+ */
+function windowCovers(existing: PolicyRule, candidateExpiry: number | undefined): boolean {
+  if (existing.expiresAt === undefined) {
+    return true;
+  }
+  if (candidateExpiry === undefined) {
+    return false;
+  }
+  const existingExpiry = Date.parse(existing.expiresAt);
+  return Number.isFinite(existingExpiry) && existingExpiry >= candidateExpiry;
 }
 
 /**
@@ -95,6 +154,15 @@ export function detectRuleConflicts(
     .filter(
       (rule) =>
         rule.resourceKind === candidate.resourceKind &&
+        // Allowances only. Every message this detector produces says some
+        // variant of "an existing rule already grants this", which is false and
+        // actively misleading when the existing rule *denies*: an operator
+        // adding a permission that a core rule overrides would be told their
+        // new rule is redundant, when in fact it is being refused. Whether a
+        // deny overrides a candidate is a different question with a different
+        // answer, and the engine already gives it — the candidate simply never
+        // takes effect.
+        rule.effect !== "deny" &&
         !isRuleExpired(rule, nowMs) &&
         scopeCovers(rule, candidate),
     )
@@ -103,7 +171,13 @@ export function detectRuleConflicts(
   for (const existing of relevant) {
     const samePattern = existing.pattern === candidate.pattern;
 
-    if (!samePattern && isCatchAll(existing.pattern)) {
+    // A catch-all only makes the candidate redundant while it is still in
+    // force. Claiming otherwise was backwards in the case that matters: a
+    // catch-all lapsing in a minute alongside an indefinite new rule was
+    // reported as "grants nothing additional", when in fact the new rule is
+    // about to become the only thing granting access. An operator who believed
+    // that message would delete the rule that was doing the work.
+    if (!samePattern && isCatchAll(existing.pattern) && windowCovers(existing, candidateExpiry)) {
       conflicts.push({
         kind: "covered-by-catch-all",
         existingRuleId: existing.id,
