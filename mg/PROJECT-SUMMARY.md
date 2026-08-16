@@ -75,39 +75,51 @@ C:\Users\kinan\openclaw\Documentation\GradProj\      (mirror inside the repo)
 C:\Users\kinan\openclaw\          (the fork; branch: governance-layer)
 ```
 
-| Location                                            | Contents                                                                                                                                                                                                      |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/governance/`                                   | **The core.** 25 source modules + 24 test files. Policy engine, audit ledger, roles and permissions, user accounts, sessions, kill switch, rule conflicts, HITL escalation stack, regex safety, file locking. |
-| `src/gateway/governance-*.ts`                       | The HTTP layer: login/session (`-auth`), all API routes and their tier/scope checks (`-api`), kill-switch wiring (`-agent-termination`)                                                                       |
-| `ui/src/pages/governance/`                          | The dashboard page (Lit web components, ~1000 lines), its API client, and routing                                                                                                                             |
-| `src/cli/program/register.governance.ts`            | The `openclaw governance ...` command tree                                                                                                                                                                    |
-| `src/agents/agent-tools.before-tool-call.policy.ts` | **Where the gate is attached** — the single function every tool call passes through                                                                                                                           |
+| Location                                            | Contents                                                                                                                                                                                                                                                                                                     |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/governance/`                                   | **The core.** 29 source modules + 31 test files, ~5,600 production lines. Policy engine and the three-tier rule model, keyed audit ledger, roles and permissions, accounts and sessions, kill switch, rule conflicts and warnings, HITL escalation stack, regex safety, path canonicalisation, file locking. |
+| `src/gateway/governance-*.ts`                       | The HTTP layer: login/session (`-auth`), all API routes and their tier/scope checks (`-api`), kill-switch wiring (`-agent-termination`)                                                                                                                                                                      |
+| `ui/src/pages/governance/`                          | The dashboard page (Lit web components, ~1,440 lines), its typed API client, the audit-view filter (extracted so it can be tested), and routing                                                                                                                                                              |
+| `src/cli/program/register.governance.ts`            | The `openclaw governance ...` command tree                                                                                                                                                                                                                                                                   |
+| `src/agents/agent-tools.before-tool-call.policy.ts` | **Where the gate is attached** — the single function every tool call passes through                                                                                                                                                                                                                          |
 
 ### Project documentation (in-repo)
 
-| File                                | Purpose                                                                                                                                                  |
-| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GOVERNANCE.md`                     | Operator overview + the full engineering defect table from all six QA rounds                                                                             |
-| `docs-notes/CHAPTER3-MATERIAL.md`   | **Source material for Chapters 3–4**, organised by section number. Not prose — decisions, rationale, diagrams, and code snippets ready to be written up. |
-| `docs-notes/ROLE-MODEL.md`          | What each of the four roles can do, and why                                                                                                              |
-| `docs-notes/WRITING-PERMISSIONS.md` | Teaching guide for writing rules; assumes no regex knowledge                                                                                             |
-| `docs-notes/PERMISSION-SPEC.md`     | Technical reference: grammar, evaluation order, limits, wire format                                                                                      |
-| `docs-notes/CLI-REFERENCE.md`       | Every command, its syntax, and how it works                                                                                                              |
-| `docs-notes/QA-IN-PLAIN-TERMS.md`   | Plain-language walkthrough of the QA findings                                                                                                            |
-| `UPSTREAM-BUG-REPORT.md`            | A bug found in OpenClaw itself (written, not yet filed)                                                                                                  |
-| `Kimi_QA_1.md`                      | An independent review comparing the code against the PDF                                                                                                 |
-| `mg/`                               | This folder — summary and remaining work                                                                                                                 |
+| File                                | Purpose                                                                                                                                                          |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GOVERNANCE.md`                     | Operator overview + the full engineering defect table from all six QA rounds                                                                                     |
+| `docs-notes/CHAPTER3-MATERIAL.md`   | **Source material for Chapters 3–4**, organised by section number. Not prose — decisions, rationale, diagrams, and code snippets ready to be written up.         |
+| `docs-notes/ROLE-MODEL.md`          | What each of the four roles can do, and why                                                                                                                      |
+| `docs-notes/WRITING-PERMISSIONS.md` | Teaching guide for writing rules; assumes no regex knowledge                                                                                                     |
+| `docs-notes/PERMISSION-SPEC.md`     | Technical reference: grammar, evaluation order, limits, wire format                                                                                              |
+| `docs-notes/CLI-REFERENCE.md`       | Every command, its syntax, and how it works                                                                                                                      |
+| `docs-notes/BASELINE-RULES.md`      | **The rules an installation ships with**, and why each core denial and baseline allowance was chosen. Also states what the core denials do _not_ protect against |
+| `docs-notes/QA-IN-PLAIN-TERMS.md`   | Plain-language walkthrough of the QA findings                                                                                                                    |
+| `UPSTREAM-BUG-REPORT.md`            | A bug found in OpenClaw itself (written, not yet filed)                                                                                                          |
+| `Kimi_QA_1.md`                      | An independent review comparing the code against the PDF                                                                                                         |
+| `mg/PROJECT-SUMMARY.md`             | This file — what the project is and where everything lives                                                                                                       |
+| `mg/REMAINING-WORK.md`              | The backlog, item by item, with what is fixed and what is not                                                                                                    |
+| `mg/SESSION-LOG-2026-08.md`         | What the August 2026 session changed, and why                                                                                                                    |
 
 ### Runtime state (created on first use, not in the repo)
 
 ```
 ~/.openclaw/governance/
-    policy.json            the rules and current posture
-    users.json             accounts (passwords hashed with scrypt)
-    sessions.json          active dashboard logins
-    audit-ledger.jsonl     the tamper-evident log
-    pending-decisions.json escalations nobody answered in time
+    policy.json              the rules (core / baseline / admin) and current posture
+    users.json               accounts; scrypt hashes carrying their own cost parameters
+    sessions.json            active dashboard logins, stored as one-way fingerprints
+    audit-ledger.jsonl       the tamper-evident log (rotates to .1, .2, … at 8 MB)
+    ledger.key               HMAC key for the chain; overridable by environment
+    ledger-checkpoint.json   independent record of the chain head, for truncation detection
+    rule-requests.json       User-submitted rule requests awaiting an Administrator
+    pending-decisions.json   escalations nobody answered in time
 ```
+
+Permissions are `0700` on the directory and `0600` on every file. `ledger.key`
+and `sessions.json` are the two that would most reward an attacker, and both are
+deliberately separable: the key can be supplied from outside the machine via
+`OPENCLAW_GOVERNANCE_LEDGER_KEY`, and session records hold fingerprints rather
+than usable tokens.
 
 ---
 
@@ -241,17 +253,22 @@ Chapter 3 will need them.
 
 ## 5. Quality assurance history
 
-Six rounds, **48 defects found and fixed**. Full engineering detail in
-`GOVERNANCE.md`; plain-language version in `docs-notes/QA-IN-PLAIN-TERMS.md`.
+Ten rounds, **roughly sixty defects found and fixed**. Full engineering detail
+in `GOVERNANCE.md`; plain-language version in `docs-notes/QA-IN-PLAIN-TERMS.md`;
+the August 2026 rounds are narrated in `mg/SESSION-LOG-2026-08.md`.
 
-| Round | Method                              | Headline finding                                                                                                                                                       |
-| ----- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1–2   | Self-review                         | The gate sat _after_ a shortcut that skips checks when no plugins exist — so it did nothing on a default install                                                       |
-| 3     | Edge cases and abuse                | Approving a request always created an everyone-rule (privilege escalation); a rule pattern could freeze the gate; login timing revealed valid usernames                |
-| 4     | After complete-record logging       | Agent-supplied text recorded with no size limit — fill the disk, destroy the audit trail                                                                               |
-| 5     | Checked against real OpenClaw       | **The governed-tool list named two tools that do not exist.** File access was ungoverned the whole time while the dashboard accepted file rules that could never match |
-| 6     | Four parallel reviewers             | 14 defects, including a granted approval skipping all other safety layers — and the discovery that the project had **broken 19 of OpenClaw's own tests**               |
-| —     | Independent review (`Kimi_QA_1.md`) | Administrative actions are absent from the audit log; file paths are not canonicalised, so `workspace/../../etc/passwd` defeats a workspace rule                       |
+| Round | Method                              | Headline finding                                                                                                                                                                                                                                      |
+| ----- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1–2   | Self-review                         | The gate sat _after_ a shortcut that skips checks when no plugins exist — so it did nothing on a default install                                                                                                                                      |
+| 3     | Edge cases and abuse                | Approving a request always created an everyone-rule (privilege escalation); a rule pattern could freeze the gate; login timing revealed valid usernames                                                                                               |
+| 4     | After complete-record logging       | Agent-supplied text recorded with no size limit — fill the disk, destroy the audit trail                                                                                                                                                              |
+| 5     | Checked against real OpenClaw       | **The governed-tool list named two tools that do not exist.** File access was ungoverned the whole time while the dashboard accepted file rules that could never match                                                                                |
+| 6     | Four parallel reviewers             | 14 defects, including a granted approval skipping all other safety layers — and the discovery that the project had **broken 19 of OpenClaw's own tests**                                                                                              |
+| —     | Independent review (`Kimi_QA_1.md`) | Administrative actions are absent from the audit log; file paths are not canonicalised, so `workspace/../../etc/passwd` defeats a workspace rule                                                                                                      |
+| 7     | Account lifecycle, end to end       | Nothing enforced a single Root — a second could be created outright or by promotion, and a second Root can delete the first. **The test harness itself reported HTTP 200 for a route that did not exist**, so nine assertions "passed" against a typo |
+| 8     | Logic, then security                | No new defects in either sweep. Two dishonest tests corrected: one compared a string with itself, one asserted the opposite of its own name                                                                                                           |
+| 9     | After the timing and axis work      | Clean                                                                                                                                                                                                                                                 |
+| 10    | The tier model's seams              | **A deny rule outside the core tier was silently ignored** — it fell between the deny pass and the allow pass and did nothing at all; denies also ignored agent scoping; the clash detector described a denial as a grant                             |
 
 ### The lesson worth putting in Chapter 4
 
@@ -267,6 +284,29 @@ Both times everything passed, and both times that meant nothing.
 > against its own idea of that system. When the tests and the code are written
 > from the same assumption, passing tests only prove the assumption is
 > self-consistent — not that it is true.
+
+Round seven produced a third instance, and the most embarrassing: a test harness
+whose mock response object defaulted to `200`, so a route that did not exist
+looked like a success and nine assertions passed against a mistyped URL. Same
+shape again — the harness and the server disagreed about what a missing route
+returns, and only the harness was consulted.
+
+### The stronger claim, from all ten rounds
+
+Almost none of the sixty defects was a missing check. Nearly every one was **two
+parts of the system disagreeing**:
+
+- the gate and the host, about which tools exist (round 5);
+- our tests and the host's tests, about what passing means (round 6);
+- a test harness and the server, about a missing route (round 7);
+- the lock's staleness threshold and its wait timeout, about when to give up
+  (round 8);
+- the deny pass and the allow pass, about which rules either owned — so a rule
+  fell between them and vanished (round 10).
+
+None of these is visible by reading either side carefully. That is the honest
+methodological result of this project, and it is a better Chapter 4 argument than
+any individual defect in the list.
 
 ---
 

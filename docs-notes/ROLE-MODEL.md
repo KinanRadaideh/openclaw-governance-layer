@@ -66,16 +66,19 @@ through the dashboard; recorded as future work.
 
 ### Administrator — manages all agents
 
-| Capability                                            | Function                           |
-| ----------------------------------------------------- | ---------------------------------- |
-| Change posture (enforce / monitor / off)              | `canManageGlobalPolicy`            |
-| Change ask mode (ask-on-miss vs. strict deny)         | `canManageGlobalPolicy`            |
-| Create and remove **global** rules (bind every agent) | `canManageGlobalPolicy`            |
-| Create and remove rules for **any** agent             | `canManageAgent` (unlimited scope) |
-| Lock / release **any** agent                          | `canManageAgent`                   |
-| Assign agents to User and Viewer accounts             | `canAssignAgents`                  |
-| Approve or reject rule requests                       | tier floor: administrator          |
-| Read the full unmasked audit ledger for every agent   | `requiresSanitizedAudit` false     |
+| Capability                                                  | Function                           |
+| ----------------------------------------------------------- | ---------------------------------- |
+| Change posture (enforce / monitor / off), installation-wide | `canManageGlobalPolicy`            |
+| Switch **one agent** into monitor for observation           | `canManageAgent` (User and above)  |
+| Set the per-**user** escalation override                    | Root only                          |
+| Reset another account's password                            | Root only                          |
+| Change ask mode (ask-on-miss vs. strict deny)               | `canManageGlobalPolicy`            |
+| Create and remove **global** rules (bind every agent)       | `canManageGlobalPolicy`            |
+| Create and remove rules for **any** agent                   | `canManageAgent` (unlimited scope) |
+| Lock / release **any** agent                                | `canManageAgent`                   |
+| Assign agents to User and Viewer accounts                   | `canAssignAgents`                  |
+| Approve or reject rule requests                             | tier floor: administrator          |
+| Read the full unmasked audit ledger for every agent         | `requiresSanitizedAudit` false     |
 
 **From the paper** (§1.6): "configure customized privilege policies (including
 command matrices and network allowlisting) for specific agents", "real-time
@@ -320,6 +323,15 @@ the evaluation chapter.
   Administrator for specific agents and by the Root for specific users") — the
   ask mode is currently installation-wide. The data model would extend
   naturally, since rules already carry `agentId`.
+
+> **Status note, 2026-08-16.** Live agent-session monitoring now exists
+> (`active-sessions.ts`, surfaced on the dashboard). Two capabilities were added
+> to the model since this document was written: Root sets a per-**user**
+> escalation override (the paper's second axis, combined with the per-agent one
+> by taking the stricter), and Root can reset another account's password. The
+> installation also enforces **exactly one Root**. Root's VPS/deployment
+> oversight is still unbuilt beyond a CPU/memory panel — tracked as A7.
+
 - **Live agent-session monitoring** — the ledger shows decision history, not a
   list of currently running sessions.
 - **Prompting agents through the governance identity** — the paper's User

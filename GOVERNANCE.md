@@ -8,6 +8,11 @@ every autonomous agent action, a tamper-evident audit ledger, named human
 accounts with a four-tier role hierarchy, and an emergency kill switch — all
 surfaced in OpenClaw's own Control UI rather than a bolt-on dashboard.
 
+An installation **ships with a policy** and starts enforcing immediately: core
+denials that cannot be edited at runtime, plus baseline allowances that make an
+agent useful before anybody has written a rule. See
+`docs-notes/BASELINE-RULES.md` for every rule and why it was chosen.
+
 ## Running it
 
 The fork runs on port **18799** so it never collides with a separately
@@ -55,33 +60,87 @@ the gate applies even on a plugin-free deployment.
 For each governed tool it extracts the resource being acted on
 (`src/governance/resource-extraction.ts`) and matches it against the policy:
 
-| Tool                                     | Resource kind | What is matched          |
-| ---------------------------------------- | ------------- | ------------------------ |
-| `exec`, `bash`                           | `command`     | the command string       |
-| `read_file`, `write_file`, `apply_patch` | `path`        | the target path(s)       |
-| `web_fetch`                              | `network`     | the destination hostname |
+| Tool                           | Resource kind | Access | What is matched           |
+| ------------------------------ | ------------- | ------ | ------------------------- |
+| `exec`, `bash`, `terminal`     | `command`     | —      | the command string        |
+| `read`                         | `path`        | read   | the canonicalised path(s) |
+| `write`, `edit`, `apply_patch` | `path`        | write  | the canonicalised path(s) |
+| `web_fetch`                    | `network`     | —      | the destination hostname  |
 
-Outcomes: **allow** (a rule matched), **block** (no rule, `ask: off`), or
-**ask a human** (no rule, `ask: on-miss`) — the last of which is handed to
-OpenClaw's existing approval machinery rather than reimplementing it. An
-`allow-always` answer is written back as a new rule.
+Every name here is a real OpenClaw tool, verified against its definition. An
+earlier version of this table listed `read_file` and `write_file`, which exist
+nowhere in the host — so the entire `path` kind governed only `apply_patch` while
+the dashboard cheerfully accepted file rules that could never match. That was the
+fifth QA round's finding and is the reason each entry now cites its source file.
 
-Posture modes: `enforce` (live), `monitor` (record decisions, never block),
-`off`.
+**Paths are canonicalised before matching** (`path-normalize.ts`): `~` and
+`file://` expanded, `..` collapsed, symlinks followed, then rendered
+workspace-relative inside the project and absolute outside. So a rule anchored at
+`^src/` cannot be walked around — an escape stops matching because it stops
+_being_ workspace-relative, not because a filter recognised the attempt.
+
+**Evaluation order**, which is the whole design:
+
+1. **Kill switch** — a locked agent is refused, whatever any rule says.
+2. **Denials** — checked before allowances, so no later grant can reopen one, and
+   so `monitor` cannot suspend them.
+3. **Allowances** — baseline, admin, and any operator rule.
+4. **Default** — deny outright (`ask: off`), or escalate to a human
+   (`ask: on-miss`), which is handed to OpenClaw's existing approval machinery
+   rather than reimplemented. An `allow-always` answer is written back as a rule
+   scoped to the agent the approver was shown.
+
+Rules carry an **effect** (`allow`/`deny`), a **tier** (`core`/`baseline`/
+`admin`), an optional **access** narrowing for paths (`read`/`write`), an
+optional expiry, and an optional agent scope. Every one of those fields is
+optional and defaults to the pre-existing meaning, so rules written before the
+tier model keep working unchanged.
+
+Posture: `enforce` (live), `monitor` (record decisions, never block), `off`.
+Monitor is **opt-in and per agent** — a tool for discovering rules by watching
+one agent while the rest of the installation keeps enforcing.
 
 ### 2. Tamper-evident audit ledger
 
 `src/governance/audit-ledger.ts` → `~/.openclaw/governance/audit-ledger.jsonl`
 
-Every decision is appended as one JSON line. Each entry's SHA-256 hash covers
-its own fields **plus the previous entry's hash**, so editing or deleting any
-historical record breaks every hash after it. `verifyLedgerChain()` recomputes
-the chain and reports the first broken entry and why.
+Every decision is appended as one JSON line. Each entry's hash covers its own
+fields **plus the previous entry's hash**, so editing or deleting any historical
+record breaks every hash after it. `verifyLedgerChain()` recomputes the chain and
+reports the first broken entry and why.
+
+Two properties beyond plain chaining:
+
+- **Keyed.** Hashes are HMAC-SHA256 under a per-installation secret
+  (`ledger-key.ts`), so recomputing the chain forward after an edit requires the
+  key rather than merely the algorithm. Unkeyed chaining catches accidental
+  corruption and casual editing; it does not catch a patient adversary, which is
+  the one the requirement is about. The chain may cross from unkeyed to keyed
+  once and never back, or history could simply be rewritten in the old format.
+- **Anchored.** Each append records the new head in a separate checkpoint file,
+  because a chain cannot detect its own tail being cut off — a prefix of a valid
+  chain is still a valid chain.
+
+Both anchors live on the same host, so an attacker with full filesystem access
+can still defeat them. What changed is that reading the ledger is no longer
+sufficient: it now takes the key and two coordinated edits.
+`OPENCLAW_GOVERNANCE_LEDGER_KEY` lets a deployment supply the key from outside
+the machine.
+
+**Administrative actions are recorded too.** Adding or removing a rule, changing
+posture, account and role changes, approvals and refusals, and kill-switch
+lock/release all carry a real `actor` field. Attribution is enforced by the
+compiler — `actor` is a required argument on every mutating store function, and
+`updatePolicy`, the one route to an unaudited change, is not importable from the
+HTTP layer. An audit trail of agent behaviour without a matching trail of the
+policy that governed it cannot answer the question an investigation starts from.
 
 Verified behavior:
 
 - editing an entry's content → `entry hash does not match its own recomputed content hash`
 - deleting an entry → `prevHash does not match the preceding entry's hash`
+- deleting from the end → `ledger ends at entry N but the checkpoint records entry M`
+- rewriting in the unkeyed format → `unkeyed entry appears after a keyed one`
 
 This is the fork's clearest original contribution: OpenClaw core has a rich
 audit store (`src/audit/audit-event-store.ts`) and HMAC pseudonymization, but
@@ -110,9 +169,20 @@ therefore had to be built from scratch:
 Full treatment, including what "manage" means at each tier and which parts are
 design decisions rather than paper text, is in `docs-notes/ROLE-MODEL.md`.
 
-Roles inherit upward. Passwords are hashed with scrypt (Node built-in, no new
-dependency). Login issues an HttpOnly, SameSite=Strict session cookie with a
-12-hour expiry.
+Roles inherit upward. There is **exactly one Root**: the store refuses both a
+second Root account and a promotion to Root, so transferring the role means
+demoting the incumbent first — deliberately a two-step act. Only the lower bound
+of that rule used to be enforced, and a second Root can delete the first, so the
+existing "cannot remove the last Root" guard was protecting nothing.
+
+Passwords are hashed with scrypt (Node built-in, no new dependency) and **carry
+their own cost parameters**, so the difficulty can be raised later: each password
+verifies under the settings it was created with, and upgrades in place on the
+next sign-in — the only moment the plaintext exists. Root can reset another
+account's password, which is the recovery path. Login issues an HttpOnly,
+SameSite=Strict session cookie with a 12-hour expiry; the server stores a one-way
+fingerprint of the token rather than the token itself, so reading `sessions.json`
+does not hand over the ability to impersonate every signed-in operator.
 
 **Two independent gates, both mandatory:** reaching any governance route
 already requires passing OpenClaw's existing Gateway credential check; the
@@ -137,10 +207,21 @@ Two things happen, in this order:
 Locking happens first on purpose: the reverse order leaves a window in which
 the agent could legally start a fresh action between the abort and the lock.
 
-Elapsed time is measured and reported, which is the evidence for design
-requirement #7's one-second bound. From the **CLI** no in-flight termination
-occurs — the run registry lives in the Gateway process — and the CLI says so
-rather than implying the agent was stopped.
+Timing is measured and reported as **two separate numbers**, because they answer
+different questions: how long it took to _send_ the abort, and how long until the
+runs actually left the Gateway's registry. Reporting only the first while
+describing it as the second was a real defect — "we asked in 4 ms" is not
+"it stopped in 4 ms", and requirement #7 is about the second. The result also
+says whether the stop was _confirmed_, and distinguishes the two reasons it might
+not be: nothing was available to observe, or the runs were still going when the
+wait expired.
+
+The wait delays only the report. Lockdown is already in force by then, so the
+agent cannot start anything new while we watch.
+
+From the **CLI** no in-flight termination occurs — the run registry lives in the
+Gateway process — and the CLI says so rather than implying the agent was
+stopped.
 
 ### 5. Dashboard integration
 
@@ -152,15 +233,38 @@ the Security group of `ui/src/app-navigation.ts`.
 It sits at **Settings → Governance**, directly beside the existing Security
 and Approvals pages, so all security surfaces live together.
 
+The page lists rules in evaluation order with their tier, badges denials so an
+operator can tell what forbids from what permits, and shows "built-in" instead of
+a delete control on core rules. Destructive actions confirm first — including the
+role selector, which used to apply the instant it was clicked. The audit view
+filters between agent activity and policy changes, since administrative entries
+are a small minority in a busy ledger and "who changed this rule?" otherwise
+means scrolling past thousands of tool calls. The page refreshes every 15 seconds
+and clears itself when the session expires, rather than leaving stale data on
+screen as though it were current.
+
 ## Testing
 
 ```bash
-node scripts/run-node.mjs --help   # (any command triggers a build first)
-pnpm exec vitest run src/governance/
+# The governance suite
+node node_modules/vitest/vitest.mjs run src/governance/ src/gateway/governance-*.test.ts ui/src/pages/governance/
+
+# OpenClaw's own harness suite — NOT optional. Baseline is 18 failed / 174 passed,
+# pre-existing on main. Anything above 18 is a regression introduced here.
+node node_modules/vitest/vitest.mjs run src/agents/harness/native-hook-relay.test.ts
+
+# Type checking
+node scripts/run-tsgo.mjs -p tsconfig.core.json
+node scripts/run-tsgo.mjs -p tsconfig.ui.json
 ```
 
-650 automated tests cover the ledger chain, the policy engine, resource
-extraction, the permission model, agent scoping, the HTTP authorization layer,
+The second command exists because the sixth QA round discovered that
+governance-only runs had hidden nineteen regressions in the host for weeks. A
+green governance suite is not evidence on its own.
+
+1,056 automated tests cover the ledger chain, the policy engine and its tier
+model, resource extraction and path canonicalisation, the permission model,
+agent scoping, the HTTP authorization layer,
 password/session handling, the login throttle, the file lock, ReDoS rejection,
 kill-switch latency, rule expiry, conflict detection, and the pending-decision
 stack. Tests never touch real operator state:
@@ -308,6 +412,62 @@ login surface - has no tests at all.
 verified to be pre-existing by stashing all governance changes and re-running
 on a clean tree. They are a defect in OpenClaw itself, not in this work — see
 `UPSTREAM-BUG-REPORT.md` for the full write-up prepared for filing upstream.
+
+### Seventh QA pass (account lifecycle, end to end)
+
+The login and account system had never been driven end to end: every other suite
+fabricated a session object directly, which tests the authorization rules while
+assuming authentication away.
+
+| #   | Defect                                                                                 | Why it mattered                                                                                                                                                                                                                                    | Fix                                                                                                                                                                                                   |
+| --- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 49  | Nothing enforced a single Root. A second could be created outright or by promotion.    | Only the _lower_ bound of the rule existed. A second Root can delete the first, so "you cannot remove the last Root" stopped protecting the operator who set the system up the moment a second existed.                                            | `DuplicateRootError` on both routes, checked inside the write lock. Transferring the role now means demoting the incumbent first.                                                                     |
+| 50  | **The test harness reported HTTP 200 for a route that did not exist.**                 | Nine assertions "passed" against a mistyped URL. The mock response object was initialised to `200` and an unmatched route never wrote a status, so the harness invented a success the server never sent. The round-five lesson in a third costume. | Unhandled routes now report `599`.                                                                                                                                                                    |
+| 51  | Privilege-escalation coverage was uneven, and several routes asserted only "some 4xx". | A 4xx assertion cannot distinguish "you are not allowed" from "your input was malformed" — which is exactly the shape a real escalation takes.                                                                                                     | A 62-test matrix driving every route against every tier beneath its floor, asserting an exact **403**, and asserting the floor itself is _not_ refused so an accidentally-raised floor is caught too. |
+
+### Eighth QA pass (logic, then security)
+
+Two sweeps looking for defects rather than confirming features. Neither found a
+new one in the code; both found stale or dishonest tests.
+
+| #   | Defect                                                                                 | Why it mattered                                                                                                                                                                                                                    | Fix                                                                                                                                    |
+| --- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 52  | The clash warning ignored expiry on catch-all rules.                                   | A catch-all lapsing in a minute reported a new indefinite rule as "grants nothing additional" — backwards. An operator believing it would delete the rule about to do all the work.                                                | Gated on whether the existing rule's window actually covers the candidate's.                                                           |
+| 53  | The "you allowed everything" check listed only spellings of `.*`.                      | Matching is a _substring_ search, so `^`, `$`, `.` and `.+` are all universal. An administrator could permit literally everything with no warning.                                                                                 | All spellings listed, shared with the clash detector so the two cannot disagree.                                                       |
+| 54  | A corrupted per-agent escalation setting resolved to "ask a human".                    | The value was cast straight to the enum; the engine tests `=== "off"`, so anything unrecognised fell to the _more_ permissive branch. A setting nobody can parse must never be the reason an action gets a chance to be approved.  | Validated on load and at resolve time; treated as absent, inheriting the installation default.                                         |
+| 55  | Lock staleness (60s) exceeded the wait timeout (30s).                                  | Every waiter gave up before an abandoned lock became reclaimable, so the reaper was dead code and a crashed process wedged governance writes until somebody deleted the file by hand.                                              | Staleness lowered to 15s, and the ordering asserted at module load — the two constants drifting apart is exactly how the defect arose. |
+| 56  | One test asserted the opposite of its own name, and one compared a string with itself. | "Does not write the raw token" required the token to be present, so improving the storage would have looked like a regression. The Unicode test passed `"admın"` twice, and would have passed with normalization removed entirely. | Both corrected; the token is now genuinely fingerprinted (defect 60).                                                                  |
+
+### Ninth QA pass (after the timing and axis work)
+
+Clean. No defects found.
+
+### Tenth QA pass (the tier model's seams)
+
+Adding an `effect` to a language that had only ever granted put the defects in
+the seams — between the new deny pass and the existing scoping, expiry and
+conflict machinery.
+
+| #   | Defect                                                      | Why it mattered                                                                                                                                                                                                                                                                                                                            | Fix                                                                                                                                                                   |
+| --- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 57  | **A deny rule outside the core tier was silently ignored.** | The deny pass checked only `tier === "core"`, and the allow pass excludes anything with `effect: "deny"` — so such a rule fell between the two and was dropped entirely. An operator would see their restriction listed in the policy and have it do nothing whatsoever: the worst possible failure for a rule whose purpose is to forbid. | Every deny rule is enforced regardless of tier. Core and non-core denials differ in _mutability_, not in force.                                                       |
+| 58  | Deny rules ignored agent scoping.                           | A denial written for one agent applied to every agent — the mirror image of the agent-scoped _allow_ bug from earlier, and just as surprising.                                                                                                                                                                                             | Scope and expiry applied to denials exactly as to allowances.                                                                                                         |
+| 59  | The clash detector described a denial as a grant.           | It was written when every rule granted, so adding an allowance a core rule overrides produced "an identical rule already allows this — the new rule is redundant". Precisely backwards.                                                                                                                                                    | Allowances only.                                                                                                                                                      |
+| 60  | Session tokens were stored in the clear.                    | A token is a bearer credential, so `sessions.json` was as valuable as the password file, with no cracking required.                                                                                                                                                                                                                        | Stored as a one-way fingerprint; plain SHA-256 rather than scrypt, since a 256-bit CSPRNG token has nothing to guess and a work factor would only slow every request. |
+| 61  | Reads and writes shared one permission.                     | The model had a single `path` kind covering read, write, edit and patch, so "readable but not writable" was inexpressible — the exact distinction the supervisor's brief draws. The shipped baseline was quietly more permissive than the design it implemented.                                                                           | An optional `access` narrowing on rules, derived from the tool; the baseline is now read-only for the workspace.                                                      |
+
+### The finding that runs through all ten rounds
+
+Almost none of these sixty-one defects was a missing check. Nearly every one was
+**two parts of the system disagreeing**: the gate and the host about which tools
+exist (22); our tests and the host's about what passing means (round six); a test
+harness and the server about a missing route (50); two constants about when to
+give up (55); the deny pass and the allow pass about which rules either owned
+(57).
+
+None is visible by reading either side carefully. That is the honest
+methodological result of the project, and a better Chapter 4 argument than any
+single defect in the list.
 
 ### A defect found in OpenClaw itself
 

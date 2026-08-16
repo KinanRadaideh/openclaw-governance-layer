@@ -230,32 +230,93 @@ Figure 1.1 of Chapter 1.
 
 ### 3.5.2 Component inventory
 
-Table candidate — _Table 3.1: Governance layer components._ (LOC excludes tests.)
+Table candidate — _Table 3.1: Governance layer components._ Line counts exclude
+test files and are current as of 2026-08-16. Grouped by responsibility rather
+than alphabetically, because the grouping is itself part of the design argument.
 
-| File                        | Responsibility                                 | LOC        |
-| --------------------------- | ---------------------------------------------- | ---------- |
-| `policy-engine.ts`          | The decision function: allow / deny / ask      | 172        |
-| `audit-ledger.ts`           | Hash-chained append-only ledger + verification | 207        |
-| `resource-extraction.ts`    | Maps a tool call to the resource to check      | 106        |
-| `user-store.ts`             | Accounts, hashed passwords, roles              | 132        |
-| `session-tokens.ts`         | Login sessions, expiry, revocation             | 116        |
-| `policy-store.ts`           | Atomic policy document persistence             | 89         |
-| `login-throttle.ts`         | Brute-force lockout                            | 77         |
-| `account-guards.ts`         | Lockout-prevention rules                       | 72         |
-| `policy-types.ts`           | Policy document / rule data model              | 60         |
-| `file-lock.ts`              | Cross-process advisory lock                    | 59         |
-| `password.ts`               | scrypt hashing and verification                | 44         |
-| `paths.ts`                  | Storage locations (env-overridable)            | 31         |
-| `roles.ts`                  | Role ladder and comparison                     | 29         |
-| `kill-switch.ts`            | Agent lockdown                                 | 29         |
-| `pattern-match.ts`          | Safe regex matching                            | 15         |
-| `ui/.../governance-page.ts` | Dashboard page                                 | 579        |
-| `ui/.../api.ts`             | Typed dashboard API client                     | 198        |
-| **Total production**        |                                                | **~2,027** |
-| **Total tests**             | 7 suites, 82 tests                             | **~1,001** |
+**Policy: deciding what an agent may do**
 
-Plus 12 modified OpenClaw core files (pipeline insertion, route registration,
-CLI registration, UI routing/navigation/strings).
+| File                     | Responsibility                                                    | LOC |
+| ------------------------ | ----------------------------------------------------------------- | --- |
+| `policy-engine.ts`       | The decision function: kill switch, denials, allowances, default  | 462 |
+| `policy-store.ts`        | Atomic persistence, core-rule reassertion, audited mutators       | 499 |
+| `policy-types.ts`        | Policy document and rule data model, effect/tier/access semantics | 332 |
+| `baseline-policy.ts`     | The core and baseline rules an installation ships with            | 245 |
+| `resource-extraction.ts` | Maps a tool call to the resource string a rule is tested against  | 144 |
+| `path-normalize.ts`      | Canonical path form: expand, collapse, dereference, project       | 104 |
+| `pattern-match.ts`       | Cached, fail-closed regex matching                                | 69  |
+| `rule-conflicts.ts`      | Detects a new rule an earlier one already covers                  | 248 |
+| `rule-validation.ts`     | Author-time pattern and TTL validation, looseness warnings        | 139 |
+| `regex-safety.ts`        | Rejects patterns that can backtrack catastrophically              | 258 |
+
+**Accountability: recording what happened**
+
+| File              | Responsibility                                            | LOC |
+| ----------------- | --------------------------------------------------------- | --- |
+| `audit-ledger.ts` | HMAC-keyed hash chain, rotation, verification, checkpoint | 572 |
+| `admin-audit.ts`  | Administrative actions and their required actor           | 148 |
+| `ledger-key.ts`   | Per-installation signing key for the chain                | 93  |
+| `ledger-view.ts`  | Scope filtering and masking per role                      | 42  |
+
+**People: who may see and change what**
+
+| File                | Responsibility                                            | LOC |
+| ------------------- | --------------------------------------------------------- | --- |
+| `user-store.ts`     | Accounts, parameterised password hashing, roles, resets   | 510 |
+| `session-tokens.ts` | Login sessions, fingerprinted storage, expiry, revocation | 187 |
+| `permissions.ts`    | The tier × scope authorization rules                      | 97  |
+| `roles.ts`          | The role ladder and comparison                            | 29  |
+| `account-guards.ts` | Lockout-prevention invariants                             | 72  |
+| `login-throttle.ts` | Brute-force lockout, keyed per canonical username         | 111 |
+| `password.ts`       | scrypt hashing with recorded cost parameters              | 164 |
+
+**Control: intervening in real time**
+
+| File                   | Responsibility                                           | LOC |
+| ---------------------- | -------------------------------------------------------- | --- |
+| `kill-switch.ts`       | Lockdown plus in-flight termination, in that order       | 85  |
+| `agent-terminator.ts`  | Seam to the Gateway's abort machinery; confirms the stop | 186 |
+| `active-sessions.ts`   | Live run view for the session monitor                    | 84  |
+| `pending-decisions.ts` | Escalations nobody answered, deduplicated and bounded    | 214 |
+| `rule-requests.ts`     | The User tier proposes, the Administrator grants         | 226 |
+| `system-status.ts`     | Host CPU/memory for the Viewer tier                      | 55  |
+
+**Infrastructure**
+
+| File           | Responsibility                                     | LOC |
+| -------------- | -------------------------------------------------- | --- |
+| `file-lock.ts` | Cross-process advisory lock with staleness reaping | 150 |
+| `paths.ts`     | Storage locations, environment-overridable         | 118 |
+
+**HTTP, CLI and dashboard**
+
+| File                                          | Responsibility                            | LOC   |
+| --------------------------------------------- | ----------------------------------------- | ----- |
+| `src/gateway/governance-dashboard-api.ts`     | Every API route and its tier/scope check  | 964   |
+| `src/gateway/governance-dashboard-auth.ts`    | Login, bootstrap, session resolution      | 235   |
+| `src/gateway/governance-agent-termination.ts` | Registers the Gateway's abort + run probe | 106   |
+| `src/cli/program/register.governance.ts`      | The `openclaw governance …` command tree  | 302   |
+| `ui/src/pages/governance/governance-page.ts`  | The dashboard page                        | 1,443 |
+| `ui/src/pages/governance/api.ts`              | Typed dashboard API client                | 404   |
+| `ui/src/pages/governance/ledger-filter.ts`    | Audit-view filtering and row description  | 56    |
+| `ui/src/pages/governance/route.ts`            | Page registration                         | 12    |
+
+|                      |                                               |
+| -------------------- | --------------------------------------------- |
+| **Production total** | **~9,165 lines across 36 files**              |
+| **Test total**       | **~7,950 lines across 40 files, 1,056 tests** |
+
+Plus **13 modified OpenClaw core files** — the tool-call pipeline insertion
+(`agent-tools.before-tool-call.policy.ts` and its two type/diagnostic
+companions), route and CLI registration, Gateway runtime wiring, and UI
+routing/navigation/strings.
+
+**Point worth making in prose.** Test code is roughly 87% of production code by
+volume, and that ratio is not incidental. Ten QA rounds found around sixty
+defects, and the recurring finding was never a missing check — it was two parts
+of the system disagreeing (see §4.x.11 and §4.x.15). Disagreements are only
+visible from outside the code that contains them, which is what the test volume
+is buying.
 
 ### 3.5.3 Data models
 
@@ -636,30 +697,90 @@ export function resolveGovernedTool(toolName: string) {
 
 ### 4.x.1 Test evidence
 
-_Table candidate — Table 4.1: Automated test coverage._
+_Table candidate — Table 4.1: Automated test coverage._ Current as of
+2026-08-16. Grouped by what each group establishes, since the raw file list is
+long and the grouping is the argument.
 
-| Suite                                     |   Tests | What it proves                                                                                                      |
-| ----------------------------------------- | ------: | ------------------------------------------------------------------------------------------------------------------- |
-| `audit-ledger.test.ts`                    |      10 | Chain verifies clean; detects edit, deletion, corruption; survives concurrent multi-process append; redacts secrets |
-| `policy-engine.test.ts`                   |      20 | Default-deny, ask-on-miss, expiry, kill switch, monitor mode, per-resource logging                                  |
-| `resource-extraction.test.ts`             |       9 | Prototype-pollution safety, `file://` bypass closed, path separator portability                                     |
-| `user-store.test.ts`                      |      20 | scrypt salting, no plaintext at rest, duplicate/case handling, session issue/verify/revoke                          |
-| `account-guards.test.ts`                  |      13 | Last-Root and self-delete lockout prevention                                                                        |
-| `login-throttle.test.ts`                  |       6 | Lockout after 5 failures, per-account isolation, window expiry                                                      |
-| `file-lock.test.ts`                       |       5 | Mutual exclusion, release on throw, stale-lock reclaim, timeout                                                     |
-| `permissions.test.ts`                     |      13 | Tier × scope matrix, monotonic inheritance                                                                          |
-| `ledger-view.test.ts`                     |       9 | Scope filtering before masking; hashes preserved                                                                    |
-| `rule-requests.test.ts`                   |      10 | Propose/decide workflow, single-shot decisions, per-user cap                                                        |
-| `system-status.test.ts`                   |       3 | Resource snapshot exposes no paths or credentials                                                                   |
-| `governance-dashboard-api.test.ts` (HTTP) |      18 | Tier floors, agent scope, validation, request workflow                                                              |
-| **Total**                                 | **172** |                                                                                                                     |
+**The policy decision itself**
 
-Stability note: the two concurrency suites were re-run five consecutive times
-after the backoff fix (QA defect 12) rather than once, because the defect they
-exposed was intermittent. A single green run does not establish that a
-concurrency bug is fixed — worth stating as a testing-methodology point.
+| Suite                         | Tests | What it proves                                                                |
+| ----------------------------- | ----: | ----------------------------------------------------------------------------- |
+| `policy-engine.test.ts`       |    30 | Default-deny, ask-on-miss, expiry, kill switch, monitor, per-resource logging |
+| `baseline-policy.test.ts`     |    34 | The three tiers, core immutability, deny-beats-allow, read/write separation   |
+| `qa-round10.test.ts`          |    13 | The seams the tier model created: non-core denies, scoping, expiry, clashes   |
+| `resource-extraction.test.ts` |     9 | Prototype-pollution safety, `file://` bypass closed, separator portability    |
+| `path-normalize.test.ts`      |    10 | Traversal, symlinks, and one canonical form across every path tool            |
+| `rule-conflicts.test.ts`      |    17 | Clash detection, including that a denial is never described as a grant        |
+| `rule-expiry.test.ts`         |    17 | Time-limited grants, retention, ruleset ceiling, pattern cache                |
+| `rule-warnings.test.ts`       |     7 | Warnings for rules broader than they look                                     |
+| `regex-safety.test.ts`        |    12 | Catastrophic-backtracking patterns rejected at author time                    |
 
-Command: `pnpm exec vitest run src/governance/`
+**The audit trail**
+
+| Suite                              | Tests | What it proves                                                            |
+| ---------------------------------- | ----: | ------------------------------------------------------------------------- |
+| `audit-ledger.test.ts`             |    10 | Chain verifies clean; detects edit, deletion, corruption; redacts secrets |
+| `ledger-integrity.test.ts`         |    12 | Keyed chain resists recomputation; truncation and downgrade detected      |
+| `admin-audit.test.ts`              |    19 | Every administrative change attributed; schema migration stays evident    |
+| `complete-record.test.ts`          |    11 | Every invocation recorded, `ungoverned` kept distinct from `allow`        |
+| `complete-record-security.test.ts` |     8 | Agent-controlled text cannot flood or poison the trail                    |
+| `ledger-view.test.ts`              |     9 | Scope filtering before masking; hashes preserved                          |
+
+**People and authorization**
+
+| Suite                                  | Tests | What it proves                                                          |
+| -------------------------------------- | ----: | ----------------------------------------------------------------------- |
+| `user-store.test.ts`                   |    27 | Hashing with recorded cost, upgrade on sign-in, resets, single Root     |
+| `governance-privilege-matrix.test.ts`  |     8 | Every route × every tier beneath its floor, asserting an exact 403      |
+| `governance-account-lifecycle.test.ts` |    11 | Bootstrap, creation and real sign-in end to end — no fabricated session |
+| `permissions.test.ts`                  |    11 | Tier × scope matrix, monotonic inheritance                              |
+| `account-guards.test.ts`               |    12 | Last-Root and self-delete lockout prevention                            |
+| `login-throttle.test.ts`               |     6 | Lockout after five failures, per-account isolation, window expiry       |
+| `hardening.test.ts`                    |     8 | Unicode username folding, token never written in the clear              |
+
+**Control, HTTP surface and infrastructure**
+
+| Suite                               | Tests | What it proves                                               |
+| ----------------------------------- | ----: | ------------------------------------------------------------ |
+| `kill-switch.test.ts`               |    12 | Lock-then-abort ordering, honest reporting, latency bound    |
+| `qa-round9.test.ts`                 |    15 | Confirmed termination, the per-user axis, loop-detector logs |
+| `active-sessions.test.ts`           |    11 | Live run view, scoped per role                               |
+| `pending-decisions.test.ts`         |    12 | Escalation stack, single-shot decisions, bounded growth      |
+| `rule-requests.test.ts`             |    14 | Propose/decide workflow, concurrent decisions, per-user cap  |
+| `governance-dashboard-api.test.ts`  |    18 | Tier floors, agent scope, validation, request workflow       |
+| `governance-security*.test.ts` (×3) |    25 | Injection, malformed bodies, and the round-three findings    |
+| `file-lock.test.ts`                 |     5 | Mutual exclusion, release on throw, stale reclaim, timeout   |
+| `ledger-filter.test.ts` (dashboard) |     9 | Audit-view filtering and row description                     |
+| `system-status.test.ts`             |     3 | Resource snapshot exposes no paths or credentials            |
+| `gate-attachment.test.ts`           |     7 | Where the gate sits, including the known harness gap (B1)    |
+
+**QA regression suites** — `qa-round5`, `qa-round5-storage`, `qa-round6`,
+`qa-round8-logic`, `qa-round8-security`: **81 tests** pinning the specific
+defects each round found, so none can silently return.
+
+|           |                                 |
+| --------- | ------------------------------- |
+| **Total** | **1,056 tests across 40 files** |
+
+Two methodology notes worth keeping:
+
+- The concurrency suites were re-run five consecutive times after the backoff
+  fix rather than once, because the defect they exposed was intermittent. A
+  single green run does not establish that a concurrency bug is fixed.
+- **The governance suite alone is not sufficient evidence.** OpenClaw's own
+  harness suite must be run too, and its baseline is **18 failed / 174 passed** —
+  pre-existing failures present on `main` before this work began. Round six
+  exists because governance-only runs hid nineteen regressions for weeks; §4.x.11
+  tells that story.
+
+Commands:
+
+```bash
+node node_modules/vitest/vitest.mjs run src/governance/ src/gateway/governance-*.test.ts ui/src/pages/governance/
+node node_modules/vitest/vitest.mjs run src/agents/harness/native-hook-relay.test.ts
+node scripts/run-tsgo.mjs -p tsconfig.core.json
+node scripts/run-tsgo.mjs -p tsconfig.ui.json
+```
 
 ### 4.x.2 Tamper-detection experiment
 

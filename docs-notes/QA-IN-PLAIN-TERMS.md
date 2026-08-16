@@ -92,9 +92,23 @@ software just wasn't set up to make it easy.
 
 ## 3. Monitor mode: what it is and why it matters
 
-This came out of round six as the fix for the "bricked on install" problem, but
-it is worth understanding on its own, because it is now the posture every
-installation starts in.
+> **Superseded, and worth reading anyway.** Monitor came out of round six as the
+> fix for the "bricked on install" problem, and for a while it was the posture
+> every installation started in. It no longer is. An installation now starts in
+> **enforce, with rules already in it** — see `docs-notes/BASELINE-RULES.md`.
+>
+> The reasoning below was sound but rested on a wrong premise: enforcement is
+> only unusable when it starts _empty_. Ship a starting policy and the
+> installation is usable and restricted in the same second, with no need to
+> choose. Monitor survives as an **opt-in, per-agent** tool for discovering
+> rules — watch one agent, read what would have been refused, promote the
+> legitimate entries — and it never suspends a core denial.
+>
+> The section is kept because the argument it makes about unusable controls
+> being switched off wholesale is still correct, and because the reversal is
+> itself good Chapter 4 material: the fix was not to weaken enforcement or to
+> accept an unusable default, but to notice that the two were only in tension
+> given an assumption nobody had examined.
 
 ### The three postures
 
