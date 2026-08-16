@@ -89,6 +89,22 @@ function summarizeUngovernedParams(params: Record<string, unknown>): string {
 }
 
 /**
+ * True when a rule's access narrowing (if any) covers what this tool is doing.
+ *
+ * An absent `access` means both directions, so every rule written before the
+ * distinction existed keeps granting what it always granted. A rule narrowed to
+ * `read` does not authorise a write, and — importantly — a *denial* narrowed to
+ * `read` does not forbid one either: narrowing a rule must not silently change
+ * what it forbids in the other direction.
+ */
+function accessMatches(
+  rule: { access?: "read" | "write" },
+  spec: { access?: "read" | "write" },
+): boolean {
+  return rule.access === undefined || spec.access === undefined || rule.access === spec.access;
+}
+
+/**
  * The agent this call belongs to, from the explicit id or, failing that, the
  * session key.
  *
@@ -271,6 +287,7 @@ export async function evaluateGovernancePolicy(
     (rule) =>
       rule.effect === "deny" &&
       rule.resourceKind === spec.resourceKind &&
+      accessMatches(rule, spec) &&
       !isRuleExpired(rule, now) &&
       (rule.agentId === undefined || rule.agentId === agentId),
   );
@@ -311,6 +328,7 @@ export async function evaluateGovernancePolicy(
       // Deny rules are handled above; only allowances participate here, or a
       // core denial would read as a grant.
       rule.effect !== "deny" &&
+      accessMatches(rule, spec) &&
       !isRuleExpired(rule, now) &&
       // A rule authorizes an agent only if it is global (no agentId) or was
       // written for this exact agent. Without this check an agent-scoped rule

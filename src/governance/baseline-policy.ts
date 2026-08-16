@@ -154,11 +154,22 @@ export const BASELINE_RULES: readonly SeedRule[] = Object.freeze([
     resourceKind: "path",
     effect: "allow",
     tier: "baseline",
+    // **Read only.** The brief describes a baseline that permits "reading
+    // permitted project files", and until the access dimension existed this
+    // rule granted writes as well — quietly more permissive than the design it
+    // was implementing.
+    //
+    // Modifying the project is a deliberate grant an operator makes, not
+    // something an agent should inherit from a default. Without one, a write
+    // inside the workspace escalates to a human (or is refused outright under a
+    // strict `ask`), which is the correct treatment for an action that changes
+    // state on first contact.
+    access: "read",
     // Anything the canonical form rendered workspace-relative — i.e. inside the
     // project. Core denials still apply on top, so a `.env` in the project is
     // matched here and refused there.
     pattern: `^(?!${OUTSIDE_WORKSPACE.slice(1)}).+$`,
-    description: "Files inside the workspace (core denials still apply)",
+    description: "Reading files inside the workspace (core denials still apply)",
   },
   {
     resourceKind: "command",

@@ -4,7 +4,10 @@ A single place to understand what this project is, where everything lives, what
 has been built, and how it was arrived at. Written for someone joining the work
 or picking it up after a break.
 
-**Companion document:** `mg/REMAINING-WORK.md` — everything still outstanding.
+**Companion documents:**
+
+- `mg/REMAINING-WORK.md` — everything still outstanding, item by item
+- `mg/SESSION-LOG-2026-08.md` — what the August 2026 session changed, and why
 
 ---
 
@@ -33,11 +36,16 @@ A **hard fork** of OpenClaw (an open-source OS-level agent runtime) with a
 governance layer built into the core — not a plugin, so it cannot be disabled by
 configuration. It adds:
 
-1. A **default-deny policy gate** over every tool call the agent makes.
-2. A **tamper-evident audit log** that records what happened.
+1. A **default-deny policy gate** over every tool call the agent makes, with a
+   three-tier rule model: immutable core denials, shipped baseline allowances
+   that make an agent usable on first boot, and operator rules on top.
+2. A **tamper-evident audit log** — an HMAC-keyed hash chain with a separate
+   checkpoint — recording agent actions, policy decisions, and who changed the
+   rules.
 3. A **four-tier role system** (Root / Administrator / User / Viewer) controlling
    who may see and change what.
-4. An **emergency kill switch** that stops a runaway agent.
+4. An **emergency kill switch** that stops a runaway agent and reports whether it
+   actually stopped.
 5. A **web dashboard** and a **command-line interface** over all of it.
 
 ---
@@ -126,13 +134,22 @@ For each tool call the gate:
 
 ### The rule language
 
-Rules are **allow-only**. There is no deny rule, because denial is the default.
 Each rule says: what kind of thing (`command`, `path`, or `network`), which
-specific ones (a regular expression), for how long (a time limit, or
-indefinitely), and optionally which single agent it applies to.
+specific ones (a regular expression), whether it grants or forbids, for how long,
+which tier it belongs to, optionally which single agent it applies to, and — for
+paths — whether it covers reading, writing, or both.
 
-An important consequence, and a common source of confusion: **adding a rule can
-never reduce access.** To take something away you remove the broader rule.
+**Evaluation order matters and is the whole design:** the kill switch, then
+denials, then allowances, then the installation default. Denials are checked
+first so no later grant can reopen one, and so `monitor` cannot suspend them.
+
+The language began as allow-only, on the reasoning that denial was the default
+and needed no expression. That was true until the tier model, which requires
+saying "credentials are refused whatever else anybody permits" — unsayable when
+adding a rule can only widen access. Both new fields default to the old meaning,
+so rules written before the change are unaffected.
+
+Full rationale and every shipped rule: `docs-notes/BASELINE-RULES.md`.
 
 ### The three postures
 
@@ -154,16 +171,25 @@ operator decision, not a policy decision.
 
 ### The audit log
 
-An append-only text file where each entry carries a SHA-256 fingerprint covering
-its own contents plus the previous entry's fingerprint. Editing or deleting any
-entry in the middle breaks every fingerprint after it, and the verifier reports
-exactly where. It rotates at 8 MB into numbered archives, with the chain
-continuing across them.
+An append-only text file where each entry carries a fingerprint covering its own
+contents plus the previous entry's. Editing or deleting any entry in the middle
+breaks every fingerprint after it, and the verifier reports exactly where. It
+rotates at 8 MB into numbered archives, with the chain continuing across them.
 
-Known limits: cutting off the newest entries is undetectable (a valid chain's
-prefix is still valid), and the chain uses no secret, so someone who edits an
-entry and recalculates every fingerprint forward produces a file that verifies
-clean. Both need an anchor kept off the machine.
+Fingerprints are **HMAC-SHA256 under a per-installation key**, so recomputing the
+chain forward after an edit requires the secret rather than merely the algorithm.
+Each append also records the new head in a **separate checkpoint file**, because
+a chain cannot detect its own tail being cut off — a prefix of a valid chain is
+still valid.
+
+Entries also record **who** made administrative changes, not only what agents
+did. An audit trail of agent behaviour without a matching trail of the policy
+that governed it cannot answer the question an investigation starts from.
+
+Remaining limit, stated plainly: both the key and the checkpoint live on the same
+host, so full filesystem access still defeats them. What changed is that reading
+the ledger is no longer sufficient. Closing it properly needs an off-host
+verifier — deployment rather than code.
 
 ### The four roles
 
@@ -246,12 +272,13 @@ Both times everything passed, and both times that meant nothing.
 
 ## 6. Current state
 
-- **650 governance tests pass**; `pnpm tsgo:core` and `pnpm tsgo:ui` both clean.
-- **Branch:** `governance-layer`, four commits, **local only**. `origin` points
-  at upstream OpenClaw, so it must not be pushed there.
-- **Requirement status** is tabulated in `docs-notes/CHAPTER3-MATERIAL.md` §3.1.
-  Two entries in that table are currently wrong and must be corrected — see
-  `mg/REMAINING-WORK.md`.
+- **1056 governance tests pass**; `pnpm tsgo:core` and `pnpm tsgo:ui` both clean.
+- **Branch:** `governance-layer`, seven commits, **local only**. `origin` points
+  at upstream OpenClaw, so it must not be pushed there — a personal remote is
+  still needed (F1). Backups: `OneDrive/GradProj-Backups/2026-08-13/`.
+- **Requirement status** is tabulated in `docs-notes/CHAPTER3-MATERIAL.md` §3.1
+  and is now accurate: eight of nine fully met, #9 (Linux) partial because the
+  suite runs on Ubuntu under WSL2 but has never been deployed to a VPS.
 
 ### Running it
 

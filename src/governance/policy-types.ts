@@ -37,6 +37,23 @@ export type RuleTier = "core" | "baseline" | "admin";
  */
 export type RuleEffect = "allow" | "deny";
 
+/**
+ * Narrows a `path` rule to one direction of access.
+ *
+ * The resource model had a single `path` kind covering `read`, `write`, `edit`
+ * and `apply_patch`, so **"readable but not writable" was inexpressible** — the
+ * distinction the supervisor's brief draws when it describes a baseline that
+ * permits "reading permitted project files". A policy language that cannot say
+ * the thing the design says is a gap in the language, not in the design.
+ *
+ * Absent means **both directions**, so every rule written before this keeps its
+ * meaning: a path rule that granted read and write still does.
+ *
+ * Only meaningful for `path`. Commands and network hosts have no comparable
+ * split — a command is not "read" or "write", it is whatever it does.
+ */
+export type RuleAccess = "read" | "write";
+
 export type PolicyRule = {
   id: string;
   resourceKind: ResourceKind;
@@ -44,6 +61,8 @@ export type PolicyRule = {
   effect?: RuleEffect;
   /** Absent means `admin` — see `RuleTier`. */
   tier?: RuleTier;
+  /** Absent means both directions — see `RuleAccess`. Only used by `path` rules. */
+  access?: RuleAccess;
   /** Regular expression (string form) tested against the extracted resource string. */
   pattern: string;
   description?: string;

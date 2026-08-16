@@ -128,7 +128,7 @@ describe("session token handling", () => {
     expect(await verifySession(session.token.toUpperCase())).toBeUndefined();
   });
 
-  it("stores a session token exactly once, and nowhere but the session store", async () => {
+  it("never writes the raw session token to disk", async () => {
     const user = await createUser({ username: "tok2", password: "pw12345678", role: "viewer" });
     const session = await issueSession({
       id: user.id,
@@ -137,18 +137,19 @@ describe("session token handling", () => {
       assignedAgents: [],
     });
     const raw = await readFile(join(dir, "sessions.json"), "utf8");
-    // Exactly one occurrence: the stored session itself.
+    // The raw token must appear **nowhere** on disk now (B12): the store holds
+    // a one-way fingerprint, so reading sessions.json no longer hands an
+    // attacker the ability to impersonate every signed-in operator.
     //
-    // Renamed deliberately. This was called "does not write the raw token",
-    // which promised that the token is not stored in the clear — while
-    // asserting the opposite, since finding it once *requires* it to be there.
-    // A name that contradicts its assertion is worse than no test: it would
-    // have failed the moment somebody improved the storage, making the
-    // improvement look like a regression. What is actually guaranteed is that
-    // the token is written once, to the session store, and leaks nowhere else.
-    // Hashing tokens at rest remains open — tracked as B12.
-    expect(raw.split(session.token).length - 1).toBe(1);
+    //
+    // This test was once named "does not write the raw token" while asserting
+    // the opposite — that the token appeared exactly once, which *requires* it
+    // to be stored in the clear. The name is now true.
+    expect(raw).not.toContain(session.token);
     const users = await readFile(join(dir, "users.json"), "utf8");
     expect(users).not.toContain(session.token);
+    // And the session still works, so the fingerprint is being compared rather
+    // than the value simply being lost.
+    expect((await verifySession(session.token))?.username).toBe("tok2");
   });
 });

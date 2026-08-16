@@ -217,14 +217,13 @@ Root can delete the first, so the "cannot remove the last Root" guard stops
 protecting anything once a second exists — the lockout protection and the
 single-Root rule are the same invariant seen from two directions.
 
-**B12. Session tokens are stored in plain form.** A token is a bearer
-credential, so the session file is as good as a password file for anyone who can
-read it. It is `0600` inside a `0700` directory, which is the same protection the
-ledger and the account file get, so this is a defence-in-depth gap rather than an
-open door. Hashing tokens at rest (store the hash, compare on presentation, as
-passwords already do) would close it. Surfaced while correcting the misleading
-test that had asserted the current behaviour as if it were the desired one.
-**[verified]**
+**B12. ~~Session tokens are stored in plain form.~~ FIXED, 2026-08-16.** The
+store now holds a one-way SHA-256 fingerprint and compares fingerprints on
+presentation, so reading `sessions.json` no longer hands an attacker the ability
+to impersonate every signed-in operator. Plain SHA-256 rather than scrypt
+deliberately: a token is 256 bits from a CSPRNG, so there is nothing to guess
+and no dictionary to resist — a work factor would only slow every request, and
+session lookup runs on every dashboard call. **[verified]**
 
 **B10. ~~Nothing stops a dangerously loose rule being written.~~ FIXED,
 2026-08-15.** `describeRuleRisks` returns non-blocking warnings for an
@@ -363,20 +362,36 @@ command to add the remote and one to push.
 Until it is done the only copies are this machine and the OneDrive backup folder
 (bundle, patch series, worktree snapshot, `RESTORE.md`).
 
-### F2 - Commit the untracked project files
+### F2 - Commit the untracked project files — **DONE, 2026-08-16**
+
+`mg/` and `Kimi_QA_1.md` are committed. `Documentation/` is deliberately left
+untracked: 163 MB that byte-for-byte duplicates a OneDrive folder, so the
+repository is not the right home for it. Consider a `.gitignore` entry so it
+stops appearing in `git status`.
+
+<details><summary>Original</summary>
 
 `Documentation/`, `mg/` and `Kimi_QA_1.md` are still untracked, so they are not
 in the local history either. `Documentation/` is 163 MB and duplicates a
 OneDrive folder, so decide per directory rather than committing all three: `mg/`
 and `Kimi_QA_1.md` clearly belong in the repository; `Documentation/` probably
 does not.
+</details>
 
-### F3 - Commit the governance work itself
+### F3 - Commit the governance work itself — **DONE, 2026-08-16**
+
+Three commits on `governance-layer`: documentation, governance core, dashboard.
+Split that way because the files interleave — `policy-engine.ts` alone carries
+five separate concerns — so finer-grained commits would not have compiled, and a
+commit that does not build is worse than a larger honest one.
+
+<details><summary>Original</summary>
 
 Everything since the last commit is uncommitted working tree - the whole of B2,
 A2, B3/B4, B9, B6/B7, B10, B11, A3, A4, G, and four QA rounds. This is by far
 the largest single risk on the list: it exists only as files on one disk.
 Should be several commits, not one, following the existing message style.
+</details>
 
 ### F4 - File the OpenClaw bug report
 
@@ -393,6 +408,148 @@ report's own style. Candidates are already marked "Figure candidate" there.
 Deferred by decision until everything else is finished. Source material is
 organised and keyed to section numbers in `docs-notes/CHAPTER3-MATERIAL.md`,
 with `docs-notes/BASELINE-RULES.md` covering the tier model.
+
+---
+
+## G. Tiered baseline policies (supervisor-directed) — **DONE, 2026-08-16**
+
+Requested by Dr. Haitham by email, 2026-08-13. Implemented in full. Rules and
+the reasoning for each: `docs-notes/BASELINE-RULES.md`. Code:
+`src/governance/baseline-policy.ts`. Evidence: `baseline-policy.test.ts`,
+29 adversarial tests; suite 1038 passing; **host harness unchanged at 18/174**,
+which is the measurement that says the baseline is permissive enough.
+
+What landed: `effect` (allow/deny) and `tier` (core/baseline/admin) on rules,
+both optional and both defaulting to the old meaning; deny-first evaluation;
+core rules reasserted from source on every load and refused by the remove/author
+paths for **every** tier including Root; a forged core-tier rule in the file is
+discarded; baseline rules seeded on first run and removable by an Administrator;
+default posture `enforce`; monitor demoted to a per-agent opt-in
+(`agentMode`) that never lifts a core denial.
+
+Two things found while doing it, both fixed: an operator rule could claim the
+`baseline` tier and pass itself off as shipped, and one shipped git pattern was
+rejected by the project's own regex-safety checker — the defaults are now held
+to the same standard as an operator's rule, which is the point.
+
+**New limitation surfaced, recorded below as G8.**
+
+### What was asked
+
+Do not make a fresh installation usable by allowing everything during an initial
+observation period. Ship a predefined baseline policy set instead: enough
+permission for ordinary work, sensitive actions restricted from the first run.
+Three tiers:
+
+| Tier                 | Contents                                                                                                                                  | Who may change it              |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| **Core (immutable)** | Critical restrictions enforced at all times — credential access, privilege escalation, modifying governance rules, tampering with the log | Nobody, at runtime             |
+| **Baseline**         | Shipped rules making the agent functional on first run — list a directory, read permitted project files                                   | Administrator (refine)         |
+| **Admin**            | Rules written from observed behaviour                                                                                                     | Administrator / User, as today |
+
+Anything matching no rule still falls to default-deny, or to ASK where
+appropriate.
+
+Monitor mode is **kept**, demoted to an optional policy-discovery tool: observe
+behaviour, evaluate what the rules would have decided, promote findings into
+enforcement. It stops being the mechanism that makes a fresh install usable.
+
+### What this costs, honestly
+
+**G1. The rule language has no concept of denial.** Today rules are allow-only —
+`policy-engine.ts:183` finds the first matching allow rule and everything else
+falls through to the default. "Core immutable restrictions" are deny rules, and
+they must beat allow rules, or a later baseline/admin rule that widens access
+(`read anything under the home directory`) silently re-opens what core forbade
+(`~/.ssh/id_rsa`). This is the largest single change: `PolicyRule` needs an
+`effect`, and evaluation needs a precedence order in which deny wins.
+
+Consequence worth stating in the report: the current invariant "adding a rule can
+never reduce access" stops being true, and its replacement — "core denies always
+win" — has to be documented and tested in its place.
+
+**G2. Rules need a tier, and core rules need real immutability.** `PolicyRule`
+carries no tier field. Core rules must be rejected by the remove/edit paths in
+both `governance-dashboard-api.ts` and `register.governance.ts` — including for
+Root, since "immutable" that Root can edit is not immutable — and must survive a
+hand-edited `policy.json`, which means reasserting them on load in
+`policy-store.ts` rather than trusting the file.
+
+**G3. Writing the baseline set is the real work, and the host suite scores it.**
+The current default is `monitor` partly because `enforce` with zero rules
+regressed 19 of OpenClaw's own tests. Those tests are a genuine measure of
+"can the agent still do ordinary work": run
+`src/agents/harness/native-hook-relay.test.ts` against the baseline set and the
+regression count over the 9-failure baseline says whether the rules are
+permissive enough. That turns "enough for normal basic operations" from a
+judgement call into a measurement — worth a §4.x subsection.
+
+**G4. B2 (path canonicalisation) becomes a prerequisite, not a parallel task.**
+A core deny rule on `~/.ssh` is worthless while `workspace/../../.ssh/id_rsa`
+walks around it. Path rules must be canonicalised _before_ core denies can be
+claimed to hold. B2 moves ahead of this item.
+
+**G5. Conflict detection and the dashboard both assume allow-only.**
+`rule-conflicts.ts` reasons about overlap between allow rules; with deny in play
+it needs to reason about override too. The dashboard must show which tier a rule
+belongs to and refuse to offer a delete button on core.
+
+**G8. ~~Reads and writes share one permission.~~ FIXED, 2026-08-16.** Rules
+gained an optional `access` narrowing (`read` / `write`; absent means both, so
+every earlier rule keeps its meaning), and the tool registry states which
+direction each path tool performs. The shipped baseline is now **read-only** for
+the workspace — which is what the brief described all along, since modifying the
+project is a grant an operator makes deliberately rather than something an agent
+inherits from a default. A denial with no narrowing still forbids both
+directions, so narrowing can never weaken a restriction. **[verified]**
+
+**G7. Everything here has to be reachable and usable from the web dashboard**,
+not only from the API and the CLI. Standing requirement for all remaining work,
+recorded here because it is easy to count a feature as done when it is only
+done server-side. Concretely for §G: a per-agent monitor-mode toggle, rules
+labelled with their tier, core rules visibly non-deletable, and the baseline set
+viewable so an operator can see what their agent was shipped with. Design
+requirement #2 asks for a dashboard that configures policy — a policy tier that
+can only be inspected by reading `policy.json` does not meet it.
+
+### Decided: monitor mode is kept, demoted, and made per-agent
+
+Decision, 2026-08-13. Monitor mode stays as the optional discovery tool the
+supervisor described. Three changes:
+
+- **Off by default, and turned on from the web dashboard.** The installation
+  default becomes `enforce`; monitor is opt-in, switched on per agent from the
+  governance page by anyone entitled to that agent (see the authority bullet
+  below). This is the change that re-triggers the 19-test regression described
+  in G3, so the default flip and the baseline policy set must land in the
+  **same commit** — flipping first leaves the tree broken.
+- **A shipped baseline policy list makes the agent work on first boot.** This
+  is the list the supervisor's email asks for and it does not exist yet: it has
+  to be written, not just designed. Enough permission for ordinary work
+  (listing a directory, reading permitted project files) with sensitive actions
+  denied from the first run. Writing it is G3, and the host test suite scores
+  whether it is permissive enough.
+- **Per-agent, not installation-wide.** Monitor becomes an opt-in override on
+  one agent, structurally parallel to the existing `agentAsk` map. This reverses
+  the reasoning currently written at `policy-types.ts:60-67`, which argues that
+  `mode` stays global because posture is an installation property. That comment
+  must be rewritten rather than left contradicting the code.
+- **Authority follows the existing tiers.** A User may enable it on an agent
+  assigned to them; an Administrator on any agent or installation-wide; Root
+  inherits. This needs no new permission machinery — `canManageAgent` and
+  `canManageGlobalPolicy` in `permissions.ts` already draw exactly this line.
+
+**G6. Core rules must still enforce under monitor.** Otherwise a User enabling
+monitor on their own agent is a one-click way to suspend every restriction on
+it, which turns the discovery tool into a privilege escalation and makes
+"critical restrictions enforced at all times" false. The precedent is already in
+the codebase and already argued: the kill switch is deliberately _not_ suspended
+by monitor (`policy-engine.ts:111-121`), on the grounds that it is not a policy
+decision. Core immutable denies are the same kind of thing. So monitor suspends
+**baseline and admin** verdicts only.
+
+This also softens A5. A User enabling monitor on their agent is only safe
+_because_ core still bites; without G6 the two findings compound.
 
 ---
 

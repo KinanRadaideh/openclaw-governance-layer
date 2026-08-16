@@ -26,6 +26,14 @@ type ToolCallLike = {
  */
 export type GovernedToolSpec = {
   resourceKind: ResourceKind;
+  /**
+   * Which direction of access this tool performs, for `path` tools.
+   *
+   * Lets a rule say "readable but not writable" — see `RuleAccess`. Derived
+   * from the tool rather than from the rule, because the tool is what actually
+   * determines whether the file is being read or changed.
+   */
+  access?: "read" | "write";
   extract: (event: ToolCallLike, cwd?: string) => Promise<string[]>;
 };
 
@@ -116,10 +124,10 @@ export const GOVERNED_TOOLS: Record<string, GovernedToolSpec> = Object.assign(
     // must not depend on an alias table it does not own.
     bash: { resourceKind: "command", extract: extractCommand },
     terminal: { resourceKind: "command", extract: extractCommand },
-    read: { resourceKind: "path", extract: extractPaths },
-    write: { resourceKind: "path", extract: extractPaths },
-    edit: { resourceKind: "path", extract: extractPaths },
-    apply_patch: { resourceKind: "path", extract: extractPaths },
+    read: { resourceKind: "path", access: "read", extract: extractPaths },
+    write: { resourceKind: "path", access: "write", extract: extractPaths },
+    edit: { resourceKind: "path", access: "write", extract: extractPaths },
+    apply_patch: { resourceKind: "path", access: "write", extract: extractPaths },
     web_fetch: {
       resourceKind: "network",
       extract: async (event) => {

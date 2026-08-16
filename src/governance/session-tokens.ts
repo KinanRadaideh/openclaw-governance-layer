@@ -1,4 +1,4 @@
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 // Dashboard login sessions: an opaque bearer token mapped to a user id + role
 // + expiry. Persisted to disk (not just in-memory) so a Gateway restart
 // doesn't silently log everyone out; a background sweep drops expired rows.
@@ -40,6 +40,26 @@ function isExpired(session: GovernanceSession, nowMs: number): boolean {
   return Date.parse(session.expiresAt) <= nowMs;
 }
 
+/**
+ * One-way fingerprint of a session token, for storage.
+ *
+ * A session token is a bearer credential: whoever holds it *is* the account
+ * until it expires. Storing it in the clear made `sessions.json` as valuable as
+ * the password file — anyone who could read it could impersonate every signed-in
+ * operator, without needing to crack anything. Passwords were already hashed;
+ * this closes the same hole on the other credential (QA finding B12).
+ *
+ * Plain SHA-256 rather than scrypt, deliberately. Password hashing is
+ * deliberately slow because a password is low-entropy and guessable; a token is
+ * 256 bits from a cryptographic RNG, so there is nothing to guess and no
+ * dictionary to resist. What is needed is a one-way function, and adding a work
+ * factor here would only make every request slower — session lookup runs on
+ * every dashboard call, unlike a login.
+ */
+function fingerprintToken(token: string): string {
+  return createHash("sha256").update(token, "utf8").digest("hex");
+}
+
 export async function issueSession(user: {
   id: string;
   username: string;
@@ -51,8 +71,9 @@ export async function issueSession(user: {
     const file = await readSessionsFile();
     const now = Date.now();
     file.sessions = file.sessions.filter((s) => !isExpired(s, now));
+    const token = randomBytes(32).toString("hex");
     const session: GovernanceSession = {
-      token: randomBytes(32).toString("hex"),
+      token,
       userId: user.id,
       username: user.username,
       role: user.role,
@@ -60,7 +81,9 @@ export async function issueSession(user: {
       expiresAt: new Date(now + SESSION_TTL_MS).toISOString(),
       assignedAgents: [...(user.assignedAgents ?? [])],
     };
-    file.sessions.push(session);
+    // The stored record holds the fingerprint; the caller gets the real token,
+    // which from here on exists only in the operator's cookie.
+    file.sessions.push({ ...session, token: fingerprintToken(token) });
     await writeJsonAtomic(sessionsFilePath(), file, { mode: 0o600 });
     return session;
   });
@@ -88,7 +111,11 @@ export async function verifySession(token: string): Promise<GovernanceSession | 
   }
   const file = await readSessionsFile();
   const now = Date.now();
-  const session = file.sessions.find((s) => tokensMatch(token, s.token));
+  // Compare fingerprints, not tokens. Still constant-time: the fingerprint of a
+  // wrong guess is as secret as the token itself, and leaking how much of it
+  // matched would leak the same information one step removed.
+  const presented = fingerprintToken(token);
+  const session = file.sessions.find((s) => tokensMatch(presented, s.token));
   if (!session || isExpired(session, now)) {
     return undefined;
   }
@@ -101,7 +128,8 @@ export async function revokeSession(token: string): Promise<void> {
   await ensureHomeDir();
   await withFileLock(sessionsFilePath(), async () => {
     const file = await readSessionsFile();
-    file.sessions = file.sessions.filter((s) => s.token !== token);
+    const presented = fingerprintToken(token);
+    file.sessions = file.sessions.filter((s) => s.token !== presented);
     await writeJsonAtomic(sessionsFilePath(), file, { mode: 0o600 });
   });
 }

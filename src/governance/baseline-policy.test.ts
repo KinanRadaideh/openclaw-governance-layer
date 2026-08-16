@@ -414,3 +414,73 @@ describe("documents written before tiers existed keep working", () => {
     ).toBe("allow");
   });
 });
+
+describe("reads and writes are separable permissions (G8)", () => {
+  it("ships a workspace baseline that reads but does not write", async () => {
+    // The brief describes a baseline permitting "reading permitted project
+    // files". Before the access dimension existed this rule granted writes too,
+    // making the shipped default quietly more permissive than the design.
+    await writeFile(join(workspace, "app.ts"), "// code\n");
+    expect(
+      verdict(
+        await evaluateGovernancePolicy({ toolName: "read", params: { path: "app.ts" } }, ctx()),
+      ),
+    ).toBe("allow");
+    expect(
+      notAllowed(
+        await evaluateGovernancePolicy({ toolName: "write", params: { path: "app.ts" } }, ctx()),
+      ),
+    ).toBe(true);
+  });
+
+  it("treats edit and apply_patch as writes too", async () => {
+    await writeFile(join(workspace, "app.ts"), "// code\n");
+    for (const toolName of ["edit", "apply_patch"]) {
+      expect(
+        notAllowed(
+          await evaluateGovernancePolicy(
+            { toolName, params: { path: "app.ts" }, derivedPaths: [join(workspace, "app.ts")] },
+            ctx(),
+          ),
+        ),
+        toolName,
+      ).toBe(true);
+    }
+  });
+
+  it("lets an operator grant writes deliberately", async () => {
+    await addRule({ resourceKind: "path", pattern: "^src/.*$", access: "write" }, "admin");
+    await writeFile(join(workspace, "src.txt"), "x\n");
+    expect(
+      verdict(
+        await evaluateGovernancePolicy({ toolName: "write", params: { path: "src/a.ts" } }, ctx()),
+      ),
+    ).toBe("allow");
+  });
+
+  it("keeps a rule with no access narrowing granting both directions", async () => {
+    // Every path rule written before this distinction existed must keep its
+    // meaning, or the change would silently revoke permissions.
+    await addRule({ resourceKind: "path", pattern: "^legacy/.*$" }, "admin");
+    for (const toolName of ["read", "write"]) {
+      expect(
+        verdict(
+          await evaluateGovernancePolicy({ toolName, params: { path: "legacy/a.ts" } }, ctx()),
+        ),
+        toolName,
+      ).toBe("allow");
+    }
+  });
+
+  it("still refuses a core-denied file in both directions", async () => {
+    // Narrowing must never weaken a denial: a core deny carries no access
+    // narrowing, so it forbids reads and writes alike.
+    await writeFile(join(workspace, ".env"), "SECRET=1\n");
+    for (const toolName of ["read", "write"]) {
+      expect(
+        verdict(await evaluateGovernancePolicy({ toolName, params: { path: ".env" } }, ctx())),
+        toolName,
+      ).toBe("block");
+    }
+  });
+});
