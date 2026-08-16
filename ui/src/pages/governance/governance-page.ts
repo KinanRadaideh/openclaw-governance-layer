@@ -7,6 +7,7 @@ import { state } from "lit/decorators.js";
 import type { GovernanceRole } from "../../../../src/governance/roles.ts";
 import { applicationContext, type ApplicationContext } from "../../app/context.ts";
 import { resolveControlUiAuthToken } from "../../app/control-ui-auth.ts";
+import { showConfirmDialog } from "../../components/confirm-dialog.ts";
 import {
   renderDocsLink,
   renderSettingsEmpty,
@@ -31,10 +32,12 @@ import {
   type GovernanceKillResult,
   type GovernancePendingDecision,
   type GovernanceRuleConflict,
+  type GovernanceRuleWarning,
   type GovernanceRuleRequest,
   type GovernanceSystemStatus,
   type GovernanceUserRecord,
 } from "./api.ts";
+import { describeLedgerEntry, filterLedger, type LedgerFilter } from "./ledger-filter.ts";
 
 /** Ordered least- to most-privileged so the control reads as a ladder. */
 const GOVERNANCE_ROLE_OPTIONS: ReadonlyArray<{ value: GovernanceRole; label: string }> = [
@@ -75,6 +78,27 @@ function formatDuration(totalSeconds: number): string {
 
 const SECURITY_DOCS_URL = "https://docs.openclaw.ai/gateway/security";
 
+/**
+ * How often the page reloads itself.
+ *
+ * Short enough that the live-session panel is worth trusting during an
+ * incident, long enough not to hammer the Gateway from an idle tab.
+ */
+const AUTO_REFRESH_MS = 15_000;
+
+/** Evaluation order: core denials, then shipped allowances, then operator rules. */
+function tierRank(tier: GovernancePolicyRule["tier"]): number {
+  return tier === "core" ? 0 : tier === "baseline" ? 1 : 2;
+}
+
+function tierLabel(tier: GovernancePolicyRule["tier"]): string {
+  return tier === "core"
+    ? t("governance.policy.tierCore")
+    : tier === "baseline"
+      ? t("governance.policy.tierBaseline")
+      : t("governance.policy.tierAdmin");
+}
+
 class GovernancePage extends OpenClawLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
@@ -85,8 +109,15 @@ class GovernancePage extends OpenClawLightDomElement {
   @state() private error: string | null = null;
   @state() private policy: GovernancePolicyDocument | null = null;
   @state() private ledger: GovernanceLedgerEntry[] = [];
+  @state() private ledgerFilter: LedgerFilter = "all";
   @state() private verification: GovernanceLedgerVerification | null = null;
   @state() private busy = false;
+  /** Set when a request returned 401: the sign-in is gone, not merely stale. */
+  @state() private sessionExpired = false;
+  /** Set when some panels failed to reload, so the page can say which state it is in. */
+  @state() private partialFailure = false;
+  @state() private lastRefreshedAt: number | null = null;
+  private refreshTimer: ReturnType<typeof setInterval> | undefined;
 
   @state() private loginUsername = "";
   @state() private loginPassword = "";
@@ -109,6 +140,8 @@ class GovernancePage extends OpenClawLightDomElement {
   @state() private activeSessions: GovernanceActiveSessionsView | null = null;
   /** Clash notice shown after adding a rule that an earlier rule already covers. */
   @state() private conflictNotice: GovernanceRuleConflict[] | null = null;
+  /** Advisory notes about a just-created rule being looser than it looks. */
+  @state() private ruleWarnings: GovernanceRuleWarning[] | null = null;
   @state() private killNotice: GovernanceKillResult | null = null;
   @state() private pendingDecisions: GovernancePendingDecision[] = [];
 
@@ -133,7 +166,9 @@ class GovernancePage extends OpenClawLightDomElement {
     try {
       this.identity = await this.api().whoami();
       this.needsBootstrap = false;
+      this.sessionExpired = false;
       await this.refreshData();
+      this.startAutoRefresh();
     } catch (err) {
       this.identity = null;
       // A 409 from bootstrap-root means an account exists; a 401 from whoami
@@ -162,28 +197,166 @@ class GovernancePage extends OpenClawLightDomElement {
     }
   }
 
+  /**
+   * Asks before performing something that cannot be undone from this page.
+   *
+   * Removing a rule, deleting an account, stopping an agent, and changing
+   * someone's role were all single-click, and the role control was the worst of
+   * them: the change applied the instant the segmented control was clicked, so
+   * a mis-click one position to the right promoted somebody. These are the four
+   * highest-consequence controls on the page, and they had the lightest
+   * interaction of anything on it.
+   *
+   * `showConfirmDialog` is the Control UI's existing helper — already used
+   * elsewhere in the app and already tested — rather than a new dialog or a
+   * native `confirm()`, which is blocked in some embedded surfaces.
+   */
+  private async confirmThen(
+    options: { message: string; details?: string; confirmLabel: string; danger?: boolean },
+    action: () => Promise<unknown>,
+  ): Promise<void> {
+    const confirmed = await showConfirmDialog({
+      title: t("governance.confirm.title"),
+      message: options.message,
+      ...(options.details ? { details: options.details } : {}),
+      confirmLabel: options.confirmLabel,
+      danger: options.danger ?? true,
+    });
+    if (!confirmed) {
+      // Deliberately silent. A cancelled action is the operator getting the
+      // outcome they asked for, not an error to report.
+      return;
+    }
+    await this.run(action);
+  }
+
+  /**
+   * True when the failure means the session is gone rather than the request
+   * being wrong. Anything the operator is shown after this point would be
+   * historical, so it must not keep being presented as current.
+   */
+  private isSessionLost(err: unknown): boolean {
+    return err instanceof GovernanceApiError && err.status === 401;
+  }
+
   private async refreshData(): Promise<void> {
     const api = this.api();
-    const [policy, ledger, systemStatus, ruleRequests, activeSessions, pendingDecisions] =
-      await Promise.all([
-        api.policy(),
-        api.ledger(),
-        api.systemStatus(),
-        api.listRuleRequests(),
-        api.activeSessions(),
-        // Viewers may not read the stack; asking would 403 and spoil an
-        // otherwise successful refresh.
-        this.canManageAnyAgent() ? api.listPendingDecisions() : Promise.resolve([]),
-      ]);
-    this.policy = policy;
-    this.ledger = ledger;
-    this.systemStatus = systemStatus;
-    this.ruleRequests = ruleRequests;
-    this.activeSessions = activeSessions;
-    this.pendingDecisions = pendingDecisions;
-    // Only Root may list accounts; requesting as a lower tier would 403 and
-    // surface a confusing error on an otherwise successful refresh.
-    this.users = this.identity?.role === "root" ? await api.listUsers() : [];
+    // `allSettled`, not `all`. Six requests load this page, and with `all` a
+    // single failure rejected the whole refresh — which the caller treated as
+    // "not logged in" and threw the operator back to the sign-in form. One
+    // unavailable panel should cost that panel, not the session.
+    const results = await Promise.allSettled([
+      api.policy(),
+      api.ledger(),
+      api.systemStatus(),
+      api.listRuleRequests(),
+      api.activeSessions(),
+      // Viewers may not read the stack; asking would 403 and spoil an
+      // otherwise successful refresh.
+      this.canManageAnyAgent() ? api.listPendingDecisions() : Promise.resolve([]),
+      // Only Root may list accounts; requesting as a lower tier would 403 and
+      // surface a confusing error on an otherwise successful refresh.
+      this.identity?.role === "root" ? api.listUsers() : Promise.resolve([]),
+    ]);
+
+    // A 401 anywhere means the login is gone, and that *does* end the session —
+    // the distinction being drawn is between "this panel failed" and "you are
+    // no longer signed in".
+    if (
+      results.some((result) => result.status === "rejected" && this.isSessionLost(result.reason))
+    ) {
+      this.markSessionExpired();
+      return;
+    }
+
+    const [policy, ledger, systemStatus, ruleRequests, activeSessions, pendingDecisions, users] =
+      results;
+    if (policy.status === "fulfilled") {
+      this.policy = policy.value;
+    }
+    if (ledger.status === "fulfilled") {
+      this.ledger = ledger.value;
+    }
+    if (systemStatus.status === "fulfilled") {
+      this.systemStatus = systemStatus.value;
+    }
+    if (ruleRequests.status === "fulfilled") {
+      this.ruleRequests = ruleRequests.value;
+    }
+    if (activeSessions.status === "fulfilled") {
+      this.activeSessions = activeSessions.value;
+    }
+    if (pendingDecisions.status === "fulfilled") {
+      this.pendingDecisions = pendingDecisions.value;
+    }
+    if (users.status === "fulfilled") {
+      this.users = users.value;
+    }
+
+    const failed = results.filter((result) => result.status === "rejected").length;
+    // Say so rather than leaving the operator to notice a panel is stale. On the
+    // page whose job is oversight, silently showing old data is the failure.
+    this.partialFailure = failed > 0;
+    this.lastRefreshedAt = Date.now();
+  }
+
+  /**
+   * Drops back to the sign-in form and clears what was on screen.
+   *
+   * An expired session used to leave the last-loaded rule list and audit log
+   * rendered as though they were current. That is the worst of both outcomes:
+   * the operator can no longer act, and cannot tell that what they are reading
+   * is out of date — on the page whose entire purpose is knowing the present
+   * state of the system.
+   */
+  private markSessionExpired(): void {
+    this.identity = null;
+    this.sessionExpired = true;
+    this.policy = null;
+    this.ledger = [];
+    this.users = [];
+    this.activeSessions = null;
+    this.pendingDecisions = [];
+    this.ruleRequests = [];
+    this.systemStatus = null;
+    this.verification = null;
+    this.stopAutoRefresh();
+  }
+
+  /**
+   * Polls while the page is open.
+   *
+   * Nothing refreshed on its own before, so "no agent sessions running" could be
+   * hours old — on the panel whose job is catching a runaway agent. Skipped
+   * while a mutation is in flight (so a refresh cannot race a write) and while
+   * the tab is hidden (so a backgrounded dashboard is not polling all day).
+   */
+  private startAutoRefresh(): void {
+    this.stopAutoRefresh();
+    this.refreshTimer = setInterval(() => {
+      if (this.busy || !this.identity || document.hidden) {
+        return;
+      }
+      void this.refreshData().catch((err) => {
+        if (this.isSessionLost(err)) {
+          this.markSessionExpired();
+        }
+        // Any other failure is left to the next tick: a transient network blip
+        // should not put an error banner over a working page.
+      });
+    }, AUTO_REFRESH_MS);
+  }
+
+  private stopAutoRefresh(): void {
+    if (this.refreshTimer !== undefined) {
+      clearInterval(this.refreshTimer);
+      this.refreshTimer = undefined;
+    }
+  }
+
+  override disconnectedCallback(): void {
+    this.stopAutoRefresh();
+    super.disconnectedCallback();
   }
 
   private async run(action: () => Promise<unknown>): Promise<void> {
@@ -193,10 +366,44 @@ class GovernancePage extends OpenClawLightDomElement {
       await action();
       await this.refreshData();
     } catch (err) {
+      if (this.isSessionLost(err)) {
+        this.markSessionExpired();
+        return;
+      }
       this.error = err instanceof Error ? err.message : String(err);
     } finally {
       this.busy = false;
     }
+  }
+
+  /**
+   * Performs the sign-in currently described by the form.
+   *
+   * Shared by the button and the Enter key so the two can never drift into
+   * doing different things.
+   */
+  private async performLogin(bootstrapping: boolean): Promise<void> {
+    if (this.busy || !this.loginUsername || !this.loginPassword) {
+      return;
+    }
+    await this.run(async () => {
+      const api = this.api();
+      this.identity = bootstrapping
+        ? await api.bootstrapRoot(this.loginUsername, this.loginPassword)
+        : await api.login(this.loginUsername, this.loginPassword);
+      this.loginPassword = "";
+      this.needsBootstrap = false;
+      this.sessionExpired = false;
+      this.startAutoRefresh();
+    });
+  }
+
+  private submitLoginOnEnter(event: KeyboardEvent, bootstrapping: boolean): void {
+    if (event.key !== "Enter") {
+      return;
+    }
+    event.preventDefault();
+    void this.performLogin(bootstrapping);
   }
 
   private renderLogin(): TemplateResult {
@@ -207,6 +414,11 @@ class GovernancePage extends OpenClawLightDomElement {
           title: bootstrapping ? t("governance.login.bootstrapTitle") : t("governance.login.title"),
         },
         html`
+          ${this.sessionExpired
+            ? html`<div class="settings-empty" role="alert">
+                ${t("governance.login.sessionExpired")}
+              </div>`
+            : nothing}
           ${this.error
             ? html`<div class="settings-empty" role="alert">${this.error}</div>`
             : nothing}
@@ -217,38 +429,47 @@ class GovernancePage extends OpenClawLightDomElement {
               </span>
             </div>
             <div class="settings-row__control" style="gap:0.5rem;flex-wrap:wrap">
+              <!--
+                Named via aria-label, not by the placeholder. A placeholder is
+                not a label: it is not reliably exposed as an accessible name,
+                and it disappears the moment the field has content — so the hint
+                vanishes exactly when someone reviewing what they typed needs it.
+                aria-label rather than a visually-hidden <label> because this
+                page has no global sr-only class to hide one with, and an
+                unstyled label would simply render as stray text.
+                Enter now submits, which every sign-in form on the web does and
+                whose absence reads as the page being broken.
+              -->
               <input
+                id="governance-login-username"
                 class="input"
                 type="text"
                 autocomplete="username"
+                aria-label=${t("governance.login.username")}
                 placeholder=${t("governance.login.username")}
                 .value=${this.loginUsername}
                 @input=${(e: Event) => {
                   this.loginUsername = (e.target as HTMLInputElement).value;
                 }}
+                @keydown=${(e: KeyboardEvent) => this.submitLoginOnEnter(e, bootstrapping)}
               />
               <input
+                id="governance-login-password"
                 class="input"
                 type="password"
                 autocomplete="current-password"
+                aria-label=${t("governance.login.password")}
                 placeholder=${t("governance.login.password")}
                 .value=${this.loginPassword}
                 @input=${(e: Event) => {
                   this.loginPassword = (e.target as HTMLInputElement).value;
                 }}
+                @keydown=${(e: KeyboardEvent) => this.submitLoginOnEnter(e, bootstrapping)}
               />
               <button
                 class="btn btn--primary"
                 ?disabled=${this.busy || !this.loginUsername || !this.loginPassword}
-                @click=${() =>
-                  this.run(async () => {
-                    const api = this.api();
-                    this.identity = bootstrapping
-                      ? await api.bootstrapRoot(this.loginUsername, this.loginPassword)
-                      : await api.login(this.loginUsername, this.loginPassword);
-                    this.loginPassword = "";
-                    this.needsBootstrap = false;
-                  })}
+                @click=${() => this.performLogin(bootstrapping)}
               >
                 ${bootstrapping ? t("governance.login.createRoot") : t("governance.login.signIn")}
               </button>
@@ -360,24 +581,44 @@ class GovernancePage extends OpenClawLightDomElement {
           `,
         }),
       ),
-      ...policy.rules.map((rule) =>
-        renderSettingsRow({
-          title: html`<code>${rule.pattern}</code>`,
-          description: `${rule.resourceKind} · ${
-            rule.agentId ? `agent ${rule.agentId}` : t("governance.policy.globalScope")
-          }${rule.description ? ` — ${rule.description}` : ""}${formatRuleLifetime(
-            rule.expiresAt,
-          )}`,
-          control: canEditRules
-            ? html`<button
-                class="btn btn--danger"
-                @click=${() => this.run(() => this.api().removeRule(rule.id))}
-              >
-                ${t("governance.policy.removeRule")}
-              </button>`
-            : nothing,
-        }),
-      ),
+      // Core rules first, then baseline, then operator rules — the order the
+      // engine evaluates them in, so the list reads the way the system thinks.
+      ...[...policy.rules]
+        .sort((a, b) => tierRank(a.tier) - tierRank(b.tier))
+        .map((rule) =>
+          renderSettingsRow({
+            // A deny rule and an allow rule rendered identically left an operator
+            // unable to tell what forbids from what permits — on the page whose
+            // job is showing them what the policy does.
+            title: html`${rule.effect === "deny"
+                ? html`<strong>${t("governance.policy.denyBadge")}</strong> `
+                : nothing}<code>${rule.pattern}</code>`,
+            description: `${rule.resourceKind} · ${tierLabel(rule.tier)} · ${
+              rule.agentId ? `agent ${rule.agentId}` : t("governance.policy.globalScope")
+            }${rule.description ? ` — ${rule.description}` : ""}${formatRuleLifetime(
+              rule.expiresAt,
+            )}`,
+            // No delete control on a core rule: the server refuses it, and
+            // offering a button that cannot work is worse than offering none.
+            control:
+              canEditRules && rule.tier !== "core"
+                ? html`<button
+                    class="btn btn--danger"
+                    @click=${() =>
+                      this.confirmThen(
+                        {
+                          message: t("governance.confirm.removeRule"),
+                          details: `${rule.resourceKind} ${rule.pattern}`,
+                          confirmLabel: t("governance.policy.removeRule"),
+                        },
+                        () => this.api().removeRule(rule.id),
+                      )}
+                  >
+                    ${t("governance.policy.removeRule")}
+                  </button>`
+                : nothing,
+          }),
+        ),
       policy.rules.length === 0
         ? renderSettingsRow({
             title: t("governance.policy.noRules"),
@@ -455,6 +696,11 @@ class GovernancePage extends OpenClawLightDomElement {
                         created.conflicts && created.conflicts.length > 0
                           ? created.conflicts
                           : null;
+                      // A pattern that is valid but broader than it looks. Shown
+                      // beside the clash notice because both say the same thing
+                      // to the operator: this is not what you probably think.
+                      this.ruleWarnings =
+                        created.warnings && created.warnings.length > 0 ? created.warnings : null;
                     })}
                 >
                   ${t("governance.policy.addRuleButton")}
@@ -500,10 +746,44 @@ class GovernancePage extends OpenClawLightDomElement {
         ${t("governance.kill.noticeNoRuns")}
       </div>`;
     }
+    // Distinguish "confirmed stopped" from "signal sent". Reporting one number
+    // for both let an operator read "we asked in 4ms" as "the agent stopped in
+    // 4ms" — the claim requirement #7 actually makes.
+    if (notice.stoppedConfirmed === false) {
+      return html`<div class="settings-empty" role="alert">
+        ${t("governance.kill.noticeUnconfirmed")} ${aborted}
+        ${notice.dispatchMs === undefined
+          ? nothing
+          : html`(${t("governance.kill.signalled")} ${notice.dispatchMs}ms)`}
+      </div>`;
+    }
     return html`<div class="settings-empty" role="status">
       ${t("governance.kill.noticeStopped")} ${aborted}
       ${notice.elapsedMs === undefined ? nothing : html`(${notice.elapsedMs}ms)`}
     </div>`;
+  }
+
+  private renderRuleWarnings(): TemplateResult | typeof nothing {
+    const warnings = this.ruleWarnings;
+    if (!warnings || warnings.length === 0) {
+      return nothing;
+    }
+    return html`
+      <div class="settings-empty" role="alert" style="border-left:3px solid var(--warn, #fbbf24)">
+        <strong>${t("governance.policy.warningTitle")}</strong>
+        <ul style="margin:0.5rem 0 0.5rem 1rem">
+          ${warnings.map((warning) => html`<li>${warning.message}</li>`)}
+        </ul>
+        <button
+          class="btn"
+          @click=${() => {
+            this.ruleWarnings = null;
+          }}
+        >
+          ${t("governance.policy.conflictDismiss")}
+        </button>
+      </div>
+    `;
   }
 
   private renderConflictNotice(): TemplateResult | typeof nothing {
@@ -612,11 +892,35 @@ class GovernancePage extends OpenClawLightDomElement {
                 ? html`<button
                     class="btn btn--danger"
                     ?disabled=${this.busy}
-                    @click=${() => this.run(() => this.engageKillSwitch(entry.agentId))}
+                    @click=${() =>
+                      this.confirmThen(
+                        {
+                          message: t("governance.confirm.stopAgent"),
+                          details: entry.agentId,
+                          confirmLabel: t("governance.sessions.stop"),
+                        },
+                        () => this.engageKillSwitch(entry.agentId),
+                      )}
                   >
                     ${t("governance.sessions.stop")}
                   </button>`
                 : nothing}
+              ${
+                // The release control used to live only in the kill-switch
+                // section, which is Administrator-gated — so a User could stop
+                // their own agent and then had to find an administrator to
+                // start it again. Whoever is trusted to stop an agent is
+                // trusted to undo that.
+                canStop && entry.lockedDown
+                  ? html`<button
+                      class="btn"
+                      ?disabled=${this.busy}
+                      @click=${() => this.run(() => this.api().setLockdown(entry.agentId, false))}
+                    >
+                      ${t("governance.kill.release")}
+                    </button>`
+                  : nothing
+              }
             </div>
           `,
         }),
@@ -626,19 +930,37 @@ class GovernancePage extends OpenClawLightDomElement {
 
   private renderLedgerSection(): TemplateResult {
     const verification = this.verification;
+    // Administrative entries and agent entries answer different questions, and
+    // an installation doing real work produces far more of the latter. Without
+    // a filter, "who changed this rule?" means scrolling past thousands of tool
+    // calls — the trail exists but is not usable, which for an accountability
+    // feature amounts to much the same thing.
+    const visibleLedger = filterLedger(this.ledger, this.ledgerFilter);
+    const filterButton = (value: LedgerFilter, label: string) => html`<button
+      class="btn ${this.ledgerFilter === value ? "btn-primary" : ""}"
+      aria-pressed=${this.ledgerFilter === value ? "true" : "false"}
+      @click=${() => {
+        this.ledgerFilter = value;
+      }}
+    >
+      ${label}
+    </button>`;
     return renderSettingsSection(
       {
         title: t("governance.ledger.title"),
-        actions: html`<button
-          class="btn"
-          ?disabled=${this.busy}
-          @click=${() =>
-            this.run(async () => {
-              this.verification = await this.api().verifyLedger();
-            })}
-        >
-          ${t("governance.ledger.verify")}
-        </button>`,
+        actions: html`${filterButton("all", t("governance.ledger.filterAll"))}
+          ${filterButton("agent", t("governance.ledger.filterAgent"))}
+          ${filterButton("admin", t("governance.ledger.filterAdmin"))}
+          <button
+            class="btn"
+            ?disabled=${this.busy}
+            @click=${() =>
+              this.run(async () => {
+                this.verification = await this.api().verifyLedger();
+              })}
+          >
+            ${t("governance.ledger.verify")}
+          </button>`,
       },
       [
         verification
@@ -648,28 +970,42 @@ class GovernancePage extends OpenClawLightDomElement {
                 kind: verification.ok ? "ok" : "warn",
                 label: verification.ok
                   ? `${t("governance.ledger.intact")} (${verification.entriesChecked})`
-                  : `${t("governance.ledger.tampered")} #${verification.brokenAtSeq}: ${verification.reason}`,
+                  : verification.brokenAtSeq === undefined
+                    ? // No sequence number when the failure is not tied to one
+                      // entry — an unparseable line, or a checkpoint saying the
+                      // file is short. Printing "#undefined" in exactly the
+                      // situation the feature exists for undermined the one
+                      // message an operator most needs to trust.
+                      `${t("governance.ledger.tampered")}: ${verification.reason}`
+                    : `${t("governance.ledger.tampered")} #${verification.brokenAtSeq}: ${verification.reason}`,
               }),
             })
           : nothing,
-        this.ledger.length === 0
+        visibleLedger.length === 0
           ? renderSettingsRow({
               title: t("governance.ledger.empty"),
               description: t("governance.ledger.emptyHint"),
             })
           : nothing,
-        ...this.ledger
+        ...visibleLedger
           .slice()
           .reverse()
           .slice(0, 50)
           .map((entry) =>
             renderSettingsRow({
               title: html`<code>#${entry.seq} ${entry.toolName}</code> ${entry.resource}`,
-              description: `${new Date(entry.timestamp).toLocaleString()} — agent ${entry.agentId} — rule ${entry.ruleId}`,
+              description: describeLedgerEntry(entry, { by: t("governance.ledger.by") }),
               control: renderSettingsStatus({
                 kind:
-                  entry.decision === "allow" ? "ok" : entry.decision === "deny" ? "warn" : "muted",
-                label: entry.decision,
+                  entry.entryKind === "admin"
+                    ? "accent"
+                    : entry.decision === "allow"
+                      ? "ok"
+                      : entry.decision === "deny"
+                        ? "warn"
+                        : "muted",
+                label:
+                  entry.entryKind === "admin" ? t("governance.ledger.adminBadge") : entry.decision,
               }),
             }),
           ),
@@ -875,8 +1211,20 @@ class GovernancePage extends OpenClawLightDomElement {
                 value: user.role,
                 disabled: this.busy,
                 options: GOVERNANCE_ROLE_OPTIONS,
+                // A privilege change used to apply the instant the control was
+                // clicked, including a mis-click onto a higher tier. It is the
+                // most consequential control on the page and had the lightest
+                // interaction of any of them.
                 onChange: (role) =>
-                  this.run(() => this.api().setUserRole(user.id, role as GovernanceRole)),
+                  this.confirmThen(
+                    {
+                      message: t("governance.confirm.changeRole"),
+                      details: `${user.username}: ${user.role} → ${role}`,
+                      confirmLabel: t("governance.confirm.changeRoleAction"),
+                      danger: role === "root" || user.role === "root",
+                    },
+                    () => this.api().setUserRole(user.id, role as GovernanceRole),
+                  ),
               })}
               ${user.role === "user" || user.role === "viewer"
                 ? html`<input
@@ -918,7 +1266,15 @@ class GovernancePage extends OpenClawLightDomElement {
                 title=${user.username === this.identity?.username
                   ? t("governance.users.cannotDeleteSelf")
                   : ""}
-                @click=${() => this.run(() => this.api().deleteUser(user.id))}
+                @click=${() =>
+                  this.confirmThen(
+                    {
+                      message: t("governance.confirm.deleteUser"),
+                      details: user.username,
+                      confirmLabel: t("governance.users.delete"),
+                    },
+                    () => this.api().deleteUser(user.id),
+                  )}
               >
                 ${t("governance.users.delete")}
               </button>
@@ -1039,6 +1395,26 @@ class GovernancePage extends OpenClawLightDomElement {
     ]);
   }
 
+  /**
+   * States how current the page is.
+   *
+   * Everything here is oversight information, so "when was this true?" is part
+   * of the information. Nothing refreshed on its own before and nothing said
+   * how old the view was, so "no agent sessions running" could be hours stale on
+   * the panel meant to catch a runaway agent.
+   */
+  private renderFreshness(): TemplateResult | typeof nothing {
+    if (this.lastRefreshedAt === null) {
+      return nothing;
+    }
+    if (this.partialFailure) {
+      return html`<div class="settings-empty" role="status">
+        ${t("governance.freshness.partial")}
+      </div>`;
+    }
+    return nothing;
+  }
+
   override render(): unknown {
     if (this.loading) {
       return renderSettingsPage(renderSettingsEmpty(t("governance.loading")));
@@ -1049,7 +1425,8 @@ class GovernancePage extends OpenClawLightDomElement {
     return renderSettingsPage(
       html`
         ${this.error ? html`<div class="settings-empty" role="alert">${this.error}</div>` : nothing}
-        ${this.renderKillNotice()} ${this.renderConflictNotice()} ${this.renderIdentityRow()}
+        ${this.renderFreshness()} ${this.renderKillNotice()} ${this.renderConflictNotice()}
+        ${this.renderRuleWarnings()} ${this.renderIdentityRow()}
         ${this.renderPendingDecisionsSection()} ${this.renderActiveSessionsSection()}
         ${this.renderPolicySection()} ${this.renderLedgerSection()}
         ${this.renderRuleRequestsSection()} ${this.renderSystemSection()}

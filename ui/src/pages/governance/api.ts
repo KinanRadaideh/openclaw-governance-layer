@@ -17,6 +17,15 @@ export type GovernancePolicyRule = {
   createdBy?: string;
   /** Absent = global rule binding every agent. */
   agentId?: string;
+  /** Absent means `allow`. A deny rule forbids, and outranks every allowance. */
+  effect?: "allow" | "deny";
+  /**
+   * Which shipped tier the rule belongs to; absent means an operator wrote it.
+   *
+   * `core` rules are immutable at runtime, so the page must not offer a delete
+   * control that the server is going to refuse.
+   */
+  tier?: "core" | "baseline" | "admin";
 };
 
 export type GovernancePolicyDocument = {
@@ -76,9 +85,30 @@ export type GovernanceLedgerEntry = {
   resourceKind: string;
   resource: string;
   ruleId: string;
-  decision: "allow" | "deny" | "ask";
+  /**
+   * `ungoverned` marks an action the policy layer did not evaluate — a tool with
+   * no resource extractor. It was missing from this union while the server had
+   * emitted it since complete-record logging landed, so the dashboard's own type
+   * disagreed with the data it was rendering.
+   */
+  decision: "allow" | "deny" | "ask" | "ungoverned";
   prevHash: string;
   hash: string;
+  /** Present only on administrative entries (policy and account changes). */
+  entryKind?: "admin";
+  /** Account responsible for an administrative action; `cli` for terminal changes. */
+  actor?: string;
+};
+
+/**
+ * A rule that is valid but grants more than it appears to — an unanchored
+ * pattern, or one whose body matches everything. Advisory, never blocking.
+ */
+export type GovernanceRuleWarning = { code: string; message: string };
+
+export type GovernanceRuleCreation = GovernancePolicyRule & {
+  conflicts?: GovernanceRuleConflict[];
+  warnings?: GovernanceRuleWarning[];
 };
 
 export type GovernanceLedgerVerification = {
@@ -149,7 +179,18 @@ const BASE = "/control-ui/governance";
  */
 export type GovernanceKillResult = {
   ok: true;
+  /** Total time, including waiting for the runs to actually stop. */
   elapsedMs?: number;
+  /** Time spent only sending the stop signal. */
+  dispatchMs?: number;
+  /**
+   * True when every signalled run was observed to end.
+   *
+   * False means either that nothing could watch, or that runs were still going
+   * when the wait expired — so the headline time must not be presented as the
+   * time the agent stopped.
+   */
+  stoppedConfirmed?: boolean;
   abortedRunIds?: string[];
   inFlightTerminationSupported?: boolean;
 };
@@ -246,11 +287,8 @@ export class GovernanceApi {
     ttlMinutes?: number;
     /** Omit for a global rule (Administrator+); set to scope to one agent. */
     agentId?: string;
-  }): Promise<GovernancePolicyRule & { conflicts?: GovernanceRuleConflict[] }> {
-    return this.request<GovernancePolicyRule & { conflicts?: GovernanceRuleConflict[] }>(
-      "policy/rules",
-      { method: "POST", body: rule },
-    );
+  }): Promise<GovernanceRuleCreation> {
+    return this.request<GovernanceRuleCreation>("policy/rules", { method: "POST", body: rule });
   }
 
   removeRule(id: string): Promise<{ ok: boolean }> {

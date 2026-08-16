@@ -3486,6 +3486,8 @@ export const en: TranslationMap = {
     login: {
       title: "Sign in to Governance",
       hint: "Governance uses its own named accounts and roles, separate from the Gateway credential.",
+      sessionExpired:
+        "Your session ended, so the page was cleared rather than left showing out-of-date information. Sign in again to continue.",
       bootstrapTitle: "Create the Root account",
       bootstrapHint:
         "No governance account exists yet. The first account created becomes Root, the system owner.",
@@ -3529,6 +3531,12 @@ export const en: TranslationMap = {
       ttlHint: "Leave blank for an indefinite rule that never expires.",
       indefinite: "never expires",
       conflictTitle: "Rule added, but an earlier rule already covers it",
+      warningTitle: "This rule is broader than it looks",
+      denyBadge: "DENY",
+      immutable: "built-in",
+      tierCore: "core (built-in, cannot be removed)",
+      tierBaseline: "baseline (shipped default)",
+      tierAdmin: "added by an operator",
       conflictDismiss: "Got it",
       expiresIn: "expires in",
       expired: "expired",
@@ -3541,6 +3549,23 @@ export const en: TranslationMap = {
       tampered: "TAMPERED at entry",
       empty: "No audit entries yet",
       emptyHint: "Entries appear here as the agent attempts governed actions.",
+      by: "by",
+      adminBadge: "admin",
+      filterAll: "All",
+      filterAgent: "Agent actions",
+      filterAdmin: "Policy changes",
+    },
+    freshness: {
+      partial:
+        "Some panels could not be reloaded and may be out of date. The rest of the page is current.",
+    },
+    confirm: {
+      title: "Are you sure?",
+      removeRule: "Remove this permission? The agent will no longer be allowed to do this.",
+      deleteUser: "Delete this account? This cannot be undone, and there is no password reset.",
+      stopAgent: "Stop this agent? Work already running will be interrupted.",
+      changeRole: "Change this account's role?",
+      changeRoleAction: "Change role",
     },
     users: {
       title: "Accounts",
@@ -3606,6 +3631,9 @@ export const en: TranslationMap = {
     },
     kill: {
       title: "Emergency kill switch",
+      noticeUnconfirmed:
+        "Stop signal sent, but the agent was not confirmed to have stopped. Runs signalled:",
+      signalled: "signalled in",
       noticeStopped: "Lockdown engaged. In-flight runs aborted:",
       noticeNoRuns:
         "Lockdown engaged, but no in-flight run matched that agent id. The agent will be blocked from further actions; check whether the id is correct and whether anything is still executing.",
