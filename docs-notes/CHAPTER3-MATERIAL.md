@@ -20,17 +20,17 @@ The nine requirements from Chapter 1 §1.3, each with implementation status and
 location. Use this table more or less directly; the _status_ column is the part
 that matters for §4.4 validation.
 
-| #   | Requirement (abbreviated)                                        | Status  | Where implemented                                                                                                                                    |
-| --- | ---------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Node.js ≥ 18, TypeScript, static type checking                   | **Met** | Node v22.22.3; `tsconfig.json` `strict: true` + `noUncheckedIndexedAccess`; `pnpm tsgo:core` / `pnpm tsgo:ui` clean                                  |
-| 2   | Secure web dashboard: configure policies, monitor sessions, RBAC | **Met** | `ui/src/pages/governance/` — policy config ✔, RBAC ✔, live session monitoring ✔ (`active-sessions.ts`)                                               |
-| 3   | Default-deny over file paths, process execution, network         | **Met** | `src/governance/policy-engine.ts` + `resource-extraction.ts`                                                                                         |
-| 4   | Fine-grained privileges: path, command, network, time-limited    | **Met** | `policy-types.ts` (`PolicyRule.expiresAt`), `policy-engine.ts`                                                                                       |
-| 5   | Record 100% of agent actions, policy decisions, approvals        | **Met** | `audit-ledger.ts` + `policy-engine.ts`; every invocation is recorded, ungoverned ones included — see §4.x.10                                         |
-| 6   | Tamper-evident audit logging                                     | **Met** | `audit-ledger.ts` SHA-256 hash chain                                                                                                                 |
-| 7   | Real-time control: suspend/terminate within 1 second             | **Met** | `kill-switch.ts` + `agent-terminator.ts` + `src/gateway/governance-agent-termination.ts`; measured, see §4.x.8                                       |
-| 8   | No plaintext secrets in logs                                     | **Met** | reuses OpenClaw `redactToolPayloadText`                                                                                                              |
-| 9   | Deployable on Linux, open-source components only                 | **Met** | Open-source ✔ (zero new dependencies); Linux ✔ — full suite (213 tests) runs natively on Ubuntu 24.04, plus a dedicated platform harness, see §4.x.9 |
+| #   | Requirement (abbreviated)                                        | Status  | Where implemented                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| --- | ---------------------------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Node.js ≥ 18, TypeScript, static type checking                   | **Met** | Node v22.22.3; `tsconfig.json` `strict: true` + `noUncheckedIndexedAccess`; `pnpm tsgo:core` / `pnpm tsgo:ui` clean                                                                                                                                                                                                                                                                                                               |
+| 2   | Secure web dashboard: configure policies, monitor sessions, RBAC | **Met** | `ui/src/pages/governance/` — policy config ✔, RBAC ✔, live session monitoring ✔ (`active-sessions.ts`)                                                                                                                                                                                                                                                                                                                            |
+| 3   | Default-deny over file paths, process execution, network         | **Met** | `src/governance/policy-engine.ts` + `resource-extraction.ts`; path confinement enforced by canonicalisation (`path-normalize.ts`, §3.5.8) rather than pattern filtering — validated §4.x.13                                                                                                                                                                                                                                       |
+| 4   | Fine-grained privileges: path, command, network, time-limited    | **Met** | `policy-types.ts` (`PolicyRule.expiresAt`), `policy-engine.ts`; one path rule now binds every path-taking tool identically (§4.x.13, row 4)                                                                                                                                                                                                                                                                                       |
+| 5   | Record 100% of agent actions, policy decisions, approvals        | **Met** | Agent actions ✔ and policy decisions ✔ (`audit-ledger.ts` + `policy-engine.ts`; every invocation recorded, `ungoverned` included — §4.x.10). Administrative approvals ✔ (`admin-audit.ts`, §3.5.9) — policy, account, and approval changes carry a required `actor`, in the same hash chain. Caveat to state: CLI-origin changes are attributed to `cli`, not a person (§3.5.9).                                                  |
+| 6   | Tamper-evident audit logging                                     | **Met** | `audit-ledger.ts` SHA-256 hash chain                                                                                                                                                                                                                                                                                                                                                                                              |
+| 7   | Real-time control: suspend/terminate within 1 second             | **Met** | `kill-switch.ts` + `agent-terminator.ts` + `src/gateway/governance-agent-termination.ts`. Now measures **confirmed termination**, not dispatch: the run-activity probe waits for signalled runs to leave the Gateway registry, and reports `dispatchMs`, `elapsedMs` and `stoppedConfirmed` separately (§3.5.10, §4.x.17). Caveat retained: from the CLI no in-flight abort is possible, and that is reported rather than implied |
+| 8   | No plaintext secrets in logs                                     | **Met** | reuses OpenClaw `redactToolPayloadText`                                                                                                                                                                                                                                                                                                                                                                                           |
+| 9   | Deployable on Linux, open-source components only                 | **Met** | Open-source ✔ (zero new dependencies); Linux ✔ — full suite (213 tests) runs natively on Ubuntu 24.04, plus a dedicated platform harness, see §4.x.9                                                                                                                                                                                                                                                                              |
 
 ---
 
@@ -130,15 +130,55 @@ Alternatives genuinely considered, with the deciding reason. This section
 carries a lot of the engineering-judgement marks; each row below has a real
 investigation behind it.
 
-| Decision             | Alternatives considered                                                                           | Chosen                         | Deciding reason                                                                                                                                                                                                                                                                                                                |
-| -------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Integration strategy | (a) OpenClaw plugin via public SDK; (b) hard fork of core                                         | **Hard fork**                  | The plugin API can only contribute a dashboard page inside a _sandboxed iframe_ — `ui/src/pages/plugin/plugin-page.ts` hardcodes which tabs render natively (`BUNDLED_TAB_VIEWS`). Seamless integration is impossible as a plugin. A plugin version was actually built first, then migrated into core when this was confirmed. |
-| Audit storage        | (a) extend OpenClaw's existing `audit_events` SQLite store; (b) own append-only hash-chained file | **Own ledger**                 | Core's store has no entry-to-entry chaining and its schema/writer are internal, not a stable contract. Also serves a different purpose (general telemetry). Verified by reading `src/audit/audit-event-store.ts`: pseudonymization exists, chaining does not — this absence is the project's clearest original contribution.   |
-| Password hashing     | (a) `bcrypt`; (b) `argon2`; (c) Node built-in `scrypt`                                            | **scrypt**                     | Both alternatives are native npm addons requiring compilation. `scrypt` is memory-hard, in the standard library, and adds no dependency — satisfying the economic and open-source-only constraints simultaneously.                                                                                                             |
-| Account storage      | (a) OpenClaw's state SQLite DB; (b) JSON file                                                     | **JSON file**                  | Single-operator deployment; account volume is tiny; a JSON file is human-auditable, which suits a governance artifact. Migration to SQLite is documented as an option, not a correctness requirement.                                                                                                                          |
-| Concurrency control  | (a) in-process promise queue (mutex); (b) OS-level lock file                                      | **Lock file** (`file-lock.ts`) | Started with (a) and it **failed in testing**: the CLI and the Gateway are separate OS processes, so a per-process mutex does not serialize them and the hash chain corrupted itself. See QA defect 1 — good narrative material.                                                                                               |
-| Gate placement       | before vs. after the "no plugins registered" early-return                                         | **Before**                     | After would disable governance entirely on a plugin-free install.                                                                                                                                                                                                                                                              |
-| Viewer log access    | (a) same view as all tiers; (b) sanitized view                                                    | **Sanitized**                  | Chapter 1 §1.6 grants Viewers "sanitized audit logs" specifically; masking the resource string is what makes Viewer meaningfully distinct from User.                                                                                                                                                                           |
+| Decision             | Alternatives considered                                                                                 | Chosen                         | Deciding reason                                                                                                                                                                                                                                                                                                                |
+| -------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Integration strategy | (a) OpenClaw plugin via public SDK; (b) hard fork of core                                               | **Hard fork**                  | The plugin API can only contribute a dashboard page inside a _sandboxed iframe_ — `ui/src/pages/plugin/plugin-page.ts` hardcodes which tabs render natively (`BUNDLED_TAB_VIEWS`). Seamless integration is impossible as a plugin. A plugin version was actually built first, then migrated into core when this was confirmed. |
+| Audit storage        | (a) extend OpenClaw's existing `audit_events` SQLite store; (b) own append-only hash-chained file       | **Own ledger**                 | Core's store has no entry-to-entry chaining and its schema/writer are internal, not a stable contract. Also serves a different purpose (general telemetry). Verified by reading `src/audit/audit-event-store.ts`: pseudonymization exists, chaining does not — this absence is the project's clearest original contribution.   |
+| Password hashing     | (a) `bcrypt`; (b) `argon2`; (c) Node built-in `scrypt`                                                  | **scrypt**                     | Both alternatives are native npm addons requiring compilation. `scrypt` is memory-hard, in the standard library, and adds no dependency — satisfying the economic and open-source-only constraints simultaneously.                                                                                                             |
+| Account storage      | (a) OpenClaw's state SQLite DB; (b) JSON file                                                           | **JSON file**                  | Single-operator deployment; account volume is tiny; a JSON file is human-auditable, which suits a governance artifact. Migration to SQLite is documented as an option, not a correctness requirement.                                                                                                                          |
+| Concurrency control  | (a) in-process promise queue (mutex); (b) OS-level lock file                                            | **Lock file** (`file-lock.ts`) | Started with (a) and it **failed in testing**: the CLI and the Gateway are separate OS processes, so a per-process mutex does not serialize them and the hash chain corrupted itself. See QA defect 1 — good narrative material.                                                                                               |
+| Gate placement       | before vs. after the "no plugins registered" early-return                                               | **Before**                     | After would disable governance entirely on a plugin-free install.                                                                                                                                                                                                                                                              |
+| Viewer log access    | (a) same view as all tiers; (b) sanitized view                                                          | **Sanitized**                  | Chapter 1 §1.6 grants Viewers "sanitized audit logs" specifically; masking the resource string is what makes Viewer meaningfully distinct from User.                                                                                                                                                                           |
+| Path rule form       | (a) always absolute; (b) always workspace-relative; (c) relative inside the workspace, absolute outside | **(c) hybrid**                 | Expanded below — this one needs a paragraph, not a table cell.                                                                                                                                                                                                                                                                 |
+
+#### 3.4.x Which form a file path takes when a rule is matched against it
+
+Worth a subsection of its own: the alternatives are genuinely close, and the
+chosen one is what makes the traversal defence in §3.5.8 possible.
+
+A rule is a regular expression tested against a string. So the security question
+"can this rule be walked around?" is really the question "what string does the
+gate build from the path the agent supplied?" Three answers were considered.
+
+**(a) Always absolute** — every path becomes `/home/kinan/openclaw/src/app.ts`.
+Unambiguous, and traversal-proof once `..` is collapsed. Rejected because it
+makes every rule machine-specific: a rule written on the development laptop
+cannot work on the Linux VPS that design requirement #9 commits the project to,
+since the two have different absolute prefixes. It also invalidates every
+example in the operator documentation.
+
+**(b) Always workspace-relative** — every path becomes `src/app.ts`. Portable,
+and matches the documentation. Rejected because it has no answer for a path
+outside the workspace: `/etc/passwd` has no workspace-relative form, so it would
+have to be either rejected (breaking legitimate access to files outside the
+project) or expressed with `..` (which is precisely the string the traversal
+defence has to eliminate).
+
+**(c) Relative inside, absolute outside — chosen.** A path within the workspace
+is recorded as `src/app.ts`; a path outside it as `/etc/passwd` or
+`C:/Users/kinan/.ssh/id_rsa`. This keeps (b)'s portability for project files and
+(a)'s unambiguity for everything else, and it produces the security property
+directly: _leaving the workspace changes the shape of the string._ A rule
+anchored at `^src/` cannot match an escape attempt, not because the attempt is
+detected and rejected, but because the resulting string no longer begins with
+`src/`. The check needs no blocklist of suspicious patterns, which is what makes
+it robust — there is no list of tricks to keep up to date.
+
+The implementation reuses three helpers the host already ships and tests
+(`resolveToCwd`, `realpath`, `formatPathRelativeToCwdOrAbsolute`), so no new
+path logic was written. Good example for the report of preferring reuse at a
+security boundary: hand-rolled path parsing is a classic source of exactly the
+bug being fixed here.
 
 ---
 
@@ -302,6 +342,32 @@ people, Administrator governs agents.** A consequence worth stating: an
 Administrator cannot promote themselves, because account administration is not
 their tier.
 
+**The one deliberate divergence from Chapter 1, stated plainly.** In the
+preliminary design the User tier _uses_ its assigned agent — it prompts and
+interacts with it, and its governance authority extends little beyond proposing
+changes. In the implemented system a User _governs_ its assigned agent: it
+writes agent-scoped rules, sets that agent's escalation behaviour, reads its
+unmasked audit entries, and can stop it. This is an accepted design decision,
+not an oversight, and the report should present it as such rather than let an
+examiner find it.
+
+The argument for it: a tier that can only propose is not a tier of
+responsibility, and it forces every routine decision about one team's agent up
+to an Administrator who has installation-wide authority. Delegating narrow,
+agent-scoped authority is what makes the Administrator tier's global scope
+meaningful — otherwise "governs all agents" and "governs one agent" collapse
+into the same job. The two-question authorization model (tier + scope) exists
+precisely to make that delegation safe: a User's authority stops at the agents
+assigned to them, and global rules remain Administrator-only.
+
+Two honest riders belong with it. First, this places one capability — the
+per-agent human-approval toggle — a tier lower than Chapter 1 assigns it
+(tracked as A5). Second, the divergence is a _substitution_, not a superset:
+the User tier gained governance authority but has **not** gained the paper's
+conversational access to its agent, because the account system was never wired
+into OpenClaw's chat path (tracked as A1). Both belong in §4.4's validation
+discussion.
+
 ### 3.5.5 Process flow — a policy decision
 
 Figure candidate — _Figure 3.3: Policy decision sequence._
@@ -363,6 +429,121 @@ would break the intended deployment without adding protection.
 - Lockout-prevention guards so the system cannot be made unadministrable
 - Role changes and deletions revoke live sessions immediately, not at expiry
 - Rule patterns validated at author time and length-capped
+- File paths canonicalized before matching, so a location rule cannot be
+  side-stepped (§3.5.8)
+
+### 3.5.8 Canonicalizing file paths before a rule is applied
+
+Figure candidate — _Figure 3.x: Path normalization pipeline._
+
+```mermaid
+flowchart LR
+  RAW["Path as the agent wrote it<br/>src/../../etc/passwd"]
+  S1["1. Resolve<br/>expand ~, make absolute,<br/>collapse .."]
+  S2["2. Follow links<br/>realpath"]
+  S3["3. Choose form<br/>relative inside workspace,<br/>absolute outside"]
+  OUT["/etc/passwd"]
+  RULE{"Rule ^src/.*$"}
+  RAW --> S1 --> S2 --> S3 --> OUT --> RULE
+  RULE -->|no match| DENY["DENIED"]
+```
+
+A policy rule is a pattern tested against a string, so a location-based rule is
+only as strong as the string the gate constructs. Three separate weaknesses came
+from constructing it carelessly — the original implementation converted
+backslashes to forward slashes and did nothing else:
+
+1. **`..` was never collapsed.** A rule meaning "only inside the workspace"
+   matched `workspace/../../etc/passwd`, because that text does begin with
+   `workspace/`. The rule was satisfied by a path that pointed outside the
+   directory the rule existed to confine the agent to.
+2. **Symbolic links were never followed.** A link at `workspace/notes` pointing
+   at `/etc` defeated the same rule a second way, without using `..` at all.
+3. **The form differed between tools.** `apply_patch` reaches the gate with an
+   absolute path already resolved by the host
+   (`src/agents/apply-patch-paths.ts`), while `read`, `write` and `edit` arrive
+   exactly as the model typed them, because the host populates its
+   `derivedPaths` hint for `apply_patch` alone
+   (`src/plugins/host-tool-param-parsers.ts`). Since all operator documentation
+   teaches the short relative form, a rule written as documented was
+   _simultaneously_ bypassable on three tools and silently inert on the fourth —
+   it never matched a patch of the very file it named.
+
+The three are one defect with three symptoms, and one pipeline closes all of
+them. Points worth making in prose:
+
+- **The fix is structural, not a filter.** Nothing looks for `..`, and nothing
+  maintains a list of dangerous patterns. The path is resolved to what it
+  actually refers to, and the rule is matched against that. A defence that
+  enumerates attacks has to be updated whenever a new one appears; this one does
+  not, and that distinction is the point of the section.
+- **Symbolic-link resolution is a filesystem read inside a security check.** The
+  asynchronous `realpath` is used rather than the host's synchronous
+  `canonicalizePath`, because the gate is on the path of every tool call and a
+  blocking call there would stall the whole process. A real
+  security-versus-performance trade with a defensible resolution.
+- **A file that does not exist yet is the normal case, not an error.** A `write`
+  creating a new file cannot be resolved directly, so the _parent directory_ is
+  resolved and the filename re-attached. Without that, an agent could evade link
+  resolution simply by targeting a file that does not exist yet — the kind of
+  gap that appears only when the mechanism is written out and examined.
+
+Validation of all three symptoms: §4.x.13.
+
+### 3.5.9 Recording administrative actions in the same chain
+
+The ledger originally recorded what agents did and how the policy judged them,
+and nothing about who wrote that policy. Requirement #5 names three things —
+agent actions, policy decisions, **and administrative approvals** — and only the
+first two existed. The omission matters more than its size: an investigation
+does not begin at "what did the agent do", it begins at "was this allowed
+because it was legitimate, or because somebody widened the rules just before it
+happened?" That question needs both halves of the record.
+
+Three design decisions worth reporting.
+
+**One chain, not two.** Administrative entries are appended to the same
+hash-chained file as agent activity rather than a separate admin log. A second
+file would be a second thing to protect, and would destroy the ordering that
+makes the trail readable: "the rule was widened at 14:02, the agent used it at
+14:03" is only visible when both appear in one sequence. Scope filtering in
+`ledger-view.ts` already keeps each account to the entries it may see, so one
+chain costs no confidentiality.
+
+**Attribution enforced by the compiler, not by review.** `actor` is a
+**required** parameter on every mutating store function — `addRule`,
+`removeRule`, `setMode`, `setAskMode`, `setHitlTimeout`, `setAgentAskMode`,
+`createUser`, `setUserRole`, `setUserAssignedAgents`, `deleteUser`. Adding a new
+route that changes governance state without saying who did it does not compile.
+The raw read-modify-write (`updatePolicy`) is no longer imported by the HTTP
+layer at all, which closes the one remaining path to an unattributed change.
+This is the same principle as §3.5.8: make the defect structurally impossible
+rather than relying on remembering.
+
+**Schema evolution in an append-only hash-chained log.** The interesting
+engineering problem, and a good one to write up. The hash covers a fixed list of
+fields, so adding `actor` and `entryKind` would change the hash of every entry
+and make an existing ledger fail verification wholesale — a tamper-evident log
+whose own upgrade makes all its history look tampered with.
+
+The resolution is to key the hashed field list on **whether the new fields are
+present**, rather than on a version number: an entry with neither is hashed over
+the original ten fields, one with both over twelve. Presence is a safe
+discriminator precisely because presence then becomes covered by the hash.
+Forging an `actor` onto a historical entry switches it to the twelve-field form
+and the stored hash stops matching; stripping the `actor` from an administrative
+entry switches it the other way, with the same result. Both are detected. A
+version field would have needed protecting itself, and would still have left the
+question of entries written before versions existed.
+
+**Honest limitation to carry into §4.4.** A change made through the CLI is
+recorded with actor `cli`, not a person. The CLI has no login by design — its
+boundary is filesystem access to the governance directory, and anyone who can
+run it could edit the JSON files directly — so a name collected there would be
+a claim, not an authentication. Recording the origin honestly is better than
+implying an accountability the design does not provide. Tracked as A6.
+
+Validation: §4.x.14.
 
 ---
 
@@ -515,6 +696,261 @@ _Table candidate — Table 4.3: Enforcement results._
 
 This reproduces the Table 1.1 scenario from Chapter 1 (`rm -rf` denied against a
 command allowlist) with real observed output.
+
+### 4.x.13 Path confinement experiment (directory traversal and symbolic links)
+
+Direct counterpart to the "Validations → Directory Traversal" experiment in the
+decentralized-firewall report, and a good structural model to follow.
+
+Method: policy in `enforce` with `ask: off` and a single path rule, `^src/.*$`,
+meaning "this agent may touch files under the project's `src` directory and
+nothing else". A workspace is created in a temporary directory containing
+`src/app.ts`. Each row is a real tool call evaluated by the gate.
+
+_Table candidate — Table 4.x: Path confinement results._
+
+| #   | Tool          | Path the agent supplied      | String the gate matched | Before    | After     |
+| --- | ------------- | ---------------------------- | ----------------------- | --------- | --------- |
+| 1   | `read`        | `src/app.ts`                 | `src/app.ts`            | ALLOW     | ALLOW     |
+| 2   | `read`        | `src/../../../etc/passwd`    | `/etc/passwd`           | **ALLOW** | **BLOCK** |
+| 3   | `read`        | `notes/secret.txt` (link)    | `/tmp/.../secret.txt`   | **ALLOW** | **BLOCK** |
+| 4   | `apply_patch` | `src/app.ts` (absolute form) | `src/app.ts`            | **BLOCK** | ALLOW     |
+| 5   | `write`       | `src\app.ts` (Windows form)  | `src/app.ts`            | ALLOW     | ALLOW     |
+
+Rows 2 and 3 are the security failures: one rule, two different ways of
+satisfying its text while pointing outside the directory it names. Row 4 is the
+mirror-image failure and the more interesting one for the report — the rule was
+not too weak there but _entirely ineffective_, refusing an operation the
+operator had explicitly permitted, because the string the gate built for
+`apply_patch` could never match a pattern written the way the documentation
+teaches. Row 1 and row 5 confirm the fix is not achieved by simply denying more.
+
+**The observation worth drawing out.** Rows 2–3 and row 4 look like opposite
+defects — too permissive and too restrictive — and were originally recorded as
+separate findings. They have a single cause: the gate had no defined answer to
+"what string represents this file?", so different code paths answered
+differently. Once the question is answered once, in one place, all three
+symptoms disappear together. Generalisable claim for the discussion: at a
+security boundary, an undefined canonical form is itself the vulnerability, and
+it will produce both false accepts and false rejects rather than erring
+consistently in one direction.
+
+Evidence: `src/governance/path-normalize.test.ts`, 10 tests, all passing. The
+"before" column is not asserted from memory — it is what the previous
+implementation (`value.replaceAll("\\", "/")`) demonstrably produced.
+
+### 4.x.14 Administrative accountability experiment
+
+Method: perform one change of each administrative kind, then read the ledger
+back. The point is not that the code runs — it is that the trail answers "who
+changed what" for every route by which governance state can change.
+
+_Table candidate — Table 4.x: Administrative actions recorded._
+
+| Change made                   | Recorded action                  | Actor        | Detail kept                    |
+| ----------------------------- | -------------------------------- | ------------ | ------------------------------ |
+| Add a rule                    | `governance.policy.rule.add`     | account name | pattern, scope, lifetime       |
+| Remove a rule                 | `governance.policy.rule.remove`  | account name | the removed rule, in full      |
+| Change posture                | `governance.policy.mode`         | account name | `enforce -> off`               |
+| Change ask behaviour          | `governance.policy.ask`          | account name | old and new                    |
+| Create an account             | `governance.account.create`      | account name | username and role granted      |
+| Change a role                 | `governance.account.role`        | account name | `viewer -> administrator`      |
+| Delete an account             | `governance.account.delete`      | account name | username and role, kept        |
+| Approve a rule request        | `governance.rule-request.decide` | approver     | requester, pattern, allow/deny |
+| Engage the kill switch        | `governance.agent.lock`          | operator     | runs aborted, elapsed ms       |
+| Any of the above from the CLI | same                             | **`cli`**    | (limitation A6)                |
+
+Two details are deliberate and worth a sentence each in prose. A **removed**
+rule is described in full, because after deletion the ledger is the only
+remaining record of what the permission was — recording only its id would make
+the entry useless for the question it exists to answer. A **deleted account**
+keeps its username and role for the same reason. Transitions are recorded as
+`old -> new` rather than just the new value, because a privilege escalation is
+only recognisable as one when both ends are visible.
+
+Also validated: a removal that removed nothing writes no entry, so a caller
+cannot pad the ledger with entries of their choosing without changing state.
+
+**Tamper-evidence across the schema change** (the part most likely to go wrong
+silently):
+
+| Scenario                                            | Expected | Result |
+| --------------------------------------------------- | -------- | ------ |
+| Ledger written before `actor` existed               | verifies | ✔      |
+| Old chain continued with new administrative entries | verifies | ✔      |
+| `actor` forged onto a pre-existing entry            | detected | ✔      |
+| `actor` stripped from an administrative entry       | detected | ✔      |
+| `actor` changed to a different name                 | detected | ✔      |
+
+Evidence: `src/governance/admin-audit.test.ts`, 19 tests. Suite total 682
+passing; OpenClaw's own harness suite unchanged at its 18-failure baseline.
+
+### 4.x.15 Seventh QA pass — account lifecycle and logic defects
+
+Run after the administrative-audit work, in two parts: an end-to-end test of the
+account system, and a targeted hunt for logic defects in the policy layer.
+
+**Part one — the account lifecycle had never been tested end to end.** Every
+existing suite fabricated a logged-in session object directly, which tests the
+authorization rules while assuming authentication away. Driving bootstrap,
+account creation and sign-in through the real HTTP surface confirmed the system
+works — a Root can create an account at any of the four roles, and that account
+can sign in and is recognised at the role it was given — and found one
+requirement not implemented at all.
+
+_Table candidate — Table 4.x: Account lifecycle results._
+
+| Behaviour                                         | Result        |
+| ------------------------------------------------- | ------------- |
+| First Root created by bootstrap, can sign in      | ✔             |
+| Second bootstrap refused once an account exists   | ✔ (409)       |
+| Root creates viewer / user / administrator        | ✔             |
+| Created account signs in at the role it was given | ✔             |
+| Wrong password refused                            | ✔ (401)       |
+| Duplicate username refused                        | ✔ (400)       |
+| Non-Root creating an account                      | ✔ (403)       |
+| **Second Root created outright**                  | **✘ allowed** |
+| **Existing account promoted to Root**             | **✘ allowed** |
+
+Only the _lower_ bound of the single-Root rule was enforced: the code refused to
+remove the last Root, but nothing capped the count at one. The two halves are
+the same invariant seen from opposite ends, and the consequence of missing the
+upper one is concrete — a second Root can delete the first, so "you cannot
+remove the last Root" stops protecting the operator who set the system up the
+moment a second exists. Both directions are now refused.
+
+**A methodological point worth the paragraph.** The first version of this test
+harness reported HTTP 200 for a route that did not exist, because the mock
+response object was initialised with `statusCode = 200` and an unmatched route
+never wrote a status. Nine assertions "passed" against a mistyped URL. The
+harness had invented a success the server never sent. Fixed by reporting an
+unhandled route as 599 rather than letting it inherit a default — the same
+lesson as rounds five and six in a third costume: a test that shares an
+assumption with the thing it tests will confirm it.
+
+**Part two — logic defects found and fixed.**
+
+| Defect                                                    | Why it mattered                                                                                                                                                          |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Clash warning ignored expiry on catch-all rules           | A catch-all lapsing in a minute reported a new indefinite rule as "grants nothing additional" — an operator believing it would delete the rule about to do all the work  |
+| "You allowed everything" check listed only `.*` spellings | Matching is a _substring_ search, so `^`, `$`, `.`, `.+` are all universal; an admin could permit everything with no warning                                             |
+| Corrupted per-agent escalation setting resolved to "ask"  | Unparseable values fell to the _more_ permissive branch, since an escalation can end in allow while the strict setting denies outright                                   |
+| Lock staleness (60s) exceeded the wait timeout (30s)      | Every waiter gave up before the abandoned lock became reclaimable, so the self-healing path was unreachable and a crash wedged writes until the file was deleted by hand |
+
+The last two share a shape worth drawing out in the discussion: neither is a
+missing check, both are **two constants or two code paths that disagreed**. The
+staleness threshold and the wait timeout were each individually reasonable; the
+defect was in their relationship. It is now asserted at module load rather than
+described in a comment, because a comment is what failed to hold them together
+the first time.
+
+### 4.x.16 Bounding growth and keeping the dashboard honest
+
+Three resource and presentation defects, grouped because they share a theme
+worth a paragraph in the discussion: each was a control that worked correctly
+and had no upper bound.
+
+**Unanswered escalations.** Answered questions were trimmed; unanswered ones
+were exempt, on the reasoning that an undecided question is the whole point of
+the stack. Correct in principle and unbounded in practice — an agent retrying a
+blocked action against an unattended installation grew the file indefinitely,
+and every append rewrote the whole file, so cost was quadratic in how long
+nobody was watching. Fixed by recognising the actual shape of the failure: a
+wedged agent asks the _same_ question, so repeats are counted on one entry
+rather than appended. The count is better information than the rows were — "this
+timed out 400 times" is the diagnosis of a stuck agent, which 400 identical rows
+convey far less clearly.
+
+**Rules.** Nothing capped the ruleset, and every governed call tests its
+resource against every active rule of that kind, so the ruleset sits on the
+gate's hot path. Each "allow always" approval adds one permanently. Now capped
+at 1000, checked after expiry pruning so an installation full of lapsed grants
+recovers by itself instead of being told it is full.
+
+**Pattern compilation.** Every check called `new RegExp` afresh, so compilation
+cost scaled with rules × tool calls — on the path that runs before every action
+the agent takes. Now cached.
+
+**The dashboard.** Three related presentation defects: an expired session left
+the last-loaded rule list and audit log on screen as though current; nothing
+refreshed on its own, so "no agent sessions running" could be hours old on the
+panel meant to catch a runaway agent; and because the six startup requests used
+`Promise.all`, one failing panel rejected the whole refresh and the page
+concluded the operator was signed out. Now: a 401 clears the page and explains
+why, the page polls every 15 seconds (skipping ticks while a write is in flight
+or the tab is hidden), and `Promise.allSettled` means one unavailable panel
+costs that panel rather than the session.
+
+**The point to draw out.** On an oversight tool, showing stale data as current
+is not a cosmetic defect — it is the same category of failure as an audit log
+that loses entries. The operator's belief about the system's state is the
+product. That framing connects the dashboard work to the ledger work rather
+than leaving it as UI polish.
+
+### 3.5.10 Measuring a stop, rather than a request to stop
+
+Requirement #7 says an agent session is suspended or terminated **within one
+second**. The original measurement bracketed the call that _signals_ the abort,
+which is a different quantity: it answers "how fast did we ask?" and was
+reported as though it answered "how fast did it stop?". The two differ by
+however long the run takes to unwind, which is the part the requirement is
+actually about.
+
+The fix needed a definition of "stopped" that governance is not entitled to
+invent. The Gateway holds a registry of in-flight runs; a run leaving it is the
+host's own statement that the run has finished. So the terminator seam gained an
+optional **run-activity probe** reading that same registry, and the kill switch
+now signals, then waits (bounded) for the signalled runs to disappear.
+
+Three points worth making in prose:
+
+- **The wait delays the report, not the protection.** Lockdown is applied first
+  and is already in force, so the agent cannot start anything new while we
+  watch. Waiting costs an operator nothing except a more accurate number.
+- **Two numbers are reported, not one.** `dispatchMs` and `elapsedMs` are both
+  true and answer different questions. Collapsing them was the defect, so the
+  fix keeps them distinct all the way to the dashboard.
+- **"Not confirmed" is reported honestly, and its two causes are
+  distinguished.** Either nothing was available to observe the outcome (a CLI
+  invocation, a test) or the runs were still present when the wait expired.
+  Reporting a single ambiguous failure would recreate the original problem in a
+  smaller form.
+
+### 4.x.17 Requirement #7 re-measured, and the per-user escalation axis
+
+**Termination timing.** With a probe attached, the kill switch reports the
+interval to _confirmed_ stop. The measurement now distinguishes:
+
+| Scenario                        | `stoppedConfirmed` | What the trail says                               |
+| ------------------------------- | ------------------ | ------------------------------------------------- |
+| Runs clear after the abort      | ✔                  | signalled in X ms, confirmed stopped in Y ms      |
+| Runs still present at the bound | ✘                  | stop NOT confirmed, N still running               |
+| No probe (CLI, test)            | ✘                  | stop NOT confirmed, no probe available to observe |
+| Nothing was in flight           | ✔                  | nothing to abort                                  |
+
+Good discussion material: the honest version of the headline number is weaker
+than the original claim, and the project is better for it. A security control
+that reports an optimistic measurement is worse than one that reports a
+pessimistic true one, because the first teaches an operator to trust something
+that has not been demonstrated.
+
+**The second escalation axis (§1.6).** Chapter 1 puts the human-in-the-loop
+toggle on two axes — Administrator per _agent_, Root per _user_ — and only the
+agent axis existed. Both now do. The design question was how they combine, and
+the answer is **the stricter wins**, not a precedence order.
+
+The argument is worth a paragraph. A precedence order treats one axis as more
+authoritative, which neither is: an Administrator's view of an agent's
+trustworthiness and Root's view of a person's judgement are independent
+assessments of different things. Under any precedence rule, setting the winning
+axis could _loosen_ a restriction placed on the other — a governance layer must
+not contain that surprise. Taking the stricter is the only combination that
+cannot widen access.
+
+One implementation honesty note for §4.4: a tool call carries an agent, not a
+person, so "the user behind this agent" is resolved through the assignment an
+Administrator already maintains. That is a faithful mapping today, and it
+becomes exact once A1 binds accounts to the chat path.
 
 ### 4.x.4 RBAC enforcement experiment
 

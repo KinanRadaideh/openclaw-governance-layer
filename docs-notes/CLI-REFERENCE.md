@@ -76,8 +76,17 @@ the **dashboard**, which is reachable over the network; the CLI's boundary is
 filesystem permissions (`0700` on the directory, `0600` on files — verified
 enforced on Linux).
 
-Kill-switch actions taken from the CLI are recorded in the audit ledger with
-the actor `cli`, so a CLI-initiated stop is still attributable.
+**Every** change made from the CLI is recorded in the audit ledger with the
+actor `cli` — not only kill-switch actions. That covers adding and removing
+rules, changing the posture and ask behaviour, the escalation window, per-agent
+overrides, and deciding held escalations.
+
+The honest limit: `cli` names the _origin_, not a person. Because the CLI has no
+login, there is nobody to authenticate, and a name collected here would be a
+claim rather than a fact. So the ledger will tell you a change came from the
+terminal on this machine, and not which human typed it. Where that matters, make
+the change from the dashboard, which records the account name. (Known limitation
+A6 in `mg/REMAINING-WORK.md`.)
 
 ---
 
@@ -333,6 +342,23 @@ openclaw governance audit tail [--limit <n>]   # default 50
 ```bash
 openclaw governance audit tail --limit 20
 ```
+
+The ledger holds two kinds of entry in one chain. **Agent activity** carries no
+`entryKind`. A **policy or account change** carries `"entryKind": "admin"` and an
+`"actor"` naming who made it. To read only the administrative trail:
+
+```bash
+openclaw governance audit tail --limit 200 | jq '.[] | select(.entryKind == "admin")'
+```
+
+To ask who last touched the rules:
+
+```bash
+openclaw governance audit tail --limit 200 | jq -r '.[] | select(.entryKind == "admin") | "\(.timestamp) \(.actor) \(.toolName) \(.resource)"'
+```
+
+The same split is available in the dashboard as the **Policy changes** filter on
+the audit section, which needs no `jq`.
 
 Each entry:
 

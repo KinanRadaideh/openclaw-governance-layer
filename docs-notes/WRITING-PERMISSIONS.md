@@ -50,11 +50,11 @@ saves you a confusing afternoon.
 
 ## 2. The three kinds
 
-| Kind      | Covers                                    | What your pattern is compared against     |
-| --------- | ----------------------------------------- | ----------------------------------------- |
-| `command` | shell commands the agent runs             | the full command line, e.g. `ls -la /tmp` |
-| `path`    | files the agent reads, writes, or patches | each file path, e.g. `src/config.json`    |
-| `network` | web addresses the agent fetches           | the hostname only, e.g. `api.example.com` |
+| Kind      | Covers                                    | What your pattern is compared against             |
+| --------- | ----------------------------------------- | ------------------------------------------------- |
+| `command` | shell commands the agent runs             | the full command line, e.g. `ls -la /tmp`         |
+| `path`    | files the agent reads, writes, or patches | each file path, e.g. `src/config.json` — see §2.1 |
+| `network` | web addresses the agent fetches           | the hostname only, e.g. `api.example.com`         |
 
 Two things people get wrong here:
 
@@ -65,6 +65,39 @@ Two things people get wrong here:
   does not allow any `path`. Each kind is a separate world.
 
 Paths use forward slashes (`/`) even on Windows, so one rule works everywhere.
+
+### 2.1 What a file path looks like when your rule is checked
+
+This matters, because your pattern is compared against the **cleaned-up** path,
+not the text the agent typed. Before any rule is applied, the system works out
+which file is actually being touched:
+
+1. `~` is expanded, and the path is made absolute.
+2. `..` steps are collapsed, so `a/../b` becomes `b`.
+3. Shortcuts (symbolic links) are followed to the real file.
+4. The result is written **one of two ways**:
+   - **inside your project folder** → the short form, `src/config.json`
+   - **anywhere else** → the full path, `/etc/passwd` or
+     `C:/Users/kinan/.ssh/id_rsa`
+
+So every example in this guide — `^src/.*$`, `^workspace/.*$` — describes files
+**inside the project**. That is the common case and needs nothing special.
+
+**Why this is the useful part.** You do not have to defend against tricks. A
+rule of `^src/.*$` cannot be fooled by `src/../../etc/passwd`, because by the
+time your rule is checked that path has become `/etc/passwd` — which simply does
+not start with `src/`, so it does not match. Leaving the project changes the
+shape of the path, and that is what the rule sees.
+
+To allow something **outside** the project, write the full path:
+
+```
+--kind path --pattern "^/var/log/app/.*$"
+```
+
+Be aware that a full path is specific to one machine. A rule written that way on
+a Windows laptop will not match on a Linux server; a rule written in the short
+form will.
 
 ---
 

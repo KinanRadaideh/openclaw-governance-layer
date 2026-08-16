@@ -62,11 +62,46 @@ rule MUST NOT be relied upon to narrow an existing grant.
 Exactly one string per resource is derived from a tool invocation and matched
 against `pattern`.
 
-| `resourceKind` | Tools                                  | Derived string                                                                       |
-| -------------- | -------------------------------------- | ------------------------------------------------------------------------------------ |
-| `command`      | `exec`, `terminal`                     | `params.command`, verbatim                                                           |
-| `path`         | `read`, `write`, `edit`, `apply_patch` | each host-derived path, or `params.path` / `params.file_path`; `\` normalised to `/` |
-| `network`      | `web_fetch`                            | `new URL(params.url).hostname`, lowercased                                           |
+| `resourceKind` | Tools                                  | Derived string                                                                              |
+| -------------- | -------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `command`      | `exec`, `terminal`                     | `params.command`, verbatim                                                                  |
+| `path`         | `read`, `write`, `edit`, `apply_patch` | each host-derived path, or `params.path` / `params.file_path`, **canonicalised** — see §3.1 |
+| `network`      | `web_fetch`                            | `new URL(params.url).hostname`, lowercased                                                  |
+
+### 3.1 Path canonicalisation
+
+`path` resources are canonicalised before matching
+(`src/governance/path-normalize.ts`). The pipeline is ordered and total — every
+path resource passes through all of it:
+
+1. **Expand and absolutise** — `~` and `file://` expanded; relative paths
+   resolved against the workspace root (`HookContext.cwd`); `..` segments
+   collapsed by `path.resolve`.
+2. **Dereference** — symbolic links resolved via async `realpath`. When the
+   target does not exist (a `write` creating a new file), the **parent**
+   directory is dereferenced and the basename re-attached; when neither
+   resolves, the absolutised path from step 1 is used.
+3. **Project** — `formatPathRelativeToCwdOrAbsolute` renders the result
+   workspace-relative when it is inside the workspace root, absolute otherwise.
+   Separators are POSIX (`/`) on every platform. Capped at 2048 characters.
+
+The workspace root is itself dereferenced before the comparison in step 3, so a
+workspace reached through a symlinked path does not make every file inside it
+appear to be outside.
+
+**Normative consequences.**
+
+- A pattern anchored at a workspace-relative prefix (`^src/`) MUST NOT be
+  assumed to constrain a path outside the workspace; such a path is rendered
+  absolute and therefore cannot match that prefix. This is the mechanism by
+  which traversal is prevented — it is a property of the derived string, not a
+  filter applied to it.
+- A pattern written as an absolute path is machine-specific and will not port
+  between hosts. Requirement #9 (Linux deployment) makes the relative form the
+  default recommendation for project files.
+- The same file yields the same derived string regardless of which tool touched
+  it. In particular `apply_patch` (whose paths arrive absolute from the host)
+  and `read` (whose paths arrive verbatim) MUST agree.
 
 Tool names are the host's, verified against its tool definitions
 (`src/agents/sessions/tools/*`, `src/agents/bash-tools.exec-run.ts`,
@@ -235,7 +270,30 @@ never a client-supplied value.
 | Ledger segment size         | 8 MiB, then rotated with chain continuity              |
 | Agent id                    | MUST NOT be `__proto__`, `constructor`, or `prototype` |
 
-## 10. Wire format
+## 10. Ledger entry kinds
+
+An entry is either **agent activity** or an **administrative action**, in one
+chain.
+
+|                | Agent entry                    | Administrative entry                                 |
+| -------------- | ------------------------------ | ---------------------------------------------------- |
+| `entryKind`    | absent                         | `"admin"`                                            |
+| `actor`        | absent                         | account name, `cli`, `bootstrap`, or `hitl-approval` |
+| `toolName`     | the tool invoked               | the action, e.g. `governance.policy.rule.add`        |
+| `resourceKind` | `command` / `path` / `network` | `administration`                                     |
+| `agentId`      | the acting agent               | the affected agent, or `-` when installation-wide    |
+
+Administrative entries MUST carry both fields; agent entries MUST carry neither.
+The hashed field list is selected by their presence (see below), so an entry that
+carries exactly one is neither form and fails verification.
+
+`agentId` governs visibility: `projectLedgerForActor` filters by agent scope, so
+an agent-scoped administrative entry is visible to that agent's assigned User,
+while an installation-wide one (`-`) is visible only to Administrator and above.
+
+---
+
+## 11. Wire format
 
 `POST /control-ui/governance/policy/rules`
 
@@ -259,7 +317,7 @@ openclaw governance policy add-rule \
   --description "weather API" --ttl-minutes 120 --agent agent-a
 ```
 
-## 11. Known limitations
+## 12. Known limitations
 
 1. **No deny rules.** Access is narrowed only by removing a rule.
 2. **No subsumption analysis.** Overlapping-but-unequal patterns are not
