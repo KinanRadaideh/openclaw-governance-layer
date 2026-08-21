@@ -19,6 +19,8 @@ export type GovernancePolicyRule = {
   agentId?: string;
   /** Absent means `allow`. A deny rule forbids, and outranks every allowance. */
   effect?: "allow" | "deny";
+  /** Absent means both directions. Only meaningful on a `path` rule. */
+  access?: "read" | "write";
   /**
    * Which shipped tier the rule belongs to; absent means an operator wrote it.
    *
@@ -34,6 +36,14 @@ export type GovernancePolicyDocument = {
   ask: "off" | "on-miss";
   /** Per-agent overrides of `ask`; absent key means the agent uses the default. */
   agentAsk: Record<string, "off" | "on-miss">;
+  /**
+   * Per-agent posture overrides; absent key means the agent follows `mode`.
+   *
+   * `off` can appear here on an installation whose `policy.json` was hand
+   * edited — the API refuses to set it, because a per-agent `off` also removes
+   * the kill switch and the core denials from that agent.
+   */
+  agentMode: Record<string, "enforce" | "monitor" | "off">;
   hitlTimeoutSeconds: number;
   rules: GovernancePolicyRule[];
   lockedAgents: string[];
@@ -54,10 +64,62 @@ export type GovernancePendingDecision = {
 };
 
 export type GovernanceRuleConflict = {
-  kind: "already-permanent" | "duplicate" | "covered-by-catch-all" | "narrower-than-global";
+  kind:
+    | "already-permanent"
+    | "duplicate"
+    | "covered-by-catch-all"
+    | "narrower-than-global"
+    /** A deny rule refuses this already, and denials are evaluated first. */
+    | "overridden-by-deny";
   existingRuleId: string;
   existingPattern: string;
   message: string;
+};
+
+export type GovernanceConversationTurn = {
+  id: string;
+  role: "user" | "agent";
+  body: string;
+  at: string;
+  runId: string;
+  /** Present on an agent turn that failed, in place of a reply. */
+  error?: string;
+};
+
+export type GovernanceTranscript = {
+  agentId: string;
+  /**
+   * False when nothing in the serving process can run a prompt. The page hides
+   * the composer rather than offering an input whose only outcome is an error.
+   */
+  supported: boolean;
+  turns: GovernanceConversationTurn[];
+};
+
+export type GovernancePromptOutcome = {
+  ok: boolean;
+  runId: string;
+  sessionKey: string;
+  reply: string;
+  error?: string;
+  /** True when the agent is stopped and the prompt was refused unsent. */
+  lockedDown?: boolean;
+  /**
+   * Set when the run was stopped rather than finishing.
+   *
+   * Kept apart from `error` so the page can say "you cancelled this" instead of
+   * "the run failed". Rendering both as a failure is how an operator learns to
+   * ignore failures.
+   */
+  ending?: "cancelled" | "timeout";
+};
+
+/** One prompt currently in flight, as the server reports it. */
+export type GovernancePromptRun = {
+  runId: string;
+  agentId: string;
+  username: string;
+  startedAt: number;
 };
 
 export type GovernanceActiveSession = {
@@ -118,7 +180,15 @@ export type GovernanceLedgerVerification = {
   reason?: string;
 };
 
-export type GovernanceIdentity = { username: string; role: GovernanceRole };
+export type GovernanceIdentity = {
+  username: string;
+  role: GovernanceRole;
+  /**
+   * Agents this account was assigned. Empty for Administrator and above,
+   * whose scope is every agent rather than a list.
+   */
+  assignedAgents?: string[];
+};
 
 export type GovernanceRuleRequest = {
   id: string;
@@ -154,6 +224,45 @@ export type GovernanceSystemStatus = {
   uptimeSeconds: number;
   processUptimeSeconds: number;
   processMemoryBytes: number;
+  sampledAt: string;
+};
+
+/**
+ * The Root-tier deployment report (backlog item A7).
+ *
+ * Mirrored by hand from `src/governance/deployment-status.ts`, like every other
+ * type in this file — the dashboard bundle does not import from `src/`.
+ */
+export type GovernanceDeploymentCheckStatus = "pass" | "warn" | "fail" | "unknown";
+
+export type GovernanceDeploymentCheck = {
+  id: string;
+  title: string;
+  status: GovernanceDeploymentCheckStatus;
+  detail: string;
+  remediation?: string;
+  /** `gateway-audit` rows carry the host security audit's own wording. */
+  source: "governance" | "gateway-audit";
+};
+
+export type GovernanceDeploymentFacts = {
+  platform: string;
+  totalMemoryBytes: number;
+  bind: string;
+  port: number;
+  authMode: string;
+  tailscaleMode: string;
+  governanceDir: string;
+  governanceDirRelocated: boolean;
+  gatewayNotes: string[];
+};
+
+export type GovernanceDeploymentStatus = {
+  /** Null when the Gateway configuration could not be read at all. */
+  facts: GovernanceDeploymentFacts | null;
+  checks: GovernanceDeploymentCheck[];
+  summary: { pass: number; warn: number; fail: number; unknown: number };
+  overall: "pass" | "warn" | "fail";
   sampledAt: string;
 };
 
@@ -287,6 +396,17 @@ export class GovernanceApi {
     ttlMinutes?: number;
     /** Omit for a global rule (Administrator+); set to scope to one agent. */
     agentId?: string;
+    /**
+     * Omit for `allow`. A `deny` rule is evaluated before every allowance and
+     * cannot be overridden by one, so it is the only way to express a
+     * restriction that survives a later broad grant.
+     */
+    effect?: "allow" | "deny";
+    /**
+     * Narrows a **path** rule to one direction. Omit for both. The server
+     * refuses this field on command and network rules rather than ignoring it.
+     */
+    access?: "read" | "write";
   }): Promise<GovernanceRuleCreation> {
     return this.request<GovernanceRuleCreation>("policy/rules", { method: "POST", body: rule });
   }
@@ -336,8 +456,164 @@ export class GovernanceApi {
     });
   }
 
+  /**
+   * Switches one agent into `monitor` for observation, or back.
+   *
+   * Pass null to clear the override and follow the installation posture. `off`
+   * is not offered: it is not a weaker posture but the absence of the gate, so
+   * it stays an installation-wide administrator action.
+   */
+  setAgentMode(
+    agentId: string,
+    mode: "enforce" | "monitor" | null,
+  ): Promise<GovernancePolicyDocument> {
+    return this.request<GovernancePolicyDocument>("policy/agent-mode", {
+      method: "POST",
+      body: { agentId, mode },
+    });
+  }
+
+  /**
+   * This account's conversation with one agent, plus whether prompting is
+   * available at all in the process serving the request.
+   */
+  agentTranscript(agentId: string): Promise<GovernanceTranscript> {
+    return this.request<GovernanceTranscript>(
+      `agent/transcript?agentId=${encodeURIComponent(agentId)}`,
+    );
+  }
+
+  /** Sends one prompt and resolves with the reply. */
+  promptAgent(agentId: string, message: string): Promise<GovernancePromptOutcome> {
+    return this.request<GovernancePromptOutcome>("agent/prompt", {
+      method: "POST",
+      body: { agentId, message },
+    });
+  }
+
+  /**
+   * Sends one prompt and reports the reply as it arrives.
+   *
+   * A POST rather than an `EventSource`, deliberately: `EventSource` can only
+   * issue GET, which would put the prompt text in a query string — and a URL is
+   * written to browser history, proxy logs and the Gateway's own access log,
+   * while the prompt is text this layer redacts before it will even store it.
+   * So the body stays a body and the stream is read by hand.
+   *
+   * `onProgress` receives the reply **so far** as a whole string, not an
+   * increment to append: the server sends snapshots so a model that retracts
+   * text is representable, and so each snapshot can be redacted complete.
+   */
+  async promptAgentStreaming(
+    agentId: string,
+    message: string,
+    handlers: {
+      onStart?: (info: { runId: string; sessionKey: string }) => void;
+      onProgress: (replySoFar: string) => void;
+    },
+    signal?: AbortSignal,
+  ): Promise<GovernancePromptOutcome> {
+    const response = await fetch(this.url("agent/prompt"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { ...this.headers(true), Accept: "text/event-stream" },
+      body: JSON.stringify({ agentId, message, stream: true }),
+      ...(signal ? { signal } : {}),
+    });
+    if (!response.ok || !response.body) {
+      const text = await response.text();
+      let failure = `Request failed (${response.status})`;
+      try {
+        const parsed = text ? JSON.parse(text) : {};
+        if (typeof parsed?.error?.message === "string") {
+          failure = parsed.error.message;
+        }
+      } catch {
+        // A non-JSON error body is still an error; the status carries it.
+      }
+      throw new GovernanceApiError(failure, response.status);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let outcome: GovernancePromptOutcome | undefined;
+
+    // Minimal SSE framing: events are separated by a blank line, and this
+    // endpoint only ever sends single-line `data:`. Deliberately not a general
+    // parser — one that accepts more than the server sends is one more pair of
+    // things that can disagree.
+    const consume = (chunk: string): void => {
+      buffer += chunk;
+      let split = buffer.indexOf("\n\n");
+      while (split !== -1) {
+        const frame = buffer.slice(0, split);
+        buffer = buffer.slice(split + 2);
+        split = buffer.indexOf("\n\n");
+        const event = /^event: (.*)$/m.exec(frame)?.[1];
+        const data = /^data: (.*)$/m.exec(frame)?.[1];
+        if (!event || data === undefined) {
+          continue;
+        }
+        try {
+          const parsed = JSON.parse(data);
+          if (event === "started" && typeof parsed?.runId === "string") {
+            handlers.onStart?.(parsed);
+          } else if (event === "progress" && typeof parsed?.reply === "string") {
+            handlers.onProgress(parsed.reply);
+          } else if (event === "done") {
+            outcome = parsed as GovernancePromptOutcome;
+          }
+        } catch {
+          // A frame we cannot parse is dropped rather than failing the run: the
+          // authoritative outcome is the `done` event, and the ledger holds the
+          // record whatever this view manages to render.
+        }
+      }
+    };
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      consume(decoder.decode(value, { stream: true }));
+    }
+    consume(decoder.decode());
+
+    if (!outcome) {
+      // The stream ended without a verdict — the Gateway restarted, or the
+      // connection dropped. Reported as an unknown outcome rather than a
+      // success or a failure, because the run may still be going and saying
+      // either would be a guess.
+      throw new GovernanceApiError(
+        "The connection ended before the agent replied. The run may still be going; check the audit log.",
+        0,
+      );
+    }
+    return outcome;
+  }
+
+  /** Stops one in-flight prompt without locking the agent down. */
+  cancelPrompt(runId: string): Promise<{ cancelled: boolean; agentId?: string }> {
+    return this.request<{ cancelled: boolean; agentId?: string }>("agent/cancel", {
+      method: "POST",
+      body: { runId },
+    });
+  }
+
+  /** Prompts this account currently has running, for a tab that outlived one. */
+  listPromptRuns(): Promise<{ runs: GovernancePromptRun[] }> {
+    return this.request<{ runs: GovernancePromptRun[] }>("agent/runs");
+  }
+
   systemStatus(): Promise<GovernanceSystemStatus> {
     return this.request<GovernanceSystemStatus>("system");
+  }
+
+  /** Root only; the server returns 403 for every other tier. */
+  deploymentStatus(): Promise<GovernanceDeploymentStatus> {
+    return this.request<GovernanceDeploymentStatus>("deployment");
   }
 
   listRuleRequests(): Promise<GovernanceRuleRequest[]> {
@@ -390,6 +666,31 @@ export class GovernanceApi {
 
   deleteUser(userId: string): Promise<{ ok: true }> {
     return this.request<{ ok: true }>("users/delete", { method: "POST", body: { userId } });
+  }
+
+  /**
+   * Sets an account's password. Root only, and Root may set its own.
+   *
+   * The route existed and was enforced from the day the scrypt parameters
+   * became upgradeable, and **no surface called it** — not this client, not the
+   * page, not the CLI. So the one account that governs every other one had a
+   * password that could never be changed after it was chosen, on a page whose
+   * bootstrap step is already irreversible. That is the same
+   * reachable-but-unauthorable shape as R5 (deny rules and read/write
+   * narrowing, enforced by the engine and creatable from no interface) and the
+   * per-agent posture toggle before it.
+   *
+   * Every session for the account is revoked server-side, because a password
+   * change is usually a response to it being compromised. When Root changes its
+   * own, that includes the session making the request — so the caller is signed
+   * out and must sign in again with the new password. The page says so before
+   * asking.
+   */
+  setUserPassword(userId: string, password: string): Promise<{ ok: true }> {
+    return this.request<{ ok: true }>("users/password", {
+      method: "POST",
+      body: { userId, password },
+    });
   }
 }
 
