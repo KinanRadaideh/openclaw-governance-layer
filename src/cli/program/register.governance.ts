@@ -7,18 +7,20 @@ import { tailLedger, verifyLedgerChain } from "../../governance/audit-ledger.js"
 import { lockDownAgent, releaseAgentLockdown } from "../../governance/kill-switch.js";
 import { decidePendingDecision, listPendingDecisions } from "../../governance/pending-decisions.js";
 import {
-  addRule,
+  addRuleChecked,
   loadPolicy,
   removeRule,
   setAgentAskMode,
+  setAgentMode,
   setAskMode,
   setHitlTimeout,
   setMode,
 } from "../../governance/policy-store.js";
 import type { AskMode, GovernanceMode, ResourceKind } from "../../governance/policy-types.js";
-import { detectRuleConflicts } from "../../governance/rule-conflicts.js";
 import {
   describeRuleRisks,
+  isRuleAccess,
+  isRuleEffect,
   resolveRuleTtl,
   validateRulePattern,
 } from "../../governance/rule-validation.js";
@@ -65,9 +67,15 @@ export function registerGovernanceCommands(program: Command): void {
 
   policy
     .command("add-rule")
-    .description("Add an allow rule")
+    .description("Add a rule that allows or forbids something")
     .requiredOption("--kind <kind>", "command | path | network")
     .requiredOption("--pattern <regex>", "regular expression tested against the resource")
+    // Denials are authorable here as of R5. The engine has enforced them since
+    // the tier model landed and the shipped core rules *are* denials, but no
+    // surface could create one, so an operator's own restriction meant editing
+    // policy.json by hand.
+    .option("--effect <effect>", "allow (default) | deny — a deny rule beats every allowance")
+    .option("--access <access>", "path rules only: read | write (omit for both directions)")
     .option("--description <text>", "human-readable note")
     .option("--ttl-minutes <n>", "expire this rule after N minutes (omit for indefinite)")
     .option("--agent <agentId>", "scope the rule to one agent (omit for all agents)")
@@ -75,6 +83,8 @@ export function registerGovernanceCommands(program: Command): void {
       async (options: {
         kind: string;
         pattern: string;
+        effect?: string;
+        access?: string;
         description?: string;
         ttlMinutes?: string;
         agent?: string;
@@ -92,34 +102,54 @@ export function registerGovernanceCommands(program: Command): void {
           if (!ttl.ok) {
             throw new Error(ttl.error);
           }
+          if (options.effect !== undefined && !isRuleEffect(options.effect)) {
+            throw new Error(`Invalid effect "${options.effect}". Expected allow or deny.`);
+          }
+          if (options.access !== undefined && !isRuleAccess(options.access)) {
+            throw new Error(`Invalid access "${options.access}". Expected read or write.`);
+          }
+          // Refused rather than ignored: the engine only consults `access` for
+          // path rules, so storing it on a command rule would leave the
+          // operator believing a narrowing took hold that does nothing.
+          if (options.access !== undefined && options.kind !== "path") {
+            throw new Error("--access applies to path rules only.");
+          }
+          const effect = isRuleEffect(options.effect) ? options.effect : undefined;
+          const access = isRuleAccess(options.access) ? options.access : undefined;
           const expiresAt = ttl.expiresAt;
           const agentId = options.agent?.trim();
           // Earlier rules win: report the clash rather than silently letting
           // the operator believe a restriction took hold that did not.
-          const conflicts = detectRuleConflicts((await loadPolicy()).rules, {
-            resourceKind: options.kind,
-            pattern: validated.pattern,
-            ...(agentId ? { agentId } : {}),
-            ...(expiresAt ? { expiresAt } : {}),
-          });
-          const rule = await addRule(
+          // Detected inside the write lock by `addRuleChecked`, so a CLI write
+          // racing a dashboard write cannot miss a clash the way both used to.
+          const { rule, conflicts } = await addRuleChecked(
             {
               resourceKind: options.kind,
               pattern: validated.pattern,
               ...(options.description ? { description: options.description } : {}),
               ...(expiresAt ? { expiresAt } : {}),
               ...(agentId ? { agentId } : {}),
+              ...(effect ? { effect } : {}),
+              ...(access ? { access } : {}),
             },
             CLI_ACTOR,
           );
           defaultRuntime.log(JSON.stringify(rule, null, 2));
-          for (const risk of describeRuleRisks(validated.pattern, options.kind)) {
+          for (const risk of describeRuleRisks(validated.pattern, options.kind, {
+            ...(effect ? { effect } : {}),
+            ...(access ? { access } : {}),
+          })) {
             defaultRuntime.log(`warning: ${risk.message}`);
           }
           for (const conflict of conflicts) {
-            defaultRuntime.log(
-              `warning: an earlier rule already covers this (${conflict.existingPattern}) — ${conflict.message}`,
-            );
+            // The two kinds of clash mean opposite things and must not be
+            // printed under one heading: an allowance clash says the new rule
+            // adds nothing, a denial clash says it does nothing at all.
+            const lead =
+              conflict.kind === "overridden-by-deny"
+                ? "warning: a deny rule overrides this, so it will never take effect"
+                : "warning: an earlier rule already covers this";
+            defaultRuntime.log(`${lead} (${conflict.existingPattern}) — ${conflict.message}`);
           }
         });
       },
@@ -155,6 +185,31 @@ export function registerGovernanceCommands(program: Command): void {
     });
 
   policy
+    .command("set-agent-mode <agentId> <mode>")
+    .description("Per-agent posture, for observing one agent: enforce | monitor | default")
+    .action(async (agentId: string, mode: string) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        if (mode === "default") {
+          await setAgentMode(agentId, undefined, CLI_ACTOR);
+          defaultRuntime.log(`agent "${agentId}" now follows the installation posture`);
+          return;
+        }
+        // `off` is refused here for the same reason the HTTP route refuses it:
+        // a per-agent `off` removes the kill switch and the core denials from
+        // that agent, not merely its ordinary rules. Switching the gate off is
+        // an installation-wide decision, made with `set-mode off`.
+        if (mode !== "enforce" && mode !== "monitor") {
+          throw new Error(
+            `Invalid agent posture "${mode}". Expected enforce, monitor, or default. ` +
+              `Use "governance policy set-mode off" to switch the gate off installation-wide.`,
+          );
+        }
+        await setAgentMode(agentId, mode, CLI_ACTOR);
+        defaultRuntime.log(`agent "${agentId}" posture set to ${mode}`);
+      });
+    });
+
+  policy
     .command("set-hitl-timeout <seconds>")
     .description("How long an escalation waits for a human before timing out")
     .action(async (seconds: string) => {
@@ -165,6 +220,202 @@ export function registerGovernanceCommands(program: Command): void {
         }
         await setHitlTimeout(Math.round(value), CLI_ACTOR);
         defaultRuntime.log(`escalation timeout set to ${Math.round(value)}s`);
+      });
+    });
+
+  // ---------------------------------------------------------------------
+  // Talking to an agent (backlog item A1).
+  //
+  // The dashboard is the surface the paper describes, but the capability is
+  // not Gateway-owned — running a prompt needs the agent stack and nothing
+  // else — so it is offered here too. The honest caveat is attribution: the
+  // CLI has no login, so a prompt sent from a terminal is recorded against
+  // `cli` rather than a person (known limitation A6). The dashboard is the
+  // surface that answers "who asked".
+  // ---------------------------------------------------------------------
+  const agent = governance.command("agent").description("Interact with a governed agent");
+
+  agent
+    .command("prompt <agentId> <message...>")
+    .description("Send a prompt to an agent and print its reply")
+    .option("--stream", "print the reply as it is produced, instead of at the end")
+    .action(async (agentId: string, messageParts: string[], options: { stream?: boolean }) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        // Registered lazily, on use. Importing the agent stack at module load
+        // would make every `openclaw governance ...` invocation — including
+        // `policy show` — pay for a capability almost none of them need.
+        const { installGovernanceAgentRunner } =
+          await import("../../agents/governance-agent-runner.js");
+        installGovernanceAgentRunner();
+        const { promptAgent } = await import("../../governance/agent-conversation.js");
+
+        // Ctrl-C cancels the run rather than only killing the printout.
+        //
+        // There is no `governance agent cancel` command, and that is a fact
+        // about the architecture rather than an omission: the in-flight run
+        // table is per **process**, and the CLI runs the agent in its own. A
+        // command that could only ever cancel a run in the same terminal it was
+        // typed into is not a control, and one that appeared to reach the
+        // Gateway's runs but could not would be a control surface reporting
+        // success it did not achieve — which this layer refuses to do. The
+        // dashboard is the surface for stopping somebody else's run.
+        const interrupted = new AbortController();
+        const onSigint = () => interrupted.abort();
+        process.once("SIGINT", onSigint);
+
+        // Streaming is opt-in here, unlike the dashboard.
+        //
+        // A terminal is often reading into a pipe or a file, where partial
+        // snapshots would be written repeatedly and the output would no longer
+        // be the reply. Printing once at the end is the correct default for a
+        // command; `--stream` is for watching a long task by hand.
+        let printed = 0;
+        try {
+          const outcome = await promptAgent({
+            agentId,
+            username: CLI_ACTOR,
+            message: messageParts.join(" "),
+            signal: interrupted.signal,
+            ...(options.stream
+              ? {
+                  onProgress: (replySoFar: string) => {
+                    // Snapshots arrive whole; only the new tail is printed, so
+                    // a terminal shows a reply being written rather than the
+                    // same text repeatedly. A snapshot shorter than what was
+                    // already printed is a retraction, which a terminal cannot
+                    // unprint — so it starts a fresh line rather than silently
+                    // dropping the correction.
+                    if (replySoFar.length < printed) {
+                      defaultRuntime.log("");
+                      printed = 0;
+                    }
+                    const tail = replySoFar.slice(printed);
+                    if (tail) {
+                      process.stdout.write(tail);
+                      printed = replySoFar.length;
+                    }
+                  },
+                }
+              : {}),
+          });
+          if (printed > 0) {
+            process.stdout.write("\n");
+          } else if (outcome.reply) {
+            defaultRuntime.log(outcome.reply);
+          }
+          if (!outcome.ok) {
+            defaultRuntime.log(`error: ${outcome.error ?? "the run did not complete"}`);
+            defaultRuntime.exit(1);
+          }
+        } finally {
+          process.off("SIGINT", onSigint);
+        }
+      });
+    });
+
+  agent
+    .command("transcript <agentId>")
+    .description("Print this machine's conversation with an agent")
+    .option("--limit <n>", "number of turns", "50")
+    .action(async (agentId: string, options: { limit: string }) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        const { readConversation } = await import("../../governance/agent-conversation.js");
+        const limit = Number(options.limit);
+        const turns = await readConversation(agentId, CLI_ACTOR);
+        const shown = Number.isFinite(limit) && limit > 0 ? turns.slice(-limit) : turns;
+        if (shown.length === 0) {
+          defaultRuntime.log(`no conversation with "${agentId}" from this machine`);
+          return;
+        }
+        for (const turn of shown) {
+          const who = turn.role === "user" ? "you" : agentId;
+          defaultRuntime.log(
+            `[${turn.at}] ${who}: ${turn.error ? `(failed: ${turn.error})` : turn.body}`,
+          );
+        }
+      });
+    });
+
+  // ---------------------------------------------------------------------
+  // Deployment and network posture (backlog item A7).
+  //
+  // Deliberately available from the command line as well as the dashboard, and
+  // this is the surface that matters more of the two: §1.6 expects the
+  // dashboard to be reachable only through an SSH local port forward, so the
+  // moment you most need to know whether the listener is exposed is over a
+  // plain SSH session *before* any tunnel exists — when the dashboard is, by
+  // design, unreachable.
+  //
+  // Read-only. Changing a bind address or an auth mode is a server-admin act;
+  // this reports what is true and judges it against what Chapter 1 promises.
+  // ---------------------------------------------------------------------
+  governance
+    .command("deployment")
+    .description("Verify the deployment and network posture of the governance layer")
+    .option("--json", "print the full report as JSON")
+    .option("--strict", "exit non-zero when any check fails")
+    .action(async (options: { json?: boolean; strict?: boolean }) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        // Lazy: these pull in the security audit and the config loader, and
+        // `governance policy show` should not pay for them.
+        const { resolveDeploymentEnvironmentInput } =
+          await import("../../gateway/governance-deployment-input.js");
+        const { readDeploymentStatus } = await import("../../governance/deployment-status.js");
+        const { getRuntimeConfig, getRuntimeConfigSourceSnapshot } =
+          await import("../../config/config.js");
+        const cfg = getRuntimeConfig();
+        const status = await readDeploymentStatus(
+          resolveDeploymentEnvironmentInput({
+            cfg,
+            sourceConfig: getRuntimeConfigSourceSnapshot() ?? cfg,
+          }),
+        );
+
+        if (options.json) {
+          defaultRuntime.log(JSON.stringify(status, null, 2));
+        } else {
+          const memoryGb = (status.facts.totalMemoryBytes / 1000 ** 3).toFixed(1);
+          defaultRuntime.log(`platform      ${status.facts.platform} · ${memoryGb} GB total`);
+          defaultRuntime.log(
+            `gateway       ${status.facts.bind}:${status.facts.port} · auth ${status.facts.authMode}`,
+          );
+          defaultRuntime.log(
+            `governance    ${status.facts.governanceDir}${status.facts.governanceDirRelocated ? " (relocated)" : ""}`,
+          );
+          defaultRuntime.log("");
+          for (const check of status.checks) {
+            const label =
+              check.status === "pass"
+                ? "pass"
+                : check.status === "warn"
+                  ? "warn"
+                  : check.status === "fail"
+                    ? "FAIL"
+                    : " ?  ";
+            defaultRuntime.log(`[${label}] ${check.id}`);
+            defaultRuntime.log(`         ${check.detail}`);
+            if (check.remediation) {
+              defaultRuntime.log(`         -> ${check.remediation}`);
+            }
+          }
+          for (const note of status.facts.gatewayNotes) {
+            defaultRuntime.log(`[note] ${note}`);
+          }
+          defaultRuntime.log("");
+          defaultRuntime.log(
+            `${status.summary.fail} failed · ${status.summary.warn} warnings · ` +
+              `${status.summary.unknown} not determined here · ${status.summary.pass} passed`,
+          );
+        }
+
+        // Exit 0 by default, matching `security audit`. A command that exits
+        // non-zero on every developer machine — where the platform check warns
+        // and the permission checks cannot run — is a command people learn to
+        // ignore. `--strict` is for provisioning scripts, where failing the
+        // build on a `fail` is exactly what you want.
+        if (options.strict && status.summary.fail > 0) {
+          defaultRuntime.exit(1);
+        }
       });
     });
 

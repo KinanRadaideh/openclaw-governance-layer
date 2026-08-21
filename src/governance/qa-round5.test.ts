@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetLedgerCursorForTests, tailLedger } from "./audit-ledger.js";
 import { withFileLock } from "./file-lock.js";
 import { evaluateGovernancePolicy } from "./policy-engine.js";
-import { addRule, lockAgent, savePolicy } from "./policy-store.js";
+import { addRule, loadPolicy, lockAgent, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
 import { resolveGovernedTool } from "./resource-extraction.js";
 
@@ -139,11 +139,25 @@ describe("the kill switch cannot be stepped around", () => {
 });
 
 describe("an approved escalation grants only what was reviewed", () => {
-  it("scopes an allow-always grant to the agent that asked", async () => {
-    // The HITL prompt names one agent. Creating a global rule from that answer
-    // grants every other agent the same access, which is broader than what the
-    // approver was shown.
+  /**
+   * Finding B7 asked that an approval grant no more than the approver was
+   * shown: the prompt names one agent, so creating a *global* rule from that
+   * answer handed every other agent the same access.
+   *
+   * QA round 13 (finding 83) answered the same concern more completely by
+   * removing the persistent grant altogether. `allow-always` called `addRule`,
+   * so on a chat deployment one button wrote a permanent rule into
+   * `policy.json` — authored by a person holding no governance account and in
+   * none of the four tiers. The scope of that rule was the smaller problem.
+   *
+   * So this now asserts the stronger property B7 was reaching for: an
+   * escalation can unblock an action and cannot author policy. The original
+   * assertion is kept underneath it, because "and it certainly does not leak to
+   * another agent" is still worth failing on.
+   */
+  it("lets an approval unblock the action without authoring any policy", async () => {
     await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "on-miss" });
+    const before = (await loadPolicy()).rules.length;
     const decision = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "npm test" } },
       ctx,
@@ -151,18 +165,23 @@ describe("an approved escalation grants only what was reviewed", () => {
     if (!decision || !("requireApproval" in decision)) {
       throw new Error("expected an escalation");
     }
-    await decision.requireApproval.onResolution("allow-always");
+    expect(decision.requireApproval.allowedDecisions).toEqual(["allow-once", "deny"]);
 
-    // The rule now exists for agent-a...
-    expect(
-      await evaluateGovernancePolicy({ toolName: "exec", params: { command: "npm test" } }, ctx),
-    ).toBeUndefined();
-    // ...and must not exist for anyone else.
-    const other = await evaluateGovernancePolicy(
-      { toolName: "exec", params: { command: "npm test" } },
-      { agentId: "agent-b" },
-    );
-    expect(other && "requireApproval" in other).toBe(true);
+    // Even handed the withdrawn decision by the host's approval machinery —
+    // a separate component that takes its own view of what it may send — the
+    // callback must not write a rule.
+    await decision.requireApproval.onResolution("allow-always");
+    expect((await loadPolicy()).rules).toHaveLength(before);
+
+    // The next identical action escalates again rather than being silently
+    // permitted, for this agent and for any other.
+    for (const context of [ctx, { agentId: "agent-b" }]) {
+      const next = await evaluateGovernancePolicy(
+        { toolName: "exec", params: { command: "npm test" } },
+        context,
+      );
+      expect(next && "requireApproval" in next).toBe(true);
+    }
   });
 });
 

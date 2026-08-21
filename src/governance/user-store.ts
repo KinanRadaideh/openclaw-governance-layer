@@ -8,6 +8,7 @@ import { randomBytes } from "node:crypto";
 // changes, not a correctness requirement today.
 import { mkdir } from "node:fs/promises";
 import { readJsonIfExists, writeJsonAtomic } from "../infra/json-files.js";
+import { canonicalAccountName } from "./account-name.js";
 import { ADMIN_ACTIONS, recordAdminAction } from "./admin-audit.js";
 import { withFileLock } from "./file-lock.js";
 import { hashPassword, needsRehash, verifyPassword } from "./password.js";
@@ -139,7 +140,7 @@ export const MAX_USERNAME_LENGTH = 64;
  * is knowing who did what. Case folding is applied on top for the same reason.
  */
 function canonicalUsername(username: string): string {
-  return username.normalize("NFKC").trim().toLowerCase();
+  return canonicalAccountName(username);
 }
 
 /**
@@ -295,10 +296,15 @@ export async function setUserRole(
     if (wouldStrandWithoutRoot(file.users, userId, role)) {
       throw new LastRootError();
     }
-    // Promotion to Root is refused while another Root exists. Transferring the
-    // role means demoting the current Root first, which is deliberate: it makes
-    // handing over the installation an explicit two-step act rather than
-    // something that can happen by accident.
+    // Promotion to Root is refused while another Root exists.
+    //
+    // Combined with the check above — which refuses to demote the only Root —
+    // this makes the Root account permanent: it cannot be transferred by
+    // demote-then-promote, because the first step is refused. That is the
+    // intended invariant and is stated in full on `guardRootPermanence`
+    // (account-guards.ts); it is recorded here too because the two halves live
+    // in different files and reading either alone gives the wrong impression of
+    // what the pair does.
     if (wouldCreateSecondRoot(file.users, role, userId)) {
       throw new DuplicateRootError();
     }

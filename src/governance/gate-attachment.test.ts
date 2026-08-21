@@ -17,7 +17,9 @@ import {
   hasBeforeToolCallPolicy,
   runBeforeToolCallHook,
 } from "../agents/agent-tools.before-tool-call.policy.js";
+import { registerNativeHookRelay } from "../agents/harness/native-hook-relay.js";
 import { resetLedgerCursorForTests, tailLedger } from "./audit-ledger.js";
+import { governanceRequiresNativeToolRelay } from "./native-relay-requirement.js";
 import { addRule, lockAgent, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
 
@@ -100,18 +102,72 @@ describe("the policy gate is reached through the host's tool hook", () => {
   });
 });
 
-describe("known gap: the native harness relay does not know about governance", () => {
-  it("reports no policy on a plugin-free install", () => {
-    // Documented, not desired. `hasBeforeToolCallPolicy` gates whether the
-    // native (Codex) harness relays pre_tool_use at all, and it counts only
-    // plugin policies — so on a plugin-free install with the app-server backend
-    // and the loop-detection relay disabled, those sessions run tools without
-    // entering the hook at all: no gate, no ledger, no kill switch.
-    //
-    // This test pins the current, wrong answer so the gap is visible in the
-    // suite rather than only in a document, and so that whoever fixes it is
-    // forced to come here and say so. Every configuration exercised so far runs
-    // tools in-process and is unaffected.
+describe("the native harness relay knows about governance (B1, closed)", () => {
+  // What this replaced: until B1 was fixed, this block asserted
+  // `hasBeforeToolCallPolicy() === false` — the *wrong* answer, pinned on
+  // purpose so the gap showed up in the suite rather than only in a document.
+  // The gap was that the relay decision had exactly one input, that predicate,
+  // and it counts plugin policies only. Governance is compiled into the fork,
+  // so a plugin-free install with the Codex app-server backend ran tools
+  // without entering the hook at all: no gate, no ledger entry, no kill switch.
+
+  it("still reports no *plugin* policy on a plugin-free install", () => {
+    // Unchanged, and deliberately so. The fix did not widen this predicate:
+    // a plugin asking whether plugin policies exist must not be told yes
+    // because governance exists. Widening it is what broke thirty harness
+    // tests, by forcing the relay on where it is switched off on purpose.
     expect(hasBeforeToolCallPolicy()).toBe(false);
+  });
+
+  // A registration with the loop-detection relay switched off and no plugins
+  // registered: exactly the configuration that used to skip the gate entirely.
+  function plainCodexRelay() {
+    return registerNativeHookRelay({
+      provider: "codex",
+      sessionId: "session-b1",
+      runId: "run-b1",
+      preToolUseLoopDetection: false,
+    });
+  }
+
+  it("requires the pre_tool_use relay anyway, because governance is installed", () => {
+    // The second, independent signal. `OPENCLAW_GOVERNANCE_DIR` is set by this
+    // file's beforeEach, which is what makes this process an installation.
+    expect(governanceRequiresNativeToolRelay()).toBe(true);
+    const relay = plainCodexRelay();
+    try {
+      expect(relay.shouldRelayEvent("pre_tool_use")).toBe(true);
+    } finally {
+      relay.unregister();
+    }
+  });
+
+  it("relays every tool, not only the ones a plugin scoped itself to", () => {
+    // The half of the hole a one-line fix would have left open: the matcher is
+    // the union of plugin tool scopes, so an install carrying one narrowly
+    // scoped plugin hook would have relayed that tool and no other, leaving
+    // every other call outside the gate while the relay looked present.
+    // `undefined` is the wire value for "match all tools".
+    const relay = plainCodexRelay();
+    try {
+      expect(relay.toolMatcherForEvent("pre_tool_use")).toBeUndefined();
+    } finally {
+      relay.unregister();
+    }
+  });
+
+  it("does not mark pre_tool_use unavailable, so a cold relay fails closed", () => {
+    // Consequence worth asserting separately because it is the failure path.
+    // `preToolUseUnavailable: "noop"` is written into the generated relay
+    // command only when the event has no local work; the relay CLI reads that
+    // marker when it cannot reach the gateway and answers "allow" instead of
+    // "block". On a governed installation the marker must be absent, so an
+    // unreachable gate refuses the call rather than waving it through.
+    const relay = plainCodexRelay();
+    try {
+      expect(relay.commandForEvent("pre_tool_use")).not.toContain("--pre-tool-use-unavailable");
+    } finally {
+      relay.unregister();
+    }
   });
 });

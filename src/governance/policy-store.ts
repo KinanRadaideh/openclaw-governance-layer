@@ -5,8 +5,9 @@
 // that wrapped them).
 import { mkdir } from "node:fs/promises";
 import { readJsonIfExists, writeJsonAtomic } from "../infra/json-files.js";
+import { canonicalAccountName } from "./account-name.js";
 import { ADMIN_ACTIONS, recordAdminAction } from "./admin-audit.js";
-import { BASELINE_RULES, CORE_RULES, seedRuleId, type SeedRule } from "./baseline-policy.js";
+import { BASELINE_RULES, coreRules, seedRuleId, type SeedRule } from "./baseline-policy.js";
 import { withFileLock } from "./file-lock.js";
 import { governanceHomeDir, isUnconfiguredTestRun, policyFilePath } from "./paths.js";
 import {
@@ -18,6 +19,7 @@ import {
   type PolicyDocument,
   type PolicyRule,
 } from "./policy-types.js";
+import { detectRuleConflicts, type RuleConflict } from "./rule-conflicts.js";
 
 async function ensureHomeDir(): Promise<void> {
   await mkdir(governanceHomeDir(), { recursive: true, mode: 0o700 });
@@ -53,7 +55,7 @@ export async function loadPolicy(): Promise<PolicyDocument> {
       // `isUnconfiguredTestRun`. Narrow by construction: production and this
       // project's own governance tests both miss it.
       ...(isUnconfiguredTestRun() ? { mode: "off" as const } : {}),
-      rules: [...CORE_RULES, ...BASELINE_RULES].map((rule) => materialiseSeedRule(rule)),
+      rules: [...coreRules(), ...BASELINE_RULES].map((rule) => materialiseSeedRule(rule)),
     };
   }
   // Defensive merge against a policy.json written by an older version of this
@@ -73,6 +75,23 @@ export async function loadPolicy(): Promise<PolicyDocument> {
     lockedAgents: coerce(merged.lockedAgents, Array.isArray, defaults.lockedAgents).filter(
       (id) => typeof id === "string",
     ),
+    // Per-agent posture, with **`off` dropped rather than honoured** (QA round
+    // 13, finding 80).
+    //
+    // `POST policy/agent-mode` refuses `off` at every tier, and says at length
+    // why: the engine returns before the lockdown check, so a per-agent `off`
+    // removes the kill switch and the core denials from that agent as well as
+    // its ordinary rules, and leaves no ledger entry saying so. That refusal
+    // guarded the route and not the file — so the property "core rules survive
+    // a hand-edited policy.json", which `reassertCoreRules` below exists to
+    // provide, was defeated one field away. You did not remove the protections;
+    // you switched off the agent they applied to.
+    //
+    // Dropped rather than coerced to `enforce`: an absent override means "follow
+    // the installation default", which is the documented meaning and the least
+    // surprising outcome. Coercing upward would silently make one agent
+    // stricter than the installation an operator had deliberately set to
+    // monitor.
     agentMode: Object.fromEntries(
       Object.entries(
         coerce<Record<string, GovernanceMode>>(
@@ -82,8 +101,7 @@ export async function loadPolicy(): Promise<PolicyDocument> {
         ),
       ).filter(
         ([agentId, mode]) =>
-          typeof agentId === "string" &&
-          (mode === "enforce" || mode === "monitor" || mode === "off"),
+          typeof agentId === "string" && (mode === "enforce" || mode === "monitor"),
       ),
     ),
     // Coerced as a container *and* per entry. Validating only the container let
@@ -134,7 +152,7 @@ export async function loadPolicy(): Promise<PolicyDocument> {
  */
 function reassertCoreRules(rules: PolicyRule[]): PolicyRule[] {
   const withoutCore = rules.filter((rule) => rule.tier !== "core");
-  const core = CORE_RULES.map((rule) => materialiseSeedRule(rule));
+  const core = coreRules().map((rule) => materialiseSeedRule(rule));
   return [...core, ...withoutCore];
 }
 
@@ -233,10 +251,28 @@ export class TooManyRulesError extends Error {
   }
 }
 
-export async function addRule(
+/**
+ * A stored rule, together with the clashes detected against the ruleset it was
+ * actually appended to.
+ *
+ * `conflicts` is returned rather than thrown because an earlier rule winning is
+ * not an error: the write succeeds and the operator is *told*. Design doc §1.6
+ * asks for exactly that — "notifying users when such a conflict appears so it
+ * may be resolved".
+ */
+export type AddRuleResult = { rule: PolicyRule; conflicts: RuleConflict[] };
+
+/**
+ * Adds a rule and reports what it clashes with, atomically.
+ *
+ * Prefer this over `addRule` on any surface that shows the operator a warning.
+ * `addRule` is kept for callers that only need the rule (an approved rule
+ * request, and an escalation grant), and delegates here.
+ */
+export async function addRuleChecked(
   rule: Omit<PolicyRule, "id" | "createdAt"> & { id?: string },
   actor: string,
-): Promise<PolicyRule> {
+): Promise<AddRuleResult> {
   // Spread first, then the generated fields. The other order let a caller
   // passing an explicit `id: undefined` overwrite the generated id with
   // undefined, producing a rule that could never be removed by id.
@@ -258,6 +294,7 @@ export async function addRule(
     createdAt: new Date().toISOString(),
   };
   let overflowed = false;
+  let detected: RuleConflict[] = [];
   await updatePolicy((doc) => {
     // Opportunistic cleanup: piggy-backing on a write the operator already
     // triggered avoids a scheduler, and keeps the document from growing
@@ -271,6 +308,23 @@ export async function addRule(
       overflowed = true;
       return;
     }
+    // Conflicts are detected **here**, against the ruleset this write is
+    // actually appending to, rather than by the caller beforehand.
+    //
+    // Both authoring surfaces used to call `detectRuleConflicts` on a policy
+    // they had loaded a moment earlier, then call `addRule`. Two administrators
+    // adding the same rule at the same instant therefore both read a ruleset
+    // without it, both saw no clash, and both wrote — leaving a duplicate that
+    // neither was warned about. The same read-then-write shape as the rule-count
+    // ceiling above, which is already checked inside the lock for exactly this
+    // reason, and the same shape as the rule-request double-approval fixed in
+    // round six.
+    //
+    // The consequence was mild — identical patterns grant identical access — but
+    // the *warning* is the product here: an operator who is told "this clashes
+    // with an earlier rule" behaves differently from one who is told nothing,
+    // and silence was the wrong answer whenever the race was lost.
+    detected = detectRuleConflicts(doc.rules, full);
     doc.rules.push(full);
   });
   if (overflowed) {
@@ -283,7 +337,15 @@ export async function addRule(
     subjectId: full.id,
     ...(full.agentId ? { agentId: full.agentId } : {}),
   });
-  return full;
+  return { rule: full, conflicts: detected };
+}
+
+/** Adds a rule, discarding the clash report. See `addRuleChecked`. */
+export async function addRule(
+  rule: Omit<PolicyRule, "id" | "createdAt"> & { id?: string },
+  actor: string,
+): Promise<PolicyRule> {
+  return (await addRuleChecked(rule, actor)).rule;
 }
 
 /**
@@ -428,12 +490,22 @@ export async function setUserAskMode(
   ask: PolicyDocument["ask"] | undefined,
   actor: string,
 ): Promise<void> {
+  // Keyed by the **canonical** account name, not the spelling Root typed.
+  //
+  // It was previously keyed by the raw input while `resolveAskMode` looked it
+  // up under the spelling stored in `users.json`. Setting an override for
+  // `alice` on an account created as `Alice` therefore wrote a key nothing ever
+  // read: the control reported success, the dashboard displayed the setting,
+  // and the engine never saw it. Found while wiring the axis to the prompting
+  // account (A1), and fixed first, because an exact axis built on a key space
+  // that does not match is exact about the wrong thing.
+  const key = canonicalAccountName(username);
   await updatePolicy((doc) => {
     if (ask === undefined) {
-      delete doc.userAsk[username];
+      delete doc.userAsk[key];
       return;
     }
-    doc.userAsk[username] = ask;
+    doc.userAsk[key] = ask;
   });
   await recordAdminAction({
     actor,

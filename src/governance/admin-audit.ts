@@ -39,6 +39,33 @@ export const ADMIN_ACTIONS = {
   hitlTimeoutChange: "governance.policy.hitl-timeout",
   agentLock: "governance.agent.lock",
   agentRelease: "governance.agent.release",
+  /**
+   * A named account sent a prompt to an agent, and what came back.
+   *
+   * The trail could already say what an agent did and who wrote the rules it
+   * was judged by; it could not say who *set it going*. These two close that,
+   * and they are the first entries that tie a chain of agent actions to the
+   * person who caused them — §1.6 asks the log to capture "the raw LLM intent",
+   * and the prompt is that intent.
+   *
+   * Two actions rather than one because they answer different questions and are
+   * written at different moments: the prompt is recorded before the run starts,
+   * so a process that dies mid-run still shows the attempt, and the result is
+   * recorded after.
+   */
+  agentPrompt: "governance.agent.prompt",
+  agentPromptResult: "governance.agent.prompt-result",
+  /**
+   * Somebody stopped a prompt that was still running.
+   *
+   * Recorded separately from the result it produces, and for the same reason
+   * the prompt and its result are two entries: they answer different questions.
+   * The result says the run ended without a reply; this says *who decided that*
+   * — which may not be the account that started it, since an Administrator may
+   * stop a run inside their remit. An investigation asking why an agent stopped
+   * half-way through a task cannot answer it from the result alone.
+   */
+  agentPromptCancel: "governance.agent.prompt-cancel",
   userCreate: "governance.account.create",
   userDelete: "governance.account.delete",
   userRoleChange: "governance.account.role",

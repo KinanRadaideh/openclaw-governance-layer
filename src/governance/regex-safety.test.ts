@@ -32,6 +32,30 @@ describe("dangerous patterns are rejected", () => {
     expect(checkRegexSafety("^((b|a+)+)$").safe).toBe(false);
   });
 
+  /**
+   * QA round 13, finding 79.
+   *
+   * The check previously exempted a `{n}` with no comma, on the reasoning that
+   * "a fixed count is bounded and cannot blow up the way `{n,}` can". That is
+   * true of the quantifier and false of the construction: repeating a group
+   * whose body matches a variable-length span gives the engine `n` independent
+   * choices to backtrack through, and the cost is exponential in `n` whether or
+   * not `n` is written down.
+   *
+   * `^(.*a){20}$` was accepted and measured at **142 seconds** for one
+   * `matchesPattern` call against a 31-character non-matching input — with the
+   * event loop blocked throughout, since ECMAScript cannot interrupt a running
+   * expression. A User may write rules, so that is the second-lowest tier
+   * halting the Gateway, the dashboard and every other agent with one rule.
+   *
+   * The regression is the measured pattern itself, not a paraphrase of it.
+   */
+  it("catches a fixed-count repetition of a group whose body is unbounded", () => {
+    for (const pattern of ["^(.*a){20}$", "(a+){2}", "(.*){3}", "([a-z]*x){10}"]) {
+      expect(checkRegexSafety(pattern).safe, pattern).toBe(false);
+    }
+  });
+
   it("explains why, so the operator can fix the rule", () => {
     const result = checkRegexSafety("^(a+)+$");
     expect(result.safe).toBe(false);
@@ -61,9 +85,12 @@ describe("ordinary policy patterns are accepted", () => {
     expect(checkRegexSafety("^(a|b)+$").safe).toBe(true);
   });
 
-  it("allows a fixed-count repetition of a quantified group", () => {
-    // {2} is bounded, so it cannot blow up the way {2,} can.
-    expect(checkRegexSafety("(a+){2}").safe).toBe(true);
+  it("allows a single repetition of a quantified group", () => {
+    // One repetition is not a repetition: (a+){1} is no worse than (a+), and
+    // {0,1} caps the group at one. Neither gives the engine a second copy to
+    // backtrack into.
+    expect(checkRegexSafety("(a+){1}").safe).toBe(true);
+    expect(checkRegexSafety("(a+){0,1}").safe).toBe(true);
   });
 
   it("does not treat quantifiers inside a character class as nesting", () => {

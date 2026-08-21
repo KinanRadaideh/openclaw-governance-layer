@@ -113,6 +113,19 @@ export function ruleRequestsFilePath(): string {
   return join(governanceHomeDir(), "rule-requests.json");
 }
 
+/**
+ * Transcripts of the conversations operators have had with their agents.
+ *
+ * In the governance directory rather than alongside OpenClaw's own session
+ * storage because these turns are attributed to a *named account*, which is a
+ * governance concept that exists nowhere else in the host. Keeping them here
+ * also means one directory carries everything an investigation needs, and one
+ * set of permissions protects it.
+ */
+export function conversationsFilePath(): string {
+  return join(governanceHomeDir(), "conversations.json");
+}
+
 export function pendingDecisionsFilePath(): string {
   return join(governanceHomeDir(), "pending-decisions.json");
 }

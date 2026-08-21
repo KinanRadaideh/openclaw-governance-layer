@@ -8,6 +8,7 @@
 //      design doc's Section 1.6, enforced by `requireRole` below.
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { guardDeletion, guardRoleChange } from "../governance/account-guards.js";
+import { canonicalAccountName, isSafeAccountKey } from "../governance/account-name.js";
 import { listActiveSessions } from "../governance/active-sessions.js";
 import { tailLedger, verifyLedgerChain } from "../governance/audit-ledger.js";
 import { lockDownAgent, releaseAgentLockdown } from "../governance/kill-switch.js";
@@ -15,6 +16,7 @@ import { projectLedgerForActor } from "../governance/ledger-view.js";
 import { decidePendingDecision, listPendingDecisions } from "../governance/pending-decisions.js";
 import {
   canAssignAgents,
+  canManageAccounts,
   canManageAgent,
   canManageGlobalPolicy,
   canViewAgent,
@@ -27,10 +29,12 @@ import {
 // from quietly reintroducing an unaudited change.
 import {
   addRule,
+  addRuleChecked,
   ImmutableRuleError,
   loadPolicy,
   removeRule,
   setAgentAskMode,
+  setAgentMode,
   setAskMode,
   setHitlTimeout,
   setMode,
@@ -39,7 +43,6 @@ import {
 } from "../governance/policy-store.js";
 import type { ResourceKind } from "../governance/policy-types.js";
 import { isGovernanceRole, roleAtLeast, type GovernanceRole } from "../governance/roles.js";
-import { detectRuleConflicts } from "../governance/rule-conflicts.js";
 import {
   attachCreatedRule,
   decideRuleRequest,
@@ -50,6 +53,8 @@ import {
 } from "../governance/rule-requests.js";
 import {
   describeRuleRisks,
+  isRuleAccess,
+  isRuleEffect,
   resolveRuleTtl,
   validateRulePattern,
 } from "../governance/rule-validation.js";
@@ -73,6 +78,23 @@ import {
 import { readJsonBodyOrError, sendInvalidRequest, sendJson } from "./http-common.js";
 
 const MAX_BODY_BYTES = 8192;
+
+/**
+ * Body ceiling for a prompt, which is prose rather than a small JSON control
+ * message. Deliberately its own constant: raising the shared limit to suit one
+ * route would widen the surface every other route accepts.
+ */
+const MAX_PROMPT_BODY_BYTES = 64 * 1024;
+
+/**
+ * Largest page of ledger entries a single read may return.
+ *
+ * Generous against any real use — the dashboard asks for 200, and an operator
+ * scanning an incident wants a page, not the archive — and small enough that
+ * the response cannot be turned into a memory-exhaustion primitive by the
+ * lowest tier that can read at all. See the `ledger` route for the defect.
+ */
+const MAX_LEDGER_PAGE = 1000;
 
 /**
  * Reads a request body that must be a JSON **object**.
@@ -178,6 +200,18 @@ export async function handleGovernanceApiRequest(
       agentAsk: Object.fromEntries(
         Object.entries(policy.agentAsk).filter(([agentId]) => canViewAgent(actor, agentId)),
       ),
+      // `agentMode` arrived with the tier model and was not added to the list
+      // above, so the invariant the comment states was true of three
+      // collections out of four. A scoped caller could read back every agent id
+      // in the installation from the posture map.
+      agentMode: Object.fromEntries(
+        Object.entries(policy.agentMode).filter(([agentId]) => canViewAgent(actor, agentId)),
+      ),
+      // Keyed by *account*, not by agent, so agent scope says nothing about it:
+      // it is a list of who has an escalation override, which is account
+      // administration and therefore Root's. A Viewer was previously handed the
+      // installation's user list as a side effect of reading the policy.
+      userAsk: canManageAccounts(actor) ? policy.userAsk : {},
     });
     return true;
   }
@@ -191,7 +225,19 @@ export async function handleGovernanceApiRequest(
     }
     const limitRaw = new URL(req.url ?? "/", "http://localhost").searchParams.get("limit");
     const limit = Number.parseInt(limitRaw ?? "", 10);
-    const entries = await tailLedger(Number.isFinite(limit) && limit > 0 ? limit : 200);
+    // Bounded above as well as below (QA round 13, finding 82). Only the lower
+    // bound existed, and `tailLedger` walks backwards through every rotated
+    // archive until it has `limit` entries — so `?limit=1000000000` read the
+    // installation's entire history into memory and serialised it into one
+    // response. Reachable at **Viewer**, the tier defined as strictly read-only
+    // oversight, which made it the cheapest denial of service in the system.
+    //
+    // Clamped rather than rejected: a caller asking for more than the page size
+    // wants "as much as you have", and refusing a number would break the
+    // dashboard for a request that has an obvious correct answer.
+    const entries = await tailLedger(
+      Number.isFinite(limit) && limit > 0 ? Math.min(limit, MAX_LEDGER_PAGE) : 200,
+    );
     // The design doc grants Viewers "sanitized audit logs" specifically, a
     // narrower view than the tiers above them. A Viewer sees that an action
     // happened, when, by which agent, and how it was decided — but not the
@@ -209,6 +255,68 @@ export async function handleGovernanceApiRequest(
       return true;
     }
     sendJson(res, 200, readSystemStatus());
+    return true;
+  }
+
+  // ---------------------------------------------------------------------
+  // Root only: the deployment and network posture (backlog item A7).
+  //
+  // §1.6 gives Root "overseeing the deployment and network configurations of
+  // the governance layer on the VPS" — the one clause of that tier's definition
+  // that had nothing behind it.
+  //
+  // **Why this is Root when its neighbour above is Viewer.** `system` reports
+  // CPU and memory, which disclose nothing about how to reach the installation.
+  // This reports the bind mode, the port, the gateway auth mode and where the
+  // governance directory is — a map of how to reach and attack this deployment.
+  // The tiers differ because the disclosure differs, not because one feels more
+  // administrative than the other.
+  //
+  // Read-only, deliberately: changing a bind address from the dashboard you are
+  // connected *through* can lock you out of it in one click. Oversight here
+  // means reading the deployment and judging it; changing it is a server-admin
+  // act outside this application.
+  // ---------------------------------------------------------------------
+  if (route === "deployment" && req.method === "GET") {
+    if (!requireRole(res, session, "root")) {
+      return true;
+    }
+    // Lazily imported: `governance-deployment-input` pulls in `src/security/*` and
+    // `src/config/*`, which no other route on this surface needs, and this
+    // module is itself already lazily loaded from governance-dashboard-auth.ts.
+    const { resolveDeploymentEnvironmentInput } = await import("./governance-deployment-input.js");
+    const { readDeploymentStatus } = await import("../governance/deployment-status.js");
+    const { getRuntimeConfig, getRuntimeConfigSourceSnapshot } =
+      await import("../config/config.js");
+    let input;
+    try {
+      const cfg = getRuntimeConfig();
+      // The source snapshot may be absent; the resolved config still reports
+      // secret *presence* correctly, it just sees materialised values.
+      const sourceConfig = getRuntimeConfigSourceSnapshot() ?? cfg;
+      input = resolveDeploymentEnvironmentInput({ cfg, sourceConfig });
+    } catch (err) {
+      // A broken or absent configuration must not produce a 500, and — more
+      // importantly — must not produce a *green* report. Saying so plainly is
+      // the whole point of the `unknown` status.
+      sendJson(res, 200, {
+        facts: null,
+        checks: [
+          {
+            id: "deployment.configuration_readable",
+            title: "Gateway configuration is readable",
+            status: "unknown",
+            detail: `The Gateway configuration could not be read, so nothing about this deployment could be verified: ${err instanceof Error ? err.message : String(err)}`,
+            source: "governance",
+          },
+        ],
+        summary: { pass: 0, warn: 0, fail: 0, unknown: 1 },
+        overall: "warn",
+        sampledAt: new Date().toISOString(),
+      });
+      return true;
+    }
+    sendJson(res, 200, await readDeploymentStatus(input));
     return true;
   }
 
@@ -536,6 +644,65 @@ export async function handleGovernanceApiRequest(
     return true;
   }
 
+  // Per-agent posture override — the control that turns `monitor` from the
+  // shipped default into the opt-in discovery tool the supervisor's brief
+  // describes. The store function existed from the moment the tier model
+  // landed; nothing reached it, so the feature was real in the code and
+  // unreachable from the dashboard, the CLI, and the API alike. Design
+  // requirement #2 asks for a dashboard that configures policy, which a setting
+  // only a test can change does not satisfy.
+  //
+  // Tier floor is User, like `policy/agent-ask`: this configures one agent, and
+  // the scope check below decides whether it is theirs.
+  if (route === "policy/agent-mode" && req.method === "POST") {
+    if (!requireRole(res, session, "user")) {
+      return true;
+    }
+    const body = await readJsonObjectBodyOrError(req, res);
+    if (body === undefined) {
+      return true;
+    }
+    const { agentId, mode } = body as { agentId?: unknown; mode?: unknown };
+    if (typeof agentId !== "string" || !agentId.trim()) {
+      sendInvalidRequest(res, "agentId is required");
+      return true;
+    }
+    if (!isSafeObjectKey(agentId.trim())) {
+      sendInvalidRequest(res, "agentId must not be a reserved object key");
+      return true;
+    }
+    // **`off` is deliberately not accepted here, at any tier.**
+    //
+    // A per-agent `off` is not a weaker posture, it is the absence of the gate:
+    // the engine returns before the lockdown check, so that agent stops being
+    // covered by the kill switch and by the core denials as well as by ordinary
+    // rules — and it would leave no ledger entry saying so. Offering it on a
+    // route whose floor is User would make "switch off every protection on my
+    // own agent" a single request, which is precisely the escalation the
+    // core tier exists to prevent (§G6).
+    //
+    // Turning the whole installation off remains available to an Administrator
+    // through `policy/mode`, where it is one visible, audited, global act
+    // rather than a quiet per-agent exemption.
+    if (mode !== null && mode !== "enforce" && mode !== "monitor") {
+      sendInvalidRequest(
+        res,
+        "mode must be enforce, monitor, or null to follow the installation default; " +
+          "switching governance off is an installation-wide administrator action",
+      );
+      return true;
+    }
+    if (!canManageAgent(toActor(session), agentId.trim())) {
+      sendJson(res, 403, {
+        error: { message: `You do not manage agent "${agentId.trim()}"`, type: "forbidden" },
+      });
+      return true;
+    }
+    await setAgentMode(agentId.trim(), mode === null ? undefined : mode, session.username);
+    sendJson(res, 200, await loadPolicy());
+    return true;
+  }
+
   // Root only: the per-*user* escalation override (Chapter 1 §1.6 assigns this
   // axis to Root, as against the per-agent axis an Administrator controls).
   if (route === "policy/user-ask" && req.method === "POST") {
@@ -556,7 +723,11 @@ export async function handleGovernanceApiRequest(
       sendInvalidRequest(res, "ask must be off, on-miss, or null to clear");
       return true;
     }
-    if (!isSafeObjectKey(username.trim())) {
+    // Checked on the **canonical** form, which is what actually becomes the key.
+    // Folding lowercases, so `__PROTO__` passes a check on the raw input and
+    // arrives as `__proto__`. The guard and the value it guards have to be the
+    // same string; see `isSafeAccountKey`.
+    if (!isSafeAccountKey(canonicalAccountName(username))) {
       sendInvalidRequest(res, "username is not a valid key");
       return true;
     }
@@ -575,12 +746,14 @@ export async function handleGovernanceApiRequest(
     if (body === undefined) {
       return true;
     }
-    const { resourceKind, pattern, description, ttlMinutes, agentId } = body as {
+    const { resourceKind, pattern, description, ttlMinutes, agentId, effect, access } = body as {
       resourceKind?: unknown;
       pattern?: unknown;
       description?: unknown;
       ttlMinutes?: unknown;
       agentId?: unknown;
+      effect?: unknown;
+      access?: unknown;
     };
     const ruleActor = toActor(session);
     const scopedAgentId =
@@ -617,29 +790,63 @@ export async function handleGovernanceApiRequest(
       sendInvalidRequest(res, ttl.error);
       return true;
     }
+    // **Denials are authorable from here (R5).** The engine has enforced
+    // `effect: "deny"` at every tier since the tier model landed, and the core
+    // rules that ship with an installation *are* denials — but no surface could
+    // create one, so an operator wanting "this agent must never touch billing"
+    // had to hand-edit `policy.json`. Deleting allow rules is not a substitute:
+    // a later broad grant silently reopens what the operator thought they had
+    // closed, which is the whole reason denials exist.
+    //
+    // No new authorization is needed. A denial narrows rather than widens, and
+    // the existing pair already binds it: an agent-scoped denial needs
+    // `canManageAgent`, a global one needs `canManageGlobalPolicy`. A User
+    // restricting their own agent into uselessness is restricting their own
+    // agent. `addRule` still refuses `tier: "core"` and coerces everything else
+    // to `admin`, so this cannot mint a rule carrying shipped authority.
+    if (effect !== undefined && !isRuleEffect(effect)) {
+      sendInvalidRequest(res, "effect must be allow or deny");
+      return true;
+    }
+    if (access !== undefined && access !== null && !isRuleAccess(access)) {
+      sendInvalidRequest(res, "access must be read or write");
+      return true;
+    }
+    // `access` narrows a path rule to one direction, and the direction of an
+    // invocation comes from the tool. A command is not read or write, it is
+    // whatever it does, so accepting the field for one would store something
+    // the engine ignores — and a field that is silently discarded is worse than
+    // one that is refused, because the operator believes it took hold.
+    if (access !== undefined && access !== null && resourceKind !== "path") {
+      sendInvalidRequest(res, "access applies to path rules only");
+      return true;
+    }
     // Earlier rules win (design doc §1.6): the clash is reported, not blocked.
     // In an allow-only language a new rule cannot reduce access, so refusing
     // it would change nothing — what matters is that the operator learns their
     // new restriction is ineffective rather than believing it took hold.
-    const conflicts = detectRuleConflicts((await loadPolicy()).rules, {
-      resourceKind,
-      pattern: validatedRulePattern.pattern,
-      ...(scopedAgentId ? { agentId: scopedAgentId } : {}),
-      ...(ttl.expiresAt ? { expiresAt: ttl.expiresAt } : {}),
-    });
+    //
+    // Detected by `addRuleChecked` **inside the write lock**, against the
+    // ruleset the rule is actually appended to. Detecting it here, before the
+    // write, meant two administrators adding the same rule at the same instant
+    // both read a ruleset without it, both saw no clash, and both wrote — the
+    // duplicate was harmless, the silence was not.
     let rule;
+    let conflicts;
     try {
-      rule = await addRule(
+      ({ rule, conflicts } = await addRuleChecked(
         {
           resourceKind,
           pattern: validatedRulePattern.pattern,
           ...(typeof description === "string" && description ? { description } : {}),
           ...(ttl.expiresAt ? { expiresAt: ttl.expiresAt } : {}),
           ...(scopedAgentId ? { agentId: scopedAgentId } : {}),
+          ...(isRuleEffect(effect) ? { effect } : {}),
+          ...(isRuleAccess(access) ? { access } : {}),
           createdBy: session.username,
         },
         session.username,
-      );
+      ));
     } catch (err) {
       // A full ruleset is a state conflict the operator can resolve by removing
       // rules, not a malformed request, so it is reported as such.
@@ -654,7 +861,10 @@ export async function handleGovernanceApiRequest(
     sendJson(res, 200, {
       ...rule,
       conflicts,
-      warnings: describeRuleRisks(validatedRulePattern.pattern, resourceKind),
+      warnings: describeRuleRisks(validatedRulePattern.pattern, resourceKind, {
+        ...(isRuleEffect(effect) ? { effect } : {}),
+        ...(isRuleAccess(access) ? { access } : {}),
+      }),
     });
     return true;
   }
@@ -908,6 +1118,252 @@ export async function handleGovernanceApiRequest(
     // Sessions outlive the account otherwise, for up to the session TTL.
     await revokeSessionsForUser(userId);
     sendJson(res, 200, { ok: true });
+    return true;
+  }
+
+  // ---------------------------------------------------------------------
+  // Talking to an agent (backlog item A1).
+  //
+  // §1.6 gives the User tier "targeted access to interact with specific,
+  // pre-configured agents… Users may strictly prompt the agents for task
+  // execution". Every other User capability existed; this one did not, because
+  // the account system was never joined to OpenClaw's chat path.
+  //
+  // Tier floor is User and the scope check is `canManageAgent`, the same pair
+  // that governs every other agent-scoped operation — a Viewer is excluded by
+  // tier ("cannot interact with the agent"), and a User only reaches the agents
+  // assigned to them. No new permission concept was needed, which is the
+  // clearest sign the tier model was drawn correctly.
+  // ---------------------------------------------------------------------
+  if (route === "agent/transcript" && req.method === "GET") {
+    if (!requireRole(res, session, "user")) {
+      return true;
+    }
+    const agentId = new URL(req.url ?? "/", "http://localhost").searchParams.get("agentId")?.trim();
+    if (!agentId) {
+      sendInvalidRequest(res, "agentId is required");
+      return true;
+    }
+    if (!canManageAgent(toActor(session), agentId)) {
+      sendJson(res, 403, {
+        error: { message: `You do not manage agent "${agentId}"`, type: "forbidden" },
+      });
+      return true;
+    }
+    const { readConversation } = await import("../governance/agent-conversation.js");
+    const { hasAgentRunner } = await import("../governance/agent-runner.js");
+    sendJson(res, 200, {
+      agentId,
+      // The page hides the composer when nothing can run a prompt, rather than
+      // offering an input box whose only possible outcome is an error.
+      supported: hasAgentRunner(),
+      // Read back under the caller's own name: a conversation belongs to the
+      // account that had it, so an Administrator viewing an agent sees their
+      // own thread with it and not a User's.
+      turns: await readConversation(agentId, session.username),
+    });
+    return true;
+  }
+
+  if (route === "agent/prompt" && req.method === "POST") {
+    if (!requireRole(res, session, "user")) {
+      return true;
+    }
+    // A prompt is prose, so it needs a larger ceiling than the 8 KB every other
+    // route shares. Still bounded: the body cap and `MAX_PROMPT_LENGTH` are two
+    // different limits and both apply.
+    const body = await readJsonBodyOrError(req, res, MAX_PROMPT_BODY_BYTES);
+    if (body === undefined) {
+      return true;
+    }
+    if (typeof body !== "object" || body === null || Array.isArray(body)) {
+      sendInvalidRequest(res, "request body must be a JSON object");
+      return true;
+    }
+    const { agentId, message } = body as { agentId?: unknown; message?: unknown };
+    if (typeof agentId !== "string" || !agentId.trim()) {
+      sendInvalidRequest(res, "agentId is required");
+      return true;
+    }
+    if (typeof message !== "string" || !message.trim()) {
+      sendInvalidRequest(res, "message is required");
+      return true;
+    }
+    if (!canManageAgent(toActor(session), agentId.trim())) {
+      sendJson(res, 403, {
+        error: { message: `You do not manage agent "${agentId.trim()}"`, type: "forbidden" },
+      });
+      return true;
+    }
+    const { promptAgent } = await import("../governance/agent-conversation.js");
+
+    // Streaming is opt-in per request, on a POST, and never a separate GET
+    // endpoint (A1 follow-up).
+    //
+    // `EventSource` can only issue GET, which would put the prompt in a query
+    // string — and a prompt is the most sensitive text this surface handles:
+    // it is redacted before it enters the ledger, and a URL is logged by every
+    // proxy, written to the Gateway's access log, and kept in browser history.
+    // So the dashboard reads the stream with `fetch` instead, and the body
+    // stays a body. The non-streaming response is unchanged and is still what
+    // the CLI and every existing test receive, so this adds a mode rather than
+    // replacing one.
+    const wantsStream =
+      (body as { stream?: unknown }).stream === true ||
+      (req.headers.accept ?? "").includes("text/event-stream");
+
+    if (!wantsStream) {
+      const outcome = await promptAgent({
+        agentId: agentId.trim(),
+        username: session.username,
+        message,
+      });
+      // A refused prompt is reported as a *result*, not as a transport failure:
+      // the request was well-formed and the caller was entitled to make it, and
+      // the reason it did not run is something they need to read. A locked-down
+      // agent is the one case that gets its own status, because "stopped on
+      // purpose" and "failed" are different facts.
+      sendJson(res, outcome.lockedDown ? 409 : 200, outcome);
+      return true;
+    }
+
+    // The status line has to be written before the run starts, so a lockdown
+    // refusal or a capacity refusal arrives as an event on an open stream
+    // rather than as an HTTP status. That is the cost of streaming and it is
+    // paid once: the client reads the outcome from the final event in both
+    // cases, so there is one place it learns what happened.
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    // Proxies that buffer would defeat the entire feature by holding every
+    // event until the run ends.
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders?.();
+
+    const send = (event: string, data: unknown): void => {
+      if (res.writableEnded) {
+        return;
+      }
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    // Closing the tab aborts the run (Q-90). Previously a disconnected client
+    // left the agent working with no way to reach it short of the kill switch,
+    // which locks the agent down entirely — an emergency control being used for
+    // "I closed the wrong window".
+    const clientGone = new AbortController();
+    const onClose = () => clientGone.abort();
+    res.on("close", onClose);
+
+    try {
+      const outcome = await promptAgent({
+        agentId: agentId.trim(),
+        username: session.username,
+        message,
+        signal: clientGone.signal,
+        // Sent first, so the page can offer a cancel control while the run is
+        // still going. Without it the run id arrives only with the reply, and a
+        // cancel button that appears once the answer has come back is not one.
+        onStart: (info) => send("started", info),
+        onProgress: (replySoFar) => send("progress", { reply: replySoFar }),
+      });
+      send("done", outcome);
+    } catch (err) {
+      // An empty prompt is the only thing `promptAgent` throws for, and it was
+      // already rejected above; anything else here is unexpected and must still
+      // close the stream with a readable outcome rather than a dangling socket.
+      send("done", {
+        ok: false,
+        reply: "",
+        error: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      res.off("close", onClose);
+      res.end();
+    }
+    return true;
+  }
+
+  // Stopping one prompt without stopping the agent (Q-90).
+  //
+  // Deliberately separate from the kill switch. Lockdown is an emergency
+  // control that stops an agent doing anything at all and has to be released by
+  // hand; cancelling a prompt withdraws one request. Collapsing the two would
+  // train operators to reach for the emergency stop in ordinary circumstances,
+  // which is how an emergency stop stops being believed.
+  if (route === "agent/cancel" && req.method === "POST") {
+    if (!requireRole(res, session, "user")) {
+      return true;
+    }
+    const body = await readJsonObjectBodyOrError(req, res);
+    if (body === undefined) {
+      return true;
+    }
+    const { runId } = body as { runId?: unknown };
+    if (typeof runId !== "string" || !runId.trim()) {
+      sendInvalidRequest(res, "runId is required");
+      return true;
+    }
+    const { cancelPromptRun } = await import("../governance/prompt-runs.js");
+    const { canonicalAccountName: fold } = await import("../governance/account-name.js");
+    const actor = toActor(session);
+    const outcome = cancelPromptRun({
+      runId: runId.trim(),
+      username: fold(session.username),
+      // A prompt belongs to the account that sent it. Administrators and Root
+      // may stop any of them, because §1.6 gives them real-time control over
+      // agent sessions and a runaway prompt is exactly that; a User may stop
+      // their own. The scope check that follows still binds an Administrator to
+      // agents they may manage.
+      mayCancelOthers: canManageGlobalPolicy(actor),
+    });
+    if (!outcome.cancelled) {
+      if (outcome.reason === "forbidden") {
+        sendJson(res, 403, {
+          error: { message: "That prompt belongs to another account", type: "forbidden" },
+        });
+        return true;
+      }
+      // Said plainly rather than reported as a success. A cancel button that
+      // always says "cancelled" teaches an operator nothing, and round 13 found
+      // the same defect in the kill switch: a mistyped agent id returned 200.
+      sendJson(res, 404, {
+        cancelled: false,
+        error: { message: "No such prompt is running", type: "not_found" },
+      });
+      return true;
+    }
+    const { recordAdminAction, ADMIN_ACTIONS } = await import("../governance/admin-audit.js");
+    await recordAdminAction({
+      actor: session.username,
+      action: ADMIN_ACTIONS.agentPromptCancel,
+      agentId: outcome.agentId,
+      subjectId: runId.trim(),
+      target: `prompt cancelled`,
+    });
+    sendJson(res, 200, { cancelled: true, runId: runId.trim(), agentId: outcome.agentId });
+    return true;
+  }
+
+  // What this account currently has running, so the dashboard can offer a
+  // cancel control for a prompt whose original tab is gone.
+  if (route === "agent/runs" && req.method === "GET") {
+    if (!requireRole(res, session, "user")) {
+      return true;
+    }
+    const { listPromptRuns } = await import("../governance/prompt-runs.js");
+    const { canonicalAccountName: fold } = await import("../governance/account-name.js");
+    const actor = toActor(session);
+    const runs = listPromptRuns({
+      username: fold(session.username),
+      includeOthers: canManageGlobalPolicy(actor),
+    })
+      // An Administrator sees every run, but only for agents inside their
+      // remit — the same two questions every other route answers separately:
+      // is the tier high enough, and is this agent in scope?
+      .filter((run) => canManageAgent(actor, run.agentId));
+    sendJson(res, 200, { runs });
     return true;
   }
 

@@ -130,6 +130,34 @@ const ROUTES: RouteCase[] = [
   },
   {
     method: "POST",
+    route: "policy/agent-mode",
+    floor: "user",
+    body: { agentId: "agent-a", mode: "monitor" },
+  },
+  {
+    // §1.6: a Viewer "cannot interact with the agent", so prompting has the
+    // same floor as every other agent-scoped action and not a lower one.
+    method: "POST",
+    route: "agent/prompt",
+    floor: "user",
+    body: { agentId: "agent-a", message: "hello" },
+  },
+  {
+    // Cancelling a prompt is agent-scoped work, so it shares prompting's floor.
+    // Ownership — whose run it is — is a separate check inside the route, and
+    // is covered in `prompt-runs.test.ts`; this suite is about the tier alone.
+    method: "POST",
+    route: "agent/cancel",
+    floor: "user",
+    body: { runId: "gov-nope" },
+  },
+  {
+    method: "GET",
+    route: "agent/runs",
+    floor: "user",
+  },
+  {
+    method: "POST",
     route: "policy/rules",
     floor: "user",
     body: { resourceKind: "command", pattern: "^ls$", agentId: "agent-a" },
@@ -151,6 +179,10 @@ const ROUTES: RouteCase[] = [
     body: { userId: "nope", agentIds: [] },
   },
   { method: "POST", route: "policy/hitl-timeout", floor: "root", body: { seconds: 60 } },
+  // Root, not viewer like its neighbour `system`: this route reports the bind
+  // mode, port, gateway auth mode and governance directory — a map of how to
+  // reach and attack the installation (backlog item A7).
+  { method: "GET", route: "deployment", floor: "root" },
   { method: "GET", route: "users", floor: "root" },
   {
     method: "POST",

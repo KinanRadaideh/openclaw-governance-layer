@@ -186,11 +186,20 @@ describe("the clash detector must not describe a deny as a grant", () => {
     // reported "an identical rule already allows this" against a rule that
     // denies — telling an operator their new permission is redundant when in
     // fact it is being overridden.
+    //
+    // Round 10 fixed that by making the detector ignore denials, and this test
+    // asserted silence. Round 11 found that silence is its own defect: the rule
+    // is accepted, appears in the policy list, and does nothing, with no way to
+    // learn why except by reading the ledger. So the assertion is now about the
+    // property the test was always named for — the detector must not describe a
+    // denial as a grant — rather than about saying nothing at all.
     const conflicts = detectRuleConflicts(
       [rule({ pattern: "^deploy$", effect: "deny", tier: "core", id: "core-deny" })],
       { resourceKind: "command", pattern: "^deploy$" },
     );
-    expect(conflicts).toEqual([]);
+    expect(conflicts.map((conflict) => conflict.kind)).toEqual(["overridden-by-deny"]);
+    expect(conflicts.at(0)?.message).not.toMatch(/already allows/);
+    expect(conflicts.at(0)?.message).toMatch(/never take effect/);
   });
 
   it("still reports a genuine duplicate allowance", () => {
@@ -202,11 +211,15 @@ describe("the clash detector must not describe a deny as a grant", () => {
   });
 
   it("does not treat a deny catch-all as covering a new allowance", () => {
+    // Same correction as above: a deny catch-all must not be reported as
+    // "already allows every command", but it must still be reported — it is the
+    // reason the new rule will do nothing.
     const conflicts = detectRuleConflicts(
       [rule({ pattern: ".*", effect: "deny", tier: "core", id: "core-all" })],
       { resourceKind: "command", pattern: "^ls$" },
     );
-    expect(conflicts).toEqual([]);
+    expect(conflicts.map((conflict) => conflict.kind)).toEqual(["overridden-by-deny"]);
+    expect(conflicts.at(0)?.message).not.toMatch(/already allows/);
   });
 });
 

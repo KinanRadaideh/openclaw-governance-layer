@@ -212,7 +212,12 @@ describe("governance policy engine", () => {
       {
         toolName: "apply_patch",
         params: {},
-        derivedPaths: ["src/allowed.ts", "src/secrets.env", "src/other.env"],
+        // Plain source files. These were `src/secrets.env` and `src/other.env`
+        // until QA round 13 extended the credential denial from the `.env`
+        // dotfile to `*.env`, at which point the fixture stopped exercising
+        // this test's actual subject — the *allow* pass recording every
+        // resource — and started being refused by the deny pass instead.
+        derivedPaths: ["src/allowed.ts", "src/secrets.ts", "src/other.ts"],
       },
       ctx,
     );
@@ -222,7 +227,7 @@ describe("governance policy engine", () => {
     const resources = (await tailLedger())
       .filter((entry) => entry.entryKind !== "admin")
       .map((entry) => entry.resource);
-    expect(resources).toEqual(["src/allowed.ts", "src/secrets.env", "src/other.env"]);
+    expect(resources).toEqual(["src/allowed.ts", "src/secrets.ts", "src/other.ts"]);
   });
 
   it("does not let a rule scoped to one agent authorize a different agent", async () => {

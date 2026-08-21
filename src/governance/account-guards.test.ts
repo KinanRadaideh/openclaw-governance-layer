@@ -10,7 +10,13 @@ describe("guardRoleChange", () => {
   it("refuses to demote the only Root", () => {
     const result = guardRoleChange([rootA, admin, viewer], "u1", "administrator");
     expect(result.allowed).toBe(false);
-    expect(result.allowed === false && result.reason).toMatch(/only Root/);
+    // Asserts the rule the refusal states, not its old phrasing. The message
+    // used to say "promote another account to Root first", which the upper
+    // bound refuses — so the test now also pins that the advice is gone.
+    expect(result.allowed === false && result.reason).toMatch(/exactly one Root/);
+    expect(result.allowed === false && result.reason).not.toMatch(
+      /promote another account to Root/,
+    );
   });
 
   it("allows demoting one Root when another remains", () => {
@@ -51,7 +57,10 @@ describe("guardDeletion", () => {
   it("refuses deleting the only Root", () => {
     const result = guardDeletion([rootA, admin], "u1", "u3");
     expect(result.allowed).toBe(false);
-    expect(result.allowed === false && result.reason).toMatch(/only Root/);
+    expect(result.allowed === false && result.reason).toMatch(/exactly one Root/);
+    expect(result.allowed === false && result.reason).not.toMatch(
+      /promote another account to Root/,
+    );
   });
 
   it("allows deleting a Root when another Root remains", () => {

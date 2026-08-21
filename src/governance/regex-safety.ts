@@ -84,7 +84,22 @@ function findGroupEnd(pattern: string, open: number): number {
   return -1;
 }
 
-/** True when the token immediately after `index` is an unbounded quantifier. */
+/**
+ * True when the token immediately after `index` repeats the preceding group.
+ *
+ * **`{n}` counts (QA round 13, finding 79.)** This used to return `false` for a
+ * `{n}` with no comma, on the reasoning that "a fixed count cannot blow up".
+ * That is true of the *quantifier* and false of the *construction*: repeating a
+ * group whose body can match a variable-length span gives the engine `n`
+ * independent choices to backtrack through, and the cost is exponential in `n`
+ * regardless of whether `n` is fixed. `^(.*a){20}$` passed this check and was
+ * measured at **142,431 ms** for a single test against a 31-character
+ * non-matching input — with the event loop blocked throughout, because
+ * ECMAScript cannot interrupt a running expression.
+ *
+ * A bare `{1}` and `{0,1}` are excluded: one repetition is not a repetition,
+ * so `(a+){1}` is no worse than `(a+)`.
+ */
 function isQuantified(pattern: string, index: number): boolean {
   const next = pattern[index + 1];
   if (next === "*" || next === "+") {
@@ -97,8 +112,16 @@ function isQuantified(pattern: string, index: number): boolean {
   if (close === -1) {
     return false;
   }
-  // `{n,}` and `{n,m}` repeat; `{n}` is a fixed count and cannot blow up.
-  return pattern.slice(index + 2, close).includes(",");
+  const body = pattern.slice(index + 2, close);
+  // `{n,}` and `{n,m}` repeat without an examined bound.
+  if (body.includes(",")) {
+    // `{0,1}` and `{1,1}` cap the group at one repetition, which cannot nest.
+    const upper = Number.parseInt(body.slice(body.indexOf(",") + 1), 10);
+    return !(Number.isFinite(upper) && upper <= 1);
+  }
+  // `{n}` repeats exactly n times. Two or more is enough to nest.
+  const exact = Number.parseInt(body, 10);
+  return Number.isFinite(exact) && exact > 1;
 }
 
 /** True when the group body contains a quantifier outside a character class. */

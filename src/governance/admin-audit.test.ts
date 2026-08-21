@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ADMIN_ACTIONS } from "./admin-audit.js";
 import { tailLedger, verifyLedgerChain, type LedgerEntry } from "./audit-ledger.js";
+import { resetLedgerKeyCacheForTests } from "./ledger-key.js";
 import { ledgerFilePath } from "./paths.js";
 import { addRule, removeRule, savePolicy, setAskMode, setMode } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
@@ -24,11 +25,20 @@ let dir: string;
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-admin-audit-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  // The ledger key is cached per process, so a key created by an earlier test
+  // in this worker survives into the next test's fresh directory. That leak was
+  // always here and was invisible until verification began asking whether the
+  // installation holds a key at all (QA round 13, finding 77) — at which point
+  // a legacy-migration fixture in a brand-new directory started being told,
+  // correctly, that its installation was keyed. `ledger-integrity.test.ts` has
+  // reset it from the start; this file had not.
+  resetLedgerKeyCacheForTests();
   await savePolicy({ ...defaultPolicyDocument(), mode: "enforce" });
 });
 
 afterEach(async () => {
   delete process.env.OPENCLAW_GOVERNANCE_DIR;
+  resetLedgerKeyCacheForTests();
   await rm(dir, { recursive: true, force: true });
 });
 

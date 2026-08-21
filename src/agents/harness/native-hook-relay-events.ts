@@ -1,4 +1,5 @@
 import { stableStringify } from "@openclaw/normalization-core";
+import { governanceRequiresNativeToolRelay } from "../../governance/native-relay-requirement.js";
 import {
   getAgentToolResultMiddlewareMatcherScope,
   listAgentToolResultMiddlewares,
@@ -61,7 +62,18 @@ export function nativeHookRelayEventHasLocalWork(
   if (event === "pre_tool_use") {
     // Avoid spawning a native hook relay for every Codex tool call when there
     // is no before_tool_call hook, trusted-tool policy, or loop detector work.
-    return hasBeforeToolCallPolicy() || nativePreToolUseMayRunLoopDetection(registration);
+    //
+    // Governance is asked first and separately. `hasBeforeToolCallPolicy()`
+    // reports *plugin* policies, and the governance gate is compiled into this
+    // fork rather than installed as a plugin, so it is invisible to that
+    // predicate — which is how a plugin-free install with this backend came to
+    // run tools with no policy check, no ledger entry and no kill switch.
+    // See src/governance/native-relay-requirement.ts.
+    return (
+      governanceRequiresNativeToolRelay() ||
+      hasBeforeToolCallPolicy() ||
+      nativePreToolUseMayRunLoopDetection(registration)
+    );
   }
   if (event === "post_tool_use") {
     return hasGlobalHooks("after_tool_call") || listAgentToolResultMiddlewares("codex").length > 0;
@@ -77,7 +89,13 @@ export function nativeHookRelayEventToolMatcher(
   event: NativeHookRelayEvent,
 ): readonly string[] | undefined {
   if (event === "pre_tool_use") {
-    if (nativePreToolUseMayRunLoopDetection(registration)) {
+    // `undefined` means "every tool". Governance has to be one of the reasons
+    // for it: the scope below is the union of the *plugin* matchers, so an
+    // install carrying one narrowly-scoped plugin hook (say, `exec` only) would
+    // have relayed `exec` and nothing else — leaving every other tool call
+    // outside the gate while the relay looked present. Relaying the event and
+    // then filtering which tools reach it is the same hole one layer down.
+    if (governanceRequiresNativeToolRelay() || nativePreToolUseMayRunLoopDetection(registration)) {
       return undefined;
     }
     // Relay selection and policy execution must read the same scoped/root registry.

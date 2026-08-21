@@ -11,16 +11,16 @@
 // machinery here; returning `undefined` lets the call proceed to every other
 // existing check unchanged.
 import { parseAgentSessionKey } from "../sessions/session-key-utils.js";
-import { HITL_ACTOR } from "./admin-audit.js";
+import { parseGovernanceSessionKey } from "./agent-conversation.js";
 import {
   appendLedgerEntry,
   MAX_LEDGER_RESOURCE_LENGTH,
   type LedgerDecision,
 } from "./audit-ledger.js";
-import { escapeRegExp, matchesPattern } from "./pattern-match.js";
+import { matchesPattern } from "./pattern-match.js";
 import { recordTimedOutEscalation } from "./pending-decisions.js";
-import { addRule, loadPolicy } from "./policy-store.js";
-import { isRuleExpired, resolveAskMode } from "./policy-types.js";
+import { loadPolicy } from "./policy-store.js";
+import { isRuleExpired, type PolicyDocument, resolveAskMode } from "./policy-types.js";
 import { resolveGovernedTool } from "./resource-extraction.js";
 import { findUsersForAgent } from "./user-store.js";
 
@@ -128,6 +128,55 @@ function resolveEffectiveAgentId(ctx: ToolCallContext): string | undefined {
 }
 
 /**
+ * Whose escalation setting applies to this call (A1 follow-up).
+ *
+ * The per-user axis is Root's judgement **about a person** (§1.6). Applying it
+ * needs to know which person is behind the run, and until prompting existed
+ * there was no way to know: the engine approximated it as *every account the
+ * agent is assigned to*, and took the strictest of their settings.
+ *
+ * That approximation is still the right answer for a run nobody started by
+ * name — a Discord message, a cron job, the main session — because there the
+ * agent genuinely acts on behalf of whoever holds it. But a governance prompt
+ * carries the account in its own session key, so the person is **known**, and
+ * the axis can be exact.
+ *
+ * **This can widen, in one specific case, and that is the intended correction.**
+ * Two accounts, A and B, both assigned agent X. Root sets B to `off`. Under the
+ * approximation, a prompt from *A* was resolved to `off` because B's setting was
+ * in the set — A's run denied on a miss for a restriction placed on somebody
+ * else. It now escalates as A's own setting says, and may end in a human
+ * allowing it.
+ *
+ * The reason that is a fix and not a loosening: the tool for constraining an
+ * *agent* is `agentAsk`, which is untouched and still combines as the stricter
+ * of the two axes. The per-user axis was behaving as a second, badly
+ * approximated agent axis, and a restriction that lands on the wrong person is
+ * not a safeguard — it is a control nobody can reason about. Nothing here can
+ * affect a deny rule, a core rule, or the agent axis; the only value it decides
+ * is whether a *miss* is refused outright or offered to a human.
+ */
+async function resolveAskingAccounts(
+  agentId: string | undefined,
+  doc: PolicyDocument,
+  sessionKey: string | undefined,
+): Promise<readonly string[]> {
+  if (!agentId || Object.keys(doc.userAsk).length === 0) {
+    return [];
+  }
+  const prompted = parseGovernanceSessionKey(sessionKey);
+  // The agent id in the key must be the agent actually being governed. They can
+  // differ: `resolveEffectiveAgentId` prefers `ctx.agentId`, and a spawned child
+  // runs under a different identity (round 14) while carrying a key minted for
+  // its target. Falling back rather than trusting the key keeps this axis from
+  // becoming a way to select whose restriction applies.
+  if (prompted && prompted.agentId === agentId) {
+    return [prompted.username];
+  }
+  return await findUsersForAgent(agentId);
+}
+
+/**
  * Records an action the host's loop detector refused before governance saw it.
  *
  * That check runs above the governance gate in `runBeforeToolCallHook`, so
@@ -193,14 +242,36 @@ export async function evaluateGovernancePolicy(
   // return came first. An emergency stop that only covers the tools we happened
   // to enumerate is not an emergency stop — the whole point of the kill switch
   // is that it holds when the specific rules do not.
-  if (agentId && doc.lockedAgents.includes(agentId)) {
+  // An unattributable call, while *any* agent is locked down, is refused too
+  // (QA round 13, finding 81).
+  //
+  // B6 fixed the case where `ctx.agentId` was absent by falling back to the
+  // session key. Where both are absent — and both are optional on the hook
+  // context — `resolveEffectiveAgentId` returns `undefined`, the lockdown list
+  // was never consulted, and the call proceeded. That is the residue of the
+  // very defect B6 described: *an emergency stop that holds on some code paths
+  // and not others is not an emergency stop.*
+  //
+  // Failing closed here over-blocks, and that is the deliberate choice. It
+  // costs an unattributable call from some *other*, unlocked agent during an
+  // incident somebody declared; the alternative costs the locked agent's
+  // containment. An operator who has pressed the emergency stop is asking for
+  // the first error, not the second. The condition is also narrow by
+  // construction: with no agent locked, nothing changes at all.
+  const lockedButUnattributable = !agentId && doc.lockedAgents.length > 0;
+  if ((agentId && doc.lockedAgents.includes(agentId)) || lockedButUnattributable) {
     await appendLedgerEntry({
       agentId,
       sessionKey: ctx.sessionKey,
       toolName: event.toolName,
       resourceKind: spec?.resourceKind ?? "unknown",
       resource: "*",
-      ruleId: "kill-switch",
+      // A distinct rule id, so the ledger separates "we stopped the agent you
+      // named" from "we stopped a call we could not attribute while a lockdown
+      // was in force". The second is a coverage gap being handled safely, and
+      // an auditor should be able to count them rather than read them as
+      // ordinary kill-switch hits.
+      ruleId: lockedButUnattributable ? "kill-switch-unattributable" : "kill-switch",
       decision: "deny",
     });
     // Lockdown blocks in every posture except `off`, monitor included.
@@ -214,7 +285,13 @@ export async function evaluateGovernancePolicy(
     //
     // `off` still exempts it, because `off` means the gate is not running at
     // all and says so plainly.
-    return { block: true, blockReason: `governance: agent "${agentId}" is locked down` };
+    return {
+      block: true,
+      blockReason: lockedButUnattributable
+        ? "governance: a kill switch is engaged and this call carries no agent id, " +
+          "so it cannot be shown to come from an agent that is still permitted to run"
+        : `governance: agent "${agentId}" is locked down`,
+    };
   }
 
   if (!spec) {
@@ -291,26 +368,48 @@ export async function evaluateGovernancePolicy(
       !isRuleExpired(rule, now) &&
       (rule.agentId === undefined || rule.agentId === agentId),
   );
+  // Every denied resource is recorded before the block is returned, not just
+  // the first one.
+  //
+  // The allow pass below has evaluated all of its resources since QA round 1
+  // (finding 5: "record 100% of policy decisions", and show the full blast
+  // radius of a multi-path edit). The deny pass returned on the first match, so
+  // a patch touching three forbidden files was recorded as touching one — the
+  // same defect the allow pass had, in the half of the engine that matters more,
+  // and it went unnoticed because a blocked call feels like it needs only one
+  // reason. It needs one reason and a complete record.
+  //
+  // Resources that no denial matched are deliberately *not* recorded here: they
+  // were never decided, because the call is refused before they are reached.
+  const refusals: Array<{ resource: string; rule: (typeof denials)[number] }> = [];
   for (const resource of resources) {
     const denied = denials.find((rule) => matchesPattern(rule.pattern, resource));
-    if (!denied) {
-      continue;
+    if (denied) {
+      refusals.push({ resource, rule: denied });
     }
-    await appendLedgerEntry({
-      agentId,
-      sessionKey: ctx.sessionKey,
-      toolName: event.toolName,
-      resourceKind: spec.resourceKind,
-      resource,
-      ruleId: denied.id,
-      decision: "deny",
-    });
+  }
+  const first = refusals[0];
+  if (first) {
+    for (const refusal of refusals) {
+      await appendLedgerEntry({
+        agentId,
+        sessionKey: ctx.sessionKey,
+        toolName: event.toolName,
+        resourceKind: spec.resourceKind,
+        resource: refusal.resource,
+        ruleId: refusal.rule.id,
+        decision: "deny",
+      });
+    }
+    // The reason names the first refusal. Reporting all of them would put an
+    // agent-controlled list into a string the model reads back, and one
+    // concrete reason is what an operator needs; the rest are in the ledger.
     return {
       block: true,
       blockReason:
-        `governance: ${spec.resourceKind} "${resource}" is refused by a ` +
-        `${denied.tier ?? "admin"}-tier deny rule (${denied.description ?? denied.pattern})` +
-        `${denied.tier === "core" ? ". Core rules cannot be overridden by policy." : "."}`,
+        `governance: ${spec.resourceKind} "${first.resource}" is refused by a ` +
+        `${first.rule.tier ?? "admin"}-tier deny rule (${first.rule.description ?? first.rule.pattern})` +
+        `${first.rule.tier === "core" ? ". Core rules cannot be overridden by policy." : "."}`,
     };
   }
 
@@ -319,9 +418,8 @@ export async function evaluateGovernancePolicy(
   // The per-user axis costs a second file read, so it is only consulted when
   // somebody has actually set one. An installation that does not use the
   // feature pays nothing for it on the gate's hot path.
-  const owningUsers =
-    agentId && Object.keys(doc.userAsk).length > 0 ? await findUsersForAgent(agentId) : [];
-  const askMode = resolveAskMode(doc, agentId, owningUsers);
+  const askedBy = await resolveAskingAccounts(agentId, doc, ctx.sessionKey);
+  const askMode = resolveAskMode(doc, agentId, askedBy);
   const activeRules = doc.rules.filter(
     (rule) =>
       rule.resourceKind === spec.resourceKind &&
@@ -393,7 +491,30 @@ export async function evaluateGovernancePolicy(
         // approval machinery already fails closed on timeout; supplying the
         // window makes the bound ours to configure rather than inherited.
         timeoutMs: Math.max(1, doc.hitlTimeoutSeconds) * 1000,
-        allowedDecisions: ["allow-once", "allow-always", "deny"],
+        // ---------------------------------------------------------------
+        // **`allow-always` is deliberately not offered** (QA round 13,
+        // finding 83).
+        //
+        // It used to be, and answering it called `addRule` — so clicking one
+        // button on an escalation wrote a **permanent rule into
+        // `policy.json`**. On a chat deployment that button is rendered in
+        // Discord or Telegram, and the person pressing it holds no governance
+        // account, sits in none of the four tiers, and is authenticated only by
+        // that platform's access controls. Every other write to the policy in
+        // this system requires a named account with a tier and is recorded
+        // against that person; this one required neither and was recorded
+        // against `hitl-approval` — the code already conceded the point, in the
+        // comment explaining that the approval machinery "reports the decision
+        // but not which person made it".
+        //
+        // Granting the action in the moment is exactly what an escalation is
+        // for, and `allow-once` still does it with no delay. Making a grant
+        // *permanent* is policy authorship, and it belongs on a surface that
+        // knows who is asking — the dashboard, or the CLI. The question is not
+        // lost either way: a refusal lands on the pending-decision stack for an
+        // operator to answer properly.
+        // ---------------------------------------------------------------
+        allowedDecisions: ["allow-once", "deny"],
         onResolution: async (resolutionDecision) => {
           // A timeout means nobody answered. The action is already denied by
           // the host; preserve the question so the operator can answer it
@@ -419,6 +540,12 @@ export async function evaluateGovernancePolicy(
             });
             return;
           }
+          // `allow-always` is not in `allowedDecisions`, but the host's
+          // approval machinery is a separate component and this callback takes
+          // whatever it is handed. Treated as a one-off grant rather than
+          // ignored: the operator did approve the action, so refusing it here
+          // would be a worse answer than honouring the part of it that is
+          // legitimate. What it must not do is write a rule.
           const finalDecision: LedgerDecision = resolutionDecision === "deny" ? "deny" : "allow";
           await appendLedgerEntry({
             agentId,
@@ -432,27 +559,6 @@ export async function evaluateGovernancePolicy(
                 ? "allow"
                 : finalDecision,
           });
-          if (resolutionDecision === "allow-always") {
-            await addRule(
-              {
-                resourceKind: spec.resourceKind,
-                pattern: escapeRegExp(resource),
-                // Grant exactly the scope the approver was shown. The prompt
-                // names one agent ("Agent X wants to run..."), so a global rule
-                // here would silently hand every other agent in the installation
-                // the same access off the back of a single-agent decision.
-                ...(agentId ? { agentId } : {}),
-                description: `HITL allow-always grant for ${event.toolName}`,
-              },
-              // A permission created by a human clicking "allow always" on an
-              // escalation. The approval arrives through OpenClaw's own
-              // approval machinery, which reports the decision but not which
-              // person made it, so the origin is recorded rather than a name
-              // that would be invented. Narrowing this to a real identity is
-              // part of the same work as A6 (CLI attribution).
-              HITL_ACTOR,
-            );
-          }
         },
       },
     };

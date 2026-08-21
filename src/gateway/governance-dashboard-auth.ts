@@ -150,7 +150,12 @@ export async function handleGovernanceAuthRequest(
       session.token,
       Math.floor((Date.parse(session.expiresAt) - Date.now()) / 1000),
     );
-    sendJson(res, 200, { ok: true, username: user.username, role: user.role });
+    sendJson(res, 200, {
+      ok: true,
+      username: user.username,
+      role: user.role,
+      assignedAgents: session.assignedAgents,
+    });
     return true;
   }
 
@@ -170,7 +175,15 @@ export async function handleGovernanceAuthRequest(
       sendJson(res, 401, { error: { message: "Not logged in", type: "unauthorized" } });
       return true;
     }
-    sendJson(res, 200, { username: session.username, role: session.role });
+    sendJson(res, 200, {
+      username: session.username,
+      role: session.role,
+      // The caller's *own* assignment. No disclosure concern — they can
+      // already see which agents they are scoped to through every other read
+      // route — and the dashboard needs it to list the agents this account
+      // may talk to without first guessing an id.
+      assignedAgents: session.assignedAgents,
+    });
     return true;
   }
 
@@ -225,7 +238,12 @@ export async function handleGovernanceAuthRequest(
       session.token,
       Math.floor((Date.parse(session.expiresAt) - Date.now()) / 1000),
     );
-    sendJson(res, 200, { ok: true, username: user.username, role: user.role });
+    sendJson(res, 200, {
+      ok: true,
+      username: user.username,
+      role: user.role,
+      assignedAgents: session.assignedAgents,
+    });
     return true;
   }
 

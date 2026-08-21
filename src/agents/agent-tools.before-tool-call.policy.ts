@@ -68,22 +68,24 @@ export function getBeforeToolCallPolicyDiagnosticState(): BeforeToolCallPolicyDi
 /**
  * Return true when any before_tool_call policy could affect tool execution.
  *
- * NOTE (governance, unresolved): this reports only *plugin* policies, and it
- * gates whether the native (Codex) harness relays `pre_tool_use` at all —
- * `shouldRelayEvent` in src/agents/harness/native-hook-relay-events.ts. On a
- * plugin-free install with the app-server backend and loop-detection relay
- * disabled, it answers false, the relay is skipped, and those sessions execute
- * tools without ever entering `runBeforeToolCallHook`: no governance gate, no
- * ledger entry, no kill switch.
+ * NOTE (governance): this reports only *plugin* policies, and that is now its
+ * whole job. It deliberately does **not** answer for the governance gate.
  *
- * Making it return true unconditionally does close the hole, but it also forces
- * the relay on in configurations that deliberately disable it, and it fails 30
- * existing harness tests that pin exactly that behaviour. Correcting it
- * properly means teaching the relay layer about governance as a distinct signal
- * from plugin policies, and revising those tests — a change to host behaviour
- * that deserves its own commit rather than being smuggled into a QA pass.
- * Tracked in GOVERNANCE.md as an open finding; in-process (non-Codex) sessions,
- * which is every configuration used so far, are unaffected.
+ * It used to be the sole input to whether the native (Codex) harness relays
+ * `pre_tool_use` at all — `shouldRelayEvent` in
+ * src/agents/harness/native-hook-relay-events.ts. Because the governance gate
+ * is compiled into this fork rather than installed as a plugin, this predicate
+ * answered false on a plugin-free install, the relay was omitted, and those
+ * sessions executed tools without ever entering `runBeforeToolCallHook`: no
+ * governance gate, no ledger entry, no kill switch. That was finding B1.
+ *
+ * The fix was not to widen this predicate — a plugin asking "are any plugin
+ * policies installed?" must not be told yes because governance exists — but to
+ * give the relay layer governance as a second, independent signal:
+ * `governanceRequiresNativeToolRelay()` in
+ * src/governance/native-relay-requirement.ts. Widening this one instead is what
+ * forced the relay on in configurations that switch it off deliberately, and it
+ * is why the naive one-line fix failed thirty harness tests.
  */
 export function hasBeforeToolCallPolicy(): boolean {
   const state = getBeforeToolCallPolicyDiagnosticState();

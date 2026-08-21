@@ -9,6 +9,7 @@ import {
 import type { AddressInfo } from "node:net";
 import type { Duplex } from "node:stream";
 import { WebSocketServer } from "ws";
+import { installGovernanceAgentRunner } from "../agents/governance-agent-runner.js";
 import { resolveSandboxHostPort } from "../agents/sandbox-host.js";
 import { isCoreCanvasHostEnabled } from "../canvas/config.js";
 import { resolveCanvasNodeCapability } from "../canvas/constants.js";
@@ -548,6 +549,12 @@ export async function createGatewayRuntimeState(params: {
     const context = params.getGatewayRequestContext?.();
     return context ? createChatAbortOps(context) : undefined;
   });
+  // Let a signed-in account prompt an agent assigned to it (backlog item A1;
+  // the paper's §1.6 User tier "may strictly prompt the agents for task
+  // execution"). Registered beside the kill switch because both are the same
+  // kind of thing: a capability the Gateway owns and the governance layer
+  // reaches through a seam, so governance stays runnable without a Gateway.
+  installGovernanceAgentRunner();
 
   return {
     httpServer,

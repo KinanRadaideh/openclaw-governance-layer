@@ -31,7 +31,7 @@ import { appendFile, mkdir, readdir, readFile, rename, stat, writeFile } from "n
 import { join } from "node:path";
 import { redactToolPayloadText } from "../logging/redact.js";
 import { withFileLock } from "./file-lock.js";
-import { loadLedgerKey } from "./ledger-key.js";
+import { loadLedgerKey, readLedgerKeyIfPresent } from "./ledger-key.js";
 import { governanceHomeDir, ledgerCheckpointFilePath, ledgerFilePath } from "./paths.js";
 
 /**
@@ -484,7 +484,16 @@ export async function verifyLedgerChain(): Promise<LedgerVerification> {
   for (const segment of [...(await listArchives()), ledgerFilePath()]) {
     records.push(...(await readLedgerRecords(segment)));
   }
-  const key = await loadLedgerKey();
+  // Read, never create. `loadLedgerKey` here meant that verifying a legacy
+  // unkeyed ledger generated a key as a side effect, and — worse — destroyed
+  // the very signal this function now depends on: whether the installation has
+  // ever been keyed. See `readLedgerKeyIfPresent` (QA round 13, findings 76/77).
+  const key = await readLedgerKeyIfPresent();
+  // An installation that holds a key has been writing keyed entries and a
+  // checkpoint on every append. Both facts become *requirements* from here on,
+  // which is what turns "the chain is internally consistent" into "the chain is
+  // the one this installation actually wrote".
+  const installationIsKeyed = key !== undefined;
   let expectedPrevHash = GENESIS_HASH;
   let checked = 0;
   let expectedSeq = 1;
@@ -542,10 +551,63 @@ export async function verifyLedgerChain(): Promise<LedgerVerification> {
     lastEntry = entry;
   }
 
+  // ---------------------------------------------------------------------
+  // Downgrade to the pre-key format (QA round 13, finding 77).
+  //
+  // The `seenKeyed` guard above catches a chain that *switches* format
+  // mid-file. It does not catch the attack it was written for: rebuild the
+  // whole file from genesis in the unkeyed format — which needs no secret —
+  // and nothing switches, so the file simply reads as an old chain and
+  // verifies perfectly.
+  //
+  // What distinguishes "old" from "rewritten" is not inside the file at all.
+  // It is whether this installation holds a key: once it does, every append
+  // writes `keyed: true`, so the newest entry must be keyed. A legacy ledger
+  // written before the key existed still verifies, because such an
+  // installation has no key file to find — and the moment it takes one, its
+  // next append re-establishes the invariant.
+  // ---------------------------------------------------------------------
+  if (installationIsKeyed && lastEntry && !lastEntry.keyed) {
+    return {
+      ok: false,
+      entriesChecked: checked,
+      brokenAtSeq: lastEntry.seq,
+      reason:
+        "this installation has a ledger key, so every entry it wrote is keyed — " +
+        "but the newest entry is not. The chain was rewritten in the pre-key " +
+        "format, which requires no secret.",
+    };
+  }
+
   // The chain itself is intact. Now ask the independent record whether it is
   // *complete*: a prefix of a valid chain is still a valid chain, so everything
   // above passes just as happily on a file whose newest entries were deleted.
   const checkpoint = await readCheckpoint();
+  // ---------------------------------------------------------------------
+  // A *missing* checkpoint (QA round 13, finding 76).
+  //
+  // The comment on `writeCheckpoint` has always claimed "a missing checkpoint
+  // is itself reported rather than passing quietly". It was not: the whole
+  // comparison sat under `if (checkpoint)`, so deleting the file skipped it
+  // entirely. That made the two coordinated edits the design asks an attacker
+  // for into one edit and one deletion — and the deletion needs no secret, no
+  // forgery and no understanding of the format.
+  //
+  // Required only of a keyed installation, for the same reason as above: an
+  // installation that writes checkpoints has one, and one that predates them
+  // legitimately does not.
+  // ---------------------------------------------------------------------
+  if (installationIsKeyed && !checkpoint && checked > 0) {
+    return {
+      ok: false,
+      entriesChecked: checked,
+      brokenAtSeq: lastEntry?.seq ?? 0,
+      reason:
+        "the checkpoint file is missing. Every append writes it, so its absence " +
+        "means it was deleted — and without it, entries removed from the end of " +
+        "the ledger cannot be detected.",
+    };
+  }
   if (checkpoint) {
     const lastSeq = lastEntry?.seq ?? 0;
     if (checkpoint.seq > lastSeq) {

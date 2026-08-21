@@ -11,6 +11,7 @@
 // attacker cannot force a Gateway restart from here), and it keeps failed
 // login attempts out of persistent storage.
 
+import { canonicalAccountName } from "./account-name.js";
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 15 * 60 * 1000;
 const LOCKOUT_MS = 15 * 60 * 1000;
@@ -70,7 +71,7 @@ function prune(nowMs: number): void {
  * quota per Unicode variant, of which there are thousands.
  */
 export function loginThrottleKey(username: string): string {
-  return username.normalize("NFKC").trim().toLowerCase();
+  return canonicalAccountName(username);
 }
 
 export type ThrottleState = { allowed: boolean; retryAfterSeconds?: number };

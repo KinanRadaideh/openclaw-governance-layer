@@ -5,6 +5,7 @@
 // layer is a second, independent gate layered in front of the host's own exec
 // policy (defense in depth), not a replacement for it, so the two must not be
 // confused by sharing names.
+import { canonicalAccountName } from "./account-name.js";
 
 /** Governance-layer posture. "enforce" is the only mode that can block. */
 export type GovernanceMode = "enforce" | "monitor" | "off";
@@ -241,7 +242,16 @@ export function resolveAskMode(
   // An agent can be assigned to more than one account, so there may be several
   // user settings in play. Taking the strictest among them is the same rule as
   // combining the two axes, applied within one of them.
+  //
+  // **Both sides of this lookup are folded through `canonicalAccountName`.**
+  // The callers supply whatever spelling they hold — `findUsersForAgent`
+  // returns what `users.json` stores, the prompting path decodes what the
+  // session key carries — and `userAsk` is keyed canonically. Folding here
+  // rather than asking each caller to fold first is what makes it impossible
+  // for one caller to get it wrong: the map and the lookup are normalised in
+  // the same expression.
   const userSettings = usernames
+    .map((username) => canonicalAccountName(username))
     .filter((username) => Object.hasOwn(doc.userAsk, username))
     .map((username) => doc.userAsk[username])
     .filter(isAskMode);
