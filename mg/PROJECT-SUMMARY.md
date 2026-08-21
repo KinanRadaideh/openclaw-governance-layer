@@ -413,15 +413,16 @@ conclusion.
 - **1,480 governance tests pass across 68 files** (measured 2026-08-21, after
   rounds 13 and 14, A7, B1 and the A1 follow-ups); `pnpm tsgo:core` and `pnpm tsgo:ui` both clean;
   OpenClaw's own harness suite unchanged at its 18 failed / 174 passed baseline.
-- **Branch:** `governance-layer`, 13 commits ahead of `main`, **local only** —
-  **committed as of 2026-08-21** — the tree is clean and thirteen commits sit on
+- **Branch:** `governance-layer`, 14 commits ahead of `main`, **pushed to a
+  private remote 2026-08-21** — the tree is clean and fourteen commits sit on
   top of upstream `main`. `origin` points at upstream OpenClaw, so this branch
-  must never be pushed there; **a personal remote is still needed (F1)**, and it
-  is now the only part of F1 left. The backup at
+  must never be pushed there, and it has not been. The branch lives at
+  `github.com/KinanRadaideh/openclaw-governance-layer` (private, remote
+  `personal`), verified by cloning it back: same tip and tree. **F1 is closed.**
+  The backup at
   `OneDrive/GradProj-Backups/2026-08-21/` is current, carries the bundle, patch
   series and a git-free snapshot, and has been **restore-tested** into an empty
-  repository. Both surviving copies are still in one building until F1 is
-  finished.
+  repository. The work now exists in three independent places rather than one.
 - **Requirement status** is tabulated in `docs-notes/CHAPTER3-MATERIAL.md` §3.1
   and validated in §4.x.5: **eight of nine fully met**, #9 (Linux) partial
   because the suite runs on Ubuntu under WSL2 but has never been deployed to a

@@ -1198,3 +1198,69 @@ it as `personal` (never as `origin`, which is upstream OpenClaw), push
 
 Until then both surviving copies — the working machine and a OneDrive folder that
 syncs from that same machine — are in one building.
+
+---
+
+## 14. F1 closed — the work exists somewhere other than this machine (2026-08-21)
+
+The top item on the handoff for weeks, and the only one whose failure mode was
+losing everything. Private repository created by Kinan; the rest driven from
+here.
+
+### The thing that nearly went wrong
+
+`git push -u personal governance-layer` would have failed, and it would have
+failed slowly. The branch descends from all of upstream OpenClaw, so pushing it
+into an empty repository means **77,182 commits and 1,014,089 objects, about
+2.3 GB** — and GitHub rejects individual pushes over 2 GB. The obvious command
+would have uploaded for the better part of an hour and then been refused.
+
+Measuring before pushing turned that into a decision rather than an accident:
+mirror the full history in chunks, or rewrite the fourteen project commits onto
+a synthetic base and push five megabytes. Kinan chose the full mirror, which is
+the right call for the reason that it preserves the commit SHAs every document
+in `mg/` and `docs-notes/` cites. The rewrite would have made the documentation
+quietly wrong about the thing it was documenting.
+
+Seven fast-forward pushes to the same ref, each carrying a slice of history.
+Worth recording for anyone who has to recreate the remote.
+
+### Verified by cloning it back
+
+The push reported success. That is not the same as the work being there, and
+this project has spent a month learning the difference — a route that reports
+`200 OK` and writes nothing, a setting saved under a key nobody reads, a backup
+nobody has restored.
+
+So: `git clone --depth 1` from GitHub into a scratch directory, then compare.
+Same tip (`f4b7325241a`), same tree (`3debbb52134…`), 80 files in
+`src/governance/`, the dashboard, the report material — and `Documentation/`
+correctly absent, confirming the `.gitignore` entry did what it claimed.
+
+> **The pattern, one more time.** "It succeeded" is a claim about a command.
+> "I cloned it back and the tree hash matches" is a claim about reality. Every
+> significant finding this month has lived in the gap between those two
+> sentences.
+
+### Incidental findings
+
+- GitHub warns that `.serena/cache/typescript/document_symbols.pkl` (83 MB)
+  exceeds its recommended file size. It is in _upstream_ history, not at our
+  tip, and is not ours — recorded so nobody spends an afternoon hunting it.
+- GitHub normalises the username to `KinanRadaideh`, so the remote URL uses that
+  casing; the lowercase form works but redirects on every push.
+- The stored Windows credential was a `LegacyGeneric` entry for `api.github.com`
+  left by some other tool, which is why the first push was refused with
+  "password authentication is not supported". One `git ls-remote` in an
+  interactive terminal fixed it via the credential manager's browser flow.
+
+### State
+
+Three independent copies where there was one: this machine, the OneDrive folder
+(bundle, patches, git-free snapshot, all restore-rehearsed), and a private
+GitHub repository. `origin` still points at upstream OpenClaw and never received
+anything.
+
+**A9 is now the top item** — running the whole thing once with a live model
+behind it. It is the largest remaining gap between what this project is and what
+it can be shown to be.

@@ -727,7 +727,31 @@ component itself still has no tests — though its extracted logic does
 Split into individually completable tasks, since they were previously one
 undifferentiated blob and several are blocked on different things.
 
-### F1 - Create a personal git remote _(blocked on you)_ — **HALF DONE, 2026-08-21**
+### F1 - Create a personal git remote — **DONE, 2026-08-21**
+
+Pushed to `https://github.com/KinanRadaideh/openclaw-governance-layer` (private),
+added as the remote `personal`. `origin` is untouched and still points at
+upstream OpenClaw; nothing was pushed there.
+
+**Verified rather than assumed**: the remote tip, the local tip and a fresh
+`--depth 1` clone from GitHub all read `f4b7325241a`, with tree
+`3debbb52134acb00e94acef5788b1840864a70e8`. The clone was checked for the actual
+work — 80 files in `src/governance/`, the dashboard, `GOVERNANCE.md`, the
+report material — and for `Documentation/` being correctly absent.
+
+**The push needed chunking.** `governance-layer` descends from all of upstream
+OpenClaw, so pushing it to an empty repository meant 77,182 commits and
+1,014,089 objects, about 2.3 GB — over GitHub's 2 GB per-push limit. It went up
+as seven fast-forward pushes to the same ref, each carrying a slice of history.
+Worth knowing if the remote ever has to be recreated.
+
+Two things GitHub said in passing, neither fatal: a file in _upstream_ history
+(`.serena/cache/typescript/document_symbols.pkl`, 83 MB) exceeds the
+recommended 50 MB — it is not at our tip and is not ours; and the username
+normalises to `KinanRadaideh`, so the remote URL uses that casing to avoid a
+redirect on every push.
+
+<details><summary>Original</summary>
 
 `origin` points at `github.com/openclaw/openclaw`, so the branch must not be
 pushed there. Needs a private repository under your own account. **Requires your
@@ -762,6 +786,7 @@ Add it as `personal`, never as `origin`, and push `governance-layer` only.
 
 Until that is done both surviving copies — this machine and a OneDrive folder
 that syncs from it — are in one building.
+</details>
 
 ### F2 - Commit the untracked project files — **DONE, 2026-08-16**
 
@@ -1119,12 +1144,12 @@ predicted:
 
 ### 1. Blocked on you personally — about an hour, and the highest risk on the list
 
-| Ref | Item                                                                                                                                                                                                                                                                                                                                                                                                          |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| F1  | **Create a private git remote and push.** `origin` is `github.com/openclaw/openclaw`, so this branch must never go there. **Half done 2026-08-21:** the tree is committed (13 commits) and the OneDrive backup is refreshed and restore-tested; only the remote needs your GitHub account, ~15 min. Until then both copies are in one building. Everything else on this list is recoverable; this one is not. |
-| F4  | File `UPSTREAM-BUG-REPORT.md` upstream. Written, unfiled; needs a GitHub account.                                                                                                                                                                                                                                                                                                                             |
-| —   | **Commit the current working tree.** Everything from round eleven onward — A1, rounds 11 and 12, the Root invariant, R5 — is uncommitted: 30 modified files and 9 new ones.                                                                                                                                                                                                                                   |
-| —   | Add `Documentation/` to `.gitignore` so 163 MB of OneDrive mirror stops appearing in `git status`.                                                                                                                                                                                                                                                                                                            |
+| Ref | Item                                                                                                                                                                                                                                                                                                                      |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1  | ~~**Create a private git remote and push.**~~ **DONE 2026-08-21.** Pushed to `KinanRadaideh/openclaw-governance-layer` (private) as remote `personal`; `origin` untouched. Verified by cloning it back: same tip and tree. The work now exists off-site — this was the one item whose failure mode was losing everything. |
+| F4  | File `UPSTREAM-BUG-REPORT.md` upstream. Written, unfiled; needs a GitHub account.                                                                                                                                                                                                                                         |
+| —   | **Commit the current working tree.** Everything from round eleven onward — A1, rounds 11 and 12, the Root invariant, R5 — is uncommitted: 30 modified files and 9 new ones.                                                                                                                                               |
+| —   | Add `Documentation/` to `.gitignore` so 163 MB of OneDrive mirror stops appearing in `git status`.                                                                                                                                                                                                                        |
 
 ### 2. Requirement gaps — each needs a build-or-descope decision
 

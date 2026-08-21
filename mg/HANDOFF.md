@@ -49,19 +49,19 @@ searched and filtered. Two were closed by deciding rather than building:
 attachments are held with a written threat analysis, and the dashboard is
 English-only by choice. Details in §5.
 
-**Two things need doing before anything else**, and the first is not optional:
+**One thing needs doing before anything else:**
 
-| #   | Action                                                             | Effort   |
-| --- | ------------------------------------------------------------------ | -------- |
-| 1   | **Create a private remote and push** (F1) — _the commits are done_ | ~15 min  |
-| 2   | **Run it once with a real agent** and record what happens (A9)     | 2–4 days |
+| #   | Action                                                         | Effort   |
+| --- | -------------------------------------------------------------- | -------- |
+| 1   | **Run it once with a real agent** and record what happens (A9) | 2–4 days |
 
-Item 1 is now half its old size. On 2026-08-21 the working tree was committed
-(four commits, tree clean for the first time in five days) and the OneDrive
-backup was refreshed and **rehearsed** — restored into an empty repository,
-producing a byte-identical tree. What is left is the part that needs a GitHub
-account, and it is genuinely fifteen minutes: create an empty private
-repository, then `git remote add` and `git push`.
+**F1 is done as of 2026-08-21**, and it used to be the item at the top of this
+table — the only one whose failure mode was losing everything. The tree was
+committed (five commits, clean for the first time in five days), the OneDrive
+backup refreshed and restore-rehearsed, and the branch pushed to a private
+remote. The push was **verified by cloning it back from GitHub**: same tip
+(`f4b7325241a`), same tree (`3debbb521…`), the governance work all present.
+The work now exists in three places rather than one.
 
 ---
 
@@ -125,11 +125,14 @@ A finding that appears in only the middle column is not finished.
 
 ## 3. Where the code is, right now
 
-**Branch `governance-layer`, 13 commits ahead of `main`, and the tree is CLEAN
-as of 2026-08-21.** It had been dirty since round eleven; the four commits added
-that day carry the governance core, the dashboard, the documentation and the
-lockfile. **It is still local only** — see F1, which now needs nothing but a
-private remote.
+**Branch `governance-layer`, 14 commits ahead of `main`, tree CLEAN, and pushed
+to a private remote as of 2026-08-21.** It had been dirty since round eleven and
+local-only for the whole life of the project; the five commits added that day
+carry the governance core, the dashboard, the documentation, the lockfile and
+the handoff update. It now exists on this machine, in OneDrive, and at
+`github.com/KinanRadaideh/openclaw-governance-layer` (private, remote
+`personal`). `origin` still points at upstream OpenClaw and must never receive
+this branch.
 
 The files that were uncommitted, and are now in those commits:
 
@@ -498,18 +501,10 @@ The authoritative list is `REMAINING-WORK.md` §"What is actually left". Summary
 
 ### Blocked on you personally — about an hour, and the only irreversible risk
 
-- **F1** — _partly done._ The commits exist and the backup is current and
-  tested; `Documentation/` is in `.gitignore`. What remains needs your GitHub
-  account: create an **empty private** repository, then
-
-  ```bash
-  git remote add personal https://github.com/<you>/<repo>.git
-  git push -u personal governance-layer
-  ```
-
-  Do not add it as `origin` — `origin` is `github.com/openclaw/openclaw` and
-  this branch must never go there. Push `governance-layer` only, never `main`.
-
+- ~~**F1**~~ — **done 2026-08-21.** Pushed to
+  `github.com/KinanRadaideh/openclaw-governance-layer` (private) as the remote
+  `personal`; `origin` untouched. Verified by cloning it back. `Documentation/`
+  is in `.gitignore`.
 - **F4** — file `UPSTREAM-BUG-REPORT.md` (written, unfiled; needs a GitHub
   account).
 
@@ -662,20 +657,19 @@ Stated here so they are not discovered late.
 
 ## 8. If you only do one thing
 
-Push to a private remote (F1). The committing half is done — as of 2026-08-21
-the tree is clean, thirteen commits sit on top of upstream `main`, and the
-OneDrive backup has been refreshed and restore-tested. What is left is fifteen
-minutes with a GitHub account, and it is still the only item on this list whose
-failure mode is losing everything: **both surviving copies are in one building.**
+Run it once with a real agent (A9). F1 — the item that used to occupy this
+slot, and the only one whose failure mode was losing everything — was closed on
+2026-08-21: committed, backed up, pushed to a private remote, and verified by
+cloning it back.
 
-If you have a day rather than an hour: do F1, then A9. A project that is built
-and never run reads, to a panel, as less finished than one that is smaller and
-demonstrably running — and the live run is also the thing most likely to surface
-the integration defects that unit tests structurally cannot. Rounds 12 and 14
-both demonstrated exactly that pattern: each found a property everything depended
-on that nothing had ever checked.
+A9 is now the largest gap between what this project _is_ and what it can be
+_shown_ to be. A system that is built and never run reads, to a panel, as less
+finished than one that is smaller and demonstrably running — and the live run is
+also the thing most likely to surface the integration defects that unit tests
+structurally cannot. Rounds 12 and 14 both demonstrated exactly that pattern:
+each found a property everything depended on that nothing had ever checked.
 
-If you have a week: F1, A9, then A8 — deploy to a real VPS and run
+If you have a week: A9, then A8 — deploy to a real VPS and run
 `openclaw governance deployment` on it. That single command turns four prose
 claims in Chapter 1 into a screenshot, and closes the last partially-met
 requirement.
