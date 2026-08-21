@@ -51,10 +51,17 @@ English-only by choice. Details in §5.
 
 **Two things need doing before anything else**, and the first is not optional:
 
-| #   | Action                                                           | Effort   |
-| --- | ---------------------------------------------------------------- | -------- |
-| 1   | **Commit the working tree and push it to a private remote** (F1) | ~1 hour  |
-| 2   | **Run it once with a real agent** and record what happens (A9)   | 2–4 days |
+| #   | Action                                                             | Effort   |
+| --- | ------------------------------------------------------------------ | -------- |
+| 1   | **Create a private remote and push** (F1) — _the commits are done_ | ~15 min  |
+| 2   | **Run it once with a real agent** and record what happens (A9)     | 2–4 days |
+
+Item 1 is now half its old size. On 2026-08-21 the working tree was committed
+(four commits, tree clean for the first time in five days) and the OneDrive
+backup was refreshed and **rehearsed** — restored into an empty repository,
+producing a byte-identical tree. What is left is the part that needs a GitHub
+account, and it is genuinely fifteen minutes: create an empty private
+repository, then `git remote add` and `git push`.
 
 ---
 
@@ -118,9 +125,13 @@ A finding that appears in only the middle column is not finished.
 
 ## 3. Where the code is, right now
 
-**Branch `governance-layer`, 9 commits ahead of `main`, and everything since
-round eleven is UNCOMMITTED.** 48 tracked files modified, plus 23 new source and
-documentation files (24 counting this one):
+**Branch `governance-layer`, 13 commits ahead of `main`, and the tree is CLEAN
+as of 2026-08-21.** It had been dirty since round eleven; the four commits added
+that day carry the governance core, the dashboard, the documentation and the
+lockfile. **It is still local only** — see F1, which now needs nothing but a
+private remote.
+
+The files that were uncommitted, and are now in those commits:
 
 ```
 src/governance/agent-runner.ts                    the seam the host registers a runner into
@@ -487,8 +498,18 @@ The authoritative list is `REMAINING-WORK.md` §"What is actually left". Summary
 
 ### Blocked on you personally — about an hour, and the only irreversible risk
 
-- **F1** — commit, create a private remote, push. Add `Documentation/` to
-  `.gitignore` while you are there.
+- **F1** — _partly done._ The commits exist and the backup is current and
+  tested; `Documentation/` is in `.gitignore`. What remains needs your GitHub
+  account: create an **empty private** repository, then
+
+  ```bash
+  git remote add personal https://github.com/<you>/<repo>.git
+  git push -u personal governance-layer
+  ```
+
+  Do not add it as `origin` — `origin` is `github.com/openclaw/openclaw` and
+  this branch must never go there. Push `governance-layer` only, never `main`.
+
 - **F4** — file `UPSTREAM-BUG-REPORT.md` (written, unfiled; needs a GitHub
   account).
 
@@ -641,9 +662,11 @@ Stated here so they are not discovered late.
 
 ## 8. If you only do one thing
 
-Commit and push (F1). It takes an hour, it is the only item on this list whose
-failure mode is losing everything, and every other task assumes the work still
-exists.
+Push to a private remote (F1). The committing half is done — as of 2026-08-21
+the tree is clean, thirteen commits sit on top of upstream `main`, and the
+OneDrive backup has been refreshed and restore-tested. What is left is fifteen
+minutes with a GitHub account, and it is still the only item on this list whose
+failure mode is losing everything: **both surviving copies are in one building.**
 
 If you have a day rather than an hour: do F1, then A9. A project that is built
 and never run reads, to a panel, as less finished than one that is smaller and

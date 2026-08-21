@@ -1131,3 +1131,70 @@ of it.
 
 > A property stated in a document is a claim about the system. A property
 > asserted in a test is a claim the system has to keep making.
+
+---
+
+## 13. F1, the half that did not need a GitHub account (2026-08-21)
+
+F1 had been the top item on the handoff for weeks, described as "about an hour,
+blocked on you". It was really two jobs wearing one label, and only the smaller
+one was actually blocked.
+
+**What was blocked:** creating a private repository under a personal GitHub
+account. That needs credentials, so it stays with the person who owns them.
+
+**What was not blocked, and had been sitting behind it:** committing the tree,
+ignoring `Documentation/`, and refreshing a backup that turned out to be five
+days stale. None of that needs an account, and all of it is where the actual
+risk lived.
+
+### The finding that made it urgent
+
+The OneDrive bundle was dated 2026-08-16 — the same day as the last commit. So
+everything after it existed on exactly one disk in exactly one form: QA rounds
+13, 14 and 15, the A1 prompting work, the deployment panel, the first hands-on
+dashboard review, and the three core invariants. Twenty-seven untracked files
+and forty-eight modified ones, with no second copy anywhere.
+
+The handoff said "the only copies are this machine and the OneDrive backup
+folder". That sentence was true when written and had quietly stopped being true,
+which is the same failure mode as a stale test count or a documented capability
+with no caller: **a statement that was checked once and then trusted.**
+
+### What was done
+
+Four commits, split the way the previous three were — core, dashboard,
+documentation — because the files interleave and a finer split would not build.
+Then the backup, in the three formats the old one used: bundle for history,
+patches for legibility if the bundle rots, and a git-free tarball that restores
+with nothing but `tar`.
+
+The bundle was 2.3 GB on the first attempt, because `--all` carries the whole
+upstream OpenClaw history. Rebuilt as `main..governance-layer` it is 758 KB.
+Worth writing down: the incremental bundle is only restorable _because_ the base
+is a public commit anybody can re-fetch, which is exactly the property that makes
+it safe to keep small.
+
+### The part worth arguing in the report
+
+The restore was **rehearsed**, not asserted. The bundle was fetched into an empty
+repository and checked out, and the resulting tree hashed identical to the source
+at `319baa108…`.
+
+> A backup nobody has restored is a claim, not a backup.
+
+That is the same sentence as "a route nobody calls is not a feature", "a rule
+nobody evaluates is not a policy", and "a property stated in a document is not a
+property the system keeps" — the fourth instance this month of the project's one
+finding, arriving this time in the infrastructure rather than the code. The
+`RESTORE.md` now records that the rehearsal happened and what it produced, so the
+next person inherits a tested procedure rather than a plausible one.
+
+### What is left
+
+Fifteen minutes with a GitHub account: create an empty private repository, add
+it as `personal` (never as `origin`, which is upstream OpenClaw), push
+`governance-layer` only.
+
+Until then both surviving copies — the working machine and a OneDrive folder that
+syncs from that same machine — are in one building.
