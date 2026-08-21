@@ -24,45 +24,65 @@ anything is allowed.
 
 Every permission answers three questions:
 
-| Question                 | Field     | Example                                |
-| ------------------------ | --------- | -------------------------------------- |
-| What **kind** of thing?  | `kind`    | a command, a file path, a network host |
-| Which **specific** ones? | `pattern` | commands that are exactly `ls`         |
-| For **how long**?        | TTL       | 30 minutes, or forever                 |
+| Question                 | Field     | Example                                  |
+| ------------------------ | --------- | ---------------------------------------- |
+| What **kind** of thing?  | `kind`    | a command, a file path, a network host   |
+| Which **specific** ones? | `pattern` | commands that are exactly `ls`           |
+| **Allow** or **forbid**? | `effect`  | allow (the default), or forbid — see §4b |
+| For **how long**?        | TTL       | 30 minutes, or forever                   |
 
-Two more questions are optional: **which agent** (default: all of them), and a
-free-text **description** for whoever reads the list later.
+Three more are optional: **which agent** (default: all of them), for path rules
+**which direction** (read, write, or both — see §4c), and a free-text
+**description** for whoever reads the list later.
 
 ### One rule that will save you confusion
 
-**Permissions only ever allow. There is no "deny" rule.**
+**Adding an allow rule can never take access away.**
 
-Denial is the default, so you never write it. This has a consequence worth
-internalising early: **you cannot narrow an existing permission by adding
-another one.** If `ls` is already allowed forever, adding "allow `ls` for 10
-minutes" changes nothing — it is still allowed forever. To reduce access you
-must _remove_ the broader rule.
+Denial is the default, so most of the time you are writing permissions and not
+restrictions. The consequence worth internalising early: **you cannot narrow an
+existing permission by adding another one.** If `ls` is already allowed forever,
+adding "allow `ls` for 10 minutes" changes nothing — it is still allowed
+forever. To reduce access you must _remove_ the broader rule.
 
 The system will warn you when you do this (see §7), but understanding _why_
 saves you a confusing afternoon.
+
+**The exception, and it is an important one:** a **forbid** rule does take
+access away, and no allow rule can override it. That is what it is for. See §4b
+— but read the rest of this section first, because forbidding is the tool you
+reach for second, not first.
 
 ---
 
 ## 2. The three kinds
 
-| Kind      | Covers                                    | What your pattern is compared against             |
-| --------- | ----------------------------------------- | ------------------------------------------------- |
-| `command` | shell commands the agent runs             | the full command line, e.g. `ls -la /tmp`         |
-| `path`    | files the agent reads, writes, or patches | each file path, e.g. `src/config.json` — see §2.1 |
-| `network` | web addresses the agent fetches           | the hostname only, e.g. `api.example.com`         |
+| Kind      | Covers                                              | What your pattern is compared against             |
+| --------- | --------------------------------------------------- | ------------------------------------------------- |
+| `command` | shell commands the agent runs, and terminal input   | the full command line, e.g. `ls -la /tmp`         |
+| `path`    | files the agent reads, searches, writes, or patches | each file path, e.g. `src/config.json` — see §2.1 |
+| `network` | web addresses the agent fetches                     | the hostname only, e.g. `api.example.com`         |
 
-Two things people get wrong here:
+Three things people get wrong here:
 
 - **`network` matches the hostname, not the whole URL.** For
   `https://api.example.com/v1/weather?key=abc`, your pattern is compared
   against `api.example.com` alone. Do not put `https://` or a path in it.
 - **A rule for one kind never authorises another.** Allowing every `command`
   does not allow any `path`. Each kind is a separate world.
+- **`path` covers searching and listing too, not just opening a file.**
+  Searching a file returns its contents, and listing a directory reveals what is
+  in it, so `grep`, `find` and `ls` are checked against your `path` rules exactly
+  as `read` is. This is worth knowing in both directions: a rule you wrote to
+  keep an agent out of a folder also keeps it from searching that folder, and a
+  folder you meant it to search needs a `path` rule, not a `command` rule.
+
+An address can be written more than one way, and the system settles that for
+you before your pattern is checked: a trailing dot is removed, capitals are
+folded, and an IP address written as a number or in hex is turned back into the
+ordinary dotted form. So `^api\.example\.com$` matches a URL written
+`https://API.example.com./v1`, and a rule naming `169.254.169.254` cannot be
+walked around by writing `2852039166` instead.
 
 Paths use forward slashes (`/`) even on Windows, so one rule works everywhere.
 
@@ -205,6 +225,88 @@ When the log shows what you expect, switch to `enforce`.
 
 ---
 
+## 4b. Allowing and forbidding
+
+Every rule you write does one of two things. The default is **allow**, and most
+of the time that is what you want: the system refuses everything it was not told
+to permit, so the job is usually to permit the right things.
+
+The other option is **forbid**. It is worth understanding when to reach for it,
+because at first glance it looks unnecessary — if nothing is allowed by default,
+why say "never"?
+
+### Why "forbid" is not the same as "don't allow"
+
+Suppose you want an agent kept out of the billing folder. You could simply not
+write a rule for it, and today the agent cannot get in. But tomorrow somebody
+grants that agent broad access to the project — a reasonable thing to do — and
+billing is inside the project. The restriction you were relying on was never
+written down anywhere, so nothing stopped the new rule from undoing it.
+
+A **forbid** rule is different. It is checked _before_ every allow rule, and no
+allow rule can override it. Write one and it keeps holding no matter what
+anybody permits later. That is the difference between "not currently allowed"
+and "must never happen", and only the second one survives other people.
+
+This is exactly how the built-in protections work — credential files, `sudo`,
+the governance folder itself are all forbid rules. You are now writing the same
+kind of thing.
+
+**Dashboard:** the second dropdown on the add-rule row, `allow` or `forbid`.
+**Command line:** `--effect deny`.
+
+```bash
+openclaw governance policy add-rule --kind path --pattern "^billing/.*$" --effect deny
+```
+
+### One thing that surprises people
+
+A forbid rule that matches everything will stop the agent doing _anything_ of
+that kind — including things an existing allow rule permits, because forbidding
+wins. If you write `.*` as a forbid rule you have switched that whole category
+off. The system will warn you when you do this; the warning is worth reading
+rather than clicking past.
+
+## 4c. Reading versus writing
+
+For **path** rules only, you can say which direction a rule covers:
+
+| Setting      | Meaning                                            |
+| ------------ | -------------------------------------------------- |
+| read + write | Both. This is the default                          |
+| read only    | The agent may look at these files, not change them |
+| write only   | Rarely useful on its own; mostly for forbidding    |
+
+This is the difference between "the agent can see my project" and "the agent can
+edit my project", and they are very different levels of trust. The starting
+policy your installation shipped with uses it: the agent gets **read-only**
+access to your workspace, and changing files is something you grant on purpose.
+
+**Dashboard:** a third dropdown, which appears only when the kind is `path`.
+**Command line:** `--access read` or `--access write`.
+
+```bash
+openclaw governance policy add-rule --kind path --pattern "^src/.*$" --access read
+```
+
+Commands and network addresses have no direction — a command is not a read or a
+write, it is whatever it does — so the option is not offered for them, and the
+command line will tell you so rather than quietly ignoring it.
+
+### The combination to be careful with
+
+**A forbid rule narrowed to one direction only forbids that direction.** If you
+write "forbid _reading_ the billing folder", writing to it is still allowed by
+that rule. That is deliberate — narrowing a rule must never accidentally
+strengthen it in the other direction — but it is almost never what someone
+means.
+
+If you want a folder completely off limits, leave the direction as **read +
+write**. The system warns you specifically about this one, because it is the
+single most counter-intuitive thing the rule language can express.
+
+---
+
 ## 5. Time limits
 
 Every permission is either **temporary** or **indefinite**.
@@ -264,10 +366,29 @@ You will see this when:
 - you scoped a rule to one agent, but an identical **global** rule already
   applies to all of them
 
-The new rule is still saved — in an allow-only system it cannot do harm — but
-the notice is telling you something important: **the restriction you thought
-you were applying is not in force.** Usually the fix is to remove the older,
-broader rule.
+The new rule is still saved, but the notice is telling you something important:
+**the restriction you thought you were applying is not in force.** Usually the
+fix is to remove the older, broader rule.
+
+### The other kind of notice: a rule that will never do anything
+
+There is a second, differently-worded notice, and it means something worse:
+
+> Rule added, but a deny rule overrides it — it will never take effect
+
+Some rules **forbid** rather than permit, and forbidding always wins. A handful
+of them are built in and cannot be removed at all: credential files like `.env`
+and private keys, the governance layer's own files, `sudo` and its relatives,
+and the cloud metadata address. If you write a permission that one of those
+already refuses, the permission is stored, appears in your rule list, and does
+nothing whatsoever.
+
+This notice exists because that is otherwise almost impossible to work out. The
+rule is right there in the table, it looks correct, and the agent keeps being
+refused. If you see it, do not add more permissions — the answer is not more
+rules. Either the agent genuinely does not need that access, or the restriction
+belongs in `baseline-policy.ts`, which means changing the code and redeploying:
+deliberately a reviewable act rather than a click.
 
 ---
 

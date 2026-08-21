@@ -228,3 +228,8 @@ extensions/discord/assets/embedded-app-sdk.mjs
 /.opengrep-out/
 /.crabbox-artifacts
 .comux*
+
+# 163 MB that byte-for-byte duplicates a OneDrive folder. Kept out of the
+# repository rather than committed, so it stops appearing in `git status`
+# as a permanent false positive (F2).
+Documentation/

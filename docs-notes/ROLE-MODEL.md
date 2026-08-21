@@ -56,65 +56,220 @@ agent-touching operation.
 | Everything an Administrator can do                   | inheritance         |
 
 Constrained by lockout guards (`account-guards.ts`): cannot delete the account
-it is signed in with, cannot demote or delete the last remaining Root.
+it is signed in with, and cannot demote or delete the Root account.
+
+**There is exactly one Root and it is permanent.** Both bounds are enforced, in
+the store and inside its write lock:
+
+| Attempt                          | Result                                     |
+| -------------------------------- | ------------------------------------------ |
+| Create a second Root             | refused — `DuplicateRootError`             |
+| Promote any account to Root      | refused — `DuplicateRootError`             |
+| Demote the Root                  | refused — `LastRootError`                  |
+| Delete the Root                  | refused — `LastRootError`                  |
+| Root deletes itself              | refused twice — self-delete, then Root     |
+| Two promotions racing each other | both refused; the check is inside the lock |
+
+The invariant is asserted directly in `src/governance/root-invariant.test.ts`
+rather than left to emerge from the two guards, because for a while it _did_
+emerge and the two guards disagreed about what they jointly meant. Each was
+correct alone: one refused a second Root, the other refused removing the last
+one. Together they made the account permanent — which is right — while the
+refusal message still advised "promote another account to Root before demoting
+it", a step the other guard always refuses. The rule is now stated once and the
+message says what is actually true.
+
+**The cost, stated plainly.** There is no in-product handover of the Root role.
+Transferring an installation means Root resetting the successor's password and
+passing on the credentials, or editing `users.json` directly and restarting.
+That is a deliberate trade: every in-product design for a handover passes
+through a moment when the account that governs all the others is either
+duplicated or absent, and both of those are worse than an offline step taken
+once in the life of an installation.
+
+A file that already holds two Roots — hand-edited, or written before the upper
+bound existed — is still repairable: deleting one of them is permitted, because
+in that state it removes a risk rather than creating a lockout.
 
 **From the paper** (§1.6): "manages the human element of the system, including
 creating user accounts, defining high-level RBAC settings, assigning roles".
-**Not implemented:** "overseeing the deployment and network configurations of
-the governance layer on the VPS" — deployment configuration is not exposed
-through the dashboard; recorded as future work.
+**Implemented (A7, 2026-08-20):** "overseeing the deployment and network
+configurations of the governance layer on the VPS". A Root-only **deployment and
+network posture** report reads the live installation and judges it against the
+architecture Chapter 1 describes — loopback-only listener, no standard web port
+exposed, a tunnel as the only route in, gateway authentication configured — plus
+the governance layer's own state (directory and file permissions, whether the
+ledger key is held off-host, whether the checkpoint exists) and the stated
+constraints (Linux target, 8 GB minimum). `src/governance/deployment-status.ts`,
+served at `GET /control-ui/governance/deployment` and printed by
+`openclaw governance deployment`.
+
+**It is read-only, and that is a design decision rather than a shortfall.**
+"Overseeing" was implemented as _seeing and judging_, not editing. Changing a
+bind address or an auth mode from the dashboard you are connected _through_ can
+remove your own access in one click, and during an incident that is the worst
+possible failure mode for the control plane. Deployment configuration stays a
+server-admin act; what the governance layer owes Root is an answer to "does this
+deployment match what we promised?", and that is what it now gives.
 
 ### Administrator — manages all agents
 
-| Capability                                                  | Function                           |
-| ----------------------------------------------------------- | ---------------------------------- |
-| Change posture (enforce / monitor / off), installation-wide | `canManageGlobalPolicy`            |
-| Switch **one agent** into monitor for observation           | `canManageAgent` (User and above)  |
-| Set the per-**user** escalation override                    | Root only                          |
-| Reset another account's password                            | Root only                          |
-| Change ask mode (ask-on-miss vs. strict deny)               | `canManageGlobalPolicy`            |
-| Create and remove **global** rules (bind every agent)       | `canManageGlobalPolicy`            |
-| Create and remove rules for **any** agent                   | `canManageAgent` (unlimited scope) |
-| Lock / release **any** agent                                | `canManageAgent`                   |
-| Assign agents to User and Viewer accounts                   | `canAssignAgents`                  |
-| Approve or reject rule requests                             | tier floor: administrator          |
-| Read the full unmasked audit ledger for every agent         | `requiresSanitizedAudit` false     |
+| Capability                                                  | Function                            |
+| ----------------------------------------------------------- | ----------------------------------- |
+| Change posture (enforce / monitor / off), installation-wide | `canManageGlobalPolicy`             |
+| Switch **one agent** into monitor for observation           | `canManageAgent` (User and above)   |
+| Switch **one agent** off entirely                           | **nobody, at any tier** — see below |
+| Set the per-**user** escalation override                    | Root only                           |
+| Reset another account's password                            | Root only                           |
+| Change ask mode (ask-on-miss vs. strict deny)               | `canManageGlobalPolicy`             |
+| Create and remove **global** rules (bind every agent)       | `canManageGlobalPolicy`             |
+| Create and remove rules for **any** agent                   | `canManageAgent` (unlimited scope)  |
+| Lock / release **any** agent                                | `canManageAgent`                    |
+| Assign agents to User and Viewer accounts                   | `canAssignAgents`                   |
+| Approve or reject rule requests                             | tier floor: administrator           |
+| Read the full unmasked audit ledger for every agent         | `requiresSanitizedAudit` false      |
 
 **From the paper** (§1.6): "configure customized privilege policies (including
 command matrices and network allowlisting) for specific agents", "real-time
 control to suspend or terminate active sessions", "conduct advanced auditing by
 reviewing tamper-evident logs", "the Administrator role manages AI agents".
 
+**Why a per-agent posture of `off` is refused at every tier, Root included.**
+The per-agent posture override exists so one agent can be watched without being
+blocked. `enforce` and `monitor` are both postures in that sense; `off` is not.
+The engine returns on `off` _before_ the lockdown check, so an agent set that
+way stops being covered by the kill switch and the core denials as well as by
+its ordinary rules, and no ledger entry records the change taking effect.
+
+The tier that can set this override is **User**, because the whole point is that
+whoever watches an agent can configure its observation. So accepting `off` would
+have made "remove every protection from my own agent, including the emergency
+stop" a single request available to the lowest tier that can configure anything
+— the same escalation §G6 identified when monitor was made per-agent, arriving
+through a different door.
+
+Turning the gate off is still possible and is unchanged: `policy/mode`, which is
+installation-wide, Administrator-level, audited, and displayed prominently on
+the dashboard. The distinction the design draws is between switching something
+off _visibly and globally_, which is a legitimate operator decision, and
+switching it off _quietly for one agent_, which is indistinguishable from an
+attack.
+
 ### User — manages the agent(s) assigned to them
 
-| Capability                                                        | Function                       |
-| ----------------------------------------------------------------- | ------------------------------ |
-| Create rules **scoped to an assigned agent**                      | `canManageAgent`               |
-| Remove rules belonging to an assigned agent                       | `canManageAgent`               |
-| Lock / release an assigned agent                                  | `canManageAgent`               |
-| Read unmasked audit detail for assigned agents                    | `requiresSanitizedAudit` false |
-| Request a global rule, or a rule for an agent outside their scope | tier floor: user               |
-| **Cannot** touch posture, ask mode, or global rules               | `canManageGlobalPolicy` false  |
-| **Cannot** see or touch an agent they were not assigned           | `canViewAgent` false           |
+| Capability                                                             | Function                       |
+| ---------------------------------------------------------------------- | ------------------------------ |
+| **Prompt an assigned agent, and read that conversation back**          | `canManageAgent`               |
+| Create rules **scoped to an assigned agent**, allowing _or forbidding_ | `canManageAgent`               |
+| Remove rules belonging to an assigned agent                            | `canManageAgent`               |
+| Lock / release an assigned agent                                       | `canManageAgent`               |
+| Switch an assigned agent into `monitor` (never into `off`)             | `canManageAgent`               |
+| Read unmasked audit detail for assigned agents                         | `requiresSanitizedAudit` false |
+| Request a global rule, or a rule for an agent outside their scope      | tier floor: user               |
+| **Cannot** touch posture, ask mode, or global rules                    | `canManageGlobalPolicy` false  |
+| **Cannot** see or touch an agent they were not assigned                | `canViewAgent` false           |
 
 **From the paper** (§1.6): "Granted targeted access to interact with specific,
 pre-configured agents… may strictly prompt the agents for task execution or be
 granted limited, scoped permissions to modify non-critical agent parameters."
+
+A denial needs no higher tier than an allowance, which is worth stating because
+it looks like it should. A denial _narrows_: a User forbidding something on
+their own agent is restricting their own agent, and the scope check already
+binds it there. What a User still cannot write is a **global** rule of either
+kind, because that is managing everyone's agents rather than theirs.
+
+**Both halves of that sentence now exist.** "Modify non-critical agent
+parameters" was built first — agent-scoped rules, the escalation override, the
+posture toggle. "Strictly prompt the agents for task execution" was the last
+capability to land (backlog item A1, 2026-08-17) and was the largest divergence
+between the build and the paper while it was missing: a User could govern an
+agent they had no way to speak to.
+
+Prompting reuses this table rather than extending it. The route's floor is User
+and its scope check is `canManageAgent` — the same pair as every other
+agent-scoped action. That a genuinely new capability needed no new permission
+concept is the strongest evidence available that the tier model was drawn along
+the right lines, and is worth saying in the report.
+
+Three properties distinguish it from an ordinary chat box, and each is the
+reason it belongs in this layer at all:
+
+- the prompt is recorded in the tamper-evident ledger **with the account that
+  sent it**, before the run starts;
+- a **locked-down agent refuses the prompt at the door**, so an emergency stop
+  cannot be talked past;
+- each **(agent, account)** pair gets its own conversation, so two Users sharing
+  an agent cannot read each other's prompts — scope means the same thing here as
+  it does everywhere else.
 
 ### Viewer — sees the assigned agent, changes nothing
 
 | Capability                                                         | Function                      |
 | ------------------------------------------------------------------ | ----------------------------- |
 | Read policy rules affecting assigned agents (plus global rules)    | `canViewAgent`                |
+| Read the posture and escalation overrides for assigned agents      | `canViewAgent`                |
+| Watch assigned agents running, live, and whether one is locked     | `canViewAgent`                |
 | Read audit entries for assigned agents, **resource detail masked** | `requiresSanitizedAudit` true |
 | Verify the audit chain's integrity                                 | tier floor: viewer            |
 | View system resource states (CPU, memory, uptime)                  | tier floor: viewer            |
+| See the rule-request queue for assigned agents                     | `canViewAgent`                |
+| **Cannot** prompt or otherwise interact with an agent              | tier floor: user              |
 | **Cannot** change anything at all                                  | every `canManage*` false      |
 
 **From the paper** (§1.6): "strictly read-only access… can monitor active agent
 operations, view system resource states (e.g., VPS CPU/RAM usage), and read
 sanitized audit logs… but cannot interact with the agent or modify any system
 configurations."
+
+**Concretely: what a Viewer sees, and what it does not.** Enumerated in
+`governance-dashboard-api.test.ts` ("Viewer visibility") rather than described,
+so the boundary is a property of the build:
+
+| Surface              | Viewer                                                                                                                                                                       |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET policy`         | ✔ own agents' rules + global rules; own agents' `agentMode` / `agentAsk`; **not** another agent's anything; **not** `userAsk`, which is keyed by account and belongs to Root |
+| `GET ledger`         | ✔ own agents' entries, `resource` replaced by a placeholder; sequence and hashes intact so the shape of the chain is still visible                                           |
+| `POST ledger/verify` | ✔ the verdict only — whether the log was tampered with, computed server-side against the unmasked file                                                                       |
+| `GET sessions`       | ✔ own agents' live runs and lockdown state                                                                                                                                   |
+| `GET system`         | ✔ CPU, memory, uptime                                                                                                                                                        |
+| `GET rule-requests`  | ✔ queue entries for own agents, plus unscoped ones                                                                                                                           |
+| every mutating route | ✘ exact **403**                                                                                                                                                              |
+
+Two deliberate choices in that table are worth defending in the report. First,
+**global rules are shown**: they bind the Viewer's agent as much as an
+agent-scoped rule does, so hiding them would misrepresent what actually governs
+the agent it is watching. Second, the **resource is masked but the chain is
+not**: a Viewer learns that an action happened, when, by which agent, through
+which tool, and how it was decided — but not the literal command, path or host,
+which can itself disclose workspace detail. That is the paper's "sanitized
+audit logs" made concrete, and it is what distinguishes Viewer from User.
+
+---
+
+### A chat user is not a governance account
+
+Worth stating explicitly, because the fork can be reached through Discord,
+Telegram, Slack or WhatsApp exactly as upstream OpenClaw can (see
+`docs-notes/CHAT-DEPLOYMENTS.md`), and it would be easy to assume the four tiers
+apply there.
+
+They do not. Somebody messaging the bot on Discord is authenticated by that
+channel's own access controls (`docs/channels/access-groups.md`), not by a
+governance role, and their activity is attributed in the ledger to the **agent**
+rather than to a named person. The four tiers govern the **dashboard**, which is
+the surface where named accounts exist.
+
+The one place a person is recorded against agent activity is the dashboard
+prompt path (§A1): a prompt sent there carries the account that sent it. Bridging
+channel identities to governance accounts — so that "who asked the bot to do
+this on Discord" is answerable — is not built and is not claimed. It is a
+sensible future extension and is recorded as such.
+
+The consequence an operator should understand: on a chat deployment the policy
+and the kill switch constrain **what the agent may do**, and the channel's own
+access controls decide **who may ask it**. Both are needed; neither substitutes
+for the other.
 
 ---
 
@@ -263,14 +418,43 @@ their scope. They cannot touch posture, global rules, other agents, or accounts.
 ### Two properties worth defending in the report
 
 1. **Delegation cannot escalate.** A User adds permissions _within_ their agent
-   and can never weaken a global rule. Scoping narrows who may _write_ a rule,
-   never which rules _protect_ an agent — evaluating agent A consults global
-   rules plus A's rules. A test asserts a rule scoped to one agent does not
-   authorize another.
+   and can never weaken a global rule.
+
+   > **This was briefly untrue, and the exception is worth keeping in the
+   > report.** Until QA round 14, an agent could call `sessions_spawn` with an
+   > `agentId` naming a _different_ agent; the host mints the child's session
+   > key under that target, and governance keys every scoping decision on the id
+   > it reads from the key. So a tightly-confined agent could spawn into a
+   > less-restricted identity and inherit its rules — delegation escalating by
+   > changing principal rather than by changing rules. Closed by making the
+   > target identity part of the spawn resource, so spawning as somebody else is
+   > default-denied until an operator names them. The residual is that a
+   > lockdown on the parent does not reach a cross-agent child already running;
+   > see `PERMISSION-SPEC.md` §3.4. Scoping narrows who may _write_ a rule,
+   > never which rules _protect_ an agent — evaluating agent A consults global
+   > rules plus A's rules. A test asserts a rule scoped to one agent does not
+   > authorize another.
+
 2. **Authority requires both tier and assignment.** An unassigned User can do
    nothing agent-related despite holding the tier. This is deliberate: it means
    creating an account grants no power until an Administrator delegates
    something specific.
+
+> **Open finding — the third property is only half true (QA round 13, finding
+> 84).** A1 claims _isolation by account_: "two Users assigned the same agent
+> cannot read each other's prompts". `readConversation` honours it — the
+> transcript is keyed by (agent, account). The **ledger** is not: a prompt is
+> recorded by `recordAdminAction` with the full text in `resource` and the
+> agent's id in `agentId`, and `projectLedgerForActor` filters by _agent_ scope.
+> So a second User assigned the same agent reads the first User's prompts in
+> full through `GET ledger`.
+>
+> Which surface is wrong is a genuine design question rather than an obvious
+> bug, and the report should treat it as one. The audit trail is arguably
+> right — co-managers of an agent arguably _should_ see who set it going and
+> with what — in which case the thing to fix is A1's stated property, not the
+> ledger. What is not defensible is the two surfaces disagreeing while one of
+> them is documented as a guarantee. Tracked as Q-84.
 
 ### The remaining divergence (state it plainly)
 
@@ -312,13 +496,15 @@ the evaluation chapter.
 | Approve/reject rule requests         |         ✘          |   ✘    |       ✔       |  ✔   |
 | Assign agents to accounts            |         ✘          |   ✘    |       ✔       |  ✔   |
 | Create/delete accounts, change roles |         ✘          |   ✘    |       ✘       |  ✔   |
+| View deployment / network posture    |         ✘          |   ✘    |       ✘       |  ✔   |
 
 ---
 
 ## 5. Not implemented (state honestly as future work)
 
-- **Root's VPS deployment/network oversight** (paper §1.6) — no deployment
-  configuration surface exists in the dashboard.
+- ~~**Root's VPS deployment/network oversight** (paper §1.6)~~ — **done**, see
+  §2 under Root. Implemented as a read-only report with a verdict per check
+  rather than as an editing surface.
 - **Per-agent / per-user HITL toggle** (paper §1.6: "toggled on or off by the
   Administrator for specific agents and by the Root for specific users") — the
   ask mode is currently installation-wide. The data model would extend
@@ -332,11 +518,34 @@ the evaluation chapter.
 > installation also enforces **exactly one Root**. Root's VPS/deployment
 > oversight is still unbuilt beyond a CPU/memory panel — tracked as A7.
 
-- **Live agent-session monitoring** — the ledger shows decision history, not a
+- ~~**Live agent-session monitoring**~~ — the ledger shows decision history, not a
   list of currently running sessions.
-- **Prompting agents through the governance identity** — the paper's User
+- ~~**Prompting agents through the governance identity**~~ — the paper's User
   "interacts with" agents; OpenClaw's chat surface does not yet know about
   governance accounts, so a User's authority currently covers an agent's
   _policy_, not the act of conversing with it. This is the largest remaining
   gap between the paper's User tier and the implementation, and should be
   stated plainly rather than glossed.
+
+> **Correction, 2026-08-21.** Everything struck through above is now built, and
+> the list should be read as history rather than as status. Live session
+> monitoring landed with `active-sessions.ts`; prompting landed as A1, so a User
+> now genuinely _interacts with_ their agent through their governance identity;
+> and the HITL toggle has both axes the paper describes — per agent for an
+> Administrator, per user for Root — combined by taking the stricter.
+>
+> Two refinements worth knowing as an operator:
+>
+> - **The per-user axis now applies to the person who actually asked.** On a
+>   prompt sent from the dashboard the account is known, so Root's setting for
+>   _that_ account is the one consulted. On a run nobody started by name — a
+>   chat message, a scheduled job — the strictest setting among the accounts
+>   holding that agent still applies, because there the agent really is acting
+>   for all of them. Practical consequence: restricting one co-manager no longer
+>   restricts their colleague's own prompts. To constrain the _agent_, use the
+>   per-agent axis, which is unchanged.
+> - **Stopping a prompt is not the kill switch.** A User may cancel a prompt
+>   they sent; an Administrator or Root may cancel any prompt for an agent
+>   inside their remit, which is §1.6's real-time control applied to a single
+>   run. Neither is lockdown: cancelling withdraws one request, lockdown stops
+>   the agent entirely and has to be released by hand.

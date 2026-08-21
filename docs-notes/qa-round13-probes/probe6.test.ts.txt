@@ -1,0 +1,30 @@
+// TEMPORARY QA probe 6 — what the canonicaliser actually produces.
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, it } from "vitest";
+import { CORE_RULES } from "./baseline-policy.js";
+import { matchesPattern } from "./pattern-match.js";
+import { normalizeGovernedPath } from "./path-normalize.js";
+
+let workspace: string;
+beforeEach(async () => {
+  workspace = await mkdtemp(join(tmpdir(), "gov-probe6-ws-"));
+  await writeFile(join(workspace, ".env"), "SECRET=1\n");
+});
+afterEach(async () => {
+  await rm(workspace, { recursive: true, force: true });
+});
+
+describe("PROBE 16b — canonical forms", () => {
+  it("prints canonical form and which core deny matches", async () => {
+    const denies = CORE_RULES.filter((rule) => rule.resourceKind === "path");
+    for (const spelling of [".ENV", "NEW.ENV", "ID_RSA", "id_rsa", "server.PEM", "server.pem", "sub/.ENV"]) {
+      const canonical = await normalizeGovernedPath(spelling, workspace);
+      const hit = denies.find((rule) => matchesPattern(rule.pattern, canonical));
+      console.log(
+        `CANON ${JSON.stringify(spelling).padEnd(14)} -> ${JSON.stringify(canonical).padEnd(34)} deny=${hit ? "YES" : "no"}`,
+      );
+    }
+  });
+});

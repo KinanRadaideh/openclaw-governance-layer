@@ -1,0 +1,236 @@
+// TEMPORARY QA probe 2 — delete after the review.
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { evaluateGovernancePolicy } from "./policy-engine.js";
+import { loadPolicy, savePolicy } from "./policy-store.js";
+
+let dir: string;
+let workspace: string;
+beforeEach(async () => {
+  dir = await mkdtemp(join(tmpdir(), "gov-probe2-"));
+  process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  workspace = await mkdtemp(join(tmpdir(), "gov-probe2-ws-"));
+});
+afterEach(async () => {
+  delete process.env.OPENCLAW_GOVERNANCE_DIR;
+  await rm(dir, { recursive: true, force: true });
+  await rm(workspace, { recursive: true, force: true });
+});
+
+const ctx = () => ({ agentId: "agent-a", sessionKey: "agent:agent-a:main", cwd: workspace });
+function verdict(d: Awaited<ReturnType<typeof evaluateGovernancePolicy>>): string {
+  if (!d) {
+    return "allow";
+  }
+  return "block" in d ? "block" : "ask";
+}
+/** enforce + ask off + a wide-open allow rule for one kind, so only DENY rules can stop it. */
+async function permissive(kind: "command" | "path" | "network"): Promise<void> {
+  const doc = await loadPolicy();
+  await savePolicy({
+    ...doc,
+    mode: "enforce",
+    ask: "off",
+    rules: [
+      ...doc.rules,
+      {
+        id: `probe-open-${kind}`,
+        resourceKind: kind,
+        effect: "allow",
+        tier: "admin",
+        pattern: "^.*$",
+        createdAt: new Date().toISOString(),
+        createdBy: "probe",
+      } as never,
+    ],
+  });
+}
+
+const NL = String.fromCharCode(10);
+const CR = String.fromCharCode(13);
+const BS = String.fromCharCode(92);
+const DQ = String.fromCharCode(34);
+
+describe("PROBE 4 — network core denial vs alternate spellings", () => {
+  const cases: Array<[string, string]> = [
+    ["plain", "http://169.254.169.254/latest/meta-data/"],
+    ["trailing dot", "http://169.254.169.254./latest/"],
+    ["decimal int", "http://2852039166/latest/"],
+    ["hex octets", "http://0xa9.0xfe.0xa9.0xfe/latest/"],
+    ["ipv4-mapped v6", "http://[::ffff:169.254.169.254]/latest/"],
+    ["hex v6 mapped", "http://[::ffff:a9fe:a9fe]/latest/"],
+    ["aws imds v6", "http://[fd00:ec2::254]/latest/"],
+    ["alibaba imds", "http://100.100.100.200/latest/"],
+    ["gcp alias", "http://metadata.google.internal/computeMetadata/v1/"],
+    ["gcp short alias", "http://metadata/computeMetadata/v1/"],
+    ["file url", "file:///etc/shadow"],
+    ["localhost gateway", "http://127.0.0.1:18799/control-ui/governance/policy"],
+  ];
+  for (const [label, url] of cases) {
+    it(`[${label}] ${url}`, async () => {
+      await permissive("network");
+      const d = await evaluateGovernancePolicy({ toolName: "web_fetch", params: { url } }, ctx());
+      console.log(`NETWORK ${label.padEnd(18)} -> ${verdict(d)}`);
+      expect(verdict(d)).toBe("block");
+    });
+  }
+});
+
+describe("PROBE 5 — command core denial vs alternate spellings", () => {
+  const cases: Array<[string, string]> = [
+    ["plain sudo", "sudo -i"],
+    ["semicolon", "ls; sudo -i"],
+    ["newline", `ls${NL}sudo -i`],
+    ["backtick subshell", "echo `sudo -i`"],
+    ["dollar subshell", "echo $(sudo -i)"],
+    ["and-and no space", "ls&&sudo -i"],
+    ["env prefix", "FOO=1 sudo -i"],
+    ["leading space", "  sudo -i"],
+    ["quoted split", `su${DQ}${DQ}do -i`],
+    ["absolute path form", "/usr/bin/sudo -i"],
+    ["gov dir posix", "cat ~/.openclaw/governance/policy.json"],
+    ["gov dir windows", `type %USERPROFILE%${BS}.openclaw${BS}governance${BS}policy.json`],
+    ["shutdown", "shutdown -h now"],
+    ["shutdown newline", `ls${NL}shutdown -h now`],
+  ];
+  for (const [label, command] of cases) {
+    it(`[${label}]`, async () => {
+      await permissive("command");
+      const d = await evaluateGovernancePolicy({ toolName: "exec", params: { command } }, ctx());
+      console.log(`COMMAND ${label.padEnd(20)} -> ${verdict(d)}`);
+      expect(verdict(d)).toBe("block");
+    });
+  }
+});
+
+describe("PROBE 6 — terminal data channel", () => {
+  const cases: Array<[string, string]> = [
+    ["single line", `sudo -i${NL}`],
+    ["two lines", `echo hi${NL}sudo -i${NL}`],
+    ["carriage return", `sudo -i${CR}`],
+    ["no newline", "sudo -i"],
+  ];
+  for (const [label, data] of cases) {
+    it(`[${label}]`, async () => {
+      await permissive("command");
+      const d = await evaluateGovernancePolicy(
+        { toolName: "terminal", params: { action: "input", data } },
+        ctx(),
+      );
+      console.log(`TERMINAL ${label.padEnd(18)} -> ${verdict(d)}`);
+      expect(verdict(d)).toBe("block");
+    });
+  }
+});
+
+describe("PROBE 7 — path core denial vs alternate spellings", () => {
+  const cases: Array<[string, string]> = [
+    ["plain env", ".env"],
+    ["traversal", "sub/../.env"],
+    ["home ssh", "~/.ssh/id_rsa"],
+    ["ssh nested", "~/.ssh/keys/deploy"],
+    ["env uppercase", ".ENV"],
+    ["pem", "certs/server.pem"],
+    ["env trailing dot", ".env."],
+    ["env trailing space", ".env "],
+    ["gov policy", "~/.openclaw/governance/policy.json"],
+    ["gov key", "~/.openclaw/governance/ledger.key"],
+    ["gov dir uppercase", "~/.OpenClaw/Governance/policy.json"],
+  ];
+  for (const [label, p] of cases) {
+    it(`[${label}] ${p}`, async () => {
+      await permissive("path");
+      const d = await evaluateGovernancePolicy({ toolName: "read", params: { path: p } }, ctx());
+      console.log(`PATH ${label.padEnd(22)} -> ${verdict(d)}`);
+      expect(verdict(d)).toBe("block");
+    });
+  }
+});
+
+describe("PROBE 8 — lockdown coverage", () => {
+  it("blocks when only the session key identifies the agent", async () => {
+    const doc = await loadPolicy();
+    await savePolicy({ ...doc, mode: "enforce", lockedAgents: ["agent-a"] });
+    const d = await evaluateGovernancePolicy(
+      { toolName: "exec", params: { command: "ls" } },
+      { sessionKey: "agent:agent-a:main", cwd: workspace },
+    );
+    expect(verdict(d)).toBe("block");
+  });
+  it("blocks a locked agent whose id is absent from both fields", async () => {
+    const doc = await loadPolicy();
+    await savePolicy({ ...doc, mode: "enforce", lockedAgents: ["agent-a"] });
+    const d = await evaluateGovernancePolicy(
+      { toolName: "exec", params: { command: "ls" } },
+      { cwd: workspace },
+    );
+    console.log("LOCKDOWN no-agent-id ->", verdict(d));
+    expect(verdict(d)).toBe("block");
+  });
+  it("blocks an ungoverned tool for a locked agent", async () => {
+    const doc = await loadPolicy();
+    await savePolicy({ ...doc, mode: "enforce", lockedAgents: ["agent-a"] });
+    const d = await evaluateGovernancePolicy(
+      { toolName: "computer", params: { action: "type", text: "x" } },
+      ctx(),
+    );
+    console.log("LOCKDOWN ungoverned-tool ->", verdict(d));
+    expect(verdict(d)).toBe("block");
+  });
+});
+
+describe("PROBE 9 — hand-edited policy.json", () => {
+  it("cannot remove a core rule by rewriting the file", async () => {
+    const doc = await loadPolicy();
+    await savePolicy({
+      ...doc,
+      mode: "enforce",
+      ask: "off",
+      rules: doc.rules.filter((r) => r.tier !== "core"),
+    });
+    await permissive("path");
+    const d = await evaluateGovernancePolicy({ toolName: "read", params: { path: ".env" } }, ctx());
+    console.log("HAND-EDIT strip core ->", verdict(d));
+    expect(verdict(d)).toBe("block");
+  });
+  it("cannot neuter a core rule by rewriting its pattern", async () => {
+    const doc = await loadPolicy();
+    await savePolicy({
+      ...doc,
+      mode: "enforce",
+      ask: "off",
+      rules: doc.rules.map((r) => (r.tier === "core" ? { ...r, pattern: "^never-matches$" } : r)),
+    });
+    await permissive("path");
+    const d = await evaluateGovernancePolicy({ toolName: "read", params: { path: ".env" } }, ctx());
+    console.log("HAND-EDIT neuter core ->", verdict(d));
+    expect(verdict(d)).toBe("block");
+  });
+  it("cannot flip a core deny into an allow", async () => {
+    const doc = await loadPolicy();
+    await savePolicy({
+      ...doc,
+      mode: "enforce",
+      ask: "off",
+      rules: doc.rules.map((r) => (r.tier === "core" ? { ...r, effect: "allow" as const } : r)),
+    });
+    const d = await evaluateGovernancePolicy({ toolName: "read", params: { path: ".env" } }, ctx());
+    console.log("HAND-EDIT flip core ->", verdict(d));
+    expect(verdict(d)).toBe("block");
+  });
+  it("cannot disable the gate for one agent by adding agentMode off", async () => {
+    const doc = await loadPolicy();
+    await savePolicy({
+      ...doc,
+      mode: "enforce",
+      ask: "off",
+      lockedAgents: ["agent-a"],
+      agentMode: { "agent-a": "off" },
+    });
+    const d = await evaluateGovernancePolicy({ toolName: "read", params: { path: ".env" } }, ctx());
+    console.log("HAND-EDIT agentMode off (locked agent) ->", verdict(d));
+    expect(verdict(d)).toBe("block");
+  });
+});

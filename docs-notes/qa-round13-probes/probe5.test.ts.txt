@@ -1,0 +1,69 @@
+// TEMPORARY QA probe 5 — Windows filename aliasing, with the file present.
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { normalizeGovernedPath } from "./path-normalize.js";
+import { evaluateGovernancePolicy } from "./policy-engine.js";
+import { loadPolicy, savePolicy } from "./policy-store.js";
+
+let dir: string;
+let workspace: string;
+beforeEach(async () => {
+  dir = await mkdtemp(join(tmpdir(), "gov-probe5-"));
+  process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  workspace = await mkdtemp(join(tmpdir(), "gov-probe5-ws-"));
+  // The credential file genuinely exists, so realpath has something to resolve.
+  await writeFile(join(workspace, ".env"), "SECRET=1\n");
+});
+afterEach(async () => {
+  delete process.env.OPENCLAW_GOVERNANCE_DIR;
+  await rm(dir, { recursive: true, force: true });
+  await rm(workspace, { recursive: true, force: true });
+});
+
+const ctx = () => ({ agentId: "agent-a", sessionKey: "agent:agent-a:main", cwd: workspace });
+function verdict(d: Awaited<ReturnType<typeof evaluateGovernancePolicy>>): string {
+  if (!d) {
+    return "allow";
+  }
+  return "block" in d ? "block" : "ask";
+}
+async function permissivePath(): Promise<void> {
+  const doc = await loadPolicy();
+  await savePolicy({
+    ...doc,
+    mode: "enforce",
+    ask: "off",
+    rules: [
+      ...doc.rules,
+      {
+        id: "probe-open-path",
+        resourceKind: "path",
+        effect: "allow",
+        tier: "admin",
+        pattern: "^.*$",
+        createdAt: new Date().toISOString(),
+        createdBy: "probe",
+      } as never,
+    ],
+  });
+}
+
+describe("PROBE 16 — Windows filename aliases against an existing credential file", () => {
+  const spellings = [".env", ".ENV", ".Env", ".env.", ".env ", ".env::$DATA"];
+  for (const spelling of spellings) {
+    it(`[${JSON.stringify(spelling)}]`, async () => {
+      const canonical = await normalizeGovernedPath(spelling, workspace);
+      await permissivePath();
+      const d = await evaluateGovernancePolicy(
+        { toolName: "read", params: { path: spelling } },
+        ctx(),
+      );
+      console.log(
+        `ALIAS ${JSON.stringify(spelling).padEnd(16)} canonical=${JSON.stringify(canonical).padEnd(30)} -> ${verdict(d)}`,
+      );
+      expect(verdict(d)).toBe("block");
+    });
+  }
+});

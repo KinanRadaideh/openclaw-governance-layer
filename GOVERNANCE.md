@@ -38,7 +38,13 @@ Then, in the browser:
 ```bash
 node scripts/run-node.mjs governance policy show
 node scripts/run-node.mjs governance policy add-rule --kind command --pattern "^ls( .*)?$"
+node scripts/run-node.mjs governance policy add-rule --kind command --pattern "^deploy$" --effect deny
+node scripts/run-node.mjs governance policy add-rule --kind path --pattern "^src/.*$" --access read
 node scripts/run-node.mjs governance policy set-mode enforce
+node scripts/run-node.mjs governance policy set-agent-mode <agentId> monitor
+node scripts/run-node.mjs governance policy set-agent-mode <agentId> default
+node scripts/run-node.mjs governance agent prompt <agentId> summarise the readme
+node scripts/run-node.mjs governance agent transcript <agentId>
 node scripts/run-node.mjs governance audit tail --limit 20
 node scripts/run-node.mjs governance audit verify
 node scripts/run-node.mjs governance kill <agentId>
@@ -60,18 +66,43 @@ the gate applies even on a plugin-free deployment.
 For each governed tool it extracts the resource being acted on
 (`src/governance/resource-extraction.ts`) and matches it against the policy:
 
-| Tool                           | Resource kind | Access | What is matched           |
-| ------------------------------ | ------------- | ------ | ------------------------- |
-| `exec`, `bash`, `terminal`     | `command`     | —      | the command string        |
-| `read`                         | `path`        | read   | the canonicalised path(s) |
-| `write`, `edit`, `apply_patch` | `path`        | write  | the canonicalised path(s) |
-| `web_fetch`                    | `network`     | —      | the destination hostname  |
+| Tool                           | Resource kind | Access | What is matched                        |
+| ------------------------------ | ------------- | ------ | -------------------------------------- |
+| `exec`, `bash`                 | `command`     | —      | the command string                     |
+| `terminal`                     | `command`     | —      | `command`, **and `data`** — see below  |
+| `read`, `grep`, `find`, `ls`   | `path`        | read   | the canonicalised path(s)              |
+| `write`, `edit`, `apply_patch` | `path`        | write  | the canonicalised path(s)              |
+| `web_fetch`                    | `network`     | —      | the canonicalised destination hostname |
 
 Every name here is a real OpenClaw tool, verified against its definition. An
 earlier version of this table listed `read_file` and `write_file`, which exist
 nowhere in the host — so the entire `path` kind governed only `apply_patch` while
 the dashboard cheerfully accepted file rules that could never match. That was the
 fifth QA round's finding and is the reason each entry now cites its source file.
+
+The eleventh round found the same mistake inverted. `grep`, `find` and `ls` sit
+in `allToolNames` (`src/agents/sessions/tools/index.ts`) beside `read`, all
+three take a path, and none of them
+was listed — so a core denial on `.env` stopped `read` and waved through
+`grep -e . .env`, which returns the same bytes. The registry has to be checked
+against the host's tool list, not against the subset that comes to mind. The
+three are recursive and only the root they are pointed at is governed; that
+limitation is stated in the code rather than papered over.
+
+`terminal` carries commands on **two** parameters. `action: "open"` takes a
+`command`, which was governed; `action: "input"` takes `data` — raw keystrokes
+typed into a shell the agent already has open — which was not. Both are governed
+now, and opening a terminal with no command at all is governed as the synthetic
+resource `terminal:open`, so acquiring an interactive shell is a permission an
+operator grants rather than a default.
+
+**Hostnames are canonicalised too** (`resource-extraction.ts`): the trailing dot
+of a fully-qualified name is dropped, IPv6 brackets are removed, and an IPv4
+address written in any `inet_aton` form is reduced to dotted-decimal. Without
+that, `169.254.169.254.`, `2852039166` and `0xa9.0xfe.0xa9.0xfe` all reach the
+cloud metadata endpoint the core tier denies, and — the same defect seen from
+the other side — an operator's `^api\.example\.com$` silently stopped matching a
+URL an agent happened to write with a trailing dot.
 
 **Paths are canonicalised before matching** (`path-normalize.ts`): `~` and
 `file://` expanded, `..` collapsed, symlinks followed, then rendered
@@ -96,9 +127,37 @@ optional expiry, and an optional agent scope. Every one of those fields is
 optional and defaults to the pre-existing meaning, so rules written before the
 tier model keep working unchanged.
 
+**Operators author denials and narrowings themselves** — `effect` and `access`
+are accepted by the API, the CLI (`--effect`, `--access`) and the dashboard.
+They were enforced by the engine and creatable from no interface for several
+weeks: the shipped core tier is entirely denials and the baseline workspace
+grant is read-only, yet an operator's own restriction meant hand-editing
+`policy.json`. That gap has a name in this project — a mechanism that works and
+no surface that reaches it — and closing it is why the write-up below calls it
+R5.
+
+Why a denial is not merely a convenience: deleting allowances until nothing
+matches looks equivalent and is not. A denial is evaluated first and cannot be
+overridden, so it survives whatever anybody grants later; an absence of
+allowances is undone by the next broad grant, and the person who wanted the
+restriction is not there to notice. The advice an operator gets flips with the
+direction, too — a catch-all allowance removes a protection, a catch-all denial
+removes a _capability_, and the warnings say the right one.
+
 Posture: `enforce` (live), `monitor` (record decisions, never block), `off`.
 Monitor is **opt-in and per agent** — a tool for discovering rules by watching
-one agent while the rest of the installation keeps enforcing.
+one agent while the rest of the installation keeps enforcing. It is set from all
+three surfaces: `POST policy/agent-mode`, `governance policy set-agent-mode`, and
+the **Observe one agent** control on the dashboard's policy panel.
+
+A per-agent posture may be `enforce` or `monitor` only. **`off` is refused at
+every tier**, including Root: it is not a weaker posture but the absence of the
+gate — the engine returns before the lockdown check — so that agent would stop
+being covered by the kill switch and the core denials as well as by ordinary
+rules, and nothing would be written to the ledger to say so. On a route whose
+floor is User that would make "switch off every protection on my own agent" a
+single request. Switching the gate off remains available to an Administrator via
+`policy/mode`, where it is one visible, audited, installation-wide act.
 
 ### 2. Tamper-evident audit ledger
 
@@ -223,6 +282,67 @@ From the **CLI** no in-flight termination occurs — the run registry lives in t
 Gateway process — and the CLI says so rather than implying the agent was
 stopped.
 
+### 4b. Talking to a governed agent
+
+`src/governance/agent-conversation.ts` + `src/governance/agent-runner.ts`
+(the seam) + `src/agents/governance-agent-runner.ts` (the host's side).
+
+§1.6 defines the User tier as "granted targeted access to **interact with**
+specific, pre-configured agents… Users may strictly prompt the agents for task
+execution". Every other User capability existed; this one did not, because the
+governance layer introduced named human accounts that the host's chat path knew
+nothing about. It was the largest divergence between the build and the paper.
+
+**The prompt goes through OpenClaw's ordinary ingress**, `agentCommandFromIngress`
+— the same entry point the OpenAI-compatible HTTP surface uses. That is the
+decision the rest depends on: every tool call the agent makes still passes
+through `runBeforeToolCallHook` and therefore through the gate above, so
+prompting grants the agent **nothing it did not already have**. It grants a
+person a way to ask. A parallel run path would have had to re-earn every
+guarantee in this document.
+
+Three things happen that a chat box would not do:
+
+1. **The prompt is recorded with the actor, before the run starts.** The ledger
+   could already say what an agent did and who wrote the rules it was judged by;
+   it could not say who _set it going_. `governance.agent.prompt` and
+   `governance.agent.prompt-result` close that, and make §1.6's "the log captures
+   … the raw LLM intent" literally true. Written before the run, so a process
+   that dies mid-run still shows the attempt.
+2. **A locked-down agent refuses at the door**, in every posture including
+   `off` — deliberately unlike the tool gate, because this route _is_ a
+   governance surface and does not exist when governance is absent. Otherwise
+   stopping an agent would still let somebody start it thinking and receive a
+   reply assembled from no tools.
+3. **Conversations are per (agent, account)**, so two Users assigned the same
+   agent cannot read each other's prompts. The session key
+   `agent:<id>:governance:<account>` carries both and — load-bearing — parses
+   under the host's own `parseAgentSessionKey`, because the gate recovers the
+   agent id from the session key whenever `ctx.agentId` is absent. A key that did
+   not parse would have left exactly these runs unattributable to their agent, so
+   lockdown and every agent-scoped rule would have silently stopped applying to
+   them. Asserted in a test, not assumed.
+
+`senderIsOwner` is **false** on these runs. That flag is the host's
+trusted-caller bit and unlocks command and channel actions that skip ordinary
+policy; it defaults true for local CLI use. Setting it true here would have let
+the least-privileged tier that can do anything reach past the policy layer this
+project exists to impose — a one-word privilege escalation that looks like
+plumbing.
+
+Authorization needed no new concept: tier floor User, scope check
+`canManageAgent`, the same pair as writing a rule or stopping an agent. A Viewer
+is refused by tier, matching §1.6's "cannot interact with the agent".
+
+Available on both surfaces — **Settings → Governance → Your agents** on the
+dashboard, and `governance agent prompt` / `governance agent transcript` from
+the terminal. The CLI carries the existing attribution caveat: with no login, a
+prompt sent from a terminal is recorded against `cli` rather than a person.
+
+Known limits, stated rather than hidden: no streaming (the reply arrives when
+the run finishes), no attachments, and the transcript file is a bounded
+convenience — the ledger is the authoritative record.
+
 ### 5. Dashboard integration
 
 `ui/src/pages/governance/` — a native Control UI page (Lit), not an embedded
@@ -235,13 +355,103 @@ and Approvals pages, so all security surfaces live together.
 
 The page lists rules in evaluation order with their tier, badges denials so an
 operator can tell what forbids from what permits, and shows "built-in" instead of
-a delete control on core rules. Destructive actions confirm first — including the
+a delete control on core rules. It carries the per-agent posture control
+(**Observe one agent**), so switching one agent into monitor for rule discovery
+is a dashboard action rather than something only the API can express — design
+requirement #2 asks for a dashboard that _configures_ policy, and a setting
+reachable only from code does not meet it.
+
+That control appears in two places, deliberately. The policy panel takes an
+agent id, which suits an agent that is not currently running; the **Observe /
+Stop observing** button on each row of the live-sessions panel is the one an
+operator will actually use, because the moment somebody wants to watch an agent
+is the moment they are looking at it run. Each row also states where that agent
+stands — _observing_, _follows installation_, or pinned to enforce — since
+"inherits the default" and "explicitly set" are different facts to somebody
+deciding whether to intervene. Both controls appear for a **User** on the agents
+assigned to them and for an **Administrator** on every agent; a Viewer sees the
+status and no button. Neither offers `off`, because the server refuses it at
+every tier and a button that can only produce an error is worse than none. A clash caused by a deny rule is
+headed differently from one caused by an earlier allowance, because the two mean
+opposite things: one says the new rule adds nothing, the other says it does
+nothing at all. Destructive actions confirm first — including the
 role selector, which used to apply the instant it was clicked. The audit view
 filters between agent activity and policy changes, since administrative entries
 are a small minority in a busy ledger and "who changed this rule?" otherwise
 means scrolling past thousands of tool calls. The page refreshes every 15 seconds
 and clears itself when the session expires, rather than leaving stale data on
 screen as though it were current.
+
+### 6. Chat deployments (Discord, Telegram, Slack, WhatsApp)
+
+The fork is a fork, not a replacement: channels are configured exactly as
+upstream OpenClaw documents them, and nothing in this layer needs setting up
+first. Full detail — including what the gate does _not_ cover over chat — is in
+`docs-notes/CHAT-DEPLOYMENTS.md`.
+
+Two things make it work without special handling. Every tool call, whatever
+started it, funnels through `runBeforeToolCallHook` where the gate is attached;
+and the host builds channel session keys agent-scoped
+(`agent:<id>:discord:channel:<peerId>`), so the gate recovers the agent id even
+when the hook context does not carry one. That second property is load-bearing
+for the kill switch, agent-scoped rules and ledger attribution alike, and
+`qa-round12.test.ts` asserts it per channel using the **host's own** key builder
+rather than a string this project invented.
+
+Escalations are handed to OpenClaw's existing approval machinery rather than
+reimplemented, which is why an unlisted action over Discord renders as that
+channel's native button-based approval instead of failing mutely. A core denial
+is still refused outright with no button — a chat user must not be able to click
+past the tier that exists to be unclickable.
+
+**Stated limitation:** outbound messages are ungoverned. The three resource
+kinds do not describe "post this into a channel", so an agent can repeat a
+permitted file's contents into chat. Left deliberately — refusing `message` by
+default would stop the agent replying at all — and recorded as `ungoverned` in
+the ledger so the gap stays visible rather than silent.
+
+### 7. Deployment and network oversight (Root)
+
+Backlog item A7 — the last unimplemented clause of the §1.6 role definitions.
+
+Root gets a **read-only report** that reads the live installation and judges it
+against the architecture the design describes, with a verdict on each check
+rather than a page of numbers.
+
+```bash
+openclaw governance deployment            # human-readable
+openclaw governance deployment --json     # for a provisioning script
+openclaw governance deployment --strict   # exit 1 if any check failed
+```
+
+and the same report on the dashboard, for Root only, at
+`GET /control-ui/governance/deployment`.
+
+**What it checks.** The four claims Chapter 1 makes about how this is deployed —
+loopback-only listener, no standard web port exposed, a tunnel as the only route
+in, gateway authentication configured — plus the governance layer's own state
+(directory and file permissions, whether the ledger key is held off-host,
+whether the checkpoint exists) and the stated constraints (Linux target, 8 GB
+minimum). Findings from the host's own gateway security audit are folded in
+verbatim.
+
+**Read-only on purpose.** Changing a bind address from the dashboard you are
+connected _through_ removes your own access, most easily during the incident
+when you need the control plane. Deployment configuration stays a server-admin
+act; what this owes Root is an answer to "does this deployment match what we
+promised?".
+
+**Run it from the CLI first on a new host.** The dashboard is meant to be
+reachable only through an SSH local port forward, so the moment you most need to
+know whether the listener is exposed is over a plain SSH session before any
+tunnel exists — exactly when the dashboard is unreachable by design.
+
+**Four statuses, and `unknown` is not a quiet `pass`.** A check that could not
+run here — POSIX permissions on Windows, free space where `statfs` is missing —
+says so. A verification report that shows green because the detector was
+disconnected is worse than no report, because somebody acts on it. `unknown` is
+counted separately and excluded from the overall verdict, so it can neither hide
+a problem nor manufacture one.
 
 ## Testing
 
@@ -262,12 +472,15 @@ The second command exists because the sixth QA round discovered that
 governance-only runs had hidden nineteen regressions in the host for weeks. A
 green governance suite is not evidence on its own.
 
-1,056 automated tests cover the ledger chain, the policy engine and its tier
-model, resource extraction and path canonicalisation, the permission model,
+1,480 automated tests across 68 files (2026-08-21) cover the ledger chain, the
+policy engine and its tier model, resource extraction, path and hostname
+canonicalisation, the agreement between the governed-tool registry and the
+host's own tool list, the permission model,
 agent scoping, the HTTP authorization layer,
 password/session handling, the login throttle, the file lock, ReDoS rejection,
-kill-switch latency, rule expiry, conflict detection, and the pending-decision
-stack. Tests never touch real operator state:
+kill-switch latency, rule expiry, conflict detection, the pending-decision
+stack, the host's obligation to route a native-harness tool call through the gate
+at all, and the bounds on an in-flight prompt. Tests never touch real operator state:
 `OPENCLAW_GOVERNANCE_DIR` redirects all governance storage to a temp directory.
 
 Verified on **Linux** as well as Windows — the full suite runs natively on
@@ -389,16 +602,23 @@ suites.
 | 47  | The permission guide recommended a subdomain pattern the validator rejects.                                                                                                        | The cookbook told operators to write a pattern that trips the nested-quantifier check. Found by a new test asserting that documented patterns are actually accepted.                                                                                                                                                                                              | Replaced with an equivalent accepted pattern, verified to match and reject the same hosts.                                                                                                                                                                                 |
 | 48  | Session tokens compared with `===`; `addRule` spread order could erase a generated id; a comment claimed a false security property about Viewer-side chain verification.           | Minor, fixed together.                                                                                                                                                                                                                                                                                                                                            | `timingSafeEqual`; spread reordered; comment corrected.                                                                                                                                                                                                                    |
 
-**Open, deliberately not fixed in this pass.** `hasBeforeToolCallPolicy` counts
-only plugin policies, and it gates whether the native (Codex) harness relays
-`pre_tool_use` at all. On a plugin-free install with the app-server backend and
-the loop-detection relay disabled, those sessions execute tools without entering
-the hook - no gate, no ledger entry, no kill switch. Making the predicate return
-true unconditionally does close it, but it also forces the relay on where it is
-deliberately disabled and fails 30 existing harness tests, so it needs its own
-change and its own commit. It is pinned by a test in `gate-attachment.test.ts`
-so the gap is visible in the suite rather than only in a document. Every
-configuration used so far runs tools in-process and is unaffected.
+**Open, deliberately not fixed in this pass — closed later as B1.**
+`hasBeforeToolCallPolicy` counts only plugin policies, and it gates whether the
+native (Codex) harness relays `pre_tool_use` at all. On a plugin-free install
+with the app-server backend and the loop-detection relay disabled, those sessions
+execute tools without entering the hook - no gate, no ledger entry, no kill
+switch. Making the predicate return true unconditionally does close it, but it
+also forces the relay on where it is deliberately disabled and fails 30 existing
+harness tests, so it needs its own change and its own commit. It is pinned by a
+test in `gate-attachment.test.ts` so the gap is visible in the suite rather than
+only in a document. Every configuration used so far runs tools in-process and is
+unaffected.
+
+> **Resolved on 2026-08-20** — see "B1 closed" below. The paragraph above is
+> kept unedited because its reasoning turned out to be the specification for the
+> correct fix: the repair was not to widen this predicate but to give the relay
+> layer governance as a second, independent signal. That fix breaks none of the
+> thirty tests.
 
 Also carried forward with evidence from the auditors, and not yet addressed:
 `apply_patch` derives _absolute_ paths in production while every test uses
@@ -456,14 +676,501 @@ conflict machinery.
 | 60  | Session tokens were stored in the clear.                    | A token is a bearer credential, so `sessions.json` was as valuable as the password file, with no cracking required.                                                                                                                                                                                                                        | Stored as a one-way fingerprint; plain SHA-256 rather than scrypt, since a 256-bit CSPRNG token has nothing to guess and a work factor would only slow every request. |
 | 61  | Reads and writes shared one permission.                     | The model had a single `path` kind covering read, write, edit and patch, so "readable but not writable" was inexpressible — the exact distinction the supervisor's brief draws. The shipped baseline was quietly more permissive than the design it implemented.                                                                           | An optional `access` narrowing on rules, derived from the tool; the baseline is now read-only for the workspace.                                                      |
 
-### The finding that runs through all ten rounds
+### Eleventh QA pass (coverage, spelling, and reachability)
 
-Almost none of these sixty-one defects was a missing check. Nearly every one was
-**two parts of the system disagreeing**: the gate and the host about which tools
-exist (22); our tests and the host's about what passing means (round six); a test
-harness and the server about a missing route (50); two constants about when to
-give up (55); the deny pass and the allow pass about which rules either owned
-(57).
+Run against the current PDF specification rather than against the previous
+round's fixes. Seven defects: two are coverage gaps of the same family as the
+fifth round's, one is a canonicalisation gap, one is an information leak, one is
+a feature that existed in the code and could not be reached from any interface,
+one is a warning that stayed silent when it mattered most, and one is a pair of
+guards that were each correct and jointly told the operator to do something the
+system refuses.
+
+Three of the seven share a shape the earlier rounds did not have a name for:
+**the mechanism worked and nothing could reach it, or nothing said what it
+did.** Defect 66 is a capability with no surface; 67 is a correct refusal with no
+explanation; 68 is a correct invariant with the wrong documentation. None would
+be caught by testing behaviour, because in all three the behaviour is right.
+
+| #   | Defect                                                                                                                                                                                                                                                                                                                          | Why it mattered                                                                                                                                                                                                                                                                                                                                                                        | Fix                                                                                                                                                                                                                                                                                               |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 62  | **`grep`, `find` and `ls` were never governed.** All three are built-in tools, all three take a path, and none was in the registry.                                                                                                                                                                                             | **Security bypass, and the exact shape of finding 22 inverted.** The core denial on credential files stopped `read` and let through `grep -e . .env`, which returns the same bytes. Every one of these calls was recorded as `ungoverned` and allowed, so the gap was visible in the ledger and had been for the life of the project.                                                  | Registered as `path` / `read`. An omitted `path` defaults to the working directory rather than extracting nothing, since "no resource" means ungoverned and the commonest spelling of each tool omits it.                                                                                         |
+| 63  | **The `terminal` tool's `data` parameter was ungoverned.** `action: "open"` carries a `command`, which was checked; `action: "input"` carries raw keystrokes typed into the shell that call opened.                                                                                                                             | **Complete bypass of the command allowlist.** Open a terminal, then send `sudo -i\n` through `data`: no allowlist consulted, no core denial applied, no policy verdict recorded. A gate covering the front door of a shell but not its keyboard is not covering the shell.                                                                                                             | Both parameters extracted. A trailing newline is stripped so an anchored rule can match a submitted line; opening a shell with no command is governed as `terminal:open`, which no shipped rule matches.                                                                                          |
+| 64  | Hostnames were matched as written.                                                                                                                                                                                                                                                                                              | `169.254.169.254.`, `2852039166` and `0xa9.0xfe.0xa9.0xfe` all resolve to the metadata endpoint the core tier denies, and only the plain spelling matched. The same defect ran the other way: a correct operator rule silently stopped matching a URL written with a trailing dot, which is the harder failure to diagnose because nothing is refused visibly and nothing looks wrong. | Canonicalise the hostname once — strip the root dot and IPv6 brackets, reduce every `inet_aton` IPv4 form to dotted-decimal — so the property comes from the representation, as it already does for paths.                                                                                        |
+| 65  | `GET policy` returned `agentMode` and `userAsk` unfiltered.                                                                                                                                                                                                                                                                     | A scoped Viewer could enumerate every agent id in the installation from the posture map, and every account with an escalation override from `userAsk`. The handler's own comment states that _every_ agent-keyed collection must be scoped; it was true of three out of four, because the fourth arrived later with the tier model.                                                    | `agentMode` scoped like the rest; `userAsk` is keyed by account rather than agent, so agent scope says nothing about it and it is withheld below Root.                                                                                                                                            |
+| 66  | **The per-agent monitor toggle had no route, no command and no control.** `setAgentMode` was called only by tests.                                                                                                                                                                                                              | Monitor was demoted to an opt-in discovery tool and the documentation said it was "turned on from the web dashboard". It could not be turned on at all. Design requirement #2 asks for a dashboard that configures policy — a tier of policy reachable only from code does not meet it.                                                                                                | `POST policy/agent-mode`, `governance policy set-agent-mode`, and a dashboard control, all three refusing `off` at every tier (see §1) and all three scoped by `canManageAgent`.                                                                                                                  |
+| 68  | **The two Root guards contradicted each other.** One refuses a second Root; the other refuses removing the last one. Each is correct alone; together they make the Root account permanent — while the refusal message still advised "promote another account to Root before demoting it", which the first guard always refuses. | An operator following the product's own instructions could not succeed, and the documented two-step handover (demote, then promote) was impossible. The invariant nothing stated was the one actually in force.                                                                                                                                                                        | Permanence stated once, in `guardRootPermanence`, with a message that says what is true; the stale comment in `user-store.ts` corrected; `root-invariant.test.ts` asserts the whole property — both bounds, the race, self-deletion, and the repair path for a file that already holds two Roots. |
+| 67  | The clash detector said nothing when a deny rule already overrode the rule being written.                                                                                                                                                                                                                                       | Round 59 stopped it describing a denial as a grant by making it ignore denials, and silence turned out to be its own defect: the rule is accepted, listed in the policy, and does nothing, with no way to find out why except by reading the ledger. A control whose failure mode is a confident misreading has to speak at the moment the mistake is made.                            | A fifth conflict kind, `overridden-by-deny`, reported for an identical pattern, a deny catch-all, or a candidate matching exactly one literal that a denial matches. Surfaced under its own heading in UI and CLI.                                                                                |
+
+### Twelfth QA pass (chat deployments, and A1 under attack)
+
+Two questions this time. Does the fork still work as an ordinary OpenClaw
+deployment — reached through Discord or Telegram rather than the dashboard? And
+does A1, the newest surface and the only one that _starts_ agent activity, hold
+up when attacked rather than demonstrated?
+
+The channel work found no defect, which is itself the finding worth recording:
+governance had **never been tested against a channel-shaped session key**, so
+the property everything depends on there — that the gate can recover the agent
+id from a key the host built — was true by luck as far as the suite knew. Had it
+been false, the kill switch would not have fired and agent-scoped rules would
+not have bound on the deployment people actually use, and every test would still
+have passed. It is now asserted per channel using the host's own key builder.
+
+| #   | Defect                                                                                                                                                                                                         | Why it mattered                                                                                                                                                                                                                                                                                                                  | Fix                                                                                                                                                                         |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 69  | **A corrupted `conversations.json` took the whole prompting capability down.** The parse error escaped `readConversations`, so every prompt _and_ every transcript read threw until somebody deleted the file. | Fail-closed applied to the wrong object. Failing closed protects a control; the transcript is a convenience, and the authoritative record of every prompt is the ledger — which is hash-chained, append-only, and written separately. Losing scrollback must not cost the capability. Found in A1 code written the same session. | Treated as no transcript. The next append rewrites the file, which is the only outcome that leaves the feature working; the ledger still holds every prompt that was in it. |
+
+Everything else in the round held: prompts cannot choose their own session key,
+an agent id aliasing an object internal cannot poison the store, four concurrent
+prompts lose no turn and leave the hash chain intact, a run that starts before a
+lockdown still has its tool calls refused underneath, and the deliberate
+asymmetry — the agent receives the literal message, the ledger and transcript
+receive a redacted one — is now pinned by a test, because it is exactly the kind
+of thing a later reader would "fix" in the wrong direction.
+
+One limitation was **documented rather than closed**: outbound messages are
+ungoverned, so on a chat deployment an agent can repeat a permitted file's
+contents into a channel. Refusing `message` by default would stop the agent
+replying at all, so closing it needs a fourth resource kind that distinguishes
+"reply where you were spoken to" from "message somewhere else" — a design
+change, not a registry entry. It is recorded as `ungoverned` in the ledger and
+pinned by a test so it cannot silently become `allow`.
+
+### Thirteenth QA pass (the tool surface, the ledger's own secret, and the dashboard driven for the first time)
+
+Run as an independent adversarial review rather than as a follow-up to round
+twelve: read the requirements in the PDF first, then attack the build, then read
+the code only to explain what the attacks showed. Every finding below was
+**produced by running the gate**, not by reading it, and each row names the exact
+call that reproduces it.
+
+> **Status, 2026-08-20: 18 of the 24 findings are fixed and covered by
+> regression tests.** The governance suite is **1,297 passing across 58 files**
+> (from 1,264), both typechecks are clean, and OpenClaw's own harness suite is
+> unchanged at its 18-failed baseline. The reproductions below are kept in the
+> past tense where the defect is closed, because the value of this table for the
+> report is the _finding_, not its current state; the **Fixed** column says
+> which are still open. The six probe suites are kept in
+> `docs-notes/qa-round13-probes/` as `.ts.txt` so they do not join the test suite:
+> they assert the behaviour the system _should_ have, so as tests they fail — and
+> a failing test sitting in the suite reads as a fix in progress, which round
+> thirteen deliberately is not. That directory's README explains how to run one,
+> what each covers, and one way a probe harness can produce the right verdict for
+> the wrong reason.
+
+The round's headline is the same shape as rounds five and eleven, for the third
+time, and it is the most important sentence in this file: **the guard written in
+round eleven to stop the registry drifting from the host compares the registry
+against the wrong list.** `qa-round11.test.ts` iterates `allToolNames`
+(`src/agents/sessions/tools/index.ts`), which is the seven _session_ tools —
+`read`, `bash`, `edit`, `write`, `grep`, `find`, `ls` — every one of which
+round eleven had just registered. So the test passes trivially and always will.
+The host's actual tool surface is `CORE_TOOL_DEFINITIONS` in
+`src/agents/tool-catalog.ts`, which declares **fifty-six** tools. Eleven are
+governed. Forty-five are not.
+
+That is worth stating precisely, because it changes what the project can claim.
+The defect round eleven found was real and the fix was right; what was wrong was
+the _durable_ half — the check that was supposed to make the class of defect
+impossible was pointed at a list that could not contain the defect. A guard is
+only as good as the authority it compares against, and choosing that authority is
+the whole design of the guard.
+
+| #   | Defect                                                                                                                                                                                                            | Why it mattered                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Reproduction                                                                                                                                                | Status                                                                                                                                                                                                              |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 70  | **The registry–host guard compares against a seven-name subset.** `allToolNames` is the session-tool barrel, not the host's tool catalogue.                                                                       | The check that exists specifically to prevent findings 22, 62 and 63 recurring cannot observe forty-five of the host's tools, so it reported agreement while the gate covered a fifth of the surface. **A guard aimed at the wrong authority is worse than no guard, because it is believed.**                                                                                                                                                                                                                                                                                                      | Compare `resolveGovernedTool` against the ids in `src/agents/tool-catalog.ts`: 45 return `undefined`.                                                       | **Fixed.** The guard reads the union of `allToolNames` and the host's `listCoreToolSections()`, and asserts its own breadth so a subset cannot silently narrow it again.                                            |
+| 71  | **`process` is a second unwatched command channel** — round eleven's defect 63, on the sibling tool, found five days later.                                                                                       | `exec` with `background: true` starts a shell; `process` with `action: "write"` (or `send-keys`, `paste`, `submit`) types into it via `data`/`literal`/`text`/`keys`. Neither the allowlist nor any core denial is consulted. This is the _same defect_ as the terminal `data` parameter, and it was missed because the fix was applied to the tool that was found rather than to the class of tool.                                                                                                                                                                                                | `evaluateGovernancePolicy({toolName:"process",params:{action:"write",sessionId:"s1",data:"sudo -i\n"}})` under `enforce`/`ask:off` → **allow**.             | **Fixed.** `process` governed as `command`; `data`/`literal`/`text`/`keys`/`hex` all extracted.                                                                                                                     |
+| 72  | **`computer`, `screen`, `mobile_ui` and `browser` are ungoverned.** `computer` drives a paired desktop: `type`, `key`, `left_click`, `hold_key`.                                                                  | The project's title is a governance layer for **OS-level** agents. The most OS-level tool the host ships — synthetic keyboard and mouse against a real desktop — is outside the gate entirely. An agent refused `exec` can open a terminal window on the paired node and type the command instead. No rule language change is needed to close it; a registry entry and a resource extractor are.                                                                                                                                                                                                    | `evaluateGovernancePolicy({toolName:"computer",params:{action:"type",text:"sudo rm -rf /"}})` → **allow**.                                                  | **Fixed.** `computer`, `screen`, `browser`, `mobile_ui`, `nodes`, `gateway`, `automations`, `sessions_spawn`, `subagents`, `code_execution` all governed as `command`, resource `<tool>:<action>` plus any payload. |
+| 73  | **The governance CLI is an unauthenticated bypass of the entire RBAC model, and no core denial names it.** `openclaw governance policy set-mode off` disables the gate.                                           | `CLI_ACTOR` documents the _attribution_ limit ("a CLI change is attributable to the machine, not a person" — A6). The security consequence is larger and was not written down: the CLI needs no login, and the core command denial protects the governance **directory** (`\.openclaw/governance`) rather than the governance **command**. Any operator rule broad enough to run the project — `^(node\|npm\|npx\|pnpm) .*$` is the obvious one — reaches it.                                                                                                                                       | `{toolName:"exec",params:{command:"node openclaw.mjs governance policy set-mode off"}}` with that allow rule → **allow**. Four spellings tested, all allow. | **Fixed.** A core denial on `governance <subcommand>`. A CLI login remains the proper fix (A6).                                                                                                                     |
+| 74  | **Core command denials are bypassed by ordinary shell spellings.** The separator class is `[;&\|]`, and the governance-directory pattern uses a forward slash.                                                    | `` `sudo -i` ``, `$(sudo -i)`, `FOO=1 sudo -i`, `␣␣sudo -i` (leading whitespace — `(^\|[;&\|]\s*)` requires the metacharacter _before_ the whitespace), `/usr/bin/sudo -i`, and a newline separator all pass. So does `type %USERPROFILE%\.openclaw\governance\policy.json`, because the pattern spells the path with `/` — **on the platform this project is developed on**. The file header is right that the denylist is a backstop; the backstop is thinner than it reads.                                                                                                                      | Each string through `exec` with a matching allow rule → **allow**.                                                                                          | **Fixed.** `commandNamed()` matches a command preceded by start-of-string or any non-name character, with an optional path prefix; the governance-directory pattern takes either separator.                         |
+| 75  | **The core network denial misses the IPv6 metadata spellings.** Round eleven canonicalised four IPv4 forms; the IPv6 family was not considered.                                                                   | `[::ffff:169.254.169.254]`, `[::ffff:a9fe:a9fe]` and `[fd00:ec2::254]` (AWS IMDS over IPv6) all reach the endpoint the core tier denies. So do `100.100.100.200` (Alibaba) and the bare `metadata` alias GCP resolves. `canonicalIpv4` returns `undefined` for anything containing a colon, so the value passes through as written and the anchored pattern does not match.                                                                                                                                                                                                                         | `{toolName:"web_fetch",params:{url:"http://[::ffff:a9fe:a9fe]/latest/"}}` with a permissive network rule → **allow**.                                       | **Fixed.** IPv4-mapped IPv6 folded in `canonicalHostname`; hex IPv6, Alibaba and the bare `metadata` alias named in the rule.                                                                                       |
+| 76  | **Deleting the checkpoint file makes truncation undetectable — and the code says the opposite.** `verifyLedgerChain` ends `if (checkpoint) { … }`.                                                                | The comment above `writeCheckpoint` states "a missing checkpoint is itself reported rather than passing quietly". It is not: a missing checkpoint is skipped and verification returns `ok: true`. The two coordinated edits the design asks an attacker for are _delete the tail_ and _delete the checkpoint_ — and the second is a file deletion, not a forgery. Requirement #6 rests on this.                                                                                                                                                                                                     | Append 5 entries, truncate to 3, `unlink` the checkpoint → `verifyLedgerChain()` returns `{ok:true}`.                                                       | **Fixed.** A missing checkpoint on a keyed installation is reported. A legacy unkeyed ledger still verifies.                                                                                                        |
+| 77  | **A whole-history rewrite into the unkeyed format verifies clean.** The `seenKeyed` guard only catches a _mixed_ chain.                                                                                           | The guard's own comment says "once the chain is keyed it must stay keyed. Otherwise an attacker rewrites history in the old unkeyed format — which needs no secret". That is exactly what still works: rebuild every entry from genesis with plain SHA-256 and `keyed` absent, and `seenKeyed` is never set, so nothing is downgraded — the chain simply _is_ an old one. The guard defends the seam it was written for and not the file.                                                                                                                                                           | Rebuild 3 entries in the pre-key payload shape, delete the checkpoint → `{ok:true}`.                                                                        | **Fixed.** An installation holding a key must have a keyed newest entry.                                                                                                                                            |
+| 78  | **A corrupted `ledger.key` degrades silently to a zero-length HMAC key.** `Buffer.from(text,"hex")` truncates at the first invalid character and the length is never checked.                                     | Overwriting the key file with garbage does not raise an error, does not fail a start-up check, and does not appear in the ledger. It converts every subsequent entry from an HMAC under a secret into an HMAC under the empty string — which is public — so the forgery the keying exists to prevent becomes possible again by _damaging_ a file rather than reading it. A partially-valid file gives a one-byte key.                                                                                                                                                                               | Write `"zzzzzzzz"` to `ledger.key`, reset the cache → `loadLedgerKey()` returns a 0-byte buffer. `"abzz"` → 1 byte.                                         | **Fixed.** `decodeStoredKey` requires hexadecimal of exactly 32 bytes and throws `LedgerKeyUnusableError` otherwise; the hook turns that into a blocked call.                                                       |
+| 79  | **A ReDoS shape passes `checkRegexSafety` and blocks the gate for over two minutes.** `^(.*a){20}$`.                                                                                                              | `isQuantified` treats `{n}` without a comma as a fixed count that "cannot blow up", so a quantified group whose body contains `.*` is accepted when the outer quantifier is `{20}`. Measured: **142,431 ms** for one `matchesPattern` call against a 31-character non-matching input. JavaScript cannot interrupt a running regex, so this is the whole event loop — the Gateway, the dashboard, and every other agent — stopped by one rule a User may write.                                                                                                                                      | `validateRulePattern("^(.*a){20}$")` → ok; `matchesPattern("^(.*a){20}$","a".repeat(30)+"!")` → 142 s.                                                      | **Fixed.** `isQuantified` now counts `{n}` for n>1. Regression asserts the measured pattern _and_ the timing.                                                                                                       |
+| 80  | **`agentMode: "off"` in `policy.json` disables the gate for that agent, kill switch included, and nothing re-asserts it.** `loadPolicy` re-seeds `CORE_RULES` on every load but never sanitises the posture maps. | The API route refuses per-agent `off` and explains at length why (§G6). The file does not. So the property "core rules cannot be removed by hand-editing `policy.json`" holds for the _rules_ and is defeated one field away — you do not remove the protections, you switch off the agent they apply to. Chains with 71/72/73: an ungoverned tool writes the file, and the gate stops running.                                                                                                                                                                                                     | Save a policy with `lockedAgents:["agent-a"]` **and** `agentMode:{"agent-a":"off"}`, then evaluate any call for `agent-a` → **allow**.                      | **Fixed.** `loadPolicy` drops a stored per-agent `off`, so the agent follows the installation default.                                                                                                              |
+| 81  | **Lockdown does not hold when neither `ctx.agentId` nor `ctx.sessionKey` identifies the agent.**                                                                                                                  | Finding B6 fixed the case where `agentId` was absent by falling back to the session key. Where both are absent — and `agentId` is optional on `HookContext` — `resolveEffectiveAgentId` returns `undefined`, the lockdown list is not consulted, and the call proceeds. The residual is narrow but it is the same failure the original defect described: an emergency stop that holds on some code paths and not others.                                                                                                                                                                            | `evaluateGovernancePolicy({toolName:"exec",params:{command:"ls"}}, {cwd})` with `lockedAgents:["agent-a"]` → **allow**.                                     | **Fixed.** An unattributable call is refused whenever any agent is locked, recorded under `kill-switch-unattributable`.                                                                                             |
+| 82  | **`GET ledger?limit=` has no upper bound.** The handler rejects `≤ 0` and accepts everything else.                                                                                                                | `tailLedger` walks backwards through every rotated archive until it has `limit` entries, so `?limit=1000000000` reads the entire history into memory and serialises it into one JSON response. Available at **Viewer** tier — the tier defined as strictly read-only oversight — which makes it the cheapest denial of service in the system.                                                                                                                                                                                                                                                       | `GET /control-ui/governance/ledger?limit=1000000000`.                                                                                                       | **Fixed.** Clamped to `MAX_LEDGER_PAGE` (1000).                                                                                                                                                                     |
+| 83  | **"Allow always" on a chat-delivered escalation writes a permanent policy rule.**                                                                                                                                 | `CHAT-DEPLOYMENTS.md` §2 correctly says a chat user sees the ordinary approval prompt, and §5 of the handoff correctly says a chat user is not a governance account. Neither says that one of the three buttons **writes to `policy.json`**. `allowedDecisions` includes `allow-always`, and `onResolution` calls `addRule` under `HITL_ACTOR`. A person with no account, authenticated only by Discord, creates policy that outlives the conversation.                                                                                                                                             | Read `policy-engine.ts` `onResolution`; the rule is created with `escapeRegExp(resource)` and the agent's scope.                                            | **Fixed.** `allow-always` withdrawn from `allowedDecisions`; the callback no longer writes a rule even if handed that decision.                                                                                     |
+| 84  | **A prompt's full text is in the ledger under the agent's id, so a co-assigned User reads another account's prompts** — while the transcript enforces per-account isolation.                                      | A1's third stated property is "isolation by account… two Users assigned the same agent cannot read each other's prompts". `readConversation` honours it. `recordAdminAction` puts the prompt in `resource` with `agentId` set, and `projectLedgerForActor` filters by **agent** scope, so the other User sees it in full. Two surfaces disagreeing about one privacy property — and the audit trail is the one that is arguably right.                                                                                                                                                              | Prompt as user A, read `GET ledger` as user B assigned the same agent.                                                                                      | **Open.** A design decision rather than a repair — see `ROLE-MODEL.md`.                                                                                                                                             |
+| 85  | **The core credential-file denial is case-sensitive; the filesystems it protects are not.**                                                                                                                       | `realpath` folds an existing file to its on-disk name, so reading `.ENV` when `.env` exists **is** correctly denied — that was checked. The gap is files that do not exist yet: `canonicalize` falls back to `dirname` + the basename _as typed_, so `write` to `NEW.ENV`, `ID_RSA` or `server.PEM` is not denied, and the file the agent creates then keeps that casing for every later read.                                                                                                                                                                                                      | `normalizeGovernedPath("ID_RSA")` → `"ID_RSA"`, matched by no core rule; `"id_rsa"` → denied.                                                               | **Fixed.** Shipped path denials expanded with `anyCase()`.                                                                                                                                                          |
+| 86  | **Relocating the governance directory defeats the core rules that protect it.** `GOVERNANCE_STATE` and the command denial both spell the literal `.openclaw/governance`.                                          | `paths.ts` documents `OPENCLAW_GOVERNANCE_DIR` as a supported deployment feature — "so a deployment can place the ledger on separate storage… without a code change". Doing so silently removes the agent's inability to read the policy, the accounts, the ledger and its key. The protection is written against a path constant rather than against the directory actually in use.                                                                                                                                                                                                                | Set `OPENCLAW_GOVERNANCE_DIR=/srv/gov`; `read /srv/gov/ledger.key` matches no core denial.                                                                  | **Fixed.** `governanceStateRules()` derives both patterns from `governanceHomeDir()` on every load.                                                                                                                 |
+| 87  | **Turning governance off installation-wide is one unconfirmed click; deleting a single rule asks for confirmation.**                                                                                              | The risk gradient in `renderPolicySection` is inverted. `off` is a third segment in the posture control with no dialog, no typed confirmation and no distinct styling, and it is the only action on the page that stops **every** protection for **every** agent. Removing one rule — recoverable in seconds — goes through `confirmThen` with `danger: true`.                                                                                                                                                                                                                                      | `governance-page.ts` `renderPolicySection`, the `mode` segmented control.                                                                                   | **Fixed.** `off` goes through `confirmThen` naming what stops.                                                                                                                                                      |
+| 88  | **Agent ids are free text on every agent-scoped control, and a typo produces a successful-looking kill.**                                                                                                         | The kill switch, the per-agent posture box and the rule scope field all take an unvalidated string; nothing checks it against the running sessions the page has already loaded. `lockDownAgent` appends the id to `lockedAgents` and returns `200` with `abortedRunIds: []`, which the dashboard renders as "no in-flight runs" — indistinguishable from "there is no such agent". **The most time-critical control in the system fails silently on a typo.**                                                                                                                                       | Kill `agent-1` when the agent is `agent1`: `200 OK`, lockdown recorded, nothing stopped.                                                                    | **Fixed.** A datalist of known agent ids, and a warning when the typed id matches none.                                                                                                                             |
+| 89  | The rule list is unfiltered and unsearchable, with a ceiling of 1,000 rules and a 15-second full re-render.                                                                                                       | `MAX_POLICY_RULES` is 1,000; `renderPolicySection` sorts them by tier and renders every one as a settings row, and `AUTO_REFRESH_MS` re-runs the whole refresh every 15 s. The panel is comfortable at the twelve shipped rules and unusable well before the ceiling the store enforces — with no filter by kind, tier, agent or pattern, and no search.                                                                                                                                                                                                                                            | Add 500 rules and open the page.                                                                                                                            | **Open.** UX work, no security consequence.                                                                                                                                                                         |
+| 90  | `POST agent/prompt` holds the HTTP request open for the whole agent run, with no timeout, no cancel control, no streaming and no concurrency cap.                                                                 | Streaming is a known gap (A1 follow-up). The others are not recorded: there is no upper bound on the run, no `AbortSignal` wired from the request so a disconnected client still runs, and nothing stops one User firing concurrent prompts. On the tier defined as least-privileged, that is an unmetered way to consume the Gateway.                                                                                                                                                                                                                                                              | `governance-dashboard-api.ts`, the `agent/prompt` branch.                                                                                                   | **Open.** Robustness work.                                                                                                                                                                                          |
+| 91  | The comment justifying `file://` handling in `resource-extraction.ts` is **false about the host — and it is round one's finding 2, still standing**.                                                              | Finding 2 is recorded above as a "security bypass — a `file://` read reached the tool layer without ever consulting the policy". `web-fetch.ts` rejects every protocol other than `http:`/`https:` before the request is built, and always has. The behaviour that was added is harmless and worth keeping; what is wrong is the **claim**, which has been the first row of this project's defect table since round one and was never checked against the host. It is the round-five habit — reasoning about OpenClaw from assumption — caught in the artefact that documents the project's rigour. | `src/agents/tools/web-fetch.ts:700` and `:553`.                                                                                                             | **Fixed.** Comment corrected, and round one's defect 2 marked as the mistaken claim it was.                                                                                                                         |
+| 92  | `resource-extraction.ts` cites `BUILTIN_TOOL_NAMES` in `src/agents/sessions/tools/index.ts`. No such symbol exists.                                                                                               | The export is `allToolNames`. A small thing on its own; it matters because that citation is the evidence offered for the registry being complete, and it is the same file and the same paragraph as finding 70.                                                                                                                                                                                                                                                                                                                                                                                     | `grep -rn BUILTIN_TOOL_NAMES src/` returns only the comment.                                                                                                | **Fixed.** Corrected to `allToolNames`.                                                                                                                                                                             |
+| 93  | The governance page is English-only: 21 other locales carry no governance keys.                                                                                                                                   | `t()` falls back per key to English, so nothing breaks — an Arabic-locale operator gets an Arabic shell around an English governance page, with no RTL handling. Cosmetic, and worth recording because the deployment context is Amman.                                                                                                                                                                                                                                                                                                                                                             | `grep -c governance ui/src/i18n/locales/*.ts`.                                                                                                              | **Open, and not planned.** One sentence in the report instead.                                                                                                                                                      |
+
+#### Two candidate findings that verification killed
+
+Recorded because the project's standing lesson is that an unchecked assumption
+is the defect, and that cuts both ways — two attacks that _looked_ certain from
+reading the code did not survive being run.
+
+- **Case-aliased reads of an existing credential file.** `.ENV` and `.Env` are
+  correctly denied: the asynchronous `realpath` folds an existing file to its
+  on-disk name before the pattern is applied. (`realpathSync` in a scratch
+  script did _not_, which is what made the attack look real — the two Node APIs
+  behave differently here.) Only the non-existent case survives, as finding 85.
+- **`.env.` and `.env␣` as Win32 filename aliases.** Win32 strips trailing dots
+  and spaces, so these name the same file at the API level — but Node's `fs`
+  returns `ENOENT` for both, so nothing the agent can call actually opens the
+  file. The canonical form is genuinely wrong (`".env."` reaches no rule); it is
+  not exploitable, and reporting it as a bypass would have been false.
+
+#### What round thirteen changed about the project's claims — and what the fixes restored
+
+Stated in both tenses on purpose. The middle column is what the report should
+say about the _review_; the right-hand one is the state of the build.
+
+| Requirement                           | As round 13 found it                                                                                                                                                                                           | After the fixes                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **#3** default-deny over OS resources | Met for the **7 catalogued tools** the registry named, out of 52. The gate was correct and its coverage was one seventh — measured, not estimated                                                              | **Met.** 18 tools governed; the remaining 34 carry a written reason in `DELIBERATELY_UNGOVERNED`, and the guard now compares against the host's own catalogue. Every control surface that reaches the OS — `process`, `computer`, `screen`, `browser`, `mobile_ui`, `nodes`, `gateway`, `automations`, `sessions_spawn`, `subagents`, `code_execution` — is default-denied |
+| **#6** tamper-evident logging         | Three routes defeated detection and **none needed the key**: delete the checkpoint, rewrite history unkeyed, or corrupt `ledger.key` into a zero-length secret. The chain resisted an editor and not a deleter | **Met.** All three closed (76, 77, 78). Residual, unchanged and still documented: an attacker who deletes _both_ the ledger key and the checkpoint leaves nothing on the host to contradict a rewritten chain. Closing that needs an off-host anchor — deployment, not code                                                                                                |
+| **#7** terminate within one second    | Met when the agent id was right and the gate was running. Three ways to report success without stopping anything: a typo'd id, a hand-written `agentMode: off`, and a call carrying no agent id                | **Met.** 80 and 81 closed in the engine; 88 closed in the dashboard, which now offers known ids and warns when the typed one matches none                                                                                                                                                                                                                                  |
+| **#5** record 100% of decisions       | Not raised as a finding — but the deny pass returned on the _first_ refused resource, so a patch touching three forbidden files was recorded as touching one                                                   | **Improved.** Every refused resource is recorded before the block is returned, matching what the allow pass has done since round one                                                                                                                                                                                                                                       |
+
+The honest framing for Chapter 4 is that **none of this needed a design change.**
+Every fix was a registry entry, a widened pattern, a missing length check, or a
+guard pointed at the right artefact. The architecture the report describes was
+sound; what round thirteen measured was the distance between that architecture
+and its application to a fifty-two-tool host.
+
+- The methodological result strengthens rather than changes: round thirteen is
+  the third instance of the registry–host disagreement, and this time the thing
+  that disagreed was **the guard**. See the section below.
+
+### Fourteenth QA pass (what a spawned agent inherits)
+
+Round thirteen governed `sessions_spawn` and `subagents`, which made _starting_
+a further agent a permission an operator grants, and explicitly left the harder
+question open: the child runs under a different agent id, and **every scoping
+decision in this layer keys on that id**. This round answers it.
+
+The premise was checked against the host rather than reasoned about. The child's
+session key is built by `mintSpawnSessionKey` (`src/agents/spawn-plan.ts`) as
+`agent:${targetAgentId}:subagent:<uuid>` — so to governance a cross-agent child
+is not a continuation of the parent, it is **a different principal**. Three
+findings follow, all measured.
+
+| #   | Defect                                                                                                                                                                                     | Why it mattered                                                                                                                                                                                                                                                                                                                                                                                  | Status                                                                                                                                                                                                                                                                                                                                                                                  |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 94  | **The spawn resource did not name the identity being spawned into.** `sessions_spawn` derived `sessions_spawn:spawn` and the prompt, and nothing else.                                     | The `agentId` parameter chooses which agent the child runs as, and the host allows a different one (`resolveSubagentTargetPolicy`). So the one decision with governance consequences — _which principal does this become?_ — was the one an operator could not write a rule about. Spawning as yourself and spawning as the least-restricted agent in the installation were the same permission. | **Fixed.** The target is derived as a second resource, `sessions_spawn:agent:<id>`. Every derived resource must be permitted, so a cross-agent spawn is default-denied until an operator names the target. An omitted `agentId` — the ordinary same-agent spawn — derives nothing extra and is unaffected.                                                                              |
+| 95  | **Agent-scoped confinement was escapable by spawning into another identity.** A denial scoped to `agent-a` did not bind a child running as `agent-b`, which got `agent-b`'s rules instead. | This is the delegation guarantee inverted. `ROLE-MODEL.md` argues that "delegation cannot escalate" because a User writes rules _within_ their agent — and a User whose agent could spawn as a less-restricted one had a route out of their own confinement that no rule expressed.                                                                                                              | **Fixed by 94**, which is the correct level: the escape was that changing identity was free, not that scoping is wrong. Scoping is now what it always claimed to be, and changing identity is a permission.                                                                                                                                                                             |
+| 96  | **A lockdown on the parent does not reach a child already running under another id.**                                                                                                      | Requirement #7 is about stopping a runaway agent, and the blast radius of an agent includes what it started. The parent's identity is nowhere in the child's session key, so this layer has nothing to trace lineage with.                                                                                                                                                                       | **Open, and pinned by a test** that asserts the current behaviour so that closing it makes the test fail. Needs the host to report the requester alongside the child — `spawnedBy` already exists in its spawn records — which is a `HookContext` change, not a policy-engine one. Bounded meanwhile by 94: a cross-agent child exists only where an operator explicitly permitted one. |
+
+Three properties were confirmed to hold and are now asserted rather than assumed:
+a **same-agent** child inherits the parent's rules and lockdown unchanged (the
+identity does not move, so nothing has to be inherited); a **locked** agent
+cannot spawn at all, under any identity, because lockdown is checked before the
+registry lookup; and **core denials bind every principal**, so the escape is a
+confinement gap and never a total bypass.
+
+> **The shape, again.** Round 13's own write-up named this as "the one open item
+> with real security content" and guessed it would need its own round. It did —
+> and what it turned out to be was not a missing check but _two components
+> disagreeing about what an identity is_: the host treats `agentId` as a
+> routing parameter an agent may choose, and governance treats it as the
+> principal every rule is scoped to. Neither is wrong on its own. The fourteenth
+> round is the seventh instance of that pattern in this project.
+
+Two backlog items were closed in the same pass, both of the same shape — a
+check running outside the lock, or outside the boundary, that it was supposed to
+be inside.
+
+| #   | Defect                                                                                                                                                           | Why it mattered                                                                                                                                                                                                                                                                                                                                                                                                                                           | Status                                                                                                                                                                                                                                                                                                               |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 84  | **A prompt's body was readable by any account assigned the same agent**, while the transcript kept prompts private per account.                                  | A1 documents isolation by account as a guarantee and `readConversation` honours it; `projectLedgerForActor` filters by _agent_ scope, so the ledger did not. Settling it meant deciding which surface was right, and the answer was neither: §1.6 requires the text to be **recorded** ("the raw LLM intent"), and accountability does not require every co-manager to **read** it.                                                                       | **Fixed.** The record stays complete — the hash chain still covers the real bytes — and the _view_ narrows. An author sees their own prompts; a peer sees that a prompt happened, when, by whom, against which agent; Administrators and above see everything, because §1.6 gives them advanced auditing explicitly. |
+| —   | **Clash detection ran outside the write lock.** Both authoring surfaces called `detectRuleConflicts` on a policy loaded a moment earlier, then called `addRule`. | Two administrators adding the same rule at the same instant both read a ruleset without it, both saw no clash, and both wrote — so whichever lost the race was told nothing. The duplicate is harmless (identical patterns grant identical access); the **silence** is not, because §1.6 asks for "notifying users when such a conflict appears". Same read-then-write shape as the rule-count ceiling, which had been checked inside the lock all along. | **Fixed.** `addRuleChecked` detects inside `updatePolicy`, against the ruleset it is actually appending to, and returns the clashes with the rule. `addRule` remains as a thin wrapper for the two callers that do not show a warning.                                                                               |
+
+### B1 closed (the configuration that never entered the gate)
+
+Not a QA round. A single finding, carried open by an explicit decision since the
+sixth pass, fixed on its own with its own commit — which is what the deferral
+said it needed.
+
+**The defect.** OpenClaw can run an agent inside a separate helper process (the
+native harness, used by the Codex app-server backend). That process executes
+tools itself and reaches governance only if the host writes a _relay hook_ into
+the helper's configuration at session start. Whether to write it was decided by
+one predicate, `hasBeforeToolCallPolicy()`, which counts **plugin**
+before-tool-call policies and trusted tool policies. This layer is compiled into
+the fork, not installed as a plugin — deliberately, so that no configuration can
+remove it. So the predicate answered "nothing to consult", the relay was omitted,
+and in that configuration every tool call ran with **no policy evaluation, no
+ledger entry, and outside the reach of the kill switch**. It is the only defect
+in the project that removes all three at once, and it removes them silently:
+every dashboard surface still showed a governed installation.
+
+**Why it stayed open for nine rounds.** The obvious fix is one line — make the
+predicate always answer true. It closes the hole and it fails **thirty of
+OpenClaw's own tests**, because the same predicate is what lets the host omit a
+relay in configurations that disable it on purpose. That is a change to a
+subsystem this project does not own, and slipping it into a QA pass would have
+meant a security fix arriving mixed with thirty unargued test edits. It was
+pinned instead by a test in `gate-attachment.test.ts` asserting the _wrong_
+answer on purpose, so the gap lived in the suite rather than only in a document.
+
+That reasoning held. The correct fix breaks **zero** host tests: 18 failed / 174
+passed before and after, the same nine distinct names (the pre-existing upstream
+failures in `UPSTREAM-BUG-REPORT.md`, each reported twice because the suite runs
+under two projects). Measured by stashing the change, running, restoring, and
+running again. **The thirty failures were never the price of closing the hole —
+they were the signature of closing it in the wrong place.**
+
+| #   | Defect                                                                                                                                                                                                                                                                                                           | Why it mattered                                                                                                                                                                                                                                                                                                                            | Status                                                                                                                                                                                                                                                                       |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1  | **The relay decision could not see the gate.** `hasBeforeToolCallPolicy()` enumerates plugins; governance is in the core. On a plugin-free install with the Codex app-server backend and the loop-detection relay disabled, the relay hook was never written and the helper executed tools on its own authority. | No rule evaluated, no ledger entry — not even `ungoverned`, since a call that never reaches the gate cannot be recorded as anything — and no kill switch, which is enforced at the same gate. Requirements #3, #5 and #7 all had a hole with no surface reporting it.                                                                      | **Fixed.** `governanceRequiresNativeToolRelay()` (`src/governance/native-relay-requirement.ts`) is a second, independent signal, combined with `or`. The plugin predicate is unchanged, so governance can add a reason to consult the gate and never removes anybody else's. |
+| B1b | **The tool matcher would have left the hole open one level down.** Relaying the _event_ is not relaying every _tool_: the host also computes a matcher from the union of the plugin hooks' scopes.                                                                                                               | An install carrying one narrowly-scoped plugin hook — say one watching `exec` — would have relayed `exec` and nothing else, leaving every other call ungoverned **while the relay was present and looked correct**. Worse than the original defect, because it presents as fixed. Found by reading the consumer rather than the predicate. | **Fixed.** Governance forces the matcher to "every tool" (`undefined` on the wire).                                                                                                                                                                                          |
+| B1c | **The cold-start fallback answered _allow_.** The generated relay command carries `--pre-tool-use-unavailable noop`, which tells the relay process to permit the call when it cannot reach the host.                                                                                                             | Correct only when there is no policy to consult — and the host sets the flag from exactly the predicate B1 corrects.                                                                                                                                                                                                                       | **Fixed, inherited.** A governed installation now omits the flag automatically, so an unreachable gate refuses rather than waving through. Fail-closed on the failure path came out of repairing the condition rather than special-casing its consumers.                     |
+
+**The design decision worth defending.** `governanceRequiresNativeToolRelay()`
+is true for every installation; the single exception is a test process that never
+asked for a governance directory. That exception is not invented for this fix —
+`loadPolicy` already hands such a process `mode: "off"`, for the reasons recorded
+at `isUnconfiguredTestRun` (finding 46). The relay requirement is **derived from
+that same function** rather than restating the condition, because this project's
+defect list is overwhelmingly two components that disagreed while each was
+correct alone. A private copy of "is this a real installation?" could drift, and
+the drift that matters runs one way: a governed installation whose harness
+sessions are quietly ungoverned. `qa-round15.test.ts` asserts the _agreement_,
+reading both sides on a fresh policy in both environments, rather than asserting
+either half.
+
+**Rejected: relay only when the posture would act.** Skipping the relay while
+governance is `off` looks like free efficiency and is not safe. The relay is
+configured once per harness session; the posture lives in a file another process
+may change at any moment. An operator turning governance **on** mid-session
+would not be governed until that session ended, and nothing would say so. The
+saving is also per session, not per tool call.
+
+**Residual, stated plainly.** The fix guarantees the relay hook is installed and
+covers every tool. It cannot guarantee the helper process honours its own hook
+configuration — that is a third-party binary, and a layer inside the host can
+compel its host, not a separate program. What it can do is refuse when no answer
+comes back, which B1c provides.
+
+**Evidence.** `qa-round15.test.ts` (8) and the rewritten block in
+`gate-attachment.test.ts` (10, replacing the deliberately-wrong assertion).
+Governance suite **1,404 passing across 64 files**, from 1,393 across 63. Both
+typechecks clean. Codex extension relay tests (15) and the relay CLI tests
+unchanged. Host harness suite unchanged at its 18/174 baseline.
+
+### A1 follow-ups, and the last of round thirteen (2026-08-21)
+
+Not a QA round. The three follow-ups A1 created, plus the four round-thirteen
+items left open when its fixes landed. One new defect was found on the way, and
+it was found by a _feature_ rather than by a review.
+
+#### The defect the work uncovered
+
+| #   | Defect                                                                                                                                                                                                                                                                                 | Why it mattered                                                                                                                                                                                                                                                                                                                                                                                                                          | Fix                                                                                                                                                                                                                                  |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 97  | **The per-user escalation override was written under one key and read under another.** `POST policy/user-ask` stored `doc.userAsk[username.trim()]` — whatever spelling Root typed — while `resolveAskMode` looked up `doc.userAsk[user.username]`, the spelling held in `users.json`. | An override set for `malek` on an account created as `Malek` was written, returned to the client, displayed as active, and **never consulted by the engine**. A governance control that reports success and does nothing is worse than one that is missing, because a missing control gets noticed. Root's half of the §1.6 escalation model was silently inert for any account whose name was typed differently from how it was stored. | One canonical definition (`account-name.ts`) with four importers, replacing three private copies of the same fold in `user-store.ts`, `login-throttle.ts` and `agent-conversation.ts`. Both sides of the lookup now fold through it. |
+| 98  | **Moving to a canonical key space would have opened a prototype-pollution route** that did not previously exist. The route checked `isSafeObjectKey(username.trim())` _before_ folding.                                                                                                | `"__PROTO__"` passes a check on the raw input and becomes `"__proto__"` on the way in. It was harmless only because the key was also _stored_ raw. Fixing the key space without moving the guard would have introduced the defect the fix was cleaning up after.                                                                                                                                                                         | `isSafeAccountKey` is documented as taking the canonical form, and the route checks after folding. Asserted directly.                                                                                                                |
+
+Both are the project's standing shape. #97 is notable for _how_ it surfaced: not
+an attack, not a review pass, but a feature being made to read a value another
+part had written. **This class of defect appears when two components are finally
+made to talk** — an argument for building the connections rather than only the
+parts.
+
+#### Closed, with what each turned out to be
+
+| Item                                             | Status                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A1 — wire `userAsk` to the prompting account** | **Done.** A governance prompt carries its account in the session key, so the axis resolves for that account alone; every other run keeps the strictest-across-holders approximation, which is correct where no one person started the run. Widens in exactly one case — a co-assigned account's `off` no longer binds somebody else's prompt — which is the correction, argued in `CHAPTER3-MATERIAL.md` §3.5.16 and asserted in a test. |
+| **A1 — streaming**                               | **Done.** Snapshots rather than deltas, over SSE on a POST. Snapshots because the host's own OpenAI surface must _fail_ a stream when a model retracts text, and because a secret split across two deltas matches no pattern in either half — a snapshot is redacted complete. POST because `EventSource` only issues GET, which would put the prompt text in a URL that browser history, proxies and the Gateway's access log all keep. |
+| **Q-90 — timeout, cancellation, concurrency**    | **Done**, with streaming, as that finding predicted. Five-minute timeout; cancellation by run id, owned by the account that asked and reachable by Administrator and above; per-account and installation caps. **Reclassified while fixing:** filed as "robustness, no security consequence", it is a denial of service available to the lowest tier that can act — the third time this project has found that family (Q-79, Q-82).      |
+| **Q-89 — the rule panel could not be searched**  | **Done.** Search plus filters by kind, tier, effect and scope, extracted to `rule-filter.ts` with 14 tests. Filed as UX; it is also auditability — the panel is where somebody answers "what actually permits this?" during an incident.                                                                                                                                                                                                 |
+| **Q-93 — English-only**                          | **Settled as a scope decision.** The product is English-only by choice, not for want of time. Filling 21 locales means shipping strings nobody on the team can verify into a security console, where a mistranslated `deny` is a control an operator misreads.                                                                                                                                                                           |
+| **A1 — attachments**                             | **Held, with the analysis recorded.** Requirement #8 is honoured for prompt text by redacting every recorded string, and redaction is a text operation while an image is not text. Three possible answers, seven vulnerabilities the build must answer, and the order to decide them: `REMAINING-WORK.md` §3c.                                                                                                                           |
+
+#### Design decisions worth defending
+
+**Cancellation is not the kill switch.** Cancelling withdraws one prompt;
+lockdown stops an agent doing anything at all and must be released by hand.
+Collapsing them would train an operator to reach for the emergency control in
+ordinary circumstances, which is how an emergency control stops being believed.
+
+**The caps bound work, not requests.** An abort _asks_ a run to stop; the slot is
+released when the run unwinds. Releasing it on the request would let an account
+cancel-and-resend in a loop and keep an unbounded number of runs alive on the way
+out — the same "asking is not stopping" distinction §3.5.10 draws for the kill
+switch.
+
+**Two caps, because one is a privilege inversion.** An installation-wide cap
+alone would let a single User hold every slot and lock Root out: the least
+privileged tier deciding whether the most privileged one may act. Each account is
+bounded first.
+
+**The live stream is redacted like the record.** Requirement #8 names log files,
+so this is stricter than required, deliberately — a live view showing what the
+stored record hides is a way to read what was redacted, and it is the same
+person reading both.
+
+**There is no `governance agent cancel` command,** and that is architecture
+rather than omission: the in-flight table is per process and the CLI runs the
+agent in its own. A command that could only cancel a run typed into the same
+terminal is not a control; one that appeared to reach the Gateway's runs but
+could not would be a surface reporting success it did not achieve. Ctrl-C
+cancels the CLI's own run.
+
+#### One defect in a new test, worth recording
+
+A capacity test passed alone and failed in the full suite. `promptAgent` does
+real work before it reaches the run registry — load the policy, append the
+ledger entry, write the transcript turn — so "start N prompts, then start one
+more" **races**: the extra call could reach `beginPromptRun` first, take a slot,
+and leave one of the earlier calls refused while the test waited forever on a
+prompt that was never held.
+
+The product behaved correctly throughout; the test asserted an ordering it had
+not established. Fixed by synchronising on the runner — the helper waits until
+every held prompt has actually claimed its slot — rather than by sleeping.
+Runtime for that file fell from 129s (a 120s vitest timeout plus teardown) to
+11.6s.
+
+Recorded because of the class it belongs to: **a test that passes in isolation
+and fails in company is reporting a real ordering assumption**, and this
+project's own history is mostly about assumptions nobody stated. The instinct to
+re-run it alone and move on is the one to resist.
+
+**Evidence.** `user-ask-axis.test.ts` (13), `prompt-runs.test.ts` (14),
+`rule-filter.test.ts` (14), plus 8 new integration tests in
+`agent-conversation.test.ts` and two new routes in the privilege matrix.
+
+### The dashboard driven by hand (2026-08-21)
+
+Not a QA round: a usability pass over the one surface every previous claim about
+this project had only ever been _typechecked_. Honest caveat 4 said the
+dashboard had never been driven end to end. It has now.
+
+**Method.** Control UI built, served by a real Gateway, pointed at a throwaway
+governance directory so the operator's own state was untouched. Used the way a
+new operator uses it — bootstrap Root, sign in, read the policy, add an account,
+open a conversation — with findings taken from what the page _did_, not from
+reading its source.
+
+#### Two candidates that driving it killed
+
+Reported first, because they are the argument for running the thing rather than
+reading it.
+
+- **"Governance is missing from the settings navigation."** The accessibility
+  tree listed fifteen settings links without it. Wrong: the tree was truncated
+  at fifteen. Enumerating the links directly found Governance present and
+  visible between _Privacy & Security_ and _Approvals_.
+- **"Delete on the Root row can never work."** Root is permanent, so the button
+  looked as dead as the role picker. **Left alone — but the first reason given
+  was wrong and is corrected here.** The initial reading was that emptying the
+  account list is a permitted teardown; it is not. `guardDeletion` refuses
+  deleting the account you are signed in with, and `guardRootPermanence` refuses
+  deleting the only Root, so both refuse when Root is the only account. What
+  makes the control correct is simpler and had been missed by reading rather than
+  looking: **the button is already disabled on your own row**, with a tooltip
+  saying why. Now asserted in `core-invariants.test.ts`.
+
+Same shape as the two attacks verification killed in round thirteen.
+
+| #   | Defect                                                                                                                                                                                                                                                                       | Why it mattered                                                                                                                                                                                                                                                                                                                                   | Fix                                                                                                                                                                                                               |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 99  | **The rule list was written for the engine, not for a person.** Each row's title was the raw regular expression — the shipped credential denial is 200+ characters of case-folded alternation — with the human sentence describing it buried after the kind, tier and scope. | This is the panel an operator reads during an incident to answer "what is actually allowing this?". A fresh install opens on sixteen rules, ten of them core denials, none recognisable at a glance. Requirement #2 asks for an interface an administrator configures policy through; a list that must be decoded is not one.                     | Description becomes the title; the pattern moves to a monospace line beneath it, complete and exact. A rule with no description falls back to its pattern, which is then genuinely its best name.                 |
+| 100 | **The account form offered a `root` role that is always refused.** Driving it produced the server's own words: "A Root account already exists; there can be only one."                                                                                                       | A control whose only possible outcome is a refusal — while the same page, two panels up, deliberately hides the Remove button on a core rule _because the server would refuse it_. The page contradicted its own stated principle.                                                                                                                | `root` removed from the assignable roles; the Root row states `root — permanent, cannot be changed` rather than offering a segmented control that cannot move.                                                    |
+| 101 | **The one irreversible step had the weakest confirmation.** Creating Root took a username and a single password field — no confirmation, and no statement of the 8-character minimum that the _ordinary_ account form below already prints in its placeholder.               | There is no password reset for Root: bootstrap refuses once any account exists, Root cannot be demoted or deleted, and the reset route requires being signed in as Root. A typo locks the operator out permanently, recoverable only by deleting `users.json` on the server. The cheapest mistake on the page had the most expensive consequence. | Confirmation field on the bootstrap form only — friction belongs where a mistake is expensive and nowhere else — the minimum stated before the request, and a hint saying the password cannot be reset from here. |
+| 102 | **A failed transcript load rendered as a permanent "Loading…".** The early return printing "Loading the conversation…" sat _above_ the block that renders the error `openConversation` had just set.                                                                         | Observed live: a spinner that never resolves, with the explanation rendered nowhere. A progress message that cannot end is worse than an error, because it tells the operator to keep waiting.                                                                                                                                                    | The early return shows the error when there is one; the loading message only when a load is genuinely in flight.                                                                                                  |
+| 103 | **Seven inputs and three selects had no accessible name**, relying on their placeholder.                                                                                                                                                                                     | The sign-in form carries a comment explaining exactly why that is wrong — a placeholder is not reliably exposed as an accessible name and disappears once the field has content, so the hint vanishes when somebody reviewing what they typed needs it. The rest of the page did not follow its own documented standard.                          | `aria-label` on all ten. Verified by enumerating every control in `<main>`: zero unlabelled.                                                                                                                      |
+
+**Evidence.** Each fix confirmed in the running browser, not only by typecheck:
+the rule row reads `DENY Credential files (.env, private keys, .npmrc, .netrc)`;
+role options are `viewer, user, administrator`; a mismatched confirmation says
+so, a five-character password says so, and a valid pair signs in; the failure
+state renders its error; the unlabelled-control enumeration returns empty.
+`tsgo:ui` clean, 107 UI tests passing, no new lint findings.
+
+> **What it says about the method.** Every one of these five sat underneath a
+> passing test suite. The HTTP layer refused a second Root exactly as designed —
+> and the page offered the button anyway. The transcript route returned its
+> error exactly as designed — and the page showed a spinner. **Testing the API
+> is not testing the interface**, and §1.3 #2 is written about the interface.
+
+### Three properties, checked rather than assumed (2026-08-21)
+
+Three guarantees the installation is supposed to make. All three were stated in
+prose; none had a test asserting it as a _property_; one was not true on any
+surface an operator can reach. Now `core-invariants.test.ts`, 15 assertions.
+
+| #   | Property                                              | Was                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Now                                                                                                                                                                                                                                                                                                           |
+| --- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 104 | **Root can change its own password.**                 | **Broken in practice.** `POST users/password` was correct and complete — Root-only, accepts Root's own id, validates length, records an actor, revokes sessions — and **no surface called it**: not the dashboard client, not the page, not the CLI. The account governing every other one had a password that could not be changed after the moment it was first typed, on a screen whose bootstrap step is already irreversible. The R5 shape for the third time. | A per-row password control in the Accounts panel, for every account including Root's own, behind a confirmation stating that all sessions are revoked and that a self-reset signs you out at once. Verified in a browser: changed Root's password, was signed out, old password refused, new password worked. |
+| —   | **Exactly one Root, always.**                         | True, but each guard had only ever been checked alone — which is how round eleven found the two halves contradicting each other's error messages.                                                                                                                                                                                                                                                                                                                   | All four routes driven (create, promote, demote, delete — by another account and by itself), then the Root count asserted after every refusal.                                                                                                                                                                |
+| —   | **A fresh install is usable and still default-deny.** | True, but evidenced by the _presence_ of `BASELINE_RULES` rather than by what an agent can do.                                                                                                                                                                                                                                                                                                                                                                      | Behaviour asserted on an unedited policy: `ls`/`pwd`/workspace reads allowed with no operator rule; `sudo -i`, `.env` and the metadata endpoint blocked; an unlisted command still denied; shipped posture `enforce`.                                                                                         |
+
+**A correction to the previous entry.** The hands-on UI pass recorded that Delete
+on the Root row was legitimate because emptying the account list is a permitted
+teardown. That is wrong — both account guards refuse it. The control is still
+correct, for a reason reading the page had missed: it is already **disabled** on
+your own row. Right conclusion, wrong reason, now asserted either way.
+
+**Deliberately not on the CLI.** A `governance users set-password` command would
+be an unauthenticated credential reset for the account that governs the
+installation, because the CLI has no login (A6). The core denial on `governance`
+subcommands stops an _agent_ reaching it; it is a backstop, not an
+authentication. Recorded as a divergence from the all-three-surfaces rule with
+its reason, rather than as an omission.
+
+> **A property stated in a document is a claim about the system. A property
+> asserted in a test is a claim the system has to keep making.** All three of
+> these were claimed in documents this project maintains carefully. One was
+> false everywhere it mattered.
+
+### The finding that runs through all fourteen rounds
+
+Almost none of these ninety-six defects was a missing check. Nearly every one
+was **two parts of the system disagreeing**: the gate and the host about which
+tools exist (22, and again 62 and 63); our tests and the host's about what
+passing means (round six); a test harness and the server about a missing route
+(50); two constants about when to give up (55); the deny pass and the allow pass
+about which rules either owned (57); the resolver and the rule about how many
+ways an address can be spelled (64); the documentation and the API about whether
+a feature was reachable (66); the host and governance about what an identity is
+(94); and, at the outermost level of all, the host asking "are there plugin
+policies?" while meaning "is there anything to consult?" (B1).
+
+Round twelve adds the case where the two sides _agreed_ and nobody had checked:
+the gate and the host's channel session keys. No defect, and the test that now
+asserts it is worth as much as one — the property was load-bearing for the kill
+switch on every chat deployment, and the suite had no opinion about it either
+way. **An untested agreement is not a working one; it is an unexamined one.**
+
+Round thirteen adds the case the previous twelve could not produce, and it is
+the strongest form of the claim: **the disagreement was inside the guard.**
+Round eleven's durable fix was a test comparing the governed-tool registry
+against the host's own tool list, written precisely so that findings 22, 62 and
+63 could not happen a fourth time. It compares against `allToolNames` — seven
+session tools — while the host declares fifty-six in `tool-catalog.ts`. The test
+passes, has always passed, and cannot fail. Forty-five ungoverned tools sat
+behind a green check whose entire purpose was to count them (finding 70).
+
+So the sequence over thirteen rounds is:
+
+1. the code was wrong, and the tests agreed with it because both came from one
+   assumption (round five);
+2. the tests were wrong, because they were ours and never the host's (round six);
+3. the harness was wrong, because it and the server disagreed about a missing
+   route (round seven);
+4. **the guard against all of the above was wrong, because it was pointed at the
+   wrong authority** (round thirteen).
+
+Each layer added to catch the previous one inherited the same flaw one level up.
+The generalisation is not "write more checks" — it is that **a check carries an
+implicit claim about what it is comparing against, and that claim is exactly as
+unexamined as the code was before the check existed.** Every guard should be
+able to answer, in writing, which artefact is its source of truth and why that
+artefact is authoritative. Round eleven's could not, and nobody asked.
 
 None is visible by reading either side carefully. That is the honest
 methodological result of the project, and a better Chapter 4 argument than any
@@ -519,3 +1226,23 @@ Design decisions worth writing up, with the reasoning behind each:
    in-flight commands; the `User` tier has no distinct capability yet; the
    governed-tool table is an allowlist of known tool names, so a newly added
    tool is ungoverned until registered in `resource-extraction.ts`.
+6. **The allowlist's blind spot is structural, and rounds five and eleven are
+   the evidence.** A registry of known tool names cannot be verified by reading
+   itself — round five found it naming tools the host does not have, round
+   eleven found it omitting three the host does have. Both were invisible from
+   inside the module and obvious the moment it was compared against
+   `allToolNames`. Two mitigations now exist. The `ungoverned` verdict makes
+   each gap _visible in the ledger_ rather than silent — which is how finding 62
+   was found at all. And `qa-round11.test.ts` now puts the two lists side by
+   side on every run: every built-in tool must be registered in the gate or
+   listed in `DELIBERATELY_UNGOVERNED` with a written reason. That test would
+   have failed on the day `grep` was added, and it converts "somebody has to
+   remember" into "the suite refuses". The general lesson for Chapter 4 is that
+   a list which cannot be checked against its source is a latent defect however
+   carefully it is written.
+7. **Recursion is a coverage boundary the parameters cannot express.** `grep`,
+   `find` and `ls` are governed on the root they are pointed at, but they read
+   everything beneath it, so a search rooted at the workspace still reaches a
+   file a core denial names. Closing that needs the tool to report the files it
+   actually opened — an `after_tool_call` change to the host — and is stated in
+   the code rather than left for a reader to discover.

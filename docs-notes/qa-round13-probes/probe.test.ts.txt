@@ -1,0 +1,153 @@
+// TEMPORARY QA probe — delete after the review.
+import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { evaluateGovernancePolicy } from "./policy-engine.js";
+import { resolveGovernedTool } from "./resource-extraction.js";
+import { loadPolicy, savePolicy } from "./policy-store.js";
+
+let dir: string;
+let workspace: string;
+
+beforeEach(async () => {
+  dir = await mkdtemp(join(tmpdir(), "gov-probe-"));
+  process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  workspace = await mkdtemp(join(tmpdir(), "gov-probe-ws-"));
+});
+afterEach(async () => {
+  delete process.env.OPENCLAW_GOVERNANCE_DIR;
+  await rm(dir, { recursive: true, force: true });
+  await rm(workspace, { recursive: true, force: true });
+});
+
+const ctx = () => ({ agentId: "agent-a", sessionKey: "agent:agent-a:main", cwd: workspace });
+
+function verdict(d: Awaited<ReturnType<typeof evaluateGovernancePolicy>>): string {
+  if (!d) return "allow";
+  return "block" in d ? "block" : "ask";
+}
+async function strict(): Promise<void> {
+  const doc = await loadPolicy();
+  await savePolicy({ ...doc, mode: "enforce", ask: "off" });
+}
+
+describe("PROBE 1 — host tools outside the governed registry", () => {
+  it("reports which catalog tools have no extractor", () => {
+    const catalog = [
+      "read","write","edit","apply_patch","exec","process","code_execution","web_search",
+      "web_fetch","x_search","memory_search","memory_get","sessions","sessions_list",
+      "sessions_history","sessions_search","conversations_list","conversations_send",
+      "conversations_turn","sessions_send","sessions_spawn","agents_wait","sessions_yield",
+      "subagents","session_status","spawn_task","dismiss_task","browser","screen","dashboard",
+      "terminal","canvas","show_widget","message","heartbeat_respond","automations","gateway",
+      "nodes","computer","mobile_ui","agents_list","get_goal","create_goal","update_goal",
+      "update_plan","ask_user","skill_workshop","image","image_generate","music_generate",
+      "video_generate","tts","grep","find","ls",
+    ];
+    const ungoverned = catalog.filter((t) => resolveGovernedTool(t) === undefined);
+    console.log("UNGOVERNED CORE TOOLS:", JSON.stringify(ungoverned));
+    expect(ungoverned.length).toBe(0);
+  });
+
+  it("lets `process` type a command into a running shell, ungoverned", async () => {
+    await strict();
+    const d = await evaluateGovernancePolicy(
+      { toolName: "process", params: { action: "write", sessionId: "s1", data: "sudo -i\n" } },
+      ctx(),
+    );
+    expect(verdict(d)).toBe("block");
+  });
+
+  it("lets `computer` type into the desktop, ungoverned", async () => {
+    await strict();
+    const d = await evaluateGovernancePolicy(
+      { toolName: "computer", params: { action: "type", text: "sudo rm -rf /" } },
+      ctx(),
+    );
+    expect(verdict(d)).toBe("block");
+  });
+});
+
+describe("PROBE 2 — core denial spelling gaps", () => {
+  it("denies IPv4-mapped IPv6 spelling of the metadata endpoint", async () => {
+    await strict();
+    const d = await evaluateGovernancePolicy(
+      { toolName: "web_fetch", params: { url: "http://[::ffff:169.254.169.254]/latest/meta-data/" } },
+      ctx(),
+    );
+    expect(verdict(d)).toBe("block");
+  });
+
+  it("denies the hex IPv6 spelling of the metadata endpoint", async () => {
+    await strict();
+    const d = await evaluateGovernancePolicy(
+      { toolName: "web_fetch", params: { url: "http://[::ffff:a9fe:a9fe]/latest/meta-data/" } },
+      ctx(),
+    );
+    expect(verdict(d)).toBe("block");
+  });
+
+  it("denies sudo after a newline separator", async () => {
+    await strict();
+    const doc = await loadPolicy();
+    await savePolicy({
+      ...doc,
+      rules: [...doc.rules, {
+        id: "probe-allow", resourceKind: "command", effect: "allow", tier: "admin",
+        pattern: "^echo hi\nsudo -i$", createdAt: new Date().toISOString(), createdBy: "probe",
+      } as never],
+    });
+    const d = await evaluateGovernancePolicy(
+      { toolName: "exec", params: { command: "echo hi" + String.fromCharCode(10) + "sudo -i" } },
+      ctx(),
+    );
+    expect(verdict(d)).toBe("block");
+  });
+
+  it("denies a Windows-separator command naming the governance directory", async () => {
+    await strict();
+    const doc = await loadPolicy();
+    await savePolicy({
+      ...doc,
+      rules: [...doc.rules, {
+        id: "probe-allow2", resourceKind: "command", effect: "allow", tier: "admin",
+        pattern: "^type .*$", createdAt: new Date().toISOString(), createdBy: "probe",
+      } as never],
+    });
+    const d = await evaluateGovernancePolicy(
+      { toolName: "exec", params: { command: ["type C:", "Users", "x", ".openclaw", "governance", "policy.json"].join(String.fromCharCode(92)) } },
+      ctx(),
+    );
+    expect(verdict(d)).toBe("block");
+  });
+});
+
+describe("PROBE 3 — path handling", () => {
+  it("blocks reading a credential file reached through a symlinked directory", async () => {
+    await strict();
+    await mkdir(join(workspace, "secrets"), { recursive: true });
+    await writeFile(join(workspace, "secrets", ".env"), "S=1\n");
+    const d = await evaluateGovernancePolicy(
+      { toolName: "read", params: { path: "secrets/.env" } },
+      ctx(),
+    );
+    expect(verdict(d)).toBe("block");
+  });
+
+  it("blocks a write to a credential file via apply_patch derivedPaths", async () => {
+    await strict();
+    const d = await evaluateGovernancePolicy(
+      { toolName: "apply_patch", params: {}, derivedPaths: [join(workspace, ".env")] },
+      ctx(),
+    );
+    expect(verdict(d)).toBe("block");
+  });
+
+  it("records what happens for a read with no path param", async () => {
+    await strict();
+    const d = await evaluateGovernancePolicy({ toolName: "read", params: {} }, ctx());
+    console.log("read-with-no-path verdict:", verdict(d));
+    expect(verdict(d)).toBe("block");
+  });
+});

@@ -84,15 +84,16 @@ one — for every tier, **including Root**.
 > authority has been persuaded, mistaken, or compromised. Changing these means
 > editing the source and redeploying: a reviewable act, not a click.
 
-| Rule                                                                                                                               | Kind    | Why                                                                                                                                                                                                                                                             |
-| ---------------------------------------------------------------------------------------------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.env`, `.npmrc`, `.netrc`, `.git-credentials`, `id_rsa`/`id_dsa`/`id_ecdsa`/`id_ed25519`, `*.pem`, `*.pfx`, `*.p12`, `*.keystore` | path    | Credential material. Matched by **filename, not location** — a private key copied into the project is still a private key, and a rule keyed to `~/.ssh` alone would wave it through                                                                             |
-| `.ssh/`, `.aws/`, `.gnupg/`, `.docker/`, `.kube/`                                                                                  | path    | Directories whose entire contents are credentials                                                                                                                                                                                                               |
-| `~/.openclaw/governance/`                                                                                                          | path    | The policy, the accounts, the audit ledger, its signing key and checkpoint. An agent that can write here could grant itself permissions or erase the record of having done so — which would make every other guarantee conditional on the agent choosing not to |
-| `sudo`, `su`, `doas`, `runas`, `pkexec`                                                                                            | command | Privilege escalation. Matched at the start of the command or after `;`, `&`, `\|`, so chaining does not evade it                                                                                                                                                |
-| any command naming `.openclaw/governance`                                                                                          | command | The command-side counterpart of the path rule above: a path rule does not see `rm -rf ~/.openclaw/governance`, because that is a _command_ resource                                                                                                             |
-| `shutdown`, `reboot`, `halt`, `poweroff`, `mkfs`, `fdisk`                                                                          | command | Host destruction. No agent task needs them, and the cost of being wrong is total                                                                                                                                                                                |
-| `169.254.169.254`, `metadata.google.internal`                                                                                      | network | Cloud instance metadata. Reaching it from a compromised workload is the standard route to stealing a machine's cloud credentials                                                                                                                                |
+| Rule                                                                                                                                                            | Kind    | Why                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `*.env`, `.npmrc`, `.netrc`, `.git-credentials`, `id_rsa`/`id_dsa`/`id_ecdsa`/`id_ed25519`, `*.pem`, `*.pfx`, `*.p12`, `*.keystore` — **in any capitalisation** | path    | Credential material. Matched by **filename, not location** — a private key copied into the project is still a private key, and a rule keyed to `~/.ssh` alone would wave it through. Case-insensitive since QA round 13: the filesystems this protects are case-insensitive and the rule was not, so a file the agent _created_ as `ID_RSA` escaped it                                                                                           |
+| `.ssh/`, `.aws/`, `.gnupg/`, `.docker/`, `.kube/` — in any capitalisation                                                                                       | path    | Directories whose entire contents are credentials                                                                                                                                                                                                                                                                                                                                                                                                |
+| The governance directory **actually in use**, derived from `governanceHomeDir()` on every load, plus the default `~/.openclaw/governance/`                      | path    | The policy, the accounts, the audit ledger, its signing key and checkpoint. An agent that can write here could grant itself permissions or erase the record of having done so — which would make every other guarantee conditional on the agent choosing not to. Derived rather than hard-coded since QA round 13: `OPENCLAW_GOVERNANCE_DIR` is a documented deployment option, and using it silently moved the state outside its own protection |
+| `sudo`, `su`, `doas`, `runas`, `pkexec`                                                                                                                         | command | Privilege escalation. Matched wherever the name appears as a command — at the start of the string, after any character that cannot be part of a command name, and through a path prefix such as `/usr/bin/sudo`. The earlier form enumerated three separators (`;`, `&`, `\|`) and was defeated by a backtick, `$(`, an environment prefix, plain leading whitespace, an absolute path, and a newline                                            |
+| any command naming the governance directory, in **either** path separator                                                                                       | command | The command-side counterpart of the path rule above: a path rule does not see `rm -rf ~/.openclaw/governance`, because that is a _command_ resource. The Windows spelling with `\` was not matched until QA round 13 — on the platform this project is developed on                                                                                                                                                                              |
+| `governance <policy\|agent\|kill\|ledger\|sessions\|pending\|users>`                                                                                            | command | **The governance command line itself.** It needs no login, so any operator rule broad enough to let the agent build the project (`^(node\|npm\|npx\|pnpm) .*$`) let it run `openclaw governance policy set-mode off` and switch the whole gate off. A backstop against the _agent_; a person with shell access is A6's problem and needs a CLI login                                                                                             |
+| `shutdown`, `reboot`, `halt`, `poweroff`, `mkfs`, `fdisk`                                                                                                       | command | Host destruction. No agent task needs them, and the cost of being wrong is total                                                                                                                                                                                                                                                                                                                                                                 |
+| `169.254.169.254`, `100.100.100.200`, `::ffff:a9fe:a9fe`, `fd00:ec2::254`, `metadata`, `metadata.google.internal`                                               | network | Cloud instance metadata. Reaching it from a compromised workload is the standard route to stealing a machine's cloud credentials. The IPv4-mapped IPv6 form is folded to dotted-decimal by the canonicaliser rather than listed, so it is caught by the first entry                                                                                                                                                                              |
 
 ### The honest limitation, stated plainly
 
@@ -114,6 +115,118 @@ depth against a careless later rule — a second line, not the line.
 This is worth stating in the report because it explains why the baseline
 allowlist is so much narrower than it might otherwise be: it is carrying the
 security argument, so it cannot afford to be generous.
+
+#### Measured, in the thirteenth QA round — and widened
+
+The paragraph above was written as an argument. Round thirteen turned it into a
+measurement, and the backstop was thinner than the prose implied. With a broad
+allow rule in place so that only the core denials could refuse, every one of
+these reached the shell. **All are now denied**; the table is kept because the
+list of spellings is the useful part, and because it shows what an enumerating
+denylist is up against.
+
+| Spelling                                              | Denied? | Why not                                                                                                           |
+| ----------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------- |
+| `sudo -i`                                             | yes     | —                                                                                                                 |
+| `ls; sudo -i`                                         | yes     | —                                                                                                                 |
+| `` echo `sudo -i` ``                                  | **no**  | a backtick is not in the separator class `[;&\|]`                                                                 |
+| `echo $(sudo -i)`                                     | **no**  | nor is `$(`                                                                                                       |
+| `FOO=1 sudo -i`                                       | **no**  | an environment prefix is neither the start of the string nor a separator                                          |
+| `␣␣sudo -i`                                           | **no**  | `(^\|[;&\|]\s*)` requires the metacharacter _before_ the whitespace, so plain leading spaces defeat both branches |
+| `/usr/bin/sudo -i`                                    | **no**  | the pattern names the bare command, not a path to it                                                              |
+| `ls⏎sudo -i`                                          | **no**  | the expression has no `m` flag, so `^` matches only at the start of the string                                    |
+| `type %USERPROFILE%\.openclaw\governance\policy.json` | **no**  | the governance-directory denial spells the path with `/`, and Windows commands use `\`                            |
+
+The last row was the one that had to be fixed regardless of the argument above,
+because it is not an indirection at all — it is the _plain_ spelling of the
+forbidden thing on the platform this project is developed on.
+
+The fix replaces the enumerated separator class with a **constructed** one.
+`commandNamed()` matches a command name preceded by the start of the string or
+by any character that cannot be part of a command name, with an optional path
+prefix:
+
+```
+(?:^|[^A-Za-z0-9_.-])(?:[A-Za-z0-9_.:\\/-]*[\\/])?(?:sudo|su|doas|runas|pkexec)\b
+```
+
+That covers every row above by construction rather than by naming disguises,
+which is the same move `path-normalize.ts` makes for files and
+`canonicalHostname` makes for addresses. It blocks _more_ than strictly
+intended — `echo "not sudo"` matches — and that is the documented trade in
+this file's header: blocking more than intended is safer than blocking less. A
+test asserts the boundary in both directions, including that `mysudoku` and
+`git commit -m sudoku` are **not** refused.
+
+The honest framing is unchanged and still the important part: a denylist over
+shell strings is a second line, no amount of widening makes it the first, and
+`su""do -i` still defeats it because shell quoting splits the command name
+itself. The test says so explicitly rather than leaving the boundary implied.
+
+#### The credential-file denial was case-sensitive
+
+Also measured in round thirteen, and narrower than it first appeared. Reading an
+**existing** `.env` through the spelling `.ENV` is correctly denied: the
+canonicaliser resolves the real on-disk name before the pattern is applied. The
+gap is files that do not exist yet — `canonicalize` falls back to resolving the
+parent and keeping the basename as typed — so a `write` to `NEW.ENV`, `ID_RSA`
+or `server.PEM` matches no core rule, and the file then keeps that casing for
+every later read. On a case-insensitive filesystem the rule and the filesystem
+disagreed about identity, which is the same class of defect as the four
+spellings of an IP address that round eleven closed.
+
+Fixed by expanding the shipped filenames with `anyCase()`, which rewrites a
+literal into a character-class alternation (`.env` → `\.[Ee][Nn][Vv]`). Done in
+the pattern rather than by case-folding the canonical path, because folding
+would change the form **every operator rule** is written against — `^src/App\.ts$`
+would stop matching — to fix a problem that exists only for this handful of
+shipped names.
+
+One change went beyond the finding and is flagged as such in the source: `.env`
+is now matched as `.*\.env`, so `staging.env` and `prod.env` are covered. That
+was never a case-sensitivity gap — `new.env` was denied in no capitalisation —
+but the asymmetry it exposed is real, since `.pem`, `.pfx`, `.p12` and
+`.keystore` had always been matched with a `.*` prefix and `.env` had not, for
+no reason anyone had recorded.
+
+#### The metadata denial missed the IPv6 spellings
+
+Round eleven canonicalised four ways of writing `169.254.169.254` and did not
+consider the IPv6 family. `[::ffff:169.254.169.254]`, `[::ffff:a9fe:a9fe]` and
+`[fd00:ec2::254]` (AWS IMDS over IPv6) all reach the endpoint the core tier
+denies, because `canonicalIpv4` returns `undefined` for anything containing a
+colon and the value passed through as written. `100.100.100.200` (Alibaba) and
+the bare `metadata` alias GCP resolves were simply not in the pattern.
+
+Fixed in two places, deliberately. The **dotted** IPv4-mapped form
+(`::ffff:169.254.169.254`) is now folded to dotted-decimal by
+`canonicalHostname`, so it is covered by the _existing_ alternative rather than
+by a spelling of its own — representation first, as everywhere else in this
+layer. The **hex** forms (`::ffff:a9fe:a9fe`, `fd00:ec2::254`) cannot be folded
+without an IPv6 parser, so they are named in the rule, along with Alibaba's
+endpoint and the bare `metadata` alias.
+
+#### Relocating the governance directory used to remove its own protection
+
+`GOVERNANCE_STATE` and the matching command denial both spelled the literal
+`.openclaw/governance`. `paths.ts` documents `OPENCLAW_GOVERNANCE_DIR` as a
+supported deployment feature — "so a deployment can place the ledger on separate
+storage… without a code change" — and using it silently removes the agent's
+inability to read the policy, the accounts, the ledger and its signing key. The
+documented deployment step and the core tier disagreed, and the deployment step
+won.
+
+Fixed by `governanceStateRules()`, which derives both patterns from
+`governanceHomeDir()` — the path rule against the canonical form paths are
+reduced to, the command rule accepting either separator. Derived on **every
+load**, because `reassertCoreRules` rebuilds the core tier on every load and
+`governanceHomeDir()` re-reads the environment each time, so relocating the
+directory moves the protection with it and no stored rule can go stale.
+
+The static patterns are kept **as well as** the derived ones rather than
+replaced by them: an installation reached through a symbolic link, or one that
+later moves back, stays covered, and a denial broader than necessary costs
+nothing an agent legitimately needs.
 
 ---
 

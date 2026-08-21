@@ -1,0 +1,120 @@
+// TEMPORARY QA probe 3 — audit ledger integrity. Delete after the review.
+import { createHash } from "node:crypto";
+import { mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { appendLedgerEntry, resetLedgerCursorForTests, verifyLedgerChain } from "./audit-ledger.js";
+import { loadLedgerKey, resetLedgerKeyCacheForTests } from "./ledger-key.js";
+import { ledgerCheckpointFilePath, ledgerFilePath, ledgerKeyFilePath } from "./paths.js";
+
+let dir: string;
+beforeEach(async () => {
+  dir = await mkdtemp(join(tmpdir(), "gov-probe3-"));
+  process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  resetLedgerCursorForTests();
+  resetLedgerKeyCacheForTests();
+});
+afterEach(async () => {
+  delete process.env.OPENCLAW_GOVERNANCE_DIR;
+  resetLedgerCursorForTests();
+  resetLedgerKeyCacheForTests();
+  await rm(dir, { recursive: true, force: true });
+});
+
+async function seed(count: number): Promise<void> {
+  for (let i = 0; i < count; i += 1) {
+    await appendLedgerEntry({
+      agentId: "agent-a",
+      toolName: "exec",
+      resourceKind: "command",
+      resource: `ls ${i}`,
+      ruleId: "r",
+      decision: "allow",
+    });
+  }
+}
+
+const GENESIS = "0".repeat(64);
+
+describe("PROBE 10 — ledger tampering", () => {
+  it("detects truncation when the checkpoint survives", async () => {
+    await seed(5);
+    const lines = (await readFile(ledgerFilePath(), "utf8")).trim().split("\n");
+    await writeFile(ledgerFilePath(), `${lines.slice(0, 3).join("\n")}\n`, "utf8");
+    const v = await verifyLedgerChain();
+    console.log("TRUNCATE with checkpoint ->", v.ok, v.reason ?? "");
+    expect(v.ok).toBe(false);
+  });
+
+  it("detects truncation when the checkpoint file is also deleted", async () => {
+    await seed(5);
+    const lines = (await readFile(ledgerFilePath(), "utf8")).trim().split("\n");
+    await writeFile(ledgerFilePath(), `${lines.slice(0, 3).join("\n")}\n`, "utf8");
+    await unlink(ledgerCheckpointFilePath());
+    const v = await verifyLedgerChain();
+    console.log("TRUNCATE + delete checkpoint ->", v.ok, v.reason ?? "");
+    expect(v.ok).toBe(false);
+  });
+
+  it("detects a whole-history rewrite into the unkeyed format", async () => {
+    await seed(3);
+    // An attacker with write access but no key rebuilds the file from genesis
+    // in the pre-key (plain SHA-256) format, which needs no secret.
+    let prev = GENESIS;
+    const forged: string[] = [];
+    for (let seq = 1; seq <= 3; seq += 1) {
+      const entry = {
+        seq,
+        timestamp: new Date().toISOString(),
+        agentId: "agent-a",
+        toolName: "exec",
+        resourceKind: "command" as const,
+        resource: "innocent",
+        ruleId: "r",
+        decision: "allow" as const,
+        prevHash: prev,
+      };
+      const payload = JSON.stringify([
+        entry.seq,
+        entry.timestamp,
+        entry.agentId,
+        undefined,
+        entry.toolName,
+        entry.resourceKind,
+        entry.resource,
+        entry.ruleId,
+        entry.decision,
+        entry.prevHash,
+      ]);
+      const hash = createHash("sha256").update(payload).digest("hex");
+      forged.push(JSON.stringify({ ...entry, hash }));
+      prev = hash;
+    }
+    await writeFile(ledgerFilePath(), `${forged.join("\n")}\n`, "utf8");
+    await unlink(ledgerCheckpointFilePath());
+    const v = await verifyLedgerChain();
+    console.log("WHOLE-HISTORY unkeyed rewrite ->", v.ok, v.reason ?? "");
+    expect(v.ok).toBe(false);
+  });
+});
+
+describe("PROBE 11 — ledger key integrity", () => {
+  it("refuses a corrupted (non-hex) key file rather than using an empty key", async () => {
+    await seed(1);
+    resetLedgerKeyCacheForTests();
+    await writeFile(ledgerKeyFilePath(), "zzzzzzzz", "utf8");
+    const key = await loadLedgerKey();
+    console.log("CORRUPT KEY -> length", key.length);
+    expect(key.length).toBeGreaterThan(0);
+  });
+
+  it("refuses a truncated key file rather than using a 1-byte key", async () => {
+    await seed(1);
+    resetLedgerKeyCacheForTests();
+    await writeFile(ledgerKeyFilePath(), "abzz", "utf8");
+    const key = await loadLedgerKey();
+    console.log("SHORT KEY -> length", key.length);
+    expect(key.length).toBeGreaterThanOrEqual(32);
+  });
+});

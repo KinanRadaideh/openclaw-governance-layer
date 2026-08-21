@@ -355,6 +355,12 @@ than only in a document, and whoever fixes it has to come and delete that test
 on purpose. Every configuration used in this project so far runs in-process and
 is unaffected.
 
+> **Fixed on 20 August 2026 — see §5.10 below.** The paragraphs above are left exactly as
+> they were written, because the reason given for not fixing it turned out to be
+> the description of the right fix. And the thirty broken tests were not the
+> price of the repair; they were the sign that the repair was being made in the
+> wrong place.
+
 ### 5.2 Left because the fix is a design decision, not a repair
 
 These need somebody to choose what the behaviour _should_ be, which is not a QA
@@ -441,6 +447,374 @@ keep passing even if the code broke. Two were fixed in round six. The rest:
 - A Unicode look-alike test uses two strings that are byte-for-byte identical,
   so it proves nothing about the property it claims to test.
 
+## 5.5 Round eleven, in plain terms
+
+A later pass, run against the project specification rather than against the
+previous round's fixes. Six findings, and the first two are the ones that
+matter.
+
+### The search tools were never being checked
+
+The agent has seven built-in tools for touching files. Four of them — open,
+write, change, patch — went through the permission check. Three did not:
+**search, find, and list**.
+
+Searching a file returns the lines that matched. Point it at a password file
+with a pattern that matches everything, and it prints the password file. So the
+built-in rule that forbids reading `.env` and private keys stopped the "open"
+tool and let the "search" tool walk straight past it, returning the same bytes.
+Listing and finding were the same story one step down: they reveal what exists
+in a folder the agent was supposed to be kept out of.
+
+Nothing was hidden about this. Every one of those calls had been recorded in the
+audit log as `ungoverned` — the system's own word for "I did not check this" —
+for the entire life of the project. The record was doing its job; nobody had
+read it looking for this.
+
+This is round five's finding turned inside out. That time our list of governed
+tools named two tools that did not exist. This time it left out three that did.
+Both were invisible from inside the file and obvious the moment the list was put
+next to the real one. So now a test does exactly that, on every run: every
+built-in tool has to be either governed or explicitly written down as
+deliberately not governed, with a reason. Forgetting is no longer possible;
+deciding is still allowed.
+
+### A shell has two doors, and only one was watched
+
+The agent can open a terminal. Opening it takes a command, and that command was
+checked. But once the terminal is open, the agent can type into it — and typing
+was not checked at all.
+
+So the sequence "open a terminal, then type `sudo -i`" defeated the entire
+command allowlist and every built-in restriction, and the log recorded it as an
+action nobody had evaluated. A gate on the front door of a shell that ignores
+the keyboard is not a gate on the shell.
+
+Both are checked now, and opening a terminal at all is something an operator has
+to permit, rather than something an agent gets for free. That last part is a
+deliberate tightening: an interactive shell is the single most powerful thing
+the agent can ask for.
+
+### One address, four spellings
+
+`169.254.169.254` is a special address: on a cloud server it hands out the
+machine's credentials to anything that asks. It is on the built-in forbidden
+list. But the same machine also answers to `169.254.169.254.` with a trailing
+dot, to the plain number `2852039166`, and to a hexadecimal spelling — and the
+rule only recognised the first.
+
+The same defect had a friendlier face that was, if anything, more likely to bite
+a real operator: a perfectly correct rule allowing `api.example.com` silently
+stopped working whenever the agent happened to write the address with a trailing
+dot. Nothing looked wrong; access simply failed for no visible reason.
+
+Both are fixed the same way, and it is the same trick already used for file
+paths: settle on one spelling _before_ the rule is checked, so the rule cannot
+be fooled and cannot be accidentally missed.
+
+### A feature that existed and could not be used
+
+Monitor mode — watch one agent without blocking it, so you can learn what rules
+it needs — was redesigned to be switched on per agent. The function to do it was
+written, tested, and documented as "turned on from the web dashboard".
+
+There was no button, no command, and no web address that called it. The only
+thing that had ever called it was its own test.
+
+That is worth recording as its own category of defect. It is not a bug: the code
+was correct and the tests passed. It is a gap between what the system can do and
+what anyone can _reach_, and the specification is explicit that policy must be
+configurable from the dashboard — so a setting only a test can change does not
+satisfy the requirement, however well it works.
+
+**Two more things were in exactly this state, and are now fixed too
+(2026-08-19).** The system understood rules that _forbid_ — the built-in
+protections are all forbid rules — and an operator could not write one; and it
+understood "may read but not write", which the shipped starting policy itself
+uses, and an operator could not set it. Both needed a dropdown and a command-line
+flag, not new machinery. The lesson is that this category is worth _hunting_
+rather than stumbling over: the code being correct is exactly why nothing
+complains.
+
+Worth knowing why "you cannot write forbid rules" is not a small thing. Not
+allowing something looks the same as forbidding it, right up until somebody
+grants broad access later and quietly undoes a restriction that was never
+written down. A forbid rule is checked first and cannot be overridden, so it
+survives other people. That is the difference between the current settings
+happening to refuse something and the policy saying it always will.
+
+It is now on all three surfaces: dashboard, command line, and API. One thing is
+refused on all three, including for the top-level account: you cannot set a
+single agent to "off". "Off" is not a gentler setting, it is no gate at all —
+including no emergency stop and none of the built-in restrictions — and since an
+ordinary user can change their own agent's setting, allowing it would have made
+"disable every protection on my agent" a one-click operation. Turning the system
+off entirely is still possible, but only installation-wide, only for an
+administrator, and it gets written down.
+
+### Two rules that were each right and together wrong
+
+The system is meant to have exactly one Root — the top account, the one that
+manages people. Two separate safety rules protect it. One refuses to create a
+second Root. The other refuses to remove the last one.
+
+Read either on its own and it is obviously correct. Read them together and they
+say something neither of them says: because a second Root can never exist, the
+"but another Root remains" escape in the second rule can never happen — so **the
+Root account can never be deleted, demoted, or handed to anyone else.**
+
+That permanence is the behaviour we want. The problem was that nothing said so,
+and one thing said the opposite: when you tried to demote Root, the error told
+you to "promote another account to Root first" — which the other rule always
+refuses. The product was giving instructions it would not accept. A comment in
+the code described a two-step handover that had never once been possible.
+
+So the rule is now stated in one place, the error message says what is actually
+true, and a new test checks the _combined_ property rather than each half. That
+last part is the real lesson: both halves already had tests, and both passed.
+An invariant enforced by two mechanisms gets tested by two test files, and
+neither of them tests the invariant.
+
+The honest cost, which belongs in the report: there is no way to hand the Root
+role to someone else from inside the product. You transfer an installation by
+having Root reset the successor's password and giving them the credentials, or
+by editing the accounts file directly. Every alternative design has a moment
+where the account that governs all the other accounts is either duplicated or
+missing, and both of those are worse than one manual step taken once.
+
+### Two smaller ones
+
+**The policy page told you about other people's agents.** A viewer restricted to
+one agent could read back a list of every agent in the installation, and every
+account with a special setting, from parts of the response nobody had thought to
+filter. The handler's own comment said every such list must be filtered; it was
+true of three lists out of four, because the fourth was added later.
+
+**Adding a permission that could never work said nothing.** If a built-in
+restriction already forbids something, a permission you write for it is stored,
+appears in your list, and does nothing at all. Previously you were told nothing;
+the only way to find out was to read the audit log. Now you are told at the
+moment you write it — under a different heading from the ordinary "you already
+had this" notice, because the two mean opposite things: one says your rule adds
+nothing, the other says your rule _does_ nothing.
+
+---
+
+## 5.6 The gap that was not a bug: a User could not talk to their agent
+
+Worth recording separately, because it is the only major item on the list that
+no amount of QA would ever have found. Every test passed. Nothing was broken.
+The system simply did not do one of the things the paper said it did.
+
+The paper gives four roles. The User is the one handed _specific_ agents, and
+§1.6 says a User "may strictly prompt the agents for task execution". We built
+everything else that sentence implies — a User could write their agent's rules,
+read its logs unmasked, stop it, watch it — and could not send it a single
+message. They could govern an agent they had no way to speak to.
+
+The reason is worth stating plainly because it is a normal way for projects to
+go wrong: the governance layer introduced **named human accounts**, which exist
+nowhere else in OpenClaw, and OpenClaw's chat path had never heard of them. The
+two halves were each complete and there was no join between them. Nobody
+forgot; the work sat in the space between two components that each looked
+finished.
+
+### How it was closed, and why that shape
+
+The prompt is handed to **OpenClaw's own agent entry point** — the same one its
+existing HTTP API uses — rather than to a new run path built for the dashboard.
+That is the whole safety argument in one sentence: because it is the same path,
+every tool call the agent makes still goes through the permission gate exactly as
+before. **Prompting gives the agent nothing new.** It gives a person a way to
+ask. Had we built a second path, every guarantee in this document would have had
+to be earned again on it, and the first thing we missed would have made the
+governance dashboard the least governed way to use the system.
+
+Three things happen that an ordinary chat box would not do:
+
+**The ledger now records who set the agent going.** It could already say what an
+agent did, and — since the administrative-audit work — who wrote the rules it was
+judged by. It could not say who started it. The prompt is written to the
+tamper-evident log with the account name _before_ the run begins, so even a
+crash mid-run leaves the attempt on record. The paper asks the log to capture
+"the raw LLM intent"; the prompt is that intent, and this is the first point
+where a chain of agent actions can be traced back to a person.
+
+**A stopped agent refuses to be talked to.** If an operator has hit the kill
+switch, the prompt is refused before the model is ever reached. Without that,
+"stop this agent" would still have let someone start it thinking, spend money,
+and get an answer back — which is not a stop.
+
+**Each person gets their own conversation with each agent.** Two Users assigned
+the same agent cannot read each other's messages. "Scope" has meant _which
+agents are mine_ everywhere else in the system, and it means the same thing
+here.
+
+### One decision that looked like plumbing
+
+The host has a flag on a run meaning roughly _"this came from the trusted local
+operator"_, which unlocks actions that skip ordinary policy. It defaults on for
+local command-line use, where that is correct. Setting it on here would have
+been a privilege escalation in a single word: a governance prompt comes over the
+network, from the least privileged tier that can do anything at all, from an
+account whose entire purpose is to be constrained. It is set **off**, and that is
+the sort of decision worth a sentence in the report — the dangerous ones do not
+always look dangerous.
+
+### What is honestly still missing
+
+No streaming: the reply appears when the run finishes, so a long task shows
+"Working…" and nothing else. No file attachments. And a prompt sent from the
+command line is still recorded against `cli` rather than a person, because the
+CLI has no login — the dashboard is the surface that answers "who asked".
+
+---
+
+## 5.7 Round twelve — is it still OpenClaw?
+
+A different question from the previous rounds. Those asked whether the security
+layer worked. This one asks whether the thing we bolted it onto still works the
+way people actually use it.
+
+OpenClaw is normally reached through a chat app — you message the bot on Discord
+or Telegram and it does things for you. Our whole project has been tested
+through the dashboard we built. So: **does the fork still work over Discord?**
+
+### The answer is yes, and the reason is worth stating
+
+Every action an agent takes, no matter what started it, goes through one function
+in OpenClaw, and that is where our check is attached. A Discord message and a
+dashboard prompt arrive there by different roads. Neither needs the check to know
+anything about it.
+
+One thing does matter: the check needs to know **which agent** is acting, because
+the emergency stop, the per-agent rules and the audit trail all depend on it. On
+a Discord message that information is not always handed over directly, so the
+check reads it out of the conversation's identifier instead. That worked.
+
+### But nobody had ever tested it
+
+Every test we had used an identifier we made up ourselves. If reading the agent
+out of a real Discord identifier had _not_ worked, then on the setup people
+actually use, the emergency stop would not have stopped anything and none of the
+per-agent rules would have applied — and every test would still have passed.
+
+It was correct. But "correct" and "checked" are different things, and until this
+round it was only the first. It is now tested against all four chat apps, using
+OpenClaw's own code to build the identifiers rather than our idea of what they
+look like.
+
+That is a refinement of the lesson running through this whole project. Ten
+rounds found bugs where two parts of the system **disagreed**. This round found
+an **agreement nobody had checked** — the same risk, one step earlier, and
+invisible to the method that had caught all the others. _An untested agreement
+is not a working one; it is an unexamined one._
+
+### What a Discord user actually experiences
+
+The agent works straight away for ordinary things — reading project files,
+listing a folder — because those are in the shipped starting policy. Anything
+outside it pauses and asks a human, and because we hand that question to
+OpenClaw's own approval system rather than inventing our own, it shows up as
+Discord's normal approve/deny buttons. The handful of things on the permanent
+forbidden list are refused with no button at all: nobody with access to the chat
+should be able to click past those.
+
+If nobody answers, the request times out and is denied, and the question is saved
+so an operator can answer it later from the dashboard. An unattended bot drifts
+towards _less_ access, never more.
+
+### One bug, in code written hours earlier
+
+We attacked the new "talk to your agent" feature rather than demonstrating it,
+and found one: if the file storing conversation history got corrupted, the whole
+feature died — every message and every attempt to read the history failed, until
+someone found and deleted the file.
+
+The mistake is instructive. Failing safely is the right instinct, but it was
+applied to the wrong thing. Failing safely protects a _control_; conversation
+history is a convenience, and the real record — the tamper-evident log — is
+written separately and was never at risk. Losing your scrollback should not cost
+you the feature.
+
+### One thing we chose to document rather than fix
+
+On a chat deployment, the agent can read a file it is allowed to read and then
+**say the contents out loud in the channel**. Our rules cover commands, files and
+network addresses. None of them covers "post this into Discord".
+
+We could not fix this the way we fixed the search tools, and the reason is the
+interesting bit: **the reply is the whole point.** Blocking the agent from
+sending messages would stop it answering the person who asked it something. Doing
+this properly needs a new kind of rule that can tell "reply where you were
+spoken to" apart from "send this somewhere else" — a design change, not a
+one-line addition.
+
+So it is written down rather than hidden, it shows up in the audit log marked as
+something we did not check, and there is now a test that fails if it ever
+quietly starts counting as approved.
+
+---
+
+## 5.9 Round fourteen — the agent that could rename itself
+
+Round thirteen ended by saying one problem was too big to patch at the end of a
+review and deserved its own round. This was it.
+
+### An agent could escape its own restrictions by starting a copy of itself
+
+Agents can start other agents. When one does, it can say **which agent the new
+one should be** — and the system identifies agents by name.
+
+Every restriction in this project is attached to a name. "This agent may not run
+`curl`" means "the agent called `agent-a` may not run `curl`". So an agent that
+was tightly restricted could start a copy of itself _under a different name_ and
+inherit that other name's permissions instead of its own.
+
+It is the difference between a locked door and a locked door that anyone can walk
+around by changing their badge.
+
+The fix is not to forbid starting other agents — that is a legitimate feature.
+It is that **which name you start it under is now itself a permission**. An agent
+may start a copy of itself freely; starting one under somebody else's name has to
+be granted explicitly, by a person, in advance.
+
+### One thing left open, and pinned so it cannot be forgotten
+
+Stopping an agent still does not stop a copy it started under a _different_ name
+before you pressed the button. The parent's name is nowhere in the child's
+records, so this layer has nothing to trace the relationship with — it needs
+OpenClaw itself to report who asked for the child.
+
+What bounds it: because of the fix above, a differently-named child only exists
+where somebody explicitly allowed one. The documentation now tells that person to
+stop both.
+
+There is a test asserting the _current_ behaviour, so whoever closes this gap will
+find that test failing and be sent straight to the explanation.
+
+### Who is allowed to read your messages to an agent
+
+Two people can be assigned the same agent. The private transcript kept their
+conversations separate — but the audit log did not, so a colleague could read the
+full text of everything you had asked the agent to do.
+
+Settling it meant deciding which behaviour was _right_, not just making them
+match. The report requires the text to be **recorded** — that is not optional.
+But accountability does not require every colleague to **read** it. So the record
+stays complete and the _view_ narrows: you see your own messages, a colleague
+sees that you sent one and when, and administrators — who are given investigative
+powers explicitly — see everything.
+
+### Two administrators, one rule, no warning
+
+If two administrators added the same rule at the same instant, both were told
+there was no conflict, because each checked before writing and neither saw the
+other. The duplicate itself was harmless. The silence was not: the whole point of
+the conflict warning is to tell somebody their new rule is redundant.
+
+---
+
 ## 6. Rounds one to five, in one line each
 
 | Round | What it was                            | Headline finding                                                                                                                                                           |
@@ -450,6 +824,707 @@ keep passing even if the code broke. Two were fixed in round six. The rest:
 | 4     | After making the log record everything | Recording agent-supplied text with no size limit — fill the disk and destroy the audit trail                                                                               |
 | 5     | Checking against the real OpenClaw     | **Our list of governed tools named two tools that don't exist.** File access was ungoverned the whole time, while the dashboard accepted file rules that could never match |
 | 6     | Four parallel reviewers                | See above — 14 defects, and the discovery that we'd broken 19 of OpenClaw's own tests                                                                                      |
+
+---
+
+## 5.8 Round thirteen — attacking the build instead of reading it
+
+> **Where this ended up: 18 of the 24 problems below are fixed.** Everything in
+> this section is written as it was found, because that is what makes it worth
+> reading — but the build no longer behaves this way. The six left open are
+> listed at the end, with the reason each was left. The test suite grew from
+> 1,264 checks to 1,297, and every fix carries a test that would catch the
+> problem coming back.
+
+The first twelve rounds were run by the people who wrote the thing. Round
+thirteen was run the other way round: read the requirements in the report,
+attack the running system, and only open the source afterwards to explain what
+the attacks showed. Everything below was produced by making the gate answer a
+question, not by spotting something in the code.
+
+### The check that was supposed to prevent this could not fail
+
+Round eleven found that three tools which read files had never been governed,
+fixed them, and — correctly — decided that the durable fix was not the three
+names but a **test that compares our list of governed tools against OpenClaw's
+own list** on every run. That is the right instinct and it is the best idea in
+the project.
+
+The test compares against the wrong list.
+
+OpenClaw has two things that look like "the list of tools". One is the barrel
+file for the seven _editing_ tools — read, write, edit, and the three search
+tools round eleven had just added. The other is the real catalogue the host uses
+to decide what an agent is allowed to have: fifty-six tools, including running
+processes, controlling a desktop, spawning other agents, and scheduling work for
+later.
+
+The test reads the first one. So it checks seven tools, all seven of which round
+eleven had just registered, and it will pass forever.
+
+Counting against the real catalogue: **seven of its fifty-two tools were
+governed and forty-five were not.** (The list of governed tools had eleven
+entries, but four of them — the search tools and an alias — are not in that
+catalogue at all, which is part of how the mismatch stayed invisible.)
+
+That has since been fixed: eighteen are governed now, and the other thirty-four
+each carry a written reason for being left alone.
+
+This is the most important thing found in the whole review, and not because of
+the number. A guard is a promise that a class of mistake cannot happen again.
+This guard was green while the mistake it names was happening on a scale nobody
+had measured — because nobody had asked what the guard was comparing against.
+
+### The ones that matter most among the forty-five
+
+- **`process`.** Start a shell in the background with `exec`, then use `process`
+  to type into it. This is precisely the defect round eleven found in the
+  `terminal` tool — a shell has two doors and only one was watched — on the
+  sibling tool, missed because the fix was applied to the tool that was found
+  rather than to the idea behind it. Typing `sudo -i` this way is allowed.
+- **`computer`.** Moves the mouse and types on a real desktop. An agent that is
+  refused a command can open a terminal window and type the command instead.
+  The project is called a governance layer for _OS-level_ agents; this is the
+  most OS-level thing in the box.
+- **`code_execution`, `sessions_spawn`, `automations`, `gateway`, `nodes`.**
+  Running code, starting another agent, scheduling something for later, and
+  reading the gateway's own configuration.
+
+None of these needs a new idea to fix. Each needs a line in the registry and a
+short function saying what resource it touches — the same shape as the fix for
+`grep`. What is missing is the coverage, not the mechanism.
+
+### The command line is a way around all of it
+
+There is no login on the `openclaw governance …` commands. That was already
+written down, but only as a _record-keeping_ limitation: a change made from the
+terminal is credited to "cli" rather than to a person.
+
+The bigger consequence was not written down. `openclaw governance policy
+set-mode off` switches the entire gate off, and the core rule that protects the
+governance files matches the **folder path**, not the **command**. So if an
+operator has ever written a rule broad enough to let their agent run the project
+— `node …`, `npm …`, `pnpm …`, which is the first rule most people write — the
+agent can turn its own governance off in one command. Tested with four
+spellings; all four allowed.
+
+### The audit log can be beaten by deleting, not forging
+
+The log is a chain: each entry carries a fingerprint of itself and the one
+before, and the fingerprints are made with a secret, so editing history needs
+the secret. That part holds.
+
+Three ways around it do not need the secret at all.
+
+1. **Cut off the end and delete the checkpoint.** The checkpoint file exists
+   precisely because a chain cannot notice its own tail being cut off. Delete it
+   as well and the verifier says everything is fine. The comment above that code
+   says a missing checkpoint "is itself reported rather than passing quietly" —
+   it is not; it is skipped.
+2. **Rewrite the whole thing in the old format.** The log supports entries from
+   before the secret existed, so those verify without it. There is a guard
+   against _switching_ to the old format halfway — but rebuild the file from the
+   beginning and there is no switch to notice. It just looks like an old log.
+3. **Damage the key.** The key file is read as hexadecimal, and if it contains
+   anything that is not hexadecimal the reader silently keeps the valid part and
+   discards the rest. Fill it with rubbish and the key becomes **zero bytes
+   long** — no error, no warning, nothing in the log. Every entry after that is
+   fingerprinted with a secret that is not secret, so forgery works again. And
+   the way in is scribbling on a file, not reading one.
+
+The honest summary is that the chain resists someone who wants to _change_ the
+record and does not yet resist someone who wants to _destroy_ it.
+
+### One rule can freeze the entire system for two and a half minutes
+
+Rule patterns are checked when they are written, to reject the shapes that make
+a pattern take exponential time. The check looks for a repeated group whose
+contents are themselves repeated, and treats a fixed count like `{20}` as safe
+because it "cannot blow up".
+
+`^(.*a){20}$` passes the check. Tested against a 31-character line that does not
+match, one comparison took **142 seconds**. JavaScript cannot interrupt a
+running pattern, so for those two and a half minutes the gateway, the dashboard
+and every other agent are stopped. A User — the second-lowest tier — can write
+this rule.
+
+### Turning off all protection is one click; deleting one rule asks twice
+
+On the dashboard, deleting a single rule opens a confirmation dialog styled as
+dangerous. Switching the whole installation to "off" — every protection, every
+agent — is a segment in a three-way toggle with no dialog at all. The two
+controls are the wrong way round.
+
+### The emergency stop succeeds when you mistype the agent's name
+
+Every place the dashboard asks for an agent is a plain text box, and nothing
+compares what you type against the agents the page has already listed on screen.
+Stop `agent-1` when the agent is called `agent1` and you get a green result, a
+line in the audit log saying the agent was locked down, and "no runs stopped" —
+which reads exactly like "it wasn't doing anything". The agent keeps working.
+
+For the one control in the system that exists for emergencies, needing to spell
+something correctly with no help and no feedback is the wrong design.
+
+### What was fixed, and what was not
+
+Fixed: all forty-five ungoverned tools are now either governed or written down
+as a deliberate exception with a reason; the command line can no longer be
+reached by the agent; all three ways of beating the audit log are closed; the
+two-and-a-half-minute rule is rejected; the emergency stop holds on the paths it
+was missing; the dashboard asks before switching everything off and warns when
+you type an agent name it does not recognise.
+
+Left open, deliberately:
+
+- **Who can read a prompt.** The audit log shows a prompt to anyone managing
+  that agent, while the private transcript does not. That is a genuine question
+  about which behaviour is _right_, not a bug to patch, and answering it
+  properly means deciding what an audit trail is for.
+- **The rule list still has no search box**, and the prompt box still has no
+  cancel button. Both are comfort, not safety.
+- **A login for the command line.** The agent can no longer reach it, but a
+  person with access to the machine still can, and that was always the honest
+  limitation.
+- **Agents that start other agents.** Starting one is now a permission, which is
+  the important half. What the child inherits from the parent's rules and from
+  an emergency stop has not been worked through, and deserves a round of its own.
+
+### Two attacks that looked certain and turned out to be wrong
+
+Worth writing down, because the project's whole lesson is about unchecked
+assumptions and that has to apply to the attacker too.
+
+Windows does not care about capital letters in filenames, so reading `.ENV`
+should have slipped past a rule written as `.env`. It does not: the code resolves
+the path to the real name on disk first, and the real name is lower case. The
+only gap left is a file that **doesn't exist yet** — an agent creating
+`ID_RSA` is not stopped, and once it exists that becomes its real name.
+
+Windows also ignores a full stop at the end of a filename, so `.env.` should be
+another way to name the same file. At the operating system level it is — but
+Node refuses to open it, so nothing the agent can actually call reaches the file.
+Reporting either of these as a break-in would have been false, and both looked
+completely convincing from reading the code.
+
+---
+
+## 5.10 The last hole: the setup where the guard was never even asked
+
+This one is not a QA round. It is a single problem that sat on the list for nine
+rounds with a written note saying why it was not being fixed yet, and was then
+fixed on its own.
+
+### What was wrong
+
+There are two ways OpenClaw can run an agent, and from the outside they look
+identical.
+
+The ordinary way: the agent runs inside the same program as our security layer,
+so every action it takes walks straight into the checkpoint. That is the setup
+this whole project has used, and every experiment was run under it.
+
+The other way: the agent runs in a **separate program** of its own, which does
+the actions itself. That program has never heard of us. The only way our
+checkpoint gets consulted is if OpenClaw, when it starts that program, hands it
+a note saying "before you do anything, phone home and ask permission."
+
+Whether to hand over the note was decided by one question: _is there any
+permission-checker installed?_ And the way OpenClaw answers that question is by
+counting **plug-ins**.
+
+Our security layer is not a plug-in. That was on purpose, and it is one of the
+best decisions in the project: a plug-in can be switched off in a settings file,
+and a guard you can switch off in a settings file is not a guard. But it means
+that when OpenClaw counted the plug-ins, it counted zero, decided nobody needed
+to be asked, and did not hand over the note.
+
+In that setup the agent could do anything at all. No rule was checked. Nothing
+was written in the log — not even a line saying "something happened that we
+could not judge", because an action that never reaches the checkpoint cannot be
+recorded as anything. And the emergency stop button did not work, because it is
+enforced at that same checkpoint.
+
+Everything on the dashboard would have looked perfectly normal.
+
+### Why it was left alone for so long
+
+There was an obvious fix: change the answer to that question to "yes, always".
+One line. It works.
+
+It also broke **thirty of OpenClaw's own tests** — because that same question is
+what lets OpenClaw skip the note in setups where somebody has deliberately asked
+it to. Answering "yes, always" doesn't just tell OpenClaw about us; it overrules
+everybody else too.
+
+So the note in the file said: this is real, this is serious, and the one-line fix
+costs more than it looks. Do it on its own, with its own reasoning, not buried in
+a routine cleanup. And a test was left behind that deliberately asserted the
+**wrong** answer, so the problem stayed visible in the test results and whoever
+fixed it would have to come and delete that test on purpose.
+
+### The fix, and the thing worth noticing about it
+
+The real problem was that OpenClaw was asking one question and using it to
+answer a different one. It asked _"are there any plug-ins?"_ and used the answer
+for _"is there anyone who needs to be asked?"_ Those are the same question only
+as long as everyone who needs asking is a plug-in.
+
+So the fix was not to change the answer. It was to ask the second question
+separately. OpenClaw now checks two things — "are there plug-ins?" and "is the
+built-in security layer here?" — and hands over the note if either says yes. The
+plug-in question keeps its old meaning and its old answer, so nobody else's
+setup changes.
+
+**Zero of OpenClaw's tests broke.** Not thirty, not one. Which means those thirty
+failures were never the cost of fixing the hole. They were the system telling us
+we were fixing it in the wrong place, and it took nine rounds to hear it that
+way.
+
+### Two more problems found while fixing the first
+
+Both were found by reading what happened _after_ the decision, rather than the
+decision itself.
+
+**Handing over the note is not the same as the note covering everything.**
+OpenClaw also writes a list on the note saying which actions to phone home
+about, and it builds that list from what the plug-ins asked for. So on a machine
+with one plug-in that only cares about, say, running commands, the note would
+have said "ask about commands" — and every other action would have sailed past,
+_while the note was there and everything looked correct_. That is worse than the
+original problem, because it looks fixed. The note now says "ask about
+everything".
+
+**And what happens when the phone call fails?** The note carries an instruction
+for that case, and it said: go ahead anyway. Which is the right instruction when
+there is genuinely nobody to ask — and OpenClaw decided that from the very same
+mis-asked question. So a governed machine now leaves that instruction off, and an
+agent that cannot reach the checkpoint is refused instead of waved through. That
+one fixed itself the moment the question was fixed, which is a small argument for
+repairing the cause rather than patching each thing that depends on it.
+
+### What we still cannot promise
+
+We can now guarantee the note is handed over and that it covers every action. We
+cannot guarantee the separate program _obeys_ the note — it is somebody else's
+program, and a guard living inside our house can order our house around, not the
+neighbour's. What we can do is refuse when no answer comes back, which is what
+the second fix above does.
+
+### The lesson from this one
+
+Two, and the second is the one worth repeating at the defence.
+
+The first is the project's usual shape one more time, at the outermost possible
+level: two parts of a system, each perfectly correct on its own, disagreeing
+about what a question meant.
+
+The second is about the backlog rather than the code:
+
+> A problem you leave alone on purpose, with the reason written down, is not the
+> same as a problem you missed — and the difference is entirely the writing down.
+
+When this was finally fixed, nothing had to be worked out again. The severity,
+the exact setup, the fix that had been tried and rejected, and _why_ it was
+rejected were all sitting there — and the recorded reason for rejecting the easy
+fix turned out to be a description of the correct one.
+
+---
+
+## 5.11 The setting that was saved, shown, and never used
+
+Not a QA round. This came out of ordinary building work — and that is the
+interesting part.
+
+### What was being built
+
+Root can say, about a _person_: "when this person's agent tries something the
+rules do not cover, do not bother asking me — just refuse it." There is a
+matching setting about an _agent_, and the stricter of the two always wins, so
+neither can be used to loosen the other.
+
+To apply a setting about a person, you have to know which person is behind what
+the agent is doing. For a long time we could not know. If somebody messages the
+agent on Discord, the agent is working for whoever owns it, and the best we could
+do was look at everyone the agent is assigned to and take the strictest setting
+among them.
+
+Once we built the feature that lets a signed-in account send the agent a message
+directly, that stopped being a guess: for those runs, we know exactly who asked.
+The job was to use that.
+
+### The problem found on the way
+
+To use the setting, you have to read it. Reading it showed that it was being
+**saved under one name and looked up under another**.
+
+When Root types a name into the box, the setting was filed under exactly what
+they typed — `MALEK`. When the system later asked "does this person have a
+setting?", it looked under the name stored on their account — `Malek`. Different
+spelling, different drawer, nothing found.
+
+So the setting was saved. It came back from the server. The dashboard showed it
+as switched on. And nothing ever read it.
+
+> A control that reports success and does nothing is worse than one that is
+> missing. A missing control gets noticed.
+
+The reason it happened is the same one that runs through this whole project.
+Three other parts of the system already had to answer "is this the same account?"
+and each of them had written out the same three-step answer separately. All three
+agreed — which is the only reason nothing else had broken. They were three
+copies of one idea, and when a fourth part needed the same idea, it wrote a
+different version. Now there is one version and four users of it.
+
+### One trap while fixing it
+
+Tidying the names up means lowercasing them. There are a few special words that
+mean something dangerous to the underlying machinery when used as a label —
+`__proto__` is the famous one — and there was already a check refusing them.
+
+But the check ran _before_ the lowercasing. So `__PROTO__` sailed past the check
+and arrived as `__proto__` afterwards. It had been harmless only because the name
+was also being _stored_ in its original spelling. Tidying the names without
+moving the check would have opened the exact hole the check exists to close —
+a fix creating the problem it was cleaning up after. The check now runs on the
+final version of the name.
+
+### The change that makes something _more_ permissive, on purpose
+
+Two people, Kinan and Malek, both look after the same agent. Root has restricted
+Malek.
+
+Before: Kinan sends the agent a task, the agent tries something the rules do not
+cover, and it is refused outright — because _Malek_ is restricted. Kinan's work
+is being governed by a decision somebody made about a different person.
+
+After: Kinan's message is Kinan's, and Kinan's own setting applies.
+
+That is a widening, and it is written down here rather than buried, because a
+report that hides one is not worth reading. The argument for it is simple: if
+you want to restrict what an _agent_ can do, there is a separate setting for
+exactly that, it is untouched, and the stricter of the two still wins. The
+per-person setting had quietly become a second, badly-aimed version of the
+per-agent one. A restriction that lands on the wrong person is not a safeguard —
+it is a control nobody can reason about.
+
+---
+
+## 5.12 Watching a task run, and being able to stop it
+
+Three problems that look like polish and are not.
+
+### Before
+
+You typed a message to the agent, and the screen said "Working…". That was all
+it said, for however long the task took. There was no way to stop it. If you
+closed the tab, the agent carried on regardless — and the only way to reach it
+was the emergency stop, which shuts the agent down completely and has to be
+switched back on by hand. And nothing limited how many of these you could start
+at once.
+
+### Why the last one is a security problem
+
+Anyone who can send the agent a message could send a hundred. Each one is a full
+agent task: it thinks, it uses tools, it costs money, and it occupies the one
+program that also runs the entire security checkpoint.
+
+So the least powerful account on the system could make the whole thing
+unresponsive — for everybody, including the owner. **The cheapest way to attack a
+security layer is not to break it; it is to make it unavailable, and it stops
+being available exactly when it is busiest.** This is the third time this project
+has found a version of that same problem, which is why it is worth naming.
+
+The fix is two limits, not one. There is a limit for the whole installation, and
+a smaller one per account. The per-account one is the important half: without it,
+one person could take every slot and leave the owner unable to do anything — the
+least powerful account deciding whether the most powerful one gets to act.
+
+### Now
+
+The reply appears as it is written. There is a Cancel button. Closing the tab
+stops the task. A task that runs longer than five minutes is stopped for you.
+
+Three details worth mentioning:
+
+**Cancel is not the emergency stop, deliberately.** Cancel withdraws one
+request. The emergency stop shuts the agent down entirely. Keeping them separate
+matters: if people get used to reaching for the emergency stop when they simply
+mistyped something, it stops being treated as an emergency.
+
+**Cancelling asks the task to stop; it does not pretend it already has.** The
+slot it was using is not handed to somebody else until the task actually finishes
+unwinding. Otherwise you could cancel and immediately resend, over and over, and
+end up with far more work running than the limit allows — while every screen
+insisted the limit was being respected.
+
+**What you see on screen is censored the same way the log is.** The system hides
+things that look like passwords and keys before writing them into its permanent
+record. The live view now hides them too. Strictly speaking the rule only covers
+the log — but a live view that shows what the record hides is just a way of
+reading the censored part, and it is the same person looking at both.
+
+### And one thing that stayed on the list
+
+The reply is sent as a _whole snapshot_ each time rather than as "here are the
+next few words". That sounds wasteful and there are two good reasons for it.
+
+Models sometimes take back what they just said and rewrite it. If you are
+sending "the next few words", you cannot un-send words already delivered — the
+system's other interface has to give up and fail the whole reply when that
+happens. Sending the whole thing each time makes a correction ordinary.
+
+The second reason is the censoring. If a password is split across two
+instalments, neither half looks like a password, and both would go straight
+through. The whole snapshot always contains the whole password, so it is always
+caught.
+
+### One last thing, about a test rather than the system
+
+While checking all this, one of the new tests started failing — but only when
+the whole suite ran, never on its own.
+
+The test fills up an account's allowance and then checks that one more request
+is turned away. Sending a message to the agent is not instant: before the system
+counts it against the limit, it has to read the rules, write the log entry and
+save the message. So "send two, then send a third" turned out to be a race —
+the third message could reach the counter _first_, take a slot, and leave one of
+the first two to be refused. The test then sat waiting for a reply that was never
+coming.
+
+The system behaved correctly throughout. The test was wrong.
+
+It is worth mentioning for one reason: **a test that passes on its own and fails
+in company is telling you something, and the answer is almost never "run it on
+its own".** This one was fixed by having the test wait until the first two
+messages had genuinely been counted, rather than by assuming they would be. As a
+side effect it now runs in eleven seconds instead of two minutes.
+
+---
+
+## 5.13 Being able to find a rule
+
+The list of rules had no search box.
+
+That sounds like a complaint about convenience. It is not. Every installation
+starts with a set of built-in rules already in place, so the list is never short.
+And the moment somebody most needs that list is during an incident, when the
+question is _"what on earth is allowing this?"_
+
+A set of rules you cannot search is a control you cannot check.
+
+There is now a search box and four filters. One deliberate choice inside it: the
+search looks for the letters you typed, and does **not** treat what you type as a
+pattern. The rules themselves are patterns, and the single most useful search
+anyone does here is looking for `.*` — the symbol meaning "anything at all",
+which is what an over-broad rule looks like. If the search treated your typing as
+a pattern, searching for "anything at all" would match every rule, and the one
+search that finds dangerous rules would instead find all of them.
+
+---
+
+## 5.14 Two things settled without writing code
+
+**The dashboard stays in English.** It was on the list as "the governance page is
+English-only, and the other twenty-one languages fall back word by word". It is
+now a decision rather than an unfinished job: this is an English-only product.
+Translating a _security console_ into twenty languages nobody on the team can
+read is not a feature — a mistranslated "deny" is a control somebody misreads at
+the worst possible moment.
+
+**Attachments are on hold, and the reason is written down.** You still cannot
+attach a file to a message you send the agent, and this is where the honest
+version matters.
+
+The system promises not to write passwords and keys into its permanent record. It
+keeps that promise by reading the text and blanking out anything that looks like
+a secret.
+
+You cannot do that to a photograph. A screenshot of a terminal window with an API
+key on it contains that key as _a picture of letters_. There is no way to scan
+for it. The same is true of a PDF, or a Word document, or anything zipped.
+
+So the question is not "how do we censor an attachment". It is **what are we
+willing to have a permanent record that cannot see?** Three possible answers —
+store the file, store only a fingerprint of it, or refuse attachments — and the
+list of things that could go wrong with each is written up in the remaining-work
+document. That is a decision for the team, not something to settle by starting
+to code.
+
+---
+
+## 5.15 Actually using the dashboard, for the first time
+
+Everything this project had ever said about the dashboard came from tests of the
+machinery _underneath_ it. Nobody had sat down and used it. So somebody did:
+build it, start it for real, and go through it the way a new operator would —
+create the owner account, sign in, read the rules, try to add a colleague, open
+a conversation.
+
+Five things were wrong. Two more looked wrong and turned out to be fine, which is
+worth saying first.
+
+### Two things that looked broken and were not
+
+**"You can't get to the Governance page from the menu."** The list of settings
+pages seemed not to include it, which would have meant the security console was
+reachable only by typing its address. That was a mistake in how the page was
+being inspected, not in the page: Governance is there, in the menu, between
+_Privacy & Security_ and _Approvals_.
+
+**"The Delete button on the owner account can never work."** The owner account is
+permanent — it cannot be demoted, and there can never be a second one — so a
+Delete button on it looked pointless. Leaving it alone was the right call, but
+the reason first written down here was wrong, and it is worth correcting rather
+than quietly editing: the first explanation was that deleting the only account
+is how you wipe the slate and start again. It isn't — the system refuses that on
+two separate grounds. The real reason the button is fine is much simpler and had
+been missed: **it is already greyed out on your own row**, with a tooltip
+explaining that you cannot delete the account you are signed in with.
+
+A right answer with a wrong reason behind it survives review for exactly as long
+as nobody checks the reason. This one is now checked automatically.
+
+Both are recorded because they are the reason to actually run software rather
+than read it. Reading produced two confident, wrong conclusions in one sitting.
+
+### What was really wrong
+
+**The rules list was written for the computer, not for the reader.**
+Each rule was labelled with the pattern the system matches on. One of them —
+the rule that stops the agent reading your passwords and keys — is over two
+hundred characters of things like `[eE][nN][vV]`. The plain-English description
+of what the rule was _for_ existed, but it had been pushed to the end of a line
+of small print.
+
+This is the screen somebody opens during an incident to answer "what on earth is
+letting the agent do this?" So the plain description is now the heading, and the
+pattern sits underneath it, complete and unchanged, for anyone who needs the
+exact detail. Nothing is hidden; the emphasis just moved to the half a person
+reads.
+
+**A button that could never work.**
+The "create an account" form let you choose the role _owner_. There can only
+ever be one owner, and the system refuses a second one — so choosing it always
+produced an error and nothing else. The same page already gets this right one
+panel up, where built-in rules have no Delete button because deleting them would
+be refused. Now the owner role is not offered, and the owner's own row simply
+says _permanent, cannot be changed_.
+
+**The one step you cannot undo had the weakest safety net.**
+The very first thing a new installation asks for is the owner's password. There
+is no way to reset it afterwards — not by email, not from the system, nothing.
+If you mistype it, you are locked out of your own security system, and the only
+way back in is to delete a file on the server by hand.
+
+That screen had a single password box, no confirmation, and did not mention that
+passwords must be at least eight characters — even though the _ordinary_
+account form further down the same page already said so. So: one mistyped
+keystroke, permanent lockout, no warning.
+
+It now asks twice, says the length rule before you submit rather than after, and
+warns that this password cannot be reset. The second box appears _only_ on that
+screen — asking twice every time you sign in would be irritating and pointless,
+because getting a normal sign-in wrong costs you one more try.
+
+**A spinner that never stopped.**
+If loading a conversation failed, the panel showed "Loading the conversation…"
+for ever. The error explaining what went wrong was being produced correctly —
+it just had nowhere to appear, because the code showed the loading message and
+stopped before reaching the part that shows errors.
+
+> A progress message that can never finish is worse than an error message,
+> because it tells the person to keep waiting.
+
+**Ten boxes with no name.**
+Seven text boxes and three dropdowns had no label for screen readers — they
+relied on the grey hint text inside them, which vanishes as soon as you type.
+The sign-in box on the very same page has a comment written next to it
+explaining why that is the wrong thing to do. The rest of the page had not
+followed its own advice. All ten now have proper labels.
+
+### The lesson
+
+All five of these sat underneath a fully passing test suite, and none of the
+tests was wrong. The system correctly refused to create a second owner — and the
+page offered the button anyway. The system correctly reported that a
+conversation could not be loaded — and the page showed a spinner instead.
+
+> **Testing the engine is not testing the dashboard.** They are two different
+> things, and only one of them is what a person actually touches.
+
+---
+
+## 5.16 Three things the system promises, actually checked
+
+Three promises this project makes about every installation:
+
+1. The owner can change their own password.
+2. There is always exactly one owner.
+3. It arrives ready to work, while still refusing anything it was not told to
+   allow.
+
+All three were written down in the documentation. None had a test that checked
+it as a promise. And one of them was simply not true.
+
+### The one that was not true
+
+The system had a perfectly good way to change an account's password. It was
+owner-only, it checked the length rule, it recorded who did it, and it signed out
+every device using that account afterwards. Nothing about it was wrong.
+
+**Nothing ever called it.** Not the dashboard, not the command line. It was a
+working mechanism with no button attached to it anywhere.
+
+So the owner's password — the one account that controls everything else — could
+never be changed after the moment it was first typed in. And the moment it is
+first typed in is the setup screen, which cannot be redone. If you suspected that
+password had been seen by someone else, the product had no answer for you.
+
+There is now a password box on every account in the list, including your own. It
+asks you to confirm first, and the confirmation says the two things you need to
+know: everyone signed in as that account gets signed out, and if it is _your_
+account that means you, immediately — so have the new password written down
+before you click.
+
+It was tested the only way worth testing it: change the owner's password in the
+browser, get signed out, try the old password (refused), try the new one (works).
+
+### The two that were true
+
+Worth checking anyway, because "true" and "checked" are different things.
+
+**Only one owner, ever.** There are four ways somebody might end up with a second
+one — create it, promote somebody, demote the existing one out of the way, or
+delete it — and each was blocked by its own separate rule. Each rule had only
+ever been tested on its own. That is exactly how, a few rounds ago, two of these
+rules ended up giving contradictory advice in their error messages: both were
+right, and nobody had checked what they said together. So now all four are tried
+in one test, and afterwards it counts the owners and checks there is still
+exactly one, and that it is the same one.
+
+**Ready to work, but still locked down by default.** This one is a balance, and
+both halves have to be checked together or the test is worthless. A brand-new
+installation now has to prove it can list a directory and read a project file
+with nobody having written a single rule — _and_, in the same breath, that it
+still refuses `sudo`, still refuses to read a password file, still refuses to
+call the cloud service that hands out credentials, and still refuses a command
+nobody mentioned.
+
+That balance is the whole design, and it has history: the system once shipped in
+"watch only" mode because shipping it locked-down-with-no-rules meant it refused
+_everything_ and the agent could not do anything at all. A security control that
+has to be switched off before you can get any work done is a control nobody
+leaves switched on. The built-in starter rules are what let it ship locked down
+again.
+
+### Why bother writing them as tests
+
+All three were already written in documents this team maintains carefully, and
+one of them was false on every screen a person can actually reach.
+
+> A promise written in a document is a claim about the system. A promise written
+> as a test is a claim the system has to keep making.
 
 ---
 
@@ -467,10 +1542,44 @@ Everything passed. Nineteen of their tests were broken.
 Both times the tests were green and both times that meant nothing, because the
 tests and the code shared a blind spot.
 
+Round eleven made the same point a third time and then did something about it.
+The list of governed tools had drifted from the host's real list _again_ — the
+opposite way round, but from the same cause: a list that is only ever read
+against itself. The fix that matters is not the three names that were added, it
+is the test that now compares the two lists automatically. A shared assumption
+cannot be found by reading more carefully; it can only be found by checking one
+side against the other, and the way to make sure that keeps happening is to make
+a machine do it.
+
 > A security control has to be tested against the system it protects, not
 > against its own idea of that system. If the tests and the code were written
 > from the same assumption, passing tests only prove the assumption is
 > self-consistent — not that it is true.
+
+And then round thirteen finished the thought, in the least comfortable way
+available: **the machine was comparing against the wrong list.** The test written
+to make this mistake impossible was itself an instance of it. It compares seven
+tools when the host has fifty-six, it has always passed, and it cannot fail.
+
+So the full sequence is:
+
+1. the code was wrong, and the tests agreed because both came from one
+   assumption;
+2. the tests were wrong, because they were ours and never the host's;
+3. the test harness was wrong, because it and the server disagreed about what a
+   missing page looks like;
+4. **the guard against all three was wrong, because nobody asked what it was
+   comparing against.**
+
+Every layer added to catch the previous one inherited the same flaw one level up.
+That is the finding, and it is better than "we found ninety-three bugs":
+
+> A check makes a silent claim about what it is comparing against, and that
+> claim starts out exactly as unexamined as the code did. Automating a
+> comparison does not make it true — it only makes it repeat. Every guard should
+> be able to say, in writing, which artefact is its source of truth and why that
+> artefact is the authority. Round eleven's could not, and for two rounds nobody
+> asked.
 
 This belongs in Chapter 4 as a genuine finding of the project, not a confession.
 It is the kind of thing that is obvious once stated and almost never done.
