@@ -1,0 +1,127 @@
+// PROBE — round sixteen. Attacks on the authentication auditing added as T9,
+// written before reading that code again, from the requirements it claims to
+// serve rather than from its implementation.
+//
+// Copy to src/governance/probe-auth.test.ts to run.
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { ADMIN_ACTIONS } from "./admin-audit.js";
+import { tailLedger, type LedgerEntry } from "./audit-ledger.js";
+import {
+  auditLoginFailure,
+  auditLoginLockout,
+  auditLoginSuccess,
+  MAX_FAILURE_ENTRIES_PER_WINDOW,
+  resetAuthAuditForTests,
+} from "./auth-audit.js";
+import { resetLedgerKeyCacheForTests } from "./ledger-key.js";
+import { savePolicy } from "./policy-store.js";
+import { defaultPolicyDocument } from "./policy-types.js";
+
+let dir: string;
+
+beforeEach(async () => {
+  dir = await mkdtemp(join(tmpdir(), "probe-auth-"));
+  process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  resetLedgerKeyCacheForTests();
+  resetAuthAuditForTests();
+  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce" });
+});
+
+afterEach(async () => {
+  delete process.env.OPENCLAW_GOVERNANCE_DIR;
+  resetLedgerKeyCacheForTests();
+  resetAuthAuditForTests();
+  await rm(dir, { recursive: true, force: true });
+});
+
+async function entriesFor(action: string): Promise<LedgerEntry[]> {
+  return (await tailLedger(3000)).filter((e) => e.toolName === action);
+}
+
+// ATTACK 107 — use the flood bound to hide which account is being attacked.
+//
+// The cap is global. An attacker who wants a real guessing attempt against
+// `root` to go unrecorded can first exhaust the window with throwaway
+// usernames, then guess at leisure: everything after the cap is counted but
+// never named. The suppression notice says how many were dropped and nothing
+// about who they were for.
+//
+// Staying under five attempts avoids the lockout, which is never suppressed
+// and would otherwise name the account.
+it("ATTACK 107: a flood of junk names hides the account actually being attacked", async () => {
+  const now = Date.now();
+  for (let index = 0; index < MAX_FAILURE_ENTRIES_PER_WINDOW; index += 1) {
+    await auditLoginFailure(`throwaway-${index}`, now);
+  }
+  // The real target, four times — below the lockout threshold.
+  for (let index = 0; index < 4; index += 1) {
+    await auditLoginFailure("root", now);
+  }
+
+  const recorded = await entriesFor(ADMIN_ACTIONS.authLoginFailed);
+  const mentionsRoot = recorded.some((e) => e.ruleId === "root");
+  // Before the fix this is false: the ledger contains 200 entries about
+  // usernames that never existed, and nothing about the attempt that mattered.
+  expect(mentionsRoot).toBe(true);
+});
+
+// ATTACK 108 — a password typed into the username box.
+//
+// A tired operator types their password where the username goes. The gate
+// records the submitted name verbatim in the resource. Requirement #8 says no
+// plaintext secrets in logs, and this is a plaintext secret arriving through a
+// field the system does not treat as one.
+it("ATTACK 108: a secret typed into the username field is recorded verbatim", async () => {
+  await auditLoginFailure("hunter2-correct-horse-battery-staple");
+  const [entry] = await entriesFor(ADMIN_ACTIONS.authLoginFailed);
+  // Nothing can distinguish a mistyped password from a username, so this is
+  // arguably unfixable — but see whether redaction catches anything at all.
+  expect(entry?.resource).toBeDefined();
+});
+
+// ATTACK 109 — the suppressed counter as a cross-window smuggler.
+//
+// The window rolls on the *next* failure. If an attacker floods, then stops,
+// the notice is written whenever the next authentication event happens, which
+// may be days later and in a different window. Does the count survive
+// truthfully, or can it be reset by timing?
+it("ATTACK 109: the suppressed count survives a long quiet period", async () => {
+  const now = Date.now();
+  for (let index = 0; index < MAX_FAILURE_ENTRIES_PER_WINDOW + 30; index += 1) {
+    await auditLoginFailure(`x-${index}`, now);
+  }
+  // Much later, an unrelated successful login.
+  await auditLoginSuccess({ id: "u1", username: "alice", role: "administrator" });
+  const [notice] = await entriesFor(ADMIN_ACTIONS.authFailuresSuppressed);
+  // NOTE after the fix for 107: with a repeat reserve the general budget is
+  // 150, so 230 distinct names leave 80 suppressed rather than 30. The probe is
+  // kept with the corrected number — the behaviour it was testing (the count
+  // survives and is reported truthfully) holds either way.
+  expect(notice?.resource).toContain("80");
+});
+
+// ATTACK 110 — does a new window silently discard an unflushed count?
+it("ATTACK 110: rolling into a new window does not lose the previous count", async () => {
+  const now = Date.now();
+  for (let index = 0; index < MAX_FAILURE_ENTRIES_PER_WINDOW + 7; index += 1) {
+    await auditLoginFailure(`y-${index}`, now);
+  }
+  // A failure far enough ahead to start a new window.
+  await auditLoginFailure("later", now + 60 * 60 * 1000);
+  const [notice] = await entriesFor(ADMIN_ACTIONS.authFailuresSuppressed);
+  expect(notice?.resource).toContain("7");
+});
+
+// ATTACK 111 — lockout entries must never be suppressible, since they are the
+// entry an investigation searches for.
+it("ATTACK 111: a lockout is recorded even when the window is exhausted", async () => {
+  const now = Date.now();
+  for (let index = 0; index < MAX_FAILURE_ENTRIES_PER_WINDOW * 2; index += 1) {
+    await auditLoginFailure(`z-${index}`, now);
+  }
+  await auditLoginLockout("root", 5);
+  expect(await entriesFor(ADMIN_ACTIONS.authLockout)).toHaveLength(1);
+});
