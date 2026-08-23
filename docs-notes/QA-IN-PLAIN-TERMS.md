@@ -2054,6 +2054,9 @@ finished.
 
 ## 5.21 The week the documentation was audited instead of the code
 
+Engineering detail and the defect table for these four are in `GOVERNANCE.md`,
+"Documentation audit (2026-08-24) — findings 108-111".
+
 Every earlier round in this document attacked the _system_. This one read the
 project's own paperwork against the working tree, and found four things wrong
 with it. None is a security hole. All four are the kind of error a reader can

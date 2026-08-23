@@ -347,6 +347,11 @@ grouping is itself part of the design argument.
 > per-file rows were carried forward unchanged and the summary was written as
 > though they had been checked.
 >
+> Tabulated as findings 108-111 in `GOVERNANCE.md`, "Documentation audit
+> (2026-08-24)", alongside the other three the same pass found: the test-count
+> headline, `ROLE-MODEL.md` §3.7 contradicting shipped code, and two shipped
+> features that were on no list.
+>
 > This is worth a sentence in Chapter 4 rather than a silent fix, because it is
 > the project's own recurring finding turned on its own documentation: **a
 > summary makes a silent claim about the detail beneath it, and that claim
