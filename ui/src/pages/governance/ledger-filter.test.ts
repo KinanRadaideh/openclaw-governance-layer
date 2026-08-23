@@ -29,6 +29,16 @@ const adminEntry = entry({
   decision: "allow",
 });
 
+const authEntry = entry({
+  seq: 3,
+  entryKind: "admin",
+  actor: "unauthenticated",
+  agentId: "-",
+  toolName: "governance.auth.login-failed",
+  resource: 'failed sign-in for "alice"',
+  decision: "deny",
+});
+
 describe("filterLedger", () => {
   it("returns everything under 'all'", () => {
     expect(filterLedger([entry(), adminEntry], "all")).toHaveLength(2);
@@ -37,6 +47,26 @@ describe("filterLedger", () => {
   it("shows only policy changes under 'admin'", () => {
     const result = filterLedger([entry(), adminEntry], "admin");
     expect(result.map((e) => e.seq)).toEqual([2]);
+  });
+
+  it("keeps sign-ins out of 'admin', so that button stays true to its label", () => {
+    // Authentication entries are administrative — same chain, same entryKind —
+    // but there are far more of them. Left in this view they would bury "who
+    // removed that rule?" exactly as agent entries once buried the whole
+    // ledger, and the button says "Policy changes".
+    const result = filterLedger([entry(), adminEntry, authEntry], "admin");
+    expect(result.map((e) => e.seq)).toEqual([2]);
+  });
+
+  it("shows only sign-ins under 'auth'", () => {
+    const result = filterLedger([entry(), adminEntry, authEntry], "auth");
+    expect(result.map((e) => e.seq)).toEqual([3]);
+  });
+
+  it("still shows sign-ins under 'all'", () => {
+    // Every entry has to be reachable from some view. A kind visible under no
+    // filter is a kind that was silently dropped.
+    expect(filterLedger([entry(), adminEntry, authEntry], "all")).toHaveLength(3);
   });
 
   it("shows only agent activity under 'agent'", () => {

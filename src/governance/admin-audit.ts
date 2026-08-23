@@ -20,6 +20,7 @@
 // That is deliberate: a logging obligation enforced by review is one somebody
 // eventually forgets.
 import { appendLedgerEntry, type LedgerEntry } from "./audit-ledger.js";
+import type { GovernanceRole } from "./roles.js";
 
 /**
  * Action names, namespaced by the thing being administered.
@@ -37,6 +38,15 @@ export const ADMIN_ACTIONS = {
   agentModeChange: "governance.policy.agent-mode",
   userAskChange: "governance.policy.user-ask",
   hitlTimeoutChange: "governance.policy.hitl-timeout",
+  /**
+   * Root switched a core rule off, or back on (T24).
+   *
+   * Its own action rather than a `ruleRemove`, because nothing was removed:
+   * the rule stays declared in source and comes back when re-enabled. An
+   * auditor filtering for removals would miss the single most consequential
+   * change an operator can make to the shipped security floor.
+   */
+  coreRuleToggle: "governance.policy.core-rule",
   agentLock: "governance.agent.lock",
   agentRelease: "governance.agent.release",
   /**
@@ -66,11 +76,53 @@ export const ADMIN_ACTIONS = {
    * half-way through a task cannot answer it from the result alone.
    */
   agentPromptCancel: "governance.agent.prompt-cancel",
+  /**
+   * Authentication events on the dashboard's named-account gate.
+   *
+   * Four rather than one because they answer different questions and carry
+   * different attribution. A success and a logout have an authenticated account
+   * behind them and are recorded against it; a failure and a lockout do not,
+   * and are recorded against `UNAUTHENTICATED_ACTOR` with the *submitted*
+   * name held in the resource — where it is redacted and clamped like any other
+   * untrusted string, because at that point it is attacker-controlled input
+   * rather than an identity the system has agreed to.
+   *
+   * The lockout is separate from the failures that caused it because it is the
+   * entry an investigation actually looks for: individual wrong passwords are
+   * background noise on any installation with people on it, while "this account
+   * was locked" is the event worth an alert. Recording only the failures would
+   * bury it; recording only the lockout would lose the attempt pattern.
+   *
+   * See `auth-audit.ts` for why failures are bounded and successes are not.
+   */
+  authLogin: "governance.auth.login",
+  authLoginFailed: "governance.auth.login-failed",
+  authLockout: "governance.auth.lockout",
+  authLogout: "governance.auth.logout",
+  /**
+   * Written once when failure entries have been suppressed by the bound in
+   * `auth-audit.ts`, saying how many were dropped. An audit trail that silently
+   * stops recording under load is worse than one that records less and says so:
+   * the gap would read as an attack that ended, which is exactly the wrong
+   * conclusion.
+   */
+  authFailuresSuppressed: "governance.auth.failures-suppressed",
   userCreate: "governance.account.create",
   userDelete: "governance.account.delete",
   userRoleChange: "governance.account.role",
   userPasswordReset: "governance.account.password-reset",
   userAgentsChange: "governance.account.agents",
+  /**
+   * Root granted or withheld a User account's ability to write policy.
+   *
+   * A separate action from `userRoleChange` because it is not a change of tier:
+   * the account stays a User with everything else that carries — reading its
+   * agents' policy and ledger, prompting them, stopping them, submitting rule
+   * requests — and loses only the power to change policy directly. An
+   * investigation asking "why could this account no longer write rules?" would
+   * find nothing if this were folded into the role change that did not happen.
+   */
+  userPolicyAuthoringChange: "governance.account.policy-authoring",
   ruleRequestSubmit: "governance.rule-request.submit",
   ruleRequestDecide: "governance.rule-request.decide",
   pendingDecisionDecide: "governance.pending-decision.decide",
@@ -79,14 +131,22 @@ export const ADMIN_ACTIONS = {
 export type AdminAction = (typeof ADMIN_ACTIONS)[keyof typeof ADMIN_ACTIONS];
 
 /**
- * Actor recorded for a change made through the command line.
+ * Actor recorded for a command-line change made by nobody in particular.
  *
- * The CLI has no login by design — its boundary is filesystem access to the
- * governance directory, so anyone able to run it could edit the JSON files
- * directly anyway. The honest consequence is that a CLI-origin change is
- * attributable to the machine, not to a person; recording that plainly is
- * better than implying an accountability the design does not provide. Known
- * limitation A6.
+ * **Historical, and now rare (T5).** The command line used to have no login at
+ * all, so every change from it was recorded against this label: the trail could
+ * say a change came from this machine and never by whom, and no tier was
+ * checked either. `governance login` closed both halves — a signed-in operator
+ * is recorded by name and tier, and their tier is enforced with the same
+ * helpers the dashboard uses.
+ *
+ * The label survives for genuinely unauthenticated paths and for reading
+ * historical entries, which still carry it. It is no longer the ordinary case.
+ *
+ * **The limitation that remains, and must not be overstated away.** A login on
+ * the command line is a control against mistakes and casual misuse, not a
+ * security boundary: anyone who can run these commands can edit the governance
+ * directory directly. The boundary is the filesystem's, and always was.
  */
 export const CLI_ACTOR = "cli";
 
@@ -111,6 +171,23 @@ export const BOOTSTRAP_ACTOR = "bootstrap";
 export const UNKNOWN_ACTOR = "unknown";
 
 /**
+ * Actor recorded for an authentication event with no authenticated account.
+ *
+ * A failed password and a lockout are caused by somebody who has not proved who
+ * they are, so there is no account to attribute them to. Naming that state
+ * explicitly is better than recording the *submitted* username in the actor
+ * field, which would be wrong in two ways at once: it would read as though that
+ * account had done something, when the whole point of the entry is that nobody
+ * demonstrated they hold it — and it would put unbounded attacker-controlled
+ * text into a field the ledger does not clamp. The submitted name is still
+ * recorded, in the resource, where redaction and clamping apply.
+ *
+ * Distinct from `UNKNOWN_ACTOR`, which means "this caller should have had an
+ * identity and did not". Here the absence is correct rather than a gap.
+ */
+export const UNAUTHENTICATED_ACTOR = "unauthenticated";
+
+/**
  * Actor recorded for a rule created by an approved escalation.
  *
  * When a human answers "allow always" to a governance prompt, a rule is written
@@ -122,9 +199,49 @@ export const UNKNOWN_ACTOR = "unknown";
  */
 export const HITL_ACTOR = "hitl-approval";
 
+/**
+ * Who performed an administrative action.
+ *
+ * Two shapes rather than two fields, and the reason is churn. Seventeen store
+ * mutators take an actor and forward it here unchanged; widening the *type*
+ * lets a caller supply a tier without any of them changing how they forward it.
+ * Adding a second parameter to each would have been seventeen edits to signature
+ * and call site alike, on the paths that write the audit trail — the worst place
+ * in this codebase to make seventeen mechanical edits.
+ *
+ * - A bare **string** is an actor with no tier: the labelled actors (`cli`,
+ *   `bootstrap`, `hitl-approval`, `unauthenticated`) are not accounts and hold
+ *   no role, and supplying one would invent an authority that never existed.
+ * - **`{ name, role }`** is a named account acting at a known tier.
+ */
+export type AuditActorInput = string | { name: string; role?: GovernanceRole };
+
+/**
+ * Splits an actor into the two fields the ledger stores.
+ *
+ * Tolerates `undefined`, which several callers pass — `lockDownAgent` takes an
+ * optional actor, and a number of internal paths record without one. The
+ * previous code absorbed that in `input.actor || UNKNOWN_ACTOR`; moving the
+ * split earlier moved the tolerance with it, and forgetting to carry it over
+ * broke a hundred tests in one run. Left explicit rather than relying on the
+ * caller, because "record it as unknown" is a decision this module owns.
+ */
+export function splitAuditActor(actor: AuditActorInput | undefined): {
+  name: string;
+  role?: GovernanceRole;
+} {
+  if (!actor) {
+    return { name: "" };
+  }
+  if (typeof actor === "string") {
+    return { name: actor };
+  }
+  return { name: actor.name, ...(actor.role ? { role: actor.role } : {}) };
+}
+
 export type AdminAuditInput = {
-  /** Named account, or `CLI_ACTOR` / `BOOTSTRAP_ACTOR`. */
-  actor: string;
+  /** Named account with its tier, or a labelled actor like `CLI_ACTOR`. */
+  actor: AuditActorInput;
   action: AdminAction;
   /** Human-readable description of what changed. Redacted before storage. */
   target: string;
@@ -150,6 +267,7 @@ export type AdminAuditInput = {
 
 /** Appends one administrative entry to the same chain as agent activity. */
 export async function recordAdminAction(input: AdminAuditInput): Promise<LedgerEntry> {
+  const actorParts = splitAuditActor(input.actor);
   return appendLedgerEntry({
     entryKind: "admin",
     // Never allow `entryKind` without `actor`. The hashed field list is chosen
@@ -159,7 +277,13 @@ export async function recordAdminAction(input: AdminAuditInput): Promise<LedgerE
     // corrupt the ledger rather than merely record an incomplete entry. An
     // explicit `unknown` also states plainly that attribution is missing, which
     // is itself something an auditor should be able to see.
-    actor: input.actor || UNKNOWN_ACTOR,
+    actor: actorParts.name || UNKNOWN_ACTOR,
+    // The tier is recorded **as it was at the moment of the action**, never
+    // looked up later. An account demoted next month must not retroactively
+    // rewrite the authority last month's entries were taken under: the ledger
+    // records history, and the actor's tier is part of the history of an
+    // action rather than a property to resolve afterwards.
+    ...(actorParts.role ? { actorRole: actorParts.role } : {}),
     // One chain, not two. A separate administrative log would be a second file
     // to protect, and would lose the interleaving that makes the trail
     // readable — "the rule was widened, then the agent used it" is only visible

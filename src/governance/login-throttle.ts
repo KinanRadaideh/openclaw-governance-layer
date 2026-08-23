@@ -89,17 +89,38 @@ export function checkLoginAllowed(key: string, nowMs = Date.now()): ThrottleStat
   return { allowed: true };
 }
 
-export function recordLoginFailure(key: string, nowMs = Date.now()): void {
+/**
+ * Outcome of recording one failure.
+ *
+ * `lockedOut` is true on the single attempt that *trips* the lockout, not on
+ * the attempts refused afterwards — those never reach here, because
+ * `checkLoginAllowed` turns them away first. That makes it exactly the edge an
+ * audit entry should be written on: once per lockout rather than once per
+ * rejected request, which is the difference between a signal and a flood.
+ *
+ * Reported rather than inferred by the caller. Re-deriving "did that reach five
+ * failures?" at the HTTP route would mean a second copy of the threshold, and
+ * two statements of one intention drifting apart is this project's most
+ * frequently found defect.
+ */
+export type LoginFailureResult = { failures: number; lockedOut: boolean };
+
+export function recordLoginFailure(key: string, nowMs = Date.now()): LoginFailureResult {
   prune(nowMs);
   const record = attempts.get(key);
   if (!record || nowMs - record.firstFailureAtMs > WINDOW_MS) {
     attempts.set(key, { failures: 1, firstFailureAtMs: nowMs });
-    return;
+    return { failures: 1, lockedOut: false };
   }
+  const alreadyLocked = record.lockedUntilMs !== undefined && record.lockedUntilMs > nowMs;
   record.failures += 1;
   if (record.failures >= MAX_ATTEMPTS) {
     record.lockedUntilMs = nowMs + LOCKOUT_MS;
   }
+  return {
+    failures: record.failures,
+    lockedOut: !alreadyLocked && record.lockedUntilMs !== undefined,
+  };
 }
 
 export function recordLoginSuccess(key: string): void {

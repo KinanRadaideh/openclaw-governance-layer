@@ -10,6 +10,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { BOOTSTRAP_ACTOR } from "../governance/admin-audit.js";
 import {
+  auditLoginFailure,
+  auditLoginLockout,
+  auditLoginSuccess,
+  auditLogout,
+} from "../governance/auth-audit.js";
+import {
   checkLoginAllowed,
   loginThrottleKey,
   recordLoginFailure,
@@ -139,11 +145,24 @@ export async function handleGovernanceAuthRequest(
     }
     const user = await authenticate(username, password);
     if (!user) {
-      recordLoginFailure(throttleKey);
+      const failure = recordLoginFailure(throttleKey);
+      // The attempt number comes from the throttle rather than from a second
+      // counter kept beside it. A repeated attempt against one account is worth
+      // an entry even when a flood of invented usernames has exhausted the
+      // window's general budget (finding 107), and the throttle is already the
+      // one place that knows how many times this account has been tried.
+      await auditLoginFailure(username, Date.now(), failure.failures);
+      // The lockout is a second entry rather than a field on the first,
+      // because it is the one an investigation searches for and burying it
+      // inside a routine failure would make it findable only by counting.
+      if (failure.lockedOut) {
+        await auditLoginLockout(username, failure.failures);
+      }
       sendJson(res, 401, { error: { message: "Invalid credentials", type: "unauthorized" } });
       return true;
     }
     recordLoginSuccess(throttleKey);
+    await auditLoginSuccess(user);
     const session = await issueSession(user);
     setSessionCookie(
       res,
@@ -162,7 +181,15 @@ export async function handleGovernanceAuthRequest(
   if (pathname === `${GOVERNANCE_AUTH_PATH_PREFIX}logout` && req.method === "POST") {
     const token = readCookie(req, SESSION_COOKIE_NAME);
     if (token) {
+      // Resolved *before* revoking, because after revocation there is nothing
+      // left to say who was signed out. A token that no longer verifies —
+      // expired, already revoked, forged — yields no session and therefore no
+      // entry, which is correct: nobody was signed out by this request.
+      const ending = await verifySession(token);
       await revokeSession(token);
+      if (ending) {
+        await auditLogout(ending);
+      }
     }
     clearSessionCookie(res);
     sendJson(res, 200, { ok: true });
@@ -232,6 +259,13 @@ export async function handleGovernanceAuthRequest(
       sendInvalidRequest(res, err instanceof Error ? err.message : "could not create account");
       return true;
     }
+    // Bootstrap signs the new Root in as well as creating it, and the two are
+    // separate facts: `userCreate` records that the account came into
+    // existence, attributed to `bootstrap` because no authenticated actor
+    // existed yet, while this records the session that immediately followed.
+    // Without it the very first session on an installation is the one session
+    // the trail cannot show.
+    await auditLoginSuccess(user);
     const session = await issueSession(user);
     setSessionCookie(
       res,
