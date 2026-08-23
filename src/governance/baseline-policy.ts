@@ -175,6 +175,9 @@ export const CORE_RULES: readonly SeedRule[] = Object.freeze([
     effect: "deny",
     tier: "core",
     pattern: GOVERNANCE_STATE,
+    // Self-protecting: reaching this directory is reaching the policy, the
+    // accounts, the ledger and the signing key. Root cannot disable it (T24).
+    selfProtecting: true,
     description: "The governance layer's own policy, accounts, audit ledger and signing key",
   },
   {
@@ -195,6 +198,7 @@ export const CORE_RULES: readonly SeedRule[] = Object.freeze([
     // policy.json` — was not matched, on the platform this project is
     // developed on (QA round 13, finding 74).
     pattern: "\\.openclaw[\\\\/]+governance",
+    selfProtecting: true,
     description: "Any command naming the governance state directory",
   },
   {
@@ -225,6 +229,7 @@ export const CORE_RULES: readonly SeedRule[] = Object.freeze([
     // ---------------------------------------------------------------------
     pattern:
       "(?:^|[^A-Za-z0-9_.-])governance\\s+(?:policy|agent|kill|ledger|sessions|pending|users)\\b",
+    selfProtecting: true,
     description: "The governance command line, which can switch the gate off",
   },
   {
@@ -393,6 +398,7 @@ export function governanceStateRules(): readonly SeedRule[] {
       effect: "deny",
       tier: "core",
       pattern: `^${escapeLiteral(home)}(/|$)`,
+      selfProtecting: true,
       description: "The governance directory in use (policy, accounts, ledger, signing key)",
     },
     {
@@ -402,6 +408,7 @@ export function governanceStateRules(): readonly SeedRule[] {
       // Either separator, because a command names the directory as the shell
       // spells it rather than in the canonical form paths are reduced to.
       pattern: escapeLiteral(home).replaceAll("/", "[\\\\/]+"),
+      selfProtecting: true,
       description: "Any command naming the governance directory in use",
     },
   ]);

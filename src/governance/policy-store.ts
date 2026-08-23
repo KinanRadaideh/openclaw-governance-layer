@@ -6,7 +6,7 @@
 import { mkdir } from "node:fs/promises";
 import { readJsonIfExists, writeJsonAtomic } from "../infra/json-files.js";
 import { canonicalAccountName } from "./account-name.js";
-import { ADMIN_ACTIONS, recordAdminAction } from "./admin-audit.js";
+import { ADMIN_ACTIONS, recordAdminAction, type AuditActorInput } from "./admin-audit.js";
 import { BASELINE_RULES, coreRules, seedRuleId, type SeedRule } from "./baseline-policy.js";
 import { withFileLock } from "./file-lock.js";
 import { governanceHomeDir, isUnconfiguredTestRun, policyFilePath } from "./paths.js";
@@ -135,7 +135,7 @@ export async function loadPolicy(): Promise<PolicyDocument> {
       defaults.hitlTimeoutSeconds,
     ),
   };
-  return { ...loaded, rules: reassertCoreRules(loaded.rules) };
+  return { ...loaded, rules: reassertCoreRules(loaded.rules, loaded.disabledCoreRules ?? []) };
 }
 
 /**
@@ -150,9 +150,25 @@ export async function loadPolicy(): Promise<PolicyDocument> {
  * attacker could inject a core-tier **allow** and have it survive with the
  * authority of a shipped restriction.
  */
-function reassertCoreRules(rules: PolicyRule[]): PolicyRule[] {
+function reassertCoreRules(
+  rules: PolicyRule[],
+  disabledCoreRules: readonly string[],
+): PolicyRule[] {
   const withoutCore = rules.filter((rule) => rule.tier !== "core");
-  const core = coreRules().map((rule) => materialiseSeedRule(rule));
+  const disabled = new Set(disabledCoreRules);
+  const core = coreRules()
+    .map((rule) => materialiseSeedRule(rule))
+    // T24: Root may switch off a core rule that is not self-protecting. The
+    // reassertion guarantee is unchanged for everything else — the rules are
+    // still declared in source and still rebuilt on every load; what the stored
+    // document now carries is a *decision*, not an edit, and one the setter has
+    // already refused to record for a self-protecting rule.
+    //
+    // Checked here as well as at the setter, deliberately. A `disabledCoreRules`
+    // entry naming a self-protecting rule can only arrive by hand-editing
+    // `policy.json` — which is exactly the attack the core tier exists to
+    // survive, so the load path must not trust the file either.
+    .filter((rule) => !(disabled.has(rule.id) && !rule.selfProtecting));
   return [...core, ...withoutCore];
 }
 
@@ -165,6 +181,85 @@ function materialiseSeedRule(rule: SeedRule): PolicyRule {
     createdAt: "1970-01-01T00:00:00.000Z",
     createdBy: "system",
   };
+}
+
+/** Raised when Root tries to disable a core rule that protects the layer itself. */
+export class SelfProtectingCoreRuleError extends Error {
+  constructor(ruleId: string) {
+    super(
+      `Core rule "${ruleId}" protects the governance layer itself and cannot be disabled. ` +
+        "Disabling it would let a governed agent reach the policy, the accounts, the ledger, " +
+        "or the command line that switches the gate off — after which no other control, " +
+        "including this one, would mean anything.",
+    );
+    this.name = "SelfProtectingCoreRuleError";
+  }
+}
+
+/** Raised when the named rule is not a core rule at all. */
+export class NotACoreRuleError extends Error {
+  constructor(ruleId: string) {
+    super(`"${ruleId}" is not a core rule. Baseline and operator rules are removed, not disabled.`);
+    this.name = "NotACoreRuleError";
+  }
+}
+
+/**
+ * Root switches one core rule off, or back on (T24).
+ *
+ * **Why this exists.** The core tier was wholly immutable, on the reasoning
+ * that a floor nobody can lower is the strongest claim a policy layer can
+ * make. That is right about the three rules protecting the layer from the agent
+ * and wrong about the other five, which are ordinary security opinions —
+ * sensible defaults that an operator with a real deployment may legitimately
+ * disagree with. An installation whose agent genuinely needs `sudo` for its job
+ * had no way to say so and would have ended up switching the whole gate off,
+ * which is the outcome an inflexible control always produces.
+ *
+ * **What is not weakened.** Nothing is deleted: the rule stays declared in
+ * `baseline-policy.ts`, stays visible, and comes back the moment it is
+ * re-enabled. The reassertion that defeats a hand-edited `policy.json` still
+ * runs. And the three self-protecting rules are refused here *and* at load, so
+ * the one edit that would make every other control advisory remains impossible
+ * from any surface.
+ */
+export async function setCoreRuleEnabled(
+  ruleId: string,
+  enabled: boolean,
+  actor: AuditActorInput,
+): Promise<PolicyDocument> {
+  // Resolved from source rather than from the stored document, so a caller
+  // cannot get a rule past this check by inventing an id the file happens to
+  // contain.
+  const declared = coreRules()
+    .map((rule) => materialiseSeedRule(rule))
+    .find((rule) => rule.id === ruleId);
+  if (!declared) {
+    throw new NotACoreRuleError(ruleId);
+  }
+  if (declared.selfProtecting && !enabled) {
+    throw new SelfProtectingCoreRuleError(ruleId);
+  }
+  const updated = await updatePolicy((doc) => {
+    const current = new Set(doc.disabledCoreRules ?? []);
+    if (enabled) {
+      current.delete(ruleId);
+    } else {
+      current.add(ruleId);
+    }
+    doc.disabledCoreRules = [...current].toSorted();
+  });
+  await recordAdminAction({
+    actor,
+    action: ADMIN_ACTIONS.coreRuleToggle,
+    subjectId: ruleId,
+    // Named in full, because "core rule disabled" without saying *which* is the
+    // entry an investigation cannot use. The description is the sentence a
+    // person recognises the rule by; the id is what a filter matches.
+    target: `${enabled ? "re-enabled" : "DISABLED"} core rule: ${declared.description ?? ruleId}`,
+    outcome: enabled ? "allow" : "deny",
+  });
+  return updated;
 }
 
 export async function savePolicy(doc: PolicyDocument): Promise<void> {
@@ -271,7 +366,7 @@ export type AddRuleResult = { rule: PolicyRule; conflicts: RuleConflict[] };
  */
 export async function addRuleChecked(
   rule: Omit<PolicyRule, "id" | "createdAt"> & { id?: string },
-  actor: string,
+  actor: AuditActorInput,
 ): Promise<AddRuleResult> {
   // Spread first, then the generated fields. The other order let a caller
   // passing an explicit `id: undefined` overwrite the generated id with
@@ -343,7 +438,7 @@ export async function addRuleChecked(
 /** Adds a rule, discarding the clash report. See `addRuleChecked`. */
 export async function addRule(
   rule: Omit<PolicyRule, "id" | "createdAt"> & { id?: string },
-  actor: string,
+  actor: AuditActorInput,
 ): Promise<PolicyRule> {
   return (await addRuleChecked(rule, actor)).rule;
 }
@@ -367,7 +462,7 @@ export class ImmutableRuleError extends Error {
   }
 }
 
-export async function removeRule(ruleId: string, actor: string): Promise<boolean> {
+export async function removeRule(ruleId: string, actor: AuditActorInput): Promise<boolean> {
   let removed: PolicyRule | undefined;
   let blockedCore = false;
   await updatePolicy((doc) => {
@@ -400,7 +495,7 @@ export async function removeRule(ruleId: string, actor: string): Promise<boolean
   return true;
 }
 
-export async function setMode(mode: PolicyDocument["mode"], actor: string): Promise<void> {
+export async function setMode(mode: PolicyDocument["mode"], actor: AuditActorInput): Promise<void> {
   let previous: PolicyDocument["mode"] | undefined;
   await updatePolicy((doc) => {
     previous = doc.mode;
@@ -421,7 +516,10 @@ export async function setMode(mode: PolicyDocument["mode"], actor: string): Prom
  * read-modify-write is the one route by which policy state can still be altered
  * without an actor, and it is now confined to internal use and tests.
  */
-export async function setAskMode(ask: PolicyDocument["ask"], actor: string): Promise<void> {
+export async function setAskMode(
+  ask: PolicyDocument["ask"],
+  actor: AuditActorInput,
+): Promise<void> {
   let previous: PolicyDocument["ask"] | undefined;
   await updatePolicy((doc) => {
     previous = doc.ask;
@@ -435,7 +533,7 @@ export async function setAskMode(ask: PolicyDocument["ask"], actor: string): Pro
 }
 
 /** Sets how long an escalation waits for a human before it is denied. */
-export async function setHitlTimeout(seconds: number, actor: string): Promise<void> {
+export async function setHitlTimeout(seconds: number, actor: AuditActorInput): Promise<void> {
   let previous: number | undefined;
   await updatePolicy((doc) => {
     previous = doc.hitlTimeoutSeconds;
@@ -457,7 +555,7 @@ export async function setHitlTimeout(seconds: number, actor: string): Promise<vo
 export async function setAgentAskMode(
   agentId: string,
   ask: PolicyDocument["ask"] | undefined,
-  actor: string,
+  actor: AuditActorInput,
 ): Promise<void> {
   await updatePolicy((doc) => {
     if (ask === undefined) {
@@ -488,7 +586,7 @@ export async function setAgentAskMode(
 export async function setUserAskMode(
   username: string,
   ask: PolicyDocument["ask"] | undefined,
-  actor: string,
+  actor: AuditActorInput,
 ): Promise<void> {
   // Keyed by the **canonical** account name, not the spelling Root typed.
   //
@@ -529,7 +627,7 @@ export async function setUserAskMode(
 export async function setAgentMode(
   agentId: string,
   mode: GovernanceMode | undefined,
-  actor: string,
+  actor: AuditActorInput,
 ): Promise<void> {
   let previous: GovernanceMode | undefined;
   await updatePolicy((doc) => {

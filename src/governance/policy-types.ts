@@ -90,6 +90,21 @@ export type PolicyRule = {
    * protect the agent.
    */
   agentId?: string;
+  /**
+   * A core rule that protects the governance layer from the agent it governs.
+   *
+   * These are the subset Root may **not** disable (T24). The distinction is not
+   * about how dangerous the rule is — a credential denial matters enormously —
+   * but about what the ability to lift it would mean: a self-protecting rule is
+   * one whose removal would let the governed agent reach the policy, the
+   * accounts, the ledger, or the command line that switches the gate off. Lift
+   * those and every other control becomes advisory, including the list of which
+   * core rules are disabled.
+   *
+   * So they stay immutable for the same reason the tier existed in the first
+   * place, and the five that are *not* self-protecting become Root's to decide.
+   */
+  selfProtecting?: boolean;
 };
 
 export type PolicyDocument = {
@@ -162,6 +177,21 @@ export type PolicyDocument = {
    * independent of `rules` and `mode`.
    */
   lockedAgents: string[];
+  /**
+   * Core rules Root has switched off, by rule id (T24, decided 2026-08-22).
+   *
+   * Core rules are reasserted from `baseline-policy.ts` on every load precisely
+   * so a hand-edited `policy.json` cannot remove them. That guarantee is kept:
+   * this list does not *delete* anything, it records a deliberate decision that
+   * the reassertion consults. A rule named here is still declared in source,
+   * still visible in the dashboard, and one setting away from coming back.
+   *
+   * **Self-protecting core rules cannot be listed here**, and both the setter
+   * and the load path refuse them. That refusal is what keeps this list
+   * meaningful: the rules that stop an agent reaching the governance directory
+   * are the same rules that stop it editing this field.
+   */
+  disabledCoreRules?: string[];
 };
 
 /**
@@ -204,6 +234,7 @@ export function defaultPolicyDocument(): PolicyDocument {
     hitlTimeoutSeconds: DEFAULT_HITL_TIMEOUT_SECONDS,
     rules: [],
     lockedAgents: [],
+    disabledCoreRules: [],
   };
 }
 
