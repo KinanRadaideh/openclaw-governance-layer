@@ -18,7 +18,7 @@ Persisted at `${OPENCLAW_GOVERNANCE_DIR:-~/.openclaw/governance}/policy.json`.
 ```ts
 type PolicyDocument = {
   version: 1;
-  mode: "enforce" | "monitor" | "off"; // default: "enforce"
+  mode: "enforce" | "monitor" | "off"; // default: "enforce" (monitor is opt-in, per agent)
   ask: "off" | "on-miss";
   agentMode: Record<AgentId, "enforce" | "monitor" | "off">;
   agentAsk: Record<AgentId, "off" | "on-miss">;

@@ -186,9 +186,20 @@ person deciding, during an incident, that this agent stops now.
 
 Before the fix, the stop was advisory in monitor mode: it aborted whatever was
 running, then let the agent carry straight on with its next action. That was a
-tolerable quirk while monitor was something you opted into deliberately. The
-moment monitor became the default, it meant every fresh installation shipped
-with an emergency stop that did not stop anything — so it had to change.
+tolerable quirk while monitor was something you opted into deliberately. During
+the period when monitor was the shipped default, it meant every fresh
+installation came with an emergency stop that did not stop anything — so it had
+to change.
+
+**Monitor is opt-in again, and off by default.** Making observation the default
+had solved one problem by creating a bigger one: a system advertised as
+"refuses by default" that, as delivered, refused nothing. The real fix was to
+ship a starter set of rules so a new installation can be strict _and_ usable on
+day one. Monitor is now something an operator switches on for one agent when
+they want to watch it — which is the job it was always suited to. The kill-switch
+exception is kept regardless, because the reasoning never rested on the default:
+choosing to watch one agent is not a decision that the emergency stop should
+stop working.
 
 ## 4. The other serious findings
 
@@ -1527,6 +1538,593 @@ one of them was false on every screen a person can actually reach.
 > as a test is a claim the system has to keep making.
 
 ---
+
+## 5.17 Nobody was recording who signed in (T9)
+
+### What was missing
+
+The audit ledger could answer a lot of questions. What did the agent do? Which
+rule allowed it? Who wrote that rule, and when? Who told the agent to start?
+
+It could not answer the first question anyone actually asks after something goes
+wrong: **who was signed in?**
+
+Signing in to the dashboard, getting the password wrong, being locked out after
+five wrong guesses, signing out — none of it was written down anywhere. The
+system was perfectly capable of _noticing_ these things: it counts failed
+passwords well enough to lock an account after five. It just kept the count in
+its own memory, forgot it when the program restarted, and never told anybody.
+
+That is a strange shape for a security system to be in. It could tell you
+everything about what the robot did, and nothing about which human was holding
+the controls.
+
+Both of the standards this project measures itself against expect exactly this
+to be recorded. It is not an exotic requirement — it is one of the first things
+on the list in either of them.
+
+### What it does now
+
+Four things get written into the same tamper-evident log as everything else:
+
+| What happened           | What the log now says                                     |
+| ----------------------- | --------------------------------------------------------- |
+| Someone signed in       | who, what role they hold, and when                        |
+| Someone signed out      | who, and when                                             |
+| A password was rejected | which name was tried, and that nobody proved they held it |
+| An account got locked   | which account, and after how many attempts                |
+
+### The decision that took the longest, and it wasn't the code
+
+Writing the four entries was straightforward. The question that took the
+thinking was: **what happens when someone attacks it?**
+
+Here is the problem. Signing in successfully requires a password, so an attacker
+cannot make those entries happen. But _failing_ to sign in requires nothing at
+all — anybody who can reach the page can fail, forever, as fast as they like.
+And the audit log deliberately never deletes anything, because a log that throws
+away old history is not much of a log.
+
+Put those two facts together and the fix for a missing record becomes a way to
+fill up the disk. Somebody hammering the login page with made-up names would
+write entries until the machine ran out of room, and they would not need a valid
+password to do it. **The repair for one weakness would have opened another.**
+
+The existing lockout does not help here, because it protects one account at a
+time. It stops a thousand guesses at _Alice_. It does nothing about a thousand
+guesses at a thousand names that were never accounts in the first place.
+
+So there is a ceiling: two hundred failed sign-ins recorded in any fifteen
+minutes across the whole installation. A real office of people getting their
+passwords wrong will never come close. An attack sails past it in seconds — and
+when it does, the ones over the ceiling are counted rather than written, and the
+count is written as a single line saying how many were left out.
+
+That last part is the bit worth noticing. **A log that quietly stops recording
+when things get busy is worse than one that records less and admits it**,
+because a gap in the record reads like an attack that stopped. This one says how
+much it did not write down.
+
+### Three smaller decisions, each of which could have gone wrong
+
+**A failed sign-in is not blamed on the account.** If someone types "alice" and
+the wrong password, the entry does not say alice did something — because nobody
+demonstrated they are alice. That is the whole point of the entry. It says an
+unidentified person tried the name alice. The distinction sounds pedantic until
+you imagine reading the log during an investigation and seeing a colleague's
+name against fifty suspicious events they had nothing to do with.
+
+**A wrong password and a name that does not exist look identical.** The login
+page is careful never to tell you which of the two you got wrong, because that
+would let a stranger discover who has an account. It would be an odd kind of
+carefulness to then write the answer into a file. So the log does not
+distinguish them either. An investigator loses nothing: what they need is the
+pattern of attempts, and that is there either way.
+
+**If the log cannot be written, you can still sign in.** Everywhere else in this
+system, a change that cannot be recorded is a change that does not happen — you
+cannot add a rule if adding it cannot be logged. Applying that rule here would
+mean that a full disk locks _everyone_ out of the dashboard, including the one
+administrator whose job is to go in and fix the full disk. An outage in the
+record-keeping would become an outage in everything. So these particular entries
+are best-effort, and this is written down rather than glossed over.
+
+### One thing that had to change elsewhere
+
+The dashboard has buttons for filtering the log, and one of them is labelled
+"Policy changes". Sign-in entries are technically the same _kind_ of entry as
+policy changes, so without any further thought they would have appeared under
+that button — and there are far more of them.
+
+Which would have done to "who removed that rule?" precisely what the unfiltered
+log already did to everything: buried it. The button would still work, and would
+quietly stop being true to its label.
+
+So sign-ins got a button of their own. This is a small thing, but it is the same
+mistake the project has now made and caught several times in different clothes:
+**a label that was accurate when it was written, and became inaccurate because
+something new arrived underneath it.**
+
+---
+
+## 5.18 The sixteenth review — when a safety limit becomes a hiding place
+
+Four problems, all fixed. Three of them were in code the project had already
+looked at and been happy with, and two were in code written the same morning.
+
+### The lock that let go without saying so
+
+There is a small piece of machinery whose only job is to make sure two parts of
+the system never write to the same file at once. It works like a sign on a door:
+whoever is inside hangs the sign, and everyone else waits.
+
+It also has to cope with someone dying inside the room. If the sign has been
+hanging for fifteen minutes with no sign of life, the next person in the queue
+is allowed to take it down and go in. Otherwise one crash would jam the whole
+system permanently.
+
+The known worry was that a _slow_ worker might be mistaken for a dead one. That
+turned out to be true, and to be the least of it. What nobody had asked was:
+**what does the slow worker think is happening?** And the answer was that it had
+no idea. Nobody told it the sign had been taken down. It carried on working,
+believing it had the room to itself, while somebody else worked in there too.
+
+Then it got worse. On finishing, the first worker did what it always does on the
+way out — took down the sign. But that was not its sign any more. It was the new
+occupant's. So it walked out and left the door open behind someone else, who now
+also believed they had the room to themselves, and who would in turn do the same
+thing to the next person.
+
+Three changes fix it. The worker now checks in periodically, so "no sign of
+life" means what it says instead of "taking a while". The sign has a name on it,
+and nobody can take down a sign with somebody else's name. And if a worker
+finishes and finds its sign already gone, it now says so loudly rather than
+reporting success — because work that was supposed to be protected and wasn't is
+not work you should trust.
+
+### The fix that locked everyone out for four minutes
+
+Requiring a name on the sign had an obvious consequence that was not obvious at
+the time: what about a sign with **no** name on it? Those exist — one left by an
+older version of the system, or by a crash that happened between hanging the
+sign and writing on it.
+
+Nothing could ever take those down. Which meant the whole system would wait, and
+fail, and wait, and fail, forever, until a human deleted a file by hand. That is
+precisely the disaster the fifteen-minute rule was invented to prevent, brought
+back by the repair for something else.
+
+It lasted about four minutes, because one of the attack scripts written that
+morning stopped passing and started hanging. Which is the argument for writing
+attack scripts even when you expect them to find nothing: this one found nothing
+about the problem it was aimed at, and everything about the fix.
+
+### The safety limit that became a way to hide
+
+This one is the most interesting, and it is worth following slowly.
+
+That morning, sign-in events had been added to the audit log — including failed
+passwords. That raised a problem immediately: **anyone can fail to sign in.** You
+do not need a password to get a password wrong. And the audit log never deletes
+anything, on purpose, because a log that forgets is not much of a log.
+
+So an attacker could simply hammer the login page forever and fill up the disk.
+The fix for a missing record must not become a way to take the system down.
+
+The answer was a ceiling: at most two hundred failed sign-ins recorded in any
+fifteen minutes. Beyond that, count them and write one line saying how many were
+left out. Sensible. A real office never comes close to two hundred.
+
+Here is what that missed. **The attacker gets to decide what goes in the two
+hundred.**
+
+Send two hundred sign-in attempts for invented names — `zzz1`, `zzz2`, and so on.
+The ceiling is now full. Then quietly start guessing the administrator's
+password, four attempts at a time, staying below the five that would lock the
+account and raise an alarm. None of it is recorded. The audit log ends up
+holding two hundred entries about accounts that never existed, and nothing at all
+about the one account that does.
+
+The limit written to stop an attack had become a tool for carrying one out.
+
+The fix comes from noticing that the two behaviours look different. **Flooding
+needs new names every time** — that is what makes it flooding. **Guessing needs
+the same name over and over** — that is what makes it guessing. So the budget is
+split in two. Most of it is available to names being seen for the first time.
+The rest is held back for names that have come up before, and a flood cannot
+touch that part without repeating itself, at which point it has stopped being a
+flood and become the thing the reserve is there to catch.
+
+The total never changes, so the disk is protected exactly as well as before. All
+that changed is which failures are judged worth writing down.
+
+### And then the fix did the thing the project keeps doing
+
+To know whether a name had come up before, the new code kept a list. The list
+had to have a size limit, so when it filled up, the oldest entry was dropped.
+
+The oldest entry is the administrator's account — because the attacker
+mentioned it first and has been patiently returning to it ever since. The list
+built to catch the attack would have thrown away the only entry that mattered.
+
+This project has already found that exact mistake, in a different file, in an
+earlier review, and wrote several paragraphs explaining it. It was reproduced in
+a brand-new file a few hours later by someone who had read those paragraphs.
+
+The repair was not to fix the list. It was to **throw the list away**, because
+another part of the system was already counting the same thing and had already
+been hardened against this exact trick. Two things counting the same fact is the
+problem; fixing one of them is not the answer.
+
+### One thing that cannot be fixed, and is written down instead
+
+If someone types their password into the username box by mistake, it gets
+written into the audit log. There is no way around this: nothing can tell a
+mistyped password apart from a username — they are both just text arriving in the
+same field.
+
+So it is recorded here as a known limit rather than solved. Only administrators
+can read the log, which limits who could ever see it, and that is the whole of
+the protection available.
+
+### The lesson
+
+An earlier review produced the line this project quotes most: _a check makes a
+silent claim about what it compares against._
+
+This one produced its twin: **a limit makes a silent claim about which of the
+things it throws away were the ones worth keeping.**
+
+Both of the limits in this round — two hundred entries, fifteen minutes — were
+put there for good reasons and were right about the thing they protected. Both
+were completely silent about the choice they were making, and in both cases
+someone who understood that choice could steer it. A limit looks like a technical
+detail. It is a decision about what you will not know.
+
+---
+
+## 5.19 Two decisions about who is allowed to change what
+
+Not defects — decisions, taken deliberately, and recorded here because the
+reasoning is the part that will matter later.
+
+### Which of the shipped rules are the operator's to change
+
+Every installation ships with two sets of rules, and they are easy to confuse
+because both arrive before anybody has configured anything.
+
+**The baseline set** is six _permissions_ — read files in the project, run a
+handful of harmless inspection commands, look at the git history. They exist so
+an agent can do useful work on the first day. An administrator has always been
+able to narrow or delete any of them, and that has never been in question.
+
+**The core set** is eight _prohibitions_ — no credential files, no `.ssh`
+directory, no `sudo`, no wiping the disk, no reaching the cloud provider's
+credential service, and no touching the governance system itself. These were
+absolutely fixed. Nobody could change them, including the most privileged
+account.
+
+The question raised was whether the fixed set should be adjustable, and the
+answer taken is: **five of the eight, yes. Three, never.**
+
+The line is not "how dangerous is this rule". A credential prohibition is
+enormously important and it is now adjustable. The line is **what being able to
+lift the rule would let somebody reach**. Three of the eight exist to stop the
+agent getting at the governance system's own files, its own command line, and
+its own records. Remove those and nothing else means anything any more —
+including the list of which rules have been switched off, which the agent could
+then simply edit.
+
+So those three stay fixed, and they are what keep the other five honest.
+
+**Why not leave all eight fixed?** Because this project already learned what
+happens to a control that cannot bend. Early on, the system shipped in its
+strictest setting with no permissions at all, and the agent could do nothing.
+The reaction was not to write better rules — it was to switch the whole thing
+into observe-only mode. An operator whose agent genuinely needs one of these
+five would have faced the same choice: accept a system that does not work, or
+turn the whole thing off. Given those two options people turn it off.
+
+**Three things make this safe rather than merely convenient:**
+
+- **Nothing is deleted.** Switching a rule off records a decision. The rule
+  itself stays written down, is rebuilt every time the system starts, and comes
+  back the moment somebody switches it on again.
+- **It cannot be done quietly.** The change is written into the tamper-evident
+  log against the person who made it, naming the rule in full. And the system's
+  own health report starts saying the installation is **failing** — not
+  "warning" — for as long as any of them is off. That report is evidence in the
+  final write-up, so it has to say what is actually true.
+- **Switching off a prohibition does not permit anything.** This reads backwards
+  and is worth sitting with. The system refuses everything by default. A
+  prohibition is an override that beats permissions. Turning one off does not
+  grant the action — it just stops the override, so the action goes back to
+  being refused until somebody writes an explicit permission for it. The
+  practical effect is to convert "forbidden, full stop" into "forbidden unless
+  you say otherwise, in writing, on the record".
+
+### Whether a team lead can rewrite their own agent's rules
+
+The User role was widened earlier in the project: rather than only _proposing_
+changes for an administrator to approve, a User genuinely manages the agents
+assigned to them — writing rules, setting how cautious the agent should be,
+reading its full logs, stopping it.
+
+That is right for most installations and wrong for some. An organisation running
+several teams might reasonably want some team leads managing their agents and
+others only watching them.
+
+Before, the only way to get the narrower behaviour was to demote the person to
+the read-only role — which also took away reading full logs, talking to the
+agent, and **stopping it**. Three things that have nothing to do with writing
+rules.
+
+So there is now a single switch, held by the most privileged account, that
+withholds _rule editing_ from one account and leaves everything else alone. The
+person can still read, still talk to their agent, **still stop it**, and still
+ask an administrator for a rule change. They simply cannot make the change
+themselves.
+
+**And building it introduced a bug that the safety net caught.** The first
+version wired the new switch into the function that answers "may this person act
+on this agent?" — which turned out to be answering that question for eight
+different things at once. So withholding somebody's ability to _edit rules_ also
+silently removed their ability to _stop their own agent_.
+
+That is a genuinely dangerous kind of mistake: a restriction that quietly
+removes a safety control, in a way nobody would think to check, because the two
+things sound unrelated. It was caught because a test had been written first
+asking exactly that — "can a restricted person still hit the emergency stop?"
+
+The fix was not to special-case the stop button. It was to split the question
+into two: _may this person act on this agent?_ and _may this person change the
+rules this agent is judged by?_ Every place in the code that asks now has to
+pick one, and which one it picked is something a reviewer can see.
+
+The general lesson is one this project keeps rediscovering in new clothes: **a
+permission that answers two questions will eventually be asked the wrong one**,
+and the cost lands on whichever caller nobody was thinking about at the time.
+
+---
+
+## 5.20 Three changes to who can do what, and what gets written down
+
+### Moving a setting up a level without taking it away
+
+Each agent has two switches. One decides what happens when the agent tries
+something no rule covers: refuse it outright, or stop and ask a person. The
+other decides whether the system enforces its decisions for that agent or merely
+watches and records them.
+
+Both switches were in the hands of the team member the agent is assigned to. The
+project's design document puts them with the administrator, and that turned out
+to matter rather than being a technicality.
+
+Here is why. "Refuse it" is a wall. "Ask a person" is a doorbell. Moving the
+switch from the first to the second does not open the door — but it creates the
+possibility that somebody opens it, and it was the least-privileged role that
+could create that possibility, for their own agent, without telling anyone.
+
+So both switches moved up to the administrator. The second moved for a stronger
+reason than the first: putting an agent into watch-only mode stops the system
+acting on _any_ of its decisions for that agent, which is a bigger change than
+adjusting one behaviour.
+
+**But taking a capability away from people is usually the wrong fix.** The team
+member still knows their agent best, and they are the one who notices it needs a
+different setting. So the capability moved rather than disappeared: **they ask,
+and an administrator says yes or no.**
+
+That request goes into the queue that already existed for asking about rules —
+not a new one beside it. An administrator reviewing what their team has asked
+for should have one list to read. Two lists is two places to look, and two
+places to forget to look.
+
+Three small things about how the asking works:
+
+- When an administrator approves, the change is made from **what was stored when
+  the request was submitted**, not from whatever the approving browser sends
+  back. Otherwise "approve" could mean something different from what was read.
+- The change is recorded against the **administrator**, because it was made
+  under their authority. The requester is already named on the request itself.
+- Someone whose _rule-editing_ has been withheld can still **ask**. Asking is not
+  editing. Removing that too would have made the withholding a demotion wearing
+  a different name.
+
+### The command line finally knows who you are
+
+Every change made from a terminal used to be recorded as having been made by
+"cli". Not a person — the machine. The log could say a change happened here and
+never who made it.
+
+That was already on the known-limitations list. What the list understated is
+that with no identity there was also **no permission checking**: someone whose
+account was read-only could open a terminal and change things the web page would
+have refused them.
+
+There is now a proper sign-in. It asks for a password without showing it on
+screen, remembers you between commands in a file only you can read, and — the
+part that matters — checks your permissions using **the same code the web page
+uses**. Two places asking the same question in two different ways is how they
+end up giving two different answers.
+
+Signing out genuinely ends the session rather than just forgetting it locally,
+and a session ended in the browser stops working in the terminal at the same
+moment.
+
+**One thing this deliberately does not claim.** Anyone who can run these
+commands can also open the settings files and edit them directly. A sign-in on
+the command line is a real protection against mistakes and casual misuse, and it
+is **not** a wall against someone determined who already has access to the
+machine. That was true before and is still true. There is a test that proves it —
+it edits a settings file with no sign-in at all and checks that the edit works —
+because the honest thing is to have the test suite state the limitation rather
+than let twelve other tests quietly imply it away.
+
+### The log now says what authority you had
+
+Alongside _who_ did something, the record now stores _what level they held at the
+time_.
+
+This sounds minor and is not. Roles change. If somebody is an administrator in
+March and demoted in June, an investigation in July needs to know they were an
+administrator when they made the March change. Looking their role up later gives
+the wrong answer — so it is written down at the moment, and never looked up
+afterwards.
+
+The awkward part was that this had to be added to the tamper-proof chain, which
+is the single most delicate thing in the project: change how it is calculated and
+every record ever written stops verifying. That would not be a cosmetic problem.
+"The log verifies" is the whole claim the design makes, and a log that fails for
+an innocent reason looks exactly like one that fails because somebody edited it.
+
+It was done by making the new field count **only when it is present**. A record
+without it is calculated exactly as before, down to the byte, so everything
+written previously still checks out. There is a test that recalculates an old
+record by hand and confirms it matches.
+
+**And it broke a hundred tests before it broke none.** Moving the calculation
+earlier accidentally dropped a small allowance for records with nobody attached.
+The test suite caught it in one run. Worth mentioning because it is the argument
+for having that many tests, in miniature: a mechanical change to shared code,
+with the mistake found in seconds instead of during an incident.
+
+### Sending files to an agent
+
+This one was held for weeks, and not because it was hard to build.
+
+The rule is that secrets must not end up in the logs. For text that works: every
+recorded message is scanned, and anything that looks like a password or a key is
+blanked out before it is written.
+
+**A picture cannot be scanned that way.** A screenshot of a terminal window
+showing an API key contains that key as an image. There is no pattern to match.
+The same is true of a PDF, a Word document, or anything zipped.
+
+So the question was never "how do we censor an attachment". It was **what the
+record is allowed to be unable to see** — and there were three possible answers:
+
+1. **Store the file in the log.** Best possible record, worst possible idea: it
+   turns the audit log into a filing cabinet of uncensored secrets, and that log
+   is the one file designed to be kept forever and read by people.
+2. **Store facts about the file; keep the file somewhere protected.** The log
+   records its fingerprint, its type, its size, and what it was called. Somebody
+   holding the file later can prove it is the one that was sent; somebody
+   without it learns that a 2 MB image was sent, by whom, to which agent, and
+   when.
+3. **Do not allow attachments at all.** What was happening until now.
+
+**The second was chosen.** It is how physical evidence is normally handled: you
+record what the thing is and where it went, and you keep the thing itself
+somewhere appropriate.
+
+The files live inside the governance system's own folder — and that is not
+housekeeping. The agent is already forbidden from touching that folder by one of
+the three protections nobody, not even the most privileged account, can switch
+off. So attachments are protected by a rule that **cannot be removed**, rather
+than by a new rule somebody might. There is a test that has the agent actually
+try to read one and checks that it is refused.
+
+Four other ways an upload feature can be attacked, all decided before any code
+was written:
+
+- **The filename.** A name like `../../.ssh/authorized_keys` is a classic way to
+  write a file somewhere it should not go. The answer is that the name **is never
+  used as a filename** — files are stored under their own fingerprint, and the
+  name is kept only as a note. The attack is not blocked; it is impossible.
+- **The size.** Someone could upload enormous files until the disk holding the
+  audit log fills up. There is a limit, and it is applied **while the file is
+  arriving** rather than after it has all been read — otherwise the uploader
+  still gets to decide how much memory the system uses before being told no.
+  There is also a per-person allowance, so one person cannot spoil it for
+  everybody.
+- **The claimed file type.** What the uploader says a file is, is a claim. The
+  system works out the type from the contents instead, and says "not recognised"
+  rather than guessing.
+- **Showing it back.** The dashboard never displays an uploaded file. An image
+  format called SVG is actually a program, and the governance page is the single
+  worst page in this product on which to run a stranger's program.
+
+**What is not finished:** you can attach files from the command line today. The
+web page cannot upload one yet. Said plainly rather than rounded up, because this
+project's rule is that a capability arrives on all its surfaces or it is not
+finished.
+
+---
+
+## 5.21 The week the documentation was audited instead of the code
+
+Every earlier round in this document attacked the _system_. This one read the
+project's own paperwork against the working tree, and found four things wrong
+with it. None is a security hole. All four are the kind of error a reader can
+catch, which for a submitted report is the kind that matters.
+
+### A table of numbers that nobody had actually re-counted
+
+The report carries a table listing every component of the system and how many
+lines of code each one is. Six weeks ago somebody updated it and wrote that they
+had "re-measured every row".
+
+They had not. They had re-added the **totals** at the bottom, which came out
+looking plausible, and left the individual rows alone. Counting them properly
+found **twenty-one of thirty-seven rows wrong**, some of them badly: one file
+was listed at 144 lines and is actually 545. Eleven more files were missing from
+the table altogether — around three thousand lines of the system simply absent
+from the list of what the system is made of.
+
+**Why it survived.** The totals were genuinely recalculated and they looked
+right, and that is exactly why nobody re-read the rows beneath them. It is this
+project's oldest finding pointed at its own paperwork: _a summary makes a silent
+claim about the detail underneath it, and that claim starts out just as
+unchecked as the detail did._
+
+### A test count that counted some tests three times
+
+The project's headline claim is "1,794 tests pass across 87 files". Both halves
+are true of what the command prints and misleading about what exists.
+
+Ten of the test files are run three times over — deliberately, under three
+different configurations, because those files test something that has to work in
+three arrangements. Every test inside them is therefore counted three times.
+There are **67 files, not 87**, and **1,156 distinct tests, not 1,794**.
+
+The uncomfortable part is not the mistake. It is that the project had **already
+found this exact mistake, written it down, and warned about it** — a few
+paragraphs away, about a different suite, where a figure of "9 failures" turned
+out to be 18 because that suite runs under two configurations. The warning says:
+compare like for like, and record the command beside any number worth keeping.
+The headline figure quoted throughout the project had the same defect the whole
+time.
+
+**The lesson, which is new and is worth the report saying out loud:** a lesson
+written down in one place is not a lesson applied in the next one. Recording a
+mistake does not inoculate you against it.
+
+### A guide that told readers the opposite of what the system does
+
+The document explaining who is allowed to do what had five rows saying a team
+lead can switch their own agent into observation-only mode. Three days earlier
+that ability had deliberately been moved up to an administrator. Anyone
+following the guide would have been refused by the system and had no way of
+knowing which was right.
+
+This one had been _noticed_ — the handoff said the section "needs rewriting".
+What the note underestimated was the difference between a document that is
+**incomplete** and one that is **wrong**. Prose that lags is a chore; a table
+that states the opposite of the code is a defect, and it had been filed as the
+first.
+
+### Two finished features that were never written down
+
+Two working parts of the system — being able to ask "what is this agent allowed
+to do?" and "which agents does this rule affect?", and a switch letting the
+owner withhold rule-writing from a team lead — existed, were tested, and
+appeared in no list of what the project contains.
+
+The reason is ordinary and worth stating: the backlog was kept as a list of
+things _to do_. Work that was decided and finished inside one sitting never had
+a moment where anyone needed to write it down. The list was complete as a plan
+and incomplete as an inventory, and nothing in the routine told the two apart.
 
 ## 7. The single lesson
 

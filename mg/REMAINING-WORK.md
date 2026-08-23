@@ -12,10 +12,12 @@ Nothing here is speculative — every item was found by one of those two reviews
 **Companion documents:** `mg/HANDOFF.md` — start there if you are picking this
 up cold; `mg/PROJECT-SUMMARY.md` — what the project is and what has been built.
 
-**The consolidated, de-duplicated list of what is outstanding is
-§"What is actually left" below.** Everything above it is history kept for the
-report: each item records what was wrong, why it mattered, and how it was
-fixed, because that narrative is Chapter 4's raw material.
+**The authoritative outstanding list is §"The numbered backlog" immediately
+below — twenty tasks, T1–T20, current as of 2026-08-21.** The older
+§"What is actually left" is kept unedited beneath it as of 2026-08-19.
+Everything else is history kept for the report: each item records what was
+wrong, why it mattered, and how it was fixed, because that narrative is
+Chapter 4's raw material.
 
 ### How items are marked
 
@@ -32,6 +34,272 @@ question was whether starting in observe-only contradicts the report's
 "default-deny" wording; the answer is that it does, and the fix is a shipped
 baseline policy set rather than an observe-only default. Background analysis
 remains in `Kimi_QA_1.md` §7 and `docs-notes/QA-IN-PLAIN-TERMS.md` §3.
+
+---
+
+## The numbered backlog — current as of 2026-08-24
+
+**This is the authoritative outstanding list.** It supersedes §"What is actually
+left" further down, which was accurate on 2026-08-19 and is kept unedited
+because the report's Chapter 4 argument is partly about how a confident summary
+survives twelve reviews and does not survive the thirteenth.
+
+Twenty-seven tasks, numbered **T1–T27**, grouped by what blocks them rather than
+by severity. (T26 and T27 were added on 2026-08-24 for work that shipped on the
+22nd and was never entered here — see Group K.)
+
+**Fifteen are done:** T9, T10, T11 (2026-08-21); T12, T15, T21, T24, T26, T27
+(2026-08-22); T4, T5, T20, T22 (2026-08-24); T19 (2026-08-22, **corrected and
+genuinely re-measured 2026-08-24** — see its row).
+**One is drafted but unread:** T13 — the answer exists; you still have to be able
+to give it. Counted as outstanding here because the remaining work is yours.
+**Two are partly done:** T14 (built; the HTTP route and dashboard upload are
+outstanding) and T16 (account routes split out; **three** files still over the
+limit, not two).
+**One is deprioritised:** T1 — not being done.
+**Nine remain:** T2, T3, T6, T7, T8, T13, T17, T18, T23, T25.
+
+**T26 and T27 were added on 2026-08-24**, retroactively, for work that shipped
+on 2026-08-22 and was written up in `CHAPTER3-MATERIAL.md` but never entered on
+this list. Numbering them later than T25 records the order they were _counted_,
+not the order they were built.
+
+Three of these arrived from outside the QA rounds, which is worth noting because
+the backlog is otherwise review-driven: T21 and T22 came from two GitHub emails
+(Group I), T23 came out of closing T10 — which showed the limitation T10
+recorded was not inherent after all — and T25 came from Kinan asking for the
+host-suite baseline to be addressed next.
+
+Nothing here is speculative: every item traces to a QA round, to `HANDOFF.md`
+§6, or to an observation recorded during the work and named as such. Where an
+item already has a historical reference (A-, B-, F-, or a finding number) that
+reference is kept, because the detailed write-up lives under it.
+
+**How to read the Blocked column.** _You_ means it needs an account, a decision,
+or a machine only you have. _Host_ means the fix needs OpenClaw itself to report
+something it currently does not, so it cannot be closed from this codebase
+alone. _Nothing_ means it can be picked up and finished as it stands.
+
+### Group A — blocked on you personally
+
+| #      | Task                                                                                                                                                                                                                                                                                                                                                   | Ref | Blocked | Effort |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --- | ------- | ------ |
+| **T1** | ~~**File the OpenClaw bug report upstream.**~~ **DEPRIORITISED 2026-08-22 — not doing it.** The report is written, verified pre-existing, and stays in the repository as `UPSTREAM-BUG-REPORT.md`, which is what Chapter 4 §4.x.7 cites; filing it upstream adds nothing to the project and needs an account. Lowest priority of anything on this list | F4  | You     | —      |
+
+_F1 (private git remote) closed 2026-08-21 and is no longer on this list. It was
+the only item whose failure mode was losing everything._
+
+### Group B — requirement gaps
+
+| #          | Task                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Ref  | Blocked   | Effort   |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---- | --------- | -------- |
+| **T2**     | **Run it once with a real agent, and record what happens.** Every proof is a test calling the gate directly; no language model has driven a tool call through it. To a panel this is the difference between a system and a claim. A1 makes the demo "sign in as a User and type into the dashboard" — no chat client to configure                                                                                                                                                                                                                                                                                                                                              | A9   | Nothing   | 2–4 days |
+| **T3**     | **Deploy to a real Linux host.** The full suite runs on Ubuntu under WSL2; nothing has run on a VPS, and the launcher is PowerShell-only. This is the one design requirement (#9) not fully met. `governance deployment` (A7) now gives it a ready verification step                                                                                                                                                                                                                                                                                                                                                                                                           | A8   | You (VPS) | 3–5 days |
+| ~~**T4**~~ | ~~**Decide the escalation toggle's tier.**~~ **DONE, 2026-08-24.** Moved to Administrator, **together with per-agent posture** — a User switching their own agent to monitor stops policy decisions being acted on for it, which is a wider grant than the toggle T4 named. Root inherits (`roleAtLeast` is a ladder), asserted rather than assumed. **The capability is relocated, not removed:** a User submits an `agent-setting` request through the existing rule-request queue and an Administrator accepts or refuses it, applying the setting from the _stored_ request. A User whose authoring Root has withheld may still request — asking is not authoring. §3.5.26 | done | done      |
+| ~~**T5**~~ | ~~**Decide CLI attribution.**~~ **DONE, 2026-08-24.** `governance login` / `logout` / `whoami`, with a masked password prompt, a `0600` session inside the self-protected governance directory, and resolution through `verifySession` so a session revoked in the browser dies on the command line too. It **enforces as well as attributes**, using the same permission helpers as the HTTP routes. Separately, the ledger now records **`actorRole` beside `actor`** on both surfaces, joined to the hash chain by presence-based migration so every pre-existing chain verifies byte-identically. §3.5.27                                                                  | done | done      |
+
+**Decided and built, 2026-08-22 (T24) — option 3 below was chosen.** The request
+was: "the core rules — are they the same as the baseline rules an agent has on startup? if so
+Root and Admin should be able to change them." They are **not** the same tier,
+and the distinction decides the answer:
+
+| Tier         | What it is                                                                                                                                                   | Editable?                                                                                                                  |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| **core**     | **8 denials** — credential files and directories, the governance state, privilege escalation, the governance CLI, host destruction, cloud metadata endpoints | **No.** Reasserted from `baseline-policy.ts` on every load, bind under `monitor` too, and are consulted before allow rules |
+| **baseline** | **6 allowances** — read the workspace, bare inspection commands, `ls`, read-only `git`, version checks                                                       | **Yes, already.** An Administrator may narrow or remove any of them                                                        |
+
+So the half of the request about startup rules being adjustable **was already
+true**: the baseline set is what an agent gets on first boot and Administrator
+and Root can change it today.
+
+The core set is a different thing — the floor, not the starting point — and
+three of the eight exist to stop the agent from reaching the governance layer
+that governs it. Making them editable would mean a compromised Root session
+could remove the credential-file denial and then have the agent read `.ssh`.
+Deciding this is yours; recording the options rather than choosing one:
+
+1. **Leave them immutable** (current). The report's strongest security claim is
+   that there is a floor no account can lower.
+2. **Root-editable, loudly.** Each change recorded as its own administrative
+   action, surfaced as a standing warning on the dashboard and a `fail` in
+   `governance deployment`. Keeps the floor visible even when lowered.
+3. **Root-editable for a subset. ← CHOSEN.** The three self-protection rules
+   stay immutable; the other five become Root-editable. Preserves the argument
+   that the layer cannot be disabled from inside while allowing an operator to
+   adapt the rest. Built the same day — see the T24 row and §3.5.24.
+
+### Group C — security coverage limits
+
+No known hole. B1 closed 2026-08-20. What remains are three limits _of coverage_
+rather than defects in what is covered, and **all three need the host to report
+something it currently does not** — which is why none is a quick fix and why
+each is pinned by a test asserting present behaviour rather than left silent.
+
+| #       | Task                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Ref        | Blocked  | Effort |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | -------- | ------ |
+| **T6**  | **A lockdown does not reach a cross-agent child already running.** The parent's identity is not in the child's session key. Needs the host to report the requester (`spawnedBy`) through `HookContext`. Bounded by finding 94: such a child exists only where an operator permitted one                                                                                                                                                                                                                                                                                                                                                                                                                                           | Finding 96 | Host     | —      |
+| **T7**  | **Search tools are governed at their root only.** `grep`/`find`/`ls` recurse, so a search rooted at the workspace still reads files a denial names. Needs the host to report files actually opened (`after_tool_call`). Same class as B1, and now the only member of it left                                                                                                                                                                                                                                                                                                                                                                                                                                                      | —          | Host     | —      |
+| **T23** | **Bind the decision to the resolved path.** The gate should return the canonical path it judged in the hook result's `params`, so the tool opens that rather than re-resolving the agent's string. Closes T10's window for the common case: the link name is resolved once, by the gate, and never looked at again. **Not attempted yet because the blast radius is real** — `normalizedParams` is threaded through skill-workshop approval, voice confirmation, trusted tool policies and every plugin hook below the governance step, and `apply_patch` carries `derivedPaths` instead of `params.path`. Do it narrowly: substitute only when the resolution actually followed a symlink, so ordinary calls stay byte-identical | Nothing    | 2–3 days |
+| **T8**  | **Outbound messages are ungoverned.** On a chat deployment an agent can repeat a permitted file's contents into a Discord channel. Cannot be closed by a registry entry — refusing `message` would stop the agent replying — so it needs a fourth resource kind separating a reply from a send elsewhere. Recorded as `ungoverned` meanwhile                                                                                                                                                                                                                                                                                                                                                                                      | —          | Host     | —      |
+
+### Group D — observations that never became numbered findings
+
+Recorded during the work, never entered as defects. **T9 is the one to act on**;
+the rest are mostly claims in the report that need qualifying rather than code
+that needs changing.
+
+| #           | Task                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Blocked | Effort  |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------- |
+| ~~**T9**~~  | ~~**No login is ever audited.**~~ **DONE, 2026-08-21.** All four events now reach the same hash chain, plus a fifth entry that reports its own suppression. The work turned on a design question rather than the code: a failed login needs no credentials and the ledger never deletes, so recording every one would have handed an unauthenticated caller a disk-fill vector — **the fix for a missing log would have opened a denial of service.** Bounded globally at 200 failure entries per fifteen minutes, with the excess counted and written as one entry, because a trail that silently stops recording reads as an attack that ended. Failures are attributed to `unauthenticated` rather than to the submitted name; a wrong password and an unknown account are recorded identically so the ledger does not rebuild the account-existence oracle the login response avoids; and auditing is best-effort here alone, because failing closed would let an unwritable ledger lock Root out of the dashboard that repairs it. `src/governance/auth-audit.ts`; report material `CHAPTER3-MATERIAL.md` §3.5.19; plain language `QA-IN-PLAIN-TERMS.md` §5.17 | done    | done    |
+| ~~**T10**~~ | ~~**A gap between checking a path and opening it.**~~ **QUALIFIED, 2026-08-21, and the claim it carried was wrong.** The gap is real and is now demonstrated by an executable test (`path-toctou.test.ts`): one input string, resolved before and after a link swap, yields two different files. What is _not_ true is the second half — "inherent to any check-then-delegate design". `PluginHookBeforeToolCallResult` carries an optional `params`, and the host applies it, so the gate can hand the tool the path it actually resolved instead of the agent's original string, leaving no second resolution to race. That makes it a design gap with a route out, now **T23**. Also pinned: the _static_ link escape is closed under both postures, and a re-resolve inside the gate was considered and **rejected as theatre** — two resolutions microseconds apart would agree during an attack                                                                                                                                                                                                                                                               | Nothing | done    |
+| ~~**T11**~~ | ~~**A lock reclaimable from a slow writer.**~~ **DONE, 2026-08-21, and it was worse than recorded.** Probing found being reaped was the _smaller_ half: nothing told a reaped holder it had been reaped, so it ran on believing it held the lock and then deleted whichever lock file was there on its way out — which by then was its successor's (findings 104, 105). One slow writer unlocked the process that replaced it. Closed by a heartbeat (staleness now means "the holder stopped responding", not "the holder is slow"), an ownership token checked on every removal, and `GovernanceLockLostError` when a holder finds the lock is no longer its own. The fix then broke reclamation of tokenless locks and deadlocked the suite — caught by a probe, fixed, and pinned                                                                                                                                                                                                                                                                                                                                                                               | Nothing | done    |
+| ~~**T12**~~ | ~~**`web_search` / `x_search` are ungoverned network egress.**~~ **DONE, 2026-08-22.** Qualified rather than closed, on the requirement row itself rather than in a footnote: the accurate claim is that network communication **to a named destination** is controlled, and an agent can still reach a search provider and receive arbitrary content back. Closing it needs a fourth axis on the resource model — the same missing piece as T8                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Nothing | done    |
+| ~~**T13**~~ | ~~**Prepare the prompt-injection answer for the defence.**~~ **DRAFTED, 2026-08-22 — `CHAPTER3-MATERIAL.md` §4.x.26.** A one-sentence answer, a three-minute answer in the order it should be given, the residual named before the panel names it (it is T8), the reply to "so you did not solve Chapter 2", and a list of mitigations **not** to offer because they are not implemented. **Still yours to read and make your own** — it is an answer you have to be able to give without notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | You     | read it |
+
+### Group E — held by decision, not deferral
+
+| #       | Task                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Blocked | Effort |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- | ------ |
+| **T14** | **Attachments in prompts — BUILT, one surface outstanding (2026-08-24).** Option (b): the ledger records SHA-256, sniffed MIME type, byte size and the declared name, and **never the content**, so requirement #8 holds. The bytes live in a governed store under the governance directory, inheriting the self-protecting core denial — asserted, not assumed. Filenames never become path components (files are named by hash), the size cap bites _while streaming_, there is a per-account quota, and the type is sniffed rather than believed. Available on the CLI (`governance prompt --attach`). **Outstanding: the HTTP route and the dashboard upload control**, so the project's three-surface rule is not yet met | Nothing | 1 day  |
+
+### Group F — smaller engineering
+
+| #           | Task                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Blocked | Effort |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------ |
+| ~~**T15**~~ | ~~**No tests for the dashboard component itself.**~~ **DONE, 2026-08-22.** Twelve tests in `ui/src/pages/governance/governance-page.test.ts`, under the existing jsdom harness. They pin what an _operator sees_ rather than template internals: rule rows leading with the description (99), the add-rule agent field being required for a User and optional for an Administrator, the core-rule switch appearing only for Root and only on the five that are not self-protecting (T24), no Remove on a core rule, every input carrying an accessible name (103), and each tier seeing the right form. **Writing them found a seventh defect** — the authoring form was still headed "Add an allow rule" although R5 made denials authorable and put an allow/deny selector inside it. Fixed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Nothing | done   |
+| **T16**     | **Lint debt: files over the 700-line limit. PARTIALLY DONE, 2026-08-22.** Account administration was extracted to `src/gateway/governance-dashboard-accounts.ts` (301 lines), taking `governance-dashboard-api.ts` from 1,561 to 1,369. The split follows the seam the design doc already draws — **Root manages people, Administrator manages agents** — so the new file has one statable authorization rule for its whole contents rather than a mixture, which is what makes a split worth doing rather than merely making two files out of one. **Still over, re-measured 2026-08-24 — and it is three files, not two.** `governance-dashboard-api.ts` **1,026** code lines (it was 954 on 2026-08-22 and grew with the T24, T4 and T26 routes); `governance-page.ts` **2,211**; and `register.governance.ts` **805**, which crossed the limit on 2026-08-24 when T5's login, T14's `--attach`, T24's core-rule commands and T26's policy views all landed in one command tree. All three numbers are the lint rule's own measure (`skipBlankLines`, `skipComments`), not `wc -l` — the earlier note mixed the two, quoting 954 code lines beside "~2,800" raw. Re-check with `node node_modules/oxlint/bin/oxlint --config .oxlintrc.json <file>`. The remaining seams are the agent routes and the ledger routes | Nothing | 1 day  |
+| ~~**T24**~~ | ~~**Decide whether core rules should be editable.**~~ **DECIDED AND BUILT, 2026-08-22 — option 3.** Core and baseline are different tiers, and the baseline half was already satisfied (an Administrator could always narrow or remove the six shipped allowances). The core tier is now **split**: Root may switch off the five that are ordinary security opinions (credentials ×2, privilege escalation, host destruction, cloud metadata) and **nobody** may touch the three that protect the layer from the agent (governance state, any command naming the governance directory, the governance command line). Nothing is deleted — the rule stays declared and returns when re-enabled; self-protecting rules are refused at the setter **and** at load, so a hand-edited `policy.json` cannot do it either; and a lowered floor cannot hide, because the change is its own audit entry and `governance deployment` reports **fail** while any rule is off. `CHAPTER3-MATERIAL.md` §3.5.24; plain language `QA-IN-PLAIN-TERMS.md` §5.19                                                                                                                                                                                                                                                                         | done    | done   |
+
+### Group K — shipped, but never entered on this list
+
+Found on 2026-08-24 by reading the working tree against the backlog rather than
+the other way round. Both shipped on 2026-08-22, both have report material
+written, both are covered by tests — and neither appeared anywhere in this file
+or in `HANDOFF.md`. They are recorded here so the count of what exists matches
+what is claimed to exist.
+
+**Why this happened, and why it is worth a line in Chapter 4.** The backlog was
+maintained as a list of things _to do_, so work that was decided and built
+inside a single session never entered it — there was no moment at which anybody
+had to write the item down. The list was complete as a plan and incomplete as an
+inventory, and nothing in the process distinguished the two.
+
+| #           | Task                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Blocked | Effort |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------ |
+| ~~**T26**~~ | ~~**Read the policy in both directions.**~~ **DONE, 2026-08-22.** The document is stored as one flat rule list — right for evaluation, wrong for every question an operator asks. Neither _what is this agent allowed to do?_ nor _who does this rule affect?_ was answerable anywhere: not on the dashboard, not on the CLI, not through the API. An operator could not see what a rule was holding up before removing it. `policy-projection.ts` (223 lines) answers both in full and leaves scoping to `permissions.ts`, so projection stays testable without a session and there is exactly one place deciding who sees what. All three surfaces: `policy/by-agent` and `policy/rule-agents`, `governance policy for-agent` and `rule-agents`, and the dashboard. Tests: `policy-projection.test.ts`, `governance-policy-views.test.ts` (536 lines). §3.5.20                                                                                                                                                                                                                                      | Nothing | done   |
+| ~~**T27**~~ | ~~**Let Root withhold policy authoring from a User.**~~ **DONE, 2026-08-22.** `ROLE-MODEL.md` §3.7 widened the User tier from "proposes changes" to "manages its assigned agents", which is the shipped default — but that is a choice about how much an installation delegates, not a property of the tier. `canAuthorPolicy` (absent means allowed, so every existing account keeps working) lets Root withhold it. **The design trap was folding two questions into one:** briefly, withholding the ability to _write rules_ also removed the ability to _stop your own agent_ — a safety control quietly deleted by a permission meant to reduce authority. `canManageAgent` (_may I act on this agent?_) and `canAuthorPolicyForAgent` (_may I change the rules it is judged by?_) are now separate and every call site picks one. Mirrored into live sessions so a mid-session change takes effect. All three surfaces: `users/policy-authoring`, `governance users set-policy-authoring`, and the dashboard account row. Tests: `governance-rule-authoring-scope.test.ts` (555 lines). §3.5.23 | Nothing | done   |
+
+### Group G — write-up, the bulk of the remaining calendar time
+
+| #       | Task                                                                                                                                                                              | Ref | Blocked | Effort   |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- | ------- | -------- |
+| **T17** | **Redraw the Mermaid diagrams in the report's own style.** Candidates are already marked "Figure candidate" throughout `CHAPTER3-MATERIAL.md`                                     | F5  | Nothing | 2–3 days |
+| **T18** | **Write Chapters 3, 4 and the conclusion.** Source material is organised and keyed to section numbers in `CHAPTER3-MATERIAL.md`, with `BASELINE-RULES.md` covering the tier model | F6  | You     | the rest |
+
+### Group H — documentation hygiene
+
+Cheap, and each is something a reader hits rather than something only an author
+would notice.
+
+| #           | Task                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Blocked | Effort |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------ |
+| ~~**T19**~~ | ~~**Refresh the component inventory.**~~ **DONE 2026-08-22 — but the claim below was false, and was corrected on 2026-08-24.** It said "re-measured every row". It had not: re-measuring on 2026-08-24 found **21 of 37 rows already wrong before that week's work started** (`resource-extraction.ts` recorded at 144 against an actual 545, `register.governance.ts` at 302 against 977) and **11 modules missing from the table entirely**, worth 3,177 lines. What was actually refreshed was the totals row. `CHAPTER3-MATERIAL.md` §3.5.2 now carries corrected per-file numbers and a note about how the error survived, because it is this project's own recurring finding pointed at its own documentation. The original 2026-08-22 wording follows. ~~Re-measured every row: production is **16,141 lines** (9,750 in `src/governance/` across 37 files, 6,391 across the HTTP, CLI and dashboard surfaces) against 14,980 test lines across 61 files. The test-to-production ratio has gone from 87% to 93%, entirely through regression tests lifted out of probes. The table now carries the command to re-measure it, because it drifts every time work lands and a stale inventory in a submitted report is a defect a reader can check~~ | Nothing | done   |
+| ~~**T20**~~ | ~~**Repair a mangled sentence in this file**~~ **DONE, 2026-08-24.** The lost clause is restored below., in the round-thirteen status note: "The per-item status lines below are authoritative;, each with a regression test lifted out of the probe that produced it" had lost a clause in an edit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Nothing | done   |
+
+### Group J — the host suite
+
+| #       | Task                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Blocked | Effort   |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | -------- |
+| **T25** | **Address the 18 host-harness tests treated as a baseline.** Pre-existing upstream failures — on Windows, `src/plugins/contracts/host-hooks.contract.test.ts` deletes a temporary directory while a SQLite handle inside it is still open, which is legal on POSIX and refused on Windows. Present on `main` before this project began and used as the regression baseline throughout (18 failed / 174 passed; 9 distinct names, each reported twice because the suite runs under two projects). **Kinan wants these tackled next.** The write-up already exists as `UPSTREAM-BUG-REPORT.md`; fixing them locally would change the baseline, so the number in every verification step has to move in the same commit | Nothing | 1–2 days |
+
+### Group I — the CI the fork brought with it
+
+Discovered 2026-08-21, the day after F1, from two GitHub emails: "PR CI Sweeper:
+all jobs have failed" and "90% of Actions minutes used this billing cycle".
+Neither is a defect in the governance layer. Both are consequences of what a
+hard fork actually copies, and they were not anticipated when F1 was planned.
+
+**The root cause, once.** `.github/workflows/` holds **82 upstream workflow
+files**, and pushing `governance-layer` to a private remote handed all of them
+to GitHub to run. By trigger: **15 are scheduled**, 21 fire on `pull_request`
+(dormant — there are no PRs), and 14 on `push`, several of which are not
+filtered to `main` and so fired on the governance branch.
+
+The scheduled ones are the part that matters, because they keep running whether
+or not anything is pushed again. `pr-ci-sweeper.yml` is `cron: "7 * * * *"` —
+**hourly, about 720 runs a month** — and nine more run daily (CodeQL,
+install-smoke, performance, locale refresh, live checks). Every one fails,
+because they need upstream's secrets: GitHub App tokens, signing keys, and
+Discord/Telegram/Slack/Convex credentials that exist only in the upstream
+repository.
+
+A private repository draws Actions minutes from the GitHub Free allowance of
+2,000 per month; public repositories are unlimited. Hence 90% consumed within a
+day of the first push. (Many jobs request `blacksmith-*` runners — a paid
+third-party runner service upstream subscribes to — and those never find a
+runner, so they fail without consuming minutes. The consumption comes from the
+`ubuntu-24.04` and `ubuntu-latest` jobs, led by the hourly sweeper.)
+
+| #           | Task                                                                                                                                                                                                                                                                                                                                                                                             | Blocked | Effort |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- | ------ |
+| ~~**T21**~~ | ~~**Disable Actions on the private remote.**~~ **DONE, 2026-08-22.** Confirmed by the billing page: gross usage falls $12.29 (the push wave, Aug 21) → $0.98 (Aug 22) → <$0.01 (Aug 23) as the hourly sweeper stops. **Billed amount $0 on every day**, because the 2,000 included minutes covered the whole $13.27. The allowance is now fully consumed (2,000/2,000) and resets with the cycle | You     | done   |
+| ~~**T22**~~ | ~~**Confirm the Actions spending limit is $0.**~~ **DONE, 2026-08-24.** Confirmed on the billing page: gross usage $13.27, **billed $0**, next payment due "–". The 2,000 included minutes covered the whole of it and are now spent for this cycle; with Actions disabled (T21) nothing further will run against them                                                                           | You     | done   |
+
+**Do not fix this by deleting the workflow files.** It is the intuitive move and
+it is wrong here for a reason specific to this project: removing 82 files would
+add a large deletion to `governance-layer`, and §3.5.2b of
+`CHAPTER3-MATERIAL.md` measures that diff — 144 files, 43,014 insertions, 18
+deletions, 0.42% of the repository. Deleting upstream's CI would falsify that
+table and become something to explain in a viva. It would also make any future
+rebase onto upstream worse. Disabling Actions is a repository _setting_:
+instant, reversible, and it leaves no trace in git.
+
+**Do not make the repository public** to get unlimited minutes. It holds
+unpublished academic work.
+
+**The general lesson, worth a sentence in Chapter 4.** A hard fork inherits the
+host's automation, not only its code — and automation is the part that keeps
+running by itself. `PROJECT-SUMMARY.md` §4 records "started as a plugin, rebuilt
+as a fork" as a deliberate architectural choice, made for a sound reason: a
+security layer a config file can disable is not a security layer. This is a cost
+of that choice that nobody costed. It cost nothing but attention here, and it
+will recur on any new remote, so the check belongs in the deployment
+instructions rather than in somebody's memory — see T3, which will push this
+tree to a VPS.
+
+### Suggested order, and why
+
+Not a schedule — an argument about sequence, replacing the older one at the end
+of this file.
+
+**0. Commit the working tree.** Not a numbered task, and ahead of every one of
+them: about 55 files from 2026-08-21 onward exist in one place. F1 closed
+exactly this risk once already and the tree has drifted dirty again.
+
+1. **T2** — the single highest-value item left. It converts the whole project
+   from _tested_ to _demonstrated_, and everything in Chapter 4 reads
+   differently once it is done. Kinan has said this comes after the remaining
+   fixable work.
+2. **T23** — the real remaining security fix, and the one that turns a
+   documented limitation into a closed one. Needs its own session: it modifies
+   the host's shared tool-call chain.
+3. **T25** — the 18 host-harness failures. Wanted next by Kinan, and worth doing
+   before the write-up so Chapter 4 does not have to explain a baseline of
+   known-failing tests.
+4. **T14 and T16** — finish what is half-built, in that order. T14 is one
+   surface short of the project's own three-surface rule; T16 leaves two files
+   over the line limit.
+5. **T3** — the only unmet requirement, and the only one needing a machine that
+   does not exist yet.
+6. **T17, T18** — the write-up, which is where the remaining calendar time
+   actually goes. Kinan has said explicitly that this comes last.
+7. **T6, T7, T8** — host-blocked, so they are written up as limits rather than
+   scheduled as work, unless upstream moves.
+8. **T13, T20** — a read and a five-minute fix, whenever.
+
+**T1 is not being done** (deprioritised 2026-08-24) and **T21/T22 are closed** —
+both were on this list as jumping the queue, and both took the two minutes they
+were estimated at.
 
 ---
 
@@ -903,8 +1171,9 @@ hand-edited `policy.json`, which means reasserting them on load in
 `policy-store.ts` rather than trusting the file.
 
 **G3. Writing the baseline set is the real work, and the host suite scores it.**
-The current default is `monitor` partly because `enforce` with zero rules
-regressed 19 of OpenClaw's own tests. Those tests are a genuine measure of
+The default was `monitor` for a while partly because `enforce` with zero rules
+regressed 19 of OpenClaw's own tests. **That is history: the shipped default is
+`enforce`, and this baseline set is what made it safe to be.** Those tests are a genuine measure of
 "can the agent still do ordinary work": run
 `src/agents/harness/native-hook-relay.test.ts` against the baseline set and the
 regression count over the 9-failure baseline says whether the rules are
@@ -992,6 +1261,16 @@ _because_ core still bites; without G6 the two findings compound.
 
 ## What is actually left — the consolidated list
 
+> ## ⚠ HISTORY — do not work from this section
+>
+> **Superseded in full by §"The numbered backlog" (T1–T27) at the top of this
+> file, current as of 2026-08-24.** Everything below is kept unedited as a
+> record of what the backlog looked like on 2026-08-19, because Chapter 4's
+> argument is partly about how a confident summary survives twelve reviews and
+> does not survive the thirteenth. Read it for that story; do not act on it.
+> Several items it lists as open are closed, and several that are still open are
+> described in terms that later work has overtaken.
+
 Current as of **2026-08-19**, after A1, the twelfth QA round and R5. Everything above
 this line is history; this is the outstanding set, de-duplicated across every
 section of this file and `mg/SESSION-LOG-2026-08.md`. Items marked done
@@ -1021,8 +1300,8 @@ material in `CHAPTER3-MATERIAL.md` §4.x.20; plain-language version in
 > **Updated 2026-08-20: 18 of the 24 are fixed**, and round 14 has since closed
 > two more items from this list (Q-84 and the clash race) plus A7. Current
 > figures are **1,393 passing across 63 files**. The per-item status lines
-> below are authoritative;, each with a regression test
-> lifted out of the probe that produced it. Governance suite **1,297 passing
+> below are authoritative; **the eighteen that are fixed each carry a regression
+> test** lifted out of the probe that produced it. Governance suite **1,297 passing
 > across 58 files** (from 1,264), both typechecks clean, OpenClaw's own harness
 > suite unchanged at 18 failed / 174 passed. Requirements #3, #6 and #7 are met
 > again. The six still open are marked below; none is a security hole, and the

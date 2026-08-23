@@ -151,26 +151,35 @@ Tracked as Q-73b in `mg/REMAINING-WORK.md` §13c.
 
 ## 2. Command summary
 
-| Command                                                  | Purpose                                         |
-| -------------------------------------------------------- | ----------------------------------------------- |
-| `governance policy show`                                 | Print the policy document                       |
-| `governance policy set-mode <mode>`                      | Set posture: enforce / monitor / off            |
-| `governance policy set-ask <mode>`                       | Set behaviour on an unlisted action             |
-| `governance policy add-rule`                             | Add a rule that allows or forbids something     |
-| `governance policy remove-rule <id>`                     | Remove a rule by id                             |
-| `governance policy set-agent-ask <agentId> <mode>`       | Per-agent override of ask behaviour             |
-| `governance policy set-agent-mode <agentId> <mode>`      | Per-agent posture: enforce / monitor / default  |
-| `governance policy set-hitl-timeout <seconds>`           | How long an escalation waits for a human        |
-| `governance agent prompt [--stream] <agentId> <message>` | Send a prompt to an agent and print the reply   |
-| `governance agent transcript <agentId>`                  | Print this machine's conversation with an agent |
-| `governance sessions`                                    | List currently-running agent sessions           |
-| `governance deployment`                                  | Verify the deployment and network posture       |
-| `governance pending list`                                | Show timed-out escalations awaiting a decision  |
-| `governance pending decide <id> --allow\|--deny`         | Record a late decision                          |
-| `governance audit tail`                                  | Print recent ledger entries                     |
-| `governance audit verify`                                | Verify the hash chain                           |
-| `governance kill <agentId>`                              | Engage the kill switch                          |
-| `governance kill <agentId> --release`                    | Release a lockdown                              |
+| Command                                                                          | Purpose                                                                                                              |
+| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `governance policy show`                                                         | Print the policy document                                                                                            |
+| `governance policy set-mode <mode>`                                              | Set posture: enforce / monitor / off                                                                                 |
+| `governance policy set-ask <mode>`                                               | Set behaviour on an unlisted action                                                                                  |
+| `governance policy add-rule`                                                     | Add a rule that allows or forbids something                                                                          |
+| `governance policy remove-rule <id>`                                             | Remove a rule by id                                                                                                  |
+| `governance policy set-agent-ask <agentId> <mode>`                               | Per-agent override of ask behaviour                                                                                  |
+| `governance login [username]`                                                    | **Sign in.** Command-line changes are then recorded against your account and tier, and your permissions are enforced |
+| `governance logout`                                                              | End the command-line session (revokes it, not just forgets it)                                                       |
+| `governance whoami`                                                              | Show which account the command line is signed in as                                                                  |
+| `governance policy request-setting <agentId> <ask\|mode> <value> --reason <why>` | **User:** ask an Administrator to change an agent's escalation or posture                                            |
+| `governance policy core-rules`                                                   | List the shipped core denials and which are switched off                                                             |
+| `governance policy core-rule <ruleId> <true\|false>`                             | **Root:** switch a core denial off or back on. The three self-protecting rules refuse                                |
+| `governance set-policy-authoring <userId> <true\|false>`                         | **Root:** allow or withhold a User account's ability to write policy                                                 |
+| `governance policy for-agent <agentId>`                                          | **Agent → policies.** Posture and every rule in force for one agent                                                  |
+| `governance policy rule-agents <ruleId>`                                         | **Policies → agents.** Which agents a rule binds                                                                     |
+| `governance policy set-agent-mode <agentId> <mode>`                              | **Administrator:** per-agent posture: enforce / monitor / default                                                    |
+| `governance policy set-hitl-timeout <seconds>`                                   | How long an escalation waits for a human                                                                             |
+| `governance agent prompt [--stream] <agentId> <message>`                         | Send a prompt to an agent and print the reply                                                                        |
+| `governance agent transcript <agentId>`                                          | Print this machine's conversation with an agent                                                                      |
+| `governance sessions`                                                            | List currently-running agent sessions                                                                                |
+| `governance deployment`                                                          | Verify the deployment and network posture                                                                            |
+| `governance pending list`                                                        | Show timed-out escalations awaiting a decision                                                                       |
+| `governance pending decide <id> --allow\|--deny`                                 | Record a late decision                                                                                               |
+| `governance audit tail`                                                          | Print recent ledger entries                                                                                          |
+| `governance audit verify`                                                        | Verify the hash chain                                                                                                |
+| `governance kill <agentId>`                                                      | Engage the kill switch                                                                                               |
+| `governance kill <agentId> --release`                                            | Release a lockdown                                                                                                   |
 
 ---
 
@@ -377,7 +386,30 @@ would not.
 ### `governance policy set-agent-mode <agentId> <mode>`
 
 Switches one agent's posture, so its behaviour can be observed without acting on
-the verdicts. `<mode>` is `enforce`, `monitor`, or `default`.
+the verdicts. `<mode>` is `enforce`, `monitor`, or `default`. **`monitor` is
+opt-in and off by default** — the installation ships `enforce` with a baseline
+ruleset, and this is the switch for observing one agent rather than enforcing on
+it.
+
+### Reading the policy in both directions
+
+`governance policy show` prints the document, which is what has been _written_.
+Neither of the questions an operator actually has can be read off it by eye,
+because a rule with no `agentId` binds every agent rather than none:
+
+```
+governance policy for-agent build-bot     # what is in force for this agent
+governance policy rule-agents rule-a1b2   # which agents does this rule bind
+```
+
+`for-agent` prints the effective posture (marking whether it is the
+installation default or an override), whether the kill switch is engaged, and
+every rule in force — each tagged `global` or `agent` so it is clear whether
+removing it would affect one workload or all of them.
+
+`rule-agents` leads with the fact that a rule is global _before_ listing the
+agents it currently binds, because a global rule also binds every agent created
+tomorrow, and a list read first invites the wrong conclusion.
 
 ```bash
 openclaw governance policy set-agent-mode exploratory monitor  # watch, do not block

@@ -6,7 +6,7 @@ or picking it up after a break.
 
 **Companion documents:**
 
-- `mg/REMAINING-WORK.md` — everything still outstanding, item by item
+- `mg/REMAINING-WORK.md` — everything still outstanding. **§"The numbered backlog" (T1–T27) is the authoritative list**; the sections below it are history
 - `mg/SESSION-LOG-2026-08.md` — what the August 2026 session changed, and why
 
 ---
@@ -52,11 +52,29 @@ configuration. It adds:
    trail against the person who sent it. The reply arrives as it is written, can
    be cancelled without stopping the agent, times out, and is bounded per
    account so one person cannot exhaust the installation for everybody else.
-7. A Root-only **deployment and network report** that reads the live
-   installation and says whether it matches the architecture the design
-   promises — loopback-only listener, no standard web port exposed, a tunnel as
-   the only route in — alongside the governance layer's own file permissions and
-   ledger-key state. Read-only: it sees and judges, it does not edit.
+7. **Attachments on a prompt** (T14), recorded by hash, type and size and never
+   by content — so requirement #8 holds for a thing that cannot be redacted —
+   with the bytes in a store the governed agent cannot read.
+8. **A login on the command line** (T5) that records the account _and its tier_
+   and enforces the same permissions as the dashboard, and a ledger that records
+   the authority an action was taken under, not merely who took it.
+9. **A split core tier** (T24): Root may switch off the five shipped denials
+   that are ordinary security opinions, and nobody may touch the three that
+   protect the layer from the agent it governs.
+10. **Both directions of the policy** (T26): what one agent is allowed to do, and
+    which agents a given rule binds. The document is stored flat, which is right
+    for evaluation and answers neither question — so an operator could not see
+    what a rule was holding up before removing it.
+11. **A Root switch to withhold policy authoring from a User** (T27), separating
+    _may I act on this agent?_ from _may I change the rules it is judged by?_ —
+    two questions that were briefly one function, which meant taking away
+    somebody's ability to write rules also took away their ability to stop their
+    own agent.
+12. A Root-only **deployment and network report** that reads the live
+    installation and says whether it matches the architecture the design
+    promises — loopback-only listener, no standard web port exposed, a tunnel as
+    the only route in — alongside the governance layer's own file permissions and
+    ledger-key state. Read-only: it sees and judges, it does not edit.
 
 ---
 
@@ -85,15 +103,15 @@ C:\Users\kinan\openclaw\Documentation\GradProj\      (mirror inside the repo)
 C:\Users\kinan\openclaw\          (the fork; branch: governance-layer)
 ```
 
-| Location                                            | Contents                                                                                                                                                                                                                                                                                                     |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/governance/`                                   | **The core.** 34 source modules + 41 test files, ~5,600 production lines. Policy engine and the three-tier rule model, keyed audit ledger, roles and permissions, accounts and sessions, kill switch, rule conflicts and warnings, HITL escalation stack, regex safety, path canonicalisation, file locking. |
-| `src/gateway/governance-*.ts`                       | The HTTP layer: login/session (`-auth`), all API routes and their tier/scope checks (`-api`), kill-switch wiring (`-agent-termination`)                                                                                                                                                                      |
-| `ui/src/pages/governance/`                          | The dashboard page (Lit web components, ~1,440 lines), its typed API client, the audit-view filter (extracted so it can be tested), and routing                                                                                                                                                              |
-| `src/cli/program/register.governance.ts`            | The `openclaw governance ...` command tree                                                                                                                                                                                                                                                                   |
-| `src/agents/agent-tools.before-tool-call.policy.ts` | **Where the gate is attached** — the single function every tool call passes through                                                                                                                                                                                                                          |
-| `src/governance/deployment-status.ts`               | Root's deployment/network report (A7). A **pure function** of injected inputs — it imports nothing from the gateway, which is what makes every check testable with no Gateway, socket or config file                                                                                                         |
-| `src/gateway/governance-deployment-input.ts`        | The one file bridging the Gateway's configuration and that report. Also the one place a careless import would break the layering, which makes it the one place to look                                                                                                                                       |
+| Location                                            | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/governance/`                                   | **The core.** 39 source modules + 54 test files, 10,657 production lines (measured 2026-08-24; the "34 modules / ~5,600 lines" this said before was roughly a year of drift behind — see `CHAPTER3-MATERIAL.md` §3.5.2). Policy engine and the three-tier rule model, keyed audit ledger, roles and permissions, accounts and sessions, kill switch, rule conflicts and warnings, HITL escalation stack, regex safety, path canonicalisation, file locking. |
+| `src/gateway/governance-*.ts`                       | The HTTP layer: login/session (`-auth`), all API routes and their tier/scope checks (`-api`), kill-switch wiring (`-agent-termination`)                                                                                                                                                                                                                                                                                                                     |
+| `ui/src/pages/governance/`                          | The dashboard page (Lit web components, ~2,850 lines), its typed API client, the audit-view filter (extracted so it can be tested), and routing                                                                                                                                                                                                                                                                                                             |
+| `src/cli/program/register.governance.ts`            | The `openclaw governance ...` command tree                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `src/agents/agent-tools.before-tool-call.policy.ts` | **Where the gate is attached** — the single function every tool call passes through                                                                                                                                                                                                                                                                                                                                                                         |
+| `src/governance/deployment-status.ts`               | Root's deployment/network report (A7). A **pure function** of injected inputs — it imports nothing from the gateway, which is what makes every check testable with no Gateway, socket or config file                                                                                                                                                                                                                                                        |
+| `src/gateway/governance-deployment-input.ts`        | The one file bridging the Gateway's configuration and that report. Also the one place a careless import would break the layering, which makes it the one place to look                                                                                                                                                                                                                                                                                      |
 
 ### Project documentation (in-repo)
 
@@ -111,7 +129,7 @@ C:\Users\kinan\openclaw\          (the fork; branch: governance-layer)
 | `UPSTREAM-BUG-REPORT.md`            | A bug found in OpenClaw itself (written, not yet filed)                                                                                                          |
 | `Kimi_QA_1.md`                      | An independent review comparing the code against the PDF                                                                                                         |
 | `mg/PROJECT-SUMMARY.md`             | This file — what the project is and where everything lives                                                                                                       |
-| `mg/REMAINING-WORK.md`              | The backlog, item by item, with what is fixed and what is not                                                                                                    |
+| `mg/REMAINING-WORK.md`              | The backlog. **§"The numbered backlog" (T1–T27) is authoritative**; everything beneath it is kept as history and marked as such                                  |
 | `mg/SESSION-LOG-2026-08.md`         | What the August 2026 session changed, and why                                                                                                                    |
 
 ### Runtime state (created on first use, not in the repo)
@@ -272,24 +290,46 @@ Chapter 3 will need them.
    `docs-notes/ROLE-MODEL.md` §3.7, a User now genuinely manages their assigned
    agent: writes agent-scoped rules, sets its escalation behaviour, reads its
    unmasked logs, and can stop it.
-4. **Default posture changed to monitor** after discovering that `enforce` with
-   zero rules bricked the agent and broke 19 of OpenClaw's own tests.
+4. **Default posture went to monitor, and then back to enforce.** `enforce` with
+   zero rules bricked the agent and broke 19 of OpenClaw's own tests, so the
+   shipped default briefly became `monitor`. That traded the bricking problem
+   for a worse one: the fork's central claim, a default-deny gate, was false of
+   every installation until somebody changed a setting. The supervisor-directed
+   answer (§G) fixed the real cause instead — ship a **tiered baseline policy**
+   so a fresh installation is default-deny _and_ usable from the first second.
+   **The shipped default is `enforce`. Monitor survives as an opt-in, per-agent
+   observation tool, off by default**, which is what it should always have been.
 
 ---
 
 ## 5. Quality assurance history
 
-Fourteen rounds, **ninety-six defects found and ninety-three fixed**, plus B1
+Sixteen rounds, **over a hundred defects found and all fixed**, plus B1
 and the two defects found while fixing it — closed separately on 2026-08-20 and
 written up as its own item rather than a round — plus two more (#97, #98) found
 on 2026-08-21 while _building_ rather than reviewing: a per-user setting written
 under one key and read under another, and the prototype-key guard that would have
 been bypassed by fixing it — five more (#99–103) found the same day by **using
 the dashboard** for the first time rather than typechecking it, and one more
-(#104) found by checking three guarantees the project had only ever stated in
-prose: Root's password could not be changed from any surface an operator can
-reach. Full
-engineering detail in `GOVERNANCE.md`; plain-language version in
+found by checking three guarantees the project had only ever stated in prose:
+Root's password could not be changed from any surface an operator can reach.
+
+**Round sixteen (2026-08-21) added findings 104–107**, and is the round worth
+reading before the defence: three of its four findings were in code the project
+had already been satisfied with, and two were written the same day. The lock
+guarding every governance write let a slow holder be reclaimed _without telling
+it_, after which it deleted its successor's lock; the fix for that deadlocked
+the system until a probe caught it; and the bound stopping failed logins from
+filling the disk let an attacker choose which account the trail would not name.
+
+**Two further defects were found by building rather than reviewing, in
+2026-08-22 to 24:** the dashboard's authoring form was still headed "Add an
+allow rule" months after denials became authorable (found by writing the first
+component tests), and adding a command-line login exposed `governance sessions`
+reporting with full Root visibility on the stale premise that the CLI had no
+login — which would have let a User enumerate every agent in the installation.
+
+Full engineering detail in `GOVERNANCE.md`; plain-language version in
 `docs-notes/QA-IN-PLAIN-TERMS.md`; the August 2026 rounds are narrated in
 `mg/SESSION-LOG-2026-08.md`; the round-13 backlog and the A5/A6 write-ups are in
 `mg/REMAINING-WORK.md`.
@@ -299,22 +339,24 @@ read first, system attacked second, source read third — because reading the
 source first is how a reviewer inherits the author's model of the system, which
 is the blind spot rounds five and six identified.
 
-| Round | Method                                                                                    | Headline finding                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ----- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1–2   | Self-review                                                                               | The gate sat _after_ a shortcut that skips checks when no plugins exist — so it did nothing on a default install                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| 3     | Edge cases and abuse                                                                      | Approving a request always created an everyone-rule (privilege escalation); a rule pattern could freeze the gate; login timing revealed valid usernames                                                                                                                                                                                                                                                                                                                                                                                               |
-| 4     | After complete-record logging                                                             | Agent-supplied text recorded with no size limit — fill the disk, destroy the audit trail                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| 5     | Checked against real OpenClaw                                                             | **The governed-tool list named two tools that do not exist.** File access was ungoverned the whole time while the dashboard accepted file rules that could never match                                                                                                                                                                                                                                                                                                                                                                                |
-| 6     | Four parallel reviewers                                                                   | 14 defects, including a granted approval skipping all other safety layers — and the discovery that the project had **broken 19 of OpenClaw's own tests**                                                                                                                                                                                                                                                                                                                                                                                              |
-| —     | Independent review (`Kimi_QA_1.md`)                                                       | Administrative actions are absent from the audit log; file paths are not canonicalised, so `workspace/../../etc/passwd` defeats a workspace rule                                                                                                                                                                                                                                                                                                                                                                                                      |
-| 7     | Account lifecycle, end to end                                                             | Nothing enforced a single Root — a second could be created outright or by promotion, and a second Root can delete the first. **The test harness itself reported HTTP 200 for a route that did not exist**, so nine assertions "passed" against a typo                                                                                                                                                                                                                                                                                                 |
-| 8     | Logic, then security                                                                      | No new defects in either sweep. Two dishonest tests corrected: one compared a string with itself, one asserted the opposite of its own name                                                                                                                                                                                                                                                                                                                                                                                                           |
-| 9     | After the timing and axis work                                                            | Clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| 10    | The tier model's seams                                                                    | **A deny rule outside the core tier was silently ignored** — it fell between the deny pass and the allow pass and did nothing at all; denies also ignored agent scoping; the clash detector described a denial as a grant                                                                                                                                                                                                                                                                                                                             |
-| 11    | Read against the PDF, not the code                                                        | **Three built-in tools that read files were never governed** (`grep`, `find`, `ls`) — the core denial on `.env` stopped `read` and let `grep` return the same bytes; the `terminal` tool's `data` parameter was a second, unwatched command channel; one host address had four spellings and only one was denied; the per-agent monitor toggle existed in the code and could not be reached from any interface                                                                                                                                        |
-| 12    | Chat deployments, and A1 attacked                                                         | **Governance had never been tested against a channel-shaped session key** — the property the kill switch depends on over Discord was true by luck as far as the suite knew; now asserted per channel using the host's own key builder. One defect: a corrupted transcript file took the whole prompting feature down. One limitation documented rather than closed: outbound messages are ungoverned                                                                                                                                                  |
-| 13    | **Independent adversarial review** — requirements read first, attack second, source third | **The guard round eleven wrote to prevent coverage drift compared against the wrong list and could not fail.** It checked seven session tools; the host declares fifty-two. Measured: 7 of 52 governed, with `process` a second unwatched command channel into a running shell and `computer` a keyboard on a real desktop. Also: three key-free routes defeated ledger tamper-detection; the unauthenticated CLI was a bypass of the whole RBAC model; one accepted rule pattern blocked the event loop for 142 s. **24 findings (70–93), 18 fixed** |
-| 14    | Spawned agents, and two backlog items                                                     | **Agent-scoped confinement was escapable by spawning into another identity.** The host mints a child's session key under the _target's_ agent id, and every scoping rule keys on that id — so a confined agent could spawn as a less-restricted one and inherit its rules. Closed by making the target identity its own permission. **3 findings (94–96), 2 fixed**; the third — a lockdown not reaching a cross-agent child already running — is pinned by a test that asserts current behaviour, so closing it makes the test fail                  |
+| Round | Method                                                                                    | Headline finding                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ----- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1–2   | Self-review                                                                               | The gate sat _after_ a shortcut that skips checks when no plugins exist — so it did nothing on a default install                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 3     | Edge cases and abuse                                                                      | Approving a request always created an everyone-rule (privilege escalation); a rule pattern could freeze the gate; login timing revealed valid usernames                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 4     | After complete-record logging                                                             | Agent-supplied text recorded with no size limit — fill the disk, destroy the audit trail                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 5     | Checked against real OpenClaw                                                             | **The governed-tool list named two tools that do not exist.** File access was ungoverned the whole time while the dashboard accepted file rules that could never match                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 6     | Four parallel reviewers                                                                   | 14 defects, including a granted approval skipping all other safety layers — and the discovery that the project had **broken 19 of OpenClaw's own tests**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| —     | Independent review (`Kimi_QA_1.md`)                                                       | Administrative actions are absent from the audit log; file paths are not canonicalised, so `workspace/../../etc/passwd` defeats a workspace rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 7     | Account lifecycle, end to end                                                             | Nothing enforced a single Root — a second could be created outright or by promotion, and a second Root can delete the first. **The test harness itself reported HTTP 200 for a route that did not exist**, so nine assertions "passed" against a typo                                                                                                                                                                                                                                                                                                                                                                                           |
+| 8     | Logic, then security                                                                      | No new defects in either sweep. Two dishonest tests corrected: one compared a string with itself, one asserted the opposite of its own name                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| 9     | After the timing and axis work                                                            | Clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 10    | The tier model's seams                                                                    | **A deny rule outside the core tier was silently ignored** — it fell between the deny pass and the allow pass and did nothing at all; denies also ignored agent scoping; the clash detector described a denial as a grant                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 11    | Read against the PDF, not the code                                                        | **Three built-in tools that read files were never governed** (`grep`, `find`, `ls`) — the core denial on `.env` stopped `read` and let `grep` return the same bytes; the `terminal` tool's `data` parameter was a second, unwatched command channel; one host address had four spellings and only one was denied; the per-agent monitor toggle existed in the code and could not be reached from any interface                                                                                                                                                                                                                                  |
+| 12    | Chat deployments, and A1 attacked                                                         | **Governance had never been tested against a channel-shaped session key** — the property the kill switch depends on over Discord was true by luck as far as the suite knew; now asserted per channel using the host's own key builder. One defect: a corrupted transcript file took the whole prompting feature down. One limitation documented rather than closed: outbound messages are ungoverned                                                                                                                                                                                                                                            |
+| 13    | **Independent adversarial review** — requirements read first, attack second, source third | **The guard round eleven wrote to prevent coverage drift compared against the wrong list and could not fail.** It checked seven session tools; the host declares fifty-two. Measured: 7 of 52 governed, with `process` a second unwatched command channel into a running shell and `computer` a keyboard on a real desktop. Also: three key-free routes defeated ledger tamper-detection; the unauthenticated CLI was a bypass of the whole RBAC model; one accepted rule pattern blocked the event loop for 142 s. **24 findings (70–93), 18 fixed**                                                                                           |
+| 14    | Spawned agents, and two backlog items                                                     | **Agent-scoped confinement was escapable by spawning into another identity.** The host mints a child's session key under the _target's_ agent id, and every scoping rule keys on that id — so a confined agent could spawn as a less-restricted one and inherit its rules. Closed by making the target identity its own permission. **3 findings (94–96), 2 fixed**; the third — a lockdown not reaching a cross-agent child already running — is pinned by a test that asserts current behaviour, so closing it makes the test fail                                                                                                            |
+| 15    | B1 — the harness that never entered the gate                                              | Its own item rather than a round. One configuration — the native Codex harness, plugin-free, relay disabled — never reached the gate at all, because the predicate deciding whether to install the relay counted _plugin_ policies and this layer is not a plugin. Repaired by making governance a second, independent relay signal, leaving the host's predicate untouched: **zero host tests break**. **2 further defects found in the same change**                                                                                                                                                                                          |
+| 16    | The concurrency primitive, and a bound that became a blindfold                            | Adversarial, and the round to read before the defence: three of its four findings were in code the project had already been satisfied with, two of them written that same day. A reaped lock-holder was never told it had been reaped and deleted its **successor's** lock on the way out; the fix for that deadlocked every governance write until a probe caught it; and the bound stopping failed logins from filling the disk let an attacker **choose which account the trail would not name**. **4 findings (104–107), all fixed.** Lesson: _a limit makes a silent claim about which of the things it drops were the ones worth keeping_ |
 
 ### The lesson worth putting in Chapter 4
 
@@ -337,10 +379,10 @@ looked like a success and nine assertions passed against a mistyped URL. Same
 shape again — the harness and the server disagreed about what a missing route
 returns, and only the harness was consulted.
 
-### The stronger claim, from all fourteen rounds
+### The stronger claim, from all sixteen rounds
 
-Almost none of the ninety-six defects was a missing check. Nearly every one was
-**two parts of the system disagreeing**:
+Almost none of the hundred-plus defects was a missing check. Nearly every one
+was **two parts of the system disagreeing**:
 
 - the gate and the host, about which tools exist (round 5);
 - our tests and the host's tests, about what passing means (round 6);
@@ -360,7 +402,19 @@ Almost none of the ninety-six defects was a missing check. Nearly every one was
   escalation model was saved, displayed as active, and never consulted (#97);
 - and, at the outermost level the system has, the host asking "are there plugin
   policies?" while meaning "is there anything to consult?" — so the mechanism
-  that decides whether to consult the gate could not see the gate (B1).
+  that decides whether to consult the gate could not see the gate (B1);
+- a lock holder and the process that reclaimed its lock, about which of them was
+  holding it — so the reaped holder ran on unprotected and then deleted its
+  successor's lock (round 16);
+- a permission function and its eight callers, about which of two questions it
+  was answering — so withholding somebody's ability to _write rules_ also
+  removed their ability to _stop their own agent_ (T5, caught by a test written
+  for exactly that risk before the code was);
+- an interface label and the feature beneath it, twice in one week: a ledger
+  filter reading "Policy changes" that was about to include sign-ins, and an
+  authoring form headed "Add an allow rule" months after denials became
+  authorable. **A label is a claim with no test attached** — every other claim
+  in this project is pinned by something.
 
 None of these is visible by reading either side carefully. That is the honest
 methodological result of this project, and it is a better Chapter 4 argument than
@@ -379,7 +433,7 @@ registry against `allToolNames` — seven session tools — while the host decla
 fifty-two in `tool-catalog.ts`. Forty-five ungoverned tools sat behind a green
 assertion whose entire purpose was to count them.
 
-So the sequence over fourteen rounds is:
+So the sequence over sixteen rounds is:
 
 1. the code was wrong, and the tests agreed because both came from one
    assumption (round 5);
@@ -410,12 +464,13 @@ conclusion.
 > paragraph, the two things to do before anything else, and how to verify
 > nothing is broken. This file is the reference beneath it.
 
-- **1,480 governance tests pass across 68 files** (measured 2026-08-21, after
+- **1,794 governance tests pass across 87 files** — file _runs_, not files; 1,156 distinct tests across 67 distinct files, because the ten gateway files each run under three Vitest projects (measured 2026-08-24, after
   rounds 13 and 14, A7, B1 and the A1 follow-ups); `pnpm tsgo:core` and `pnpm tsgo:ui` both clean;
   OpenClaw's own harness suite unchanged at its 18 failed / 174 passed baseline.
-- **Branch:** `governance-layer`, 14 commits ahead of `main`, **pushed to a
-  private remote 2026-08-21** — the tree is clean and fourteen commits sit on
-  top of upstream `main`. `origin` points at upstream OpenClaw, so this branch
+- **Branch:** `governance-layer`, 15 commits ahead of `main`, **pushed to a
+  private remote 2026-08-21** — but **the tree is dirty again as of 2026-08-24**
+  (56 entries: 37 modified, 19 untracked). The "tree is clean" this said before
+  was true on the 21st and has not been true since. `origin` points at upstream OpenClaw, so this branch
   must never be pushed there, and it has not been. The branch lives at
   `github.com/KinanRadaideh/openclaw-governance-layer` (private, remote
   `personal`), verified by cloning it back: same tip and tree. **F1 is closed.**

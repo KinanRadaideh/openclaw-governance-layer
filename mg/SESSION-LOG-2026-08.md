@@ -1,8 +1,12 @@
 # Session log — August 2026
 
-What was done in one long working session, what changed as a result, and what is
-left. Written for someone picking the project up cold, or for the same person
-after a break.
+What was done across the August 2026 working sessions, what changed as a result,
+and what is left. Written for someone picking the project up cold, or for the
+same person after a break.
+
+**Seventeen entries, ending 2026-08-24.** The last three cover the sixteenth QA
+pass, the day five backlog items closed and the core tier was split, and the
+three decisions (T4, T5, T14) being built.
 
 **Read these three together:**
 
@@ -1264,3 +1268,242 @@ anything.
 **A9 is now the top item** — running the whole thing once with a live model
 behind it. It is the largest remaining gap between what this project is and what
 it can be shown to be.
+
+---
+
+## 15. The sixteenth QA pass — attacking the concurrency primitive (2026-08-21)
+
+Adversarial in the shape of rounds thirteen and fourteen: each probe written
+from the claim under test **before** re-reading the code that implements it.
+Four findings, all fixed. Probes kept in `docs-notes/qa-round16-probes/`.
+
+The backlog carried the lock as one sentence — "stale locks are reclaimed after
+15 s with no heartbeat; fine while critical sections are milliseconds". True,
+and the least of it. Probing found that being reaped was where the failure
+_started_: nothing told the reaped holder, so it carried on believing it held
+the lock, and on the way out ran `rm(lockPath, { force: true })` — which by then
+removed its **successor's** lock. One slow writer did not merely lose its own
+exclusion; it unlocked the process that had replaced it, and that process's
+release did the same to the next.
+
+Closed by three separate things: a heartbeat (so staleness means "stopped
+responding" rather than "slow"), an ownership token checked on **every** removal,
+and `GovernanceLockLostError` when a holder finds the lock is no longer its own.
+
+Then the fix deadlocked everything. Requiring an identity before removal meant a
+**tokenless** lock — one from a build predating tokens, or a crash between
+creating the file and writing into it — could never be reclaimed. It survived
+about four minutes, because a probe written for a different finding turned from
+a passing attack into a timeout.
+
+**Finding 107 is the one for the report.** The bound written that morning to
+stop failed logins filling the disk was purely global, which handed an attacker
+a way to _choose what the ledger would not say_: flood the window with two
+hundred invented usernames, then guess at `root` four times at a stretch, below
+the five that trigger a lockout. The trail ends up holding two hundred entries
+about accounts that never existed and nothing about the one that does.
+
+Fixed by splitting the budget on how the two behaviours differ — a flood needs
+fresh names, guessing needs to repeat — so repeats draw on a reserve no flood
+can reach without ceasing to be a flood. **And the first version of that fix
+reproduced a defect this project had already documented at length** in
+`login-throttle.ts`: a `Map` iterated in insertion order evicts the oldest entry,
+which is the account a patient attacker mentioned first. The repair was to
+delete the second counter rather than fix its eviction, because the throttle
+already counted the same thing and had already been hardened for it.
+
+**Round lesson:** _a limit makes a silent claim about which of the things it
+drops were the ones worth keeping._ The sibling of round five's check/claim line,
+and both of this round's limits — two hundred entries, fifteen seconds — were
+correct about the resource they protected and silent about the selection they
+were performing.
+
+---
+
+## 16. Five items closed, and the core tier split (2026-08-22)
+
+A long working day, and the three worth narrating are the ones where the
+decision mattered more than the code.
+
+**T9 — authentication in the ledger.** The trail could say what every agent did
+and who changed its rules, and could not say who was signed in. Writing the four
+entries was trivial; what took the thinking was that a _failed_ login needs no
+credentials and the ledger never deletes, so recording every one hands an
+unauthenticated caller a disk-fill vector. **The fix for a missing log would
+have opened a denial of service.** Bounded, with the excess counted and reported
+as a single entry — because a trail that silently stops recording reads as an
+attack that ended.
+
+**T24 — the core tier split.** The question arrived on a false premise: "are the
+core rules the same as the baseline rules an agent starts with?" They are not,
+and the distinction decided the answer. The six _baseline allowances_ were
+already Administrator-editable, so half the request was satisfied before it was
+made — **a documentation failure rather than a feature gap**, and worth a line in
+the report as one.
+
+The eight _core denials_ were split five/three. The line is not severity: a
+credential denial matters enormously and is now switchable. The line is **what
+lifting the rule would let the agent reach** — the three that stay immutable are
+the ones whose removal would make every other control advisory, including the
+record of which rules are disabled.
+
+**T15 — the dashboard component tested at last**, and the tests found a seventh
+UI defect immediately: the authoring form was still headed "Add an allow rule"
+although R5 made denials authorable and put an allow/deny selector inside that
+very form. Second stale label in a week. **A label is a claim with no test
+attached** — every other claim in this project is pinned by something.
+
+Also: T12 (the network claim qualified on the requirement row rather than in a
+footnote), T19 (the component inventory re-measured, 16,141 production lines
+against 14,980 of test — **corrected 2026-08-24: only the totals were
+re-measured, and 21 of 37 per-file rows were already wrong; see §18**), T13 (the prompt-injection defence answer drafted), and
+T16 begun (account routes split out along the tier seam).
+
+**And two GitHub emails that were not defects at all.** Pushing the branch had
+handed 82 upstream workflow files to GitHub; fifteen are scheduled and one runs
+hourly, every one failing for want of upstream's secrets. Actions disabled
+(T21); billing confirmed clean (T22) — gross $13.27, billed $0, nothing ever
+owed. **A hard fork inherits the host's automation, not only its code**, and
+automation is the part that keeps running by itself.
+
+---
+
+## 17. The three decisions, built (2026-08-24)
+
+T4, T5 and T14 had been open pending a decision rather than pending work.
+
+**T4 — a capability moved rather than removed.** Per-agent escalation and
+posture went to the Administrator, where the paper puts them. The gap was
+substantive: moving an agent from "refuse an unlisted action" to "ask a human
+who may approve" is a widening, made by the tier with the least authority. Both
+switches moved, because putting an agent into monitor is wider still.
+
+The half that makes it acceptable is the request path — a User asks, an
+Administrator decides — built on the queue that already existed for rule
+requests rather than beside it. _Four test suites asserted the old placement and
+were inverted deliberately_, which is worth flagging because a diff full of
+"expected 200, got 403" is normally a regression.
+
+**T5 — the command line has an identity.** Recorded as limitation A6 and
+described there as an attribution problem, which understated it: with no
+identity there was also no authorization, so a Viewer with shell access could do
+what the dashboard refused them. Now a login that records the account _and its
+tier_ and enforces with the same helpers the routes use.
+
+The riskiest part was `actorRole` joining the hash chain. Presence-based
+migration means a role-less entry hashes **byte-identically** to before, proved
+by a test that recomputes a pre-change payload by hand; the role is written
+tagged so it can never collide with the `"keyed"` marker. Widening the actor
+_type_ rather than adding a parameter avoided seventeen signature changes on the
+audit-write paths — **and broke a hundred tests before it broke none**, because
+the earlier split dropped a tolerance for a missing actor. Caught in one run.
+
+Adding the login also exposed a stale premise sitting in a comment:
+`governance sessions` reported with full Root visibility because "the CLI has no
+login". It does now, and leaving that would have let a User enumerate every
+agent in the installation.
+
+**T14 — attachments, after weeks of being held.** Not because it was hard to
+build. Redaction is a text operation and an image is not text, so the question
+was never how to redact an attachment but **what the audit trail is allowed to
+be unable to see**. The answer: record hash, type, size and name; never content;
+keep the bytes in a store the agent cannot read, under the governance directory
+so the protection is inherited from a rule Root cannot switch off.
+
+The hostile-input list was written before the code. Files are named by content
+hash, so the uploader's filename never becomes a path component and traversal is
+_unreachable_ rather than blocked. The size cap bites while streaming, because
+checking afterwards lets the uploader choose how much memory the process
+allocates first. The MIME type is sniffed, not believed. Nothing is ever
+rendered back — an SVG is a script, and the governance page is the worst
+possible place to run one.
+
+**One surface short, and said so rather than rounded up:** the CLI can attach,
+the dashboard cannot.
+
+### State
+
+[**Superseded by §18, 2026-08-24:** fifteen of twenty-seven, after T26/T27 were
+entered; and the test figure below is a count of runs — 1,156 distinct across
+67.] Twelve of twenty-five backlog items done. No known security hole. **1,794 tests
+across 87 files**, both typechecks clean, host harness unchanged at its
+pre-existing 18 failed / 174 passed — which is itself now T25, the next thing
+Kinan wants addressed.
+
+**The working tree is dirty again — about 55 files.** Everything since
+2026-08-21 exists in one place. F1's lesson has been half-forgotten once
+already; committing is the first thing to do next session.
+
+**T2 remains the top item**: running the whole thing once with a live model
+behind it, still the largest gap between what this project is and what it can be
+shown to be.
+
+---
+
+## 18. The documentation audited against the tree (2026-08-24)
+
+No code was written this session beyond one comment. The task was to check
+whether `mg/` still described the project, and it did not, in four ways.
+
+**The inventory table had never been re-measured.** T19 is recorded as "DONE,
+2026-08-22 — re-measured every row". Checking each row against `git show HEAD`
+and the working tree found **21 of 37 already wrong before that week's work
+started**, and eleven modules missing from the table entirely (3,177 lines).
+`resource-extraction.ts` was listed at 144 lines against an actual 545;
+`register.governance.ts` at 302 against 977. What T19 refreshed was the totals
+row.
+
+The mechanism is the interesting part and it is the project's own oldest
+finding, turned around: the totals were genuinely re-derived, they looked right,
+and looking right is precisely why nobody re-read the rows underneath. **A
+summary makes a silent claim about the detail beneath it, and that claim starts
+out exactly as unexamined as the detail did.** Recorded in
+`CHAPTER3-MATERIAL.md` §3.5.2 as a correction rather than fixed silently,
+because the failure is more useful to Chapter 4 than the corrected numbers are.
+
+**The headline test figure counts ten files three times.** "1,794 tests across
+87 files" is a count of _runs_ and _executions_. The ten governance test files
+under `src/gateway/` execute under three Vitest projects — 54 + 3 + (10 × 3) =
+87 — and those ten hold 319 distinct tests reported as 957. Distinct totals:
+**1,156 across 67**.
+
+Neither number is wrong; the phrasing is. What makes it worth a paragraph in
+Chapter 4 is that `HANDOFF.md` §4 **already contains this exact warning**, about
+the host harness baseline, where "9 failures" was really 18 for the same reason,
+and instructs the reader to compare like for like. The governance headline had
+the identical defect the entire time it was being quoted, three paragraphs from
+the warning. _A lesson recorded in one place is not a lesson applied in the
+next._
+
+**`ROLE-MODEL.md` §3.7 was worse than "behind".** The handoff flagged it as
+needing a rewrite. Five rows in the capability tables stated the **opposite of
+shipped code** — that a User may switch an agent into monitor, which T4 moved to
+Administrator on the 24th and which the route now refuses. A document that lags
+is a chore; a table contradicting the code is a defect, and it had been filed as
+the first. Fixed, with the narrative kept under a dated note because the
+original widening was right for what it addressed.
+
+**Two shipped features were on no list.** The bidirectional policy views and
+Root's authoring control both shipped on the 22nd, both have report material
+(§3.5.20, §3.5.23), both are tested, and neither appeared in `REMAINING-WORK.md`
+or `HANDOFF.md`. Entered as **T26** and **T27** in a new Group K. The cause is
+ordinary: the backlog was maintained as a list of things _to do_, so work
+decided and finished inside one session never had a moment at which anyone had
+to write it down. Complete as a plan, incomplete as an inventory, with nothing
+in the process distinguishing the two.
+
+### What was not touched
+
+The **§4 verification numbers were re-run and are correct** — 1,794/87 green,
+both typechecks clean, host harness at exactly 18 failed / 174 passed. The
+uncommitted work introduces no regression. `GOVERNANCE.md` was left alone: its
+table is the engineering defect record for QA rounds, and these are
+documentation defects rather than a seventeenth round.
+
+### State
+
+**The tree is still uncommitted and is now larger** — 56 entries before this
+session's documentation edits. Everything since 2026-08-21 exists in one place.
+Committing remains the first thing to do.
+
+**T2 remains the top item.**

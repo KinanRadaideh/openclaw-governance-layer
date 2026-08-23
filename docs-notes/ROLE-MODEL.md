@@ -114,20 +114,20 @@ deployment match what we promised?", and that is what it now gives.
 
 ### Administrator — manages all agents
 
-| Capability                                                  | Function                            |
-| ----------------------------------------------------------- | ----------------------------------- |
-| Change posture (enforce / monitor / off), installation-wide | `canManageGlobalPolicy`             |
-| Switch **one agent** into monitor for observation           | `canManageAgent` (User and above)   |
-| Switch **one agent** off entirely                           | **nobody, at any tier** — see below |
-| Set the per-**user** escalation override                    | Root only                           |
-| Reset another account's password                            | Root only                           |
-| Change ask mode (ask-on-miss vs. strict deny)               | `canManageGlobalPolicy`             |
-| Create and remove **global** rules (bind every agent)       | `canManageGlobalPolicy`             |
-| Create and remove rules for **any** agent                   | `canManageAgent` (unlimited scope)  |
-| Lock / release **any** agent                                | `canManageAgent`                    |
-| Assign agents to User and Viewer accounts                   | `canAssignAgents`                   |
-| Approve or reject rule requests                             | tier floor: administrator           |
-| Read the full unmasked audit ledger for every agent         | `requiresSanitizedAudit` false      |
+| Capability                                                  | Function                                    |
+| ----------------------------------------------------------- | ------------------------------------------- |
+| Change posture (enforce / monitor / off), installation-wide | `canManageGlobalPolicy`                     |
+| Switch **one agent** into monitor for observation           | tier floor: administrator (T4)              |
+| Switch **one agent** off entirely                           | **nobody, at any tier** — see below         |
+| Set the per-**user** escalation override                    | Root only                                   |
+| Reset another account's password                            | Root only                                   |
+| Change ask mode (ask-on-miss vs. strict deny)               | `canManageGlobalPolicy`                     |
+| Create and remove **global** rules (bind every agent)       | `canManageGlobalPolicy`                     |
+| Create and remove rules for **any** agent                   | `canAuthorPolicyForAgent` (unlimited scope) |
+| Lock / release **any** agent                                | `canManageAgent`                            |
+| Assign agents to User and Viewer accounts                   | `canAssignAgents`                           |
+| Approve or reject rule requests                             | tier floor: administrator                   |
+| Read the full unmasked audit ledger for every agent         | `requiresSanitizedAudit` false              |
 
 **From the paper** (§1.6): "configure customized privilege policies (including
 command matrices and network allowlisting) for specific agents", "real-time
@@ -141,12 +141,19 @@ The engine returns on `off` _before_ the lockdown check, so an agent set that
 way stops being covered by the kill switch and the core denials as well as by
 its ordinary rules, and no ledger entry records the change taking effect.
 
-The tier that can set this override is **User**, because the whole point is that
-whoever watches an agent can configure its observation. So accepting `off` would
-have made "remove every protection from my own agent, including the emergency
-stop" a single request available to the lowest tier that can configure anything
-— the same escalation §G6 identified when monitor was made per-agent, arriving
-through a different door.
+The tier that can set this override is **Administrator**, since T4 (2026-08-24).
+**It was User when this argument was first written, and the argument is the
+reason it moved.** Accepting `off` would have made "remove every protection from
+my own agent, including the emergency stop" a single request available to the
+lowest tier that can configure anything — the same escalation §G6 identified
+when monitor was made per-agent, arriving through a different door. T4 then
+found that the _narrower_ switches had the same shape: moving an agent from
+`ask: "off"` to `ask: "on-miss"` turns a hard refusal into a request a human
+might grant, which is a widening made by the tier with the least authority. Both
+per-agent switches went to the Administrator, and a User now **asks** through
+the rule-request queue rather than setting them.
+
+Refusing `off` at every tier, Root included, is unchanged.
 
 Turning the gate off is still possible and is unchanged: `policy/mode`, which is
 installation-wide, Administrator-level, audited, and displayed prominently on
@@ -157,17 +164,17 @@ attack.
 
 ### User — manages the agent(s) assigned to them
 
-| Capability                                                             | Function                       |
-| ---------------------------------------------------------------------- | ------------------------------ |
-| **Prompt an assigned agent, and read that conversation back**          | `canManageAgent`               |
-| Create rules **scoped to an assigned agent**, allowing _or forbidding_ | `canManageAgent`               |
-| Remove rules belonging to an assigned agent                            | `canManageAgent`               |
-| Lock / release an assigned agent                                       | `canManageAgent`               |
-| Switch an assigned agent into `monitor` (never into `off`)             | `canManageAgent`               |
-| Read unmasked audit detail for assigned agents                         | `requiresSanitizedAudit` false |
-| Request a global rule, or a rule for an agent outside their scope      | tier floor: user               |
-| **Cannot** touch posture, ask mode, or global rules                    | `canManageGlobalPolicy` false  |
-| **Cannot** see or touch an agent they were not assigned                | `canViewAgent` false           |
+| Capability                                                             | Function                        |
+| ---------------------------------------------------------------------- | ------------------------------- |
+| **Prompt an assigned agent, and read that conversation back**          | `canManageAgent`                |
+| Create rules **scoped to an assigned agent**, allowing _or forbidding_ | `canAuthorPolicyForAgent` (T27) |
+| Remove rules belonging to an assigned agent                            | `canAuthorPolicyForAgent` (T27) |
+| Lock / release an assigned agent                                       | `canManageAgent`                |
+| **Cannot** switch an assigned agent into `monitor` — may _request_ it  | tier floor: administrator (T4)  |
+| Read unmasked audit detail for assigned agents                         | `requiresSanitizedAudit` false  |
+| Request a global rule, or a rule for an agent outside their scope      | tier floor: user                |
+| **Cannot** touch posture, ask mode, or global rules                    | `canManageGlobalPolicy` false   |
+| **Cannot** see or touch an agent they were not assigned                | `canViewAgent` false            |
 
 **From the paper** (§1.6): "Granted targeted access to interact with specific,
 pre-configured agents… may strictly prompt the agents for task execution or be
@@ -376,6 +383,23 @@ The User tier changed more than any other during implementation. Written up
 here as a narrative because "how the design changed and why" is exactly what a
 design chapter is for, and because the first version was genuinely inadequate.
 
+> **Updated 2026-08-24.** This section records a deliberate _widening_ of the
+> User tier, and two later decisions have narrowed parts of it back. The
+> narrative below stands — the widening was right for what it addressed — but
+> read it with both corrections in hand:
+>
+> - **T4** moved per-agent posture and per-agent escalation to the
+>   Administrator, leaving the User a **request** path through the rule-request
+>   queue. The reasoning is in "Why a per-agent posture of `off` is refused"
+>   above: the narrower switch turned out to have the same widening shape as the
+>   one this section already refused.
+> - **T27** made rule authoring something Root can withhold from a User
+>   account (`canAuthorPolicy`, absent means allowed). The widened tier is still
+>   the shipped default; it is now a default rather than a property of the tier.
+>
+> Everything else in this section — unmasked audit for assigned agents,
+> prompting, lock/release, agent-scoped authoring as the default — is current.
+
 ### Where it started
 
 The first implementation gave User **nothing that Viewer did not already have**,
@@ -411,9 +435,13 @@ designable, and it is worth stating in the report as the pivot point.
 
 ### What a User can do now
 
-Create and remove rules for their assigned agents; lock and release those
-agents; read those agents' audit entries **unmasked**; request anything beyond
-their scope. They cannot touch posture, global rules, other agents, or accounts.
+Create and remove rules for their assigned agents (**unless Root has withheld
+authoring** — T27); prompt those agents and read the conversation back; lock and
+release them; read their audit entries **unmasked**; request anything beyond
+their scope. They cannot touch posture or escalation for an agent — **including
+their own, since T4** — nor global rules, other agents, or accounts. What they
+can do about those is _ask_: a rule request, or an `agent-setting` request an
+Administrator accepts or refuses.
 
 ### Two properties worth defending in the report
 

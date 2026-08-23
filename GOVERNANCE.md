@@ -209,6 +209,65 @@ access can alter history undetected.
 Secrets are stripped before anything is written, by reusing OpenClaw's own
 mature redaction engine (`redactToolPayloadText`) rather than a new one.
 
+**Authentication events are in the same chain** (`src/governance/auth-audit.ts`,
+added 2026-08-21 as T9). Signing in, signing out, a rejected password and a
+lockout are all recorded, so the ledger can answer the question an incident
+starts from — _who was signed in?_ — which it previously could not. Both
+standards this project measures itself against list authentication events among
+those an audit log is expected to carry.
+
+Two properties an operator should know about them:
+
+- **Failure entries are bounded**, globally, at 200 per fifteen minutes. A
+  failed login needs no credentials and the ledger never deletes, so recording
+  every one would let anyone who can reach the page fill the disk. Excess
+  failures are counted and reported as a single `failures-suppressed` entry
+  rather than dropped silently — a log that quietly stops recording under load
+  reads as an attack that ended.
+- **They are best-effort, and alone in that.** Every other governance change
+  fails closed when it cannot be logged. These do not, because an unwritable
+  ledger would otherwise lock every account — including Root — out of the
+  dashboard that repairs it.
+
+Sign-ins have their own filter on the dashboard's ledger panel rather than
+appearing under "Policy changes", which they would otherwise swamp.
+
+### 2b. Reading the policy in both directions
+
+`src/governance/policy-projection.ts`, on all three surfaces.
+
+The policy document is one flat list of rules, each global or written for a
+single agent. Neither question an operator actually has can be read off it by
+eye, because a rule with **no** agent id binds _every_ agent rather than none:
+
+| Question                          | Dashboard                            | CLI                                  |
+| --------------------------------- | ------------------------------------ | ------------------------------------ |
+| What may this agent do?           | "What an agent may do" section       | `governance policy for-agent <id>`   |
+| Which agents does this rule bind? | "Who does this affect?" on each rule | `governance policy rule-agents <id>` |
+
+Both show whether a rule reaches the agent because it is **global** or because
+it was written **for that agent** — the difference between "removing this
+affects everyone" and "removing this affects one workload", which an operator
+needs before they act rather than after. The agent view also reports the
+effective posture and marks whether it is the installation default or a
+per-agent override.
+
+A global rule always says so _before_ listing the agents it currently binds,
+because it also binds every agent created tomorrow and a list read first invites
+the wrong conclusion.
+
+**Who can see what.** Both are Viewer-tier reads, gated by agent assignment
+rather than by role alone:
+
+- **Administrator and Root** — any agent, any rule.
+- **User and Viewer** — the agents an Administrator assigned them. Another
+  team's agent returns 403 rather than an empty list, because an empty list
+  would assert "this agent has no rules" and would distinguish an agent that
+  does not exist from one the caller may not see.
+- The rule→agents list is narrowed to the caller's assigned agents, so a scoped
+  account learns a global rule binds _their_ agent without receiving an
+  inventory of the installation. The response says it was narrowed.
+
 ### 3. Named accounts and four-tier RBAC
 
 `src/governance/roles.ts`, `user-store.ts`, `session-tokens.ts`,
@@ -343,6 +402,145 @@ Known limits, stated rather than hidden: no streaming (the reply arrives when
 the run finishes), no attachments, and the transcript file is a bounded
 convenience — the ledger is the authoritative record.
 
+### 4c. Who may write policy, and for whom
+
+Two axes, easily conflated: **role grants authority, assignment grants reach**,
+and writing a rule needs both.
+
+| Actor             | Global rule | Rule for an assigned agent                            | Another team's agent | Installation posture |
+| ----------------- | ----------- | ----------------------------------------------------- | -------------------- | -------------------- |
+| **Root**          | Yes         | Yes — any agent                                       | Yes                  | Yes                  |
+| **Administrator** | Yes         | Yes — any agent                                       | Yes                  | Yes                  |
+| **User**          | No          | **Yes** — add, forbid, remove, set escalation/posture | No                   | No                   |
+| **Viewer**        | No          | **No**                                                | No                   | No                   |
+
+A global rule (one with no agent id) binds every agent, so it is not "managing
+your agent" — it is managing everyone's, and it sits above the User tier however
+many agents that account holds. Within their own agents a User genuinely
+manages: they add rules, write denials, remove what they wrote, and set that
+agent's escalation and posture overrides.
+
+A Viewer assigned an agent can read its policy in full and change none of it,
+which is the line that makes the two axes visible.
+
+**Core and baseline are different tiers, and this is the thing most often
+misread.** The eight **core** rules are _denials_ and form the security floor;
+the six **baseline** rules are _allowances_ shipped so an agent is useful on
+first boot, and an Administrator may narrow or remove any of them at will.
+
+**Since T24, Root may switch off five of the eight core rules** — credentials
+(files and directories), privilege escalation, host destruction, and cloud
+metadata. **Three cannot be switched off by anyone**: the governance state, any
+command naming the governance directory, and the governance command line. Those
+three are what stop a governed agent reaching the policy, the accounts, the
+ledger, or the off switch — lift them and every other control, including the
+record of which rules are disabled, becomes advisory.
+
+Nothing is deleted by switching a rule off: it stays declared in
+`baseline-policy.ts`, is rebuilt on every load, and returns when re-enabled.
+And a lowered floor cannot hide — the change is its own audit entry naming the
+rule, and `governance deployment` reports the installation as **failing** while
+any core rule is off.
+
+Note that disabling a core _denial_ grants nothing on its own. Core denials are
+consulted before allowances, so switching one off only stops it overriding an
+allowance you write afterwards; under default-deny the action stays refused
+until somebody permits it explicitly.
+
+```bash
+governance policy core-rules                  # list them and their state
+governance policy core-rule <ruleId> false    # switch one off (Root)
+```
+
+**Per-agent escalation and posture are Administrator-level (T4).** They were a
+User's, and the paper puts them with the Administrator — correctly, because
+moving an agent from "refuse an unlisted action" to "ask a human, who may
+approve" is a widening. A User **requests** the change instead, through the same
+queue used for rule requests, and an Administrator accepts or refuses it.
+
+**The command line has a login (T5).** `governance login` records changes
+against your account _and tier_ and enforces your permissions with the same
+helpers the dashboard uses. It is a control against mistakes and casual misuse,
+not a security boundary: anyone who can run these commands can edit the
+governance files directly, and no login changes that.
+
+**Root can withhold a User's authoring ability per account.** `canAuthorPolicy`
+is set by Root only, meaningful for the User tier only, and **absent means
+allowed** — so nothing existing changes. A withheld User keeps everything else
+the tier has: reading their agents' policy and unmasked audit entries, prompting
+them, **stopping them**, and submitting rule requests. They lose only the ability
+to add, remove or narrow a rule and to set their agent's posture — which is
+exactly the power the paper's narrower User tier did not have.
+
+Set it with `governance set-policy-authoring <userId> true|false`, or from the
+accounts panel.
+
+Removal is authorized against the **stored** rule, never the caller's payload,
+so a User cannot delete a global rule by claiming it belongs to their agent.
+
+### 4b. Verifying the emergency stop
+
+`src/gateway/governance-kill-switch-e2e.test.ts` drives the stop through the
+HTTP route an operator actually reaches, rather than calling `lockDownAgent`
+directly. Fourteen tests. What they establish:
+
+- An action that was **allowed becomes blocked**, and stays blocked on later
+  attempts — the stop is a state, not an event. Lockdown is written first and
+  the abort follows, so no action slips through the gap.
+- Only the named agent is affected.
+- In-flight runs are aborted, and the response distinguishes **signalled**
+  (`dispatchMs`) from **confirmed stopped** (`stoppedConfirmed`).
+- The **whole HTTP path** — role check, agent-scope check, locked policy write,
+  abort, confirmation probe — completes inside requirement #7's one second.
+- The ledger names who pressed it, and the release is recorded too.
+
+**Who may press it:** a User for an agent assigned to them; refused for another
+team's. A **Viewer is refused even for an agent they can see** — assignment
+grants visibility, the role grants authority. Unauthenticated gets 401.
+
+Round thirteen's three silent failures are re-asserted so they cannot come back:
+monitor posture does not suspend the stop, a hand-written `agentMode: "off"`
+does not switch the gate off, and an unattributable call is refused while any
+agent is locked.
+
+**Still unproven:** the terminator behind the seam is a test double, not the
+Gateway's real abort driving a real model's run. That is A9/T2.
+
+### 4d. Attachments (T14)
+
+`src/governance/attachment-store.ts`. An operator can send files with a prompt;
+today from the CLI (`governance prompt --attach <path>`), with the HTTP route
+and dashboard upload still outstanding.
+
+**The ledger records SHA-256, sniffed MIME type, byte size and the declared
+name — never the content.** Requirement #8 is satisfied by construction rather
+than by filtering: redaction is a text operation and an image is not text, so
+the answer is to record what is _provable_ about a file instead of the file. An
+investigator holding the file can show it is the one that was sent; one without
+it learns type, size, sender, agent and time.
+
+The bytes live under the governance directory, so the **self-protecting core
+denial already covers them** — the agent cannot read the store, and that is
+inherited from a rule Root cannot switch off rather than resting on a new one.
+
+Bounds and refusals, all tested:
+
+- Files are named by **content hash**; the uploader's filename never becomes a
+  path component, so traversal and alternate-data-stream tricks are unreachable
+  rather than blocked.
+- **8 MB per file, enforced while streaming**, so an oversized upload is refused
+  before the bytes are held; **64 MB per account**, so one uploader cannot deny
+  the feature to everyone else.
+- The **MIME type is sniffed from content**, never taken from the client's
+  claim; unrecognised content is reported as `application/octet-stream`.
+- **The dashboard never renders an attachment back** — an SVG is a script, and
+  the governance page is the worst possible place to run one.
+- The orphan sweep is driven by the **ledger**, never the transcript, which
+  forgets its oldest entries.
+
+`governance deployment` gains a row: attachment count, total size, and any files
+on disk that nothing references.
+
 ### 5. Dashboard integration
 
 `ui/src/pages/governance/` — a native Control UI page (Lit), not an embedded
@@ -472,12 +670,14 @@ The second command exists because the sixth QA round discovered that
 governance-only runs had hidden nineteen regressions in the host for weeks. A
 green governance suite is not evidence on its own.
 
-1,480 automated tests across 68 files (2026-08-21) cover the ledger chain, the
+1,794 automated tests across 87 files (2026-08-24) cover the ledger chain, the
 policy engine and its tier model, resource extraction, path and hostname
 canonicalisation, the agreement between the governed-tool registry and the
 host's own tool list, the permission model,
 agent scoping, the HTTP authorization layer,
-password/session handling, the login throttle, the file lock, ReDoS rejection,
+password/session handling, the login throttle, authentication auditing and its
+bounds, the file lock — including what happens to a holder whose lock is
+reclaimed while it is still working — ReDoS rejection,
 kill-switch latency, rule expiry, conflict detection, the pending-decision
 stack, the host's obligation to route a native-harness tool call through the gate
 at all, and the bounds on an in-flight prompt. Tests never touch real operator state:
@@ -585,22 +785,22 @@ governance commit had regressed 19 of OpenClaw's own tests**, and four earlier
 QA rounds never saw it, because every round had only run the governance-scoped
 suites.
 
-| #   | Defect                                                                                                                                                                             | Impact                                                                                                                                                                                                                                                                                                                                                            | Fix                                                                                                                                                                                                                                                                        |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 35  | A fresh install defaulted to `enforce` with **zero rules**, so every governed action was refused from the first second.                                                            | **Critical, and the cause of the 19 regressions.** An agent that cannot read a file or run a command until rules exist for work nobody has observed yet is not secured, it is bricked - and a control like that gets switched off wholesale, which is worse than one that starts by watching. It also silently altered the host's own test suite.                 | Default posture is now `monitor`: identical default-deny _semantics_ and a complete record of what enforce would have done, without acting on it. Enforce is one toggle. Tests that exercise enforcement now say so explicitly rather than leaning on the shipped default. |
-| 36  | A **granted** governance approval returned immediately, skipping every downstream policy layer - skill-workshop approval, voice confirmation, trusted tool policies, plugin hooks. | **Installing this security layer could turn a previously-blocked call into an allowed one.** A human clicking "Allow once" on a governance escalation bypassed controls that would have vetoed the same call. A gate must never be able to widen access.                                                                                                          | Only a refusal or deferral ends the chain; a granted approval falls through and is carried forward, matching what the trusted-policy and hook branches already did.                                                                                                        |
-| 37  | `checkRegexSafety` accepted the whole ambiguous-alternation family, e.g. a repeated group whose two branches are identical.                                                        | **Critical DoS.** Measured: 26 characters of input took 19 s; 28 characters was still spinning after 13 minutes of CPU. Patterns are authored by the lowest tier that can write a rule and run on the Gateway's only thread against agent-controlled text, so a User with one assigned agent could hang the whole installation.                                   | Added overlap detection for quantified alternations, plus an empirical backstop test that runs every accepted pattern against a hostile input and fails if it exceeds 50 ms.                                                                                               |
-| 38  | Two concurrent demotions, or a demotion racing a deletion, could leave **zero Root accounts**.                                                                                     | **Unrecoverable lockout.** Both requests read "2 roots" from a snapshot taken outside the write lock, both passed the guard, both wrote. There is no password reset and bootstrap refuses once any account exists.                                                                                                                                                | The invariant is re-checked inside the write lock. Refined while fixing: emptying the account list entirely is _allowed_, because bootstrap reopens - that is a teardown, not a lockout.                                                                                   |
-| 39  | The login throttle evicted the attacker's own lockout first.                                                                                                                       | **Complete brute-force bypass.** Map iteration is insertion-ordered and incrementing a counter does not re-insert, so the account under attack stayed pinned at the front of the eviction queue: five guesses at `root`, a thousand throwaway usernames, lockout gone, repeat.                                                                                    | Locked records are evicted last.                                                                                                                                                                                                                                           |
-| 40  | The throttle keyed on trim+lowercase while account lookup used NFKC.                                                                                                               | A fullwidth-character variant of a username authenticated against the real account on a _separate_ five-attempt quota - one fresh quota per Unicode variant.                                                                                                                                                                                                      | Both paths share one canonical key.                                                                                                                                                                                                                                        |
-| 41  | All fourteen mutating HTTP routes threw a 500 on a body of `null`.                                                                                                                 | Destructuring `null` is a TypeError. Not a privilege issue, but an unhandled path on every mutation endpoint.                                                                                                                                                                                                                                                     | One shared reader that requires a JSON object; 86 tests cover the class.                                                                                                                                                                                                   |
-| 42  | Dashboard rule requests never carried `agentId`.                                                                                                                                   | **Privilege escalation, re-entering from the client side.** The server scopes an approved rule from the stored request, so a request with no agent became a rule binding _every_ agent - the same defect as #15, defeated by the client simply never sending the field. The approval row showed pattern and reason but not scope, so the approver could not tell. | The client sends the scope, the form asks for it, and the approval row states it, with installation-wide flagged as a warning.                                                                                                                                             |
-| 43  | Sign-in errors were structurally unrenderable.                                                                                                                                     | The only error banner lived in the branch that renders _after_ login. A wrong password, a throttle lockout, and a rejected bootstrap password were all completely silent - on the sign-in screen of a security console.                                                                                                                                           | The login view renders errors too.                                                                                                                                                                                                                                         |
-| 44  | The kill switch reported success even when nothing was terminated.                                                                                                                 | The response carries `inFlightTerminationSupported` and `abortedRunIds`; the UI discarded both and showed "locked down". When termination is unavailable the runaway run **keeps executing** - the opposite of what an emergency stop must communicate.                                                                                                           | The outcome is surfaced verbatim, distinguishing "stopped N runs", "nothing matched", and "termination unavailable here".                                                                                                                                                  |
-| 45  | A slice with a computed zero-length bound returned the entire array.                                                                                                               | `slice(-0)` is `slice(0)`. Once pending requests filled the budget the retention cap silently ceased to exist. The existing test decided every request immediately, so it never reached the branch.                                                                                                                                                               | Explicit empty case.                                                                                                                                                                                                                                                       |
-| 46  | The gate read and wrote the operator's **real** `~/.openclaw/governance/` during test runs.                                                                                        | The env override was documented as keeping tests off real state, but only worked for tests that set it - and the gate runs inside `runBeforeToolCallHook`, which every pre-existing tool test reaches. The live audit ledger had accumulated 340 KB of test noise, inside the one file whose whole value is being trustworthy.                                    | Under a test runner with no override, a throwaway directory is used.                                                                                                                                                                                                       |
-| 47  | The permission guide recommended a subdomain pattern the validator rejects.                                                                                                        | The cookbook told operators to write a pattern that trips the nested-quantifier check. Found by a new test asserting that documented patterns are actually accepted.                                                                                                                                                                                              | Replaced with an equivalent accepted pattern, verified to match and reject the same hosts.                                                                                                                                                                                 |
-| 48  | Session tokens compared with `===`; `addRule` spread order could erase a generated id; a comment claimed a false security property about Viewer-side chain verification.           | Minor, fixed together.                                                                                                                                                                                                                                                                                                                                            | `timingSafeEqual`; spread reordered; comment corrected.                                                                                                                                                                                                                    |
+| #   | Defect                                                                                                                                                                             | Impact                                                                                                                                                                                                                                                                                                                                                            | Fix                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 35  | A fresh install defaulted to `enforce` with **zero rules**, so every governed action was refused from the first second.                                                            | **Critical, and the cause of the 19 regressions.** An agent that cannot read a file or run a command until rules exist for work nobody has observed yet is not secured, it is bricked - and a control like that gets switched off wholesale, which is worse than one that starts by watching. It also silently altered the host's own test suite.                 | Default posture became `monitor`: identical default-deny _semantics_ and a complete record of what enforce would have done, without acting on it. Tests that exercise enforcement now say so explicitly rather than leaning on the shipped default. **Superseded by §G:** shipping a _tiered baseline policy_ fixed the real cause, so the default returned to `enforce` — strict and usable from the first second — and monitor was demoted to an opt-in, per-agent observation tool that is off by default. |
+| 36  | A **granted** governance approval returned immediately, skipping every downstream policy layer - skill-workshop approval, voice confirmation, trusted tool policies, plugin hooks. | **Installing this security layer could turn a previously-blocked call into an allowed one.** A human clicking "Allow once" on a governance escalation bypassed controls that would have vetoed the same call. A gate must never be able to widen access.                                                                                                          | Only a refusal or deferral ends the chain; a granted approval falls through and is carried forward, matching what the trusted-policy and hook branches already did.                                                                                                                                                                                                                                                                                                                                           |
+| 37  | `checkRegexSafety` accepted the whole ambiguous-alternation family, e.g. a repeated group whose two branches are identical.                                                        | **Critical DoS.** Measured: 26 characters of input took 19 s; 28 characters was still spinning after 13 minutes of CPU. Patterns are authored by the lowest tier that can write a rule and run on the Gateway's only thread against agent-controlled text, so a User with one assigned agent could hang the whole installation.                                   | Added overlap detection for quantified alternations, plus an empirical backstop test that runs every accepted pattern against a hostile input and fails if it exceeds 50 ms.                                                                                                                                                                                                                                                                                                                                  |
+| 38  | Two concurrent demotions, or a demotion racing a deletion, could leave **zero Root accounts**.                                                                                     | **Unrecoverable lockout.** Both requests read "2 roots" from a snapshot taken outside the write lock, both passed the guard, both wrote. There is no password reset and bootstrap refuses once any account exists.                                                                                                                                                | The invariant is re-checked inside the write lock. Refined while fixing: emptying the account list entirely is _allowed_, because bootstrap reopens - that is a teardown, not a lockout.                                                                                                                                                                                                                                                                                                                      |
+| 39  | The login throttle evicted the attacker's own lockout first.                                                                                                                       | **Complete brute-force bypass.** Map iteration is insertion-ordered and incrementing a counter does not re-insert, so the account under attack stayed pinned at the front of the eviction queue: five guesses at `root`, a thousand throwaway usernames, lockout gone, repeat.                                                                                    | Locked records are evicted last.                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 40  | The throttle keyed on trim+lowercase while account lookup used NFKC.                                                                                                               | A fullwidth-character variant of a username authenticated against the real account on a _separate_ five-attempt quota - one fresh quota per Unicode variant.                                                                                                                                                                                                      | Both paths share one canonical key.                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 41  | All fourteen mutating HTTP routes threw a 500 on a body of `null`.                                                                                                                 | Destructuring `null` is a TypeError. Not a privilege issue, but an unhandled path on every mutation endpoint.                                                                                                                                                                                                                                                     | One shared reader that requires a JSON object; 86 tests cover the class.                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 42  | Dashboard rule requests never carried `agentId`.                                                                                                                                   | **Privilege escalation, re-entering from the client side.** The server scopes an approved rule from the stored request, so a request with no agent became a rule binding _every_ agent - the same defect as #15, defeated by the client simply never sending the field. The approval row showed pattern and reason but not scope, so the approver could not tell. | The client sends the scope, the form asks for it, and the approval row states it, with installation-wide flagged as a warning.                                                                                                                                                                                                                                                                                                                                                                                |
+| 43  | Sign-in errors were structurally unrenderable.                                                                                                                                     | The only error banner lived in the branch that renders _after_ login. A wrong password, a throttle lockout, and a rejected bootstrap password were all completely silent - on the sign-in screen of a security console.                                                                                                                                           | The login view renders errors too.                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| 44  | The kill switch reported success even when nothing was terminated.                                                                                                                 | The response carries `inFlightTerminationSupported` and `abortedRunIds`; the UI discarded both and showed "locked down". When termination is unavailable the runaway run **keeps executing** - the opposite of what an emergency stop must communicate.                                                                                                           | The outcome is surfaced verbatim, distinguishing "stopped N runs", "nothing matched", and "termination unavailable here".                                                                                                                                                                                                                                                                                                                                                                                     |
+| 45  | A slice with a computed zero-length bound returned the entire array.                                                                                                               | `slice(-0)` is `slice(0)`. Once pending requests filled the budget the retention cap silently ceased to exist. The existing test decided every request immediately, so it never reached the branch.                                                                                                                                                               | Explicit empty case.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 46  | The gate read and wrote the operator's **real** `~/.openclaw/governance/` during test runs.                                                                                        | The env override was documented as keeping tests off real state, but only worked for tests that set it - and the gate runs inside `runBeforeToolCallHook`, which every pre-existing tool test reaches. The live audit ledger had accumulated 340 KB of test noise, inside the one file whose whole value is being trustworthy.                                    | Under a test runner with no override, a throwaway directory is used.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 47  | The permission guide recommended a subdomain pattern the validator rejects.                                                                                                        | The cookbook told operators to write a pattern that trips the nested-quantifier check. Found by a new test asserting that documented patterns are actually accepted.                                                                                                                                                                                              | Replaced with an equivalent accepted pattern, verified to match and reject the same hosts.                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 48  | Session tokens compared with `===`; `addRule` spread order could erase a generated id; a comment claimed a false security property about Viewer-side chain verification.           | Minor, fixed together.                                                                                                                                                                                                                                                                                                                                            | `timingSafeEqual`; spread reordered; comment corrected.                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 **Open, deliberately not fixed in this pass — closed later as B1.**
 `hasBeforeToolCallPolicy` counts only plugin policies, and it gates whether the
@@ -1200,6 +1400,43 @@ still a valid chain, so it cannot by itself detect truncation of the newest
 entries. Detecting that needs an external anchor (a counter-signed checkpoint
 or an off-host copy of the latest hash). This is honest scope, not an
 oversight, and is a good "future work" item.
+
+### Sixteenth QA pass (2026-08-21) — findings 104-107
+
+Adversarial, in the shape of rounds thirteen and fourteen: each probe written
+from the claim under test before re-reading the implementation. Probes kept in
+`docs-notes/qa-round16-probes/`. Report material in `CHAPTER3-MATERIAL.md`
+§4.x.25; plain language in `QA-IN-PLAIN-TERMS.md` §5.18.
+
+| #   | Component       | Defect                                                                                                                                                                                                                                                                | Fix                                                                                                                                                                                            |
+| --- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 104 | `file-lock.ts`  | A holder whose lock was reaped as stale was never told, and continued its critical section believing it held the lock. Two writers in the same section — the one thing the lock exists to prevent. Reproduced by backdating the lock's mtime rather than waiting 15 s | Heartbeat: the holder refreshes the mtime while working, so staleness means "stopped responding" rather than "slow". Plus `GovernanceLockLostError` on release when the lock is no longer ours |
+| 105 | `file-lock.ts`  | That holder's release then ran `rm(lockPath, { force: true })` with no check of whose lock it was — deleting its **successor's** lock. One slow writer unlocked the process that replaced it, and the failure cascaded                                                | An ownership token in the lock file, checked on every removal. Release removes only its own; reaping is compare-and-delete, re-reading the token immediately before removing                   |
+| 106 | `file-lock.ts`  | **Introduced by the fix for 104/105.** Requiring an identity made a _tokenless_ lock permanently unreclaimable — one from a pre-token build, or a crash between creating the file and writing it. Every governance write would wait 30 s and fail, forever            | Treat "no token, unchanged, and old" as reclaimable. The freshness check has already spared any lock whose holder is still beating, so an absent token is not a reason to spare it             |
+| 107 | `auth-audit.ts` | The global cap on failure entries let an attacker **choose what the ledger would not say**: flood the window with 200 invented usernames, then guess at `root` below the 5 that trigger a lockout. The trail held 200 entries about accounts that never existed       | Split the budget. Novel names compete for the general share; repeats draw on a reserve a flood cannot reach without ceasing to be a flood. Total unchanged, so the disk bound is as tight      |
+
+**107's first fix was itself defective**, and in a way the project has already
+documented: it kept a private per-subject table whose eviction removed the
+oldest entry — which is the account a patient attacker mentioned first. The
+repair was to delete the second counter rather than fix its eviction, since
+`login-throttle.ts` already counts this and has already been hardened against
+exactly this trick. Its own comments explain the defect at length, and it was
+reproduced in a new file hours later.
+
+**Four attacks found nothing** and are kept in the probe artefact: the
+suppressed count survives a quiet period and a window roll; a lockout is
+recorded even when the window is exhausted; and a secret mistyped into the
+username field is recorded verbatim, which is unfixable in principle and is
+therefore documented as a scope limit on requirement #8 rather than as a defect.
+
+**T10 (path check-then-open) was qualified rather than closed**, and the claim it
+carried turned out to be wrong. The gap is now demonstrated by an executable test
+(`path-toctou.test.ts`): one input string, resolved either side of a link swap,
+yields two different files. But it is **not** "inherent to any check-then-delegate
+design" — `PluginHookBeforeToolCallResult` carries an optional `params` the host
+applies, so the gate can hand the tool the path it actually judged. That is T23.
+A re-resolve inside the gate was considered and rejected as theatre: two
+resolutions microseconds apart would agree during an attack.
 
 ## Notes for Chapter 3
 
