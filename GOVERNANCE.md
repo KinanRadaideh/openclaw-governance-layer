@@ -1438,6 +1438,55 @@ applies, so the gate can hand the tool the path it actually judged. That is T23.
 A re-resolve inside the gate was considered and rejected as theatre: two
 resolutions microseconds apart would agree during an attack.
 
+### Documentation audit (2026-08-24) — findings 108-111
+
+Not a QA round: no probe was written and the system was not attacked. The
+project's own documents were read against the working tree, on the principle
+that a claim in a submitted report is checkable by whoever marks it. Four
+defects, none a security hole, all of them things a reader can catch. Report
+material in `CHAPTER3-MATERIAL.md` §3.5.2; plain language in
+`QA-IN-PLAIN-TERMS.md` §5.21.
+
+| #   | Component                     | Defect                                                                                                                                                                                                                                                                                                                         | Fix                                                                                                                                                                                 |
+| --- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 108 | `CHAPTER3-MATERIAL.md` §3.5.2 | T19 recorded the component inventory as "re-measured every row" on 2026-08-22. It had not been. **21 of 37 rows were wrong before that week began** — `resource-extraction.ts` listed at 144 lines against 545, `register.governance.ts` at 302 against 977 — and **11 modules were absent from the table**, worth 3,177 lines | Every row re-measured against the working tree and the 11 modules added. The false claim is corrected in place rather than deleted, because how it survived is the finding          |
+| 109 | `HANDOFF.md` §4               | The headline "1,794 tests across 87 files" counts **runs and executions, not files and tests**. The ten governance test files under `src/gateway/` execute under three Vitest projects: 54 + 3 + (10 × 3) = 87, and those ten hold 319 distinct tests reported as 957. Distinct totals are **1,156 across 67**                 | Both figures kept, each labelled with what it counts. Quote 1,794/87 with the command beside it; quote 1,156/67 when describing how much test code exists                           |
+| 110 | `ROLE-MODEL.md` §3.7          | Five rows of the capability tables stated **the opposite of shipped code** — that a User may switch an agent into monitor, which T4 moved to Administrator and which the route now refuses. Filed in the handoff as "needs rewriting", which is the wrong category                                                             | Rows corrected; the argument resting on them restated around its new tier; the narrative kept under a dated note, because the original widening was right for what it addressed     |
+| 111 | `REMAINING-WORK.md`           | Two shipped, tested features appeared on **no list**: the bidirectional policy views and Root's authoring control. Both had report material written; neither had a task number, so the backlog's arithmetic was self-consistent only because both were invisible to it                                                         | Entered as **T26** and **T27** in a new Group K, numbered by when they were counted rather than when they were built, since renumbering would invalidate every existing T-reference |
+
+**108 and 109 are the same defect in two registers, and it is this project's
+oldest finding pointed at its own paperwork.** A check makes a silent claim
+about what it compares against; a summary makes a silent claim about the detail
+beneath it. T19's totals were genuinely re-derived and came out looking
+plausible, and looking plausible is exactly why nobody re-read the rows. The
+test headline was arithmetically true of what the command prints and false about
+what exists.
+
+**109 is worse than a miscount, and this is the part for Chapter 4.**
+`HANDOFF.md` §4 already contains this precise warning — about the host harness
+baseline, where "9 failures" was really 18 because that suite runs under two
+projects — and instructs the reader to compare like for like and record the
+command beside any number worth keeping. The governance headline had the
+identical defect for as long as it has been quoted, three paragraphs from the
+warning that describes it. **A lesson recorded in one place is not a lesson
+applied in the next.** Every other finding in this document is about code that
+did not know something; this one is about a project that did.
+
+**110's misfiling is the transferable part.** The handoff knew §3.7 was behind
+and said so, which felt like diligence. What it missed is the difference between
+a document that is _incomplete_ and one that is _wrong_: prose that lags is a
+chore, and a table contradicting the code is a defect that will send a reader to
+a route that refuses them. The note recorded the first and the reality was the
+second.
+
+**111 has an ordinary cause worth stating plainly.** The backlog was maintained
+as a list of things _to do_, so work that was decided and finished inside a
+single session never reached a moment where anybody had to write it down. The
+list was complete as a plan and incomplete as an inventory, and nothing in the
+process distinguished the two. The correction is not "be more careful" — it is
+that a backlog and an inventory are different artefacts, and this project had
+been using one document as both.
+
 ## Notes for Chapter 3
 
 Design decisions worth writing up, with the reasoning behind each:
