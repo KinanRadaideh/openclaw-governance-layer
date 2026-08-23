@@ -90,16 +90,17 @@ remote. The push was **verified by cloning it back from GitHub**: same tip
 (`f4b7325241a`), same tree (`3debbb521…`), the governance work all present.
 The work now exists in three places rather than one.
 
-> ### ⚠ The working tree is dirty again, and this is the one thing to act on
+> ### ✅ The tree is clean again as of 2026-08-24
 >
-> **Roughly 55 files are uncommitted as of 2026-08-24** — everything from the
-> sixteenth QA pass onward: T9, T24, T15, T12, T19, T4, T5 and T14, their tests,
-> and the documentation for all of it. That is several days of work existing in
-> exactly one place.
+> The ~56 uncommitted files — everything from the sixteenth QA pass onward —
+> were committed in **seven commits**, grouped by workstream: the lock rewrite,
+> authentication auditing, the core-tier split with policy projection, the tier
+> moves with the authoring control, CLI identity with attachments, the
+> dashboard, and the documentation.
 >
-> F1's whole lesson was that this is the only failure mode that loses
-> everything, and the tree drifting dirty again is how that lesson gets
-> un-learned. **Commit before doing anything else on this list.**
+> **Not yet pushed.** The work exists on this machine and in OneDrive; the
+> private remote is still at the 2026-08-21 tip. Pushing is F1's other half and
+> is the cheapest risk reduction available — see §8.
 
 ---
 
@@ -173,18 +174,21 @@ A finding that appears in only the middle column is not finished.
 
 ## 3. Where the code is, right now
 
-**Branch `governance-layer`, 15 commits ahead of `main`, pushed to a private
-remote — and DIRTY AGAIN as of 2026-08-24.** The commits of 2026-08-21 carry the
+**Branch `governance-layer`, clean, 22 commits ahead of `main`.** Re-check with
+`git rev-list --count main..HEAD` rather than trusting that number — it moves
+with every commit, and a hard-coded count in a handoff is the same class of
+defect as the stale inventory T19 carried. The commits of 2026-08-21 carry the
 governance core, the dashboard, the documentation, the lockfile and the handoff
 update, and the branch exists on this machine, in OneDrive, and at
 `github.com/KinanRadaideh/openclaw-governance-layer` (private, remote
 `personal`). `origin` still points at upstream OpenClaw and must never receive
 this branch.
 
-**About 55 files are uncommitted right now** — the sixteenth QA pass, T9, T24,
-T15, T12, T19, T4, T5 and T14, with their tests and documentation. Everything
-since 2026-08-21 exists in one place only. Commit before anything else; that is
-the whole of F1's lesson and it has already been half-forgotten once.
+**Committed 2026-08-24 in seven commits** — the sixteenth QA pass, T9, T24, T26,
+T4, T27, T5, T14, T15, the T16 split, and the documentation. **The private
+remote has not received them**; it is still at the 2026-08-21 tip, so the newest
+week of work exists on this machine and in OneDrive only. That is a smaller
+version of the same risk F1 closed.
 
 **GitHub Actions are disabled on the private remote** (T21), because the fork
 carries 82 upstream workflow files and fifteen of them are scheduled. Anything
@@ -745,8 +749,10 @@ drafted but still yours to read. Sorted by who has to move first.
 
 ### Do this before anything else
 
-**Commit the working tree.** ~55 files, several days of work, existing in one
-place. F1's lesson was that this is the only failure mode that loses everything.
+**Push to the private remote.** The tree was committed on 2026-08-24 in seven
+commits; `git push personal governance-layer` has not been run. The work is on
+this machine and in OneDrive, but the remote is a week behind — a smaller
+version of the single-location risk F1 closed.
 
 ### Needs you — three decisions and one machine
 
@@ -870,14 +876,15 @@ Stated here so they are not discovered late.
 
 ## 8. If you only do one thing
 
-**Commit the working tree, then run it once with a real agent (T2).**
+**Push to the private remote, then run it once with a real agent (T2).**
 
-The commit takes minutes and is not optional: ~55 files of work from the last
-three days exist in exactly one place. F1 — the item that used to occupy this
-slot, and the only one whose failure mode was losing everything — was closed on
-2026-08-21 by committing, backing up, pushing to a private remote and verifying
-by cloning it back. The tree has since drifted dirty again, which is precisely
-how that lesson gets un-learned.
+The push takes a minute and is not optional. The tree was committed on
+2026-08-24 in seven commits, but the remote is still at the 2026-08-21 tip, so
+the newest week — the sixteenth QA pass, T9, T24, T26, T4, T27, T5, T14, T15 —
+exists on this machine and in OneDrive only. F1, the item that used to occupy
+this slot and the only one whose failure mode was losing everything, was closed
+by committing, backing up, pushing and verifying by cloning back. Three of those
+four have now been done twice; the third has not.
 
 T2 is now the largest gap between what this project _is_ and what it can be
 _shown_ to be. A system that is built and never run reads, to a panel, as less

@@ -272,9 +272,11 @@ tree to a VPS.
 Not a schedule — an argument about sequence, replacing the older one at the end
 of this file.
 
-**0. Commit the working tree.** Not a numbered task, and ahead of every one of
-them: about 55 files from 2026-08-21 onward exist in one place. F1 closed
-exactly this risk once already and the tree has drifted dirty again.
+**0. Push to the private remote.** Not a numbered task, and ahead of every one
+of them. The tree was committed on 2026-08-24 in seven commits, so the "56 files
+in one place" risk is closed — but `git push personal governance-layer` has not
+been run, and the remote is still at the 2026-08-21 tip. F1 closed this risk
+once already; half of it has re-opened.
 
 1. **T2** — the single highest-value item left. It converts the whole project
    from _tested_ to _demonstrated_, and everything in Chapter 4 reads

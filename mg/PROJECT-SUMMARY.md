@@ -467,10 +467,11 @@ conclusion.
 - **1,794 governance tests pass across 87 files** — file _runs_, not files; 1,156 distinct tests across 67 distinct files, because the ten gateway files each run under three Vitest projects (measured 2026-08-24, after
   rounds 13 and 14, A7, B1 and the A1 follow-ups); `pnpm tsgo:core` and `pnpm tsgo:ui` both clean;
   OpenClaw's own harness suite unchanged at its 18 failed / 174 passed baseline.
-- **Branch:** `governance-layer`, 15 commits ahead of `main`, **pushed to a
-  private remote 2026-08-21** — but **the tree is dirty again as of 2026-08-24**
-  (56 entries: 37 modified, 19 untracked). The "tree is clean" this said before
-  was true on the 21st and has not been true since. `origin` points at upstream OpenClaw, so this branch
+- **Branch:** `governance-layer`, **clean as of 2026-08-24**, 22 commits ahead
+  of `main` (re-check with `git rev-list --count main..HEAD`; the number moves
+  with every commit and should not be trusted from a document). Pushed to a
+  private remote on 2026-08-21 — **the seven commits of 2026-08-24 have not been
+  pushed**, so the remote is a week behind the local branch. `origin` points at upstream OpenClaw, so this branch
   must never be pushed there, and it has not been. The branch lives at
   `github.com/KinanRadaideh/openclaw-governance-layer` (private, remote
   `personal`), verified by cloning it back: same tip and tree. **F1 is closed.**

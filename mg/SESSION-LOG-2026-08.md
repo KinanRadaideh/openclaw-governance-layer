@@ -1502,8 +1502,21 @@ documentation defects rather than a seventeenth round.
 
 ### State
 
-**The tree is still uncommitted and is now larger** — 56 entries before this
-session's documentation edits. Everything since 2026-08-21 exists in one place.
-Committing remains the first thing to do.
+**The tree was then committed** — seven commits, grouped by workstream rather
+than by file: the lock rewrite, authentication auditing, the core-tier split
+with policy projection, the tier moves with the authoring control, CLI identity
+with attachments, the dashboard, and this documentation. Verified at the tip:
+1,794 across 87 files, both typechecks clean, harness unchanged.
+
+Seven rather than one because `git log` is the only record that survives a
+handoff, and "why was the lock file rewritten?" is a question somebody will ask
+at the defence. Seven rather than twelve because seven files carry more than one
+workstream — `register.governance.ts` alone carries six — and splitting further
+would have produced commits that cannot compile by construction. **The
+intermediate commits were not individually typechecked** for that reason; only
+the tip is verified.
+
+**Not pushed.** The remote is still at the 2026-08-21 tip. That is the first
+thing to do next session.
 
 **T2 remains the top item.**
