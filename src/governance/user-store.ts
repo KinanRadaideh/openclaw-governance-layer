@@ -9,7 +9,7 @@ import { randomBytes } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { readJsonIfExists, writeJsonAtomic } from "../infra/json-files.js";
 import { canonicalAccountName } from "./account-name.js";
-import { ADMIN_ACTIONS, recordAdminAction } from "./admin-audit.js";
+import { ADMIN_ACTIONS, recordAdminAction, type AuditActorInput } from "./admin-audit.js";
 import { withFileLock } from "./file-lock.js";
 import { hashPassword, needsRehash, verifyPassword } from "./password.js";
 import { governanceHomeDir, usersFilePath } from "./paths.js";
@@ -27,7 +27,32 @@ export type GovernanceUser = {
    * agent, so the list is ignored for them (see permissions.ts).
    */
   assignedAgents: string[];
+  /**
+   * Whether this account may **write** policy for the agents it manages.
+   *
+   * Meaningful for the **User tier only**. Administrator and above manage every
+   * agent by role, and Viewer writes nothing at either scope, so neither is
+   * affected by this flag.
+   *
+   * `ROLE-MODEL.md` §3.7 deliberately widened the paper's User tier from
+   * "proposes changes" to "genuinely manages its assigned agents", and that
+   * remains the shipped default. But it is a *policy* choice about how much an
+   * installation delegates, not a property of the tier — an operator running
+   * several teams may reasonably want some Users to manage their agents and
+   * others only to watch them and raise rule requests.
+   *
+   * **Absent means allowed**, which is what keeps existing accounts working
+   * exactly as they did: this is a control Root can take away, not one Root has
+   * to grant before the tier does its documented job. Only Root may set it,
+   * because it is account administration.
+   */
+  canAuthorPolicy?: boolean;
 };
+
+/** Whether a stored account may author policy. Absent means yes — see the field. */
+export function accountMayAuthorPolicy(user: { canAuthorPolicy?: boolean }): boolean {
+  return user.canAuthorPolicy !== false;
+}
 
 export type GovernanceUserRecord = Omit<GovernanceUser, "passwordHash">;
 
@@ -154,7 +179,7 @@ function canonicalUsername(username: string): string {
  */
 export async function createUser(
   input: CreateUserInput,
-  actor: string,
+  actor: AuditActorInput,
 ): Promise<GovernanceUserRecord> {
   await ensureHomeDir();
   const created = await withFileLock(usersFilePath(), async () => {
@@ -284,7 +309,7 @@ function wouldStrandWithoutRoot(
 export async function setUserRole(
   userId: string,
   role: GovernanceRole,
-  actor: string,
+  actor: AuditActorInput,
 ): Promise<boolean> {
   await ensureHomeDir();
   const changed = await withFileLock(usersFilePath(), async () => {
@@ -333,10 +358,62 @@ export async function setUserRole(
  * agent-management act, so the caller must be Administrator or above
  * (enforced at the API boundary via `canAssignAgents`).
  */
+/**
+ * Root turns a User account's policy-authoring ability on or off.
+ *
+ * The caller must also call `updateSessionsPolicyAuthoring`, so revoking it
+ * takes effect on a User who is already signed in rather than at their next
+ * login. That call lives at the route rather than here, matching how role and
+ * assignment changes already work — this module owns the account file and the
+ * session file is somebody else's.
+ *
+ * It is not optional. A permission that only applies to future sessions is one
+ * an operator would reasonably believe had taken hold when it had not, which is
+ * the same class as the `userAsk` defect: a setting saved, displayed as active,
+ * and never consulted.
+ */
+export async function setUserPolicyAuthoring(
+  userId: string,
+  allowed: boolean,
+  actor: AuditActorInput,
+): Promise<boolean> {
+  await ensureHomeDir();
+  const changed = await withFileLock(usersFilePath(), async () => {
+    const file = await readUsersFile();
+    const user = file.users.find((u) => u.id === userId);
+    if (!user) {
+      return undefined;
+    }
+    const previous = accountMayAuthorPolicy(user);
+    user.canAuthorPolicy = allowed;
+    await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });
+    return { username: user.username, role: user.role, previous, next: allowed };
+  });
+  if (!changed) {
+    return false;
+  }
+  await recordAdminAction({
+    actor,
+    action: ADMIN_ACTIONS.userPolicyAuthoringChange,
+    subjectId: userId,
+    target:
+      `account ${changed.username} policy authoring ${changed.previous ? "allowed" : "withheld"}` +
+      ` -> ${changed.next ? "allowed" : "withheld"}` +
+      // Said plainly, because the flag is inert above the User tier and an
+      // auditor reading "withheld" against an Administrator would otherwise
+      // conclude something was restricted that was not.
+      (changed.role === "user"
+        ? ""
+        : ` (no effect: the ${changed.role} tier is not governed by it)`),
+    outcome: allowed ? "allow" : "deny",
+  });
+  return true;
+}
+
 export async function setUserAssignedAgents(
   userId: string,
   agentIds: readonly string[],
-  actor: string,
+  actor: AuditActorInput,
 ): Promise<boolean> {
   await ensureHomeDir();
   const changed = await withFileLock(usersFilePath(), async () => {
@@ -364,7 +441,7 @@ export async function setUserAssignedAgents(
   return true;
 }
 
-export async function deleteUser(userId: string, actor: string): Promise<boolean> {
+export async function deleteUser(userId: string, actor: AuditActorInput): Promise<boolean> {
   await ensureHomeDir();
   const deleted = await withFileLock(usersFilePath(), async () => {
     const file = await readUsersFile();
@@ -484,7 +561,7 @@ async function upgradeStoredPassword(
 export async function setUserPassword(
   userId: string,
   password: string,
-  actor: string,
+  actor: AuditActorInput,
 ): Promise<boolean> {
   await ensureHomeDir();
   if (password.length < MIN_PASSWORD_LENGTH) {

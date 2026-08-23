@@ -123,15 +123,21 @@ const ROUTES: RouteCase[] = [
     body: { resourceKind: "command", pattern: "^ls$", reason: "because" },
   },
   {
+    // **Administrator since T4, not User.** Per-agent management is the
+    // Administrator's in the paper, and a User flipping their own agent from
+    // `off` (refuse an unlisted action) to `on-miss` (escalate it to a human
+    // who may approve) was a widening by the least-privileged tier. A User asks
+    // for these through the request queue instead — see
+    // `governance-rule-authoring-scope.test.ts`.
     method: "POST",
     route: "policy/agent-ask",
-    floor: "user",
+    floor: "administrator",
     body: { agentId: "agent-a", ask: "off" },
   },
   {
     method: "POST",
     route: "policy/agent-mode",
-    floor: "user",
+    floor: "administrator",
     body: { agentId: "agent-a", mode: "monitor" },
   },
   {

@@ -21,6 +21,16 @@ export type GovernanceSession = {
    * an Administrator changes the assignment mid-session.
    */
   assignedAgents: string[];
+  /**
+   * Whether this account may write policy, mirrored from the account record for
+   * the same reason `assignedAgents` is: an authorization check should not cost
+   * a second file read. `updateSessionsPolicyAuthoring` keeps it current when
+   * Root changes it mid-session.
+   *
+   * Absent means allowed, matching the account field it mirrors — so a session
+   * issued before this existed keeps working exactly as it did.
+   */
+  canAuthorPolicy?: boolean;
 };
 
 type SessionsFile = { version: 1; sessions: GovernanceSession[] };
@@ -163,6 +173,23 @@ export async function updateSessionsAssignedAgents(
     for (const session of file.sessions) {
       if (session.userId === userId) {
         session.assignedAgents = [...assignedAgents];
+      }
+    }
+    await writeJsonAtomic(sessionsFilePath(), file, { mode: 0o600 });
+  });
+}
+
+/** Reflects a policy-authoring change into already-issued sessions. */
+export async function updateSessionsPolicyAuthoring(
+  userId: string,
+  canAuthorPolicy: boolean,
+): Promise<void> {
+  await ensureHomeDir();
+  await withFileLock(sessionsFilePath(), async () => {
+    const file = await readSessionsFile();
+    for (const session of file.sessions) {
+      if (session.userId === userId) {
+        session.canAuthorPolicy = canAuthorPolicy;
       }
     }
     await writeJsonAtomic(sessionsFilePath(), file, { mode: 0o600 });

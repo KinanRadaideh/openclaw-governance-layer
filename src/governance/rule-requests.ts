@@ -20,10 +20,35 @@ import type { ResourceKind } from "./policy-types.js";
 
 export type RuleRequestStatus = "pending" | "approved" | "rejected";
 
+/**
+ * What a request is asking for.
+ *
+ * **Absent means `"rule"`**, the presence-based migration this project uses
+ * everywhere (`entryKind`, `actor`, `keyed`, `canAuthorPolicy`,
+ * `disabledCoreRules`), so requests stored before T4 keep working untouched.
+ *
+ * One queue rather than two, deliberately. An Administrator reviewing what
+ * their Users have asked for should see one list; a second parallel mechanism
+ * would mean a second review surface, a second notification path, and a second
+ * place to forget to look.
+ */
+export type RuleRequestKind = "rule" | "agent-setting";
+
 export type RuleRequest = {
   id: string;
-  resourceKind: ResourceKind;
-  pattern: string;
+  kind?: RuleRequestKind;
+  /**
+   * Which per-agent setting an `agent-setting` request wants changed (T4).
+   *
+   * `ask` is the escalation behaviour (refuse an unlisted action, or put it to
+   * a human); `mode` is the enforcement posture for that agent. Both moved to
+   * the Administrator tier, and this is how a User asks for one.
+   */
+  setting?: "ask" | "mode";
+  /** The value being requested, validated against the setting on submit. */
+  value?: string;
+  resourceKind?: ResourceKind;
+  pattern?: string;
   /**
    * Agent the requester wants the rule scoped to. Absent means they are asking
    * for a **global** rule binding every agent.
@@ -85,13 +110,39 @@ export async function listRuleRequests(): Promise<RuleRequest[]> {
   return (await readFileOrEmpty()).requests;
 }
 
-export type SubmitRuleRequestInput = {
-  resourceKind: ResourceKind;
-  pattern: string;
-  reason: string;
-  requestedBy: string;
-  agentId?: string;
-};
+export type SubmitRuleRequestInput =
+  | {
+      kind?: "rule";
+      resourceKind: ResourceKind;
+      pattern: string;
+      reason: string;
+      requestedBy: string;
+      agentId?: string;
+    }
+  | {
+      kind: "agent-setting";
+      /** Required: a setting request always concerns one named agent. */
+      agentId: string;
+      setting: "ask" | "mode";
+      value: string;
+      reason: string;
+      requestedBy: string;
+    };
+
+/**
+ * One sentence naming what a request asks for.
+ *
+ * Shared by the audit entry and by both surfaces, so an Administrator reading
+ * the ledger and an Administrator reading the review list see the same words.
+ * Two descriptions of one request is how the two drift.
+ */
+export function describeRequest(request: RuleRequest): string {
+  if (request.kind === "agent-setting") {
+    const label = request.setting === "ask" ? "escalation" : "posture";
+    return `requested ${label} "${request.value}" for agent ${request.agentId}: ${request.reason}`;
+  }
+  return `requested ${request.resourceKind} ${request.pattern}: ${request.reason}`;
+}
 
 export async function submitRuleRequest(input: SubmitRuleRequestInput): Promise<RuleRequest> {
   await ensureHomeDir();
@@ -107,9 +158,21 @@ export async function submitRuleRequest(input: SubmitRuleRequestInput): Promise<
     }
     const request: RuleRequest = {
       id: `req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      resourceKind: input.resourceKind,
-      pattern: input.pattern,
-      ...(input.agentId ? { agentId: input.agentId } : {}),
+      // `kind` is written only for the new shape, so a rule request on disk is
+      // byte-identical to one written before T4 and every existing reader keeps
+      // working without a version check.
+      ...(input.kind === "agent-setting"
+        ? {
+            kind: "agent-setting" as const,
+            agentId: input.agentId,
+            setting: input.setting,
+            value: input.value,
+          }
+        : {
+            resourceKind: input.resourceKind,
+            pattern: input.pattern,
+            ...(input.agentId ? { agentId: input.agentId } : {}),
+          }),
       reason: input.reason,
       requestedBy: input.requestedBy,
       requestedAt: new Date().toISOString(),
@@ -122,7 +185,7 @@ export async function submitRuleRequest(input: SubmitRuleRequestInput): Promise<
   await recordAdminAction({
     actor: created.requestedBy,
     action: ADMIN_ACTIONS.ruleRequestSubmit,
-    target: `requested ${created.resourceKind} ${created.pattern}: ${created.reason}`,
+    target: describeRequest(created),
     subjectId: created.id,
     ...(created.agentId ? { agentId: created.agentId } : {}),
   });

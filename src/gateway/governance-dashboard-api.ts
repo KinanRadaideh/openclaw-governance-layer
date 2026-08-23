@@ -7,7 +7,6 @@
 //      minimum tier for the requested operation — the RBAC hierarchy from the
 //      design doc's Section 1.6, enforced by `requireRole` below.
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { guardDeletion, guardRoleChange } from "../governance/account-guards.js";
 import { canonicalAccountName, isSafeAccountKey } from "../governance/account-name.js";
 import { listActiveSessions } from "../governance/active-sessions.js";
 import { tailLedger, verifyLedgerChain } from "../governance/audit-ledger.js";
@@ -15,13 +14,15 @@ import { lockDownAgent, releaseAgentLockdown } from "../governance/kill-switch.j
 import { projectLedgerForActor } from "../governance/ledger-view.js";
 import { decidePendingDecision, listPendingDecisions } from "../governance/pending-decisions.js";
 import {
-  canAssignAgents,
   canManageAccounts,
+  canAuthorPolicyForAgent,
   canManageAgent,
   canManageGlobalPolicy,
   canViewAgent,
+  visibleAgents,
   type GovernanceActor,
 } from "../governance/permissions.js";
+import { agentPolicyView, agentsForRule, knownAgentIds } from "../governance/policy-projection.js";
 // Every policy mutation below goes through a named setter that requires an
 // actor. `updatePolicy` — the raw read-modify-write — is deliberately no longer
 // imported here: it is the one way to change policy state without recording who
@@ -40,9 +41,12 @@ import {
   setMode,
   setUserAskMode,
   TooManyRulesError,
+  NotACoreRuleError,
+  SelfProtectingCoreRuleError,
+  setCoreRuleEnabled,
 } from "../governance/policy-store.js";
 import type { ResourceKind } from "../governance/policy-types.js";
-import { isGovernanceRole, roleAtLeast, type GovernanceRole } from "../governance/roles.js";
+import { roleAtLeast, type GovernanceRole } from "../governance/roles.js";
 import {
   attachCreatedRule,
   decideRuleRequest,
@@ -58,23 +62,9 @@ import {
   resolveRuleTtl,
   validateRulePattern,
 } from "../governance/rule-validation.js";
-import {
-  revokeSessionsForUser,
-  updateSessionsAssignedAgents,
-  updateSessionsRoleForUser,
-  type GovernanceSession,
-} from "../governance/session-tokens.js";
+import type { GovernanceSession } from "../governance/session-tokens.js";
 import { readSystemStatus } from "../governance/system-status.js";
-import {
-  createUser,
-  deleteUser,
-  DuplicateRootError,
-  LastRootError,
-  listUsers,
-  setUserAssignedAgents,
-  setUserPassword,
-  setUserRole,
-} from "../governance/user-store.js";
+import { handleGovernanceAccountRoutes } from "./governance-dashboard-accounts.js";
 import { readJsonBodyOrError, sendInvalidRequest, sendJson } from "./http-common.js";
 
 const MAX_BODY_BYTES = 8192;
@@ -149,11 +139,27 @@ function requireRole(
 }
 
 /** Projects a session into the shape the permission rules consume. */
+/**
+ * The actor to record against an administrative action (T5).
+ *
+ * Carries the tier as well as the name, so the ledger says what authority the
+ * change was made under and not merely who made it. Distinct from `toActor`
+ * below, which builds the object the *permission* helpers consume — one answers
+ * "what may this person do", the other "what did this person do, as what".
+ */
+function auditActor(session: GovernanceSession): { name: string; role: GovernanceRole } {
+  return { name: session.username, role: session.role };
+}
+
 function toActor(session: GovernanceSession): GovernanceActor {
   return {
     username: session.username,
     role: session.role,
     assignedAgents: session.assignedAgents,
+    // Carried through so `canWritePolicy` sees it. Omitted rather than
+    // defaulted, because the permission helper treats absent as allowed and
+    // spelling that default in two places is how the two drift apart.
+    ...(session.canAuthorPolicy !== undefined ? { canAuthorPolicy: session.canAuthorPolicy } : {}),
   };
 }
 
@@ -212,6 +218,139 @@ export async function handleGovernanceApiRequest(
       // administration and therefore Root's. A Viewer was previously handed the
       // installation's user list as a side effect of reading the policy.
       userAsk: canManageAccounts(actor) ? policy.userAsk : {},
+    });
+    return true;
+  }
+
+  // Root only: switch a core rule off, or back on (T24).
+  //
+  // Root rather than Administrator, and deliberately the narrower of the two
+  // readings available when this was decided: lowering the shipped security
+  // floor is the most consequential change any account can make, so it sits
+  // with account administration rather than with ordinary policy editing.
+  // Widening it to Administrator later is a one-line change here.
+  if (route === "policy/core-rules" && req.method === "POST") {
+    if (!requireRole(res, session, "root")) {
+      return true;
+    }
+    const body = await readJsonObjectBodyOrError(req, res);
+    if (body === undefined) {
+      return true;
+    }
+    const { ruleId, enabled } = body as { ruleId?: unknown; enabled?: unknown };
+    if (typeof ruleId !== "string" || !ruleId || typeof enabled !== "boolean") {
+      sendInvalidRequest(res, "ruleId and enabled (boolean) are required");
+      return true;
+    }
+    try {
+      const updated = await setCoreRuleEnabled(ruleId, enabled, auditActor(session));
+      sendJson(res, 200, { ok: true, disabledCoreRules: updated.disabledCoreRules ?? [] });
+    } catch (err) {
+      if (err instanceof SelfProtectingCoreRuleError) {
+        // 403 rather than 400: the request was well formed and the answer is
+        // "not allowed", which is a different thing from "malformed" and is
+        // what an operator needs to read in the response.
+        sendJson(res, 403, { error: { message: err.message, type: "forbidden" } });
+        return true;
+      }
+      if (err instanceof NotACoreRuleError) {
+        sendInvalidRequest(res, err.message);
+        return true;
+      }
+      throw err;
+    }
+    return true;
+  }
+
+  // Viewer and above: what is in force for one agent — its posture, and every
+  // rule that binds it, global and agent-scoped alike.
+  //
+  // **Scoped by assignment, not by tier.** §1.6 gives Viewer and User oversight
+  // of the agents an Administrator put them in charge of, so the gate here is
+  // `canViewAgent` rather than a role floor: a Viewer may ask about their own
+  // agents and gets a 403 for anybody else's. Administrator and above have
+  // unlimited agent scope and may ask about any of them. The tier floor stays
+  // at `viewer` because reading is what the Viewer tier is *for*.
+  if (route === "policy/by-agent" && req.method === "GET") {
+    if (!requireRole(res, session, "viewer")) {
+      return true;
+    }
+    const agentId = new URL(req.url ?? "/", "http://localhost").searchParams.get("agentId")?.trim();
+    if (!agentId) {
+      sendInvalidRequest(res, "agentId is required");
+      return true;
+    }
+    const actor = toActor(session);
+    if (!canViewAgent(actor, agentId)) {
+      // 403 rather than an empty result. An empty answer would say "this agent
+      // has no rules", which is a different and false statement — and one an
+      // unassigned caller could use to distinguish an agent that does not exist
+      // from one they simply may not see.
+      sendJson(res, 403, {
+        error: { message: "Not permitted to view this agent", type: "forbidden" },
+      });
+      return true;
+    }
+    sendJson(res, 200, agentPolicyView(await loadPolicy(), agentId));
+    return true;
+  }
+
+  // Viewer and above: the other direction — which agents one rule binds.
+  //
+  // The agent list is narrowed to what the caller may see, so a User assigned
+  // one agent learns that a global rule binds *their* agent without being
+  // handed an inventory of every other agent in the installation. The
+  // `bindsFutureAgents` flag survives that narrowing deliberately: a global
+  // rule binds agents this caller cannot see and agents nobody has created
+  // yet, and a list that looked complete would invite exactly the wrong
+  // conclusion.
+  if (route === "policy/rule-agents" && req.method === "GET") {
+    if (!requireRole(res, session, "viewer")) {
+      return true;
+    }
+    const ruleId = new URL(req.url ?? "/", "http://localhost").searchParams.get("ruleId")?.trim();
+    if (!ruleId) {
+      sendInvalidRequest(res, "ruleId is required");
+      return true;
+    }
+    const policy = await loadPolicy();
+    const rule = policy.rules.find((candidate) => candidate.id === ruleId);
+    if (!rule) {
+      sendJson(res, 404, { error: { message: "No such rule", type: "not_found" } });
+      return true;
+    }
+    const actor = toActor(session);
+    // An agent-scoped rule for an agent this caller may not see is not theirs
+    // to inspect; the rule's existence is already hidden from them by the
+    // `policy` route's own filter, and this route must not become the way
+    // around it.
+    if (rule.agentId !== undefined && !canViewAgent(actor, rule.agentId)) {
+      sendJson(res, 403, {
+        error: { message: "Not permitted to view this rule", type: "forbidden" },
+      });
+      return true;
+    }
+    // Live sessions are folded in because an agent that is *running* while
+    // having no entry in the policy document at all is precisely the one an
+    // operator should be told a global rule binds. `listActiveSessions` already
+    // scopes its own result to the actor, so this adds no ids the caller could
+    // not otherwise see.
+    const live = listActiveSessions({ actor, lockedAgents: policy.lockedAgents });
+    const targets = agentsForRule(
+      rule,
+      knownAgentIds(
+        policy,
+        live.sessions.map((entry) => entry.agentId),
+      ),
+    );
+    sendJson(res, 200, {
+      ...targets,
+      agentIds: visibleAgents(actor, targets.agentIds),
+      /**
+       * Present so a scoped caller is told their list was narrowed rather than
+       * left to assume it was the whole truth.
+       */
+      scopedToAssignment: !canManageGlobalPolicy(actor),
     });
     return true;
   }
@@ -401,7 +540,7 @@ export async function handleGovernanceApiRequest(
       sendInvalidRequest(res, "seconds must be a number between 5 and 86400");
       return true;
     }
-    await setHitlTimeout(Math.round(seconds), session.username);
+    await setHitlTimeout(Math.round(seconds), auditActor(session));
     sendJson(res, 200, await loadPolicy());
     return true;
   }
@@ -452,6 +591,70 @@ export async function handleGovernanceApiRequest(
       reason?: unknown;
       agentId?: unknown;
     };
+    // **An agent-setting request takes a different branch (T4).** A User can no
+    // longer set their agent's escalation or posture directly; this is how they
+    // ask. Distinguished by `setting` being present rather than by a separate
+    // route, so the whole request queue — submit, review, decide, audit — stays
+    // one mechanism with one review surface.
+    const settingRaw = (body as { setting?: unknown }).setting;
+    if (settingRaw !== undefined) {
+      const value = (body as { value?: unknown }).value;
+      const settingAgentId = typeof requestedAgentId === "string" ? requestedAgentId.trim() : "";
+      if (settingRaw !== "ask" && settingRaw !== "mode") {
+        sendInvalidRequest(res, "setting must be ask or mode");
+        return true;
+      }
+      if (!settingAgentId) {
+        // A setting request always concerns one named agent; there is no
+        // installation-wide form of it, and defaulting to one would submit a
+        // request nobody made.
+        sendInvalidRequest(res, "agentId is required for a setting request");
+        return true;
+      }
+      // Requesting is not authoring, so `canManageAgent` rather than
+      // `canAuthorPolicyForAgent`: a User whose authoring Root has withheld may
+      // still ask. Asking is precisely the fallback withholding leaves them.
+      if (!canManageAgent(toActor(session), settingAgentId)) {
+        sendJson(res, 403, {
+          error: { message: `You do not manage agent "${settingAgentId}"`, type: "forbidden" },
+        });
+        return true;
+      }
+      const validValue =
+        settingRaw === "ask"
+          ? value === "off" || value === "on-miss"
+          : value === "enforce" || value === "monitor" || value === "off";
+      if (!validValue) {
+        sendInvalidRequest(
+          res,
+          settingRaw === "ask"
+            ? "value must be off or on-miss"
+            : "value must be enforce, monitor, or off",
+        );
+        return true;
+      }
+      if (typeof reason !== "string" || !reason.trim()) {
+        sendInvalidRequest(res, "reason is required so an administrator can judge the request");
+        return true;
+      }
+      try {
+        sendJson(
+          res,
+          200,
+          await submitRuleRequest({
+            kind: "agent-setting",
+            agentId: settingAgentId,
+            setting: settingRaw,
+            value: value as string,
+            reason: reason.slice(0, 500),
+            requestedBy: session.username,
+          }),
+        );
+      } catch (err) {
+        sendInvalidRequest(res, err instanceof Error ? err.message : "could not submit request");
+      }
+      return true;
+    }
     if (!isResourceKind(resourceKind)) {
       sendInvalidRequest(res, "resourceKind must be command, path, or network");
       return true;
@@ -524,6 +727,30 @@ export async function handleGovernanceApiRequest(
       });
       return true;
     }
+    if (approve && decided.kind === "agent-setting") {
+      // A setting request applies the setting rather than creating a rule
+      // (T4). Applied from the **stored** request for the same reason the rule
+      // branch below builds from storage: an administrator must grant what was
+      // reviewed, not what the approving client says was reviewed.
+      //
+      // The approver is the actor, not the requester. They are the one whose
+      // authority the change is made under, and the ledger has to say so —
+      // the requester is already named in the rule's description and in the
+      // submit entry.
+      try {
+        if (decided.setting === "ask") {
+          await setAgentAskMode(decided.agentId!, decided.value as never, auditActor(session));
+        } else {
+          await setAgentMode(decided.agentId!, decided.value as never, auditActor(session));
+        }
+      } catch (err) {
+        await reopenRuleRequest(id);
+        sendInvalidRequest(res, err instanceof Error ? err.message : "could not apply the setting");
+        return true;
+      }
+      sendJson(res, 200, { ok: true, request: decided });
+      return true;
+    }
     if (approve) {
       try {
         // The rule is created from the *stored* request, never from the
@@ -531,8 +758,8 @@ export async function handleGovernanceApiRequest(
         // into granting something broader than what was reviewed.
         const rule = await addRule(
           {
-            resourceKind: decided.resourceKind,
-            pattern: decided.pattern,
+            resourceKind: decided.resourceKind!,
+            pattern: decided.pattern!,
             // Grant exactly the scope that was requested and reviewed. Dropping
             // this turned every approval into a global rule, silently widening
             // a single-agent request into an installation-wide grant.
@@ -540,7 +767,7 @@ export async function handleGovernanceApiRequest(
             description: `Requested by ${decided.requestedBy}: ${decided.reason}`,
             createdBy: session.username,
           },
-          session.username,
+          auditActor(session),
         );
         await attachCreatedRule(id, rule.id);
         decided.createdRuleId = rule.id;
@@ -583,7 +810,7 @@ export async function handleGovernanceApiRequest(
       sendInvalidRequest(res, "mode must be enforce, monitor, or off");
       return true;
     }
-    await setMode(mode, session.username);
+    await setMode(mode, auditActor(session));
     sendJson(res, 200, await loadPolicy());
     return true;
   }
@@ -601,15 +828,29 @@ export async function handleGovernanceApiRequest(
       sendInvalidRequest(res, "ask must be off or on-miss");
       return true;
     }
-    await setAskMode(ask, session.username);
+    await setAskMode(ask, auditActor(session));
     sendJson(res, 200, await loadPolicy());
     return true;
   }
 
   // Per-agent HITL override (design doc §1.6). Tier floor is User because
   // this configures one agent; the scope check decides whether it is theirs.
+  // **Administrator floor, not User (T4).** The paper assigns per-agent
+  // management to the Administrator, and this route and its sibling below sat
+  // one tier under that. The gap was real rather than paper-fidelity: `ask:
+  // "off"` *refuses* an unlisted action and `ask: "on-miss"` *escalates it to a
+  // human who may approve*, so a User moving their own agent from the first to
+  // the second converted a hard refusal into a request somebody might grant — a
+  // widening, made by the tier the paper gives the least authority.
+  //
+  // Root reaches it by inheritance: `roleAtLeast` treats the four tiers as a
+  // ladder, so nothing here names Root explicitly and nothing has to.
+  //
+  // The capability is **relocated rather than removed** — a User submits an
+  // `agent-setting` request and an Administrator accepts or refuses it. See
+  // `rule-requests.ts`.
   if (route === "policy/agent-ask" && req.method === "POST") {
-    if (!requireRole(res, session, "user")) {
+    if (!requireRole(res, session, "administrator")) {
       return true;
     }
     const body = await readJsonObjectBodyOrError(req, res);
@@ -633,13 +874,13 @@ export async function handleGovernanceApiRequest(
       sendInvalidRequest(res, "ask must be off, on-miss, or null to clear the override");
       return true;
     }
-    if (!canManageAgent(toActor(session), agentId.trim())) {
+    if (!canAuthorPolicyForAgent(toActor(session), agentId.trim())) {
       sendJson(res, 403, {
         error: { message: `You do not manage agent "${agentId.trim()}"`, type: "forbidden" },
       });
       return true;
     }
-    await setAgentAskMode(agentId.trim(), ask === null ? undefined : ask, session.username);
+    await setAgentAskMode(agentId.trim(), ask === null ? undefined : ask, auditActor(session));
     sendJson(res, 200, await loadPolicy());
     return true;
   }
@@ -652,10 +893,15 @@ export async function handleGovernanceApiRequest(
   // requirement #2 asks for a dashboard that configures policy, which a setting
   // only a test can change does not satisfy.
   //
-  // Tier floor is User, like `policy/agent-ask`: this configures one agent, and
-  // the scope check below decides whether it is theirs.
+  // **Administrator floor, like `policy/agent-ask` above (T4)** — and this one
+  // is the wider of the two. Putting an agent into `monitor` stops policy
+  // decisions being acted on for it at all, so a User able to set it could
+  // neutralise every rule binding their own agent without changing a rule. The
+  // scope check below still decides whether the agent is theirs; the tier floor
+  // decides whether asking is theirs to do. A User requests it instead, as an
+  // `agent-setting` request — see `rule-requests.ts`.
   if (route === "policy/agent-mode" && req.method === "POST") {
-    if (!requireRole(res, session, "user")) {
+    if (!requireRole(res, session, "administrator")) {
       return true;
     }
     const body = await readJsonObjectBodyOrError(req, res);
@@ -692,13 +938,13 @@ export async function handleGovernanceApiRequest(
       );
       return true;
     }
-    if (!canManageAgent(toActor(session), agentId.trim())) {
+    if (!canAuthorPolicyForAgent(toActor(session), agentId.trim())) {
       sendJson(res, 403, {
         error: { message: `You do not manage agent "${agentId.trim()}"`, type: "forbidden" },
       });
       return true;
     }
-    await setAgentMode(agentId.trim(), mode === null ? undefined : mode, session.username);
+    await setAgentMode(agentId.trim(), mode === null ? undefined : mode, auditActor(session));
     sendJson(res, 200, await loadPolicy());
     return true;
   }
@@ -731,7 +977,7 @@ export async function handleGovernanceApiRequest(
       sendInvalidRequest(res, "username is not a valid key");
       return true;
     }
-    await setUserAskMode(username.trim(), ask === null ? undefined : ask, session.username);
+    await setUserAskMode(username.trim(), ask === null ? undefined : ask, auditActor(session));
     sendJson(res, 200, await loadPolicy());
     return true;
   }
@@ -770,7 +1016,7 @@ export async function handleGovernanceApiRequest(
         });
         return true;
       }
-    } else if (!canManageAgent(ruleActor, scopedAgentId)) {
+    } else if (!canAuthorPolicyForAgent(ruleActor, scopedAgentId)) {
       sendJson(res, 403, {
         error: { message: `You do not manage agent "${scopedAgentId}"`, type: "forbidden" },
       });
@@ -845,7 +1091,7 @@ export async function handleGovernanceApiRequest(
           ...(isRuleAccess(access) ? { access } : {}),
           createdBy: session.username,
         },
-        session.username,
+        auditActor(session),
       ));
     } catch (err) {
       // A full ruleset is a state conflict the operator can resolve by removing
@@ -894,7 +1140,7 @@ export async function handleGovernanceApiRequest(
     const mayRemove =
       existing.agentId === undefined
         ? canManageGlobalPolicy(removeActor)
-        : canManageAgent(removeActor, existing.agentId);
+        : canAuthorPolicyForAgent(removeActor, existing.agentId);
     if (!mayRemove) {
       sendJson(res, 403, {
         error: { message: "You do not manage the agent this rule belongs to", type: "forbidden" },
@@ -902,7 +1148,7 @@ export async function handleGovernanceApiRequest(
       return true;
     }
     try {
-      sendJson(res, 200, { ok: await removeRule(id, session.username) });
+      sendJson(res, 200, { ok: await removeRule(id, auditActor(session)) });
     } catch (err) {
       // A core rule. Refused for every tier including Root, so this is a
       // statement about the rule rather than about the caller — 409, not 403.
@@ -916,208 +1162,22 @@ export async function handleGovernanceApiRequest(
   }
 
   // ---------------------------------------------------------------------
-  // Root only: management of the *human* side of the system.
+  // Account administration (Root only) lives in its own module since T16.
   //
   // The design doc splits the two top tiers by what they govern: Root manages
   // people (accounts, roles), Administrator manages agents (policy, rules).
-  // That separation is enforced here — an Administrator cannot promote
-  // themselves to Root, because account administration is not their tier.
+  // That separation is now a file boundary as well as a rule, which is what
+  // lets `governance-dashboard-accounts.ts` state one authorization rule for
+  // its whole contents instead of a mixture.
   // ---------------------------------------------------------------------
-  if (route === "users" && req.method === "GET") {
-    if (!requireRole(res, session, "root")) {
-      return true;
-    }
-    sendJson(res, 200, await listUsers());
-    return true;
-  }
-
-  if (route === "users" && req.method === "POST") {
-    if (!requireRole(res, session, "root")) {
-      return true;
-    }
-    const body = await readJsonObjectBodyOrError(req, res);
-    if (body === undefined) {
-      return true;
-    }
-    const { username, password, role } = body as {
-      username?: unknown;
-      password?: unknown;
-      role?: unknown;
-    };
-    if (typeof username !== "string" || typeof password !== "string") {
-      sendInvalidRequest(res, "username and password are required");
-      return true;
-    }
-    if (!isGovernanceRole(role)) {
-      sendInvalidRequest(res, "role must be root, administrator, user, or viewer");
-      return true;
-    }
-    try {
-      sendJson(res, 200, await createUser({ username, password, role }, session.username));
-    } catch (err) {
-      // createUser enforces uniqueness and the password policy by throwing.
-      sendInvalidRequest(res, err instanceof Error ? err.message : "could not create account");
-    }
-    return true;
-  }
-
-  if (route === "users/role" && req.method === "POST") {
-    if (!requireRole(res, session, "root")) {
-      return true;
-    }
-    const body = await readJsonObjectBodyOrError(req, res);
-    if (body === undefined) {
-      return true;
-    }
-    const { userId, role } = body as { userId?: unknown; role?: unknown };
-    if (typeof userId !== "string" || !userId || !isGovernanceRole(role)) {
-      sendInvalidRequest(res, "userId and a valid role are required");
-      return true;
-    }
-    // Lockout guard: demoting the last Root would leave nobody able to manage
-    // accounts or trigger the kill switch, with no recovery path in the UI.
-    const roleGuard = guardRoleChange(await listUsers(), userId, role);
-    if (!roleGuard.allowed) {
-      sendJson(res, 409, { error: { message: roleGuard.reason, type: "would_lock_out" } });
-      return true;
-    }
-    // The snapshot guard above catches the ordinary case; the store re-checks
-    // the same invariant inside its write lock so two simultaneous demotions
-    // cannot both pass. That second refusal surfaces as this error.
-    try {
-      if (!(await setUserRole(userId, role, session.username))) {
-        sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
-        return true;
-      }
-    } catch (err) {
-      if (err instanceof LastRootError) {
-        sendJson(res, 409, { error: { message: err.message, type: "would_lock_out" } });
-        return true;
-      }
-      // Refusing a second Root is a rejected request, not a conflict of state:
-      // the caller asked for something the model does not allow at all.
-      if (err instanceof DuplicateRootError) {
-        sendInvalidRequest(res, err.message);
-        return true;
-      }
-      throw err;
-    }
-    // A role change must bind immediately, not at next login: an operator
-    // demoted for cause keeps their elevated cookie otherwise.
-    await updateSessionsRoleForUser(userId, role);
-    sendJson(res, 200, { ok: true });
-    return true;
-  }
-
-  // Administrator and above: assign which agents an account manages. This is
-  // agent management, not account management, so it sits at Administrator —
-  // an Administrator can delegate an agent without being able to create the
-  // account that receives it.
-  // Root only: set another account's password. The recovery path whose absence
-  // made a hash that could no longer be verified unrecoverable — bootstrap
-  // refuses once any account exists, so there was no way back.
-  if (route === "users/password" && req.method === "POST") {
-    if (!requireRole(res, session, "root")) {
-      return true;
-    }
-    const body = await readJsonObjectBodyOrError(req, res);
-    if (body === undefined) {
-      return true;
-    }
-    const { userId, password } = body as { userId?: unknown; password?: unknown };
-    if (typeof userId !== "string" || typeof password !== "string") {
-      sendInvalidRequest(res, "userId and password are required");
-      return true;
-    }
-    try {
-      if (!(await setUserPassword(userId, password, session.username))) {
-        sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
-        return true;
-      }
-    } catch (err) {
-      // The store enforces the length policy by throwing.
-      sendInvalidRequest(res, err instanceof Error ? err.message : "could not set password");
-      return true;
-    }
-    // Every existing session for that account is revoked: a password reset is
-    // usually a response to it being compromised, so leaving the old cookies
-    // working would defeat the point.
-    await revokeSessionsForUser(userId);
-    sendJson(res, 200, { ok: true });
-    return true;
-  }
-
-  if (route === "users/agents" && req.method === "POST") {
-    if (!requireRole(res, session, "administrator")) {
-      return true;
-    }
-    if (!canAssignAgents(toActor(session))) {
-      // Previously folded into the condition above, which returned "handled"
-      // without ever writing a response — the client just hung until its own
-      // timeout. Every refusal has to say so.
-      sendJson(res, 403, {
-        error: { message: "You may not assign agents to accounts", type: "forbidden" },
-      });
-      return true;
-    }
-    const body = await readJsonObjectBodyOrError(req, res);
-    if (body === undefined) {
-      return true;
-    }
-    const { userId, agentIds } = body as { userId?: unknown; agentIds?: unknown };
-    if (typeof userId !== "string" || !userId) {
-      sendInvalidRequest(res, "userId is required");
-      return true;
-    }
-    if (!Array.isArray(agentIds) || agentIds.some((id) => typeof id !== "string")) {
-      sendInvalidRequest(res, "agentIds must be an array of strings");
-      return true;
-    }
-    const normalized = (agentIds as string[]).map((id) => id.trim()).filter(Boolean);
-    if (!(await setUserAssignedAgents(userId, normalized, session.username))) {
-      sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
-      return true;
-    }
-    // Bind immediately, like a role change: a revoked agent must stop being
-    // manageable now, not at session expiry.
-    await updateSessionsAssignedAgents(userId, normalized);
-    sendJson(res, 200, { ok: true, assignedAgents: normalized });
-    return true;
-  }
-
-  if (route === "users/delete" && req.method === "POST") {
-    if (!requireRole(res, session, "root")) {
-      return true;
-    }
-    const body = await readJsonObjectBodyOrError(req, res);
-    if (body === undefined) {
-      return true;
-    }
-    const userId = (body as { userId?: unknown }).userId;
-    if (typeof userId !== "string" || !userId) {
-      sendInvalidRequest(res, "userId is required");
-      return true;
-    }
-    const deleteGuard = guardDeletion(await listUsers(), userId, session.userId);
-    if (!deleteGuard.allowed) {
-      sendJson(res, 409, { error: { message: deleteGuard.reason, type: "would_lock_out" } });
-      return true;
-    }
-    try {
-      if (!(await deleteUser(userId, session.username))) {
-        sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
-        return true;
-      }
-    } catch (err) {
-      if (err instanceof LastRootError) {
-        sendJson(res, 409, { error: { message: err.message, type: "would_lock_out" } });
-        return true;
-      }
-      throw err;
-    }
-    // Sessions outlive the account otherwise, for up to the session TTL.
-    await revokeSessionsForUser(userId);
-    sendJson(res, 200, { ok: true });
+  if (
+    await handleGovernanceAccountRoutes(req, res, route, session, {
+      requireRole,
+      readJsonObjectBodyOrError,
+      toActor,
+      auditActor,
+    })
+  ) {
     return true;
   }
 
@@ -1336,7 +1396,7 @@ export async function handleGovernanceApiRequest(
     }
     const { recordAdminAction, ADMIN_ACTIONS } = await import("../governance/admin-audit.js");
     await recordAdminAction({
-      actor: session.username,
+      actor: auditActor(session),
       action: ADMIN_ACTIONS.agentPromptCancel,
       agentId: outcome.agentId,
       subjectId: runId.trim(),
@@ -1396,11 +1456,11 @@ export async function handleGovernanceApiRequest(
       return true;
     }
     if (locked === false) {
-      await releaseAgentLockdown(agentId, session.username);
+      await releaseAgentLockdown(agentId, auditActor(session));
       sendJson(res, 200, { ok: true });
       return true;
     }
-    const outcome = await lockDownAgent(agentId, session.username);
+    const outcome = await lockDownAgent(agentId, auditActor(session));
     // Return the measurement so the dashboard can show what actually happened
     // and requirement #7's latency bound is observable, not just asserted.
     sendJson(res, 200, {

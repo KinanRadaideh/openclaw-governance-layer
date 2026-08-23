@@ -326,8 +326,12 @@ describe("rule request workflow", () => {
 // ---------------------------------------------------------------------
 
 describe("per-agent posture", () => {
-  it("lets a User switch an agent they manage into monitor", async () => {
-    const result = await call("POST", "policy/agent-mode", session("user", ["agent-a"]), {
+  it("lets an Administrator switch an agent into monitor (T4)", async () => {
+    // Moved from the User tier on 2026-08-24. A User putting their own agent
+    // into monitor stops policy decisions being *acted on* for that agent,
+    // which is a wider grant than the escalation toggle T4 is named for — so
+    // both moved together, and a User requests instead.
+    const result = await call("POST", "policy/agent-mode", session("administrator"), {
       agentId: "agent-a",
       mode: "monitor",
     });
@@ -337,7 +341,19 @@ describe("per-agent posture", () => {
     );
   });
 
-  it("refuses an agent the caller was not assigned", async () => {
+  it("refuses a User, who must request the change instead (T4)", async () => {
+    const result = await call("POST", "policy/agent-mode", session("user", ["agent-a"]), {
+      agentId: "agent-a",
+      mode: "monitor",
+    });
+    expect(result.status).toBe(403);
+  });
+
+  it("refuses a tier below Administrator whatever agent it names", async () => {
+    // Scope no longer decides this route — tier does. Kept as a distinct case
+    // because "refused because it is not yours" and "refused because you are
+    // not an Administrator" were different answers before T4, and a reader of
+    // this file should see that they are now the same one.
     const result = await call("POST", "policy/agent-mode", session("user", ["agent-a"]), {
       agentId: "agent-b",
       mode: "monitor",
@@ -346,7 +362,21 @@ describe("per-agent posture", () => {
   });
 
   it("refuses `off` at every tier, because it would also lift the kill switch", async () => {
-    for (const actor of [session("user", ["agent-a"]), session("administrator"), session("root")]) {
+    // Still refused everywhere; since T4 the *reason* differs by tier, and the
+    // difference is worth asserting rather than flattening to "some 4xx". A
+    // User is turned away by the tier check (403) before the value is ever
+    // examined; an Administrator reaches the validation and is turned away by
+    // it (400). Collapsing the two would hide a tier check going missing —
+    // the exact failure the privilege matrix exists to catch.
+    expect(
+      (
+        await call("POST", "policy/agent-mode", session("user", ["agent-a"]), {
+          agentId: "agent-a",
+          mode: "off",
+        })
+      ).status,
+    ).toBe(403);
+    for (const actor of [session("administrator"), session("root")]) {
       const result = await call("POST", "policy/agent-mode", actor, {
         agentId: "agent-a",
         mode: "off",

@@ -112,13 +112,29 @@ describe("per-agent HITL override authorization", () => {
     expect(result.status).toBe(403);
   });
 
-  it("lets a User set it for an agent they manage", async () => {
-    const result = await call("POST", "policy/agent-ask", session("user", ["agent-a"]), {
-      agentId: "agent-a",
-      ask: "off",
-    });
-    expect(result.status).toBe(200);
+  it("lets an Administrator set it, and refuses a User (T4)", async () => {
+    // Moved to the Administrator tier on 2026-08-24. The widening this closes:
+    // `off` refuses an unlisted action and `on-miss` escalates it to a human
+    // who may approve, so a User flipping their own agent turned a hard refusal
+    // into a request somebody might grant.
+    expect(
+      (
+        await call("POST", "policy/agent-ask", session("administrator"), {
+          agentId: "agent-a",
+          ask: "off",
+        })
+      ).status,
+    ).toBe(200);
     expect((await loadPolicy()).agentAsk["agent-a"]).toBe("off");
+
+    expect(
+      (
+        await call("POST", "policy/agent-ask", session("user", ["agent-a"]), {
+          agentId: "agent-a",
+          ask: "on-miss",
+        })
+      ).status,
+    ).toBe(403);
   });
 
   it("refuses a User setting it for an agent they do not manage", async () => {
