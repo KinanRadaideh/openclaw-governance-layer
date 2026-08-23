@@ -78,6 +78,30 @@ export function sessionsFilePath(): string {
   return join(governanceHomeDir(), "sessions.json");
 }
 
+/**
+ * Where the command line remembers who is signed in (T5).
+ *
+ * Inside the governance directory, so the self-protecting core denial that
+ * already covers that directory covers this too — a governed agent cannot read
+ * the token and act as the operator who owns it.
+ */
+export function cliSessionFilePath(): string {
+  return join(governanceHomeDir(), "cli-session.json");
+}
+
+/**
+ * Where attachments sent to an agent are kept (T14).
+ *
+ * Inside the governance directory deliberately: the three self-protecting core
+ * rules already deny the agent every path and command naming that directory,
+ * and they are the three Root cannot switch off. The protection is inherited
+ * from a rule that cannot be removed rather than resting on a new one somebody
+ * might.
+ */
+export function attachmentsDir(): string {
+  return join(governanceHomeDir(), "attachments");
+}
+
 export function policyFilePath(): string {
   return join(governanceHomeDir(), "policy.json");
 }

@@ -33,6 +33,7 @@ import { redactToolPayloadText } from "../logging/redact.js";
 import { withFileLock } from "./file-lock.js";
 import { loadLedgerKey, readLedgerKeyIfPresent } from "./ledger-key.js";
 import { governanceHomeDir, ledgerCheckpointFilePath, ledgerFilePath } from "./paths.js";
+import type { GovernanceRole } from "./roles.js";
 
 /**
  * `ungoverned` records an action the policy layer did not evaluate — a tool
@@ -78,6 +79,21 @@ export type LedgerEntry = {
    * auditor must be able to filter on it without parsing strings.
    */
   actor?: string;
+  /**
+   * The tier the actor held **at the moment they acted** (T5).
+   *
+   * A separate field rather than something a reader derives from the account
+   * list, because roles change: an account demoted from Administrator to User
+   * next month must not retroactively rewrite what authority last month's
+   * entries were taken under. The ledger records history, and an account's
+   * tier is part of the history of an action, not a property to be looked up
+   * later.
+   *
+   * Optional, and absent on every entry written before this existed — see
+   * `canonicalPayload`, which covers it only when present so that existing
+   * chains verify byte-identically to before.
+   */
+  actorRole?: GovernanceRole;
   /**
    * Marks an entry whose hash is a keyed HMAC rather than a bare SHA-256.
    *
@@ -161,10 +177,24 @@ function canonicalPayload(e: Omit<LedgerEntry, "hash">): string {
     e.entryKind === undefined && e.actor === undefined
       ? base
       : [...base, e.entryKind ?? "", e.actor ?? ""];
+  // `actorRole` joins by **presence**, the same migration `entryKind`/`actor`
+  // and `keyed` already use: an entry that has no role hashes exactly the array
+  // it hashed before this field existed, so every chain written earlier still
+  // verifies without a rewrite or a version flag.
+  //
+  // **Tagged rather than appended bare**, and the reason is a collision that is
+  // unlikely rather than impossible. The element after `withAdmin` is either a
+  // role or the literal `"keyed"`; a bare role would make
+  // `[…, "keyed"]`-with-no-role and `[…, "keyed"]`-as-a-role the same payload,
+  // so two different entries could share a hash. Roles are drawn from a
+  // four-value set that does not contain `"keyed"` today, which is exactly the
+  // kind of unexamined premise this project keeps finding on the wrong side of
+  // a defect. The `role:` prefix removes the question instead of answering it.
+  const withRole = e.actorRole === undefined ? withAdmin : [...withAdmin, `role:${e.actorRole}`];
   // `keyed` joins the covered fields for the same reason `actor` did: a flag
   // that selects how an entry is verified must itself be verified, or stripping
   // it becomes a way to downgrade an entry to the weaker scheme.
-  return JSON.stringify(e.keyed ? [...withAdmin, "keyed"] : withAdmin);
+  return JSON.stringify(e.keyed ? [...withRole, "keyed"] : withRole);
 }
 
 /**
@@ -360,6 +390,8 @@ export type AppendLedgerEntryInput = {
   entryKind?: "admin";
   /** Set only by `recordAdminAction` (admin-audit.ts). */
   actor?: string;
+  /** Set only by `recordAdminAction` (admin-audit.ts). */
+  actorRole?: GovernanceRole;
 };
 
 export async function appendLedgerEntry(input: AppendLedgerEntryInput): Promise<LedgerEntry> {
@@ -386,6 +418,10 @@ export async function appendLedgerEntry(input: AppendLedgerEntryInput): Promise<
       // these fields are present.
       ...(input.entryKind ? { entryKind: input.entryKind } : {}),
       ...(input.actor ? { actor: input.actor } : {}),
+      // Conditional for the same reason as the two above: writing
+      // `actorRole: undefined` would put the key on the object, and
+      // `canonicalPayload` keys the hashed shape on whether the field is there.
+      ...(input.actorRole ? { actorRole: input.actorRole } : {}),
       // Everything written from now on is keyed.
       keyed: true as const,
     };

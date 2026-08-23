@@ -328,6 +328,22 @@ export async function promptAgent(input: {
   agentId: string;
   username: string;
   message: string;
+  /**
+   * Files sent with the prompt (T14), already in the governed store.
+   *
+   * **Metadata, not content.** The caller stores the bytes through
+   * `attachment-store.ts` and passes what the ledger should record: hash, type,
+   * size and declared name. Requirement #8 is satisfied because the content
+   * never reaches a log — redaction is a text operation and an image is not
+   * text, so the answer is to record what is provable about the file rather
+   * than the file.
+   */
+  attachments?: readonly {
+    sha256: string;
+    bytes: number;
+    mimeType: string;
+    declaredName: string;
+  }[];
   signal?: AbortSignal;
   /**
    * Called with the reply **so far**, as the model produces it (A1 follow-up).
@@ -403,12 +419,29 @@ export async function promptAgent(input: {
   // trail still shows that this account caused this agent to start work, which
   // is the fact an investigation begins from. The same ordering argument the
   // ledger checkpoint makes: fail towards having recorded too much.
+  // Attachments are named in the same entry as the prompt they came with,
+  // rather than in one of their own. They are part of what the person sent, and
+  // an investigator reading "this account started this run" needs to see the
+  // whole of what was handed over — a separate entry would have to be joined
+  // back by run id to mean anything.
+  //
+  // Hash, type and size only. The content is in the store; putting it here
+  // would make the hash chain a repository of unredacted secrets, in the file
+  // whose whole value is that it is kept and read.
+  const attachmentSummary = (input.attachments ?? [])
+    .map(
+      (file) =>
+        `${file.declaredName} (${file.mimeType}, ${file.bytes} bytes, sha256:${file.sha256})`,
+    )
+    .join("; ");
   await recordAdminAction({
     actor: input.username,
     action: ADMIN_ACTIONS.agentPrompt,
     agentId: input.agentId,
     subjectId: runId,
-    target: `prompt: ${prompt}`,
+    target: attachmentSummary
+      ? `prompt: ${prompt} | attachments: ${attachmentSummary}`
+      : `prompt: ${prompt}`,
   });
   await appendTurn(input.agentId, input.username, {
     id: randomUUID(),

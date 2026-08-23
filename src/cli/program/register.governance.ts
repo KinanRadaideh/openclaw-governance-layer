@@ -2,13 +2,35 @@
 // tamper-evident audit ledger, and trigger the kill switch from the terminal.
 import type { Command } from "commander";
 import { listActiveSessions } from "../../governance/active-sessions.js";
-import { CLI_ACTOR } from "../../governance/admin-audit.js";
+import type { AuditActorInput } from "../../governance/admin-audit.js";
 import { tailLedger, verifyLedgerChain } from "../../governance/audit-ledger.js";
+import { auditLoginSuccess, auditLogout } from "../../governance/auth-audit.js";
+import { coreRules, seedRuleId } from "../../governance/baseline-policy.js";
+import {
+  currentCliIdentity,
+  signOutCli,
+  storeCliSession,
+  toCliActor,
+  toCliAuditActor,
+} from "../../governance/cli-identity.js";
 import { lockDownAgent, releaseAgentLockdown } from "../../governance/kill-switch.js";
 import { decidePendingDecision, listPendingDecisions } from "../../governance/pending-decisions.js";
 import {
+  canAuthorPolicyForAgent,
+  canManageAccounts,
+  canManageAgent,
+  canManageGlobalPolicy,
+  type GovernanceActor,
+} from "../../governance/permissions.js";
+import {
+  agentPolicyView,
+  agentsForRule,
+  knownAgentIds,
+} from "../../governance/policy-projection.js";
+import {
   addRuleChecked,
   loadPolicy,
+  setCoreRuleEnabled,
   removeRule,
   setAgentAskMode,
   setAgentMode,
@@ -17,6 +39,7 @@ import {
   setMode,
 } from "../../governance/policy-store.js";
 import type { AskMode, GovernanceMode, ResourceKind } from "../../governance/policy-types.js";
+import { describeRequest, submitRuleRequest } from "../../governance/rule-requests.js";
 import {
   describeRuleRisks,
   isRuleAccess,
@@ -24,13 +47,109 @@ import {
   resolveRuleTtl,
   validateRulePattern,
 } from "../../governance/rule-validation.js";
+import { updateSessionsPolicyAuthoring } from "../../governance/session-tokens.js";
+import { issueSession } from "../../governance/session-tokens.js";
+import { setUserPolicyAuthoring } from "../../governance/user-store.js";
+import { authenticate } from "../../governance/user-store.js";
 import { defaultRuntime } from "../../runtime.js";
 import { runCommandWithRuntime } from "../cli-utils.js";
+import { promptSecret, promptText } from "../prompt.js";
+
+/**
+ * Resolves the signed-in operator and checks their tier, or refuses.
+ *
+ * One helper rather than a check per command, and it takes the *question* as a
+ * predicate so every command asks it through the same permission functions the
+ * HTTP routes use (`canManageGlobalPolicy`, `canAuthorPolicyForAgent`,
+ * `canManageAgent`). Two surfaces that ask the same question two ways is how
+ * they end up giving two answers, which is this project's most-found defect.
+ *
+ * Returns the audit actor on success so the caller has nothing to remember: the
+ * only way to get past this function is holding the value it produces.
+ */
+async function requireCliActor(
+  runtime: typeof defaultRuntime,
+  what: string,
+  permitted: (actor: GovernanceActor) => boolean,
+): Promise<AuditActorInput | undefined> {
+  const identity = await currentCliIdentity();
+  if (!identity) {
+    runtime.log("Not signed in. Run `openclaw governance login` first.");
+    return undefined;
+  }
+  if (!permitted(toCliActor(identity))) {
+    runtime.log(`Your account (${identity.role}) is not permitted to ${what}.`);
+    return undefined;
+  }
+  return toCliAuditActor(identity);
+}
 
 export function registerGovernanceCommands(program: Command): void {
   const governance = program
     .command("governance")
     .description("Policy-based governance layer: default-deny tool policy and audit ledger");
+
+  // ---------------------------------------------------------------------
+  // Identity (T5). Before this, every command-line change was recorded against
+  // the literal actor `cli` and no tier was checked at all — so the audit trail
+  // could not name a person and the command line ignored the role model that
+  // the dashboard enforces.
+  // ---------------------------------------------------------------------
+  governance
+    .command("login")
+    .description("Sign in so command-line changes are recorded against your account")
+    .argument("[username]", "Account name; prompted for when omitted")
+    .action(async (username?: string) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        const name = username ?? (await promptText("Account: "));
+        const password = await promptSecret("Password: ");
+        const user = await authenticate(name, password);
+        if (!user) {
+          // Deliberately the same message for a wrong password and an unknown
+          // account, matching the dashboard: the command line must not become
+          // the account-existence oracle the HTTP surface is careful not to be.
+          defaultRuntime.log("Invalid credentials.");
+          return;
+        }
+        const session = await issueSession(user);
+        await storeCliSession(session.token);
+        await auditLoginSuccess(user);
+        defaultRuntime.log(`Signed in as ${user.username} (${user.role}).`);
+      });
+    });
+
+  governance
+    .command("logout")
+    .description("End the command-line session")
+    .action(async () => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        const identity = await currentCliIdentity();
+        await signOutCli();
+        if (identity) {
+          await auditLogout({ userId: identity.username, username: identity.username });
+        }
+        defaultRuntime.log(identity ? `Signed out ${identity.username}.` : "Not signed in.");
+      });
+    });
+
+  governance
+    .command("whoami")
+    .description("Show which account the command line is signed in as")
+    .action(async () => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        const identity = await currentCliIdentity();
+        if (!identity) {
+          defaultRuntime.log("Not signed in.");
+          return;
+        }
+        defaultRuntime.log(`${identity.username} (${identity.role})`);
+        defaultRuntime.log(
+          identity.assignedAgents.length > 0
+            ? `  agents: ${identity.assignedAgents.join(", ")}`
+            : "  agents: none assigned",
+        );
+      });
+    });
 
   const policy = governance.command("policy").description("Inspect or edit the policy document");
 
@@ -43,13 +162,200 @@ export function registerGovernanceCommands(program: Command): void {
       });
     });
 
+  governance
+    .command("set-policy-authoring <userId> <allowed>")
+    .description("Root: allow or withhold a User account's ability to write policy")
+    .action(async (userId: string, allowed: string) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        if (allowed !== "true" && allowed !== "false") {
+          defaultRuntime.log("allowed must be true or false");
+          return;
+        }
+        const actor = await requireCliActor(defaultRuntime, "change policy authoring", (a) =>
+          canManageAccounts(a),
+        );
+        if (!actor) {
+          return;
+        }
+        const ok = await setUserPolicyAuthoring(userId, allowed === "true", actor);
+        defaultRuntime.log(
+          ok
+            ? `policy authoring ${allowed === "true" ? "allowed" : "withheld"} for ${userId}`
+            : `no account with id ${userId}`,
+        );
+        // The sessions file is the other half; without it a signed-in User keeps
+        // the old permission until their session expires.
+        await updateSessionsPolicyAuthoring(userId, allowed === "true");
+      });
+    });
+
+  policy
+    .command("request-setting <agentId> <setting> <value>")
+    .description("Ask an Administrator to change an agent's escalation (ask) or posture (mode)")
+    .requiredOption("--reason <reason>", "Why the change is needed; an Administrator reads this")
+    .action(
+      async (agentId: string, setting: string, value: string, options: { reason: string }) => {
+        await runCommandWithRuntime(defaultRuntime, async () => {
+          if (setting !== "ask" && setting !== "mode") {
+            defaultRuntime.log("setting must be ask or mode");
+            return;
+          }
+          const allowed = setting === "ask" ? ["off", "on-miss"] : ["enforce", "monitor", "off"];
+          if (!allowed.includes(value)) {
+            defaultRuntime.log(`value must be one of: ${allowed.join(", ")}`);
+            return;
+          }
+          // Requesting is not authoring, so the check is `canManageAgent` — a
+          // User whose authoring Root has withheld may still ask.
+          const requester = await currentCliIdentity();
+          if (!requester) {
+            defaultRuntime.log("Not signed in. Run `openclaw governance login` first.");
+            return;
+          }
+          if (!canManageAgent(toCliActor(requester), agentId)) {
+            defaultRuntime.log(`You do not manage agent "${agentId}".`);
+            return;
+          }
+          const request = await submitRuleRequest({
+            kind: "agent-setting",
+            agentId,
+            setting,
+            value,
+            reason: options.reason,
+            requestedBy: requester.username,
+          });
+          defaultRuntime.log(`submitted ${request.id}: ${describeRequest(request)}`);
+          defaultRuntime.log("An Administrator must approve it before it takes effect.");
+        });
+      },
+    );
+
+  policy
+    .command("core-rule <ruleId> <enabled>")
+    .description("Root: switch a shipped core denial off or back on (self-protecting ones refuse)")
+    .action(async (ruleId: string, enabled: string) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        if (enabled !== "true" && enabled !== "false") {
+          defaultRuntime.log("enabled must be true or false");
+          return;
+        }
+        try {
+          const actor = await requireCliActor(defaultRuntime, "change core rules", (a) =>
+            canManageAccounts(a),
+          );
+          if (!actor) {
+            return;
+          }
+          await setCoreRuleEnabled(ruleId, enabled === "true", actor);
+          defaultRuntime.log(
+            `core rule ${ruleId} ${enabled === "true" ? "re-enabled" : "DISABLED"}`,
+          );
+        } catch (err) {
+          defaultRuntime.log(err instanceof Error ? err.message : String(err));
+        }
+      });
+    });
+
+  policy
+    .command("core-rules")
+    .description("List the shipped core denials and which are switched off")
+    .action(async () => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        const doc = await loadPolicy();
+        const disabled = new Set(doc.disabledCoreRules ?? []);
+        // Read from the document, which is the reasserted view: a disabled
+        // rule is absent from `doc.rules` by then, so its state is read from
+        // the list rather than inferred from the rule being missing.
+        for (const rule of coreRules()) {
+          const id = seedRuleId(rule);
+          const state = rule.selfProtecting
+            ? "IMMUTABLE"
+            : disabled.has(id)
+              ? "OFF      "
+              : "on       ";
+          defaultRuntime.log(`${state} ${id}`);
+          defaultRuntime.log(`          ${rule.description ?? ""}`);
+        }
+      });
+    });
+
+  policy
+    .command("for-agent <agentId>")
+    .description("Show the posture and every rule in force for one agent")
+    .action(async (agentId: string) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        const view = agentPolicyView(await loadPolicy(), agentId);
+        const { posture, summary } = view;
+        defaultRuntime.log(`agent ${posture.agentId}`);
+        defaultRuntime.log(
+          `  posture   ${posture.mode}${posture.modeIsOverride ? " (per-agent override)" : " (installation default)"}`,
+        );
+        defaultRuntime.log(
+          `  escalate  ${posture.ask}${posture.askIsOverride ? " (per-agent override)" : " (installation default)"}`,
+        );
+        if (posture.lockedDown) {
+          defaultRuntime.log("  LOCKED DOWN — the kill switch is engaged for this agent");
+        }
+        defaultRuntime.log(
+          `  rules     ${summary.total} in force (${summary.global} global, ${summary.agentSpecific} agent-scoped; ${summary.allows} allow, ${summary.denies} deny)`,
+        );
+        for (const { rule, scope } of view.rules) {
+          const expiry = rule.expiresAt ? ` until ${rule.expiresAt}` : "";
+          defaultRuntime.log(
+            // `effect` is optional on the stored shape and defaults to allow,
+            // matching how the engine reads it — a rule without one is an
+            // allowance, not an unprintable.
+            `    [${scope === "global" ? "global" : "agent "}] ${(rule.effect ?? "allow").padEnd(5)} ${rule.resourceKind.padEnd(7)} ${rule.pattern}${expiry}  (${rule.tier}, ${rule.id})`,
+          );
+        }
+      });
+    });
+
+  policy
+    .command("rule-agents <ruleId>")
+    .description("Show which agents a rule binds")
+    .action(async (ruleId: string) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        const doc = await loadPolicy();
+        const rule = doc.rules.find((candidate) => candidate.id === ruleId);
+        if (!rule) {
+          defaultRuntime.log(`no rule with id ${ruleId}`);
+          return;
+        }
+        const targets = agentsForRule(rule, knownAgentIds(doc));
+        defaultRuntime.log(
+          `rule ${rule.id}  ${rule.effect ?? "allow"} ${rule.resourceKind} ${rule.pattern}`,
+        );
+        if (targets.scope === "agent") {
+          defaultRuntime.log(`  binds one agent: ${targets.agentIds[0]}`);
+          return;
+        }
+        // Said before the list, not after it. A reader who sees three ids and
+        // then a footnote has already formed the wrong impression.
+        defaultRuntime.log("  GLOBAL — binds every agent, including ones not yet created");
+        defaultRuntime.log(
+          targets.agentIds.length > 0
+            ? `  currently known: ${targets.agentIds.join(", ")}`
+            : "  no agents known to the policy document yet",
+        );
+      });
+    });
+
   policy
     .command("set-mode <mode>")
     .description("Set posture: enforce | monitor | off")
     .action(async (mode: string) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
         assertGovernanceMode(mode);
-        await setMode(mode, CLI_ACTOR);
+        const actor = await requireCliActor(
+          defaultRuntime,
+          "change the installation posture",
+          (a) => canManageGlobalPolicy(a),
+        );
+        if (!actor) {
+          return;
+        }
+        await setMode(mode, actor);
         defaultRuntime.log(`mode set to ${mode}`);
       });
     });
@@ -60,7 +366,13 @@ export function registerGovernanceCommands(program: Command): void {
     .action(async (mode: string) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
         assertAskMode(mode);
-        await setAskMode(mode, CLI_ACTOR);
+        const actor = await requireCliActor(defaultRuntime, "change the escalation mode", (a) =>
+          canManageGlobalPolicy(a),
+        );
+        if (!actor) {
+          return;
+        }
+        await setAskMode(mode, actor);
         defaultRuntime.log(`ask set to ${mode}`);
       });
     });
@@ -122,6 +434,18 @@ export function registerGovernanceCommands(program: Command): void {
           // the operator believe a restriction took hold that did not.
           // Detected inside the write lock by `addRuleChecked`, so a CLI write
           // racing a dashboard write cannot miss a clash the way both used to.
+          //
+          // Scope decides the tier, exactly as at the HTTP route: a rule with
+          // no agent id binds every agent and is an Administrator's to write,
+          // while an agent-scoped one needs authoring rights over that agent.
+          const ruleActor = await requireCliActor(
+            defaultRuntime,
+            agentId ? `write rules for agent "${agentId}"` : "write a global rule",
+            (a) => (agentId ? canAuthorPolicyForAgent(a, agentId) : canManageGlobalPolicy(a)),
+          );
+          if (!ruleActor) {
+            return;
+          }
           const { rule, conflicts } = await addRuleChecked(
             {
               resourceKind: options.kind,
@@ -132,7 +456,7 @@ export function registerGovernanceCommands(program: Command): void {
               ...(effect ? { effect } : {}),
               ...(access ? { access } : {}),
             },
-            CLI_ACTOR,
+            ruleActor,
           );
           defaultRuntime.log(JSON.stringify(rule, null, 2));
           for (const risk of describeRuleRisks(validated.pattern, options.kind, {
@@ -160,7 +484,13 @@ export function registerGovernanceCommands(program: Command): void {
     .description("Remove a rule by id")
     .action(async (id: string) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
-        const removed = await removeRule(id, CLI_ACTOR);
+        const actor = await requireCliActor(defaultRuntime, "remove rules", (a) =>
+          canManageGlobalPolicy(a),
+        );
+        if (!actor) {
+          return;
+        }
+        const removed = await removeRule(id, actor);
         defaultRuntime.log(removed ? `removed ${id}` : `no rule with id ${id}`);
         if (!removed) {
           defaultRuntime.exit(1);
@@ -173,13 +503,23 @@ export function registerGovernanceCommands(program: Command): void {
     .description("Per-agent override of ask behaviour: off | on-miss | default")
     .action(async (agentId: string, mode: string) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
+        // Administrator since T4, matching the HTTP route. A User asks through
+        // `governance policy request-setting` instead.
+        const actor = await requireCliActor(
+          defaultRuntime,
+          "set an agent's escalation behaviour",
+          (a) => canManageGlobalPolicy(a),
+        );
+        if (!actor) {
+          return;
+        }
         if (mode === "default") {
-          await setAgentAskMode(agentId, undefined, CLI_ACTOR);
+          await setAgentAskMode(agentId, undefined, actor);
           defaultRuntime.log(`agent "${agentId}" now follows the installation default`);
           return;
         }
         assertAskMode(mode);
-        await setAgentAskMode(agentId, mode, CLI_ACTOR);
+        await setAgentAskMode(agentId, mode, actor);
         defaultRuntime.log(`agent "${agentId}" ask set to ${mode}`);
       });
     });
@@ -189,8 +529,14 @@ export function registerGovernanceCommands(program: Command): void {
     .description("Per-agent posture, for observing one agent: enforce | monitor | default")
     .action(async (agentId: string, mode: string) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
+        const actor = await requireCliActor(defaultRuntime, "set an agent's posture", (a) =>
+          canManageGlobalPolicy(a),
+        );
+        if (!actor) {
+          return;
+        }
         if (mode === "default") {
-          await setAgentMode(agentId, undefined, CLI_ACTOR);
+          await setAgentMode(agentId, undefined, actor);
           defaultRuntime.log(`agent "${agentId}" now follows the installation posture`);
           return;
         }
@@ -204,7 +550,7 @@ export function registerGovernanceCommands(program: Command): void {
               `Use "governance policy set-mode off" to switch the gate off installation-wide.`,
           );
         }
-        await setAgentMode(agentId, mode, CLI_ACTOR);
+        await setAgentMode(agentId, mode, actor);
         defaultRuntime.log(`agent "${agentId}" posture set to ${mode}`);
       });
     });
@@ -218,7 +564,13 @@ export function registerGovernanceCommands(program: Command): void {
         if (!Number.isFinite(value) || value < 5 || value > 86_400) {
           throw new Error("seconds must be a number between 5 and 86400");
         }
-        await setHitlTimeout(Math.round(value), CLI_ACTOR);
+        const actor = await requireCliActor(defaultRuntime, "change the escalation timeout", (a) =>
+          canManageAccounts(a),
+        );
+        if (!actor) {
+          return;
+        }
+        await setHitlTimeout(Math.round(value), actor);
         defaultRuntime.log(`escalation timeout set to ${Math.round(value)}s`);
       });
     });
@@ -228,10 +580,12 @@ export function registerGovernanceCommands(program: Command): void {
   //
   // The dashboard is the surface the paper describes, but the capability is
   // not Gateway-owned — running a prompt needs the agent stack and nothing
-  // else — so it is offered here too. The honest caveat is attribution: the
-  // CLI has no login, so a prompt sent from a terminal is recorded against
-  // `cli` rather than a person (known limitation A6). The dashboard is the
-  // surface that answers "who asked".
+  // else — so it is offered here too. **The attribution caveat is gone (T5):**
+  // a prompt from a terminal is recorded against the signed-in account and its
+  // tier, exactly as from the dashboard, and the conversation belongs to that
+  // account rather than to the machine. Before T5 two operators sharing a host
+  // shared a transcript and the ledger could not say which of them set the
+  // agent going.
   // ---------------------------------------------------------------------
   const agent = governance.command("agent").description("Interact with a governed agent");
 
@@ -239,79 +593,137 @@ export function registerGovernanceCommands(program: Command): void {
     .command("prompt <agentId> <message...>")
     .description("Send a prompt to an agent and print its reply")
     .option("--stream", "print the reply as it is produced, instead of at the end")
-    .action(async (agentId: string, messageParts: string[], options: { stream?: boolean }) => {
-      await runCommandWithRuntime(defaultRuntime, async () => {
-        // Registered lazily, on use. Importing the agent stack at module load
-        // would make every `openclaw governance ...` invocation — including
-        // `policy show` — pay for a capability almost none of them need.
-        const { installGovernanceAgentRunner } =
-          await import("../../agents/governance-agent-runner.js");
-        installGovernanceAgentRunner();
-        const { promptAgent } = await import("../../governance/agent-conversation.js");
+    .option(
+      "--attach <path...>",
+      "file(s) to send with the prompt; recorded by hash, type and size, never by content",
+    )
+    .action(
+      async (
+        agentId: string,
+        messageParts: string[],
+        options: { stream?: boolean; attach?: string[] },
+      ) => {
+        await runCommandWithRuntime(defaultRuntime, async () => {
+          // Registered lazily, on use. Importing the agent stack at module load
+          // would make every `openclaw governance ...` invocation — including
+          // `policy show` — pay for a capability almost none of them need.
+          const { installGovernanceAgentRunner } =
+            await import("../../agents/governance-agent-runner.js");
+          installGovernanceAgentRunner();
+          const { promptAgent } = await import("../../governance/agent-conversation.js");
 
-        // Ctrl-C cancels the run rather than only killing the printout.
-        //
-        // There is no `governance agent cancel` command, and that is a fact
-        // about the architecture rather than an omission: the in-flight run
-        // table is per **process**, and the CLI runs the agent in its own. A
-        // command that could only ever cancel a run in the same terminal it was
-        // typed into is not a control, and one that appeared to reach the
-        // Gateway's runs but could not would be a control surface reporting
-        // success it did not achieve — which this layer refuses to do. The
-        // dashboard is the surface for stopping somebody else's run.
-        const interrupted = new AbortController();
-        const onSigint = () => interrupted.abort();
-        process.once("SIGINT", onSigint);
+          // Ctrl-C cancels the run rather than only killing the printout.
+          //
+          // There is no `governance agent cancel` command, and that is a fact
+          // about the architecture rather than an omission: the in-flight run
+          // table is per **process**, and the CLI runs the agent in its own. A
+          // command that could only ever cancel a run in the same terminal it was
+          // typed into is not a control, and one that appeared to reach the
+          // Gateway's runs but could not would be a control surface reporting
+          // success it did not achieve — which this layer refuses to do. The
+          // dashboard is the surface for stopping somebody else's run.
+          const interrupted = new AbortController();
+          const onSigint = () => interrupted.abort();
+          process.once("SIGINT", onSigint);
 
-        // Streaming is opt-in here, unlike the dashboard.
-        //
-        // A terminal is often reading into a pipe or a file, where partial
-        // snapshots would be written repeatedly and the output would no longer
-        // be the reply. Printing once at the end is the correct default for a
-        // command; `--stream` is for watching a long task by hand.
-        let printed = 0;
-        try {
-          const outcome = await promptAgent({
-            agentId,
-            username: CLI_ACTOR,
-            message: messageParts.join(" "),
-            signal: interrupted.signal,
-            ...(options.stream
-              ? {
-                  onProgress: (replySoFar: string) => {
-                    // Snapshots arrive whole; only the new tail is printed, so
-                    // a terminal shows a reply being written rather than the
-                    // same text repeatedly. A snapshot shorter than what was
-                    // already printed is a retraction, which a terminal cannot
-                    // unprint — so it starts a fresh line rather than silently
-                    // dropping the correction.
-                    if (replySoFar.length < printed) {
-                      defaultRuntime.log("");
-                      printed = 0;
-                    }
-                    const tail = replySoFar.slice(printed);
-                    if (tail) {
-                      process.stdout.write(tail);
-                      printed = replySoFar.length;
-                    }
-                  },
-                }
-              : {}),
-          });
-          if (printed > 0) {
-            process.stdout.write("\n");
-          } else if (outcome.reply) {
-            defaultRuntime.log(outcome.reply);
+          // Streaming is opt-in here, unlike the dashboard.
+          //
+          // A terminal is often reading into a pipe or a file, where partial
+          // snapshots would be written repeatedly and the output would no longer
+          // be the reply. Printing once at the end is the correct default for a
+          // command; `--stream` is for watching a long task by hand.
+          // The conversation belongs to the account, not to the machine. Before
+          // T5 every CLI prompt was owned by `cli`, so two operators on one host
+          // shared a transcript and the ledger could not say which of them set
+          // the agent going.
+          const promptIdentity = await currentCliIdentity();
+          if (!promptIdentity) {
+            defaultRuntime.log("Not signed in. Run `openclaw governance login` first.");
+            return;
           }
-          if (!outcome.ok) {
-            defaultRuntime.log(`error: ${outcome.error ?? "the run did not complete"}`);
-            defaultRuntime.exit(1);
+          if (!canManageAgent(toCliActor(promptIdentity), agentId)) {
+            defaultRuntime.log(`You do not manage agent "${agentId}".`);
+            return;
           }
-        } finally {
-          process.off("SIGINT", onSigint);
-        }
-      });
-    });
+          // Stored before the run, so a prompt that fails still leaves the
+          // evidence of what was handed over. The bytes go to the governed store;
+          // only hash, type, size and the declared name travel onward.
+          const attachments: {
+            sha256: string;
+            bytes: number;
+            mimeType: string;
+            declaredName: string;
+          }[] = [];
+          for (const path of options.attach ?? []) {
+            const { readFile: readAttachment } = await import("node:fs/promises");
+            const { basename } = await import("node:path");
+            const { storeAttachment } = await import("../../governance/attachment-store.js");
+            try {
+              const stored = await storeAttachment({
+                content: new Uint8Array(await readAttachment(path)),
+                declaredName: basename(path),
+                storedBy: promptIdentity.username,
+                agentId,
+              });
+              attachments.push({
+                sha256: stored.sha256,
+                bytes: stored.bytes,
+                mimeType: stored.mimeType,
+                declaredName: stored.declaredName,
+              });
+              defaultRuntime.log(
+                `attached ${stored.declaredName} (${stored.mimeType}, ${stored.bytes} bytes)`,
+              );
+            } catch (err) {
+              defaultRuntime.log(err instanceof Error ? err.message : `could not attach ${path}`);
+              return;
+            }
+          }
+          let printed = 0;
+          try {
+            const outcome = await promptAgent({
+              agentId,
+              username: promptIdentity.username,
+              message: messageParts.join(" "),
+              ...(attachments.length > 0 ? { attachments } : {}),
+              signal: interrupted.signal,
+              ...(options.stream
+                ? {
+                    onProgress: (replySoFar: string) => {
+                      // Snapshots arrive whole; only the new tail is printed, so
+                      // a terminal shows a reply being written rather than the
+                      // same text repeatedly. A snapshot shorter than what was
+                      // already printed is a retraction, which a terminal cannot
+                      // unprint — so it starts a fresh line rather than silently
+                      // dropping the correction.
+                      if (replySoFar.length < printed) {
+                        defaultRuntime.log("");
+                        printed = 0;
+                      }
+                      const tail = replySoFar.slice(printed);
+                      if (tail) {
+                        process.stdout.write(tail);
+                        printed = replySoFar.length;
+                      }
+                    },
+                  }
+                : {}),
+            });
+            if (printed > 0) {
+              process.stdout.write("\n");
+            } else if (outcome.reply) {
+              defaultRuntime.log(outcome.reply);
+            }
+            if (!outcome.ok) {
+              defaultRuntime.log(`error: ${outcome.error ?? "the run did not complete"}`);
+              defaultRuntime.exit(1);
+            }
+          } finally {
+            process.off("SIGINT", onSigint);
+          }
+        });
+      },
+    );
 
   agent
     .command("transcript <agentId>")
@@ -321,7 +733,12 @@ export function registerGovernanceCommands(program: Command): void {
       await runCommandWithRuntime(defaultRuntime, async () => {
         const { readConversation } = await import("../../governance/agent-conversation.js");
         const limit = Number(options.limit);
-        const turns = await readConversation(agentId, CLI_ACTOR);
+        const reader = await currentCliIdentity();
+        if (!reader) {
+          defaultRuntime.log("Not signed in. Run `openclaw governance login` first.");
+          return;
+        }
+        const turns = await readConversation(agentId, reader.username);
         const shown = Number.isFinite(limit) && limit > 0 ? turns.slice(-limit) : turns;
         if (shown.length === 0) {
           defaultRuntime.log(`no conversation with "${agentId}" from this machine`);
@@ -424,12 +841,21 @@ export function registerGovernanceCommands(program: Command): void {
     .description("List agent sessions currently running")
     .action(async () => {
       await runCommandWithRuntime(defaultRuntime, async () => {
-        const policy = await loadPolicy();
-        // The CLI has no governance login, so it reports with full visibility;
-        // its boundary is filesystem access, not RBAC (see CLI-REFERENCE.md).
+        // **Scoped to the signed-in account since T5.** This used to report
+        // with full Root visibility on the premise that the command line had no
+        // login and its only boundary was filesystem access. The premise is no
+        // longer true, and leaving it would have made the CLI a way for a User
+        // to enumerate every agent in the installation — the same disclosure
+        // the dashboard's own scoping exists to prevent.
+        const viewer = await currentCliIdentity();
+        if (!viewer) {
+          defaultRuntime.log("Not signed in. Run `openclaw governance login` first.");
+          return;
+        }
+        const sessionsPolicy = await loadPolicy();
         const view = listActiveSessions({
-          actor: { username: "cli", role: "root", assignedAgents: [] },
-          lockedAgents: policy.lockedAgents,
+          actor: toCliActor(viewer),
+          lockedAgents: sessionsPolicy.lockedAgents,
         });
         if (!view.supported) {
           defaultRuntime.log(

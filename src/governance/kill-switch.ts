@@ -15,7 +15,12 @@
 //
 // Ordering is deliberate: lock first, then abort. Aborting first would leave a
 // window in which the agent's next tool call is still permitted.
-import { ADMIN_ACTIONS, recordAdminAction, UNKNOWN_ACTOR } from "./admin-audit.js";
+import {
+  ADMIN_ACTIONS,
+  recordAdminAction,
+  UNKNOWN_ACTOR,
+  type AuditActorInput,
+} from "./admin-audit.js";
 import { terminateAgentRuns, type TerminationOutcome } from "./agent-terminator.js";
 import { lockAgent, unlockAgent } from "./policy-store.js";
 
@@ -32,7 +37,10 @@ export type KillSwitchResult = {
  * `actor` is recorded in the audit ledger so the trail answers "who stopped
  * this agent", which is the first question asked after an incident.
  */
-export async function lockDownAgent(agentId: string, actor?: string): Promise<KillSwitchResult> {
+export async function lockDownAgent(
+  agentId: string,
+  actor?: AuditActorInput,
+): Promise<KillSwitchResult> {
   const startedAt = process.hrtime.bigint();
   // Lock before aborting: the reverse order leaves a window where the agent
   // may legally start a fresh action between the abort and the lock landing.
@@ -73,7 +81,10 @@ export async function lockDownAgent(agentId: string, actor?: string): Promise<Ki
 }
 
 /** Releases a lockdown. Does not restart anything that was aborted. */
-export async function releaseAgentLockdown(agentId: string, actor?: string): Promise<void> {
+export async function releaseAgentLockdown(
+  agentId: string,
+  actor?: AuditActorInput,
+): Promise<void> {
   await unlockAgent(agentId);
   await recordAdminAction({
     actor: actor ?? UNKNOWN_ACTOR,

@@ -57,6 +57,7 @@ import type { GatewayBindMode } from "../config/types.gateway.js";
 import { tryReadDiskSpace } from "../infra/disk-space.js";
 import type { SecurityAuditFinding } from "../security/audit.types.js";
 import { shortenHomePath } from "../utils.js";
+import { attachmentStoreStats } from "./attachment-store.js";
 import {
   governanceHomeDir,
   ledgerCheckpointFilePath,
@@ -65,6 +66,7 @@ import {
   sessionsFilePath,
   usersFilePath,
 } from "./paths.js";
+import { loadPolicy as loadPolicyForDeployment } from "./policy-store.js";
 
 /**
  * `unknown` is load-bearing, not decoration.
@@ -440,6 +442,68 @@ export async function readDeploymentStatus(
           input.authSecretConfigured
             ? undefined
             : "Supply the credential the configured mode expects.",
+        ),
+  );
+
+  // -------------------------------------------------------------------
+  // The shipped security floor, and whether it is still where it shipped.
+  //
+  // Root may switch off the five core rules that are not self-protecting
+  // (T24). That is a legitimate operator decision and it is also the single
+  // most consequential change any account can make, so it is reported here
+  // rather than left to be noticed. A lowered floor must not be able to hide:
+  // an installation that looks clean on this report while a credential denial
+  // is switched off would be worse than one with no report at all.
+  // -------------------------------------------------------------------
+  const disabledCore = (await loadPolicyForDeployment()).disabledCoreRules ?? [];
+  checks.push(
+    disabledCore.length === 0
+      ? check(
+          "deployment.core_rules_intact",
+          "Shipped core denials are all in force",
+          "pass",
+          "No core rule has been switched off.",
+        )
+      : check(
+          "deployment.core_rules_intact",
+          "Shipped core denials are all in force",
+          // `fail`, not `warn`. A warning is something to read later; this is a
+          // deliberate reduction of the floor the report's central claim rests
+          // on, and Chapter 4 quotes this output as evidence.
+          "fail",
+          `${disabledCore.length} core rule(s) switched off by Root: ${disabledCore.join(", ")}.`,
+          "Re-enable with `governance policy core-rule <id> true`, or record the deviation deliberately — this report is evidence, and it should say what is actually in force.",
+        ),
+  );
+
+  // -------------------------------------------------------------------
+  // The attachment store (T14). Reported because it is the one place the
+  // governance layer holds bytes it did not generate and cannot inspect —
+  // content a person uploaded, kept as evidence. An operator should be able to
+  // see how much of it there is and whether any of it is unreferenced, without
+  // going to look on the host.
+  // -------------------------------------------------------------------
+  const attachments = await attachmentStoreStats();
+  checks.push(
+    attachments.orphanCount === 0
+      ? check(
+          "deployment.attachment_store",
+          "Attachment store is consistent",
+          "pass",
+          attachments.count === 0
+            ? "No attachments stored."
+            : `${attachments.count} attachment(s), ${Math.round(attachments.totalBytes / 1024)} KB, all referenced.`,
+        )
+      : check(
+          "deployment.attachment_store",
+          "Attachment store is consistent",
+          // A warning rather than a failure: orphans waste space and indicate a
+          // half-completed write or a restore from mismatched backups, but they
+          // do not weaken any control. Calling it `fail` would put it beside a
+          // disabled core denial, which is a different order of problem.
+          "warn",
+          `${attachments.orphanCount} stored file(s) are not referenced by any ledger entry.`,
+          "Run the orphan sweep, or investigate whether an index was restored from an older backup than the files beside it.",
         ),
   );
 
