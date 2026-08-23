@@ -29,6 +29,8 @@ import {
   type GovernancePolicyDocument,
   type GovernancePolicyRule,
   type GovernanceActiveSessionsView,
+  type GovernanceAgentPolicyView,
+  type GovernanceRuleTargets,
   type GovernanceKillResult,
   type GovernancePendingDecision,
   type GovernanceRuleConflict,
@@ -48,6 +50,24 @@ import {
   type RuleFilter,
   ruleScopes,
 } from "./rule-filter.ts";
+
+/**
+ * Core rules Root may not switch off, matched by id fragment.
+ *
+ * Mirrored by hand from `selfProtecting` in `src/governance/baseline-policy.ts`
+ * for the same reason every type in `api.ts` is: the dashboard bundle does not
+ * import from `src/`. The server refuses these regardless — this list only
+ * decides whether a *button* appears, so the worst case of it drifting is a
+ * control that produces an honest 403 rather than a silent failure. Pinned by
+ * `src/governance/core-rule-mirror.contract.test.ts` all the same.
+ */
+const CORE_RULES_ROOT_CANNOT_DISABLE = [
+  "the-governance-layer-s-own-policy",
+  "naming-the-governance-state-director",
+  "the-governance-command-line",
+  "the-governance-directory-in-use",
+  "naming-the-governance-directory-in-u",
+] as const;
 
 /** Ordered least- to most-privileged so the control reads as a ladder. */
 /**
@@ -139,6 +159,17 @@ class GovernancePage extends OpenClawLightDomElement {
   @state() private policy: GovernancePolicyDocument | null = null;
   @state() private ledger: GovernanceLedgerEntry[] = [];
   @state() private ledgerFilter: LedgerFilter = "all";
+  /** Agent → policies. Which agent the operator is asking about, and the answer. */
+  @state() private agentPolicyAgentId = "";
+  @state() private agentPolicyView: GovernanceAgentPolicyView | null = null;
+  @state() private agentPolicyError: string | null = null;
+  /**
+   * Policies → agents, keyed by rule id.
+   *
+   * Answers are kept per rule rather than one-at-a-time so an operator can open
+   * several and compare them, which is the whole point of asking the question.
+   */
+  @state() private ruleTargets: Record<string, GovernanceRuleTargets> = {};
   @state() private verification: GovernanceLedgerVerification | null = null;
   @state() private busy = false;
   /** Set when a request returned 401: the sign-in is gone, not merely stale. */
@@ -670,6 +701,186 @@ class GovernancePage extends OpenClawLightDomElement {
     return this.canAdminister() || this.identity?.role === "user";
   }
 
+  /**
+   * Policies → agents, rendered inline beside the rule it answers about.
+   *
+   * The global case leads with the fact that it is global and *then* lists the
+   * known agents, rather than the other way round. A reader shown three ids and
+   * a footnote has already concluded "three agents"; a global rule binds those
+   * three, every agent this account cannot see, and every agent created
+   * tomorrow.
+   */
+  private renderRuleTargets(ruleId: string): TemplateResult | typeof nothing {
+    const targets = this.ruleTargets[ruleId];
+    if (!targets) {
+      return nothing;
+    }
+    if (targets.scope === "agent") {
+      return html`<span class="governance-rule__targets"
+        >${t("governance.policy.bindsOne", { agent: targets.agentIds[0] ?? "?" })}</span
+      >`;
+    }
+    return html`<span class="governance-rule__targets">
+      ${t("governance.policy.bindsAll")}
+      ${targets.agentIds.length > 0
+        ? t("governance.policy.bindsKnown", { agents: targets.agentIds.join(", ") })
+        : t("governance.policy.bindsNoneKnown")}
+      ${targets.scopedToAssignment ? t("governance.policy.bindsScoped") : ""}
+    </span>`;
+  }
+
+  private async loadAgentPolicy(agentId: string): Promise<void> {
+    this.agentPolicyError = null;
+    this.agentPolicyView = null;
+    if (!agentId) {
+      return;
+    }
+    try {
+      this.agentPolicyView = await this.api().policyForAgent(agentId);
+    } catch (err) {
+      // Reported rather than left blank. A 403 here means "not your agent",
+      // which is a different fact from "this agent has no rules", and an empty
+      // panel would say the second.
+      this.agentPolicyError =
+        err instanceof GovernanceApiError ? err.message : t("governance.agentPolicy.failed");
+    }
+  }
+
+  private async loadRuleTargets(ruleId: string): Promise<void> {
+    try {
+      const targets = await this.api().ruleAgents(ruleId);
+      this.ruleTargets = { ...this.ruleTargets, [ruleId]: targets };
+    } catch (err) {
+      this.error =
+        err instanceof GovernanceApiError ? err.message : t("governance.agentPolicy.failed");
+    }
+  }
+
+  /**
+   * Agent → policies.
+   *
+   * Separate from the rule list rather than folded into it, because the two
+   * answer different questions. The rule list is the policy *document*: what
+   * has been written. This is what is in *force* for one workload, which is the
+   * question anyone actually has when they open the page — and it cannot be
+   * read off the document by eye, because an absent agent id means "binds
+   * everyone" rather than "binds nobody".
+   */
+  private renderAgentPolicySection(): TemplateResult | typeof nothing {
+    const choices = this.knownAgentIds();
+    const view = this.agentPolicyView;
+    const rows = [
+      renderSettingsRow({
+        title: t("governance.agentPolicy.pick"),
+        description: t("governance.agentPolicy.pickHint"),
+        control: html`<input
+            list="governance-agent-policy-ids"
+            aria-label=${t("governance.agentPolicy.pick")}
+            .value=${this.agentPolicyAgentId}
+            @input=${(event: Event) => {
+              this.agentPolicyAgentId = (event.target as HTMLInputElement).value;
+            }}
+          />
+          <datalist id="governance-agent-policy-ids">
+            ${choices.map((agentId) => html`<option value=${agentId}></option>`)}
+          </datalist>
+          <button
+            class="btn btn-primary"
+            ?disabled=${this.busy || !this.agentPolicyAgentId.trim()}
+            @click=${() => this.run(() => this.loadAgentPolicy(this.agentPolicyAgentId.trim()))}
+          >
+            ${t("governance.agentPolicy.show")}
+          </button>`,
+      }),
+    ];
+    if (this.agentPolicyError) {
+      rows.push(
+        renderSettingsRow({
+          title: t("governance.agentPolicy.failed"),
+          control: renderSettingsStatus({ kind: "warn", label: this.agentPolicyError }),
+        }),
+      );
+    }
+    if (view) {
+      const { posture, summary } = view;
+      rows.push(
+        renderSettingsRow({
+          title: t("governance.agentPolicy.posture"),
+          // Whether the value is an override is shown beside the value, not
+          // instead of it. "In monitor" and "in monitor because somebody chose
+          // it" lead to different actions, and since the shipped default is
+          // enforce, a monitor override is always a deliberate decision worth
+          // seeing.
+          description: posture.modeIsOverride
+            ? t("governance.agentPolicy.override")
+            : t("governance.agentPolicy.inherited"),
+          control: renderSettingsStatus({
+            kind: posture.mode === "enforce" ? "ok" : posture.mode === "off" ? "warn" : "muted",
+            label: posture.mode,
+          }),
+        }),
+        renderSettingsRow({
+          title: t("governance.agentPolicy.escalation"),
+          description: posture.askIsOverride
+            ? t("governance.agentPolicy.override")
+            : t("governance.agentPolicy.inherited"),
+          control: renderSettingsValue(posture.ask),
+        }),
+      );
+      if (posture.lockedDown) {
+        rows.push(
+          renderSettingsRow({
+            title: t("governance.agentPolicy.locked"),
+            control: renderSettingsStatus({ kind: "warn", label: t("governance.kill.engaged") }),
+          }),
+        );
+      }
+      rows.push(
+        renderSettingsRow({
+          title: t("governance.agentPolicy.summary"),
+          control: renderSettingsValue(
+            t("governance.agentPolicy.counts", {
+              total: String(summary.total),
+              global: String(summary.global),
+              scoped: String(summary.agentSpecific),
+              allows: String(summary.allows),
+              denies: String(summary.denies),
+            }),
+          ),
+        }),
+      );
+      if (view.rules.length === 0) {
+        rows.push(renderSettingsEmpty(t("governance.agentPolicy.none")));
+      }
+      for (const { rule, scope } of view.rules) {
+        rows.push(
+          renderSettingsRow({
+            // The rule's own sentence, not its regular expression — finding 99,
+            // applied here rather than rediscovered.
+            title: rule.description || rule.pattern,
+            description: `${rule.resourceKind} · ${rule.pattern}${
+              rule.expiresAt ? ` · ${t("governance.rules.expires")} ${rule.expiresAt}` : ""
+            }`,
+            control: renderSettingsStatus({
+              kind: rule.effect === "deny" ? "warn" : "ok",
+              label:
+                scope === "global"
+                  ? t("governance.agentPolicy.viaGlobal")
+                  : t("governance.agentPolicy.viaAgent"),
+            }),
+          }),
+        );
+      }
+    }
+    return renderSettingsSection(
+      {
+        title: t("governance.agentPolicy.title"),
+        description: t("governance.agentPolicy.hint"),
+      },
+      rows,
+    );
+  }
+
   private renderPolicySection(): TemplateResult {
     const policy = this.policy;
     if (!policy) {
@@ -875,8 +1086,49 @@ class GovernancePage extends OpenClawLightDomElement {
             : t("governance.policy.globalScope")}${formatRuleLifetime(rule.expiresAt)}`,
           // No delete control on a core rule: the server refuses it, and
           // offering a button that cannot work is worse than offering none.
-          control:
-            canEditRules && rule.tier !== "core"
+          //
+          // "Who does this affect?" sits *beside* Remove deliberately. It is
+          // the question an operator should be able to answer before deleting a
+          // rule, and putting the answer one click from the delete button is
+          // what makes asking it the easy path rather than the diligent one.
+          control: html`<button
+              class="btn"
+              @click=${() => this.run(() => this.loadRuleTargets(rule.id))}
+            >
+              ${t("governance.policy.whichAgents")}
+            </button>
+            ${this.renderRuleTargets(rule.id)}
+            ${
+              // Root may switch off a shipped core denial that is not
+              // self-protecting (T24). Offered on the row itself, because the
+              // decision is about *this* rule and a separate panel would
+              // separate the choice from the thing it is about.
+              //
+              // The self-protecting three carry no control at all rather than a
+              // disabled one: the server refuses them, and a button that cannot
+              // work is the shape of finding 100.
+              this.identity?.role === "root" &&
+              rule.tier === "core" &&
+              !CORE_RULES_ROOT_CANNOT_DISABLE.some((fragment) => rule.id.includes(fragment))
+                ? html`<button
+                    class="btn btn--danger"
+                    ?disabled=${this.busy}
+                    title=${t("governance.policy.coreRuleHint")}
+                    @click=${() =>
+                      this.confirmThen(
+                        {
+                          message: t("governance.confirm.disableCoreRule"),
+                          details: rule.description ?? rule.pattern,
+                          confirmLabel: t("governance.policy.coreRuleDisable"),
+                        },
+                        () => this.api().setCoreRule(rule.id, false),
+                      )}
+                  >
+                    ${t("governance.policy.coreRuleDisable")}
+                  </button>`
+                : nothing
+            }
+            ${canEditRules && rule.tier !== "core"
               ? html`<button
                   class="btn btn--danger"
                   @click=${() =>
@@ -891,7 +1143,7 @@ class GovernancePage extends OpenClawLightDomElement {
                 >
                   ${t("governance.policy.removeRule")}
                 </button>`
-              : nothing,
+              : nothing}`,
         }),
       ),
       policy.rules.length === 0
@@ -975,17 +1227,43 @@ class GovernancePage extends OpenClawLightDomElement {
                     this.newRulePattern = (e.target as HTMLInputElement).value;
                   }}
                 />
-                <input
-                  class="input"
-                  type="text"
-                  style="max-width:11rem"
-                  aria-label=${t("governance.policy.ruleAgentLabel")}
-                  placeholder=${t("governance.policy.agentPlaceholder")}
-                  .value=${this.newRuleAgentId}
-                  @input=${(e: Event) => {
-                    this.newRuleAgentId = (e.target as HTMLInputElement).value;
-                  }}
-                />
+                ${
+                  // **The agent field is required for a User and optional for
+                  // an Administrator, and the form has to say so.**
+                  //
+                  // Leaving it blank means "global rule", which the server
+                  // refuses below Administrator — so for a User the empty form
+                  // is a guaranteed 403. That is the shape of finding 100, where
+                  // the account form offered a `root` role the server always
+                  // rejects: an interface that lets somebody complete an action
+                  // it knows will fail is teaching them the tool is broken.
+                  //
+                  // Their assigned agents are offered as suggestions, because
+                  // those are exactly the values the server will accept from
+                  // them and typing an id from memory is how the wrong one gets
+                  // used.
+                  html`<input
+                      class="input"
+                      type="text"
+                      style="max-width:11rem"
+                      list="governance-new-rule-agents"
+                      ?required=${!this.canAdminister()}
+                      aria-label=${t("governance.policy.ruleAgentLabel")}
+                      placeholder=${this.canAdminister()
+                        ? t("governance.policy.agentPlaceholder")
+                        : t("governance.policy.agentRequiredPlaceholder")}
+                      .value=${this.newRuleAgentId}
+                      @input=${(e: Event) => {
+                        this.newRuleAgentId = (e.target as HTMLInputElement).value;
+                      }}
+                    />
+                    <datalist id="governance-new-rule-agents">
+                      ${(this.canAdminister()
+                        ? this.knownAgentIds()
+                        : (this.identity?.assignedAgents ?? [])
+                      ).map((agentId) => html`<option value=${agentId}></option>`)}
+                    </datalist>`
+                }
                 <input
                   class="input"
                   type="number"
@@ -1041,6 +1319,14 @@ class GovernancePage extends OpenClawLightDomElement {
                 >
                   ${t("governance.policy.addRuleButton")}
                 </button>
+                ${
+                  // Said in the form rather than discovered from a refusal.
+                  this.canAdminister() || this.newRuleAgentId.trim()
+                    ? nothing
+                    : html`<span class="settings-row__hint"
+                        >${t("governance.policy.agentRequiredHint")}</span
+                      >`
+                }
               </div>
             `,
           })
@@ -1077,6 +1363,21 @@ class GovernancePage extends OpenClawLightDomElement {
       }
     }
     for (const agentId of this.identity?.assignedAgents ?? []) {
+      ids.add(agentId);
+    }
+    // An agent enters the policy document by four doors, and three of them were
+    // missing here: a rule written for it, a posture override, an escalation
+    // override. An agent configured but not currently running was therefore
+    // absent from every picker on this page — including the kill switch's.
+    for (const rule of this.policy?.rules ?? []) {
+      if (rule.agentId) {
+        ids.add(rule.agentId);
+      }
+    }
+    for (const agentId of Object.keys(this.policy?.agentMode ?? {})) {
+      ids.add(agentId);
+    }
+    for (const agentId of Object.keys(this.policy?.agentAsk ?? {})) {
       ids.add(agentId);
     }
     return [...ids].sort();
@@ -1780,6 +2081,7 @@ class GovernancePage extends OpenClawLightDomElement {
         actions: html`${filterButton("all", t("governance.ledger.filterAll"))}
           ${filterButton("agent", t("governance.ledger.filterAgent"))}
           ${filterButton("admin", t("governance.ledger.filterAdmin"))}
+          ${filterButton("auth", t("governance.ledger.filterAuth"))}
           <button
             class="btn"
             ?disabled=${this.busy}
@@ -1985,7 +2287,20 @@ class GovernancePage extends OpenClawLightDomElement {
     return renderSettingsSection({ title: t("governance.requests.title") }, [
       ...pending.map((request) =>
         renderSettingsRow({
-          title: html`<code>${request.pattern}</code>`,
+          // A setting request has no pattern; an empty code block for it would
+          // read as a rule request whose pattern failed to load. Applied to the
+          // decided list as well as the pending one — a request an operator
+          // reviews and a request they later look back at are the same object.
+          title:
+            request.kind === "agent-setting"
+              ? html`${t("governance.requests.settingTitle", {
+                  setting:
+                    request.setting === "ask"
+                      ? t("governance.requests.settingAsk")
+                      : t("governance.requests.settingMode"),
+                  value: request.value ?? "",
+                })}`
+              : html`<code>${request.pattern}</code>`,
           // Scope is stated first and unambiguously. An approver deciding from
           // pattern and reason alone cannot tell a single-agent request from
           // one that will bind every agent in the installation, and those are
@@ -1995,8 +2310,10 @@ class GovernancePage extends OpenClawLightDomElement {
               ? { kind: "ok", label: `${t("governance.requests.scopeAgent")} ${request.agentId}` }
               : { kind: "warn", label: t("governance.requests.scopeGlobal") },
           )}
-          ${request.resourceKind} · ${t("governance.requests.by")} ${request.requestedBy} —
-          ${request.reason}`,
+          ${request.kind === "agent-setting"
+            ? t("governance.requests.settingKind")
+            : request.resourceKind}
+          · ${t("governance.requests.by")} ${request.requestedBy} — ${request.reason}`,
           control: canDecide
             ? html`
                 <div class="settings-row__control" style="gap:0.5rem">
@@ -2021,7 +2338,20 @@ class GovernancePage extends OpenClawLightDomElement {
       ),
       ...recent.map((request) =>
         renderSettingsRow({
-          title: html`<code>${request.pattern}</code>`,
+          // A setting request has no pattern; an empty code block for it would
+          // read as a rule request whose pattern failed to load. Applied to the
+          // decided list as well as the pending one — a request an operator
+          // reviews and a request they later look back at are the same object.
+          title:
+            request.kind === "agent-setting"
+              ? html`${t("governance.requests.settingTitle", {
+                  setting:
+                    request.setting === "ask"
+                      ? t("governance.requests.settingAsk")
+                      : t("governance.requests.settingMode"),
+                  value: request.value ?? "",
+                })}`
+              : html`<code>${request.pattern}</code>`,
           description: `${t("governance.requests.by")} ${request.requestedBy} · ${t("governance.requests.decidedBy")} ${request.decidedBy ?? "—"}`,
           control: renderSettingsStatus({
             kind: request.status === "approved" ? "ok" : "warn",
@@ -2243,6 +2573,35 @@ class GovernancePage extends OpenClawLightDomElement {
                       ${t("governance.users.saveAgents")}
                     </button>`
                 : nothing}
+              ${
+                // Root decides how much of the §3.7 User expansion this account
+                // actually gets. Offered on the User tier only, because the
+                // flag is inert above it and a control that does nothing is a
+                // control that misleads — the shape of finding 100.
+                //
+                // Withholding removes *writing policy*, not the tier: the
+                // account keeps reading its agents' policy and ledger,
+                // prompting them, stopping them, and submitting rule requests.
+                this.identity?.role === "root" && user.role === "user"
+                  ? html`<button
+                      class="btn"
+                      ?disabled=${this.busy}
+                      title=${t("governance.users.policyAuthoringHint")}
+                      @click=${() =>
+                        this.run(async () => {
+                          await this.api().setUserPolicyAuthoring(
+                            user.id,
+                            user.canAuthorPolicy === false,
+                          );
+                          this.users = await this.api().listUsers();
+                        })}
+                    >
+                      ${user.canAuthorPolicy === false
+                        ? t("governance.users.policyAuthoringGrant")
+                        : t("governance.users.policyAuthoringWithhold")}
+                    </button>`
+                  : nothing
+              }
               <!--
                 Setting a password, including Root's own.
                 The route was Root-only and enforced from the day scrypt
@@ -2473,9 +2832,9 @@ class GovernancePage extends OpenClawLightDomElement {
         ${this.renderFreshness()} ${this.renderKillNotice()} ${this.renderConflictNotice()}
         ${this.renderRuleWarnings()} ${this.renderIdentityRow()} ${this.renderAgentsSection()}
         ${this.renderPendingDecisionsSection()} ${this.renderActiveSessionsSection()}
-        ${this.renderPolicySection()} ${this.renderLedgerSection()}
-        ${this.renderRuleRequestsSection()} ${this.renderSystemSection()}
-        ${this.renderDeploymentSection()} ${this.renderUsersSection()}
+        ${this.renderAgentPolicySection()} ${this.renderPolicySection()}
+        ${this.renderLedgerSection()} ${this.renderRuleRequestsSection()}
+        ${this.renderSystemSection()} ${this.renderDeploymentSection()} ${this.renderUsersSection()}
         ${this.renderKillSwitchSection()}
       `,
       {

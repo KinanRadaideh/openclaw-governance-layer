@@ -7,6 +7,48 @@
 // issued by /control-ui/governance/login — hence `credentials: "same-origin"`.
 import type { GovernanceRole } from "../../../../src/governance/roles.ts";
 
+/**
+ * A rule that binds an agent, and why it does.
+ *
+ * `scope` is not presentation. It is the difference between "removing this
+ * affects every agent" and "removing this affects one workload", which an
+ * operator needs before they act rather than after.
+ */
+export type GovernanceAppliedRule = {
+  rule: GovernancePolicyRule;
+  scope: "global" | "agent";
+};
+
+export type GovernanceAgentPosture = {
+  agentId: string;
+  mode: GovernancePolicyDocument["mode"];
+  modeIsOverride: boolean;
+  ask: GovernancePolicyDocument["ask"];
+  askIsOverride: boolean;
+  lockedDown: boolean;
+};
+
+export type GovernanceAgentPolicyView = {
+  posture: GovernanceAgentPosture;
+  rules: GovernanceAppliedRule[];
+  summary: {
+    total: number;
+    global: number;
+    agentSpecific: number;
+    denies: number;
+    allows: number;
+  };
+};
+
+export type GovernanceRuleTargets = {
+  scope: "global" | "agent";
+  agentIds: string[];
+  /** A global rule also binds agents nobody has created yet. */
+  bindsFutureAgents: boolean;
+  /** True when the list was narrowed to the caller's assigned agents. */
+  scopedToAssignment: boolean;
+};
+
 export type GovernancePolicyRule = {
   id: string;
   resourceKind: "command" | "path" | "network";
@@ -47,6 +89,8 @@ export type GovernancePolicyDocument = {
   hitlTimeoutSeconds: number;
   rules: GovernancePolicyRule[];
   lockedAgents: string[];
+  /** Core rule ids Root has switched off. Self-protecting rules never appear. */
+  disabledCoreRules?: string[];
 };
 
 export type GovernancePendingDecision = {
@@ -160,6 +204,8 @@ export type GovernanceLedgerEntry = {
   entryKind?: "admin";
   /** Account responsible for an administrative action; `cli` for terminal changes. */
   actor?: string;
+  /** The tier the actor held when they acted. Absent on entries predating it. */
+  actorRole?: "root" | "administrator" | "user" | "viewer";
 };
 
 /**
@@ -188,10 +234,16 @@ export type GovernanceIdentity = {
    * whose scope is every agent rather than a list.
    */
   assignedAgents?: string[];
+  /** Absent means allowed. Meaningful for the User tier only. */
+  canAuthorPolicy?: boolean;
 };
 
 export type GovernanceRuleRequest = {
   id: string;
+  /** Absent means a rule request; "agent-setting" is a per-agent settings ask (T4). */
+  kind?: "rule" | "agent-setting";
+  setting?: "ask" | "mode";
+  value?: string;
   resourceKind: "command" | "path" | "network";
   pattern: string;
   reason: string;
@@ -272,6 +324,11 @@ export type GovernanceUserRecord = {
   role: GovernanceRole;
   createdAt: string;
   assignedAgents: string[];
+  /**
+   * Whether Root has granted this account the ability to write policy.
+   * Absent means allowed; meaningful for the User tier only.
+   */
+  canAuthorPolicy?: boolean;
 };
 
 const BASE = "/control-ui/governance";
@@ -376,6 +433,20 @@ export class GovernanceApi {
 
   policy(): Promise<GovernancePolicyDocument> {
     return this.request<GovernancePolicyDocument>("policy");
+  }
+
+  /** Everything in force for one agent: its posture and every rule binding it. */
+  policyForAgent(agentId: string): Promise<GovernanceAgentPolicyView> {
+    return this.request<GovernanceAgentPolicyView>(
+      `policy/by-agent?agentId=${encodeURIComponent(agentId)}`,
+    );
+  }
+
+  /** The other direction: which agents one rule binds. */
+  ruleAgents(ruleId: string): Promise<GovernanceRuleTargets> {
+    return this.request<GovernanceRuleTargets>(
+      `policy/rule-agents?ruleId=${encodeURIComponent(ruleId)}`,
+    );
   }
 
   setMode(mode: GovernancePolicyDocument["mode"]): Promise<GovernancePolicyDocument> {
@@ -652,6 +723,28 @@ export class GovernanceApi {
 
   setUserRole(userId: string, role: GovernanceRole): Promise<{ ok: true }> {
     return this.request<{ ok: true }>("users/role", { method: "POST", body: { userId, role } });
+  }
+
+  /** Root: switch a shipped core denial off, or back on. */
+  setCoreRule(
+    ruleId: string,
+    enabled: boolean,
+  ): Promise<{ ok: true; disabledCoreRules: string[] }> {
+    return this.request<{ ok: true; disabledCoreRules: string[] }>("policy/core-rules", {
+      method: "POST",
+      body: { ruleId, enabled },
+    });
+  }
+
+  /** Root: allow or withhold a User account's ability to write policy. */
+  setUserPolicyAuthoring(
+    userId: string,
+    allowed: boolean,
+  ): Promise<{ ok: true; users: GovernanceUserRecord[] }> {
+    return this.request<{ ok: true; users: GovernanceUserRecord[] }>("users/policy-authoring", {
+      method: "POST",
+      body: { userId, allowed },
+    });
   }
 
   setUserAgents(

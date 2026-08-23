@@ -3560,9 +3560,21 @@ export const en: TranslationMap = {
       filterScope: "Filter by scope",
       filterAnyScope: "any scope",
       filterClear: "Clear",
-      addRule: "Add an allow rule",
+      addRule: "Add a rule",
       addRuleButton: "Add rule",
       removeRule: "Remove",
+      whichAgents: "Who does this affect?",
+      coreRuleDisable: "Switch off",
+      coreRuleHint:
+        "Stop enforcing this shipped denial. It stays declared and can be switched back on. The deployment report will report the installation as failing while it is off.",
+      agentRequiredPlaceholder: "Agent id (required)",
+      agentRequiredHint:
+        "Pick one of your agents. Only an Administrator can write a rule that binds every agent.",
+      bindsOne: "Binds one agent: {agent}",
+      bindsAll: "Global — binds every agent, including ones not created yet.",
+      bindsKnown: "Currently known: {agents}.",
+      bindsNoneKnown: "No agents known yet.",
+      bindsScoped: "(narrowed to the agents you manage)",
       patternPlaceholder: "Regular expression, e.g. ^ls( .*)?$",
       // Accessible names for controls that previously relied on their
       // placeholder. A placeholder is not a label: it is not reliably exposed
@@ -3613,6 +3625,25 @@ export const en: TranslationMap = {
       expiresIn: "expires in",
       expired: "expired",
     },
+    agentPolicy: {
+      title: "What an agent may do",
+      hint: "Every rule in force for one agent — the global rules that bind every agent, plus any written for this one. This is what the gate consults, not just what the document lists.",
+      pick: "Agent",
+      pickHint: "Pick an agent you manage, or type its id.",
+      show: "Show permissions",
+      posture: "Posture",
+      escalation: "Ask a human on a miss",
+      override: "Set for this agent",
+      inherited: "Installation default",
+      locked: "Emergency stop",
+      summary: "Rules in force",
+      counts:
+        "{total} total — {global} global, {scoped} for this agent; {allows} allow, {denies} forbid",
+      none: "No rules are in force for this agent. Under default-deny it can do nothing.",
+      viaGlobal: "global",
+      viaAgent: "this agent",
+      failed: "Could not load this agent's permissions.",
+    },
     ledger: {
       title: "Audit ledger",
       verify: "Verify chain integrity",
@@ -3626,6 +3657,7 @@ export const en: TranslationMap = {
       filterAll: "All",
       filterAgent: "Agent actions",
       filterAdmin: "Policy changes",
+      filterAuth: "Sign-ins",
     },
     freshness: {
       partial:
@@ -3634,6 +3666,8 @@ export const en: TranslationMap = {
     confirm: {
       title: "Are you sure?",
       removeRule: "Remove this permission? The agent will no longer be allowed to do this.",
+      disableCoreRule:
+        "Switch off this shipped protection? It is part of the security floor every installation ships with. It stays declared and can be switched back on, the change is recorded against your account, and the deployment report will report this installation as failing while it is off.",
       setPassword:
         "Set a new password for this account? Every device signed in as this account will be signed out.",
       setOwnPassword:
@@ -3661,6 +3695,10 @@ export const en: TranslationMap = {
       cannotDeleteSelf: "You cannot delete the account you are signed in with",
       passwordPlaceholder: "Password (min 8 characters)",
       agentsPlaceholder: "Assigned agents (comma separated)",
+      policyAuthoringWithhold: "Withhold rule editing",
+      policyAuthoringGrant: "Allow rule editing",
+      policyAuthoringHint:
+        "Whether this account may change the rules for the agents it manages. Withholding keeps everything else: they can still read the policy and audit log, prompt and stop their agents, and request rule changes for an Administrator to approve.",
       saveAgents: "Save agents",
     },
     pending: {
@@ -3739,6 +3777,10 @@ export const en: TranslationMap = {
       agentLabel: "Agent this request is for",
       agentPlaceholder: "Agent id (blank = every agent)",
       scopeAgent: "for agent",
+      settingTitle: "Change {setting} to “{value}”",
+      settingAsk: "escalation",
+      settingMode: "posture",
+      settingKind: "agent setting",
       scopeGlobal: "EVERY AGENT",
       submitButton: "Submit request",
     },
