@@ -2226,6 +2226,106 @@ live in but cannot resolve the file, so a shortcut created at that exact name in
 the gap is still followed. Narrow, real, and written down rather than left for
 someone to find.
 
+## 5.23 The round that mostly found this week's mistakes
+
+The seventeenth review looked at everything built in the previous few days
+rather than at the older parts of the system. Six problems, and **five of them
+were in code written that same week** — two in code written that same day.
+
+That keeps happening, and it is worth saying rather than hiding: the riskiest
+code in this project has never been the oldest. It has been the newest.
+
+### A check that could never fail
+
+Files sent to an agent carry their name in a piece of the request that can only
+hold plain English letters, so the name is encoded first and decoded on arrival.
+The code that decoded it was wrapped in a safety net: if the encoding is
+malformed, reject the request.
+
+The safety net could never catch anything. The decoder does not report a
+problem — when it meets a character it does not recognise it quietly throws that
+character away and carries on with whatever is left. So a malformed name was not
+rejected; it was turned into gibberish and written into the permanent audit
+record as the file's name.
+
+Worse, if the name arrived twice — which some intermediaries do by accident —
+the two were joined with a comma and a space, both of which the decoder
+discards, producing a filename made entirely of invisible characters.
+
+**The shape of this mistake is worth remembering.** The rejection branch had
+never run, not once, in any test or in any use. Code that cannot run passes
+every test, because a test that does not ask whether a line is reachable cannot
+tell you that it is not.
+
+### The replacement, which was also wrong
+
+The fix was a proper check of the encoding, written by hand. It rejected almost
+everything — including every filename that is not in English, which is precisely
+what it had been added to protect.
+
+The error was one step of counting, in the part that handles the padding
+characters at the end of an encoded name. The tests written for the original
+problem caught it within a minute.
+
+The pair is the more useful lesson. The first check claimed to have examined its
+input and had not. The second examined it and got the answer wrong. Both are the
+same failure wearing different clothes: **nobody had watched the check actually
+run.**
+
+### A fix that reintroduced the problem it fixed
+
+The previous session closed a gap where the system worked out which file a
+request meant, approved it, and then let the tool work it out a second time —
+giving an attacker a moment to change the answer in between. The repair was to
+stop asking twice.
+
+Reviewing it found that the repair asked twice.
+
+Not in the same place — the tool no longer looks anything up. But inside the
+system's own approval step, the file was worked out once to check it against the
+rules, and worked out _again_ to decide what to hand over. Two lookups, a
+sliver of time apart, with the same gap between them in miniature.
+
+Nobody would have argued for that if it had been described in those words. It
+survived because the two lookups were written minutes apart for different
+reasons, and because the change was plainly better than what it replaced — which
+is exactly the state in which nobody goes looking for a problem. **A fix does
+not get inspected as hard as the thing it fixes.**
+
+### A rule that stopped being true when a second way of doing things arrived
+
+Files sent to an agent are kept, never deleted, and each account has a total it
+may not exceed. That was a sensible rule for the command line, where choosing a
+file and sending it are one action.
+
+The new dashboard uploads a file the moment it is _chosen_, so its size and type
+can be shown before the message goes out. Same rule, entirely different meaning:
+the allowance stopped being a limit on what somebody had sent and became a limit
+on what they had ever clicked. Nine changes of mind would exhaust an account
+permanently, with no way to undo it, because nothing in the system could delete
+anything.
+
+Now an upload that has not been sent can be taken back. One that _has_ been sent
+cannot — at that point the audit record refers to it, and a record whose evidence
+can be removed by the person it describes is not a record.
+
+**The general point:** a limit is a statement about how people work. Add a new
+way of working and the limit can quietly come to mean something else, without a
+single line of it changing.
+
+### One name for one account
+
+An account called `Kinan` and one called `kinan` are the same person, and the
+system has a single shared place that says so — with a note in it explaining
+that everything which looks an account up must go through it. Eight parts of the
+system do. The file store, written last, did not: it filed uploads under
+whichever spelling appeared, which would have given one person two separate
+allowances and hidden their own files from them.
+
+The note in that shared file exists because this exact mistake had already
+happened once before, to a different setting, which was written under one
+spelling and read under another and therefore silently did nothing.
+
 ## 7. The single lesson
 
 Rounds five and six found the same mistake wearing different clothes.

@@ -10,11 +10,11 @@ break. Everything else in `mg/` is detail beneath this.
 
 **Current as of 2026-08-24.** The governance layer is **built and verified, and
 still not demonstrated.** Eight of the nine design requirements are fully met;
-the ninth (Linux deployment) is tested but never deployed. **1,802 automated
-tests pass across 88 files** (1,164 distinct across 68 — see §4), both
+the ninth (Linux deployment) is tested but never deployed. **1,877 automated
+tests pass across 91 files** (1,193 distinct across 69 — see §4), both
 typechecks are clean, and OpenClaw's own test
-suite is unaffected at its pre-existing 18 failed / 174 passed baseline. Sixteen
-QA rounds have found more than a hundred defects, all fixed; **there is no known
+suite is unaffected at its pre-existing 18 failed / 174 passed baseline. Seventeen
+QA rounds have found 117 defects, all fixed; **there is no known
 security hole.**
 
 What has _not_ happened is a single end-to-end run with a real language model
@@ -23,7 +23,7 @@ That gap is **T2** (formerly A9), and it is still the most valuable remaining
 item by a wide margin.
 
 **The backlog is now numbered T1–T27** in `REMAINING-WORK.md` §"The numbered
-backlog", which supersedes every older list. Sixteen of twenty-seven are done
+backlog", which supersedes every older list. Seventeen of twenty-seven are done
 (T26 and T27 were added 2026-08-24 for work that shipped on the 22nd and had
 never been entered). The old letters
 (A-, B-, F-, R5, G) survive only as a `Ref` column pointing at their historical
@@ -113,7 +113,7 @@ The work now exists in three places rather than one.
 | `mg/PROJECT-SUMMARY.md`           | What the project _is_ — problem, design, where every file lives                                             |
 | `mg/REMAINING-WORK.md`            | The backlog. **§"The numbered backlog" (T1–T27) is the authoritative list**; everything below it is history |
 | `mg/SESSION-LOG-2026-08.md`       | Narrative of how the work was done and why decisions went the way they did                                  |
-| `GOVERNANCE.md`                   | Operator overview + the full engineering defect table for all sixteen rounds                                |
+| `GOVERNANCE.md`                   | Operator overview + the full engineering defect table for all seventeen rounds                              |
 | `docs-notes/CHAPTER3-MATERIAL.md` | **Report source material**, keyed to section numbers. Start here for Ch. 3–4                                |
 | `docs-notes/QA-IN-PLAIN-TERMS.md` | The same findings in ordinary language — good for the defence, and for §4                                   |
 
@@ -248,18 +248,20 @@ Expected, measured 2026-08-24:
 
 | Command          | Expected                         |
 | ---------------- | -------------------------------- |
-| Governance suite | **1,802 passed across 88 files** |
+| Governance suite | **1,877 passed across 91 files** |
 
-**All four re-run and green on 2026-08-24**, most recently after T23:
-**1,802/88**, both typechecks clean, host harness at exactly 18 failed / 174
-passed. T23 added one test file and eight tests and changed no existing result —
-the previous figure was 1,794/87.
+**All four re-run and green on 2026-08-24**, most recently after T14's last two
+surfaces and QA round seventeen: **1,877/91**, both typechecks clean, host
+harness at exactly 18 failed / 174 passed. The figure has moved three times
+today — 1,794/87 before T23, 1,802/88 after it, 1,877/91 now — which is why the
+command matters more than the number.
 
-> **The 88 is file _runs_, not files, and 1,802 is test _executions_.** Ten
+> **The 91 is file _runs_, not files, and 1,877 is test _executions_.** Eleven
 > governance test files live under `src/gateway/` and run under three Vitest
-> projects, so each is executed three times: 55 + 3 + (10 × 3) = 88. Those ten
-> hold 319 distinct tests reported as 957. **Distinct totals: 1,164 tests across
-> 68 files.** Quote 1,802/88 if you also state the command; quote 1,164/68 if
+> projects, so each is executed three times: 55 + 3 + (11 × 3) = 91. Those eleven
+> hold 342 distinct tests reported as 1,026. **Distinct totals: 1,193 tests
+> across 69 files.** Quote 1,877/91 if you also state the command; quote
+> 1,193/69 if
 > you are describing how much test code exists. This is the same trap as the
 > 18-versus-9 harness baseline three paragraphs below — recorded there, missed
 > here, for as long as the number has been quoted.
@@ -743,11 +745,11 @@ backwards when the language stops being allow-only. Report material:
 ## 6. What is left
 
 **The authoritative list is `REMAINING-WORK.md` §"The numbered backlog" —
-T1–T27, of which sixteen are done.** Quote the task numbers; the old letters
+T1–T27, of which seventeen are done.** Quote the task numbers; the old letters
 survive only as a `Ref` column pointing at their historical write-ups.
 
-Eleven items remain — eight outstanding, two part-built (T14, T16), and T13
-drafted but still yours to read. Three of the eight (T6, T7, T8) are
+Ten items remain — eight outstanding, one part-built (T16), and T13 drafted but
+still yours to read. Three of the eight (T6, T7, T8) are
 host-blocked and are write-ups rather than work. Sorted by who has to move
 first.
 
@@ -769,14 +771,14 @@ version of the single-location risk F1 closed.
 
 ### Mine, and nothing blocks them
 
-| #           | What                                                                                                                                                                                                                                                                                                                                    | Effort   |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| ~~**T23**~~ | ~~Bind the decision to the resolved path.~~ **DONE 2026-08-24.** The gate hands the tool the path it judged, so a symlink swapped afterwards has nothing to race. Narrow by design — it fires only on a call canonicalization actually redirected, so ordinary calls are byte-identical. §3.5.29                                        | done     |
-| **T14**     | **Finish attachments.** The store, protections and CLI are done; the HTTP route and dashboard upload are not, so the three-surface rule is unmet                                                                                                                                                                                        | 1 day    |
-| **T25**     | **The 18 host-harness failures.** Pre-existing upstream (Windows file-locking in `host-hooks.contract.test.ts`), used as the regression baseline throughout. **Fixing them moves that baseline, so every verification step's expected number changes in the same commit**                                                               | 1–2 days |
-| **T16**     | **Finish the file split — three files, not two.** `governance-dashboard-api.ts` **1,026** code lines against a 700 limit; `governance-page.ts` **2,211**; and `register.governance.ts` **805**, which crossed the limit on 2026-08-24. All three are the lint rule's measure, not `wc -l`. Remaining seams: agent routes, ledger routes | 1 day    |
-| **T17**     | **Redraw the Mermaid diagrams** in the report's style. Candidates already marked "Figure candidate" throughout `CHAPTER3-MATERIAL.md`                                                                                                                                                                                                   | 2–3 days |
-| **T20**     | Repair a mangled sentence in `REMAINING-WORK.md`                                                                                                                                                                                                                                                                                        | 5 min    |
+| #           | What                                                                                                                                                                                                                                                                                                                                                      | Effort   |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| ~~**T23**~~ | ~~Bind the decision to the resolved path.~~ **DONE 2026-08-24.** The gate hands the tool the path it judged, so a symlink swapped afterwards has nothing to race. Narrow by design — it fires only on a call canonicalization actually redirected, so ordinary calls are byte-identical. §3.5.29                                                          | done     |
+| ~~**T14**~~ | ~~Finish attachments.~~ **DONE 2026-08-24 — all three surfaces.** Raw-body upload route (no multipart parser to write, and the store can refuse mid-read), filename base64 in a header, and a dashboard picker. The prompt route reads every recorded fact from the store index rather than the request. QA round seventeen then found four defects in it | done     |
+| **T25**     | **The 18 host-harness failures.** Pre-existing upstream (Windows file-locking in `host-hooks.contract.test.ts`), used as the regression baseline throughout. **Fixing them moves that baseline, so every verification step's expected number changes in the same commit**                                                                                 | 1–2 days |
+| **T16**     | **Finish the file split — three files, not two.** `governance-dashboard-api.ts` **1,026** code lines against a 700 limit; `governance-page.ts` **2,211**; and `register.governance.ts` **805**, which crossed the limit on 2026-08-24. All three are the lint rule's measure, not `wc -l`. Remaining seams: agent routes, ledger routes                   | 1 day    |
+| **T17**     | **Redraw the Mermaid diagrams** in the report's style. Candidates already marked "Figure candidate" throughout `CHAPTER3-MATERIAL.md`                                                                                                                                                                                                                     | 2–3 days |
+| **T20**     | Repair a mangled sentence in `REMAINING-WORK.md`                                                                                                                                                                                                                                                                                                          | 5 min    |
 
 ### Nothing to do — these are limits, not tasks
 

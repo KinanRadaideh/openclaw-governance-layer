@@ -1561,6 +1561,81 @@ process distinguished the two. The correction is not "be more careful" — it is
 that a backlog and an inventory are different artefacts, and this project had
 been using one document as both.
 
+### Seventeenth QA pass (2026-08-24) — findings 112-117
+
+Scope: everything built since round sixteen — T9, T24, T26, T4, T27, T5, T23,
+T15, the T16 split, and T14's two new surfaces. Method unchanged: each probe
+written from the claim under test before re-reading the implementation. Report
+material in `CHAPTER3-MATERIAL.md` §4.x.29; plain language in
+`QA-IN-PLAIN-TERMS.md` §5.23.
+
+**Five of the six are in code written this same week**, and two of those in code
+written the same day — the pattern round sixteen already established, and worth
+saying plainly rather than burying: **the most dangerous code in this project
+has consistently been the newest code, not the oldest.**
+
+| #   | Component                     | Defect                                                                                                                                                                                                                                                                                                                                                                                                                         | Fix                                                                                                                               |
+| --- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| 112 | `governance-dashboard-api.ts` | The attachment name header was "validated" by wrapping `Buffer.from(v, "base64")` in a try/catch. **It never throws** — it silently discards anything outside the alphabet, so the 400 branch was unreachable. A malformed header became mojibake; a _duplicated_ one became NUL bytes, because Node joins repeats with ", " and base64 drops both characters. Either way a garbage filename entered the tamper-evident ledger | Validate before decoding, reject a repeated header outright, refuse a decoded name containing control characters                  |
+| 113 | `attachment-store.ts`         | **Nothing could ever be deleted.** `sweepOrphans` was exported and never called, and no release path existed, so every byte uploaded counted against its account's 64 MB quota permanently. A footnote while the CLI was the only surface — it stores at the moment of sending — and a **trap** once the dashboard uploaded on file-_pick_: nine abandoned picks exhaust an account with no recovery                           | `releaseAttachment`, refused once a prompt has named the file (`usedAt`), plus the route and the dashboard's remove control       |
+| 114 | `attachment-store.ts`         | Used the **display** spelling of an account as the quota key, and then as the ownership key. `account-name.ts` exists specifically to prevent this and says so in its header; eight modules fold through it, and this was the ninth, which did not                                                                                                                                                                             | `canonicalAccountName` on both sides                                                                                              |
+| 115 | `governance-dashboard-api.ts` | The upload route did not bound `agentId`. `canManageAgent` cannot reject an invented id for an Administrator, who manages every agent by role — so the string was written verbatim into the store index and from there into the ledger, bounded only by Node's header limit                                                                                                                                                    | A 200-character ceiling, matching what a JSON-bodied route already applies                                                        |
+| 116 | `policy-engine.ts`            | **T23 reintroduced its own defect.** The binding was computed _after_ `spec.extract`, from the agent's original string — so the gate resolved that string **twice, independently**, and a link swapped between the two would have the rules judge one file while the tool was handed another                                                                                                                                   | Resolve first, then extract from the **bound** parameters: the second resolution operates on a link-free path and cannot disagree |
+| 117 | `governance-dashboard-api.ts` | **Introduced by the fix for 112.** The new validator walked forwards deciding at each `=` whether it sat in a legal position, and was wrong by one — it rejected every name whose encoding ends in `==`, which is most of them and _all_ the non-ASCII ones it was added to protect                                                                                                                                            | Count padding off the end, then check the remainder. Caught by the tests written for 112                                          |
+
+#### 116 is the finding of the round
+
+T23's entire argument is that **re-resolving does not close a race, it narrows
+one** — two resolutions microseconds apart agree during an attack, so a second
+lookup before the open is theatre. The fix removed the tool's second lookup and
+then, in the same function, performed a second lookup of its own: `spec.extract`
+resolved the agent's string to match rules against, and the binding resolved it
+again to decide what to hand over.
+
+Nobody would have defended that if it had been proposed in those words. It
+survived because the two resolutions were written for different purposes, in
+different functions, minutes apart — and because the code was demonstrably an
+improvement on what came before, which is the state in which a defect is least
+likely to be looked for. **A fix is not audited as hard as the thing it fixes.**
+
+The repair is also the cheaper design: resolve once, extract from the bound
+parameters, and the two can no longer disagree by construction rather than by
+timing.
+
+#### 112 and 117 belong together
+
+The first is a validator that could not fail. The second is its replacement,
+which failed on almost everything. Both are the same underlying error — **a
+check nobody watched actually run** — and the pair earns its space because it
+brackets the project's central line from opposite sides. 112 made a silent claim
+that its input had been examined; 117 examined the input and got the answer
+wrong. The suite caught the second within a minute and could never have caught
+the first, because unreachable code passes every test that does not assert it is
+reachable.
+
+#### 113 is a design consequence, not an oversight
+
+The store's rule — content-addressed, never deleted — was correct for the CLI,
+where storing and sending are one step. Adding a surface that stores a file when
+it is **chosen** changed what that rule meant without changing the rule itself.
+The quota went from a bound on what an operator had sent to a bound on what they
+had ever clicked.
+
+The lesson generalises past this feature: **a limit is a statement about a
+workflow, and adding a workflow can invalidate it without touching the limit.**
+Sibling of round sixteen's line — a limit makes a silent claim about which of
+the things it drops were the ones worth keeping.
+
+#### What was probed and found sound
+
+Kept so the round's negative results are legible. The prompt route reads every
+recorded fact from the store's index rather than from the request, so a caller
+cannot describe a one-byte file as a 4 MB PDF; the ownership check answers
+"exists but not yours" and "does not exist" identically, closing the existence
+oracle; the size cap refuses during the read rather than after it, across a
+genuinely chunked body; a 0-byte upload is stored but is inert; and T23's
+exclusions — non-`path` tools, `apply_patch`, blocked calls — all hold.
+
 ## Notes for Chapter 3
 
 Design decisions worth writing up, with the reasoning behind each:

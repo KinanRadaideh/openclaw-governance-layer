@@ -454,22 +454,22 @@ grouping is itself part of the design argument.
 
 |                      |                                                                                                                                                                    |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Production total** | **17,987 lines** — 10,843 across 39 files in `src/governance/`, plus 7,144 across the 11 HTTP, CLI and dashboard surface files tabulated below                     |
-| **Test total**       | **16,727 lines across 68 test files.** The suite _reports_ **1,802 tests across 88 files**, and both numbers are right about different things — see the note below |
+| **Production total** | **18,651 lines** — 10,954 across 39 files in `src/governance/`, plus 7,697 across the 11 HTTP, CLI and dashboard surface files tabulated below                     |
+| **Test total**       | **17,349 lines across 69 test files.** The suite _reports_ **1,877 tests across 91 files**, and both numbers are right about different things — see the note below |
 
-> **The 88 is a count of test-file _runs_, not of files. 1,802 is a count of
-> test _executions_, not of distinct tests.** Ten of the governance test files
+> **The 91 is a count of test-file _runs_, not of files. 1,877 is a count of
+> test _executions_, not of distinct tests.** Eleven of the governance test files
 > live under `src/gateway/` and the repository runs that directory under three
 > Vitest projects — `gateway-core`, `gateway-server`, `gateway-client` — so each
-> of the ten is executed three times. 55 unit + 3 ui + (10 × 3) = **88**. Those
-> ten files hold **319 distinct tests, reported as 957**, so the distinct totals
-> are **1,164 tests across 68 files**.
+> of the eleven is executed three times. 55 unit + 3 ui + (11 × 3) = **91**.
+> Those eleven files hold **342 distinct tests, reported as 1,026**, so the
+> distinct totals are **1,193 tests across 69 files**.
 >
 > Neither number is wrong and the larger one is not inflated by accident: every
-> one of those 1,802 executions really ran, and running the gateway suite under
-> three project configurations is the point of doing it that way. But "1,802
-> tests across 88 files" invites a reader to believe there are 88 files, and
-> there are 68.
+> one of those 1,877 executions really ran, and running the gateway suite under
+> three project configurations is the point of doing it that way. But "1,877
+> tests across 91 files" invites a reader to believe there are 91 files, and
+> there are 69.
 >
 > **This is the same mistake this project already documented and warned about.**
 > `HANDOFF.md` §4 records that the host harness baseline was once written as "9
@@ -3046,9 +3046,9 @@ long and the grouping is the argument.
 `qa-round8-logic`, `qa-round8-security`: **81 tests** pinning the specific
 defects each round found, so none can silently return.
 
-|           |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Total** | **1,802 tests across 88 files** — measured 2026-08-24, after T23 (§3.5.29); 1,794 across 87 after T4, T5 and T14 (§3.5.26–§3.5.28); 1,722 across 84 after the first dashboard component tests (§4.x.27), the core-tier split (§3.5.24), Root's authoring control (§3.5.23), the kill-switch end-to-end verification and the authoring-scope matrix (§3.5.21, §3.5.22). (1,564 across 75 after the bidirectional policy views, §3.5.20. (1,510 across 71 after the sixteenth QA pass, §4.x.25. (1,499 across 70 after T9, authentication auditing, §3.5.19. (1,480 across 68 before it, after the A1 follow-ups, the last of round thirteen, the hands-on UI pass and the three core invariants; 1,465 across 67 before `core-invariants.test.ts`; 1,404 across 64 after B1; 1,393 across 63 after the fourteenth QA pass and A7; 1,264 across 57 before rounds 13 and 14. The growth is almost entirely regression tests lifted out of the probes that produced each finding.) **Measured with `src/governance/`, `src/gateway/governance-*.test.ts`, `ui/src/pages/governance/`** — adding `ui/src/i18n` gives 1,564 across 73, which is a different set and not a regression. **Every figure in this row is a count of test-file _runs_ and test _executions_:** the ten `src/gateway/` files run under three Vitest projects, so the distinct totals behind the 1,802/88 are **1,164 tests across 68 files**. See §3.5.2. |
+|           |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Total** | **1,877 tests across 91 files** — measured 2026-08-24, after T14's HTTP and dashboard surfaces and QA round seventeen (§4.x.29); 1,802 across 88 after T23 (§3.5.29); 1,794 across 87 after T4, T5 and T14 (§3.5.26–§3.5.28); 1,722 across 84 after the first dashboard component tests (§4.x.27), the core-tier split (§3.5.24), Root's authoring control (§3.5.23), the kill-switch end-to-end verification and the authoring-scope matrix (§3.5.21, §3.5.22). (1,564 across 75 after the bidirectional policy views, §3.5.20. (1,510 across 71 after the sixteenth QA pass, §4.x.25. (1,499 across 70 after T9, authentication auditing, §3.5.19. (1,480 across 68 before it, after the A1 follow-ups, the last of round thirteen, the hands-on UI pass and the three core invariants; 1,465 across 67 before `core-invariants.test.ts`; 1,404 across 64 after B1; 1,393 across 63 after the fourteenth QA pass and A7; 1,264 across 57 before rounds 13 and 14. The growth is almost entirely regression tests lifted out of the probes that produced each finding.) **Measured with `src/governance/`, `src/gateway/governance-*.test.ts`, `ui/src/pages/governance/`** — adding `ui/src/i18n` gives 1,564 across 73, which is a different set and not a regression. **Every figure in this row is a count of test-file _runs_ and test _executions_:** the ten `src/gateway/` files run under three Vitest projects, so the distinct totals behind the 1,877/91 are **1,193 tests across 69 files**. See §3.5.2. |
 
 Two methodology notes worth keeping:
 
@@ -4662,6 +4662,117 @@ pass without modification. That is the evidence this was a move and not a
 rewrite — and it is the reason the refactor was safe to attempt at all, which is
 worth saying in a report about a security layer: **the test volume is what makes
 the code changeable**, not merely what makes it correct today.
+
+### 4.x.29 The seventeenth QA pass, and what reviewing a fix is worth (findings 112-117)
+
+The round that reviewed **only recent work** — everything since round sixteen —
+and found six defects, five of them in code written that same week and two in
+code written that same day.
+
+**Figure candidate** — _Figure 4.x: Where defects were found, by the age of the
+code containing them._ A simple bar chart across all seventeen rounds. The
+argument it has to carry: the distribution is not flat and does not favour old
+code. If it did, the case for continuous review would be much weaker.
+
+#### The three that are worth a paragraph each
+
+**116 — the fix that reintroduced its own defect.** T23 (§3.5.29) exists because
+the gate resolved a path, judged the file, and let the tool resolve the path
+again — a window an attacker could act in. Its whole argument is that
+_re-resolving does not close a race, it narrows one_, so a second lookup before
+the open is theatre.
+
+The implementation then performed a second lookup of its own. `spec.extract`
+resolved the agent's string to match rules against; the parameter binding
+resolved the same string again, independently, to decide what to hand over. A
+link swapped between them would have the rules judge one file and the tool
+receive another — the same defect, in miniature, inside the function written to
+remove it.
+
+Two things made it survivable to write and hard to see. The two resolutions were
+authored minutes apart, in different functions, for different purposes: one is
+"what am I deciding about", the other is "what do I pass on". And the code was
+_plainly better than what it replaced_, which is the condition under which
+nobody looks for a problem. **A fix is not audited as hard as the thing it
+fixes** — a sentence Chapter 4 should carry, because it is the argument for
+reviewing changes rather than reviewing systems.
+
+The repair is also the simpler design: resolve once, extract from the bound
+parameters, and the two cannot disagree by construction rather than by timing.
+
+**112 and 117 — a check that could not fail, and its replacement that failed on
+almost everything.** The attachment filename arrives base64-encoded in a header,
+and the first implementation wrapped the decode in a try/catch that returned
+400 on error. `Buffer.from(value, "base64")` does not throw. It discards
+characters outside the alphabet and returns what remains, so the rejection
+branch was **unreachable code that read as validation** — a malformed name
+became mojibake in the ledger, and a duplicated header became a run of NUL
+bytes, since Node joins repeats with `", "` and base64 drops both characters.
+
+The replacement was a hand-written validator, and it was wrong by one step in
+its handling of padding: it rejected every name whose encoding ends in `==`,
+which is most names and every non-ASCII one — precisely the case it had been
+added to protect. The tests written for 112 caught it within a minute.
+
+The pair brackets this project's central line from both sides. **112 made a
+silent claim that its input had been examined. 117 examined the input and got
+the answer wrong.** And only one of them was catchable by a test suite:
+unreachable code passes every test that does not assert it is reachable, which
+is why 112 had to be found by reading and 117 did not.
+
+**113 — a limit that stopped meaning what it said when a surface was added.**
+The attachment store is content-addressed and never deletes; each account has a
+64 MB quota. Correct for the CLI, where storing and sending are one action.
+
+The dashboard uploads when a file is **chosen**, which is what makes its size and
+type knowable before the prompt goes out. The rule did not change and its meaning
+did: the quota stopped bounding what an operator had _sent_ and began bounding
+what they had ever _clicked_. Nine abandoned picks of an 8 MB file exhaust an
+account permanently, because nothing in the system could delete anything —
+`sweepOrphans` was exported and never called.
+
+The fix adds a release for an attachment no prompt has named, and refuses it for
+one that has: at that point a ledger entry depends on the file, and **a record
+whose evidence can be deleted by the person it describes is not a record.**
+
+The generalisation for Chapter 4: **a limit is a statement about a workflow, and
+adding a workflow can invalidate it without touching the limit.** Sibling of
+round sixteen's line, that a limit makes a silent claim about which of the
+things it drops were the ones worth keeping.
+
+#### The two smaller ones, which are the same finding twice
+
+**114** — the attachment store keyed accounts by their _display_ spelling, for
+the quota and then for ownership. `account-name.ts` exists to prevent exactly
+this and says so in its own header; eight modules fold through it and the newest
+one did not. The bug that file documents — `policy.userAsk` written under one
+spelling and read under another, so a governance control silently did nothing —
+was one login away from recurring.
+
+**115** — the upload route did not bound `agentId`, because it arrived in a
+header rather than a JSON body and so inherited none of the validation the
+body-reading routes apply. `canManageAgent` cannot reject an invented id for an
+Administrator, who manages every agent by role.
+
+Both are the cost of adding a surface: **a new entry point does not inherit the
+habits of the old ones**, and each is a place where a rule that "the system"
+follows turns out to have been followed by particular functions.
+
+#### Negative results, kept deliberately
+
+A round that reports only what it found reads as though everything it did not
+mention was unexamined. Probed and sound: the prompt route reads every recorded
+fact from the store's index rather than from the request, so a caller cannot
+describe a one-byte file as a 4 MB PDF; the ownership check answers "exists but
+not yours" and "does not exist" identically, closing the existence oracle the
+login response is also careful about; the size cap refuses _during_ the read
+across a genuinely chunked body; and T23's exclusions all hold.
+
+#### The sentence for the conclusion
+
+> Five of the six defects in the last round were in code written that week. The
+> case for reviewing continuously is not that old code decays — it is that new
+> code has never been looked at, and a fix is the newest code of all.
 
 ### 4.x.4 RBAC enforcement experiment
 

@@ -1612,3 +1612,107 @@ Eight backlog items remain: T2, T3, T6, T7, T8, T13, T17, T18. Three of those
 (T6, T7, T8) are host-blocked and are written up as limits rather than
 scheduled. **T2 remains the top item** — and it is now the only item left that
 can change what the project can be shown to be.
+
+---
+
+## 20. T14 finished, and the round that reviewed it (2026-08-24)
+
+Two pieces of work in one session: the two surfaces T14 was missing, and the
+seventeenth QA pass over everything built since round sixteen. They belong in
+one entry because the second found four defects in the first.
+
+### The HTTP surface, and one decision that shaped the rest
+
+The obvious wire format for a file upload is `multipart/form-data`. It was
+rejected, and the reason generalises: **a multipart parser is a state machine
+over attacker-controlled bytes, and this repository does not ship one.** Writing
+one for a governance layer would add exactly the class of surface the layer
+exists to reduce.
+
+The body is the file instead. That is simpler, and it also preserves the
+property the store was built around — `req` is an `AsyncIterable`, so the size
+cap refuses **during** the read. A multipart body would have to be buffered and
+parsed before the size was known, which is precisely the denial of service the
+cap exists to prevent rather than a check against it.
+
+The filename travels base64-encoded in a header. Not in the URL: a URL is
+written to browser history, proxy logs and the Gateway's own access log, and a
+filename is user data — `Q3-redundancies.pdf` names something even when the
+bytes are never read. Base64 because a header cannot carry arbitrary UTF-8, and
+most of the world's filenames are not ASCII.
+
+**The security-relevant half is the prompt route, not the upload.** The client
+uploads first and then names hashes. Every fact that reaches the ledger — size,
+type, name — is read from the store's own index rather than from the request,
+because a caller who could declare those would be writing their own description
+into a tamper-evident log: the trail would read like an observation and record
+an assertion. And a reference must be to your own upload, or the route becomes
+an existence oracle, since for a known file the hash is not a guess.
+
+### The round that followed
+
+Six findings, 112-117. **Five were in code written this same week, two of them
+the same day.** That is now the established pattern rather than a coincidence,
+and the honest version of it is: the most dangerous code in this project has
+consistently been the newest.
+
+**116 is the one worth remembering. T23 reintroduced its own defect.** Its whole
+argument is that re-resolving does not close a race, it narrows one. The
+implementation then resolved the agent's path twice — once in `spec.extract` to
+match rules against, once in the parameter binding to decide what to hand over —
+so a link swapped between them would have the rules judge one file and the tool
+receive another.
+
+Nobody would have defended that if it had been proposed in those words. It
+survived because the two resolutions were written minutes apart, in different
+functions, for different purposes, and because the change was _plainly better
+than what it replaced_ — which is the state in which nobody goes looking. **A
+fix is not audited as hard as the thing it fixes.**
+
+**112 and 117 are the same error from opposite sides.** The filename validator
+wrapped `Buffer.from(v, "base64")` in a try/catch. It never throws — it discards
+what it does not recognise — so the rejection branch was unreachable code that
+read as validation, and a duplicated header decoded to NUL bytes because Node
+joins repeats with ", " and base64 drops both characters.
+
+Its replacement, written the same hour, was wrong by one step in its padding
+arithmetic and rejected every name whose encoding ends in `==` — most names, and
+every non-ASCII one, which is what it had been added to protect. The tests
+written for 112 caught it in a minute. **112 could never have been caught by a
+test**, because unreachable code passes every test that does not assert it is
+reachable.
+
+**113 was mine, and it was a design consequence rather than an oversight.** The
+store is content-addressed and never deletes; each account has a 64 MB quota.
+Correct for the CLI, where choosing and sending are one action. The dashboard
+uploads when a file is _chosen_ — which is what makes size and type visible
+before the prompt goes out — and that turned the same unchanged rule into a
+trap: the quota stopped bounding what an operator had sent and began bounding
+what they had ever clicked. Nine abandoned picks exhaust an account, permanently,
+because nothing in the system could delete anything.
+
+An unsent attachment can now be released. A sent one cannot, because a ledger
+entry names it, and a record whose evidence can be deleted by the person it
+describes is not a record.
+
+The generalisation: **a limit is a statement about a workflow, and adding a
+workflow can invalidate it without touching the limit.**
+
+**114 and 115 are the cost of adding a surface.** The store keyed accounts by
+their display spelling for the quota and then for ownership — `account-name.ts`
+exists to prevent exactly that and says so in its own header, and eight modules
+fold through it while the newest one did not. The upload route did not bound
+`agentId`, because it arrived in a header rather than a JSON body and inherited
+none of the validation the body-reading routes apply. **A new entry point does
+not inherit the habits of the old ones.**
+
+### State
+
+**1,877 tests across 91 files**, both typechecks clean, host harness unchanged at
+its pre-existing 18 failed / 174 passed.
+
+**Seventeen of twenty-seven backlog items done.** T14 is closed on all three
+surfaces. Ten remain, three of them host-blocked write-ups (T6, T7, T8).
+
+**T2 remains the top item**, and it is now the only remaining item that can
+change what the project can be _shown_ to be rather than what it is.
