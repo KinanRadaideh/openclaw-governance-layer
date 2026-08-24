@@ -454,22 +454,22 @@ grouping is itself part of the design argument.
 
 |                      |                                                                                                                                                                    |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Production total** | **17,799 lines** — 10,657 across 39 files in `src/governance/`, plus 7,142 across the 11 HTTP, CLI and dashboard surface files tabulated below                     |
-| **Test total**       | **16,372 lines across 67 test files.** The suite _reports_ **1,794 tests across 87 files**, and both numbers are right about different things — see the note below |
+| **Production total** | **17,987 lines** — 10,843 across 39 files in `src/governance/`, plus 7,144 across the 11 HTTP, CLI and dashboard surface files tabulated below                     |
+| **Test total**       | **16,727 lines across 68 test files.** The suite _reports_ **1,802 tests across 88 files**, and both numbers are right about different things — see the note below |
 
-> **The 87 is a count of test-file _runs_, not of files. 1,794 is a count of
+> **The 88 is a count of test-file _runs_, not of files. 1,802 is a count of
 > test _executions_, not of distinct tests.** Ten of the governance test files
 > live under `src/gateway/` and the repository runs that directory under three
 > Vitest projects — `gateway-core`, `gateway-server`, `gateway-client` — so each
-> of the ten is executed three times. 54 unit + 3 ui + (10 × 3) = **87**. Those
+> of the ten is executed three times. 55 unit + 3 ui + (10 × 3) = **88**. Those
 > ten files hold **319 distinct tests, reported as 957**, so the distinct totals
-> are **1,156 tests across 67 files**.
+> are **1,164 tests across 68 files**.
 >
 > Neither number is wrong and the larger one is not inflated by accident: every
-> one of those 1,794 executions really ran, and running the gateway suite under
-> three project configurations is the point of doing it that way. But "1,794
-> tests across 87 files" invites a reader to believe there are 87 files, and
-> there are 67.
+> one of those 1,802 executions really ran, and running the gateway suite under
+> three project configurations is the point of doing it that way. But "1,802
+> tests across 88 files" invites a reader to believe there are 88 files, and
+> there are 68.
 >
 > **This is the same mistake this project already documented and warned about.**
 > `HANDOFF.md` §4 records that the host harness baseline was once written as "9
@@ -2631,6 +2631,204 @@ are done. **The HTTP route and the dashboard upload control are not**, so the
 project's standing three-surface rule is not yet met for this capability. Stated
 plainly rather than rounded up: T14 is built and one surface short.
 
+### 3.5.29 Binding the decision to the file it was made about (T23)
+
+The last remaining security fix in the backlog, and the one whose write-up is
+most useful to Chapter 4 — because the interesting part is not the code, which
+is small, but the sequence of claims the project made about this gap and had to
+withdraw one at a time.
+
+#### The defect, in one sentence
+
+The gate resolved the path an agent asked for, decided about the file that path
+named _at that instant_, and then handed the agent's original text back for the
+tool to resolve a second time — so anything that changed the meaning of that
+text in between was acted on without ever having been judged.
+
+A symbolic link is the easy way to change it. `workspace/notes` points at a
+harmless file when the gate looks; the gate says yes; the link is repointed at
+`/etc/shadow`; the tool opens `workspace/notes` and reads the secret. Two
+resolutions of one string, and only the first was governed.
+
+**Figure candidate** — _Figure 3.x: The check-then-open window._ Two timelines,
+gate and tool, with the swap between them: the gate resolving `notes` → `safe`,
+the attacker repointing `notes` → `secret`, the tool resolving `notes` → `secret`.
+The point the figure has to make is that both resolutions are correct; it is
+having two of them that is the defect.
+
+#### Three claims, each weaker than the last
+
+This is the part worth narrating, because the project's confidence about this
+gap was wrong three times in a row and each correction came from a different
+kind of work.
+
+1. **"The gate canonicalizes paths, so links are handled."** True of the
+   _static_ escape and still true — a link pointing outside the workspace at
+   decision time is caught, because canonicalization makes the path visibly
+   absolute and a workspace-relative allow rule stops matching it
+   (`path-toctou.test.ts` pins this beside the gap, because the two are easy to
+   confuse). It says nothing about a link repointed afterwards. **Corrected by
+   reading**, during round thirteen.
+
+2. **"The gap is real but inherent to any check-then-delegate design."** This
+   was recorded in the backlog as a limitation and would have gone into the
+   report as one. It is **false**, and finding that out cost one grep:
+   `PluginHookBeforeToolCallResult` — the shape a `before_tool_call` hook
+   returns — carries an optional `params` field, and the host applies it to the
+   call. The gate was never obliged to hand the string back. **Corrected by
+   T10's own qualification work**: writing the executable demonstration forced
+   someone to look at what the host actually accepts, which reading the
+   limitation had not.
+
+3. **"Re-resolving inside the gate would narrow the window."** Considered and
+   **rejected as theatre**. Two resolutions microseconds apart agree during an
+   attack; an attacker who can win a race can win it twice. A narrower window is
+   not a smaller defect, it is a defect that reproduces less often, which is
+   worse — it converts a finding a test can catch into one that only production
+   catches.
+
+The through-line for Chapter 4: **an admission is a claim too.** The project has
+argued that a promise needs a test asserting its boundary (§4.x.24); this is the
+same argument applied to a limitation. "Inherent to the design" sounds like
+humility and was doing the work of an unexamined assumption — it closed the
+question instead of opening it, and it survived twelve reviews because nobody
+audits the things a document already concedes.
+
+#### The design
+
+**Remove the second resolution rather than try to win the race.** The gate
+already computes the canonical absolute path in order to decide; it now returns
+that path, and the host substitutes it into the call. The link is followed once,
+by the gate, and never looked at again. There is no window because there is no
+second lookup.
+
+```
+before:  agent "via-link/notes.txt" → gate resolves → decides → tool re-resolves → opens ???
+after:   agent "via-link/notes.txt" → gate resolves → decides → tool opens the resolved path
+```
+
+Three pieces:
+
+| Piece                         | Where                                    | What it does                                                                                                          |
+| ----------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `resolveGovernedPath`         | `path-normalize.ts`                      | Returns the matching form, **the canonical absolute path**, and whether canonicalization actually redirected the call |
+| `resolveGovernedParamBinding` | `policy-engine.ts`                       | Turns that into a `params` override, for path tools only, and only when redirected                                    |
+| The substitution              | `agent-tools.before-tool-call.policy.ts` | Rebinds `params` above the rest of the chain, so every later stage judges the same file                               |
+
+`normalizeGovernedPath` survives unchanged as a one-line wrapper, so all
+fourteen call sites in the extractors are untouched.
+
+#### Why it is deliberately narrow, and what "narrow" bought
+
+The backlog flagged this task as risky before it was attempted, and the risk was
+real: `normalizedParams` is threaded through skill-workshop approval, voice
+confirmation, trusted tool policies and every plugin hook below the governance
+step. Substituting unconditionally would change the input to all of them on
+every call.
+
+So the substitution fires **only when canonicalization actually changed which
+file the path addresses**. Four exclusions:
+
+1. **Not when nothing was redirected** — which is nearly every call an agent
+   ever makes. Those flow on byte-identical, and a test asserts it.
+2. **Not for non-`path` tools.** A command or a URL has no path parameter to
+   rebind.
+3. **Not for `apply_patch`.** Its paths arrive as host-derived `derivedPaths`
+   rather than `params.path`; there is no parameter to rebind and writing one
+   would invent a field the tool does not read. Its resolution already happens
+   host-side, before the gate sees it.
+4. **Not on a block.** A refused call is not going to be made, and a `params`
+   field on a veto invites a reader to think the veto is conditional.
+
+The exclusion list is the design. A security fix whose blast radius is "every
+tool call in the system" is one that gets reverted after the first unrelated
+outage; one that fires on the small set of calls that actually carry the defect
+can be argued for on its merits.
+
+#### Two decisions that a probe made, not a preference
+
+**Written before the implementation, in the project's usual order.** Both came
+out of a ten-line probe against the real filesystem, and both would have been
+wrong if guessed.
+
+- **Separator drift.** `resolveToCwd` can return a mixed-slash form on Windows
+  while `realpath` returns the native one. A naive string comparison reports
+  "redirected" for a path with no link in it. Both sides go through
+  `path.resolve` before they are compared.
+- **Case correction.** `realpath` on Windows returns the on-disk spelling: an
+  agent that writes `SAFE/NOTES.TXT` gets `safe/notes.txt` back with no link
+  anywhere near it. Treating that as a redirection would have made T23 fire on
+  ordinary Windows calls — precisely the blast radius the task said to avoid —
+  so the comparison ignores case on Windows.
+
+  The justification is not convenience, and it matters that it is not: **case
+  cannot be swapped underneath the gate.** On a case-insensitive filesystem the
+  two spellings address the same file permanently, so there is no second
+  resolution to race. A link is the opposite — its target is data, and data can
+  change. On a case-_sensitive_ filesystem the comparison stays exact, for the
+  same reason: there, two spellings really are two files.
+
+#### The consequence that broke a hundred assertions in one line
+
+Allowing used to mean returning `undefined`. It no longer always does — an
+allowed call whose path was redirected returns `{ params }`. Every test helper
+in the project that read _absence of a decision_ as "allow" therefore reported
+that redirected call as an escalation:
+
+```ts
+// before — infers allow from a missing value
+return "block" in decision ? "block" : "ask";
+```
+
+Fifteen copies of that helper existed across the test suite, and one of them
+failed immediately. All fifteen now ask the question directly
+(`"requireApproval" in decision ? "ask" : "allow"`).
+
+**Worth a paragraph in Chapter 4**, because it is the project's central finding
+appearing one more time and in its purest form: _the helper was not checking
+whether the call was allowed; it was checking whether anything was returned, and
+treating the two as the same thing._ That held for as long as they happened to
+coincide. It is the check/claim line — a check makes a silent claim about what
+it compares against — restated as: **a value's absence is a claim about meaning,
+and it is exactly as unexamined as the value.**
+
+That fifteen identical copies existed is itself the reason the change was cheap
+to make and expensive to have needed: one shared helper would have been one
+edit, and would also have made the assumption visible enough to question.
+
+#### What this closes, and what it honestly does not
+
+**Closed.** The link-swap window for path tools taking `path` or `file_path`.
+The tool receives an absolute path with no link left in it — asserted directly,
+by resolving the returned path again and requiring that it resolves to itself,
+because a substitution that still contained a link would look like a fix while
+changing nothing. And the end-to-end replay: decide, swap the link, and the path
+the tool holds still names the file that was judged.
+
+**Not closed, and this needs saying in Chapter 4 rather than being discovered:**
+
+1. **Replacing the target itself.** The canonical path is link-free when
+   produced, but if the file _at that path_ is replaced afterwards, the tool
+   opens the replacement. This is a different attack — it needs write access to
+   the target, not to a name pointing at it — and no parameter substitution can
+   prevent it. Closing it needs the tool to open by handle rather than by path,
+   which is a host change.
+2. **A file that does not exist yet.** Canonicalization resolves the parent and
+   re-attaches the final segment, so a link created _at that final segment_
+   between the decision and the open is still followed. The narrow residual
+   inside the case above.
+3. **`apply_patch`, by exclusion.** Its paths are host-resolved before the gate
+   sees them, so the gate is not the place this would be fixed.
+4. **The recursive search tools** (`grep`, `find`, `ls`) are unaffected: their
+   root is bound like any other path, and the descendants they walk were never
+   governed in the first place (T7, host-blocked).
+
+#### The sentence for the conclusion
+
+> The fix was not to check faster. It was to notice that the system was asking
+> the same question twice and only listening to the first answer — and to stop
+> asking it twice.
+
 ### 3.5.9 Recording administrative actions in the same chain
 
 The ledger originally recorded what agents did and how the policy judged them,
@@ -2848,9 +3046,9 @@ long and the grouping is the argument.
 `qa-round8-logic`, `qa-round8-security`: **81 tests** pinning the specific
 defects each round found, so none can silently return.
 
-|           |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Total** | **1,794 tests across 87 files** — measured 2026-08-24, after T4, T5 and T14 (§3.5.26–§3.5.28); 1,722 across 84 after the first dashboard component tests (§4.x.27), the core-tier split (§3.5.24), Root's authoring control (§3.5.23), the kill-switch end-to-end verification and the authoring-scope matrix (§3.5.21, §3.5.22). (1,564 across 75 after the bidirectional policy views, §3.5.20. (1,510 across 71 after the sixteenth QA pass, §4.x.25. (1,499 across 70 after T9, authentication auditing, §3.5.19. (1,480 across 68 before it, after the A1 follow-ups, the last of round thirteen, the hands-on UI pass and the three core invariants; 1,465 across 67 before `core-invariants.test.ts`; 1,404 across 64 after B1; 1,393 across 63 after the fourteenth QA pass and A7; 1,264 across 57 before rounds 13 and 14. The growth is almost entirely regression tests lifted out of the probes that produced each finding.) **Measured with `src/governance/`, `src/gateway/governance-*.test.ts`, `ui/src/pages/governance/`** — adding `ui/src/i18n` gives 1,564 across 73, which is a different set and not a regression. **Every figure in this row is a count of test-file _runs_ and test _executions_:** the ten `src/gateway/` files run under three Vitest projects, so the distinct totals behind the 1,794/87 are **1,156 tests across 67 files**. See §3.5.2. |
+|           |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Total** | **1,802 tests across 88 files** — measured 2026-08-24, after T23 (§3.5.29); 1,794 across 87 after T4, T5 and T14 (§3.5.26–§3.5.28); 1,722 across 84 after the first dashboard component tests (§4.x.27), the core-tier split (§3.5.24), Root's authoring control (§3.5.23), the kill-switch end-to-end verification and the authoring-scope matrix (§3.5.21, §3.5.22). (1,564 across 75 after the bidirectional policy views, §3.5.20. (1,510 across 71 after the sixteenth QA pass, §4.x.25. (1,499 across 70 after T9, authentication auditing, §3.5.19. (1,480 across 68 before it, after the A1 follow-ups, the last of round thirteen, the hands-on UI pass and the three core invariants; 1,465 across 67 before `core-invariants.test.ts`; 1,404 across 64 after B1; 1,393 across 63 after the fourteenth QA pass and A7; 1,264 across 57 before rounds 13 and 14. The growth is almost entirely regression tests lifted out of the probes that produced each finding.) **Measured with `src/governance/`, `src/gateway/governance-*.test.ts`, `ui/src/pages/governance/`** — adding `ui/src/i18n` gives 1,564 across 73, which is a different set and not a regression. **Every figure in this row is a count of test-file _runs_ and test _executions_:** the ten `src/gateway/` files run under three Vitest projects, so the distinct totals behind the 1,802/88 are **1,164 tests across 68 files**. See §3.5.2. |
 
 Two methodology notes worth keeping:
 

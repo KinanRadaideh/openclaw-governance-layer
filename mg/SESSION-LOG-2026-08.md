@@ -1520,3 +1520,95 @@ the tip is verified.
 thing to do next session.
 
 **T2 remains the top item.**
+
+---
+
+## 19. T23 — the same question, asked twice (2026-08-24)
+
+The last backlog item that changed the security story rather than the write-up.
+
+**The defect.** The gate resolved an agent's path, decided about the file that
+path named at that instant, and handed the original string back for the tool to
+resolve a second time. A link repointed in between was acted on without ever
+having been judged.
+
+**The fix is a subtraction.** The gate already computes the canonical absolute
+path in order to decide; it now returns it, and the host substitutes it. The
+link is followed once and never looked at again. There is no window because
+there is no second lookup.
+
+**The obvious alternative was rejected, and the reason is the argument.**
+Re-resolving just before the open narrows the gap; it does not close it. Two
+resolutions microseconds apart agree during an attack, and an attacker who can
+win a race can wait for the second check and win it again. A narrower window is
+not a smaller defect — it is a defect that reproduces rarely enough to pass
+testing and still occur in use, which is worse than the one you can reproduce.
+
+### Three claims withdrawn on the way here
+
+Worth the report's space, because the project's confidence about this gap was
+wrong three times and each correction came from different work.
+
+1. _"Canonicalization handles links."_ True of the **static** escape, and still
+   true. Silent about a link repointed afterwards. Corrected by reading.
+2. _"The gap is inherent to any check-then-delegate design."_ **False**, and one
+   grep showed it: the host's hook result carries a `params` field it applies.
+   Corrected by writing T10's executable demonstration — which forced somebody
+   to look at what the host actually accepts, as reading the limitation had not.
+3. _"Re-resolving would narrow the window."_ Rejected as theatre, above.
+
+**The through-line: an admission is a claim too.** The project has argued that a
+promise needs a test asserting its boundary. This is that argument applied to a
+limitation. "Inherent to the design" sounded like humility and was doing the
+work of an unexamined assumption — and it survived twelve reviews because nobody
+audits what a document already concedes.
+
+### Two decisions a probe made rather than a guess
+
+Written before the implementation, in the usual order, and both would have been
+wrong if reasoned about instead of measured. On Windows `realpath` normalises
+separators **and case**: an agent writing `SAFE/NOTES.TXT` gets `safe/notes.txt`
+back with no link anywhere near it. A naive comparison would have declared that
+a redirection and fired the substitution on ordinary Windows calls — exactly the
+blast radius the task warned about.
+
+Case is ignored on Windows for a security reason rather than a convenient one:
+on a case-insensitive filesystem the two spellings address the same file
+permanently, so there is nothing to race. A link is the opposite — its target is
+data, and data changes.
+
+### The thing that broke, which is the finding
+
+Allowing used to mean returning `undefined`. It no longer always does. **Fifteen
+copies** of a test helper read absence of a decision as "allow", and one failed
+the moment T23 landed, reporting an ordinary allowed call as an escalation.
+
+Nothing was wrong with those helpers when written. They asked _did anything come
+back?_ and used it to mean _was this allowed?_, and the two agreed for as long
+as they happened to. It is the project's central finding in its purest form:
+**a value's absence is a claim about meaning, and it is exactly as unexamined as
+the value.**
+
+That fifteen identical copies existed is its own small lesson. One shared helper
+would have been one edit — and would have made the assumption visible enough to
+question years earlier.
+
+### What was deliberately not closed
+
+Stated so it is not discovered late. Replacing the file _at_ the canonical path
+still works — a different attack, needing write access to the target rather than
+to a name, and closable only by opening by handle, which is a host change. A
+path that does not exist yet has its parent resolved and its final segment
+re-attached, so a link created at that segment is still followed. `apply_patch`
+is excluded because its paths are host-resolved before the gate sees them.
+
+### State
+
+**1,802 tests across 88 files**, both typechecks clean, host harness unchanged
+at its pre-existing 18 failed / 174 passed. T23 added one file and eight tests
+and changed no existing result.
+
+Eight backlog items remain: T2, T3, T6, T7, T8, T13, T17, T18. Three of those
+(T6, T7, T8) are host-blocked and are written up as limits rather than
+scheduled. **T2 remains the top item** — and it is now the only item left that
+can change what the project can be shown to be.

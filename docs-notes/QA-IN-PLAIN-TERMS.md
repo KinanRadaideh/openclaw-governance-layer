@@ -2129,6 +2129,103 @@ things _to do_. Work that was decided and finished inside one sitting never had
 a moment where anyone needed to write it down. The list was complete as a plan
 and incomplete as an inventory, and nothing in the routine told the two apart.
 
+## 5.22 Asking the same question twice and only listening to the first answer
+
+This one is a fix rather than a finding — the last thing on the list that
+changed how safe the system actually is, rather than how well it is described.
+
+### The problem, with no code in it
+
+Imagine a security guard who checks visitors against a list. Someone hands over
+a card that says "Room 12". The guard looks up Room 12, sees it is a public
+meeting room, and says: fine, go ahead. Then the guard hands the card back and
+the visitor walks off to find Room 12 themselves.
+
+In between, somebody changes what "Room 12" points to. The sign now leads to the
+records office. The visitor follows the card — the same card the guard
+approved — and ends up somewhere the guard would never have allowed.
+
+Nobody lied. The guard checked properly. The visitor followed the card exactly.
+The problem is that **the card was read twice**, and only the first reading was
+checked.
+
+That is precisely what the system was doing with file paths. A shortcut — a
+"symbolic link", one name that points at another file — could be repointed
+between the moment the system approved it and the moment the file was opened.
+
+### The fix that does not work, and why it is tempting
+
+The obvious repair is to check again, just before opening. Look at the card one
+more time.
+
+It does not work, and it is worth understanding why, because it is the answer
+most people reach for first. The two checks happen a fraction of a second apart.
+Anyone capable of changing the sign in that gap is capable of waiting for the
+second check to pass and _then_ changing it. You have not removed the problem;
+you have made it happen less often — which is worse than leaving it alone,
+because now it is rare enough to slip through testing and still show up in real
+use.
+
+### The fix that does work
+
+Stop handing the card back.
+
+The guard already looked up where Room 12 is. So instead of returning the card
+and letting the visitor find their own way, the guard walks them to the actual
+door. The sign can be repointed as often as anyone likes; nobody is reading it
+any more.
+
+In the system: the gate already works out the real file in order to decide about
+it. It now passes that real file onward, and the tool opens exactly what was
+approved. There is no second look-up to interfere with, because there is no
+second look-up.
+
+### Why it only does this occasionally, on purpose
+
+Almost every file an agent opens has no shortcut in it at all. For those, the
+system changes nothing whatsoever — the request goes through exactly as written,
+character for character.
+
+This was a deliberate constraint rather than an optimisation. The path a request
+takes after the gate passes through four or five other checks, and quietly
+rewriting every request would have changed the input to all of them, on every
+single call. A safety improvement that touches everything is one that gets
+switched off the first time something unrelated goes wrong. One that touches
+only the handful of requests that actually carry the danger can be defended on
+its own terms.
+
+### The thing that broke, which is the interesting part
+
+The system used to signal "this is allowed" by **saying nothing at all**. No
+objection meant go ahead.
+
+Now an allowed request sometimes comes back carrying the corrected file path.
+Something _is_ returned — and fifteen places in the test suite had been reading
+"nothing came back" as "it was allowed". One of them immediately reported a
+perfectly ordinary request as though a human had been asked to approve it.
+
+Nothing was wrong with those fifteen checks when they were written. They asked
+"did anything come back?" and used the answer to mean "was it allowed?", and
+those two questions gave the same answer for as long as they happened to.
+
+This is the same lesson the project has now found more than a hundred times, and
+this is the cleanest example of it: **when you let silence stand for a meaning,
+you have made an assumption — and it is exactly as unchecked as everything else
+was before someone looked.**
+
+### What it still cannot stop
+
+Worth being straight about. The system now opens the exact file it approved. If
+somebody _replaces that file itself_ in the meantime, the system opens the
+replacement, and no amount of care about names would prevent it — that attack
+needs the ability to overwrite the actual file, which is a different and much
+larger privilege than repointing a shortcut.
+
+And for a file that does not exist yet, the system resolves the folder it will
+live in but cannot resolve the file, so a shortcut created at that exact name in
+the gap is still followed. Narrow, real, and written down rather than left for
+someone to find.
+
 ## 7. The single lesson
 
 Rounds five and six found the same mistake wearing different clothes.

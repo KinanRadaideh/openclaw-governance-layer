@@ -1438,6 +1438,80 @@ applies, so the gate can hand the tool the path it actually judged. That is T23.
 A re-resolve inside the gate was considered and rejected as theatre: two
 resolutions microseconds apart would agree during an attack.
 
+### T23 closed (2026-08-24) — the decision bound to the path it judged
+
+Not a QA finding: this is the fix for a limitation the project had already
+recorded, and the last item in the backlog that changed the security story
+rather than the write-up. Report material in `CHAPTER3-MATERIAL.md` §3.5.29;
+plain language in `QA-IN-PLAIN-TERMS.md` §5.22. Tests in
+`src/governance/path-binding.test.ts` (8), beside the demonstration of the gap
+in `path-toctou.test.ts`.
+
+**The defect.** The gate resolved an agent's path, decided about the file that
+path named at that instant, then handed the original string back for the tool
+to resolve a second time. A symbolic link repointed between the two resolutions
+was acted on without ever having been judged.
+
+**The fix.** Remove the second resolution rather than race it. The gate already
+computes the canonical absolute path in order to decide; it now returns it in
+the hook result's `params`, which the host applies. The link is followed once,
+by the gate, and never looked at again.
+
+| Piece                         | File                                     | Responsibility                                                                      |
+| ----------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------- |
+| `resolveGovernedPath`         | `path-normalize.ts`                      | Matching form, canonical absolute path, and whether canonicalization **redirected** |
+| `resolveGovernedParamBinding` | `policy-engine.ts`                       | The `params` override — path tools only, redirected calls only                      |
+| The substitution              | `agent-tools.before-tool-call.policy.ts` | Rebinds above the rest of the chain, so every later stage judges the same file      |
+
+**Deliberately narrow, and the exclusions are the design.** It fires only when
+canonicalization actually changed which file the path addresses — nearly every
+call is untouched and byte-identical. Not for non-`path` tools; not for
+`apply_patch`, whose paths arrive as host-derived `derivedPaths` rather than as
+a parameter; not on a block, since a refused call is not going to be made. A
+security fix whose blast radius is every tool call gets reverted after the first
+unrelated outage.
+
+**Two decisions a probe made rather than a guess**, written before the
+implementation in the project's usual order:
+
+| Hazard          | What the probe found                                                                                         | Consequence                                                            |
+| --------------- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| Separator drift | `resolveToCwd` can return mixed slashes on Windows where `realpath` returns native ones                      | Both sides go through `path.resolve` before comparison                 |
+| Case correction | `realpath` returns the on-disk spelling — `SAFE/NOTES.TXT` comes back `safe/notes.txt` with no link involved | Comparison ignores case on Windows, because case **cannot be swapped** |
+
+The case rule is a security argument, not a convenience: on a case-insensitive
+filesystem two spellings address the same file permanently, so there is no
+second resolution to race. A link is the opposite — its target is data, and data
+can change. On a case-sensitive filesystem the comparison stays exact.
+
+**The consequence worth recording.** Allowing used to mean returning
+`undefined`; it no longer always does. **Fifteen copies** of a test helper read
+absence of a decision as "allow", and one failed immediately. All fifteen now
+ask `"requireApproval" in decision ? "ask" : "allow"` instead of inferring
+meaning from a missing value.
+
+That is the project's central finding in its purest form. The helper was not
+checking whether the call was allowed; it was checking whether anything came
+back, and treating the two as identical — which held for exactly as long as they
+happened to coincide. **A value's absence is a claim about meaning, and it is
+exactly as unexamined as the value.**
+
+**Three claims withdrawn on the way here**, which is the part Chapter 4 uses:
+"canonicalization handles links" (true of the static escape only); "the gap is
+inherent to check-then-delegate designs" (false — the host accepts `params`, and
+one grep showed it); and "re-resolving inside the gate would narrow the window"
+(rejected as theatre — two resolutions microseconds apart agree during an
+attack). **An admission is a claim too**, and it survived twelve reviews because
+nobody audits what a document already concedes.
+
+**What is not closed**, stated rather than left to be found: replacing the file
+_at_ the canonical path still works (a different attack, needing write access to
+the target rather than to a name — closing it needs open-by-handle, a host
+change); a path that does not exist yet has its parent resolved and the final
+segment re-attached, so a link created at that segment is still followed;
+`apply_patch` is excluded by design; and the recursive search tools are
+unaffected, their descendants having never been governed (T7, host-blocked).
+
 ### Documentation audit (2026-08-24) — findings 108-111
 
 Not a QA round: no probe was written and the system was not attacked. The
