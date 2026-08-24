@@ -1958,7 +1958,7 @@ Two backlogs, deliberately kept apart rather than merged:
 | List       | What it is                                           | State            |
 | ---------- | ---------------------------------------------------- | ---------------- |
 | **T1–T27** | The original project — build, verify, defend         | 17 done, 10 left |
-| **M1–M6**  | Multi-tenancy, requested 2026-08-24 and added on top | 3 done, 3 left   |
+| **M1–M6**  | Multi-tenancy, requested 2026-08-24 and added on top | 4 done, 2 left   |
 
 Merging them would have been tidier and wrong: the T-list is a project being
 finished and the M-list is a feature being started, and a reader deciding what
@@ -1968,7 +1968,8 @@ to do next needs to see which is which.
 
 **1,926 tests across 95 files** (1,224 distinct across 71), both typechecks
 clean, host harness at its pre-existing 18 failed / 174 passed. Nineteen QA
-findings closed in two rounds this week.
+findings closed in two rounds this week. (M4 later the same day took this to
+2,108 across 99 — see §24.)
 
 **Eighteen commits have never left this machine.** That is the single largest
 risk on the project and the cheapest to remove, and it is now stated in
@@ -1980,3 +1981,290 @@ three days.
 disappeared: the dashboard has now been driven by hand twice, so what remains
 unobserved is specifically _a language model deciding to make a tool call and
 being refused_.
+
+---
+
+## 24. M4 — the agent registry (2026-08-24, late)
+
+The session opened by checking M1–M3 rather than trusting the write-up. The full
+governance suite ran clean at **1,926 across 95 files** — exactly the figure
+`HANDOFF.md` records — so the three finished subtasks were verified, not assumed,
+before anything new was built on them.
+
+### What the problem turned out to be
+
+M4 was written on the backlog as "a first-class agent record", which reads like
+a small data-model task. Reading the code changed its shape.
+
+`knownAgentIds()` in `policy-projection.ts` walks four collections in the policy
+document — agent-scoped rules, posture overrides, escalation overrides, the
+locked-down set — plus any extra ids a caller folds in from live sessions or
+account assignments. Every surface that needed a list of agents consumed that:
+the dashboard's rule-scope picker, its agent-policy lookup, the kill switch's
+datalist, `policy rule-agents` on the command line.
+
+It is a reasonable reconstruction with one hole it cannot close by construction:
+**an agent that has never been the subject of a rule, a posture, a lock or an
+assignment does not appear in it.** A newly provisioned agent is that agent
+exactly. So M6's "create an agent" button would have created something that
+immediately failed to exist anywhere.
+
+That is the sentence the report should carry: **creating an agent was not a
+missing button, it was a missing noun.**
+
+### The design, and the decision inside it that took the longest
+
+The record is four fields and a timestamp — id, display name, `groupId`,
+`adminId` — kept in `agents.json` beside `users.json` rather than in the policy
+document. The document says how an agent is _judged_; the registry says it
+_exists_. Merging them would make removing a rule capable of removing an agent.
+
+The decision that took the longest was **where the assignment constraint lives.**
+
+The new invariant is "a User or Viewer may only hold agents owned by the
+Administrator answerable for them". M3's precedent is emphatic — the group and
+manager rules were put in the store rather than at the HTTP boundary, with a
+test named for it, so the command line cannot create what the dashboard refuses.
+Following that precedent literally would have put the check in
+`setUserAssignedAgents`, which meant `user-store.ts` importing
+`agent-registry.ts` while the registry already imports `user-store.ts` to
+validate an owner against the account file. A cycle between two stores.
+
+The resolution kept the principle and moved the function: the registry owns the
+join, so `assignAgentsToAccount` lives there and `setUserAssignedAgents` stays as
+the unchecked primitive that writes the file — the arrangement `updatePolicy`
+already has under the policy setters, where the raw read-modify-write exists but
+is deliberately unreachable from the HTTP surface. **One import direction is
+worth more than one function in the "obvious" place.**
+
+### The finding worth the most space
+
+M3 decided that a missing `groupId` means **unmigrated**: the account cannot sign
+in, because there is no way to know which organisation it belonged to and a guess
+would file a person into a company nobody put them in. That was itself a
+deliberate break from the project's presence-based migration pattern, which had
+worked five times.
+
+M4 faces a structurally identical situation — a record that may simply not exist
+— and lands on the **opposite** answer. A missing agent record means the agent
+carries on exactly as before.
+
+Both are right. Neither follows from the data. What decides each is what the
+absence would cost: a wrong guess about a person's organisation misfiles a
+person, while refusing to work with an unregistered agent breaks every
+installation that upgrades and protects an owner who does not exist.
+
+> **"What does missing mean?" is a question about consequences, not about
+> schema.** The same blank deserves opposite answers in two places, and answering
+> it by habit is how one of them comes out wrong.
+
+That gives the tenant work three distinct _shapes_ of design finding, which is
+better material than any one of them alone: a correct rule attached to the wrong
+noun (M3), correct code turned into a defect by a change elsewhere (finding 119),
+and one absence read two opposite ways (M4).
+
+### The hole left open deliberately
+
+An **unregistered** agent id is still assignable. The ownership rule can
+therefore be sidestepped by simply not registering an agent, which makes the
+registry a statement of ownership rather than a gate on it.
+
+It was left open because closing it means refusing unregistered ids, which
+breaks assignment on every deployment that upgrades into M4 — all of their agents
+predate the registry — and buys nothing, since an agent nobody has claimed cannot
+be stolen from an owner who does not exist. The proper fix needs registration to
+be mandatory, which needs M6's provisioning first.
+
+A test is named for the hole so a later reader cannot mistake the rule for a
+stronger one. That habit came out of `sweepOrphans` (finding 113) and the
+unreachable validator (finding 112): this project has twice shipped code that
+advertised a property it did not have.
+
+### Two things fixed on the way past
+
+- **Ownership changes now repair the assignments they invalidate.** A transfer or
+  an unregistration releases the agent from every account that no longer
+  qualifies, and mirrors it into live sessions. Without that, the account file
+  would assert something the registry contradicts a second after it was written
+  — the `userAsk` shape again.
+- **`CLI-REFERENCE.md` had no change-log entry for M3's `governance groups`
+  commands**, though the commands themselves were documented. Added alongside
+  M4's.
+
+### T16 repaid rather than deepened
+
+M4 adds five routes and five commands. Both would have landed in files already
+past the project's 700-line limit, so both were split along seams T16 had already
+named — the agent routes into `governance-dashboard-agents.ts`, the agent
+commands into `register.governance.agents.ts`, with the shared CLI identity gate
+lifted into `governance-cli-gate.ts` so neither command module imports the other.
+
+| File                          | Before | After     |
+| ----------------------------- | ------ | --------- |
+| `governance-dashboard-api.ts` | 1,219  | **1,208** |
+| `register.governance.ts`      | 863    | **848**   |
+
+Both are still over the limit and T16 stays open. The point is the direction: the
+change that would normally have deepened the debt reduced it slightly instead.
+
+### What was not done, and why
+
+**The dashboard has no authoring controls for the registry.** It consumes it —
+the registry drives every agent list, the reconstruction is now the fallback
+behind it, and a registered display name is shown _beside_ the id in the pickers
+rather than instead of it, because the id is what every rule, ledger entry and
+command argument uses.
+
+Creating, renaming, re-owning and unregistering from the browser is M6's
+Administrator panel. So M4 is complete on two of the project's three surfaces and
+consumption-only on the third, by plan. Recorded that way in all three registers,
+rather than claiming the three-surface rule is met.
+
+### The state
+
+**2,108 tests across 99 files** (1,300 distinct across 73), both typechecks
+clean, host harness unchanged at 18 failed / 174 passed. The suite grew by 182
+executions and two-thirds of that came from extending the malformed-body table
+and the privilege matrix with the five new routes rather than from the two new
+test files — which is exactly what those two tables exist to make cheap.
+
+M4 done; **M5 and M6 remain**, and M6 is now unblocked — it has somewhere to
+record who owns a provisioned agent, which was the whole reason the order was
+forced.
+
+---
+
+## 25. T25 and T16, and a number that added up (2026-08-25)
+
+Three items, none of them M-series, all of them things that needed nobody's
+decision. The M-series was paused first: M1–M4 are done, and the eleven
+decisions M5 and M6 need before either can start are now written into
+`REMAINING-WORK.md` §"Open before M5 or M6 starts" rather than left to be
+rediscovered.
+
+### T25 — the finding was better than the fix
+
+The project had carried **18 failed / 174 passed** in OpenClaw's own harness
+suite since 2026-08-13, quoted in every verification step, written up in
+`UPSTREAM-BUG-REPORT.md` as one defect: a fixture removing its temp directory
+while a SQLite handle inside it was still open.
+
+Running them was the first thing this session did, and the output did not match
+the description. The 18 are not in the file the note names, and only one of the
+nine distinct failures is that bug. Six assert POSIX shell quoting against a
+relay that correctly emits Windows quoting; two assert a `path.join` expectation
+against production that correctly uses `path.resolve`.
+
+**In eight of nine, the production code was right and the test was wrong.** That
+inversion is part of why the explanation went unexamined — a failing test is
+normally read as a failing product.
+
+#### How it survived
+
+Both files have **exactly nine distinct failures**.
+
+The note reasoned "9 distinct names × 2 projects = 18", which is correct for the
+relay file, and cross-checked the 9 against the other file's count. The
+arithmetic reconciled on every re-reading. Nobody checked the file name, because
+nothing in the sum invited it.
+
+> A figure that reconciles is not evidence that it is a figure about the subject
+> you think it is. Verification effort goes to the part that can be recomputed,
+> and a claim whose _subject_ is wrong survives precisely because its
+> _arithmetic_ keeps passing.
+
+That is the third instance of one pattern in this project's own records —
+round eleven's guard that could not name what it compared against, T19's
+inventory that claimed "re-measured every row" having re-measured one, and now
+this. All three are claims that are cheap to re-read and expensive to re-verify,
+and in each case re-reading quietly replaced re-verifying. Written up as a set
+in `CHAPTER3-MATERIAL.md` §4.x.31, because the set is worth more than any member.
+
+#### The repair
+
+All three fixes are test-side, because the product was correct:
+
+- The platform quoting rule **restated** in the test, deliberately not imported
+  from the module under test. A test that builds its expectation by calling the
+  function it is testing asserts `f(x) === f(x)` and passes whatever the rule
+  becomes. The duplication is the mechanism, not a compromise.
+- `path.resolve` in the derived-path expectation, matching what "absolute"
+  means on the platform running the test.
+- `closeOpenClawAgentDatabases()` before the temp directory is removed.
+  `openclaw-agent-db.ts` already carried the note _"Windows otherwise cannot
+  remove the file during caller cleanup"_ and exported the closer for exactly
+  this; two fixtures never called it.
+
+The third fix also closed the **nine** failures in
+`host-hooks.contract.test.ts` — the ones the bug report actually describes,
+which nobody had been counting because they were not in the quoted baseline.
+
+**27 tests fixed. The standing baseline is now zero**, which matters less for
+the 27 than for the lookup it removes: a permanent known-failure list means every
+future failure has to be checked against it before it can be believed, and round
+six exists because partial test runs hid nineteen real regressions for weeks.
+
+### T16 — five cuts, one sentence each
+
+`governance-dashboard-api.ts` went from **1,219 code lines to 613** — under the
+project's own limit for the first time.
+
+The criterion was not line count. Each cut had to leave a file whose
+authorization can be stated in one sentence, which is a reviewability argument:
+one rule can be checked against a whole file, a mixture has to be checked route
+by route.
+
+| Module           | Its sentence                                                   | Lines |
+| ---------------- | -------------------------------------------------------------- | ----- |
+| `-accounts`      | Root manages people                                            | 299   |
+| `-agents`        | An Administrator administers the agents they own (M4)          | 280   |
+| `-agent-control` | User tier or above, and you must manage this agent             | 414   |
+| `-oversight`     | Viewer and above; nothing changes state, every answer filtered | 81    |
+| `-rule-requests` | One queue: Viewers read, Users add, Administrators decide      | 240   |
+| `-api`           | The policy document, and the dispatcher                        | 613   |
+
+Two placements a line-count split would have got wrong, and both come from
+decisions this project already made:
+
+- **The kill switch went with the prompt routes**, because stopping an agent is
+  acting on a workload you are responsible for, not changing the rules it is
+  judged by. That is T27's distinction, which existed because folding the two
+  together once meant withholding somebody's rule-writing also removed their
+  ability to stop their own agent.
+- **`deployment` and `pending-decisions/decide` were kept out of `-oversight`**
+  though both look like they belong: one reads at Root because it maps how to
+  attack the installation, the other writes. Either would have cost the file its
+  single sentence.
+
+`MAX_BODY_BYTES` moved to `http-common.ts` as `MAX_JSON_BODY_BYTES` rather than
+being copied — two body limits is how the two drift apart.
+
+**T16 is not closed.** `governance-page.ts` (2,412) and `register.governance.ts`
+(848) remain over, and they are the harder two precisely because no
+authorization sentence has been found for either. The useful thing to carry
+forward is the criterion, not the count.
+
+### Three smaller things
+
+- **The three `unicorn` array-mutation errors** in `governance-page.ts` are
+  fixed (`sort` → `toSorted`, two `reverse` → `toReversed`). One was
+  load-bearing rather than cosmetic: the ledger view reversed an array derived
+  from component state, guarded only by a `slice()` a later edit could have
+  dropped.
+- **T20's row was itself mangled.** T20 repaired a sentence that had lost a
+  clause; the row recording the repair carried its own stray `.,` and quoted
+  only the broken form, so a reader checking whether it was done found something
+  that looked exactly as broken as the thing it claimed to have fixed. The
+  underlying sentence was genuinely fixed; the row now says so legibly. Same
+  shape as finding 116 — _a fix is not audited as hard as the thing it fixes_.
+- **`UPSTREAM-BUG-REPORT.md` now carries its status and its scope**: fixed
+  locally rather than filed, correct about the nine failures it describes, and
+  never about the eighteen the project was quoting.
+
+### The state
+
+Governance suite **2,108 across 99 files**, both typechecks clean, and for the
+first time **no known-failing host tests**: `native-hook-relay.test.ts` 192
+passed, `host-hooks.contract.test.ts` 71 passed.
+
+Nothing is committed; the tree holds M4, T25 and T16 together for review.

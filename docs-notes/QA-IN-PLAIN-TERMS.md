@@ -2520,6 +2520,265 @@ An existing test demoted one and failed immediately. That is what a test suite
 is for: not checking the thing you were thinking about, but the thing you were
 not.
 
+## 5.26 The agent that was never written down
+
+Everything the system does is about agents. It decides what they may do, records
+what they did, and can stop them mid-task. And until this week, **it had no
+record that any particular agent existed.**
+
+That sounds impossible, so it is worth spelling out exactly how it worked.
+
+### How an agent used to "exist"
+
+The system kept a rulebook. An agent turned up in that rulebook when somebody
+wrote a rule about it, or set how strictly it should be watched, or shut it down
+in an emergency, or put someone in charge of it. When the dashboard needed a
+list of agents, it read the rulebook and collected every name it found there.
+
+That is a sensible guess and it works most of the time. It has one hole it can
+never close: **an agent that nobody has yet had an opinion about is invisible.**
+
+Which is exactly the problem, because the next thing the project has to build is
+a panel where an administrator creates a new agent. A brand-new agent is, by
+definition, one nobody has written a rule about. It would be created and would
+immediately not appear anywhere.
+
+> **The sentence that reframed the work:** creating an agent was not a missing
+> button. It was a **missing noun**. There was nothing to name, nothing to own,
+> and nothing to show when the honest answer was "none".
+
+### What was built
+
+A register of agents. Each entry says four things: which agent, what to call it,
+which organisation it belongs to, and **which single administrator answers for
+it**.
+
+The register is now the system's answer to "which agents do we have?", and the
+old rulebook-scanning trick has been demoted to a backup. Both are kept, and
+each covers what the other cannot:
+
+- The **register** knows about agents nobody has written a rule for yet.
+- The **rulebook scan** knows about agents that were already running before the
+  register existed.
+
+Drop either one and something real disappears from the screen — in the second
+case including from the emergency stop control, which would be the worst
+possible thing to quietly shorten.
+
+### The new rule about who gets which agent
+
+An ordinary user or viewer can now only be given agents belonging to **their
+own** administrator.
+
+Without that, "each administrator runs their own set of agents and their own
+people" was just a description of a screen. Any administrator could hand
+somebody else's agent to their own staff, and the register would say one thing
+while the world did another.
+
+### The gap that was left open on purpose
+
+There is a hole in that rule, and it is easier to defend than to hide.
+
+Agents that were running before the register existed are not in it, so nobody
+owns them — and the system still allows those to be handed out freely. Which
+means the ownership rule can be side-stepped by simply not registering an agent.
+
+Closing it would mean refusing to work with any unregistered agent. That would
+break every existing installation the moment it upgraded, and it would protect
+nobody: an agent that nobody has claimed cannot be stolen from an owner who does
+not exist. The proper fix arrives when the system can create agents itself,
+because only then can it insist every agent has a record.
+
+There is a test whose name says the hole out loud, so that nobody reading the
+code in six months mistakes the rule for a stronger one than it is.
+
+### The same blank, read two opposite ways
+
+Last week's change, groups, decided that an account with no organisation
+recorded **cannot sign in** — because there is no way to work out which
+organisation somebody belonged to, and guessing would file people into a company
+nobody put them in.
+
+This week's change decides the opposite for agents: an agent with no record
+**works exactly as before**.
+
+The two look identical in the data — a field that is simply not there — and the
+answers are opposites. What separates them is not the field. It is what the
+missing answer would cost:
+
+| Missing thing             | Reading            | Why                                                                                    |
+| ------------------------- | ------------------ | -------------------------------------------------------------------------------------- |
+| an account's group        | cannot sign in     | there is no safe guess, and a wrong guess misfiles a person                            |
+| an agent's register entry | carry on as before | the agent is still fully governed; refusing breaks working systems and protects nobody |
+
+That is worth keeping as a general point: **"what does it mean when this is
+missing?" is a question about consequences, not about data.** The same blank
+deserves opposite answers in two places, and answering it out of habit is how
+you get one of them wrong.
+
+### Tidying that is not tidying
+
+When an agent is handed from one administrator to another, everyone the previous
+administrator had given it to loses it automatically.
+
+That could look like housekeeping. It is not. The rule above says people may
+only hold their own administrator's agents — so if the old holders kept it, the
+records would immediately contradict each other. The system would be stating
+something that was true when it was written and became false a second later.
+
+This project has already been bitten by exactly that shape once: a setting that
+was saved, shown on screen as active, and never actually consulted. The fix both
+times is the same principle — **put the record right at the moment the thing
+changes, rather than expecting everyone who reads it later to work out that it
+is stale.**
+
+### What a refusal is allowed to give away
+
+If an administrator in one organisation asks to rename an agent belonging to a
+different organisation, the system says **"no such agent"** — not "that is not
+yours".
+
+The second answer would be more helpful and would also confirm that the name is
+in use, which turns every one of these commands into a way of probing what other
+organisations have called their agents. Saying "no such agent" is the same
+choice the sign-in page already makes when it refuses to tell you whether a
+username exists.
+
+One thing does leak, and it is written down rather than argued away: if you try
+to register a name somebody else already took, you are told it is taken. That is
+unavoidable while all the organisations share one rulebook, and it is the same
+small leak that "that username is taken" has always had.
+
+### Leaving the code tidier than it was found
+
+Two files in this project have been over their own size limit for a while, and
+this change was going to make both of them worse — it adds a set of web
+addresses and a set of terminal commands, and both would have landed in files
+that were already too long.
+
+Instead each was split along a line the project had already identified, and both
+finished **smaller than they started**. They are still over the limit and that
+job is still open. But the change that would normally have made it worse made it
+slightly better instead.
+
+## 5.27 Eighteen broken tests that were never what the notes said
+
+For most of this project there was a standing note: eighteen of OpenClaw's own
+tests fail on this machine, they were failing before any of this work started,
+and they are not our problem. Every check since August 13th has been recorded as
+"and the usual eighteen".
+
+They are all fixed now. So are nine more nobody was counting. But the fix is the
+less interesting half.
+
+### The note was about the wrong file
+
+The eighteen were written up as one specific problem: a test that deletes a
+temporary folder while a database file inside it is still open. Windows refuses
+to delete a file that something has open; Linux and Mac allow it, which is why
+the same tests pass on the machines that usually run them.
+
+That explanation is a real bug and it is correctly written up. It is just **not
+what the eighteen were.** They live in a different file, and only _one_ of them
+is that problem.
+
+What the other eight actually were:
+
+- **Six** are about quote marks. A Windows command line wants `"like this"` and
+  a Mac or Linux one wants `'like this'`. The program gets this right — it
+  checks which system it is on and quotes accordingly. The _test_ only ever
+  learned the Mac version, so on Windows it compared the right answer against
+  the wrong expectation and called it a failure.
+- **Two** are about drive letters. On Windows a full path starts `C:\`. The
+  program produces a full path correctly; the test built its expectation a
+  slightly different way that left the `C:` off, and then complained that they
+  did not match.
+
+In every one of those eight cases **the program was right and the test was
+wrong** — which is the opposite of what a failing test normally means, and part
+of why nobody looked closer.
+
+### How a wrong explanation survived for two weeks
+
+This is the part worth keeping.
+
+Both files have **exactly nine failing tests**. Nine.
+
+The note reasoned: nine distinct failures, the suite runs each one twice, nine
+times two is eighteen — which is exactly the number on screen. The arithmetic
+checked out perfectly. Every time somebody re-read the note, it still added up.
+
+Nobody checked the file name.
+
+> **A number that adds up is not proof that it is a number about the thing you
+> think it is.** The sum was right, the reasoning was right, and the subject was
+> wrong — and because the sum kept being right, the subject never got
+> questioned.
+
+This is the third time this project has caught itself doing a version of this.
+Once, a safety check could not say what it was checking against. Once, a
+document claimed "every row re-measured" when only the totals row had been. Now
+this. The pattern is the same each time: **a claim that is easy to re-read and
+hard to re-verify slowly stops being checked at all.**
+
+### Why bother fixing them
+
+A permanent list of "known failures" costs something every single time anyone
+runs the tests. A new failure has to be looked up against the list before anyone
+can tell whether it matters — and this project has already lost weeks to exactly
+that, when nineteen genuine breakages hid behind a habit of only running part of
+the suite.
+
+The list is now empty. That does not make regressions impossible; it removes the
+step where one can be mistaken for the weather.
+
+### One small thing, said out loud
+
+The tests now spell out the quoting rule **a second time**, instead of asking
+the program what the rule is and checking the answer against itself.
+
+That sounds like pointless duplication, and it is the entire point. A test that
+asks the program "what do you think the answer is?" and then checks that the
+answer equals itself will pass no matter how wrong the program becomes. Writing
+the rule out independently is the only thing that lets the test ever disagree.
+
+## 5.28 Splitting a file by what it is allowed to do
+
+One file in this project had been too long for a while — about 1,200 lines of
+web endpoints, against a house limit of 700. It is now 613.
+
+The usual way to fix that is to cut it roughly in half. That was not the rule
+used here. Each cut had to produce a file whose **permission rule can be said in
+one sentence**:
+
+- one file for "the owner manages people",
+- one for "an administrator manages the agents they own",
+- one for "you may act on an agent that is yours",
+- one for "anyone may look, nobody may change anything, and you only see your own",
+- one for "the request queue: users ask, administrators decide".
+
+The value is that a reviewer can check a whole file against a single sentence.
+A file containing a mixture has to be checked endpoint by endpoint, and that is
+where a mistake hides.
+
+Two placement calls show why the sentence matters more than the line count:
+
+- **The emergency stop button moved in with the "talk to your agent"
+  endpoints**, not with the rule-editing ones. Stopping an agent is _acting on
+  something you are responsible for_, not _changing the rules it is judged by_ —
+  a distinction this project learned the hard way once, when taking away
+  somebody's ability to write rules accidentally took away their ability to stop
+  their own agent.
+- **Two endpoints that looked like they belonged in the "anyone may look" file
+  were kept out.** One of them reads at owner level only, because it describes
+  how to reach and attack the installation. The other one changes something. Let
+  either in and the file needs two sentences instead of one, which is the thing
+  the split existed to end.
+
+Two files are still too long, and the honest position is that they are the
+harder two: the dashboard page is one large component with no obvious seam, and
+the command-line file needs the same treatment its agent commands already got.
+
 ## 7. The single lesson
 
 Rounds five and six found the same mistake wearing different clothes.

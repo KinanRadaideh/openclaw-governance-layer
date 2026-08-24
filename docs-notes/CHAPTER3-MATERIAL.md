@@ -452,24 +452,23 @@ grouping is itself part of the design argument.
 | `src/gateway/governance-deployment-input.ts`   | The one bridge from Gateway config to the deployment report | 89    |
 | `src/gateway/governance-dashboard-accounts.ts` | Account administration, split out at 700 lines (T16)        | 307   |
 
-|                      |                                                                                                                                                                    |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Production total** | **19,215 lines** — 11,201 across 40 files in `src/governance/`, plus 8,014 across the 11 HTTP, CLI and dashboard surface files tabulated below                     |
-| **Test total**       | **18,242 lines across 71 test files.** The suite _reports_ **1,926 tests across 95 files**, and both numbers are right about different things — see the note below |
+|                      |                                                                                                                                                |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Production total** | **19,215 lines** — 11,201 across 40 files in `src/governance/`, plus 8,014 across the 11 HTTP, CLI and dashboard surface files tabulated below |
+| **Test total**       | **73 test files.** The suite _reports_ **2,108 tests across 99 files**, and both numbers are right about different things — see the note below |
 
-> **The 95 is a count of test-file _runs_, not of files. 1,926 is a count of
-> test _executions_, not of distinct tests.** Twelve of the governance test files
-> live under `src/gateway/` and the repository runs that directory under three
-> Vitest projects — `gateway-core`, `gateway-server`, `gateway-client` — so each
-> of the twelve is executed three times. 56 unit + 3 ui + (12 × 3) = **95**.
-> Those twelve files hold **351 distinct tests, reported as 1,053**, so the
-> distinct totals are **1,224 tests across 71 files**.
+> **The 99 is a count of test-file _runs_, not of files. 2,108 is a count of
+> test _executions_, not of distinct tests.** Thirteen of the governance test
+> files live under `src/gateway/` and the repository runs that directory under
+> three Vitest projects — `gateway-core`, `gateway-server`, `gateway-client` — so
+> each of the thirteen is executed three times. 57 unit + 3 ui + (13 × 3) =
+> **99**, and the distinct totals are **1,300 tests across 73 files**.
 >
 > Neither number is wrong and the larger one is not inflated by accident: every
-> one of those 1,926 executions really ran, and running the gateway suite under
-> three project configurations is the point of doing it that way. But "1,926
-> tests across 95 files" invites a reader to believe there are 95 files, and
-> there are 71.
+> one of those 2,108 executions really ran, and running the gateway suite under
+> three project configurations is the point of doing it that way. But "2,108
+> tests across 99 files" invites a reader to believe there are 99 files, and
+> there are 73.
 >
 > **This is the same mistake this project already documented and warned about.**
 > `HANDOFF.md` §4 records that the host harness baseline was once written as "9
@@ -3049,6 +3048,13 @@ No test could have caught it, because until M3 there was no second group to leak
 across. **M2 was correct in a single-tenant world and became a defect the moment
 the world changed underneath it, without a line of M2 changing.**
 
+> **Since M4 (§3.5.33), a registered agent belongs to one group**, so the
+> collision this describes can no longer be created between two groups that both
+> register their agents. The group filter added here stays, because an agent that
+> predates the registry is still owned by nobody — the fix outlives the specific
+> gap that motivated it, which is the right direction for a fix to outlive
+> something.
+
 That belongs in Chapter 4 beside the "correct rule, wrong noun" pair as a third
 variant of the same family:
 
@@ -3113,13 +3119,14 @@ nothing to list when the answer is "none".
 | M1  | Drive the dashboard upload in a browser        | Done — §4.x.30 |
 | M2  | "Who can reach this agent", including "nobody" | Done — §3.5.30 |
 | M3  | The group as a data model                      | Done — §3.5.31 |
-| M4  | The agent registry                             | Not started    |
+| M4  | The agent registry                             | Done — §3.5.33 |
 | M5  | Per-group storage isolation                    | Not started    |
 | M6  | The Administrator panel, and provisioning      | Not started    |
 
 M5 before M3 would split storage before knowing what a group is. M6 before M4
 would provision agents with nowhere to record who owns them. **M4 is the
-unlock**, because the noun has to exist before anything can be built on it.
+unlock**, because the noun has to exist before anything can be built on it — and
+with §3.5.33 landed, it does.
 
 #### What the finished third has already taught
 
@@ -3152,8 +3159,397 @@ re-reading an older feature while building a newer one.
   tunnel; a directly exposed port makes it self-service Root.
 - **Usernames are unique per installation, not per group**, because login is by
   username alone. Two organisations cannot both have an `admin`.
-- **Agents are not group-owned until M4**, so an agent id used by two groups is a
-  coincidence the layer cannot yet prevent.
+- ~~**Agents are not group-owned until M4**~~ — **closed by M4 (§3.5.33).** A
+  registered agent belongs to exactly one group and one Administrator, and an id
+  another group holds is refused. The residue is that an agent which predates the
+  registry is still owned by nobody; §3.5.33 states why that is kept and what
+  closing it needs.
+
+### 3.5.33 The agent registry: giving the layer a noun for an agent (M4)
+
+The second subtask of the tenant model, and the one M5 and M6 are both blocked
+on. Engineering detail in `GOVERNANCE.md` §"M4"; plain language in
+`QA-IN-PLAIN-TERMS.md` §5.26.
+
+#### The problem, and why it is larger than it reads
+
+Every capability described so far in §3.5 is about agents. The policy engine
+decides what an agent may do; the ledger records what it did; the kill switch
+stops it; the tier model decides who may see it. And until this subtask, **the
+layer held no record that any particular agent existed.**
+
+An agent entered the layer's awareness through four doors, all of them in the
+policy document: a rule scoped to it, a posture override, an escalation
+override, or an entry in the locked-down set. A fifth arrived later — an account
+assignment naming it. `knownAgentIds()` (`policy-projection.ts`) reconstructed
+the set of agents by walking those collections, and every surface that needed a
+list of agents consumed that reconstruction: the dashboard's rule-scope picker,
+its agent-policy lookup, the kill switch's datalist, and the CLI's
+`policy rule-agents`.
+
+The inference is reasonable and it has one hole it cannot close by construction:
+
+> **An agent that exists and has never been the subject of a rule, a posture, a
+> lock or an assignment is invisible to it.**
+
+A newly provisioned agent is precisely that agent. This is what turned the
+requested feature — "an Administrator panel with a control to create an agent" —
+from an afternoon's UI work into a subtask of its own, and it is the single most
+useful sentence to carry into Chapter 4:
+
+> **Creating an agent was not a missing button. It was a missing noun.**
+
+There was nothing to name, nothing to own, and nothing to list when the honest
+answer was "none". The panel M6 builds could not have been built on the
+reconstruction, because the objects it exists to manage would not have appeared
+in it.
+
+#### The design
+
+A first-class record, kept in `agents.json` beside `users.json`:
+
+| Field         | Meaning                                                    |
+| ------------- | ---------------------------------------------------------- |
+| `id`          | the key the host roster and every rule use; never changes  |
+| `displayName` | what an operator calls it; free text, bounded, never a key |
+| `groupId`     | the group that owns it (§3.5.31)                           |
+| `adminId`     | the **single** Administrator answerable for it             |
+| `createdAt`   | when the claim was made                                    |
+
+**Not inside the policy document**, and the separation is load-bearing rather
+than tidy. The policy document says how an agent is _judged_; the registry says
+that it _exists_, who owns it, and what it is called. Folding the second into the
+first would make removing a rule capable of removing an agent — two questions
+with different lifetimes sharing one storage decision.
+
+**The registry leads and the reconstruction follows.** Both halves are retained
+and neither is redundant:
+
+| Source                        | Holds                                                       |
+| ----------------------------- | ----------------------------------------------------------- |
+| the registry                  | agents no rule has ever named — including new ones          |
+| `knownAgentIds()` as fallback | agents that predate the registry, on existing installations |
+
+Removing the fallback would delete every pre-registry agent from every picker on
+the dashboard, including the kill switch's — a regression on the one control that
+exists for emergencies. Removing the registry would leave the original hole. The
+inversion is the deliverable: what was the source of truth becomes the fallback.
+
+#### The invariant this adds
+
+**A User or Viewer may hold only agents owned by the Administrator answerable for
+them.** Without it, "each Administrator owns a set of agents and a set of
+accounts" is a description of a screen rather than a property of the system: any
+Administrator could hand another's agent to their own staff, and the ownership
+field would be true of the record and false of the world.
+
+Enforcement has three outcomes:
+
+| The agent is…                                    | Assignment  | Reasoning                                                      |
+| ------------------------------------------------ | ----------- | -------------------------------------------------------------- |
+| registered, owned by the account's Administrator | allowed     | the ordinary case                                              |
+| **not registered at all**                        | **allowed** | pre-registry; refusing breaks every installation that upgrades |
+| registered to somebody else                      | refused     | covers another Administrator _and_ another group               |
+
+#### The honest limit, stated rather than discovered
+
+The middle row means the constraint **can be sidestepped by not registering an
+agent**. That makes the registry a statement of ownership rather than a gate on
+it, and Chapter 4 should say so plainly.
+
+The alternative was considered and rejected. Refusing unregistered ids would
+break assignment on every deployment that upgrades into M4 — their agents all
+predate the registry — and it would protect nothing, because an agent nobody has
+claimed cannot be stolen from an owner who does not exist. Closing it properly
+requires registration to be mandatory, which requires the layer to be able to
+_create_ agents, which is M6. There is no honest way to demand a record for
+agents the layer cannot yet produce.
+
+A test is named for the hole (`agent-registry.test.ts`, "allows an agent that
+predates the registry, which is the honest hole") so a later reader cannot
+mistake the rule for a stronger one.
+
+#### The finding worth the most space: one absence, two opposite readings
+
+This project has used **presence-based migration** repeatedly — `actorRole`,
+`canAuthorPolicy`, `selfProtecting`, `entryKind`, `keyed` — where a field may be
+absent and absence reads as the old, knowable behaviour. It is what lets a
+pre-existing ledger verify byte-identically across versions.
+
+§3.5.31 broke that pattern deliberately: a missing `groupId` means **unmigrated**
+— an unanswered question that blocks sign-in — because an account with no group
+cannot be placed in one without inventing an answer, and inventing one would file
+a person into an organisation nobody put them in.
+
+M4 faces a structurally identical situation — a record that may simply not exist
+— and arrives at the **opposite** answer: a missing agent record means the agent
+carries on exactly as before.
+
+| Missing                    | Read as      | Because                                                                                |
+| -------------------------- | ------------ | -------------------------------------------------------------------------------------- |
+| an account's `groupId`     | unmigrated   | no safe guess exists; a wrong guess misfiles a person into an organisation             |
+| an agent's registry record | pre-registry | the agent is still fully governed; refusing breaks working systems and protects nobody |
+
+Both are defensible and neither follows from the shape of the data. What decides
+each is **what the absence would cost**, and the two costs point in opposite
+directions.
+
+> **The transferable claim:** "what does a missing value mean?" is a question
+> about consequences, not about schema. The same blank deserves opposite answers
+> in different places, and answering it out of habit — the pattern had worked
+> five times — is how one of those answers comes out wrong.
+
+Together with §3.5.31's "a correct rule attached to the wrong noun" and finding
+119's "correct code turned into a defect from elsewhere", this gives Chapter 4
+three distinct _shapes_ of design finding from the tenant work, which is more
+interesting to a reader than any one of them.
+
+#### Repair at the producer, not compensation downstream
+
+Handing an agent to a different Administrator, or removing its record entirely,
+**releases it from every account that no longer qualifies to hold it**, and
+mirrors that into any live session.
+
+This is an application of a principle §3.5 has already paid to learn. Assignment
+is constrained by ownership, so leaving the previous holders in place would leave
+the account file asserting something the registry contradicts — an invariant true
+at the instant it was written and false immediately afterwards. The `userAsk`
+defect was exactly that shape: a setting saved, displayed as active, and never
+consulted. The correction in both cases is the same:
+
+> Record the fact where it changes, rather than requiring every later reader to
+> re-derive whether what they are reading is still true.
+
+The two files are locked independently, so an ownership change racing an
+assignment can land after the check has passed. The consequence is an account
+holding an agent its Administrator no longer owns — a state the next transfer
+repairs, and one the system can describe, rather than a corruption it cannot.
+
+#### Authorization: one statable rule per module
+
+Both new modules — the HTTP routes and the CLI commands — carry a single
+authorization sentence for their whole contents:
+
+> **Agent management is the Administrator tier, and an Administrator administers
+> the agents they own. Root is exempt from the ownership half.**
+
+This is the same property that made the earlier account-route split worth doing
+(§3.5.24): a file whose authorization can be stated in one sentence is one a
+reviewer can check, while a file with a mixture must be checked per route.
+
+Two decisions inside that sentence are worth reporting:
+
+- **Root is exempt from ownership**, because Root manages the people who own
+  agents. Without the exemption, an agent whose owning Administrator has left the
+  organisation is one nobody can ever re-home — a lockout with extra steps, which
+  is the class `account-guards.ts` exists to prevent.
+- **Root cannot itself own an agent**, for the same reason §3.5.31 refuses Root
+  as a `managedBy`. If Root wants to own an agent it creates an Administrator
+  account and signs into that: one statable rule instead of two, and the act
+  stays attributable to the hat it was done in.
+
+Naming a _different_ owner at registration is likewise Root-only. Deciding who
+answers for a workload is people management, and the role model has drawn that
+line since the beginning.
+
+#### What a refusal may reveal
+
+An agent belonging to another group is reported as **absent**, never as
+forbidden. "That is not yours" is more helpful and also confirms the id is in
+use, which would turn every mutator into a probe for what other organisations
+have named their agents. Reporting absence is the same choice the login
+response, the attachment lookup and the agent-access route each already make.
+
+One bit does leak and is recorded rather than argued away: attempting to register
+an id another group holds is refused as a clash. That is unavoidable while a
+single policy document serves every group, and it is the same leak "that username
+is taken" has always carried — the limitation §3.5.31 already records for
+usernames, now with a second instance.
+
+#### Surfaces
+
+| Surface      | State                                                                                                           |
+| ------------ | --------------------------------------------------------------------------------------------------------------- |
+| HTTP         | complete — list, register, rename, transfer, unregister                                                         |
+| Command line | complete — `governance agents list/register/rename/set-owner/unregister`                                        |
+| Dashboard    | **consumption only** — the registry drives every agent list and shows registered names; authoring is M6's panel |
+
+The third row is a deliberate deviation from the project's three-surface rule
+rather than an oversight, because M6 _is_ the dashboard surface for this
+capability. Chapter 4 should state it that way rather than claim the rule is met.
+
+#### An incidental repayment of T16
+
+M4 adds a route group and a command group, and both would naturally have landed
+in files already past the project's 700-line limit. Each was split along a seam
+T16 had already identified, and both finished smaller than they started:
+`governance-dashboard-api.ts` 1,219 → 1,208, `register.governance.ts` 863 → 848.
+
+Both remain over the limit and T16 stays open. The point worth reporting is the
+direction: a feature change that would ordinarily deepen a piece of technical
+debt was made to reduce it slightly instead, at the cost of two file moves.
+
+#### Verification
+
+| Suite                                           | Tests | Covers                                                                                     |
+| ----------------------------------------------- | ----- | ------------------------------------------------------------------------------------------ |
+| `src/governance/agent-registry.test.ts`         | 23    | registry-leads/fallback-follows, single owner, the assignment constraint, repair, the hole |
+| `src/gateway/governance-agent-registry.test.ts` | 16    | who may name an owner, what a refusal reveals, group taken from the session not the body   |
+
+The privilege matrix and malformed-body suites were extended to cover all five
+new routes rather than left describing the previous set — the round-eleven lesson
+about a guard that cannot say what it is checking against.
+
+### 4.x.31 The regression baseline that was never what the notes said (T25)
+
+Engineering detail in `GOVERNANCE.md` §"T25"; plain language in
+`QA-IN-PLAIN-TERMS.md` §5.27.
+
+#### What was believed
+
+From 2026-08-13 onward every verification step in this project recorded the same
+figure: OpenClaw's own harness suite at **18 failed / 174 passed**, described as
+pre-existing upstream failures present on `main` before any of this work began.
+`UPSTREAM-BUG-REPORT.md` wrote them up as a single defect —
+`src/plugins/contracts/host-hooks.contract.test.ts` removing a temporary
+directory while a SQLite handle inside it is still open, which POSIX permits and
+Windows refuses with `EBUSY`.
+
+The count was checked. The reasoning was recorded. The note even warns the
+reader about a related measurement trap: the baseline had once been written as
+"9 failures", the count of _distinct test names_, when the suite runs under two
+projects and prints 18.
+
+#### What was true
+
+The 18 are in a different file — `src/agents/harness/native-hook-relay.test.ts`
+— and only one of its nine distinct failures is the EBUSY defect.
+
+| Distinct failures | Actual cause                                                               |
+| ----------------- | -------------------------------------------------------------------------- |
+| 6                 | POSIX shell quoting asserted against correct Windows quoting               |
+| 2                 | A `path.join` expectation asserted against a correct `path.resolve` result |
+| 1                 | The EBUSY teardown                                                         |
+
+**In eight of the nine, the production code was right and the test was wrong** —
+which inverts the usual reading of a failing test and is part of why the
+explanation went unexamined. `shellQuoteArg` chooses double quotes on `win32`
+and single quotes elsewhere, because a POSIX-quoted argument handed to `cmd.exe`
+is a different argument; the derived-path code uses `path.resolve` because a
+derived path must be absolute, and on Windows that means drive-qualified.
+
+#### Why the wrong explanation survived — the finding worth reporting
+
+**Both files have exactly nine distinct failures.**
+
+The note's arithmetic was "9 distinct names × 2 projects = 18", which is correct
+for the relay file, and the 9 was cross-checked against the other file's count.
+Every re-reading reconciled. The file name was never checked, because nothing in
+the sum invited anyone to check it.
+
+> **The transferable claim: a figure that reconciles is not evidence that it is a
+> figure about the subject you think it is.** Verification effort concentrates on
+> the part that can be recomputed, and a claim whose _subject_ is wrong survives
+> precisely because its _arithmetic_ keeps passing.
+
+This is the third instance of one pattern in this project's own records, and
+Chapter 4 should present the three together rather than separately:
+
+| Instance                  | The claim                            | What was actually true                                           |
+| ------------------------- | ------------------------------------ | ---------------------------------------------------------------- |
+| Round eleven's guard      | "This check protects against X"      | It could not say what artefact it compared to                    |
+| T19's component inventory | "Re-measured every row"              | Only the totals row was re-measured; 21 of 37 were already wrong |
+| T25's baseline            | "The 18 are the SQLite teardown bug" | Mostly shell quoting, in a different file                        |
+
+Each is a claim that is **cheap to re-read and expensive to re-verify**, and in
+each case re-reading quietly replaced re-verifying. That is a finding about
+verification practice rather than about code, which makes it more useful to a
+report than any individual defect in the list.
+
+#### The repair
+
+Three fixes, all test-side, because the production code was correct:
+
+1. **The platform quoting rule, restated in the test.** Deliberately _not_
+   imported from the module under test — a test that builds its expectation by
+   calling the function it is testing asserts `f(x) === f(x)` and would pass
+   whatever the rule became, including a wrong one. The duplication is the
+   mechanism by which the assertion can ever disagree, not a compromise.
+2. **`path.resolve` in the derived-path expectation**, matching what an absolute
+   path means on the platform running the test.
+3. **Close the cached database before removing its directory**, in both
+   fixtures. `openclaw-agent-db.ts` already carried the note _"Windows otherwise
+   cannot remove the file during caller cleanup"_ and exported
+   `closeOpenClawAgentDatabases()` for exactly this; two callers never used it.
+
+| Suite                                               | Before                 | After          |
+| --------------------------------------------------- | ---------------------- | -------------- |
+| `src/agents/harness/native-hook-relay.test.ts`      | 18 failed / 174 passed | **192 passed** |
+| `src/plugins/contracts/host-hooks.contract.test.ts` | 9 failed / 62 passed   | **71 passed**  |
+
+**27 tests fixed and the standing baseline is zero.** The value is not the 27.
+A permanent list of known failures imposes a lookup on every future test run
+before any new failure can be believed — and §4.x's round six exists because
+partial test runs hid nineteen genuine regressions for weeks. A clean baseline
+does not prevent that; it removes the step at which a real regression can be
+mistaken for the weather.
+
+### 3.5.34 Splitting a route file by what it is permitted to do (T16)
+
+`governance-dashboard-api.ts` had grown to **1,219 code lines** against the
+project's own 700-line limit. It is now **613**, split five ways.
+
+#### The criterion, and why it is not line count
+
+Each cut had to leave a file whose authorization can be stated in **one
+sentence**. That is the property that makes a split worth doing rather than
+merely making two files out of one, and it is a reviewability argument: a file
+with one rule can be checked against that rule as a whole, while a file holding
+a mixture must be checked route by route — which is where an error hides.
+
+| Module           | Its one sentence                                                                          | Code lines |
+| ---------------- | ----------------------------------------------------------------------------------------- | ---------- |
+| `-accounts`      | Root manages people                                                                       | 299        |
+| `-agents`        | An Administrator administers the agents they own; Root is exempt (§3.5.33)                | 280        |
+| `-agent-control` | User tier or above, and you must manage this agent                                        | 414        |
+| `-oversight`     | Viewer and above; nothing changes state, and every answer is filtered to what you may see | 81         |
+| `-rule-requests` | One queue: read by Viewers, added to by Users, decided by Administrators                  | 240        |
+| `-api`           | The policy document, and the dispatcher                                                   | 613        |
+
+#### Two placements a line-count split would have got wrong
+
+- **The kill switch sits with the prompt routes, not with policy.** Stopping an
+  agent is _acting on a workload you are responsible for_, not _changing the
+  rules it is judged by_ — the distinction §3.5.23 (T27) was built on, where
+  folding the two together briefly meant that withholding an account's ability
+  to write rules also removed its ability to stop its own agent. The routes in
+  that module check `canManageAgent`, never `canAuthorPolicyForAgent`.
+- **`deployment` and `pending-decisions/decide` were kept out of `-oversight`**
+  although both resemble its contents. `deployment` reads at Root because it
+  maps how to reach and attack the installation (A7); the decide route writes.
+  Admitting either would have made the file need two sentences, which is exactly
+  the mixture the split exists to remove.
+
+A shared constant moved rather than being copied: the JSON body ceiling now
+lives in `http-common.ts` beside the reader it is always passed to, because two
+copies of a body limit is how the two drift apart and the smaller becomes a
+bound nobody knows about.
+
+#### Not closed, and the remainder is the harder half
+
+Two files are still over the limit, and neither has the property that made this
+one tractable:
+
+- **`governance-page.ts` — 2,412 code lines**, one Lit component, no seam yet
+  named. The largest single file in the project.
+- **`register.governance.ts` — 848.** Its agent commands were extracted in
+  §3.5.33; its policy commands are the obvious next cut along the same seam.
+
+Reporting this as "T16 partially done" rather than as a win is the honest
+position, and the useful part for a reader is the criterion rather than the
+count: **the seam that made five of these files reviewable was the authorization
+sentence, and the two files that remain are the two where no such sentence has
+been found.**
 
 ### 3.5.9 Recording administrative actions in the same chain
 
@@ -3372,9 +3768,9 @@ long and the grouping is the argument.
 `qa-round8-logic`, `qa-round8-security`: **81 tests** pinning the specific
 defects each round found, so none can silently return.
 
-|           |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Total** | **1,926 tests across 95 files** — measured 2026-08-24, after M3, the group data model (§3.5.31); 1,902 across 94 after the live browser pass and M2 (§3.5.30); 1,877 across 91 after T14's HTTP and dashboard surfaces and QA round seventeen (§4.x.29); 1,802 across 88 after T23 (§3.5.29); 1,794 across 87 after T4, T5 and T14 (§3.5.26–§3.5.28); 1,722 across 84 after the first dashboard component tests (§4.x.27), the core-tier split (§3.5.24), Root's authoring control (§3.5.23), the kill-switch end-to-end verification and the authoring-scope matrix (§3.5.21, §3.5.22). (1,564 across 75 after the bidirectional policy views, §3.5.20. (1,510 across 71 after the sixteenth QA pass, §4.x.25. (1,499 across 70 after T9, authentication auditing, §3.5.19. (1,480 across 68 before it, after the A1 follow-ups, the last of round thirteen, the hands-on UI pass and the three core invariants; 1,465 across 67 before `core-invariants.test.ts`; 1,404 across 64 after B1; 1,393 across 63 after the fourteenth QA pass and A7; 1,264 across 57 before rounds 13 and 14. The growth is almost entirely regression tests lifted out of the probes that produced each finding.) **Measured with `src/governance/`, `src/gateway/governance-*.test.ts`, `ui/src/pages/governance/`** — adding `ui/src/i18n` gives 1,564 across 73, which is a different set and not a regression. **Every figure in this row is a count of test-file _runs_ and test _executions_:** the ten `src/gateway/` files run under three Vitest projects, so the distinct totals behind the 1,926/95 are **1,224 tests across 71 files**. See §3.5.2. |
+|           |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Total** | **2,108 tests across 99 files** — measured 2026-08-24, after M4, the agent registry (§3.5.33); 1,926 across 95 after M3, the group data model (§3.5.31); 1,902 across 94 after the live browser pass and M2 (§3.5.30); 1,877 across 91 after T14's HTTP and dashboard surfaces and QA round seventeen (§4.x.29); 1,802 across 88 after T23 (§3.5.29); 1,794 across 87 after T4, T5 and T14 (§3.5.26–§3.5.28); 1,722 across 84 after the first dashboard component tests (§4.x.27), the core-tier split (§3.5.24), Root's authoring control (§3.5.23), the kill-switch end-to-end verification and the authoring-scope matrix (§3.5.21, §3.5.22). (1,564 across 75 after the bidirectional policy views, §3.5.20. (1,510 across 71 after the sixteenth QA pass, §4.x.25. (1,499 across 70 after T9, authentication auditing, §3.5.19. (1,480 across 68 before it, after the A1 follow-ups, the last of round thirteen, the hands-on UI pass and the three core invariants; 1,465 across 67 before `core-invariants.test.ts`; 1,404 across 64 after B1; 1,393 across 63 after the fourteenth QA pass and A7; 1,264 across 57 before rounds 13 and 14. The growth is almost entirely regression tests lifted out of the probes that produced each finding.) **Measured with `src/governance/`, `src/gateway/governance-*.test.ts`, `ui/src/pages/governance/`** — adding `ui/src/i18n` gives 1,564 across 73, which is a different set and not a regression. **Every figure in this row is a count of test-file _runs_ and test _executions_:** the thirteen `src/gateway/` files run under three Vitest projects, so the distinct totals behind the 2,108/99 are **1,300 tests across 73 files**. M4's 182-execution jump is mostly _not_ its two new files — 111 of it came from adding the five new routes to the malformed-body table and the privilege matrix, which is what those two tables exist to make cheap. See §3.5.2. |
 
 Two methodology notes worth keeping:
 

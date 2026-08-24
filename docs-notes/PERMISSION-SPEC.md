@@ -496,24 +496,29 @@ that guessed would produce false positives and be ignored.
 
 ## 8. Authorization
 
-| Operation                                              | Minimum tier    | Scope requirement                                                  |
-| ------------------------------------------------------ | --------------- | ------------------------------------------------------------------ |
-| Read policy, ledger, sessions, rule requests           | `viewer`        | Filtered to visible agents                                         |
-| See who else can reach an agent (M2)                   | `viewer`        | Must be able to _view_ that agent                                  |
-| Create/remove agent-scoped rule                        | `user`          | `canAuthorPolicyForAgent` — Root may withhold it per account (T27) |
-| Prompt an agent, and read that transcript              | `user`          | Must manage that agent                                             |
-| Lock/release agent                                     | `user`          | Must manage that agent                                             |
-| Attach a file to a prompt (T14)                        | `user`          | Must manage that agent                                             |
-| **Set per-agent `ask`** (T4)                           | `administrator` | Must manage that agent. A User _requests_ it                       |
-| **Set per-agent `mode`** (`enforce`/`monitor`) (T4)    | `administrator` | Must manage that agent. A User _requests_ it                       |
-| Create/remove global rule                              | `administrator` | —                                                                  |
-| Set `mode`, `ask`                                      | `administrator` | —                                                                  |
-| Set `hitlTimeoutSeconds`, per-account `ask`            | `root`          | —                                                                  |
-| Create or delete accounts, set a manager (M3)          | `root`          | Inside the caller's own group only                                 |
-| Switch a non-self-protecting `core` rule off (T24)     | `root`          | —                                                                  |
-| Remove a `core` rule, or disable a self-protecting one | **nobody**      | Refused at every tier                                              |
-| Create a second Root **in the same group**             | **nobody**      | Refused at every tier                                              |
-| Delete or demote a group's only Root                   | **nobody**      | Refused at every tier                                              |
+| Operation                                              | Minimum tier    | Scope requirement                                                          |
+| ------------------------------------------------------ | --------------- | -------------------------------------------------------------------------- |
+| Read policy, ledger, sessions, rule requests           | `viewer`        | Filtered to visible agents                                                 |
+| See who else can reach an agent (M2)                   | `viewer`        | Must be able to _view_ that agent                                          |
+| Create/remove agent-scoped rule                        | `user`          | `canAuthorPolicyForAgent` — Root may withhold it per account (T27)         |
+| Prompt an agent, and read that transcript              | `user`          | Must manage that agent                                                     |
+| Lock/release agent                                     | `user`          | Must manage that agent                                                     |
+| Attach a file to a prompt (T14)                        | `user`          | Must manage that agent                                                     |
+| **Set per-agent `ask`** (T4)                           | `administrator` | Must manage that agent. A User _requests_ it                               |
+| **Set per-agent `mode`** (`enforce`/`monitor`) (T4)    | `administrator` | Must manage that agent. A User _requests_ it                               |
+| Create/remove global rule                              | `administrator` | —                                                                          |
+| Set `mode`, `ask`                                      | `administrator` | —                                                                          |
+| Set `hitlTimeoutSeconds`, per-account `ask`            | `root`          | —                                                                          |
+| Create or delete accounts, set a manager (M3)          | `root`          | Inside the caller's own group only                                         |
+| List the group's agents (M4)                           | `viewer`        | Own group, then filtered to visible agents                                 |
+| Register an agent, owned by yourself (M4)              | `administrator` | Group taken from the session; never from the request                       |
+| Rename, re-own or unregister an agent (M4)             | `administrator` | **Must own that agent.** Root is exempt                                    |
+| Register an agent owned by another Administrator (M4)  | `root`          | Naming who answers for a workload is people management                     |
+| Assign an agent to a User or Viewer (M4)               | `administrator` | The agent must be unregistered, or owned by the target's own Administrator |
+| Switch a non-self-protecting `core` rule off (T24)     | `root`          | —                                                                          |
+| Remove a `core` rule, or disable a self-protecting one | **nobody**      | Refused at every tier                                                      |
+| Create a second Root **in the same group**             | **nobody**      | Refused at every tier                                                      |
+| Delete or demote a group's only Root                   | **nobody**      | Refused at every tier                                                      |
 
 > **Two rows moved on 2026-08-24 and one changed meaning.** T4 raised both
 > per-agent switches from `user` to `administrator`: moving an agent from
@@ -526,8 +531,20 @@ that guessed would produce false positives and be ignored.
 > **group** rather than of the installation, so a second Root elsewhere is a
 > different organisation. Inside one group the original refusal is unchanged.
 
-Three checks are applied independently: **group**, tier, and scope. Group is
-checked first and is absolute — an account can only ever act on accounts in its
+> **A fourth check joined on 2026-08-24 (M4): ownership.** Every row above this
+> note is decided by group, tier and agent scope. The three registry-mutation
+> rows are not: two Administrators with identical tier and identical scope
+> differ on whether they may rename a given agent, because one owns it. Root is
+> exempt from ownership — otherwise an agent whose owning Administrator has left
+> could never be re-homed, which is a lockout rather than a protection.
+>
+> Ownership is also what constrains assignment. The last row's "or
+> unregistered" is a real gap and is stated rather than hidden: an agent that
+> predates the registry has no owner, so the rule cannot bite on it. Closing
+> that needs registration to be mandatory, which needs M6.
+
+Four checks are applied independently: **group**, tier, scope, and — for the
+agent registry only — **ownership**. Group is checked first and is absolute — an account can only ever act on accounts in its
 own group, and a target elsewhere is reported as "not found" rather than
 "forbidden", so the answer carries no information about other groups.
 Administrator and above have unlimited _agent_ scope within their group. Removal authorises against the **stored** rule's scope,

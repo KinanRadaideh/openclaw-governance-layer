@@ -53,11 +53,19 @@ agent-touching operation.
 > its scope moved, and the original argument holds unchanged at the new scope:
 > a second Root in _the same group_ can still delete the first.
 >
+> **Updated again 2026-08-24 (M4): agents belong to a group and to one
+> Administrator.** A registered agent names exactly one owning Administrator, and
+> a User or Viewer may only be assigned agents owned by the Administrator
+> answerable for them. An agent that predates the registry is owned by nobody and
+> is still freely assignable — a deliberate limit, kept until M6 can make
+> registration mandatory.
+>
 > Two invariants join the model: every account belongs to exactly one group, and
 > **every User and Viewer has one Administrator answerable for it**. Root cannot
 > be that Administrator — if Root wants to run a User directly it creates an
 > Administrator account and signs into that, which keeps one statable rule
-> rather than two. See `CHAPTER3-MATERIAL.md` §3.5.31.
+> rather than two. See `CHAPTER3-MATERIAL.md` §3.5.31 (groups) and §3.5.33 (the
+> agent registry).
 
 ### Root — manages people
 
@@ -520,7 +528,15 @@ the evaluation chapter.
 
 ## 4. Permission matrix (table candidate for the report)
 
-✔ = allowed · **scoped** = only for assigned agents · ✘ = refused
+✔ = allowed · **scoped** = only for assigned agents · **owned** = only for agents
+this Administrator owns (M4) · ✘ = refused
+
+> **The three agent-registry rows are the first place a tier is not enough.**
+> Every other row in this table is answered by tier plus assignment. Ownership
+> (M4) is a third axis: two Administrators have identical tier and identical
+> scope, and one may rename an agent the other may not. Root is exempt, because
+> Root manages the people who own agents — without that, an agent whose owner
+> leaves the organisation could never be re-homed.
 
 | Capability                           |       Viewer       |  User  | Administrator | Root |
 | ------------------------------------ | :----------------: | :----: | :-----------: | :--: |
@@ -536,6 +552,10 @@ the evaluation chapter.
 | Change posture / ask mode            |         ✘          |   ✘    |       ✔       |  ✔   |
 | Approve/reject rule requests         |         ✘          |   ✘    |       ✔       |  ✔   |
 | Assign agents to accounts            |         ✘          |   ✘    |       ✔       |  ✔   |
+| View the agent registry              |       scoped       | scoped |       ✔       |  ✔   |
+| Register an agent (owned by you)     |         ✘          |   ✘    |       ✔       |  ✔   |
+| Rename / re-own / unregister         |         ✘          |   ✘    |   **owned**   |  ✔   |
+| Register an agent to somebody else   |         ✘          |   ✘    |       ✘       |  ✔   |
 | Create/delete accounts, change roles |         ✘          |   ✘    |       ✘       |  ✔   |
 | View deployment / network posture    |         ✘          |   ✘    |       ✘       |  ✔   |
 

@@ -61,6 +61,7 @@ domain modules directly and reads/writes the same files the Gateway uses:
   policy.json          policy document: posture, ask mode, rules, locked agents
   audit-ledger.jsonl   append-only hash-chained decision log
   users.json           dashboard accounts (hashed passwords)
+  agents.json          the agent registry: which agents exist, whose they are (M4)
   sessions.json        dashboard login sessions
   rule-requests.json   User-submitted rule requests
 ```
@@ -173,6 +174,11 @@ Tracked as Q-73b in `mg/REMAINING-WORK.md` §13c.
 | `governance agent prompt [--stream] [--attach <path...>] <agentId> <message>`    | Send a prompt to an agent and print the reply. `--attach` sends files; the ledger records hash, type, size and name and **never content** |
 | `governance groups unmigrated`                                                   | List accounts written before groups existed, which can no longer sign in                                                                  |
 | `governance groups migrate [--delete]`                                           | **Destructive.** Delete every account that predates groups. Reports what would go unless `--delete` is given                              |
+| `governance agents list`                                                         | The agent registry for your group, including agents that predate it                                                                       |
+| `governance agents register <agentId> <displayName> [--owner <accountId>]`       | **Administrator:** record an agent, owned by you. `--owner` is Root-only                                                                  |
+| `governance agents rename <agentId> <displayName>`                               | Rename an agent you own. The id never changes                                                                                             |
+| `governance agents set-owner <agentId> <accountId>`                              | Hand an agent to another Administrator, releasing its previous holders                                                                    |
+| `governance agents unregister <agentId>`                                         | Remove the record. The agent, its rules and its posture are untouched                                                                     |
 | `governance agent transcript <agentId>`                                          | Print this machine's conversation with an agent                                                                                           |
 | `governance sessions`                                                            | List currently-running agent sessions                                                                                                     |
 | `governance deployment`                                                          | Verify the deployment and network posture                                                                                                 |
@@ -231,6 +237,106 @@ decides.
 
 Each deletion is its own ledger entry, naming the account and the reason, since
 after this the ledger is the only place that says the account existed.
+
+---
+
+## 2c. The agent registry
+
+Added by M4 (2026-08-24), and it is the change that gives the layer a **noun**
+for an agent.
+
+Before it, an agent was not a record. It existed the moment a rule, a posture, a
+lockdown or an assignment happened to mention its id, and the set of agents was
+reconstructed from whatever the policy document named. That is enough to _judge_
+an agent and not enough to own one — there was nothing to name, nothing to hold,
+and nothing to list when the honest answer was "none".
+
+A registry entry has four fields: the **id** (the key the host and every rule
+use, which never changes), a **display name**, the **group** it belongs to, and
+the **one Administrator** answerable for it.
+
+**One authorization rule covers every command here:** registering and changing
+agents is the Administrator tier, and an Administrator administers the agents
+_they own_. Root is exempt from the ownership half, because Root manages the
+people who own agents — without that exemption, an agent whose owning
+Administrator has left would be one nobody could ever re-home.
+
+### `governance agents list`
+
+The registry first, and the older reconstruction behind it. Agents that predate
+the registry still appear, marked as owned by nobody, so nothing that used to be
+listed disappears.
+
+```
+$ openclaw governance agents list
+  agent-support  "Support triage"  owner user-1755...
+  agent-legacy   (not registered — predates the registry, owned by nobody)
+```
+
+"No agents are visible to you" is printed in words rather than left as a blank,
+because an empty list and a failed request look identical when both render as
+nothing.
+
+### `governance agents register <agentId> <displayName>`
+
+Records an agent in your group, owned by you.
+
+**It does not create an agent in OpenClaw.** M6 does that. Registering an id the
+host already has is not a mistake in the meantime — it is exactly how an
+operator claims the agents an existing installation is already running, which is
+the migration path into the registry.
+
+`--owner <accountId>` names somebody else as the owner and is **Root-only**.
+Naming who answers for a workload is people management, which is the Root side
+of the split this project has drawn since the role model was written.
+
+Ids are unique **per installation, not per group**, and that is a limit rather
+than a preference: the id keys the shared policy document, so two groups holding
+`main` would mean one group's rules binding the other group's agent. Per-group
+policy documents arrive with M5.
+
+### `governance agents rename <agentId> <displayName>`
+
+Changes what the agent is called. The id is untouched, because it is what every
+rule, ledger entry and command-line argument refers to.
+
+### `governance agents set-owner <agentId> <accountId>`
+
+Hands the agent to another Administrator — **and releases it from every account
+the previous owner had given it to.**
+
+That second half is not tidying. Assignment is constrained to agents your own
+Administrator owns, so leaving the old holders in place would leave the account
+file stating something the registry contradicts: an invariant that holds at the
+moment it is written and rots afterwards.
+
+### `governance agents unregister <agentId>`
+
+Removes the record only. The agent's rules, posture and lockdown all survive,
+because the registry never owned those. What it stops being is _owned_ — the id
+falls back to the pre-registry state, and every account holding it is released.
+
+The ledger entry keeps the name and the owner, because after this the record is
+gone and the ledger is the only place that says the agent was ever owned.
+
+### What this changes about assignment
+
+`users/agents` — assigning agents to an account — now refuses an agent belonging
+to a different Administrator. Three outcomes:
+
+| The agent is…                                    | Assignment |
+| ------------------------------------------------ | ---------- |
+| registered, owned by the account's Administrator | allowed    |
+| not registered at all                            | allowed    |
+| registered to somebody else                      | refused    |
+
+**The middle row is the honest limit.** An unregistered id is still assignable,
+so the constraint can be sidestepped by not registering — which makes the
+registry a statement of ownership rather than a gate on it. Refusing
+unregistered ids would break assignment on every installation that upgrades into
+M4, and would buy nothing: an agent nobody has claimed cannot be stolen from an
+owner who does not exist. Closing it needs registration to be mandatory, which
+needs M6's provisioning first.
 
 ---
 
@@ -875,14 +981,16 @@ node --import ./scripts/register-ts-resolver.mjs scripts/governance-linux-check.
 
 ## 10. Change log for this reference
 
-| Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-08-21 | `agent prompt` gained `--stream`, and Ctrl-C now cancels the agent run rather than only the printout. Also records the three limits that now apply to every prompt on every surface — a five-minute timeout, two concurrent prompts per account and six per installation — and states why there is no `agent cancel` command: the in-flight table is per process, so such a command could only stop a run started in the same terminal, and one that appeared to reach the Gateway's runs would be claiming a power it does not have.                                                  |
-| 2026-08-20 | Added `governance deployment` (A7) — Root's deployment and network posture report, on the CLI as well as the dashboard. The CLI form is the one that matters on a new host: the dashboard is reachable only through an SSH tunnel by design, so the moment you most need to know whether the listener is exposed is _before_ that tunnel exists. `--json` for scripts, `--strict` to exit non-zero on a failure; exit 0 by default, because a command that fails on every workstation is one people learn to ignore.                                                                   |
-| 2026-08-20 | **Behaviour change, no new flags:** `add-rule` now detects clashes **inside the write lock**. Two administrators adding the same rule at the same instant previously both saw no clash and the loser was told nothing — the duplicate was harmless, the silence was not (QA round 14).                                                                                                                                                                                                                                                                                                 |
-| 2026-08-19 | **Behaviour change, no new flags:** a core denial now covers `governance <subcommand>`, so the _agent_ can no longer reach this CLI through a broad operator allow-rule such as `^(node\|npm\|npx\|pnpm) .*$`. Until QA round 13 (finding 73) `openclaw governance policy set-mode off` was a one-command bypass of the entire RBAC model. This stops the agent; it does nothing about a person with shell access, which remains A6 and is why a CLI login is still open work.                                                                                                         |
-| 2026-08-19 | `add-rule` gained `--effect allow\|deny` and `--access read\|write`. Both were enforced by the engine since the tier model landed and creatable from no interface, so an operator's own restriction meant hand-editing `policy.json` — the R5 pattern (a mechanism that works, no surface that reaches it). `--access` is **refused** on command and network rules rather than ignored, and the warnings now flip with the rule's direction: a catch-all denial is reported as disabling the agent, not as granting everything.                                                        |
-| 2026-08-17 | Added `agent prompt` and `agent transcript` — the User tier's own capability from §1.6 ("may strictly prompt the agents for task execution"), and the last of that tier's capabilities to exist. The run goes through OpenClaw's ordinary ingress, so the policy gate still sees every tool call; a locked-down agent refuses the prompt outright; conversations are kept per (agent, account). CLI prompts carry the existing `cli` attribution caveat.                                                                                                                               |
-| 2026-08-16 | Added `policy set-agent-mode`, the per-agent posture control. Monitor mode had been demoted to a per-agent opt-in when the tier model landed, and nothing on any of the three surfaces could actually set it — the store function was reachable only from tests. The API route, this command, and the dashboard's **Observe one agent** control landed together, all three refusing `off` for the reason documented above. Also records that `add-rule` now distinguishes a clash caused by a deny rule from one caused by an earlier allowance, because the two mean opposite things. |
-| 2026-08-11 | CLI parity closed. Added `policy set-agent-ask`, `policy set-hitl-timeout`, `sessions`, `pending list`, `pending decide`, and an `--agent` option on `add-rule`. `add-rule` now also rejects backtracking-prone patterns and reports conflicts with earlier rules. No known CLI gaps remain against the dashboard.                                                                                                                                                                                                                                                                     |
-| 2026-08-10 | First version. Documents `policy show/set-mode/set-ask/add-rule/remove-rule`, `audit tail/verify`, `kill [--release]`. Records that `kill` now measures and prints elapsed time and reports in-flight termination availability honestly, and that `--agent` scoping is dashboard-only so far.                                                                                                                                                                                                                                                                                          |
+| Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-08-24 | Added the `governance agents` command group (M4) — `list`, `register`, `rename`, `set-owner`, `unregister` — the command line's half of the agent registry, and §2c explaining it. The commands live in `src/cli/program/register.governance.agents.ts` rather than in `register.governance.ts`, which was already 163 lines past the project's own limit before M4 (T16); the identity gate both files need moved to `governance-cli-gate.ts`. The registry also changes a command that gained no flags: assigning an agent now refuses one belonging to a different Administrator, while an id that predates the registry is still accepted — the honest limit stated at the end of §2c. |
+| 2026-08-24 | Added `governance groups unmigrated` and `governance groups migrate --delete` (M3), and §2b on the group model the CLI now acts inside.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 2026-08-21 | `agent prompt` gained `--stream`, and Ctrl-C now cancels the agent run rather than only the printout. Also records the three limits that now apply to every prompt on every surface — a five-minute timeout, two concurrent prompts per account and six per installation — and states why there is no `agent cancel` command: the in-flight table is per process, so such a command could only stop a run started in the same terminal, and one that appeared to reach the Gateway's runs would be claiming a power it does not have.                                                                                                                                                      |
+| 2026-08-20 | Added `governance deployment` (A7) — Root's deployment and network posture report, on the CLI as well as the dashboard. The CLI form is the one that matters on a new host: the dashboard is reachable only through an SSH tunnel by design, so the moment you most need to know whether the listener is exposed is _before_ that tunnel exists. `--json` for scripts, `--strict` to exit non-zero on a failure; exit 0 by default, because a command that fails on every workstation is one people learn to ignore.                                                                                                                                                                       |
+| 2026-08-20 | **Behaviour change, no new flags:** `add-rule` now detects clashes **inside the write lock**. Two administrators adding the same rule at the same instant previously both saw no clash and the loser was told nothing — the duplicate was harmless, the silence was not (QA round 14).                                                                                                                                                                                                                                                                                                                                                                                                     |
+| 2026-08-19 | **Behaviour change, no new flags:** a core denial now covers `governance <subcommand>`, so the _agent_ can no longer reach this CLI through a broad operator allow-rule such as `^(node\|npm\|npx\|pnpm) .*$`. Until QA round 13 (finding 73) `openclaw governance policy set-mode off` was a one-command bypass of the entire RBAC model. This stops the agent; it does nothing about a person with shell access, which remains A6 and is why a CLI login is still open work.                                                                                                                                                                                                             |
+| 2026-08-19 | `add-rule` gained `--effect allow\|deny` and `--access read\|write`. Both were enforced by the engine since the tier model landed and creatable from no interface, so an operator's own restriction meant hand-editing `policy.json` — the R5 pattern (a mechanism that works, no surface that reaches it). `--access` is **refused** on command and network rules rather than ignored, and the warnings now flip with the rule's direction: a catch-all denial is reported as disabling the agent, not as granting everything.                                                                                                                                                            |
+| 2026-08-17 | Added `agent prompt` and `agent transcript` — the User tier's own capability from §1.6 ("may strictly prompt the agents for task execution"), and the last of that tier's capabilities to exist. The run goes through OpenClaw's ordinary ingress, so the policy gate still sees every tool call; a locked-down agent refuses the prompt outright; conversations are kept per (agent, account). CLI prompts carry the existing `cli` attribution caveat.                                                                                                                                                                                                                                   |
+| 2026-08-16 | Added `policy set-agent-mode`, the per-agent posture control. Monitor mode had been demoted to a per-agent opt-in when the tier model landed, and nothing on any of the three surfaces could actually set it — the store function was reachable only from tests. The API route, this command, and the dashboard's **Observe one agent** control landed together, all three refusing `off` for the reason documented above. Also records that `add-rule` now distinguishes a clash caused by a deny rule from one caused by an earlier allowance, because the two mean opposite things.                                                                                                     |
+| 2026-08-11 | CLI parity closed. Added `policy set-agent-ask`, `policy set-hitl-timeout`, `sessions`, `pending list`, `pending decide`, and an `--agent` option on `add-rule`. `add-rule` now also rejects backtracking-prone patterns and reports conflicts with earlier rules. No known CLI gaps remain against the dashboard.                                                                                                                                                                                                                                                                                                                                                                         |
+| 2026-08-10 | First version. Documents `policy show/set-mode/set-ask/add-rule/remove-rule`, `audit tail/verify`, `kill [--release]`. Records that `kill` now measures and prints elapsed time and reports in-flight termination availability honestly, and that `--agent` scoping is dashboard-only so far.                                                                                                                                                                                                                                                                                                                                                                                              |

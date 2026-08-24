@@ -326,6 +326,61 @@ already requires passing OpenClaw's existing Gateway credential check; the
 named-account login is a _second_ gate stacked on top. This mirrors the
 design document's layered "SSH tunnel → dashboard → RBAC" architecture.
 
+### 3b. The agent registry (M4)
+
+`src/governance/agent-registry.ts`; HTTP surface in
+`src/gateway/governance-dashboard-agents.ts`; command line in
+`src/cli/program/register.governance.agents.ts`.
+
+Added 2026-08-24, and it fills the one hole the rest of this document had been
+working around: **the layer had no record of an agent.**
+
+An agent "existed" the moment a rule, a posture override, an escalation
+override, a lockdown or an account assignment happened to mention its id.
+`knownAgentIds()` in `policy-projection.ts` reconstructed the set by walking
+those four collections, and every surface needing a list of agents read that
+reconstruction. It is a reasonable inference with one hole it cannot close: an
+agent that exists and has never been the subject of any of those is invisible.
+
+A registry entry is four fields and a timestamp:
+
+| Field         | Meaning                                                    |
+| ------------- | ---------------------------------------------------------- |
+| `id`          | the key the host roster and every rule use; never changes  |
+| `displayName` | what an operator calls it; free text, bounded, never a key |
+| `groupId`     | the group that owns it (M3)                                |
+| `adminId`     | the **single** Administrator answerable for it             |
+| `createdAt`   | when the claim was made                                    |
+
+Kept in `agents.json` beside `users.json` rather than inside the policy
+document. The policy document says how an agent is _judged_; the registry says
+that it _exists_, who owns it, and what to call it — and folding the second into
+the first would make removing a rule capable of removing an agent.
+
+**The registry leads; `knownAgentIds()` is now the fallback.** Both halves are
+needed. The registry holds agents no rule has ever named — which is the point of
+having one, and what M6's provisioning will produce. The reconstruction holds
+agents that predate the registry, which are real, governed, and would vanish
+from every picker (including the kill switch's) the day the registry became the
+only source.
+
+**Assignment is constrained by ownership.** A User or Viewer may only hold
+agents belonging to the Administrator answerable for them; an agent registered
+to a different Administrator, or to another group, is refused. An agent that is
+_not registered at all_ is still assignable — the honest limit, kept because
+refusing it would break assignment on every installation that upgrades into M4
+and would protect an owner who does not exist.
+
+**One authorization rule covers the whole surface:** agent management is the
+Administrator tier, and an Administrator administers the agents they own. Root
+is exempt from the ownership half, because Root manages the people who own
+agents and an agent whose owner has left must still be re-homeable.
+
+Registering does **not** create an agent in OpenClaw. That is M6, and it is a
+change of kind rather than degree: it would be the first time this layer mutates
+the host it governs. Registering an id the host already runs is how an existing
+installation claims its agents, which is the migration path into the registry.
+
 ### 4. Kill switch
 
 `src/governance/kill-switch.ts` + `agent-terminator.ts`, wired to the Gateway
@@ -1733,7 +1788,7 @@ plane into a multi-tenant one. Report material in `CHAPTER3-MATERIAL.md`
 §3.5.31; plain language in `QA-IN-PLAIN-TERMS.md` §5.25.
 
 **What a group is.** The unit a Root owns — its Root, its Administrators, its
-Users and Viewers, and from M4 its agents. Accounts in different groups never
+Users and Viewers, and since M4 its agents too. Accounts in different groups never
 see each other. Two invariants join the tier model: every account belongs to
 exactly one group, and every User or Viewer has one Administrator answerable for
 it.
@@ -1796,9 +1851,9 @@ would have changed counts they assert.
 
 #### Finding 119 — M2's route named other groups' people
 
-| #   | Component                     | Defect                                                                                                                                                                                                                                                                                                                                                                               | Fix                                                                      |
-| --- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| 119 | `governance-dashboard-api.ts` | The `agents/access` route (M2, shipped in `d88bf04`) answered from `findUsersForAgent`, which searches every account on the installation. Agent ids are free-form and are not owned by a group until M4, so two organisations can independently assign the same one — and an Administrator asking "who can reach agent-x?" would be told the names of people in another organisation | Scope the lookup to the caller's group, and pin it with a two-group test |
+| #   | Component                                                                                 | Defect                                                                                                                                                                                                                                                                                                                                                                               | Fix                                                                      |
+| --- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| 119 | `governance-dashboard-api.ts` (the route moved to `governance-dashboard-agents.ts` in M4) | The `agents/access` route (M2, shipped in `d88bf04`) answered from `findUsersForAgent`, which searches every account on the installation. Agent ids are free-form and are not owned by a group until M4, so two organisations can independently assign the same one — and an Administrator asking "who can reach agent-x?" would be told the names of people in another organisation | Scope the lookup to the caller's group, and pin it with a two-group test |
 
 **Found by reading the M3 diff against the M2 route, not by a failing test** —
 and no test could have caught it, because until M3 existed there was no such
@@ -1816,6 +1871,366 @@ to miss and cheap to exploit.
 than per group, because login is by username alone: two organisations cannot
 both have an `admin`. Fixing it means a group-qualified login, which is a larger
 change to a surface stable since the beginning.
+
+### M4 — the agent registry: a missing noun, not a missing button (2026-08-24)
+
+The second subtask of the tenant model, and the one the remaining two are
+blocked on. Report material in `CHAPTER3-MATERIAL.md` §3.5.33; plain language in
+`QA-IN-PLAIN-TERMS.md` §5.26.
+
+#### The problem, stated precisely
+
+**An agent was not a thing the layer knew about.** It "existed" the moment a
+rule, a posture override, an escalation override, a lockdown or an account
+assignment happened to mention its id, and `knownAgentIds()` in
+`policy-projection.ts` reconstructed the set incidentally by walking those four
+collections. Every surface that needed a list of agents — the dashboard's
+pickers, the kill switch's datalist, `policy rule-agents` — was reading that
+reconstruction.
+
+That is enough to _judge_ an agent and not enough to _own_ one. It has one hole
+it can never close: **an agent that exists and has never been the subject of a
+rule, a posture, a lock or an assignment is invisible to it.** A newly
+provisioned agent is exactly that agent. So "create an agent in the panel" was
+never a missing button — there was nothing to name, nothing to hold, and nothing
+to list when the honest answer was "none".
+
+#### The design, and the three decisions inside it
+
+| Decision                                               | Taken                                                                                        |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| Where the record lives                                 | `agents.json`, beside `users.json` — **not** inside the policy document                      |
+| What absence of a record means                         | **Pre-registry**: real, governed, owned by nobody — the opposite of `groupId`'s "unmigrated" |
+| Whether the id is unique per group or per installation | **Per installation**, because the id keys the host roster and the shared policy document     |
+
+**Not in the policy document**, and the split is the point: the policy document
+says how an agent is _judged_, the registry says that it _exists_, who owns it
+and what to call it. Folding the second into the first would make removing a
+rule capable of removing an agent.
+
+**The asymmetry with M3 is deliberate and is the more interesting half.** M3
+made a missing `groupId` mean _unmigrated_ — an unanswered question that blocks
+sign-in — precisely because an account with no group cannot be placed in one
+without inventing an answer. A missing agent record is not that. The agent is
+still governed by every rule that names it; refusing to work with it would break
+every installation whose agents predate the registry, and would buy no security,
+because an agent nobody has claimed cannot be stolen from an owner who does not
+exist. **The same shape of absence, read two opposite ways, each defensible from
+what the absence would cost.**
+
+| Change                                                               | Where                                             |
+| -------------------------------------------------------------------- | ------------------------------------------------- |
+| The record: `id`, `displayName`, `groupId`, `adminId`, `createdAt`   | `governance/agent-registry.ts` (new)              |
+| `agents.json` beside the other governance state                      | `governance/paths.ts`                             |
+| Four ledger actions: register, rename, owner change, unregister      | `governance/admin-audit.ts`                       |
+| Routes `agents`, `agents/{register,rename,owner,unregister}`         | `gateway/governance-dashboard-agents.ts` (new)    |
+| `agents/access` moved here from the API file, unchanged              | `gateway/governance-dashboard-agents.ts`          |
+| Assignment routed through the registry's ownership check             | `gateway/governance-dashboard-accounts.ts`        |
+| `governance agents list/register/rename/set-owner/unregister`        | `cli/program/register.governance.agents.ts` (new) |
+| The CLI identity gate both command modules need                      | `cli/program/governance-cli-gate.ts` (new)        |
+| `userId` and `groupId` carried on the command line's identity        | `governance/cli-identity.ts`                      |
+| Registry leads, reconstruction follows, in the page's own agent list | `ui/.../governance-page.ts`                       |
+
+#### The invariant M4 adds, and where it is enforced
+
+**A User or Viewer may only hold agents owned by the Administrator answerable
+for them.** Without it, "each Administrator owns a set of agents and a set of
+accounts" describes the panel rather than the system: any Administrator could
+hand another's agent to their own staff, and the ownership column would be true
+of the record and false of the world.
+
+Three outcomes, and the middle one is the honest limit:
+
+| The agent is…                                    | Assignment  | Why                                                            |
+| ------------------------------------------------ | ----------- | -------------------------------------------------------------- |
+| registered, owned by the account's Administrator | allowed     | the ordinary case                                              |
+| **not registered at all**                        | **allowed** | pre-registry; refusing breaks every installation that upgrades |
+| registered to somebody else                      | refused     | covers another Administrator _and_ another group               |
+
+The middle row means **the rule can be sidestepped by not registering**, which
+makes the registry a statement of ownership rather than a gate on it. Closing it
+needs registration to be mandatory, which needs M6's provisioning to exist
+first: there is no honest way to require a record for agents the layer cannot
+yet create. A test asserts the hole out loud (`agent-registry.test.ts`, "allows
+an agent that predates the registry, which is the honest hole") so it is not
+later read as tighter than it is.
+
+#### Where the check lives, and why not in `user-store.ts`
+
+The rule joins two stores — the registry owns _who owns an agent_, the account
+file owns _who holds one_. Putting it in `setUserAssignedAgents` would make
+`user-store.ts` import `agent-registry.ts` while the registry already imports
+`user-store.ts` to validate an owner against the account file. **One direction
+is worth more than one function**: the registry knows about accounts, accounts
+know nothing about agents, and the cycle never exists to be reasoned about.
+
+So `assignAgentsToAccount` is the governed entry point and lives in the
+registry; `setUserAssignedAgents` survives as the unchecked primitive that
+writes the file, and is deliberately unreachable from the HTTP surface — the
+arrangement `updatePolicy` already has under the policy setters.
+
+#### Ownership changes repair the assignments they invalidate
+
+A transfer or an unregistration **releases every holder that no longer
+qualifies**, and mirrors that into live sessions. This is not tidying: leaving
+the old holders would leave the account file stating something the registry
+contradicts — an invariant that holds at the moment of writing and rots
+afterwards. That is the `userAsk` shape this project has already paid for once:
+a setting saved, displayed as active, and never consulted. Record the fact where
+it changes rather than teaching every reader to re-derive it.
+
+The two files are locked separately, so an ownership change racing an assignment
+can land after the check. The result is an account holding an agent its
+Administrator no longer owns — a state the next transfer repairs, rather than
+one the system cannot describe.
+
+#### Authorization: one statable rule per file
+
+Both new route/command modules carry the same sentence: **agent management is
+the Administrator tier, and an Administrator administers the agents they own;
+Root is exempt from the ownership half.**
+
+Root's exemption is not a convenience. Without it, an agent whose owning
+Administrator has left is one nobody can ever re-home — a lockout with extra
+steps, the class `account-guards.ts` exists to prevent. Root's _inclusion_ in
+ownership is refused for the same reason M3 refuses Root as a `managedBy`: if
+Root wants to own an agent it creates an Administrator account and signs into
+that, which keeps one statable rule instead of two and keeps the act
+attributable to the hat it was done in.
+
+Naming a _different_ owner at registration is Root-only, because who answers for
+a workload is people management — the Root side of the split the role model has
+drawn since the beginning.
+
+#### What a refusal is allowed to reveal
+
+An agent in another group is reported as **absent**, never as forbidden. A 403
+would confirm the id exists, turning every mutator into a probe for whether an
+id is in use on the installation — the oracle the login response, the attachment
+lookup and the agent-access route each already decline to be.
+
+The one bit that _is_ leaked is a registration clash: `DuplicateAgentError`
+tells you some group somewhere holds the id. That is the same leak "username
+already exists" carries, it is unavoidable while one policy document serves every
+group, and it is recorded as a limit rather than argued away.
+
+#### T16 repaid rather than added to
+
+M4 added a route group and a command group to two files already past the
+project's 700-line limit. Both were split along the seam T16 named, and both
+finished **smaller than they started**:
+
+| File                          | Before | After     |
+| ----------------------------- | ------ | --------- |
+| `governance-dashboard-api.ts` | 1,219  | **1,208** |
+| `register.governance.ts`      | 863    | **848**   |
+
+Still over the limit, and T16 stays open — but the change that would ordinarily
+have pushed them further over did not.
+
+> **Superseded for the first row on 2026-08-25.** T16 continued the split and
+> `governance-dashboard-api.ts` is now **613**, under the limit. The 1,208 above
+> is what M4 alone left it at, and is kept because the point being made here is
+> about the direction a feature change pushed the number, not about the current
+> figure. See §"T16".
+
+#### The dashboard surface, stated honestly
+
+The registry now **drives** the page: its agent list leads and the old
+reconstruction follows, and a registered display name is shown beside the id in
+every picker (beside, never instead — the id is what every rule, ledger entry and
+command argument uses, and replacing it would make the screen and the audit trail
+talk about one agent in two vocabularies).
+
+**Authoring controls are not on the dashboard**, by plan rather than oversight:
+creating, renaming, re-owning and unregistering from the browser is M6's
+Administrator panel. So M4 is complete on two of the project's three surfaces
+and consumption-only on the third, and Chapter 4 should say so rather than claim
+the three-surface rule is met.
+
+#### Production LOC, counted rather than waved at
+
+The project counts production and test lines separately and asks positive
+production growth to name what it buys. M4's is large and is not apologised for:
+
+|                              | Code lines (blanks and comments excluded) |
+| ---------------------------- | ----------------------------------------- |
+| New production               | **793** across four files                 |
+| New test                     | **628** across two files                  |
+| Raw lines including comments | 1,249 production / 791 test               |
+
+The gap between 793 and 1,249 is the house comment style, which this project
+keeps deliberately because those comments are the first draft of Chapter 3.
+
+What the 793 buys, in the terms the doctrine asks for: **a capability** (an agent
+is a record), **an ownership boundary** (exactly one Administrator per agent),
+**a security invariant** (assignment constrained by that ownership), and **two
+public contracts** (five HTTP routes and five commands). Modified files are net
+_negative_ where they were already oversized — `governance-dashboard-api.ts` lost
+30 lines, `register.governance.ts` lost 23.
+
+#### Verification
+
+- **Store:** `src/governance/agent-registry.test.ts` — 23 tests over five
+  properties: registry-leads-fallback-follows, one owning Administrator, the
+  assignment constraint, repair on ownership change, and the pre-registry hole
+  pinned as such.
+- **Routes:** `src/gateway/governance-agent-registry.test.ts` — 16 tests over
+  the three questions only the HTTP surface owns: who may name the owner, what a
+  refusal reveals, and that the group comes from the session and never the body.
+- The privilege matrix and the malformed-body suite were extended with all five
+  new routes rather than left to cover the old set.
+
+### T25 — the baseline that was misdiagnosed for weeks (2026-08-25)
+
+The project carried a standing baseline of **18 failed / 174 passed** in
+OpenClaw's own harness suite, quoted in every verification step since
+2026-08-13. All 18 are now fixed, along with nine more in a second file. Report
+material in `CHAPTER3-MATERIAL.md` §4.x.31; plain language in
+`QA-IN-PLAIN-TERMS.md` §5.27.
+
+#### The finding that matters more than the fix
+
+The backlog described those 18 as the EBUSY/SQLite teardown bug in
+`src/plugins/contracts/host-hooks.contract.test.ts`, and
+`UPSTREAM-BUG-REPORT.md` was written up on that basis.
+
+**They are a different set of failures in a different file.** The 18 come from
+`src/agents/harness/native-hook-relay.test.ts`, and only one of its nine
+distinct failures is that bug:
+
+| Distinct failures | Cause                                                                                           |
+| ----------------- | ----------------------------------------------------------------------------------------------- |
+| 6                 | Assert POSIX shell quoting (`'x'`) against a relay that correctly emits Windows quoting (`"x"`) |
+| 2                 | Assert a path built with `path.join` against production that correctly uses `path.resolve`      |
+| 1                 | The EBUSY teardown — the only one the bug report describes                                      |
+
+**What let it survive is that both files have exactly nine distinct failures.**
+The arithmetic in the note — "9 distinct names, each reported twice because the
+suite runs under two projects" — is correct for the relay file, and the "9" was
+cross-checked against the other file's count. The number reconciled; the file
+name was never checked.
+
+> This is the project's own recurring finding turned on its own notes for the
+> third time, and the sharpest instance of it: **a figure that reconciles is not
+> evidence that it is a figure about the thing you think it is.** Round eleven's
+> guard could not say what artefact it compared against; T19's inventory said
+> "re-measured every row" when it had re-measured the totals row; this said "the
+> SQLite bug" about a set of failures that is mostly shell quoting.
+
+#### The production code was correct in every case
+
+Worth stating plainly, because it inverts the usual reading of a failing test.
+`shellQuoteArg` in `native-hook-relay-utils.ts` is platform-aware — double
+quotes on `win32`, single quotes elsewhere, and no quoting at all for an
+argument made only of safe characters. That is right: a POSIX-quoted argument
+handed to `cmd.exe` is a different argument. Likewise the derived-path code uses
+`path.resolve`, which is right, because a derived path must be absolute and on
+Windows that means drive-qualified.
+
+**The tests were POSIX-only, against code that was not.** Eight of the nine
+failures are a test asserting the wrong platform's answer.
+
+#### The fixes
+
+| Fix                                                           | Where                                                      |
+| ------------------------------------------------------------- | ---------------------------------------------------------- |
+| `shellQuoteForTests` — the platform rule, restated            | `native-hook-relay.test.ts`                                |
+| `path.resolve` in the derived-path expectation                | `native-hook-relay.test.ts`                                |
+| Close the cached agent database before removing its directory | `native-hook-relay.test.ts`, `host-hooks.contract.test.ts` |
+
+**The quoting helper is deliberately not imported from the module under test.**
+A test that builds its expectation by calling the function it is testing asserts
+`f(x) === f(x)`: it passes whatever the rule is, including a wrong one. Writing
+the rule out a second time is the only thing that lets these assertions disagree
+with the implementation, which is the only reason they are worth running. The
+duplication is the mechanism, not a compromise.
+
+**The EBUSY fix is a caller that never cleaned up.** `openclaw-agent-db.ts`
+already carries the note _"Secret-bearing transient DBs must close even when
+registry maintenance fails; Windows otherwise cannot remove the file during
+caller cleanup"_, and exports `closeOpenClawAgentDatabases()` for exactly this.
+Two test fixtures removed their temp directory without calling it. POSIX permits
+unlinking an open file, so the omission is invisible on Linux and macOS CI.
+
+#### Result
+
+| Suite                                               | Before                 | After          |
+| --------------------------------------------------- | ---------------------- | -------------- |
+| `src/agents/harness/native-hook-relay.test.ts`      | 18 failed / 174 passed | **192 passed** |
+| `src/plugins/contracts/host-hooks.contract.test.ts` | 9 failed / 62 passed   | **71 passed**  |
+
+**27 tests fixed, and the project's regression baseline is now zero.** That is
+worth more than the 27: a baseline of "18 known failures" means any new failure
+has to be checked against a list before it can be believed, and round six exists
+because governance-only test runs hid 19 real regressions for weeks. A green
+baseline does not prevent that, but it removes the step where a regression can
+be mistaken for the weather.
+
+### T16 — one statable rule per file, and the first file under the limit (2026-08-25)
+
+Report material in `CHAPTER3-MATERIAL.md` §3.5.34; plain language in
+`QA-IN-PLAIN-TERMS.md` §5.28.
+
+`governance-dashboard-api.ts` had been over the project's 700-line limit since
+before the limit was noticed. It is now **613 code lines, from 1,219**.
+
+#### The criterion was never "fewer lines"
+
+Five cuts, and each was chosen because the resulting file can state its
+authorization in **one sentence** — the property that makes a split worth doing
+rather than merely making two files out of one:
+
+| Module                | The sentence                                                                              | Code lines |
+| --------------------- | ----------------------------------------------------------------------------------------- | ---------- |
+| `-accounts`           | Root manages people                                                                       | 299        |
+| `-agents`             | An Administrator administers the agents they own; Root is exempt (M4)                     | 280        |
+| `-agent-control`      | User tier or above, and you must manage this agent                                        | 414        |
+| `-oversight`          | Viewer and above; nothing changes state, every answer filtered to what the caller may see | 81         |
+| `-rule-requests`      | One queue: read by Viewers, added to by Users, decided by Administrators                  | 240        |
+| `-api` (what is left) | The policy document, and the dispatcher                                                   | 613        |
+
+Two placement decisions are worth reporting because a line-count-driven split
+would have got them wrong:
+
+- **The kill switch travels with the prompt routes, not with policy.** Stopping
+  an agent is _acting on a workload you are responsible for_, not changing the
+  rules it is judged by — the distinction T27 drew, where withholding an
+  account's ability to write rules must not also remove its ability to stop its
+  own agent. `canManageAgent`, never `canAuthorPolicyForAgent`.
+- **`deployment` and `pending-decisions/decide` stayed out of `-oversight`**,
+  though both look like they belong. `deployment` reads at Root because it maps
+  how to reach and attack the installation (A7), and the decide route writes.
+  Either one would have made the file need two sentences, which is the mixture
+  the split exists to end.
+
+`MAX_BODY_BYTES` moved to `http-common.ts` as `MAX_JSON_BODY_BYTES` rather than
+being copied into the new module: two body limits is how the two drift apart,
+and the smaller becomes a bug nobody looks for.
+
+#### Where the older findings' code went
+
+Findings 90, 112, 115 and 117 all cite `governance-dashboard-api.ts`, and were
+right when written. The attachment and prompt routes they describe now live in
+`governance-dashboard-agent-control.ts`. The finding rows are **not** rewritten —
+they record where the defect was found, which is a historical fact — so this
+note is the redirect for anyone chasing one of them into the source.
+
+#### What is left, honestly
+
+T16 is **not closed.** Two files remain over the limit and they are the harder
+half:
+
+- **`governance-page.ts` — 2,412 code lines.** One Lit component, and no seam
+  has been named for it. It is the largest single file in the project.
+- **`register.governance.ts` — 848.** Its agent commands were split out in M4;
+  its policy commands are the obvious next cut, along the same seam.
+
+Three `unicorn` array-mutation errors in the page were fixed on the way past
+(`sort` → `toSorted`, two `reverse` → `toReversed`). One of them was
+load-bearing rather than cosmetic: the ledger view reversed an array derived
+from component state, guarded only by a `slice()` that a later edit could have
+dropped.
 
 ## Notes for Chapter 3
 

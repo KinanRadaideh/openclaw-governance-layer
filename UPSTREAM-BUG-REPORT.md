@@ -15,6 +15,36 @@ Per the project README, the issue chooser is the channel for bugs. This is
 
 ---
 
+> **Status, 2026-08-25: fixed locally; this report is kept as the write-up.**
+>
+> Both this defect and a second, larger one were repaired in the fork rather
+> than filed upstream (T1 was deprioritised 2026-08-22; T25 closed the
+> engineering on 2026-08-25).
+>
+> **This report describes nine failures in
+> `src/plugins/contracts/host-hooks.contract.test.ts`, and it is correct about
+> them.** The fix is one line in the shared `withHostHookState` fixture:
+> close the cached SQLite handles before removing the directory they live in.
+> `openclaw-agent-db.ts` already carried the matching note — _"Windows
+> otherwise cannot remove the file during caller cleanup"_ — so the hazard was
+> known and this caller simply never cleaned up after itself.
+>
+> **The project's own regression baseline was a different set of failures, and
+> the two were conflated for weeks.** The baseline quoted throughout
+> (`18 failed / 174 passed`) comes from
+> `src/agents/harness/native-hook-relay.test.ts`, not from this file, and only
+> **one** of its nine distinct failures is this EBUSY bug. Six assert POSIX
+> shell quoting against a relay that correctly emits Windows quoting, and two
+> assert path shapes built with `path.join` against production that correctly
+> uses `path.resolve`.
+>
+> What let the conflation survive is that **both files happen to have exactly
+> nine distinct failures**, so the arithmetic checked out — "9 distinct × 2
+> projects = 18" — while the file name did not. Worth keeping for Chapter 4
+> beside the other measurement errors this project has found in its own notes:
+> a number that reconciles is not evidence that it is a number about the thing
+> you think it is.
+
 ## Title
 
 `host-hooks.contract.test.ts` fails on Windows: `EBUSY` removing the temp state
