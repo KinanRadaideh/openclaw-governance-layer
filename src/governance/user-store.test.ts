@@ -23,10 +23,10 @@ import {
 } from "./user-store.js";
 
 /**
- * Every account belongs to a group (S3); these tests all live in one.
+ * Every account belongs to a group (M3); these tests all live in one.
  *
  * The accounts below are Administrators rather than Viewers, which they were
- * before S3. Nothing here is about the tier — these are tests of hashing,
+ * before M3. Nothing here is about the tier — these are tests of hashing,
  * username folding, session propagation and password resets — and a User or
  * Viewer now requires an Administrator answerable for it, which would mean
  * creating a second account in every one of them and changing the counts they
@@ -237,7 +237,7 @@ describe("session tokens", () => {
       role: "root",
       groupId: TEST_GROUP,
     });
-    // Somebody has to answer for a Viewer since S3, and it cannot be the
+    // Somebody has to answer for a Viewer since M3, and it cannot be the
     // account being demoted. This test is about session propagation, so the
     // manager is scaffolding — but the demotion is refused without it, which is
     // the invariant doing its job.

@@ -1721,7 +1721,7 @@ change what the project can be _shown_ to be rather than what it is.
 
 ## 21. The dashboard opened rather than read (2026-08-24)
 
-Two things: the live browser pass T14 had never had, and S2 — the first slice of
+Two things: the live browser pass T14 had never had, and M2 — the first slice of
 the tenant model requested the same day.
 
 ### Getting the fixture right mattered more than the pass
@@ -1821,11 +1821,11 @@ of twenty-seven backlog items done; S3–S6 are planned and not started.
 
 ---
 
-## 22. S3 — the group (2026-08-24)
+## 22. M3 — the group (2026-08-24)
 
 The change that stops the layer assuming one organisation. Data model only; per
-group storage isolation (S5), the agent registry (S4) and the Administrator's
-panel (S6) build on it.
+group storage isolation (M5), the agent registry (M4) and the Administrator's
+panel (M6) build on it.
 
 ### The invariant that moved rather than weakened
 
@@ -1910,4 +1910,73 @@ stable since the beginning. Recorded rather than smuggled in.
 
 ### State
 
-S1, S2 and S3 done; S4, S5 and S6 planned and not started.
+M1, M2 and M3 done; M4, M5 and M6 planned and not started.
+
+---
+
+## 23. The handoff pass (2026-08-24, evening)
+
+No code. A documentation pass to make the project handoff-ready, and one rename
+that had to happen before the docs hardened around a collision.
+
+### The rename
+
+The multi-tenancy subtasks were planned as S1–S6. `HANDOFF.md` already uses
+**S1, S2 and S3 for three findings from the twelfth QA round** — chat-deployment
+session keys, a corrupted `conversations.json`, ungoverned outbound messages.
+
+Two different things called S3 in one project is a defect a reader hits rather
+than one an author notices, and it would have hardened permanently the moment
+the report started quoting section numbers. Renamed to **M1–M6** across 29 files
+including source comments. The reasoning is recorded in `REMAINING-WORK.md`
+§"The M-series" rather than left as a silent find-and-replace, because a future
+reader meeting an "S3" in an old note needs to know which one it is.
+
+Worth noting as its own small lesson: **a naming collision is cheapest to fix
+before the documentation grows around it**, and this one was three days old.
+
+### What the pass corrected, beyond adding the M-series
+
+Two of these were stale claims rather than missing sections, which is the more
+useful kind to find:
+
+- **`PERMISSION-SPEC.md` §8 had three rows the code no longer matched.** Both
+  per-agent switches were listed at `user`, and T4 raised them to
+  `administrator` on the 24th; agent-scoped rule authoring was listed as a
+  scope check when T27 made it a withholdable permission; and "create a second
+  Root — refused at every tier" had stopped being true across groups. A
+  technical reference that is wrong is worse than one that is thin, because it
+  is read as authoritative.
+- **`CLI-REFERENCE.md` knew nothing about `governance groups`** or about
+  `--attach`, both shipped the same day. The command summary is the first thing
+  an operator reads.
+
+### The structure the handoff now has
+
+Two backlogs, deliberately kept apart rather than merged:
+
+| List       | What it is                                           | State            |
+| ---------- | ---------------------------------------------------- | ---------------- |
+| **T1–T27** | The original project — build, verify, defend         | 17 done, 10 left |
+| **M1–M6**  | Multi-tenancy, requested 2026-08-24 and added on top | 3 done, 3 left   |
+
+Merging them would have been tidier and wrong: the T-list is a project being
+finished and the M-list is a feature being started, and a reader deciding what
+to do next needs to see which is which.
+
+### The state, honestly
+
+**1,926 tests across 95 files** (1,224 distinct across 71), both typechecks
+clean, host harness at its pre-existing 18 failed / 174 passed. Nineteen QA
+findings closed in two rounds this week.
+
+**Eighteen commits have never left this machine.** That is the single largest
+risk on the project and the cheapest to remove, and it is now stated in
+`HANDOFF.md` three times — the header, §6 and §8 — because the last time this
+document said "the tree is dirty" in one place it was half-forgotten within
+three days.
+
+**T2 is still the top item**, and the qualifier on it has narrowed rather than
+disappeared: the dashboard has now been driven by hand twice, so what remains
+unobserved is specifically _a language model deciding to make a tool call and
+being refused_.

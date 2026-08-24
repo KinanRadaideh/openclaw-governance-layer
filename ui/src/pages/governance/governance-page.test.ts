@@ -383,7 +383,7 @@ describe("attaching files to a prompt (T14)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// S2 — who can reach an agent.
+// M2 — who can reach an agent.
 //
 // The route is asserted in `governance-agent-access.test.ts`. What only the
 // component can show is the empty answer, which is the state the requested
@@ -414,7 +414,7 @@ function agentPolicyOpen(access: unknown): Partial<PageState> {
   };
 }
 
-describe("who can reach an agent (S2)", () => {
+describe("who can reach an agent (M2)", () => {
   it("names the accounts that hold it", async () => {
     const el = await mount(
       agentPolicyOpen({ agentId: "agent-a", assignedTo: ["malek", "watcher"] }),

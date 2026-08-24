@@ -1,4 +1,4 @@
-// S3 — the group: one organisation's isolated world.
+// M3 — the group: one organisation's isolated world.
 //
 // Before this, the layer modelled one installation with one operator. Exactly
 // one Root existed and it was permanent; there was no notion of an
@@ -244,7 +244,7 @@ describe("a User or Viewer always has an Administrator answerable for it", () =>
 });
 
 describe("accounts that predate groups", () => {
-  /** Writes an account with no group, the way one written before S3 looks. */
+  /** Writes an account with no group, the way one written before M3 looks. */
   async function seedLegacyAccount(): Promise<void> {
     const { readFile, writeFile } = await import("node:fs/promises");
     const { usersFilePath } = await import("./paths.js");

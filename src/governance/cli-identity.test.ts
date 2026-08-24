@@ -33,7 +33,7 @@ import { defaultPolicyDocument } from "./policy-types.js";
 import { issueSession, revokeSession } from "./session-tokens.js";
 import { createUser } from "./user-store.js";
 
-/** Every account belongs to a group (S3); these tests all live in one. */
+/** Every account belongs to a group (M3); these tests all live in one. */
 const TEST_GROUP = "group-test";
 
 let dir: string;
@@ -55,7 +55,7 @@ afterEach(async () => {
 });
 
 /**
- * The Administrator a User or Viewer answers to (S3).
+ * The Administrator a User or Viewer answers to (M3).
  *
  * Created on demand and reused, because the invariant is "somebody is
  * answerable", not "somebody new is answerable" — and a fresh manager per call

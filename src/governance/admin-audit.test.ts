@@ -21,9 +21,9 @@ import { decideRuleRequest, submitRuleRequest } from "./rule-requests.js";
 import { createUser, deleteUser, setUserAssignedAgents, setUserRole } from "./user-store.js";
 
 /**
- * Every account belongs to a group (S3); these tests all live in one.
+ * Every account belongs to a group (M3); these tests all live in one.
  *
- * Accounts that were Viewers or Users before S3 are Administrators here unless
+ * Accounts that were Viewers or Users before M3 are Administrators here unless
  * the tier is the subject of the test. A User or Viewer now requires an
  * Administrator answerable for it, which would mean creating a second account
  * inside tests about username folding, token storage and Root invariants — and
@@ -123,7 +123,7 @@ describe("policy changes are attributable", () => {
 
 describe("account changes are attributable", () => {
   it("records account creation with the role granted", async () => {
-    // Deliberately a User, because the tier is what this asserts. Since S3 that
+    // Deliberately a User, because the tier is what this asserts. Since M3 that
     // means an Administrator has to exist to answer for it.
     const manager = await createUser(
       {

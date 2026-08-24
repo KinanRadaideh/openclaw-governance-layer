@@ -58,12 +58,10 @@ over the limit, not two). **T14 closed 2026-08-24** — all three surfaces.
 **One is deprioritised:** T1 — not being done.
 **Eight remain:** T2, T3, T6, T7, T8, T13, T17, T18, T25.
 
-**A new multi-tenancy request landed 2026-08-24** and is planned as subtasks
-S1-S6 (groups, Admin ownership, an agent registry, per-group isolation, an
-Administrator ecosystem panel, and host provisioning). **S1, S2 and S3 are
-done** — the live browser pass, "who can reach this agent", and the group data
-model. S4-S6 are designed and not started; see `CHAPTER3-MATERIAL.md` §3.5.30 for the gap analysis and the
-four decisions already taken.
+**A second backlog exists as of 2026-08-24: the M-series.** A multi-tenancy
+request, split into six subtasks. **M1, M2 and M3 are done; M4, M5 and M6 are
+not started.** It has its own section below — see §"The M-series" — because it
+is a feature added on top of the project rather than an item within it.
 
 **T23 closed 2026-08-24** — the last backlog item that changed the security
 story rather than the write-up.
@@ -276,6 +274,96 @@ will recur on any new remote, so the check belongs in the deployment
 instructions rather than in somebody's memory — see T3, which will push this
 tree to a VPS.
 
+## The M-series — making the layer multi-tenant
+
+**A second, parallel backlog, added 2026-08-24.** The T-numbers above are the
+original project: build the governance layer and defend it. The M-numbers are
+one large feature requested on top of it, split into six subtasks because it is
+far too big for a single change.
+
+> **Why "M" and not "S".** The subtasks were planned as S1–S6 and renamed on
+> 2026-08-24, because `HANDOFF.md` already uses S1/S2/S3 for three findings from
+> the twelfth QA round (chat-deployment session keys, a corrupted
+> `conversations.json`, ungoverned outbound messages). Two different things
+> called S3 in one project is a defect a reader hits rather than one an author
+> notices. M is for multi-tenancy.
+
+### What the whole thing is for
+
+The layer was built for **one installation with one operator**. Exactly one Root
+existed and was permanent, there was no notion of an organisation, and an
+Administrator managed every agent on the machine by virtue of the tier. That is
+coherent, and it is a single-tenant product.
+
+The request is an Active-Directory-shaped model: a person creates a Root, that
+Root creates the Admin/User/Viewer accounts of their **group**, and everyone
+else logs in to accounts they were given. Each Administrator owns a set of
+agents and a set of User/Viewer accounts, and sees a panel of their whole
+ecosystem — which agents exist, who can reach each one (including "nobody"),
+what policy binds it, and controls to create, edit, assign and unassign.
+
+### The four decisions taken before any of it was designed
+
+Recorded here because they shape every subtask and because the report needs the
+reasoning, not just the outcome.
+
+| Question                        | Decision                                                                                                                  |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| What does "create an agent" do? | **Provision a real OpenClaw agent** in the host roster, not merely a governance record                                    |
+| How separate are groups?        | **Full isolation** — its own policy document and its own audit chain per group                                            |
+| Agent ownership                 | **Exactly one owning Administrator** per agent                                                                            |
+| The single-Root rule            | **Superseded, invariant kept per group.** One Root per group; `ROLE-MODEL.md` carries a dated note on why the scope moved |
+
+### The subtasks
+
+| #          | What                                                                                                                                                                                                                                                                                                                            | State           | Effort   |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | -------- |
+| ~~**M1**~~ | ~~**Drive the T14 dashboard upload in a real browser.**~~ **DONE 2026-08-24.** Independent of tenancy; the gap T14 left. Found finding 118 — the Attach control could not be reached by keyboard. §4.x.30                                                                                                                       | done            | done     |
+| ~~**M2**~~ | ~~**Expose "who can reach this agent".**~~ **DONE 2026-08-24.** `findUsersForAgent` had existed since assignment was built and nothing called it. Scoped by `canViewAgent`; "nobody" rendered in words. Later found to leak across groups — finding 119. §3.5.30                                                                | done            | done     |
+| ~~**M3**~~ | ~~**The group, as a data model.**~~ **DONE 2026-08-24.** `groupId` and `managedBy` on the account record; the Root cap and lockout guard scoped to the group; managed-tier rule enforced in the store; signup creates a group; unmigrated accounts cannot sign in. §3.5.31                                                      | done            | done     |
+| **M4**     | **The agent registry.** A first-class agent record: id, display name, `groupId`, owning `adminId`. `knownAgentIds` becomes a fallback for pre-registry agents rather than the source of truth, and assignment is constrained to agents owned by the User's own Administrator                                                    | **not started** | 2–3 days |
+| **M5**     | **Storage isolation.** Per-group policy document, audit chain, ledger key and checkpoint. Touches `paths.ts`, `policy-store.ts`, `audit-ledger.ts`, `ledger-key.ts`, `kill-switch.ts` and every route. **The existing chain must keep verifying byte-identically** — follow the presence-based migration `actorRole` used in T5 | **not started** | 4–6 days |
+| **M6**     | **The Administrator panel, and provisioning.** The panel over M4's registry, plus creating an agent for real by writing `agents.entries` in the host config. `src/config/agent-roster-provenance.ts` is the seam, and it already handles include-owned rosters that a naive write would corrupt                                 | **not started** | 3–5 days |
+
+### Why that order, and what breaks if it changes
+
+- **M5 before M3/M4** would split storage before knowing what a group is.
+- **M6 before M4** would provision agents with nowhere to record who owns them.
+- **M4 is the unlock.** There is no agent registry today: an agent "exists" only
+  once a rule, posture, lock or assignment happens to mention its id, and
+  `knownAgentIds()` reconstructs the set incidentally. **Creating an agent is
+  not a missing button; it is a missing noun.** Nothing in M6 can be built until
+  that noun exists.
+
+### Risks to carry into the report
+
+- **M5 against the project's strongest claim.** The current security argument is
+  a floor no account can lower, anchored by one hash chain with one key.
+  Per-group ledgers mean per-group keys, and "an attacker who deletes both the
+  key and the checkpoint" becomes a per-group question. The honest limit has to
+  be restated, not inherited.
+- **M6 reaches into the host, and that is a change of kind.** Every governance
+  change so far has _observed and gated_ OpenClaw. Writing its configuration
+  would be the first time this layer mutates the host it governs — a new trust
+  direction Chapter 4 must state plainly rather than let a reader discover.
+- **Open signup is already live.** M3 made creating a Root create a group, and
+  the endpoint is not gated: anyone who can reach it can become a Root. That is
+  defensible only because the Gateway binds loopback-only behind an SSH tunnel.
+  Any deployment that exposes the port directly turns it into self-service Root.
+
+### Known limitations already accepted
+
+- **Usernames are unique per installation, not per group**, because login is by
+  username alone — two organisations cannot both have an `admin`. Fixing it
+  needs a group-qualified login, a larger change to a surface stable since the
+  beginning.
+- **Agents are not group-owned until M4**, so an agent id used by two groups is
+  a coincidence the layer cannot currently prevent. Finding 119 was one
+  consequence; there may be others in routes written before groups existed, and
+  **every pre-M3 route deserves the question "does this cross a group?"**
+
+---
+
 ### Suggested order, and why
 
 Not a schedule — an argument about sequence, replacing the older one at the end
@@ -406,9 +494,9 @@ the files a tool actually opened (`after_tool_call`) — a host change, like B1.
 
 | Ref | Finding                                                                                                                                                                                                                                                                                                                                                   | Status                                                                                                                                                         |
 | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| S1  | **Governance had never been tested against a channel-shaped session key.** Every prior test used a key this project invented. The gate recovers the agent id from the key on channel runs, so if that had been wrong the kill switch would not have fired and agent-scoped rules would not have bound on Discord/Telegram — silently, with a green suite. | **No defect; now asserted.** Round 12 drives Discord, Telegram, Slack and WhatsApp keys built by the **host's own** `buildAgentPeerSessionKey`. **[verified]** |
-| S2  | **A corrupted `conversations.json` took prompting down entirely** — the parse error escaped, so every prompt and transcript read threw until the file was deleted.                                                                                                                                                                                        | **FIXED.** Treated as no transcript. Fail-closed protects a control; a transcript is a convenience and the ledger is the real record. **[verified]**           |
-| S3  | **Outbound messages are ungoverned**, so on a chat deployment an agent can repeat a permitted file's contents into a channel.                                                                                                                                                                                                                             | **Documented, not closed** — see below. Recorded as `ungoverned` and pinned by a test. **[verified]**                                                          |
+| M1  | **Governance had never been tested against a channel-shaped session key.** Every prior test used a key this project invented. The gate recovers the agent id from the key on channel runs, so if that had been wrong the kill switch would not have fired and agent-scoped rules would not have bound on Discord/Telegram — silently, with a green suite. | **No defect; now asserted.** Round 12 drives Discord, Telegram, Slack and WhatsApp keys built by the **host's own** `buildAgentPeerSessionKey`. **[verified]** |
+| M2  | **A corrupted `conversations.json` took prompting down entirely** — the parse error escaped, so every prompt and transcript read threw until the file was deleted.                                                                                                                                                                                        | **FIXED.** Treated as no transcript. Fail-closed protects a control; a transcript is a convenience and the ledger is the real record. **[verified]**           |
+| M3  | **Outbound messages are ungoverned**, so on a chat deployment an agent can repeat a permitted file's contents into a channel.                                                                                                                                                                                                                             | **Documented, not closed** — see below. Recorded as `ungoverned` and pinned by a test. **[verified]**                                                          |
 
 Everything else held under attack: prompts cannot choose their own session key,
 an agent id aliasing an object internal cannot poison the store, concurrent

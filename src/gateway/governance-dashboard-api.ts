@@ -1275,7 +1275,7 @@ export async function handleGovernanceApiRequest(
   // assigned to them. No new permission concept was needed, which is the
   // clearest sign the tier model was drawn correctly.
   // ---------------------------------------------------------------------
-  // Who can reach this agent (S2).
+  // Who can reach this agent (M2).
   //
   // `findUsersForAgent` has existed in `user-store.ts` since assignment was
   // built and nothing ever called it: the dashboard could show an operator
@@ -1316,8 +1316,8 @@ export async function handleGovernanceApiRequest(
       // are deliberately absent: they reach every agent by role, so listing
       // them would make every agent look identically staffed and hide the
       // distinction the panel exists to show.
-      // Scoped to the caller's group (S3). Agent ids are free-form and not
-      // owned by a group until S4, so two organisations can use the same one —
+      // Scoped to the caller's group (M3). Agent ids are free-form and not
+      // owned by a group until M4, so two organisations can use the same one —
       // without this the route would name people in another organisation.
       assignedTo: await findUsersForAgent(agentId, session.groupId),
     });

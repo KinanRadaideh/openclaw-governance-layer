@@ -180,7 +180,7 @@ class GovernancePage extends OpenClawLightDomElement {
   /** Agent → policies. Which agent the operator is asking about, and the answer. */
   @state() private agentPolicyAgentId = "";
   @state() private agentPolicyView: GovernanceAgentPolicyView | null = null;
-  /** Who holds this agent by assignment (S2). Null until loaded, [] means nobody. */
+  /** Who holds this agent by assignment (M2). Null until loaded, [] means nobody. */
   @state() private agentAccess: GovernanceAgentAccess | null = null;
   @state() private agentPolicyError: string | null = null;
   /**
@@ -222,7 +222,7 @@ class GovernancePage extends OpenClawLightDomElement {
   @state() private newUserName = "";
   @state() private newUserPassword = "";
   @state() private newUserRole: GovernanceRole = "viewer";
-  /** The Administrator a new User or Viewer will answer to (S3). */
+  /** The Administrator a new User or Viewer will answer to (M3). */
   @state() private newUserManagedBy = "";
   @state() private newRuleAgentId = "";
   /** Agent the per-agent posture control is about to act on. */
@@ -1816,7 +1816,7 @@ class GovernancePage extends OpenClawLightDomElement {
    * prompt goes out, and it means an abandoned pick had been charged to the
    * account permanently, with no way to get it back.
    */
-  /** Administrators in this group, who are the only accounts that may manage a User (S3). */
+  /** Administrators in this group, who are the only accounts that may manage a User (M3). */
   private administrators(): GovernanceUserRecord[] {
     return (this.users as GovernanceUserRecord[]).filter((user) => user.role === "administrator");
   }

@@ -806,7 +806,7 @@ flowchart LR
   S3["3. Choose form<br/>relative inside workspace,<br/>absolute outside"]
   OUT["/etc/passwd"]
   RULE{"Rule ^src/.*$"}
-  RAW --> S1 --> S2 --> S3 --> OUT --> RULE
+  RAW --> M1 --> M2 --> M3 --> OUT --> RULE
   RULE -->|no match| DENY["DENIED"]
 ```
 
@@ -2829,7 +2829,7 @@ the tool holds still names the file that was judged.
 > the same question twice and only listening to the first answer — and to stop
 > asking it twice.
 
-### 3.5.30 Who can reach an agent, and the first step toward a tenant model (S2)
+### 3.5.30 Who can reach an agent, and the first step toward a tenant model (M2)
 
 A small change with a disproportionate amount of design behind it, and the first
 slice of a much larger piece of work.
@@ -2882,7 +2882,7 @@ produce nothing to draw.
 
 #### Where this is going
 
-This is subtask S2 of a much larger change requested on 2026-08-24: a tenant
+This is subtask M2 of a much larger change requested on 2026-08-24: a tenant
 model in which one person creates a Root, that Root creates the Admin, User and
 Viewer accounts of their **group**, every User and Viewer is associated with an
 Administrator, and each Administrator sees a panel of the agents in their
@@ -2918,11 +2918,11 @@ so: every governance change so far has _observed and gated_ OpenClaw. Writing
 its configuration would be the first time this layer mutates the host it
 governs.
 
-### 3.5.31 The group: making the layer multi-tenant (S3)
+### 3.5.31 The group: making the layer multi-tenant (M3)
 
 The change that turns a single-operator control plane into one that can hold
 several organisations at once. The data model only — per-group storage
-isolation (S5), the agent registry (S4) and the Administrator's panel (S6) build
+isolation (M5), the agent registry (M4) and the Administrator's panel (M6) build
 on it.
 
 #### What a group is, and why the model needed one
@@ -2933,7 +2933,7 @@ an Administrator managed every agent on the machine by virtue of the tier. That
 is coherent, and it is a single-tenant product.
 
 A **group** is now the unit a Root owns: its Root, its Administrators, its Users
-and Viewers, and (from S4) its agents. Accounts in different groups never see
+and Viewers, and (from M4) its agents. Accounts in different groups never see
 each other. Two new invariants join the tier model:
 
 1. **Every account belongs to exactly one group.**
@@ -3036,25 +3036,25 @@ needed a group, and 23 accounts that had been Users or Viewers incidentally were
 changed to Administrators, because the tier had never been the subject of those
 tests and adding a manager to each would have changed counts they assert.
 
-#### Finding 119: S2 became a leak without changing
+#### Finding 119: M2 became a leak without changing
 
-Reading the S3 diff against the route S2 had shipped two commits earlier found
+Reading the M3 diff against the route M2 had shipped two commits earlier found
 that `agents/access` answered from a lookup that searches **every account on the
-installation**. Agent ids are free-form and are not owned by a group until S4,
+installation**. Agent ids are free-form and are not owned by a group until M4,
 so two organisations can independently assign the same id — and an
 Administrator asking "who can reach agent-x?" would have been told the names of
 people in another organisation.
 
-No test could have caught it, because until S3 there was no second group to leak
-across. **S2 was correct in a single-tenant world and became a defect the moment
-the world changed underneath it, without a line of S2 changing.**
+No test could have caught it, because until M3 there was no second group to leak
+across. **M2 was correct in a single-tenant world and became a defect the moment
+the world changed underneath it, without a line of M2 changing.**
 
 That belongs in Chapter 4 beside the "correct rule, wrong noun" pair as a third
 variant of the same family:
 
 | Variant                                              | Example                                                                                                     |
 | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| A rule scoped to the wrong noun                      | The attachment quota bounded clicks, not sends (113); the Root cap bounded machines, not organisations (S3) |
+| A rule scoped to the wrong noun                      | The attachment quota bounded clicks, not sends (113); the Root cap bounded machines, not organisations (M3) |
 | A check that could not run                           | An unreachable base64 validator (112); a guard with no caller (`sweepOrphans`, 113)                         |
 | **Correct code turned into a defect from elsewhere** | **This (119)**                                                                                              |
 
@@ -3068,6 +3068,92 @@ login is by username alone. Two organisations cannot both have an `admin`. The
 alternative is a group-qualified login, which is a larger change to a surface
 that has been stable since the beginning — recorded as a limitation rather than
 smuggled in.
+
+### 3.5.32 The M-series: what multi-tenancy asked of a single-tenant design
+
+An overview section, because M1–M6 are one feature reported across several
+places and a reader meeting §3.5.30 or §3.5.31 alone will not know what they
+are part of.
+
+#### The request, and what made it large
+
+The layer was built for **one installation with one operator**, and that
+assumption was never written down — it was simply what you get when only one
+organisation has ever used something. Exactly one Root existed and was
+permanent; there was no notion of an organisation; and an Administrator managed
+every agent on the machine by virtue of the tier.
+
+The request was Active-Directory-shaped: a person creates a Root, that Root
+creates their organisation's Admin/User/Viewer accounts, others sign in to
+accounts they were given, and each Administrator sees a panel of the agents in
+their ecosystem — who can reach each one, what policy binds it, and controls to
+create, edit, assign and unassign.
+
+**What made it larger than it reads** was not the account model. It was one row
+of the gap analysis: **there is no agent registry.** An agent "exists" only once
+a rule, posture, lock or assignment happens to mention its id, and
+`knownAgentIds()` reconstructs the set incidentally from whatever the policy
+document names. "Create a new agent in the panel" is therefore **not a missing
+button; it is a missing noun** — there is nothing to own, nothing to name, and
+nothing to list when the answer is "none".
+
+#### The four decisions taken before designing anything
+
+| Question                          | Decision                                                   | Consequence                                            |
+| --------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------ |
+| What does creating an agent _do_? | Provision a real OpenClaw agent                            | The layer would **mutate** its host for the first time |
+| How separate are groups?          | Full isolation — policy document and audit chain per group | The ledger's security argument becomes per-group       |
+| Agent ownership                   | Exactly one owning Administrator                           | Makes "their ecosystem" statable                       |
+| The single-Root rule              | Kept, per group                                            | A scope correction rather than a reversal              |
+
+#### The six subtasks, and why the order is forced
+
+| #   | What                                           | State          |
+| --- | ---------------------------------------------- | -------------- |
+| M1  | Drive the dashboard upload in a browser        | Done — §4.x.30 |
+| M2  | "Who can reach this agent", including "nobody" | Done — §3.5.30 |
+| M3  | The group as a data model                      | Done — §3.5.31 |
+| M4  | The agent registry                             | Not started    |
+| M5  | Per-group storage isolation                    | Not started    |
+| M6  | The Administrator panel, and provisioning      | Not started    |
+
+M5 before M3 would split storage before knowing what a group is. M6 before M4
+would provision agents with nowhere to record who owns them. **M4 is the
+unlock**, because the noun has to exist before anything can be built on it.
+
+#### What the finished third has already taught
+
+Three findings came out of M1–M3, and each is a different _shape_ of defect. The
+report should present them together, because the set is more interesting than
+any one:
+
+| Shape                                            | Finding | What it looked like                                                                                                                      |
+| ------------------------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| A control that only worked one way               | **118** | The Attach button could not be reached by keyboard — `display:none` removes an input from the tab order and a `<label>` is not focusable |
+| A correct rule attached to the wrong noun        | **M3**  | The single-Root rule was right and bounded _machines_ rather than _organisations_                                                        |
+| Correct code turned into a defect from elsewhere | **119** | M2's route answered across every group, and became a leak the moment groups existed — without a line of M2 changing                      |
+
+The third is the one worth the most space. **No test could have caught it**,
+because until M3 there was no second group to leak across; and no review of M2
+would have found it, because M2 was correct when written. It was found by
+re-reading an older feature while building a newer one.
+
+> **The transferable claim:** adding a boundary to a system does not apply that
+> boundary to anything written before it. Every pre-existing surface has to be
+> re-asked the question, one at a time — and that audit is **not finished**
+> here. Chapter 4 should say so rather than imply the isolation is complete.
+
+#### The honest limits, as of 2026-08-24
+
+- **Isolation is enforced by the layer, not by storage.** One policy document and
+  one audit chain serve every group until M5.
+- **Signup is open.** Creating a Root creates a group and the endpoint is
+  ungated. Defensible only because the Gateway binds loopback-only behind an SSH
+  tunnel; a directly exposed port makes it self-service Root.
+- **Usernames are unique per installation, not per group**, because login is by
+  username alone. Two organisations cannot both have an `admin`.
+- **Agents are not group-owned until M4**, so an agent id used by two groups is a
+  coincidence the layer cannot yet prevent.
 
 ### 3.5.9 Recording administrative actions in the same chain
 
@@ -3288,7 +3374,7 @@ defects each round found, so none can silently return.
 
 |           |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Total** | **1,926 tests across 95 files** — measured 2026-08-24, after S3, the group data model (§3.5.31); 1,902 across 94 after the live browser pass and S2 (§3.5.30); 1,877 across 91 after T14's HTTP and dashboard surfaces and QA round seventeen (§4.x.29); 1,802 across 88 after T23 (§3.5.29); 1,794 across 87 after T4, T5 and T14 (§3.5.26–§3.5.28); 1,722 across 84 after the first dashboard component tests (§4.x.27), the core-tier split (§3.5.24), Root's authoring control (§3.5.23), the kill-switch end-to-end verification and the authoring-scope matrix (§3.5.21, §3.5.22). (1,564 across 75 after the bidirectional policy views, §3.5.20. (1,510 across 71 after the sixteenth QA pass, §4.x.25. (1,499 across 70 after T9, authentication auditing, §3.5.19. (1,480 across 68 before it, after the A1 follow-ups, the last of round thirteen, the hands-on UI pass and the three core invariants; 1,465 across 67 before `core-invariants.test.ts`; 1,404 across 64 after B1; 1,393 across 63 after the fourteenth QA pass and A7; 1,264 across 57 before rounds 13 and 14. The growth is almost entirely regression tests lifted out of the probes that produced each finding.) **Measured with `src/governance/`, `src/gateway/governance-*.test.ts`, `ui/src/pages/governance/`** — adding `ui/src/i18n` gives 1,564 across 73, which is a different set and not a regression. **Every figure in this row is a count of test-file _runs_ and test _executions_:** the ten `src/gateway/` files run under three Vitest projects, so the distinct totals behind the 1,926/95 are **1,224 tests across 71 files**. See §3.5.2. |
+| **Total** | **1,926 tests across 95 files** — measured 2026-08-24, after M3, the group data model (§3.5.31); 1,902 across 94 after the live browser pass and M2 (§3.5.30); 1,877 across 91 after T14's HTTP and dashboard surfaces and QA round seventeen (§4.x.29); 1,802 across 88 after T23 (§3.5.29); 1,794 across 87 after T4, T5 and T14 (§3.5.26–§3.5.28); 1,722 across 84 after the first dashboard component tests (§4.x.27), the core-tier split (§3.5.24), Root's authoring control (§3.5.23), the kill-switch end-to-end verification and the authoring-scope matrix (§3.5.21, §3.5.22). (1,564 across 75 after the bidirectional policy views, §3.5.20. (1,510 across 71 after the sixteenth QA pass, §4.x.25. (1,499 across 70 after T9, authentication auditing, §3.5.19. (1,480 across 68 before it, after the A1 follow-ups, the last of round thirteen, the hands-on UI pass and the three core invariants; 1,465 across 67 before `core-invariants.test.ts`; 1,404 across 64 after B1; 1,393 across 63 after the fourteenth QA pass and A7; 1,264 across 57 before rounds 13 and 14. The growth is almost entirely regression tests lifted out of the probes that produced each finding.) **Measured with `src/governance/`, `src/gateway/governance-*.test.ts`, `ui/src/pages/governance/`** — adding `ui/src/i18n` gives 1,564 across 73, which is a different set and not a regression. **Every figure in this row is a count of test-file _runs_ and test _executions_:** the ten `src/gateway/` files run under three Vitest projects, so the distinct totals behind the 1,926/95 are **1,224 tests across 71 files**. See §3.5.2. |
 
 Two methodology notes worth keeping:
 

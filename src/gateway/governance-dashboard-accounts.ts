@@ -37,7 +37,7 @@ import {
 import { sendInvalidRequest, sendJson } from "./http-common.js";
 
 /**
- * Whether a target account is one the caller is allowed to touch at all (S3).
+ * Whether a target account is one the caller is allowed to touch at all (M3).
  *
  * Every mutating route here takes a `userId` from the request body, and before
  * groups existed that was safe because there was one organisation. Now it is
@@ -133,7 +133,7 @@ export async function handleGovernanceAccountRoutes(
     if (!requireRole(res, session, "root")) {
       return true;
     }
-    // Scoped to the caller's own group (S3). A Root owns one organisation, not
+    // Scoped to the caller's own group (M3). A Root owns one organisation, not
     // the installation, and the account list is the most direct way the
     // isolation could leak — it names every person in it.
     sendJson(res, 200, await listUsers(session.groupId));

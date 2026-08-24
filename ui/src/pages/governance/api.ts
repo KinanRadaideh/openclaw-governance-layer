@@ -829,7 +829,7 @@ export class GovernanceApi {
     role: GovernanceRole;
     assignedAgents?: string[];
     /**
-     * The Administrator answerable for a new User or Viewer (S3).
+     * The Administrator answerable for a new User or Viewer (M3).
      *
      * The group is deliberately absent: it comes from the caller's session on
      * the server and is never accepted from a request, because a Root creating

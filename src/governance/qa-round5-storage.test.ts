@@ -21,9 +21,9 @@ import { resolveRuleTtl, validateRulePattern, MAX_RULE_TTL_MINUTES } from "./rul
 import { createUser, DuplicateRootError, listUsers, MissingGroupError } from "./user-store.js";
 
 /**
- * Every account belongs to a group (S3); these tests all live in one.
+ * Every account belongs to a group (M3); these tests all live in one.
  *
- * Accounts that were Viewers or Users before S3 are Administrators here unless
+ * Accounts that were Viewers or Users before M3 are Administrators here unless
  * the tier is the subject of the test. A User or Viewer now requires an
  * Administrator answerable for it, which would mean creating a second account
  * inside tests about username folding, token storage and Root invariants — and
@@ -182,9 +182,9 @@ describe("a rule keeps its generated id", () => {
   });
 });
 
-describe("creating a Root now creates a group (S3)", () => {
+describe("creating a Root now creates a group (M3)", () => {
   it("no longer refuses a second Root, because it is a second organisation", async () => {
-    // **This test asserted the opposite until S3, and the reversal is the
+    // **This test asserted the opposite until M3, and the reversal is the
     // point.** The old rule was one Root per installation, protected by
     // `onlyAsFirstAccount` inside the write lock, because two simultaneous
     // first-account creations on a fresh install were the one moment when

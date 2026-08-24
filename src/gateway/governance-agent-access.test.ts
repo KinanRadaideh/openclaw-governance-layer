@@ -1,4 +1,4 @@
-// S2 — "who can reach this agent", through the route an operator's dashboard
+// M2 — "who can reach this agent", through the route an operator's dashboard
 // calls.
 //
 // `findUsersForAgent` has existed in `user-store.ts` since assignment was built
@@ -26,7 +26,7 @@ import type { GovernanceSession } from "../governance/session-tokens.js";
 import { createUser } from "../governance/user-store.js";
 import { handleGovernanceApiRequest } from "./governance-dashboard-api.js";
 
-/** Every account belongs to a group (S3); these tests all live in one. */
+/** Every account belongs to a group (M3); these tests all live in one. */
 const TEST_GROUP = "group-test";
 
 let dir: string;
@@ -65,7 +65,7 @@ function session(
 const ROOT_ACTOR = { username: "rootie", role: "root" as GovernanceRole };
 
 /**
- * Creates a User or Viewer with the Administrator S3 requires over it.
+ * Creates a User or Viewer with the Administrator M3 requires over it.
  *
  * The manager is created on demand and reused within a test, because the
  * invariant is "somebody is answerable", not "somebody new is answerable".
@@ -192,8 +192,8 @@ describe("who can reach an agent", () => {
     expect(reply.status).toBe(400);
   });
 
-  it("does not name another group's people who use the same agent id (S3)", async () => {
-    // Agent ids are free-form and are not owned by a group until S4, so two
+  it("does not name another group's people who use the same agent id (M3)", async () => {
+    // Agent ids are free-form and are not owned by a group until M4, so two
     // organisations can independently assign the same one. Without the group
     // filter this route would answer with the other organisation's staff —
     // isolation defeated by a coincidence of naming rather than by an attack.

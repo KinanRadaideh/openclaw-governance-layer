@@ -151,35 +151,86 @@ Tracked as Q-73b in `mg/REMAINING-WORK.md` §13c.
 
 ## 2. Command summary
 
-| Command                                                                          | Purpose                                                                                                              |
-| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `governance policy show`                                                         | Print the policy document                                                                                            |
-| `governance policy set-mode <mode>`                                              | Set posture: enforce / monitor / off                                                                                 |
-| `governance policy set-ask <mode>`                                               | Set behaviour on an unlisted action                                                                                  |
-| `governance policy add-rule`                                                     | Add a rule that allows or forbids something                                                                          |
-| `governance policy remove-rule <id>`                                             | Remove a rule by id                                                                                                  |
-| `governance policy set-agent-ask <agentId> <mode>`                               | Per-agent override of ask behaviour                                                                                  |
-| `governance login [username]`                                                    | **Sign in.** Command-line changes are then recorded against your account and tier, and your permissions are enforced |
-| `governance logout`                                                              | End the command-line session (revokes it, not just forgets it)                                                       |
-| `governance whoami`                                                              | Show which account the command line is signed in as                                                                  |
-| `governance policy request-setting <agentId> <ask\|mode> <value> --reason <why>` | **User:** ask an Administrator to change an agent's escalation or posture                                            |
-| `governance policy core-rules`                                                   | List the shipped core denials and which are switched off                                                             |
-| `governance policy core-rule <ruleId> <true\|false>`                             | **Root:** switch a core denial off or back on. The three self-protecting rules refuse                                |
-| `governance set-policy-authoring <userId> <true\|false>`                         | **Root:** allow or withhold a User account's ability to write policy                                                 |
-| `governance policy for-agent <agentId>`                                          | **Agent → policies.** Posture and every rule in force for one agent                                                  |
-| `governance policy rule-agents <ruleId>`                                         | **Policies → agents.** Which agents a rule binds                                                                     |
-| `governance policy set-agent-mode <agentId> <mode>`                              | **Administrator:** per-agent posture: enforce / monitor / default                                                    |
-| `governance policy set-hitl-timeout <seconds>`                                   | How long an escalation waits for a human                                                                             |
-| `governance agent prompt [--stream] <agentId> <message>`                         | Send a prompt to an agent and print the reply                                                                        |
-| `governance agent transcript <agentId>`                                          | Print this machine's conversation with an agent                                                                      |
-| `governance sessions`                                                            | List currently-running agent sessions                                                                                |
-| `governance deployment`                                                          | Verify the deployment and network posture                                                                            |
-| `governance pending list`                                                        | Show timed-out escalations awaiting a decision                                                                       |
-| `governance pending decide <id> --allow\|--deny`                                 | Record a late decision                                                                                               |
-| `governance audit tail`                                                          | Print recent ledger entries                                                                                          |
-| `governance audit verify`                                                        | Verify the hash chain                                                                                                |
-| `governance kill <agentId>`                                                      | Engage the kill switch                                                                                               |
-| `governance kill <agentId> --release`                                            | Release a lockdown                                                                                                   |
+| Command                                                                          | Purpose                                                                                                                                   |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `governance policy show`                                                         | Print the policy document                                                                                                                 |
+| `governance policy set-mode <mode>`                                              | Set posture: enforce / monitor / off                                                                                                      |
+| `governance policy set-ask <mode>`                                               | Set behaviour on an unlisted action                                                                                                       |
+| `governance policy add-rule`                                                     | Add a rule that allows or forbids something                                                                                               |
+| `governance policy remove-rule <id>`                                             | Remove a rule by id                                                                                                                       |
+| `governance policy set-agent-ask <agentId> <mode>`                               | Per-agent override of ask behaviour                                                                                                       |
+| `governance login [username]`                                                    | **Sign in.** Command-line changes are then recorded against your account and tier, and your permissions are enforced                      |
+| `governance logout`                                                              | End the command-line session (revokes it, not just forgets it)                                                                            |
+| `governance whoami`                                                              | Show which account the command line is signed in as                                                                                       |
+| `governance policy request-setting <agentId> <ask\|mode> <value> --reason <why>` | **User:** ask an Administrator to change an agent's escalation or posture                                                                 |
+| `governance policy core-rules`                                                   | List the shipped core denials and which are switched off                                                                                  |
+| `governance policy core-rule <ruleId> <true\|false>`                             | **Root:** switch a core denial off or back on. The three self-protecting rules refuse                                                     |
+| `governance set-policy-authoring <userId> <true\|false>`                         | **Root:** allow or withhold a User account's ability to write policy                                                                      |
+| `governance policy for-agent <agentId>`                                          | **Agent → policies.** Posture and every rule in force for one agent                                                                       |
+| `governance policy rule-agents <ruleId>`                                         | **Policies → agents.** Which agents a rule binds                                                                                          |
+| `governance policy set-agent-mode <agentId> <mode>`                              | **Administrator:** per-agent posture: enforce / monitor / default                                                                         |
+| `governance policy set-hitl-timeout <seconds>`                                   | How long an escalation waits for a human                                                                                                  |
+| `governance agent prompt [--stream] [--attach <path...>] <agentId> <message>`    | Send a prompt to an agent and print the reply. `--attach` sends files; the ledger records hash, type, size and name and **never content** |
+| `governance groups unmigrated`                                                   | List accounts written before groups existed, which can no longer sign in                                                                  |
+| `governance groups migrate [--delete]`                                           | **Destructive.** Delete every account that predates groups. Reports what would go unless `--delete` is given                              |
+| `governance agent transcript <agentId>`                                          | Print this machine's conversation with an agent                                                                                           |
+| `governance sessions`                                                            | List currently-running agent sessions                                                                                                     |
+| `governance deployment`                                                          | Verify the deployment and network posture                                                                                                 |
+| `governance pending list`                                                        | Show timed-out escalations awaiting a decision                                                                                            |
+| `governance pending decide <id> --allow\|--deny`                                 | Record a late decision                                                                                                                    |
+| `governance audit tail`                                                          | Print recent ledger entries                                                                                                               |
+| `governance audit verify`                                                        | Verify the hash chain                                                                                                                     |
+| `governance kill <agentId>`                                                      | Engage the kill switch                                                                                                                    |
+| `governance kill <agentId> --release`                                            | Release a lockdown                                                                                                                        |
+
+---
+
+## 2b. Groups, and accounts that predate them
+
+Added by M3 (2026-08-24), when the layer stopped assuming one organisation.
+
+**A group is the unit a Root owns** — its Root, its Administrators, its Users and
+Viewers. Accounts in different groups never see each other. Creating a Root
+creates a group around it, so `governance login` and every account command act
+inside the group of whoever is signed in.
+
+Two rules the CLI enforces exactly as the dashboard does, because both go
+through the same store rather than through their own copy of the check:
+
+- Every account belongs to exactly one group.
+- **Every User and Viewer has one Administrator answerable for it.** Root cannot
+  be that Administrator — if Root wants to run a User directly, it creates an
+  Administrator account and signs into that.
+
+### `governance groups unmigrated`
+
+Lists accounts created before groups existed. They have no group, and **nothing
+can work out which organisation they belonged to** — so rather than guessing,
+the layer refuses to let them sign in. The password still verifies; the account
+is inert.
+
+```
+$ openclaw governance groups unmigrated
+2 account(s) predate groups and cannot sign in until removed:
+  kinan (root, id user-1754...)
+  analyst (viewer, id user-1755...)
+
+Run: openclaw governance groups migrate --delete
+```
+
+### `governance groups migrate [--delete]`
+
+Deletes every account with no group. **Without `--delete` it only reports**, and
+that is deliberate: this removes credentials and there is no password reset, so
+the destructive form has to be typed rather than defaulted into.
+
+It is also deliberately **not** run automatically at load. A migration that
+deletes accounts the first time a new build starts is one nobody consented to;
+the sign-in refusal is what makes leaving them sitting safe until an operator
+decides.
+
+Each deletion is its own ledger entry, naming the account and the reason, since
+after this the ledger is the only place that says the account existed.
 
 ---
 

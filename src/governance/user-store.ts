@@ -48,14 +48,14 @@ export type GovernanceUser = {
    */
   canAuthorPolicy?: boolean;
   /**
-   * The group this account belongs to (S3).
+   * The group this account belongs to (M3).
    *
    * A group is one organisation's whole world: its Root, its Administrators,
    * its Users and Viewers. Accounts in different groups never see each other.
    *
    * **Optional in the type and mandatory in practice**, and the gap between
-   * those two is deliberate. Every account created from S3 onward has one;
-   * accounts written before S3 existed do not, and cannot be given one
+   * those two is deliberate. Every account created from M3 onward has one;
+   * accounts written before M3 existed do not, and cannot be given one
    * automatically because there is no way to know which organisation they
    * belonged to. So absent does not mean "the default group" here — the
    * pattern `actorRole` and `canAuthorPolicy` use, where absent is a safe
@@ -174,14 +174,14 @@ export async function findUserByUsername(username: string): Promise<GovernanceUs
  * Accounts holding an agent by assignment, within one group.
  *
  * **`groupId` is not optional in practice and the leak it closes is real.**
- * Agent ids are free-form strings and are not owned by a group until S4, so two
+ * Agent ids are free-form strings and are not owned by a group until M4, so two
  * organisations can independently assign the same id. Without the filter, an
  * Administrator asking "who can reach agent-x?" would be told the names of
  * people in another organisation who happen to use that id — the exact
  * isolation the group exists to provide, defeated by a coincidence of naming.
  *
- * Caught by reading the S3 diff against the S2 route rather than by a failing
- * test, because no test had two groups in it until S3 existed.
+ * Caught by reading the M3 diff against the M2 route rather than by a failing
+ * test, because no test had two groups in it until M3 existed.
  */
 export async function findUsersForAgent(agentId: string, groupId?: string): Promise<string[]> {
   const file = await readUsersFile();
@@ -195,7 +195,7 @@ export async function countUsers(): Promise<number> {
   return (await readUsersFile()).users.length;
 }
 
-/** Accounts written before groups existed, which cannot sign in until resolved (S3). */
+/** Accounts written before groups existed, which cannot sign in until resolved (M3). */
 export async function listUnmigratedAccounts(): Promise<GovernanceUserRecord[]> {
   return (await readUsersFile()).users.filter((u) => !u.groupId).map(toRecord);
 }
@@ -230,7 +230,7 @@ export async function deleteUnmigratedAccounts(actor: AuditActorInput): Promise<
     await recordAdminAction({
       actor,
       action: ADMIN_ACTIONS.userDelete,
-      target: `account ${orphan.username} (role ${orphan.role}) deleted: predates groups (S3 migration)`,
+      target: `account ${orphan.username} (role ${orphan.role}) deleted: predates groups (M3 migration)`,
       subjectId: orphan.id,
     });
   }
@@ -248,7 +248,7 @@ export type CreateUserInput = {
   managedBy?: string;
 };
 
-// `onlyAsFirstAccount` and `AccountsAlreadyExistError` lived here until S3.
+// `onlyAsFirstAccount` and `AccountsAlreadyExistError` lived here until M3.
 //
 // They refused any creation that was not the installation's very first
 // account, checked inside the write lock, because the bootstrap endpoint used
@@ -322,7 +322,7 @@ export async function createUser(
     }
     // ------------------------------------------------------------------
     // Group membership and management, checked inside the same lock as the
-    // write (S3).
+    // write (M3).
     //
     // Outside the lock these would be a snapshot: two Users created at once
     // could both name a manager one of them is simultaneously deleting, and
@@ -436,7 +436,7 @@ function wouldCreateSecondRoot(
   if (role !== "root") {
     return false;
   }
-  // **Scoped to the group since S3, and the original argument is why.**
+  // **Scoped to the group since M3, and the original argument is why.**
   //
   // The cap used to be per installation, and the reasoning on
   // `DuplicateRootError` is still exactly right: Root manages people, a second
@@ -521,7 +521,7 @@ export async function setUserRole(
     // one requires a manager the caller has not supplied — so it is refused
     // rather than guessed. Changing what an account *is* and choosing who
     // answers for it are two decisions, and folding them together is how a
-    // User quietly ends up unmanaged (the state S3 exists to make impossible).
+    // User quietly ends up unmanaged (the state M3 exists to make impossible).
     const becomesManaged = role === "user" || role === "viewer";
     const nextManager = managedBy ?? (becomesManaged ? user.managedBy : undefined);
     if (becomesManaged) {
@@ -720,9 +720,9 @@ export async function authenticate(
   if (!ok) {
     return undefined;
   }
-  // **An account with no group cannot sign in (S3).**
+  // **An account with no group cannot sign in (M3).**
   //
-  // Groups did not exist before S3, so accounts written earlier have none, and
+  // Groups did not exist before M3, so accounts written earlier have none, and
   // nothing can infer which organisation they belonged to. Two options were
   // real: read absent as "the founding group", the way absent `actorRole` and
   // absent `canAuthorPolicy` are read; or refuse.

@@ -268,10 +268,29 @@ rather than by role alone:
   account learns a global rule binds _their_ agent without receiving an
   inventory of the installation. The response says it was narrowed.
 
-### 3. Named accounts and four-tier RBAC
+### 3. Named accounts, four-tier RBAC, and groups
 
 `src/governance/roles.ts`, `user-store.ts`, `session-tokens.ts`,
 `password.ts`; HTTP surface in `src/gateway/governance-dashboard-auth.ts`.
+
+> **Groups, added 2026-08-24 (M3).** The four tiers below are all scoped to a
+> **group** — one organisation's Root, Administrators, Users and Viewers.
+> Accounts in different groups never see each other, and creating a Root creates
+> a group around it.
+>
+> Two invariants join the tier model: every account belongs to exactly one
+> group, and **every User and Viewer has one Administrator answerable for it**.
+> Root cannot be that Administrator; if Root wants to run a User directly it
+> creates an Administrator account and signs into that, which keeps one statable
+> rule instead of two.
+>
+> The single-Root rule did not weaken — its scope moved. One Root per _group_
+> rather than per installation, and the original argument holds unchanged at the
+> new scope. Accounts written before groups existed cannot sign in, and
+> `openclaw governance groups migrate --delete` removes them.
+>
+> **Isolation is currently enforced by the layer, not by storage** — one policy
+> document and one audit chain still serve every group until M5.
 
 OpenClaw has **no concept of a named human user** — it authorizes _paired
 devices_ holding capability scopes. The four roles from the design document
@@ -1707,14 +1726,14 @@ Everything else held, and several of these could only be checked here:
 verification step that treats any non-200 as failure would have reported a
 broken dashboard three times before it was ready.
 
-### S3 — the group, and one invariant that moved scope (2026-08-24)
+### M3 — the group, and one invariant that moved scope (2026-08-24)
 
 Not a QA round: the first of six subtasks turning a single-operator control
 plane into a multi-tenant one. Report material in `CHAPTER3-MATERIAL.md`
 §3.5.31; plain language in `QA-IN-PLAIN-TERMS.md` §5.25.
 
 **What a group is.** The unit a Root owns — its Root, its Administrators, its
-Users and Viewers, and from S4 its agents. Accounts in different groups never
+Users and Viewers, and from M4 its agents. Accounts in different groups never
 see each other. Two invariants join the tier model: every account belongs to
 exactly one group, and every User or Viewer has one Administrator answerable for
 it.
@@ -1775,17 +1794,17 @@ accounts that were Users or Viewers incidentally became Administrators — the
 tier had never been the subject of those tests, and adding a manager to each
 would have changed counts they assert.
 
-#### Finding 119 — S2's route named other groups' people
+#### Finding 119 — M2's route named other groups' people
 
 | #   | Component                     | Defect                                                                                                                                                                                                                                                                                                                                                                               | Fix                                                                      |
 | --- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| 119 | `governance-dashboard-api.ts` | The `agents/access` route (S2, shipped in `d88bf04`) answered from `findUsersForAgent`, which searches every account on the installation. Agent ids are free-form and are not owned by a group until S4, so two organisations can independently assign the same one — and an Administrator asking "who can reach agent-x?" would be told the names of people in another organisation | Scope the lookup to the caller's group, and pin it with a two-group test |
+| 119 | `governance-dashboard-api.ts` | The `agents/access` route (M2, shipped in `d88bf04`) answered from `findUsersForAgent`, which searches every account on the installation. Agent ids are free-form and are not owned by a group until M4, so two organisations can independently assign the same one — and an Administrator asking "who can reach agent-x?" would be told the names of people in another organisation | Scope the lookup to the caller's group, and pin it with a two-group test |
 
-**Found by reading the S3 diff against the S2 route, not by a failing test** —
-and no test could have caught it, because until S3 existed there was no such
-thing as a second group to leak across. That is the honest shape of it: S2 was
+**Found by reading the M3 diff against the M2 route, not by a failing test** —
+and no test could have caught it, because until M3 existed there was no such
+thing as a second group to leak across. That is the honest shape of it: M2 was
 correct in a single-tenant world and became a leak the moment the world changed
-underneath it, without a line of S2 changing.
+underneath it, without a line of M2 changing.
 
 Worth a paragraph in Chapter 4 beside the "correct rule, wrong noun" pair, as a
 third variant: **code can be correct, tested, and turned into a defect by a

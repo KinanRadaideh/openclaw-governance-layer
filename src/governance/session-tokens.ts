@@ -31,9 +31,9 @@ export type GovernanceSession = {
    * issued before this existed keeps working exactly as it did.
    */
   canAuthorPolicy?: boolean;
-  /** The group this session acts inside (S3). Every account has one; see `user-store.ts`. */
+  /** The group this session acts inside (M3). Every account has one; see `user-store.ts`. */
   groupId?: string;
-  /** For a User or Viewer, the Administrator answerable for them (S3). */
+  /** For a User or Viewer, the Administrator answerable for them (M3). */
   managedBy?: string;
 };
 

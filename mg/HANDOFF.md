@@ -1,8 +1,12 @@
 # Handoff — read this first
 
-**Written 2026-08-19, current as of 2026-08-24.** The single entry point for whoever picks this project up
-next, whether that is a teammate, a supervisor, or the same person after a
-break. Everything else in `mg/` is detail beneath this.
+**Written 2026-08-19, current as of 2026-08-24 (evening).** The single entry
+point for whoever picks this project up next, whether that is a teammate, a
+supervisor, or the same person after a break. Everything else in `mg/` is detail
+beneath this.
+
+> **If you read three things:** §1 for the state, §6 for what is left, and the
+> `git push` in §8 — eighteen commits exist only on this machine.
 
 ---
 
@@ -22,8 +26,11 @@ driving a real tool call — so every claim rests on tests, not on observation.
 That gap is **T2** (formerly A9), and it is still the most valuable remaining
 item by a wide margin.
 
-**The backlog is now numbered T1–T27** in `REMAINING-WORK.md` §"The numbered
-backlog", which supersedes every older list. Seventeen of twenty-seven are done
+**There are two backlogs now.** `REMAINING-WORK.md` §"The numbered backlog"
+holds **T1–T27**, the original project, and supersedes every older list.
+§"The M-series" holds **M1–M6**, a multi-tenancy feature requested on
+2026-08-24 and added on top — three done, three not started. Seventeen of
+twenty-seven T-items are done
 (T26 and T27 were added 2026-08-24 for work that shipped on the 22nd and had
 never been entered). The old letters
 (A-, B-, F-, R5, G) survive only as a `Ref` column pointing at their historical
@@ -71,17 +78,37 @@ check/claim line from round five.
   pre-existing ledger verifies byte-identically.
 - **T14** — attachments are allowed. The ledger records hash, type, size and
   name and **never content**, so requirement #8 holds; the bytes sit in a store
-  the agent cannot read. **One surface short** — the CLI works, the dashboard
-  upload is not built.
+  the agent cannot read. **Finished later the same day** on all three surfaces.
 
 **T22 closed the same day:** the GitHub billing question is settled. Gross usage
 $13.27, **billed $0**, nothing was ever owed.
 
-**One thing needs doing before anything else:**
+**2026-08-24, later — T23, T14's last two surfaces, two QA rounds, and a second
+backlog.**
 
-| #   | Action                                                         | Effort   |
-| --- | -------------------------------------------------------------- | -------- |
-| 1   | **Run it once with a real agent** and record what happens (T2) | 2–4 days |
+- **T23** — the last backlog item that changed the security story. The gate now
+  hands the tool the path it actually judged, so a symlink swapped afterwards
+  has nothing to race. The fix is a _subtraction_: the second resolution is
+  removed rather than raced, because re-checking microseconds later is theatre.
+- **T14 finished** — a raw-body upload route (no multipart parser to write, and
+  the store can refuse mid-read) and a dashboard picker. The prompt route reads
+  every recorded fact from the store's index rather than the request.
+- **QA round seventeen** (findings 112–117) over everything built that week.
+  **Five of the six were in code written the same week, two the same day** —
+  including **116, where T23 reintroduced its own defect** by resolving the path
+  twice. _A fix is not audited as hard as the thing it fixes._
+- **QA round eighteen** (finding 118) — the dashboard driven in a real browser
+  for the first time. The Attach control looked like a button and **could not be
+  reached by keyboard at all**.
+- **The M-series began** — a multi-tenancy request, six subtasks, three done.
+  See §6 and `REMAINING-WORK.md` §"The M-series".
+
+**Two things need doing before anything else:**
+
+| #   | Action                                                                                | Effort   |
+| --- | ------------------------------------------------------------------------------------- | -------- |
+| 1   | **Push to the private remote.** 18 commits exist only on this machine and in OneDrive | 1 min    |
+| 2   | **Run it once with a real agent** and record what happens (T2)                        | 2–4 days |
 
 **F1 is done as of 2026-08-21**, and it used to be the item at the top of this
 table — the only one whose failure mode was losing everything. The tree was
@@ -91,36 +118,47 @@ remote. The push was **verified by cloning it back from GitHub**: same tip
 (`f4b7325241a`), same tree (`3debbb521…`), the governance work all present.
 The work now exists in three places rather than one.
 
-> ### ✅ The tree is clean again as of 2026-08-24
+> ### ⚠ The tree is clean, and 18 commits have never left this machine
 >
-> The ~56 uncommitted files — everything from the sixteenth QA pass onward —
-> were committed in **seven commits**, grouped by workstream: the lock rewrite,
-> authentication auditing, the core-tier split with policy projection, the tier
-> moves with the authoring control, CLI identity with attachments, the
-> dashboard, and the documentation.
+> Everything since 2026-08-21 is committed — the sixteenth QA pass, T9, T24,
+> T26, T4, T27, T5, T14, T15, T16's split, T23, rounds seventeen and eighteen,
+> and M1–M3 — in eighteen commits grouped by workstream.
 >
-> **Not yet pushed.** The work exists on this machine and in OneDrive; the
-> private remote is still at the 2026-08-21 tip. Pushing is F1's other half and
-> is the cheapest risk reduction available — see §8.
+> **None of them has been pushed.** The private remote is still at the
+> 2026-08-21 tip, so a fortnight's work exists on this machine and in OneDrive
+> only. That is a smaller version of the single-location risk F1 closed, and it
+> is the cheapest thing on this entire document to fix:
+>
+> ```bash
+> git push personal governance-layer
+> ```
 
 ---
 
 ## 2. Read these, in this order
 
-| File                              | What it gives you                                                                                           |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `mg/HANDOFF.md`                   | This file. State, next actions, how to verify                                                               |
-| `mg/PROJECT-SUMMARY.md`           | What the project _is_ — problem, design, where every file lives                                             |
-| `mg/REMAINING-WORK.md`            | The backlog. **§"The numbered backlog" (T1–T27) is the authoritative list**; everything below it is history |
-| `mg/SESSION-LOG-2026-08.md`       | Narrative of how the work was done and why decisions went the way they did                                  |
-| `GOVERNANCE.md`                   | Operator overview + the full engineering defect table for all eighteen rounds                               |
-| `docs-notes/CHAPTER3-MATERIAL.md` | **Report source material**, keyed to section numbers. Start here for Ch. 3–4                                |
-| `docs-notes/QA-IN-PLAIN-TERMS.md` | The same findings in ordinary language — good for the defence, and for §4                                   |
+| File                              | What it gives you                                                                                                                                                      |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mg/HANDOFF.md`                   | This file. State, next actions, how to verify                                                                                                                          |
+| `mg/PROJECT-SUMMARY.md`           | What the project _is_ — problem, design, where every file lives                                                                                                        |
+| `mg/REMAINING-WORK.md`            | **Two backlogs.** §"The numbered backlog" (T1–T27) is the project; §"The M-series" (M1–M6) is the multi-tenancy feature added on top. Everything below them is history |
+| `mg/SESSION-LOG-2026-08.md`       | Narrative of how the work was done and why decisions went the way they did                                                                                             |
+| `GOVERNANCE.md`                   | Operator overview + the full engineering defect table for all eighteen rounds                                                                                          |
+| `docs-notes/CHAPTER3-MATERIAL.md` | **Report source material**, keyed to section numbers. Start here for Ch. 3–4                                                                                           |
+| `docs-notes/QA-IN-PLAIN-TERMS.md` | The same findings in ordinary language — good for the defence, and for §4                                                                                              |
 
 Operator-facing docs (`WRITING-PERMISSIONS.md`, `CLI-REFERENCE.md`,
 `PERMISSION-SPEC.md`, `ROLE-MODEL.md`, `BASELINE-RULES.md`,
 `CHAT-DEPLOYMENTS.md`) are current as of this date and are listed in
-`PROJECT-SUMMARY.md` §2.
+`PROJECT-SUMMARY.md` §2. `CLI-REFERENCE.md` §2b covers groups and the migration
+command; `ROLE-MODEL.md` carries a dated note that every tier below it is now
+scoped to a group.
+
+> **One thing a new reader should know before anything else.** Two numbering
+> schemes exist and one letter is reused: **S1/S2/S3 in the round-twelve
+> findings table below are not the M-series.** The subtasks were planned as
+> S1–S6 and renamed to M1–M6 on 2026-08-24 for exactly that reason; if you meet
+> an "S3" in an older note, check whether it means a chat-deployment finding.
 
 > **`ROLE-MODEL.md` §3.7 was behind and was corrected on 2026-08-24.** It
 > records the deliberate widening of the User tier; T4 has since narrowed part
@@ -313,6 +351,54 @@ this project began. Anything _above_ 18 is a regression introduced here.
 ---
 
 ## 5. What was done in the most recent stretch of work
+
+### M1, M2 and M3 — the multi-tenancy feature begins (2026-08-24)
+
+A request arrived that the layer was not built for: several organisations on one
+installation. Split into six subtasks (`REMAINING-WORK.md` §"The M-series");
+three are done.
+
+**M1 — the dashboard driven in a browser for the first time.** T14's upload had
+been verified through the real HTTP handler, component tests and an encoding
+round trip, and never opened. Found **finding 118**: the Attach control was a
+`<label>` wrapping a hidden file input, so it looked like a button and **could
+not be reached by keyboard at all**. The accessibility tree listed Send and
+Cancel and no attach control while the DOM plainly held one — that gap _was_ the
+defect. Same category as finding 103, two rounds later, in code by someone who
+had read it.
+
+**M2 — "who can reach this agent".** `findUsersForAgent` had existed since
+assignment was built and nothing ever called it: the dashboard could say which
+agents an account had, never which people an agent had. Scoped by `canViewAgent`
+because an unscoped lookup is an enumeration oracle, and the empty answer is
+rendered in words — an agent nobody holds is a real state, not a failed load.
+
+**M3 — the group.** `groupId` and `managedBy` on the account record; the Root
+cap and lockout guard scoped to the group; the managed-tier rule enforced in the
+store rather than the route, so the CLI cannot create what the dashboard
+refuses; signup creates a group; accounts predating groups cannot sign in.
+
+Three things from M3 worth carrying into the report:
+
+- **A correct rule attached to the wrong noun.** The single-Root rule's argument
+  survives every word — it was never an argument about _machines_. Second time
+  this project has found one, after the attachment quota that bounded clicks
+  rather than sends.
+- **A guard was deleted rather than left.** `onlyAsFirstAccount` made the first
+  account unraceable; that race no longer exists. Its tests kept passing and read
+  as evidence signup is still race-protected, which it deliberately is not.
+- **Absence meant something different.** Three fields here are optional and read
+  as a knowable default when missing. `groupId` looks like a fourth and is the
+  opposite: a missing group is an _unanswered question_, and the familiar
+  pattern applied by habit would have filed people into an organisation nobody
+  put them in.
+
+**Finding 119, found by reading the M3 diff against M2's route:** `agents/access`
+searched every account on the installation. Agent ids are free-form and not
+group-owned until M4, so an Administrator asking who could reach an agent would
+have been told another organisation's staff. **No test could have caught it —
+until M3 there was no second group.** M2 was correct in a single-tenant world
+and became a defect when the world changed underneath it.
 
 ### T4, T5 and T14 — the three decisions, built (2026-08-24)
 
@@ -750,21 +836,30 @@ backwards when the language stops being allow-only. Report material:
 
 ## 6. What is left
 
-**The authoritative list is `REMAINING-WORK.md` §"The numbered backlog" —
-T1–T27, of which seventeen are done.** Quote the task numbers; the old letters
-survive only as a `Ref` column pointing at their historical write-ups.
+**Two lists, and they are different kinds of thing.**
 
-Ten items remain — eight outstanding, one part-built (T16), and T13 drafted but
-still yours to read. Three of the eight (T6, T7, T8) are
-host-blocked and are write-ups rather than work. Sorted by who has to move
-first.
+| List                                                     | What it is                                                    | State            |
+| -------------------------------------------------------- | ------------------------------------------------------------- | ---------------- |
+| `REMAINING-WORK.md` §"The numbered backlog" — **T1–T27** | The original project: build the layer, verify it, defend it   | 17 done, 10 left |
+| `REMAINING-WORK.md` §"The M-series" — **M1–M6**          | A multi-tenancy feature requested 2026-08-24 and added on top | 3 done, 3 left   |
+
+Quote the task numbers; the old letters (A-, B-, F-, R5, G) survive only as a
+`Ref` column pointing at their historical write-ups.
+
+Of the ten T-items left, three (T6, T7, T8) are **host-blocked** and are
+paragraphs in Chapter 4 rather than work. Sorted below by who has to move first.
 
 ### Do this before anything else
 
-**Push to the private remote.** The tree was committed on 2026-08-24 in seven
-commits; `git push personal governance-layer` has not been run. The work is on
-this machine and in OneDrive, but the remote is a week behind — a smaller
-version of the single-location risk F1 closed.
+**Push to the private remote.** Eighteen commits have never left this machine:
+
+```bash
+git push personal governance-layer
+```
+
+The work is here and in OneDrive; the remote is a fortnight behind. It is the
+cheapest risk reduction on this entire document and it is the same failure mode
+F1 closed once already.
 
 ### Needs you — three decisions and one machine
 
@@ -784,7 +879,35 @@ version of the single-location risk F1 closed.
 | **T25**     | **The 18 host-harness failures.** Pre-existing upstream (Windows file-locking in `host-hooks.contract.test.ts`), used as the regression baseline throughout. **Fixing them moves that baseline, so every verification step's expected number changes in the same commit**                                                                                 | 1–2 days |
 | **T16**     | **Finish the file split — three files, not two.** `governance-dashboard-api.ts` **1,026** code lines against a 700 limit; `governance-page.ts` **2,211**; and `register.governance.ts` **805**, which crossed the limit on 2026-08-24. All three are the lint rule's measure, not `wc -l`. Remaining seams: agent routes, ledger routes                   | 1 day    |
 | **T17**     | **Redraw the Mermaid diagrams** in the report's style. Candidates already marked "Figure candidate" throughout `CHAPTER3-MATERIAL.md`                                                                                                                                                                                                                     | 2–3 days |
-| **T20**     | Repair a mangled sentence in `REMAINING-WORK.md`                                                                                                                                                                                                                                                                                                          | 5 min    |
+
+### The M-series — the multi-tenancy feature, three of six done
+
+A separate backlog, added 2026-08-24. Full write-up in `REMAINING-WORK.md`
+§"The M-series"; the design reasoning is `CHAPTER3-MATERIAL.md` §3.5.30–§3.5.31.
+
+**What it is for.** The layer was built for one installation with one operator.
+The request is Active-Directory-shaped: a person creates a Root, that Root
+creates their group's Admin/User/Viewer accounts, and each Administrator sees a
+panel of the agents in their ecosystem — who can reach each one, what binds it,
+and controls to create, edit and assign.
+
+| #          | What                                                                                                                                                                                                                                   | State           | Effort   |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | -------- |
+| ~~**M1**~~ | ~~Drive the dashboard upload in a real browser.~~ **DONE.** Found finding 118                                                                                                                                                          | done            | done     |
+| ~~**M2**~~ | ~~"Who can reach this agent", including "nobody".~~ **DONE.** Later found to leak across groups — finding 119                                                                                                                          | done            | done     |
+| ~~**M3**~~ | ~~The group as a data model.~~ **DONE.** `groupId` + `managedBy`; Root cap scoped to the group; signup creates a group; unmigrated accounts cannot sign in                                                                             | done            | done     |
+| **M4**     | **The agent registry.** _There is no such thing today_ — an agent exists only once a rule or assignment mentions its id. **Creating an agent is a missing noun, not a missing button**, and nothing in M6 can be built until it exists | **not started** | 2–3 days |
+| **M5**     | **Storage isolation** — per-group policy document, audit chain, ledger key and checkpoint. The largest and riskiest. The existing chain must keep verifying byte-identically                                                           | **not started** | 4–6 days |
+| **M6**     | **The Administrator panel, and provisioning** a real OpenClaw agent by writing `agents.entries` in the host config                                                                                                                     | **not started** | 3–5 days |
+
+**Three risks worth knowing before picking this up.** M5 changes the project's
+strongest security claim — per-group ledgers mean per-group keys, so the "delete
+both the key and the checkpoint" limit becomes a per-group question and has to
+be restated rather than inherited. M6 is the first time this layer would
+**mutate** the host rather than observe and gate it, which is a new trust
+direction Chapter 4 must state. And **open signup is already live**: M3 made
+creating a Root create a group, and the endpoint is ungated — defensible only
+because the Gateway is loopback-only behind a tunnel.
 
 ### Nothing to do — these are limits, not tasks
 
@@ -831,10 +954,28 @@ ever audited", became T9 and is closed.
 
 Stated here so they are not discovered late.
 
-1. **Nothing has been observed running.** Every proof is a test calling the gate
-   directly or a component checked against the host's own code. "Built and
-   verified" is accurate; "working" is not yet earned.
-2. **The audit ledger's anchors are on the same host it protects.** Hash
+1. **Nothing has been observed running _with a model behind it_.** Every proof
+   is a test calling the gate directly or a component checked against the host's
+   own code. The **dashboard** has now been driven by hand in a real browser
+   twice (2026-08-21, and again on 2026-08-24 for attachments — M1), so that
+   half of the qualifier is spent. What remains unobserved is the thing that
+   matters most: a language model deciding to make a tool call and being
+   refused. "Built and verified" is accurate; "working" is not yet earned.
+2. **Signup is open, and that is a deliberate trade made on 2026-08-24 (M3).**
+   Creating a Root creates a group, and the endpoint is not gated — anyone who
+   can reach it becomes a Root of a new organisation. It is defensible only
+   because of the architecture Chapter 1 already describes: the Gateway binds
+   loopback-only and is reached through an SSH tunnel, so "anyone who can reach
+   the dashboard" already means "anyone who can reach the host". **A deployment
+   that exposes the port directly turns this into self-service Root**, and needs
+   something in front of it deciding who may ask. Say this before a panel asks.
+3. **The isolation between groups is enforced by the layer, not by storage.**
+   Until M5, one policy document and one audit chain serve every group. Finding
+   119 is the shape of what that costs: a route written before groups existed
+   answered across all of them, and no test could have caught it because there
+   was no second group to leak to. **Every route written before M3 deserves the
+   question "does this cross a group?"** — that audit is not finished.
+4. **The audit ledger's anchors are on the same host it protects.** Hash
    chaining plus an HMAC key plus a checkpoint file mean editing history
    requires the secret. Round 13 showed the honest limit is narrower than that
    sentence suggested: three routes defeated detection by _destroying_ rather
@@ -842,10 +983,10 @@ Stated here so they are not discovered late.
    is precise — an attacker who deletes **both** the key and the checkpoint
    leaves nothing on the host to contradict a rewritten chain. Closing that means
    holding one of them off the machine, which is deployment rather than code.
-3. **The kill switch reports two numbers**, and the honest one is weaker than
+5. **The kill switch reports two numbers**, and the honest one is weaker than
    the original claim: how long it took to _ask_, and whether the runs were
    observed to stop.
-4. ~~**The dashboard has never been driven by hand end to end**~~ — **it has
+6. ~~**The dashboard has never been driven by hand end to end**~~ — **it has
    now, 2026-08-21.** Built, served by a real Gateway against a throwaway
    governance directory, and used the way a new operator uses it. Five defects
    found and fixed (99–103): the rule list titled every row with its raw regular
@@ -859,12 +1000,12 @@ Stated here so they are not discovered late.
    is legitimate (emptying the account list entirely is a permitted teardown).
    The remaining honest qualifier is narrower: the _prompting_ path has still
    never been watched with a live model behind it, which is T2 (formerly A9).
-5. **A chat user is not a governance account.** The four tiers govern the
+7. **A chat user is not a governance account.** The four tiers govern the
    dashboard; a person messaging the bot on Discord is authenticated by that
    channel's access controls, and their activity is attributed to the agent.
    They can no longer _author policy_ from an approval prompt — round 13,
    finding 83 — but they are still not a tier.
-6. **Coverage is measured now, and it is not complete.** Eighteen of the host's
+8. **Coverage is measured now, and it is not complete.** Eighteen of the host's
    fifty-two catalogued tools are governed; the other thirty-four each carry a
    written reason in `DELIBERATELY_UNGOVERNED`. That is a defensible position and
    a far better one than round 13 found, but the honest sentence is "governed
@@ -873,17 +1014,17 @@ Stated here so they are not discovered late.
    reached in both of the host's execution arrangements, not only the in-process
    one. Before B1 the registry was accurate and, in one deployment shape,
    irrelevant.
-7. **The implemented design differs from the preliminary design in §1.6, in four
+9. **The implemented design differs from the preliminary design in §1.6, in four
    named places** — and that is allowed, provided the _requirements_ are met.
    `CHAPTER3-MATERIAL.md` §3.4 states the distinction and lists the divergences
    with reasoning. Do not let a reader discover one of them unannounced.
-8. **The gate compels its host, not a third-party binary.** B1 guarantees the
-   relay hook is installed for the native harness and covers every tool; it
-   cannot guarantee the helper process obeys its own hook configuration. The
-   answer, if it is asked at the defence: an unreachable gate now refuses rather
-   than permits, so a helper that declines to phone home gets nothing done — but
-   a helper that lies about having asked is a supply-chain question about the
-   harness, not a policy question about the agent.
+10. **The gate compels its host, not a third-party binary.** B1 guarantees the
+    relay hook is installed for the native harness and covers every tool; it
+    cannot guarantee the helper process obeys its own hook configuration. The
+    answer, if it is asked at the defence: an unreachable gate now refuses rather
+    than permits, so a helper that declines to phone home gets nothing done — but
+    a helper that lies about having asked is a supply-chain question about the
+    harness, not a policy question about the agent.
 
 ---
 
@@ -891,10 +1032,10 @@ Stated here so they are not discovered late.
 
 **Push to the private remote, then run it once with a real agent (T2).**
 
-The push takes a minute and is not optional. The tree was committed on
-2026-08-24 in seven commits, but the remote is still at the 2026-08-21 tip, so
-the newest week — the sixteenth QA pass, T9, T24, T26, T4, T27, T5, T14, T15 —
-exists on this machine and in OneDrive only. F1, the item that used to occupy
+The push takes a minute and is not optional. **Eighteen commits** have never
+left this machine — the sixteenth QA pass, T9, T24, T26, T4, T27, T5, T14, T15,
+T16's split, T23, QA rounds seventeen and eighteen, and M1–M3 — so a fortnight
+of work exists here and in OneDrive only. F1, the item that used to occupy
 this slot and the only one whose failure mode was losing everything, was closed
 by committing, backing up, pushing and verifying by cloning back. Three of those
 four have now been done twice; the third has not.

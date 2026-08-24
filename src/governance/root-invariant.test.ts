@@ -27,9 +27,9 @@ import {
 } from "./user-store.js";
 
 /**
- * Every account belongs to a group (S3); these tests all live in one.
+ * Every account belongs to a group (M3); these tests all live in one.
  *
- * Accounts that were Viewers or Users before S3 are Administrators here unless
+ * Accounts that were Viewers or Users before M3 are Administrators here unless
  * the tier is the subject of the test. A User or Viewer now requires an
  * Administrator answerable for it, which would mean creating a second account
  * inside tests about username folding, token storage and Root invariants — and
@@ -95,7 +95,7 @@ describe("exactly one Root — the upper bound", () => {
   it("refuses both routes even when several accounts already exist", async () => {
     await seedRoot();
     // The Administrator first, because the two managed tiers need somebody
-    // answerable for them since S3.
+    // answerable for them since M3.
     const manager = await createUser(
       {
         username: "acc-administrator",

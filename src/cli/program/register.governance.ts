@@ -195,7 +195,7 @@ export function registerGovernanceCommands(program: Command): void {
 
   const groups = governance
     .command("groups")
-    .description("Groups: the isolated worlds accounts belong to (S3)");
+    .description("Groups: the isolated worlds accounts belong to (M3)");
 
   groups
     .command("unmigrated")

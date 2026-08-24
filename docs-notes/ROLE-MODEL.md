@@ -46,7 +46,7 @@ agent-touching operation.
 
 ## 2. What "manage" resolves to, tier by tier
 
-> **Updated 2026-08-24 (S3): every tier below is scoped to a group.**
+> **Updated 2026-08-24 (M3): every tier below is scoped to a group.**
 >
 > A Root owns one **group** — one organisation's Root, Administrators, Users and
 > Viewers — rather than the installation. The single-Root rule did not weaken;

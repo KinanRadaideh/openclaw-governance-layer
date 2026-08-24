@@ -216,7 +216,7 @@ export async function handleGovernanceAuthRequest(
   // createUser), not this endpoint.
   if (pathname === `${GOVERNANCE_AUTH_PATH_PREFIX}bootstrap-root` && req.method === "POST") {
     // ------------------------------------------------------------------
-    // **Creating a Root now creates a group, and it is no longer one-time (S3).**
+    // **Creating a Root now creates a group, and it is no longer one-time (M3).**
     //
     // This used to refuse once any account existed, and both the refusal and
     // the re-check inside the write lock existed to make
