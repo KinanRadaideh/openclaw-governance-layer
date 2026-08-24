@@ -47,6 +47,38 @@ export type GovernanceUser = {
    * because it is account administration.
    */
   canAuthorPolicy?: boolean;
+  /**
+   * The group this account belongs to (S3).
+   *
+   * A group is one organisation's whole world: its Root, its Administrators,
+   * its Users and Viewers. Accounts in different groups never see each other.
+   *
+   * **Optional in the type and mandatory in practice**, and the gap between
+   * those two is deliberate. Every account created from S3 onward has one;
+   * accounts written before S3 existed do not, and cannot be given one
+   * automatically because there is no way to know which organisation they
+   * belonged to. So absent does not mean "the default group" here — the
+   * pattern `actorRole` and `canAuthorPolicy` use, where absent is a safe
+   * legacy reading. It means **unmigrated**, an account that cannot sign in
+   * until an operator decides its fate. See `authenticate` and
+   * `deleteUnmigratedAccounts`.
+   */
+  groupId?: string;
+  /**
+   * The Administrator answerable for this account. Users and Viewers only.
+   *
+   * Required for those two tiers and absent for Root and Administrator, which
+   * answer to the group rather than to a person. The link is what makes an
+   * Administrator's panel mean "my people and my agents" rather than
+   * "everyone's".
+   *
+   * Root does not appear here even though Root outranks every Administrator. If
+   * Root wants to run a User directly, it creates an Administrator account and
+   * signs into that — which keeps one statable rule ("a User is managed by an
+   * Administrator") instead of two, and keeps the action attributable to the
+   * hat it was done in.
+   */
+  managedBy?: string;
 };
 
 /** Whether a stored account may author policy. Absent means yes — see the field. */
@@ -55,6 +87,34 @@ export function accountMayAuthorPolicy(user: { canAuthorPolicy?: boolean }): boo
 }
 
 export type GovernanceUserRecord = Omit<GovernanceUser, "passwordHash">;
+
+/** A fresh group id. Same shape as an account id, for the same reason: sortable and unmistakable. */
+export function newGroupId(): string {
+  return `group-${Date.now()}-${randomBytes(4).toString("hex")}`;
+}
+
+/** Thrown when an account is created without the group every account must belong to. */
+export class MissingGroupError extends Error {
+  constructor() {
+    super("Every account must belong to a group");
+    this.name = "MissingGroupError";
+  }
+}
+
+/**
+ * Thrown when a User or Viewer is created without an Administrator over it.
+ *
+ * The invariant is "no unmanaged account exists", chosen over the softer
+ * "unmanaged accounts are flagged" because a flag describes a state somebody
+ * still has to act on, and the state it describes — an account nobody is
+ * answerable for — is the one an ecosystem panel exists to make impossible.
+ */
+export class MissingManagerError extends Error {
+  constructor(reason: string) {
+    super(reason);
+    this.name = "MissingManagerError";
+  }
+}
 
 type UsersFile = { version: 1; users: GovernanceUser[] };
 
@@ -88,7 +148,10 @@ function toRecord(user: GovernanceUser): GovernanceUserRecord {
   return record;
 }
 
-export async function listUsers(): Promise<GovernanceUserRecord[]> {
+export async function listUsers(groupId?: string): Promise<GovernanceUserRecord[]> {
+  if (groupId) {
+    return (await readUsersFile()).users.filter((u) => u.groupId === groupId).map(toRecord);
+  }
   const file = await readUsersFile();
   return file.users.map(toRecord);
 }
@@ -107,10 +170,24 @@ export async function findUserByUsername(username: string): Promise<GovernanceUs
  * (A1), "the user behind this agent" is exactly the account it was assigned to,
  * which is the relationship an Administrator already curates.
  */
-export async function findUsersForAgent(agentId: string): Promise<string[]> {
+/**
+ * Accounts holding an agent by assignment, within one group.
+ *
+ * **`groupId` is not optional in practice and the leak it closes is real.**
+ * Agent ids are free-form strings and are not owned by a group until S4, so two
+ * organisations can independently assign the same id. Without the filter, an
+ * Administrator asking "who can reach agent-x?" would be told the names of
+ * people in another organisation who happen to use that id — the exact
+ * isolation the group exists to provide, defeated by a coincidence of naming.
+ *
+ * Caught by reading the S3 diff against the S2 route rather than by a failing
+ * test, because no test had two groups in it until S3 existed.
+ */
+export async function findUsersForAgent(agentId: string, groupId?: string): Promise<string[]> {
   const file = await readUsersFile();
   return file.users
     .filter((user) => user.assignedAgents.includes(agentId))
+    .filter((user) => (groupId ? user.groupId === groupId : true))
     .map((user) => user.username);
 }
 
@@ -118,32 +195,74 @@ export async function countUsers(): Promise<number> {
   return (await readUsersFile()).users.length;
 }
 
+/** Accounts written before groups existed, which cannot sign in until resolved (S3). */
+export async function listUnmigratedAccounts(): Promise<GovernanceUserRecord[]> {
+  return (await readUsersFile()).users.filter((u) => !u.groupId).map(toRecord);
+}
+
+/**
+ * Deletes every account that predates groups.
+ *
+ * The chosen migration, and it is destructive on purpose: an account whose
+ * organisation is unknown cannot be placed in one without inventing an answer,
+ * and leaving it in place leaves an account that can never sign in and never be
+ * managed. Deleting is the only outcome that ends in a state somebody can
+ * describe.
+ *
+ * Deliberately **not** run automatically at load. It removes credentials, and a
+ * migration that deletes accounts the first time a new build starts is one
+ * nobody consented to. The refusal in `authenticate` is what makes the
+ * unmigrated state safe to leave sitting until an operator acts.
+ */
+export async function deleteUnmigratedAccounts(actor: AuditActorInput): Promise<number> {
+  await ensureHomeDir();
+  const removed = await withFileLock(usersFilePath(), async () => {
+    const file = await readUsersFile();
+    const orphans = file.users.filter((u) => !u.groupId);
+    if (orphans.length === 0) {
+      return [];
+    }
+    file.users = file.users.filter((u) => Boolean(u.groupId));
+    await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });
+    return orphans.map((u) => ({ id: u.id, username: u.username, role: u.role }));
+  });
+  for (const orphan of removed) {
+    await recordAdminAction({
+      actor,
+      action: ADMIN_ACTIONS.userDelete,
+      target: `account ${orphan.username} (role ${orphan.role}) deleted: predates groups (S3 migration)`,
+      subjectId: orphan.id,
+    });
+  }
+  return removed.length;
+}
+
 export type CreateUserInput = {
   username: string;
   password: string;
   role: GovernanceRole;
   assignedAgents?: string[];
-  /**
-   * Refuse unless this would be the very first account, checked inside the same
-   * lock as the write.
-   *
-   * The bootstrap endpoint used to test "are there zero users?" and then call
-   * createUser as a separate step. Two requests arriving together both passed
-   * the test and both created a Root account, because nothing held between the
-   * check and the write — a textbook time-of-check/time-of-use gap, and on a
-   * fresh install the one moment when an attacker racing the legitimate
-   * operator gets full control of the governance layer.
-   */
-  onlyAsFirstAccount?: boolean;
+  /** The group this account joins. Required — see `GovernanceUser.groupId`. */
+  groupId?: string;
+  /** The Administrator answerable for it. Required for User and Viewer, refused for the others. */
+  managedBy?: string;
 };
 
-/** Thrown when `onlyAsFirstAccount` is requested but an account already exists. */
-export class AccountsAlreadyExistError extends Error {
-  constructor() {
-    super("A governance account already exists");
-    this.name = "AccountsAlreadyExistError";
-  }
-}
+// `onlyAsFirstAccount` and `AccountsAlreadyExistError` lived here until S3.
+//
+// They refused any creation that was not the installation's very first
+// account, checked inside the write lock, because the bootstrap endpoint used
+// to test "are there zero users?" and then create the account as a separate
+// step — two requests arriving together both passed and both got Root.
+//
+// **Removed rather than left in place**, even though the guard still worked.
+// Nothing calls it now that creating a Root creates a group, and this project
+// has already been bitten twice by code that was exported and never reached:
+// `sweepOrphans` (finding 113) and a validator whose rejection branch could not
+// execute (finding 112). A guard with no caller is worse than either, because
+// the tests that exercise it keep passing and read as evidence that the
+// property still holds. It does not: signup is deliberately no longer
+// race-protected, because there is nothing left to race for.
 
 /**
  * Minimum password length. OWASP ASVS recommends at least 8 characters for
@@ -184,9 +303,6 @@ export async function createUser(
   await ensureHomeDir();
   const created = await withFileLock(usersFilePath(), async () => {
     const file = await readUsersFile();
-    if (input.onlyAsFirstAccount && file.users.length > 0) {
-      throw new AccountsAlreadyExistError();
-    }
     const normalized = input.username.normalize("NFKC").trim();
     if (!normalized) {
       throw new Error("username must not be empty");
@@ -201,8 +317,46 @@ export async function createUser(
     if (file.users.some((u) => canonicalUsername(u.username) === canonical)) {
       throw new Error(`username "${normalized}" already exists`);
     }
-    if (wouldCreateSecondRoot(file.users, input.role)) {
+    if (wouldCreateSecondRoot(file.users, input.role, input.groupId)) {
       throw new DuplicateRootError();
+    }
+    // ------------------------------------------------------------------
+    // Group membership and management, checked inside the same lock as the
+    // write (S3).
+    //
+    // Outside the lock these would be a snapshot: two Users created at once
+    // could both name a manager one of them is simultaneously deleting, and
+    // both would pass. The Root cap has been checked inside this lock since it
+    // existed, for exactly that reason, and these rules are no weaker.
+    // ------------------------------------------------------------------
+    if (!input.groupId) {
+      throw new MissingGroupError();
+    }
+    const needsManager = input.role === "user" || input.role === "viewer";
+    if (needsManager) {
+      if (!input.managedBy) {
+        throw new MissingManagerError(
+          `a ${input.role} must be assigned an Administrator who is answerable for it`,
+        );
+      }
+      const manager = file.users.find((u) => u.id === input.managedBy);
+      if (!manager || manager.groupId !== input.groupId) {
+        // One message for "no such account" and for "not in your group", so
+        // the reply says nothing about accounts in other groups. The same
+        // reasoning the login response and the attachment lookup already use.
+        throw new MissingManagerError("the nominated Administrator was not found in this group");
+      }
+      if (manager.role !== "administrator") {
+        // Root is excluded deliberately. If Root wants to run a User directly
+        // it creates an Administrator account and signs into that, which keeps
+        // one statable rule rather than two and keeps the act attributable to
+        // the hat it was done in.
+        throw new MissingManagerError("accounts must be managed by an Administrator");
+      }
+    } else if (input.managedBy) {
+      throw new MissingManagerError(
+        `a ${input.role} answers to the group, not to an Administrator`,
+      );
     }
     const user: GovernanceUser = {
       id: `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -211,6 +365,8 @@ export async function createUser(
       role: input.role,
       createdAt: new Date().toISOString(),
       assignedAgents: normalizeAgentIds(input.assignedAgents),
+      groupId: input.groupId,
+      ...(needsManager && input.managedBy ? { managedBy: input.managedBy } : {}),
     };
     file.users.push(user);
     await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });
@@ -236,7 +392,7 @@ export async function createUser(
  * both pass, both write, and the installation is left with zero Roots — with no
  * password reset and no second bootstrap, that is unrecoverable. The invariant
  * therefore has to be re-checked inside the same lock as the write, exactly as
- * `onlyAsFirstAccount` does for creation.
+ * the group and manager rules do for creation.
  */
 export class LastRootError extends Error {
   constructor() {
@@ -274,12 +430,24 @@ export class DuplicateRootError extends Error {
 function wouldCreateSecondRoot(
   users: readonly GovernanceUser[],
   role: GovernanceRole,
+  groupId: string | undefined,
   excludeUserId?: string,
 ): boolean {
   if (role !== "root") {
     return false;
   }
-  return users.some((u) => u.role === "root" && u.id !== excludeUserId);
+  // **Scoped to the group since S3, and the original argument is why.**
+  //
+  // The cap used to be per installation, and the reasoning on
+  // `DuplicateRootError` is still exactly right: Root manages people, a second
+  // Root can delete the first, and the moment two exist "you cannot remove the
+  // last Root" stops protecting the operator who set the system up.
+  //
+  // None of that argues for one Root per *machine*. It argues for one Root per
+  // *thing a Root is responsible for*, and that is now a group rather than an
+  // installation. Moving the scope keeps the invariant and drops an accident of
+  // there having been only ever one organisation.
+  return users.some((u) => u.role === "root" && u.groupId === groupId && u.id !== excludeUserId);
 }
 
 /**
@@ -296,6 +464,11 @@ function wouldStrandWithoutRoot(
   userId: string,
   nextRole: GovernanceRole | "deleted",
 ): boolean {
+  // Group-scoped for the same reason as the cap above: "no Root left" is a
+  // statement about one organisation, and emptying *its* account list is a
+  // teardown of that group rather than of the installation.
+  const subject = users.find((u) => u.id === userId);
+  users = subject ? users.filter((u) => u.groupId === subject.groupId) : users;
   if (!users.some((u) => u.id === userId)) {
     return false;
   }
@@ -310,6 +483,17 @@ export async function setUserRole(
   userId: string,
   role: GovernanceRole,
   actor: AuditActorInput,
+  /**
+   * The Administrator to answer for the account, when the new role needs one.
+   *
+   * Required when demoting into User or Viewer, refused otherwise. Without this
+   * parameter the invariant had a hole in the shape of a dead end: promotion
+   * into a managed tier was refused because no manager was supplied, and there
+   * was no way to supply one — so an Administrator could never be demoted at
+   * all. Caught by an existing test that demoted one, which is the sort of
+   * thing a test suite is for.
+   */
+  managedBy?: string,
 ): Promise<boolean> {
   await ensureHomeDir();
   const changed = await withFileLock(usersFilePath(), async () => {
@@ -330,8 +514,40 @@ export async function setUserRole(
     // (account-guards.ts); it is recorded here too because the two halves live
     // in different files and reading either alone gives the wrong impression of
     // what the pair does.
-    if (wouldCreateSecondRoot(file.users, role, userId)) {
+    if (wouldCreateSecondRoot(file.users, role, user.groupId, userId)) {
       throw new DuplicateRootError();
+    }
+    // Promotion out of a managed tier drops the manager link, and demotion into
+    // one requires a manager the caller has not supplied — so it is refused
+    // rather than guessed. Changing what an account *is* and choosing who
+    // answers for it are two decisions, and folding them together is how a
+    // User quietly ends up unmanaged (the state S3 exists to make impossible).
+    const becomesManaged = role === "user" || role === "viewer";
+    const nextManager = managedBy ?? (becomesManaged ? user.managedBy : undefined);
+    if (becomesManaged) {
+      if (!nextManager) {
+        throw new MissingManagerError(
+          `a ${role} needs an Administrator answerable for it; name one with this change`,
+        );
+      }
+      const manager = file.users.find((u) => u.id === nextManager);
+      if (!manager || manager.groupId !== user.groupId) {
+        throw new MissingManagerError("the nominated Administrator was not found in this group");
+      }
+      if (manager.role !== "administrator") {
+        throw new MissingManagerError("accounts must be managed by an Administrator");
+      }
+      if (manager.id === user.id) {
+        // Otherwise an account demoted to User could be left answerable for
+        // itself, which satisfies the letter of the rule and none of the point.
+        throw new MissingManagerError("an account cannot be its own Administrator");
+      }
+      user.managedBy = nextManager;
+    } else {
+      if (managedBy) {
+        throw new MissingManagerError(`a ${role} answers to the group, not to an Administrator`);
+      }
+      delete user.managedBy;
     }
     const previous = user.role;
     user.role = role;
@@ -502,6 +718,25 @@ export async function authenticate(
   }
   const ok = await verifyPassword(password, user.passwordHash);
   if (!ok) {
+    return undefined;
+  }
+  // **An account with no group cannot sign in (S3).**
+  //
+  // Groups did not exist before S3, so accounts written earlier have none, and
+  // nothing can infer which organisation they belonged to. Two options were
+  // real: read absent as "the founding group", the way absent `actorRole` and
+  // absent `canAuthorPolicy` are read; or refuse.
+  //
+  // Refusing is right *here* and the difference is what absence means. Those
+  // other fields are properties whose default is knowable — a missing role is
+  // "not recorded", a missing authoring flag is "allowed". A missing group is
+  // not a default; it is an unanswered question about who this account belongs
+  // to, and guessing it would silently place somebody in an organisation
+  // nobody put them in. The refusal is deliberately after the password check,
+  // so it says nothing to an attacker that a wrong password would not.
+  //
+  // The operator's way out is `governance groups migrate`, which deletes them.
+  if (!user.groupId) {
     return undefined;
   }
   // A successful sign-in is the only moment the plaintext exists, so it is the

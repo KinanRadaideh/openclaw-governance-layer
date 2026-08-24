@@ -26,6 +26,18 @@ import {
   setUserRole,
 } from "./user-store.js";
 
+/**
+ * Every account belongs to a group (S3); these tests all live in one.
+ *
+ * Accounts that were Viewers or Users before S3 are Administrators here unless
+ * the tier is the subject of the test. A User or Viewer now requires an
+ * Administrator answerable for it, which would mean creating a second account
+ * inside tests about username folding, token storage and Root invariants — and
+ * changing the counts several of them assert. The tier was incidental; the
+ * ceremony would not have been.
+ */
+const TEST_GROUP = "group-test";
+
 let dir: string;
 
 beforeEach(async () => {
@@ -41,7 +53,10 @@ afterEach(async () => {
 });
 
 async function makeRoot(password = "correct-horse-battery") {
-  return await createUser({ username: "kinan", password, role: "root" }, "bootstrap");
+  return await createUser(
+    { username: "kinan", password, role: "root", groupId: TEST_GROUP },
+    "bootstrap",
+  );
 }
 
 describe("1. Root can change its own password", () => {
@@ -82,14 +97,22 @@ describe("2. There is always exactly one Root", () => {
   it("refuses a second Root at creation", async () => {
     await makeRoot();
     await expect(
-      createUser({ username: "malek", password: "correct-horse-battery", role: "root" }, "kinan"),
+      createUser(
+        { username: "malek", password: "correct-horse-battery", role: "root", groupId: TEST_GROUP },
+        "kinan",
+      ),
     ).rejects.toBeInstanceOf(DuplicateRootError);
   });
 
   it("refuses promoting an existing account to Root", async () => {
     await makeRoot();
     const other = await createUser(
-      { username: "malek", password: "correct-horse-battery", role: "user" },
+      {
+        username: "malek",
+        password: "correct-horse-battery",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
       "kinan",
     );
     await expect(setUserRole(other.id, "root", "kinan")).rejects.toBeInstanceOf(DuplicateRootError);
@@ -106,7 +129,12 @@ describe("2. There is always exactly one Root", () => {
     // than only the "cannot delete yourself" rule.
     const root = await makeRoot();
     const other = await createUser(
-      { username: "malek", password: "correct-horse-battery", role: "administrator" },
+      {
+        username: "malek",
+        password: "correct-horse-battery",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
       "kinan",
     );
     const users = await listUsers();
@@ -128,15 +156,29 @@ describe("2. There is always exactly one Root", () => {
   it("leaves exactly one Root after every refused attempt", async () => {
     const root = await makeRoot();
     await createUser(
-      { username: "malek", password: "correct-horse-battery", role: "user" },
+      {
+        username: "malek",
+        password: "correct-horse-battery",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
       "kinan",
     );
     await createUser(
-      { username: "viewer-1", password: "correct-horse-battery", role: "viewer" },
+      {
+        username: "viewer-1",
+        password: "correct-horse-battery",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
       "kinan",
     );
     for (const attempt of [
-      () => createUser({ username: "x", password: "correct-horse-battery", role: "root" }, "kinan"),
+      () =>
+        createUser(
+          { username: "x", password: "correct-horse-battery", role: "root", groupId: TEST_GROUP },
+          "kinan",
+        ),
       async () => {
         const users = await listUsers();
         const target = users.find((u) => u.username === "malek");

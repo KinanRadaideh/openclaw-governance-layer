@@ -15,6 +15,18 @@ import {
 import { issueSession, verifySession } from "./session-tokens.js";
 import { createUser, MAX_USERNAME_LENGTH } from "./user-store.js";
 
+/**
+ * Every account belongs to a group (S3); these tests all live in one.
+ *
+ * Accounts that were Viewers or Users before S3 are Administrators here unless
+ * the tier is the subject of the test. A User or Viewer now requires an
+ * Administrator answerable for it, which would mean creating a second account
+ * inside tests about username folding, token storage and Root invariants — and
+ * changing the counts several of them assert. The tier was incidental; the
+ * ceremony would not have been.
+ */
+const TEST_GROUP = "group-test";
+
 let dir: string;
 
 beforeEach(async () => {
@@ -73,7 +85,8 @@ describe("username hygiene", () => {
       createUser({
         username: "a".repeat(MAX_USERNAME_LENGTH + 1),
         password: "pw12345678",
-        role: "viewer",
+        role: "administrator",
+        groupId: TEST_GROUP,
       }),
     ).rejects.toThrow(/length|long/i);
   });
@@ -82,7 +95,12 @@ describe("username hygiene", () => {
     // "admin" composed differently must not yield two accounts that look
     // identical in the operator list — an impersonation vector in a product
     // whose whole purpose is knowing who did what.
-    await createUser({ username: "admin", password: "pw12345678", role: "root" });
+    await createUser({
+      username: "admin",
+      password: "pw12345678",
+      role: "root",
+      groupId: TEST_GROUP,
+    });
     // A *genuinely different* byte sequence that NFKC folds onto the same name:
     // fullwidth Latin small letter A (U+FF41). The earlier version of this test
     // passed the identical string twice, so it compared "admin" with "admin"
@@ -92,15 +110,30 @@ describe("username hygiene", () => {
     expect(fullwidth).not.toBe("admin");
     expect(fullwidth.normalize("NFKC")).toBe("admin");
     await expect(
-      createUser({ username: fullwidth, password: "pw12345678", role: "viewer" }),
+      createUser({
+        username: fullwidth,
+        password: "pw12345678",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      }),
     ).rejects.toThrow(/already exists/);
   });
 
   it("normalizes combining marks so one visual name is one account", async () => {
-    await createUser({ username: "josé", password: "pw12345678", role: "viewer" });
+    await createUser({
+      username: "josé",
+      password: "pw12345678",
+      role: "administrator",
+      groupId: TEST_GROUP,
+    });
     // "jose" + combining acute — renders identically to the precomposed form.
     await expect(
-      createUser({ username: "josé", password: "pw12345678", role: "viewer" }),
+      createUser({
+        username: "josé",
+        password: "pw12345678",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      }),
     ).rejects.toThrow(/already exists/);
   });
 
@@ -108,7 +141,8 @@ describe("username hygiene", () => {
     const user = await createUser({
       username: "  spaced  ",
       password: "pw12345678",
-      role: "viewer",
+      role: "administrator",
+      groupId: TEST_GROUP,
     });
     expect(user.username).toBe("spaced");
   });
@@ -116,7 +150,12 @@ describe("username hygiene", () => {
 
 describe("session token handling", () => {
   it("rejects a token of the wrong length without matching", async () => {
-    const user = await createUser({ username: "tok", password: "pw12345678", role: "viewer" });
+    const user = await createUser({
+      username: "tok",
+      password: "pw12345678",
+      role: "administrator",
+      groupId: TEST_GROUP,
+    });
     const session = await issueSession({
       id: user.id,
       username: user.username,
@@ -129,7 +168,12 @@ describe("session token handling", () => {
   });
 
   it("never writes the raw session token to disk", async () => {
-    const user = await createUser({ username: "tok2", password: "pw12345678", role: "viewer" });
+    const user = await createUser({
+      username: "tok2",
+      password: "pw12345678",
+      role: "administrator",
+      groupId: TEST_GROUP,
+    });
     const session = await issueSession({
       id: user.id,
       username: user.username,

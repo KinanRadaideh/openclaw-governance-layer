@@ -16,6 +16,18 @@ import type { GovernanceSession } from "../governance/session-tokens.js";
 import { createUser } from "../governance/user-store.js";
 import { handleGovernanceApiRequest } from "./governance-dashboard-api.js";
 
+/**
+ * Every account belongs to a group (S3); these tests all live in one.
+ *
+ * Accounts that were Viewers or Users before S3 are Administrators here unless
+ * the tier is the subject of the test. A User or Viewer now requires an
+ * Administrator answerable for it, which would mean creating a second account
+ * inside tests about username folding, token storage and Root invariants — and
+ * changing the counts several of them assert. The tier was incidental; the
+ * ceremony would not have been.
+ */
+const TEST_GROUP = "group-test";
+
 let dir: string;
 
 beforeEach(async () => {
@@ -189,7 +201,12 @@ describe("account enumeration", () => {
     // If a missing account short-circuits before password hashing, response
     // time reveals which usernames exist.
     const { authenticate } = await import("../governance/user-store.js");
-    await createUser({ username: "real-user", password: "correct-horse", role: "viewer" });
+    await createUser({
+      username: "real-user",
+      password: "correct-horse",
+      role: "administrator",
+      groupId: TEST_GROUP,
+    });
 
     const timeOf = async (username: string, password: string): Promise<number> => {
       const start = process.hrtime.bigint();

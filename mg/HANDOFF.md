@@ -10,11 +10,11 @@ break. Everything else in `mg/` is detail beneath this.
 
 **Current as of 2026-08-24.** The governance layer is **built and verified, and
 still not demonstrated.** Eight of the nine design requirements are fully met;
-the ninth (Linux deployment) is tested but never deployed. **1,902 automated
-tests pass across 94 files** (1,204 distinct across 70 — see §4), both
+the ninth (Linux deployment) is tested but never deployed. **1,926 automated
+tests pass across 95 files** (1,224 distinct across 71 — see §4), both
 typechecks are clean, and OpenClaw's own test
 suite is unaffected at its pre-existing 18 failed / 174 passed baseline. Eighteen
-QA rounds have found 118 defects, all fixed; **there is no known
+QA rounds have found 119 defects, all fixed; **there is no known
 security hole.**
 
 What has _not_ happened is a single end-to-end run with a real language model
@@ -248,20 +248,26 @@ Expected, measured 2026-08-24:
 
 | Command          | Expected                         |
 | ---------------- | -------------------------------- |
-| Governance suite | **1,902 passed across 94 files** |
+| Governance suite | **1,926 passed across 95 files** |
 
-**All four re-run and green on 2026-08-24**, most recently after the live
-browser pass and S2: **1,902/94**, both typechecks clean, host harness at
-exactly 18 failed / 174 passed. The figure has moved five times today —
-1,794/87, 1,802/88, 1,877/91, 1,901/94, 1,902/94 — which is why the command
-matters more than the number.
+**All four re-run and green on 2026-08-24**, most recently after S3:
+**1,926/95**, both typechecks clean, host harness at exactly 18 failed / 174
+passed. The figure has moved six times today — 1,794/87, 1,802/88, 1,877/91,
+1,901/94, 1,902/94, 1,926/95 — which is why the command matters more than the
+number.
 
-> **The 94 is file _runs_, not files, and 1,902 is test _executions_.** Twelve
+> One test (`qa-round5-storage.test.ts`, ledger rotation) has a 120-second
+> budget and writes enough entries to rotate the ledger. It times out when the
+> machine is busy — a build and another suite running alongside it were enough.
+> That is load, not a regression; re-run it on a quiet machine before believing
+> a failure there.
+
+> **The 95 is file _runs_, not files, and 1,926 is test _executions_.** Twelve
 > governance test files live under `src/gateway/` and run under three Vitest
-> projects, so each is executed three times: 55 + 3 + (12 × 3) = 94. Those twelve
-> hold 349 distinct tests reported as 1,047. **Distinct totals: 1,204 tests
-> across 70 files.** Quote 1,902/94 if you also state the command; quote
-> 1,204/70 if
+> projects, so each is executed three times: 56 + 3 + (12 × 3) = 95. Those twelve
+> hold 351 distinct tests reported as 1,053. **Distinct totals: 1,224 tests
+> across 71 files.** Quote 1,926/95 if you also state the command; quote
+> 1,224/71 if
 > you are describing how much test code exists. This is the same trap as the
 > 18-versus-9 harness baseline three paragraphs below — recorded there, missed
 > here, for as long as the number has been quoted.

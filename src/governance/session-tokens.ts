@@ -31,6 +31,10 @@ export type GovernanceSession = {
    * issued before this existed keeps working exactly as it did.
    */
   canAuthorPolicy?: boolean;
+  /** The group this session acts inside (S3). Every account has one; see `user-store.ts`. */
+  groupId?: string;
+  /** For a User or Viewer, the Administrator answerable for them (S3). */
+  managedBy?: string;
 };
 
 type SessionsFile = { version: 1; sessions: GovernanceSession[] };
@@ -75,6 +79,8 @@ export async function issueSession(user: {
   username: string;
   role: GovernanceRole;
   assignedAgents?: readonly string[];
+  groupId?: string;
+  managedBy?: string;
 }): Promise<GovernanceSession> {
   await ensureHomeDir();
   return withFileLock(sessionsFilePath(), async () => {
@@ -90,6 +96,12 @@ export async function issueSession(user: {
       createdAt: new Date(now).toISOString(),
       expiresAt: new Date(now + SESSION_TTL_MS).toISOString(),
       assignedAgents: [...(user.assignedAgents ?? [])],
+      // Mirrored for the same reason `assignedAgents` is: every route has to
+      // answer "is this in your group?" and an authorization check should not
+      // cost a file read. `authenticate` refuses an account with no group, so a
+      // session without one cannot be issued through a supported path.
+      ...(user.groupId ? { groupId: user.groupId } : {}),
+      ...(user.managedBy ? { managedBy: user.managedBy } : {}),
     };
     // The stored record holds the fingerprint; the caller gets the real token,
     // which from here on exists only in the operator's cookie.

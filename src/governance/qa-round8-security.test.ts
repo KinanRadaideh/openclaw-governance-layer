@@ -18,6 +18,18 @@ import { defaultPolicyDocument, resolveAskMode } from "./policy-types.js";
 import { issueSession, verifySession } from "./session-tokens.js";
 import { createUser } from "./user-store.js";
 
+/**
+ * Every account belongs to a group (S3); these tests all live in one.
+ *
+ * Accounts that were Viewers or Users before S3 are Administrators here unless
+ * the tier is the subject of the test. A User or Viewer now requires an
+ * Administrator answerable for it, which would mean creating a second account
+ * inside tests about username folding, token storage and Root invariants — and
+ * changing the counts several of them assert. The tier was incidental; the
+ * ceremony would not have been.
+ */
+const TEST_GROUP = "group-test";
+
 let dir: string;
 
 beforeEach(async () => {
@@ -69,7 +81,12 @@ describe("secrets must not reach the audit trail", () => {
 
   it("never writes a session token into the ledger", async () => {
     const user = await createUser(
-      { username: "malek", password: "correct-horse-battery", role: "viewer" },
+      {
+        username: "malek",
+        password: "correct-horse-battery",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
       "root",
     );
     const session = await issueSession({
@@ -93,7 +110,12 @@ describe("secrets must not reach the audit trail", () => {
 describe("sessions expire and cannot be resurrected", () => {
   it("refuses a session past its expiry", async () => {
     const user = await createUser(
-      { username: "malek", password: "correct-horse-battery", role: "administrator" },
+      {
+        username: "malek",
+        password: "correct-horse-battery",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
       "root",
     );
     const session = await issueSession({
@@ -115,7 +137,12 @@ describe("sessions expire and cannot be resurrected", () => {
 
   it("issues tokens that are long and unguessable", async () => {
     const user = await createUser(
-      { username: "malek", password: "correct-horse-battery", role: "viewer" },
+      {
+        username: "malek",
+        password: "correct-horse-battery",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
       "root",
     );
     const tokens = new Set<string>();

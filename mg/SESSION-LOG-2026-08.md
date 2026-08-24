@@ -1818,3 +1818,96 @@ first time the layer mutates the host it governs.
 
 **1,901 tests across 94 files** before finding 118's regression test. Eighteen
 of twenty-seven backlog items done; S3–S6 are planned and not started.
+
+---
+
+## 22. S3 — the group (2026-08-24)
+
+The change that stops the layer assuming one organisation. Data model only; per
+group storage isolation (S5), the agent registry (S4) and the Administrator's
+panel (S6) build on it.
+
+### The invariant that moved rather than weakened
+
+The single-Root rule was in code and written up as a deliberate security
+decision: Root manages people, a second Root can delete the first, and once two
+exist "you cannot remove the last Root" protects nobody.
+
+Every word survives. **None of it was ever an argument about machines.** It
+argues for one Root per _thing a Root is responsible for_, and that is now a
+group rather than an installation. The cap is group-scoped and so is the lockout
+guard beneath it.
+
+That makes it the second **correct rule attached to the wrong noun** this
+project has found — the first being the attachment quota, which bounded what an
+operator had clicked rather than what they had sent (finding 113). Worth a line
+in Chapter 4 as its own category: a rule can be true, tested, enforced, and
+scoped to the wrong thing, and none of its tests will say so.
+
+### Three decisions
+
+**Signup is open, and `onlyAsFirstAccount` was deleted.** Creating a Root now
+creates a group, every time. The guard that made the first account unraceable
+went with it, because the race it closed no longer exists: a second Root is a
+different organisation, not an attacker stealing the first one's layer.
+
+Deleting rather than leaving it is the point. The tests exercising it kept
+passing and read as evidence that signup is still race-protected — which it
+deliberately is not. Twice already this project has been bitten by code that was
+exported and never reached (`sweepOrphans`, an unreachable validator). A _guard_
+with no caller is worse, because it advertises a property that has gone.
+
+The cost is stated rather than discovered: anyone who can reach the endpoint can
+become a Root. Defensible only because the Gateway binds loopback-only and is
+reached through a tunnel, so "anyone who can reach the dashboard" already means
+"anyone who can reach the host".
+
+**The managed-account rule lives in the store, not the route**, because the
+command line creates accounts too and a rule the dashboard alone enforces is a
+rule the CLI does not have.
+
+**Root cannot be a manager**, though it outranks every Administrator. If Root
+wants to run a User directly it creates an Administrator and signs into that.
+One statable rule instead of two, and the act stays attributable to the hat it
+was done in.
+
+### Absence, and a pattern that nearly got applied by habit
+
+Three fields here are optional and read as a knowable default when missing —
+`actorRole`, `canAuthorPolicy`, `selfProtecting`. Presence-based migration is
+why a pre-existing ledger still verifies byte-identically.
+
+`groupId` looks like a fourth and is the opposite. **A missing group is an
+unanswered question, not a default.** Reading it as "the founding group" would
+file people into an organisation nobody put them in. So an unmigrated account
+cannot sign in — checked after the password, so it leaks nothing — and the
+migration that deletes them is a command an operator runs, never something that
+happens at load, because it removes credentials.
+
+The transferable line: the pattern had worked three times, and the fourth
+application would have been wrong. The question was never whether the field
+could be absent. It was **whether absence had a meaning anyone could defend.**
+
+### What the tests caught
+
+The first `setUserRole` refused to move an account into a managed tier because
+no manager was supplied, and gave no way to supply one — so an Administrator
+could never be demoted at all. Found by an existing test that demoted one. The
+signature now carries the manager, and refuses an account made answerable for
+itself.
+
+**Blast radius:** 72 test call sites across 13 files, and 23 accounts that were
+Users or Viewers incidentally became Administrators — the tier was never the
+subject of those tests, and adding a manager to each would have changed counts
+they assert.
+
+### Stated limitation
+
+Usernames stay unique across the installation rather than per group, because
+login is by username alone: two organisations cannot both have an `admin`.
+Fixing it needs a group-qualified login, which is a larger change to a surface
+stable since the beginning. Recorded rather than smuggled in.
+
+### State
+
+S1, S2 and S3 done; S4, S5 and S6 planned and not started.

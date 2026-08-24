@@ -1707,6 +1707,97 @@ Everything else held, and several of these could only be checked here:
 verification step that treats any non-200 as failure would have reported a
 broken dashboard three times before it was ready.
 
+### S3 — the group, and one invariant that moved scope (2026-08-24)
+
+Not a QA round: the first of six subtasks turning a single-operator control
+plane into a multi-tenant one. Report material in `CHAPTER3-MATERIAL.md`
+§3.5.31; plain language in `QA-IN-PLAIN-TERMS.md` §5.25.
+
+**What a group is.** The unit a Root owns — its Root, its Administrators, its
+Users and Viewers, and from S4 its agents. Accounts in different groups never
+see each other. Two invariants join the tier model: every account belongs to
+exactly one group, and every User or Viewer has one Administrator answerable for
+it.
+
+| Change                                                     | Where                                             |
+| ---------------------------------------------------------- | ------------------------------------------------- |
+| `groupId` and `managedBy` on the account record            | `user-store.ts`                                   |
+| Root cap and lockout guard scoped to the group             | `wouldCreateSecondRoot`, `wouldStrandWithoutRoot` |
+| Managed-tier rule enforced in the store, not the route     | `createUser`, `setUserRole`                       |
+| Group carried on the session so a check costs no file read | `session-tokens.ts`                               |
+| Every account route scoped to the caller's group           | `governance-dashboard-accounts.ts`                |
+| Signup creates a group; `onlyAsFirstAccount` deleted       | `governance-dashboard-auth.ts`                    |
+| Unmigrated accounts cannot sign in; CLI deletes them       | `authenticate`, `governance groups migrate`       |
+
+**The single-Root rule moved rather than weakened.** Its original argument —
+Root manages people, a second Root can delete the first, and once two exist "you
+cannot remove the last Root" protects nobody — survives every word. None of it
+was ever an argument about _machines_; it was an argument about one Root per
+thing a Root is responsible for, which is now a group. **A correct rule attached
+to the wrong noun**, and the second time this project has found one: the
+attachment quota bounded what an operator had clicked rather than what they had
+sent (finding 113).
+
+**`onlyAsFirstAccount` was deleted, not left in place.** It made the first
+account unraceable, and the race it closed no longer exists — a second Root is a
+different organisation, not an attacker stealing the first one's layer. Removing
+it matters because the tests exercising it kept passing and read as evidence
+that signup is still race-protected. It is not, deliberately. This project has
+been bitten twice by code that was exported and never reached (`sweepOrphans`,
+finding 113; an unreachable validator, finding 112); a _guard_ with no caller is
+worse than either, because it advertises a property that has gone.
+
+**The open-signup cost, stated rather than discovered.** Anyone who can reach
+the endpoint can create a group and become a Root in it. Defensible only because
+the Gateway binds loopback-only and is reached through an SSH tunnel, so
+"anyone who can reach the dashboard" already means "anyone who can reach the
+host". A deployment exposing the port directly turns this into self-service
+Root.
+
+**Absence means something different here, and that is the design point.**
+`actorRole`, `canAuthorPolicy` and `selfProtecting` are all optional and read as
+a knowable default when missing — the presence-based migration that lets a
+pre-existing ledger verify byte-identically. `groupId` looks identical and is
+the opposite: **a missing group is an unanswered question, not a default**, and
+reading it as "the founding group" would file people into an organisation nobody
+put them in. So an unmigrated account cannot sign in — checked _after_ the
+password, so it leaks nothing — and the migration that deletes them is a command
+an operator runs, never something that happens at load.
+
+**One hole the tests found.** The first version of `setUserRole` refused to move
+an account into a managed tier because no manager was supplied and offered no
+way to supply one, so an Administrator could never be demoted at all. Caught by
+an existing test that demoted one. `setUserRole` now takes the manager alongside
+the role and refuses an account made answerable for itself.
+
+**Blast radius:** 72 test call sites across 13 files needed a group, and 23
+accounts that were Users or Viewers incidentally became Administrators — the
+tier had never been the subject of those tests, and adding a manager to each
+would have changed counts they assert.
+
+#### Finding 119 — S2's route named other groups' people
+
+| #   | Component                     | Defect                                                                                                                                                                                                                                                                                                                                                                               | Fix                                                                      |
+| --- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| 119 | `governance-dashboard-api.ts` | The `agents/access` route (S2, shipped in `d88bf04`) answered from `findUsersForAgent`, which searches every account on the installation. Agent ids are free-form and are not owned by a group until S4, so two organisations can independently assign the same one — and an Administrator asking "who can reach agent-x?" would be told the names of people in another organisation | Scope the lookup to the caller's group, and pin it with a two-group test |
+
+**Found by reading the S3 diff against the S2 route, not by a failing test** —
+and no test could have caught it, because until S3 existed there was no such
+thing as a second group to leak across. That is the honest shape of it: S2 was
+correct in a single-tenant world and became a leak the moment the world changed
+underneath it, without a line of S2 changing.
+
+Worth a paragraph in Chapter 4 beside the "correct rule, wrong noun" pair, as a
+third variant: **code can be correct, tested, and turned into a defect by a
+change somewhere else that it never referenced.** The isolation here is defeated
+by a coincidence of naming rather than by an attack, which is what makes it easy
+to miss and cheap to exploit.
+
+**Stated limitation.** Usernames remain unique across the installation rather
+than per group, because login is by username alone: two organisations cannot
+both have an `admin`. Fixing it means a group-qualified login, which is a larger
+change to a surface stable since the beginning.
+
 ## Notes for Chapter 3
 
 Design decisions worth writing up, with the reasoning behind each:

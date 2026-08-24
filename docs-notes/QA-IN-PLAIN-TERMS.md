@@ -2404,6 +2404,122 @@ that is a security control doing its job, showing up in a list of errors.
 Worth recording because a future reader scanning that list would otherwise spend
 an afternoon on two non-problems.
 
+## 5.25 One system, several organisations
+
+Until now the system assumed one thing that nobody had ever written down: that
+an installation belonged to a single organisation. There was exactly one owner
+account, permanently, and any administrator managed every agent on the machine.
+
+That was never a decision. It was what you get when only one organisation has
+ever used something.
+
+### What changed
+
+There are now **groups**. A group is one organisation's whole world: its owner,
+its administrators, the people under them, and (soon) its agents. Anyone can
+create an owner account, and doing so creates a new group around it. People in
+one group cannot see people in another — not their names, not their accounts,
+nothing.
+
+Two new rules come with it:
+
+- Every account belongs to exactly one group.
+- Every ordinary user and every viewer has **one administrator answerable for
+  them**. Nobody is unmanaged.
+
+If the owner wants to look after somebody directly, they create an
+administrator account and use that. It sounds like a technicality and it buys
+something real: one rule that can be stated in a sentence, instead of two with
+an exception.
+
+### The rule that was right, at the wrong size
+
+There used to be a hard rule: one owner per installation, permanently. It had a
+good reason behind it. The owner is the account that manages everybody else, so
+a second owner could delete the first — and once two exist, "you can't remove
+the last owner" stops protecting the person who set the system up.
+
+Every word of that is still true. **None of it was ever an argument about
+machines.** It was an argument about one owner per _thing an owner is
+responsible for_, and that thing is now an organisation rather than a computer.
+So the rule did not weaken; it moved to the right size.
+
+This is the second time in this project a rule has turned out to be correct and
+attached to the wrong noun. The other was the file allowance, which was
+counting what somebody had _clicked_ rather than what they had _sent_. Both were
+true, tested, and measuring the wrong thing.
+
+### The cost of letting anyone sign up, said out loud
+
+Anyone who can reach the sign-in page can now create an owner account. That is a
+real trade and it is worth being blunt about.
+
+It is acceptable here because of how this system is meant to be reached: the
+dashboard listens only on the machine itself, and remote access goes through an
+encrypted tunnel. So "anyone who can reach the page" already means "anyone who
+can reach the computer" — and someone in that position had other options
+already.
+
+If anyone ever exposes this to the open internet, that stops being true, and
+this page becomes self-service ownership. Written here so it is a known cost
+rather than a surprise.
+
+### A missing answer is not the same as a default
+
+The system has three fields that are allowed to be missing, where missing simply
+means "the old behaviour": which tier somebody acted under, whether they may
+write rules, whether a rule protects the system itself. Old records that lack
+them keep working untouched, and that has been a reliable way to change things
+without breaking what already existed.
+
+Groups look exactly like a fourth case, and they are the opposite.
+
+A missing tier means "not recorded". A missing group means **"nobody knows which
+organisation this person belongs to"** — and there is no way to work it out.
+Treating it as "the first group" would quietly file people into an organisation
+nobody put them in.
+
+So accounts from before groups existed simply cannot sign in. The password still
+works; the account does not. An operator clears them with a single command that
+deletes them, and that command deliberately does not run by itself — it removes
+people's credentials, and doing that automatically the first time a new version
+starts is not a decision software should make on its own.
+
+**The lesson is small and sharp:** "this field is optional, and missing means
+what it used to mean" had worked three times, and applying it a fourth time out
+of habit would have been wrong. The question was never whether the field could
+be missing. It was whether _missing_ meant something anyone could defend.
+
+### A feature that broke without being touched
+
+Two commits before groups arrived, a small feature was added: an administrator
+can ask "who has access to this agent?" It was correct, tested, and did exactly
+what it claimed.
+
+Groups made it a leak. Agents are still identified by a free-form name, and
+nothing yet stops two organisations picking the same one. So an administrator in
+one organisation asking about "agent-x" would have been shown the names of
+people in a _different_ organisation who happened to use that name too.
+
+Nothing about that feature changed. The world around it did.
+
+No test could have found this, because until groups existed there was no second
+organisation to leak to. It was found by re-reading the older feature while
+building the newer one — and the lesson is worth keeping: **adding a boundary to
+a system does not automatically apply it to everything that was written before
+the boundary existed.** Every earlier feature has to be re-asked the question.
+
+### What the tests caught that the design missed
+
+The first version had a dead end nobody spotted while writing it. Moving an
+administrator down to an ordinary user required naming who would look after
+them — and there was no way to say. So an administrator could never be demoted
+at all.
+
+An existing test demoted one and failed immediately. That is what a test suite
+is for: not checking the thing you were thinking about, but the thing you were
+not.
+
 ## 7. The single lesson
 
 Rounds five and six found the same mistake wearing different clothes.

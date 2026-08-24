@@ -454,22 +454,22 @@ grouping is itself part of the design argument.
 
 |                      |                                                                                                                                                                    |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Production total** | **18,767 lines** — 10,954 across 39 files in `src/governance/`, plus 7,813 across the 11 HTTP, CLI and dashboard surface files tabulated below                     |
-| **Test total**       | **17,594 lines across 70 test files.** The suite _reports_ **1,902 tests across 94 files**, and both numbers are right about different things — see the note below |
+| **Production total** | **19,215 lines** — 11,201 across 40 files in `src/governance/`, plus 8,014 across the 11 HTTP, CLI and dashboard surface files tabulated below                     |
+| **Test total**       | **18,242 lines across 71 test files.** The suite _reports_ **1,926 tests across 95 files**, and both numbers are right about different things — see the note below |
 
-> **The 94 is a count of test-file _runs_, not of files. 1,902 is a count of
+> **The 95 is a count of test-file _runs_, not of files. 1,926 is a count of
 > test _executions_, not of distinct tests.** Twelve of the governance test files
 > live under `src/gateway/` and the repository runs that directory under three
 > Vitest projects — `gateway-core`, `gateway-server`, `gateway-client` — so each
-> of the twelve is executed three times. 55 unit + 3 ui + (12 × 3) = **94**.
-> Those twelve files hold **349 distinct tests, reported as 1,047**, so the
-> distinct totals are **1,204 tests across 70 files**.
+> of the twelve is executed three times. 56 unit + 3 ui + (12 × 3) = **95**.
+> Those twelve files hold **351 distinct tests, reported as 1,053**, so the
+> distinct totals are **1,224 tests across 71 files**.
 >
 > Neither number is wrong and the larger one is not inflated by accident: every
-> one of those 1,902 executions really ran, and running the gateway suite under
-> three project configurations is the point of doing it that way. But "1,902
-> tests across 94 files" invites a reader to believe there are 94 files, and
-> there are 70.
+> one of those 1,926 executions really ran, and running the gateway suite under
+> three project configurations is the point of doing it that way. But "1,926
+> tests across 95 files" invites a reader to believe there are 95 files, and
+> there are 71.
 >
 > **This is the same mistake this project already documented and warned about.**
 > `HANDOFF.md` §4 records that the host harness baseline was once written as "9
@@ -2918,6 +2918,157 @@ so: every governance change so far has _observed and gated_ OpenClaw. Writing
 its configuration would be the first time this layer mutates the host it
 governs.
 
+### 3.5.31 The group: making the layer multi-tenant (S3)
+
+The change that turns a single-operator control plane into one that can hold
+several organisations at once. The data model only — per-group storage
+isolation (S5), the agent registry (S4) and the Administrator's panel (S6) build
+on it.
+
+#### What a group is, and why the model needed one
+
+Before this, the layer described **one installation with one operator**. Exactly
+one Root existed and was permanent; there was no notion of an organisation; and
+an Administrator managed every agent on the machine by virtue of the tier. That
+is coherent, and it is a single-tenant product.
+
+A **group** is now the unit a Root owns: its Root, its Administrators, its Users
+and Viewers, and (from S4) its agents. Accounts in different groups never see
+each other. Two new invariants join the tier model:
+
+1. **Every account belongs to exactly one group.**
+2. **Every User and Viewer has one Administrator answerable for it.**
+
+**Figure candidate** — _Figure 3.x: Two groups on one installation._ Two boxes,
+each containing a Root, two Administrators, and Users hanging off individual
+Administrators; a dividing line between them labelled with what does not cross
+it (accounts, the account list, agent assignment).
+
+#### The invariant that moved rather than weakened
+
+The single-Root rule was enforced in code (`DuplicateRootError`) and written up
+as a deliberate security decision. The argument was: Root manages people, a
+second Root can delete the first, and the moment two exist "you cannot remove
+the last Root" stops protecting the operator who set the system up.
+
+Every word of that survives. **None of it argues for one Root per _machine_** —
+it argues for one Root per _thing a Root is responsible for_, which is now a
+group. So the cap is group-scoped and so is the lockout guard beneath it. The
+report should present this as a scope correction rather than a reversal: the
+old rule was the right rule with an accidental boundary, and the accident was
+that only one organisation had ever existed.
+
+This is worth a paragraph in its own right because it is the second time this
+project has found a **correct rule stated at the wrong scope** — the first being
+the attachment quota, which bounded what an operator had _clicked_ rather than
+what they had _sent_ (finding 113). A rule can be true, tested, and scoped to
+the wrong noun.
+
+#### Three decisions, and what each costs
+
+**Creating a Root creates a group, and signup is open.** The endpoint that
+bootstrapped the first account refused once any account existed; it now creates
+a new group every time. The `onlyAsFirstAccount` guard that made the first
+account unraceable was **deleted**, because the race it closed no longer exists:
+a second Root is not an attacker stealing the first one's layer, it is a
+different organisation with its own world.
+
+The cost is stated plainly rather than discovered: **anyone who can reach this
+endpoint can create a group and become a Root in it.** That is defensible only
+because of the architecture Chapter 1 already describes — the Gateway binds
+loopback-only and is reached through an SSH tunnel — so "anyone who can reach
+the dashboard" already means "anyone who can reach the host". On a deployment
+that exposes the port directly, this endpoint is self-service Root and needs
+something in front of it deciding who may ask. Chapter 4 should say so.
+
+**Managed accounts, enforced in the store rather than at the route.** A User or
+Viewer cannot be created without an Administrator in the same group answerable
+for it. The rule lives in `user-store.ts`, not in the HTTP layer, because the
+command line creates accounts too — and a rule enforced by the dashboard alone
+is a rule the CLI does not have. Two surfaces asking one question two ways is
+this project's most-found defect (§4.x.11, §4.x.15, §4.x.20).
+
+**Root cannot be the manager.** Root outranks every Administrator, so allowing
+it would be natural — and it is refused. If Root wants to run a User directly it
+creates an Administrator account and signs into that. The gain is one statable
+rule ("a User is managed by an Administrator") instead of two, and an act that
+stays attributable to the hat it was done in.
+
+#### Absence means something different here, and that is the interesting part
+
+Three fields in this project are optional and read as a safe default when
+missing: `actorRole` (not recorded), `canAuthorPolicy` (allowed),
+`selfProtecting` (no). Each is a _property whose default is knowable_, which is
+what made presence-based migration work — a pre-existing ledger verifies
+byte-identically because a role-less entry hashes exactly what it always did
+(§3.5.27).
+
+`groupId` looks identical and behaves oppositely. **A missing group is not a
+default; it is an unanswered question** about which organisation an account
+belongs to, and nothing can infer it. Reading absent as "the founding group"
+would silently place people in an organisation nobody put them in.
+
+So an account with no group **cannot sign in** — checked after the password, so
+it tells an attacker nothing a wrong password would not — and the operator's way
+out is `openclaw governance groups migrate --delete`, which removes them.
+
+The migration is deliberately **not** automatic. It deletes credentials, and a
+migration that removes accounts the first time a new build starts is one nobody
+consented to. The sign-in refusal is what makes leaving them sitting safe.
+
+> **The transferable point for Chapter 4.** "Optional field, absent means the
+> old behaviour" is a migration pattern this project has used successfully three
+> times, and applying it a fourth time by pattern-match would have been wrong.
+> The question is not whether the field is optional; it is **whether absence has
+> a meaning you can defend.**
+
+#### What the tests found, which the design had not
+
+Writing the invariants surfaced a hole in the first version: `setUserRole`
+refused to move an account _into_ a managed tier because no manager was
+supplied, **and offered no way to supply one** — so an Administrator could never
+be demoted at all. It was caught by an existing test that demoted one, which is
+what a test suite is for. `setUserRole` now takes the manager alongside the
+role, and refuses an account made answerable for itself.
+
+The blast radius is worth recording: **72 test call sites** across 13 files
+needed a group, and 23 accounts that had been Users or Viewers incidentally were
+changed to Administrators, because the tier had never been the subject of those
+tests and adding a manager to each would have changed counts they assert.
+
+#### Finding 119: S2 became a leak without changing
+
+Reading the S3 diff against the route S2 had shipped two commits earlier found
+that `agents/access` answered from a lookup that searches **every account on the
+installation**. Agent ids are free-form and are not owned by a group until S4,
+so two organisations can independently assign the same id — and an
+Administrator asking "who can reach agent-x?" would have been told the names of
+people in another organisation.
+
+No test could have caught it, because until S3 there was no second group to leak
+across. **S2 was correct in a single-tenant world and became a defect the moment
+the world changed underneath it, without a line of S2 changing.**
+
+That belongs in Chapter 4 beside the "correct rule, wrong noun" pair as a third
+variant of the same family:
+
+| Variant                                              | Example                                                                                                     |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| A rule scoped to the wrong noun                      | The attachment quota bounded clicks, not sends (113); the Root cap bounded machines, not organisations (S3) |
+| A check that could not run                           | An unreachable base64 validator (112); a guard with no caller (`sweepOrphans`, 113)                         |
+| **Correct code turned into a defect from elsewhere** | **This (119)**                                                                                              |
+
+The isolation is defeated by a coincidence of naming rather than by an attack,
+which is what makes it easy to miss and cheap to exploit.
+
+#### Deliberately not done
+
+Usernames remain unique across the **installation**, not per group, because
+login is by username alone. Two organisations cannot both have an `admin`. The
+alternative is a group-qualified login, which is a larger change to a surface
+that has been stable since the beginning — recorded as a limitation rather than
+smuggled in.
+
 ### 3.5.9 Recording administrative actions in the same chain
 
 The ledger originally recorded what agents did and how the policy judged them,
@@ -3135,9 +3286,9 @@ long and the grouping is the argument.
 `qa-round8-logic`, `qa-round8-security`: **81 tests** pinning the specific
 defects each round found, so none can silently return.
 
-|           |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Total** | **1,902 tests across 94 files** — measured 2026-08-24, after the live browser pass and S2 (§3.5.30); 1,877 across 91 after T14's HTTP and dashboard surfaces and QA round seventeen (§4.x.29); 1,802 across 88 after T23 (§3.5.29); 1,794 across 87 after T4, T5 and T14 (§3.5.26–§3.5.28); 1,722 across 84 after the first dashboard component tests (§4.x.27), the core-tier split (§3.5.24), Root's authoring control (§3.5.23), the kill-switch end-to-end verification and the authoring-scope matrix (§3.5.21, §3.5.22). (1,564 across 75 after the bidirectional policy views, §3.5.20. (1,510 across 71 after the sixteenth QA pass, §4.x.25. (1,499 across 70 after T9, authentication auditing, §3.5.19. (1,480 across 68 before it, after the A1 follow-ups, the last of round thirteen, the hands-on UI pass and the three core invariants; 1,465 across 67 before `core-invariants.test.ts`; 1,404 across 64 after B1; 1,393 across 63 after the fourteenth QA pass and A7; 1,264 across 57 before rounds 13 and 14. The growth is almost entirely regression tests lifted out of the probes that produced each finding.) **Measured with `src/governance/`, `src/gateway/governance-*.test.ts`, `ui/src/pages/governance/`** — adding `ui/src/i18n` gives 1,564 across 73, which is a different set and not a regression. **Every figure in this row is a count of test-file _runs_ and test _executions_:** the ten `src/gateway/` files run under three Vitest projects, so the distinct totals behind the 1,902/94 are **1,204 tests across 70 files**. See §3.5.2. |
+|           |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Total** | **1,926 tests across 95 files** — measured 2026-08-24, after S3, the group data model (§3.5.31); 1,902 across 94 after the live browser pass and S2 (§3.5.30); 1,877 across 91 after T14's HTTP and dashboard surfaces and QA round seventeen (§4.x.29); 1,802 across 88 after T23 (§3.5.29); 1,794 across 87 after T4, T5 and T14 (§3.5.26–§3.5.28); 1,722 across 84 after the first dashboard component tests (§4.x.27), the core-tier split (§3.5.24), Root's authoring control (§3.5.23), the kill-switch end-to-end verification and the authoring-scope matrix (§3.5.21, §3.5.22). (1,564 across 75 after the bidirectional policy views, §3.5.20. (1,510 across 71 after the sixteenth QA pass, §4.x.25. (1,499 across 70 after T9, authentication auditing, §3.5.19. (1,480 across 68 before it, after the A1 follow-ups, the last of round thirteen, the hands-on UI pass and the three core invariants; 1,465 across 67 before `core-invariants.test.ts`; 1,404 across 64 after B1; 1,393 across 63 after the fourteenth QA pass and A7; 1,264 across 57 before rounds 13 and 14. The growth is almost entirely regression tests lifted out of the probes that produced each finding.) **Measured with `src/governance/`, `src/gateway/governance-*.test.ts`, `ui/src/pages/governance/`** — adding `ui/src/i18n` gives 1,564 across 73, which is a different set and not a regression. **Every figure in this row is a count of test-file _runs_ and test _executions_:** the ten `src/gateway/` files run under three Vitest projects, so the distinct totals behind the 1,926/95 are **1,224 tests across 71 files**. See §3.5.2. |
 
 Two methodology notes worth keeping:
 

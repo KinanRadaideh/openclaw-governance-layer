@@ -222,6 +222,8 @@ class GovernancePage extends OpenClawLightDomElement {
   @state() private newUserName = "";
   @state() private newUserPassword = "";
   @state() private newUserRole: GovernanceRole = "viewer";
+  /** The Administrator a new User or Viewer will answer to (S3). */
+  @state() private newUserManagedBy = "";
   @state() private newRuleAgentId = "";
   /** Agent the per-agent posture control is about to act on. */
   @state() private postureAgentId = "";
@@ -1814,6 +1816,11 @@ class GovernancePage extends OpenClawLightDomElement {
    * prompt goes out, and it means an abandoned pick had been charged to the
    * account permanently, with no way to get it back.
    */
+  /** Administrators in this group, who are the only accounts that may manage a User (S3). */
+  private administrators(): GovernanceUserRecord[] {
+    return (this.users as GovernanceUserRecord[]).filter((user) => user.role === "administrator");
+  }
+
   private async removeAttachment(held: GovernanceAttachment): Promise<void> {
     this.promptAttachments = this.promptAttachments.filter((other) => other.sha256 !== held.sha256);
     try {
@@ -2900,18 +2907,48 @@ class GovernancePage extends OpenClawLightDomElement {
                 (option) => html`<option value=${option.value}>${option.label}</option>`,
               )}
             </select>
+            ${this.newUserRole === "user" || this.newUserRole === "viewer"
+              ? html`<select
+                  class="input"
+                  aria-label=${t("governance.users.managedByLabel")}
+                  title=${t("governance.users.managedByHint")}
+                  .value=${this.newUserManagedBy}
+                  @change=${(e: Event) => {
+                    this.newUserManagedBy = (e.target as HTMLSelectElement).value;
+                  }}
+                >
+                  <option value="">${t("governance.users.managedByPlaceholder")}</option>
+                  ${this.administrators().map(
+                    (admin) => html`<option value=${admin.id}>${admin.username}</option>`,
+                  )}
+                </select>`
+              : nothing}
+            ${(this.newUserRole === "user" || this.newUserRole === "viewer") &&
+            this.administrators().length === 0
+              ? // The tier cannot be created at all until somebody can answer
+                // for it, and saying so beats a server error the operator has
+                // to interpret. Root's way forward is to create an
+                // Administrator first — possibly one they sign into themselves.
+                html`<span class="settings-hint">${t("governance.users.noAdministrators")}</span>`
+              : nothing}
             <button
               class="btn btn--primary"
-              ?disabled=${this.busy || !this.newUserName || !this.newUserPassword}
+              ?disabled=${this.busy ||
+              !this.newUserName ||
+              !this.newUserPassword ||
+              ((this.newUserRole === "user" || this.newUserRole === "viewer") &&
+                !this.newUserManagedBy)}
               @click=${() =>
                 this.run(async () => {
                   await this.api().createUser({
                     username: this.newUserName,
                     password: this.newUserPassword,
                     role: this.newUserRole,
+                    ...(this.newUserManagedBy ? { managedBy: this.newUserManagedBy } : {}),
                   });
                   this.newUserName = "";
                   this.newUserPassword = "";
+                  this.newUserManagedBy = "";
                 })}
             >
               ${t("governance.users.addButton")}

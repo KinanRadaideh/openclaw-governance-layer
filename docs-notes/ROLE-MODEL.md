@@ -46,6 +46,19 @@ agent-touching operation.
 
 ## 2. What "manage" resolves to, tier by tier
 
+> **Updated 2026-08-24 (S3): every tier below is scoped to a group.**
+>
+> A Root owns one **group** — one organisation's Root, Administrators, Users and
+> Viewers — rather than the installation. The single-Root rule did not weaken;
+> its scope moved, and the original argument holds unchanged at the new scope:
+> a second Root in _the same group_ can still delete the first.
+>
+> Two invariants join the model: every account belongs to exactly one group, and
+> **every User and Viewer has one Administrator answerable for it**. Root cannot
+> be that Administrator — if Root wants to run a User directly it creates an
+> Administrator account and signs into that, which keeps one statable rule
+> rather than two. See `CHAPTER3-MATERIAL.md` §3.5.31.
+
 ### Root — manages people
 
 | Capability                                           | Function            |

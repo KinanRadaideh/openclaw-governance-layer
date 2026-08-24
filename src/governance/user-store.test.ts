@@ -22,6 +22,18 @@ import {
   setUserRole,
 } from "./user-store.js";
 
+/**
+ * Every account belongs to a group (S3); these tests all live in one.
+ *
+ * The accounts below are Administrators rather than Viewers, which they were
+ * before S3. Nothing here is about the tier — these are tests of hashing,
+ * username folding, session propagation and password resets — and a User or
+ * Viewer now requires an Administrator answerable for it, which would mean
+ * creating a second account in every one of them and changing the counts they
+ * assert. The tier was incidental; the ceremony would not have been.
+ */
+const TEST_GROUP = "group-test";
+
 let dir: string;
 
 beforeEach(async () => {
@@ -74,7 +86,12 @@ describe("role hierarchy", () => {
 
 describe("user store", () => {
   it("creates and authenticates a user", async () => {
-    await createUser({ username: "alice", password: "pw12345678", role: "administrator" });
+    await createUser({
+      username: "alice",
+      password: "pw12345678",
+      role: "administrator",
+      groupId: TEST_GROUP,
+    });
     expect(await countUsers()).toBe(1);
     const ok = await authenticate("alice", "pw12345678");
     expect(ok?.role).toBe("administrator");
@@ -83,31 +100,53 @@ describe("user store", () => {
   });
 
   it("never exposes the password hash through the record API", async () => {
-    await createUser({ username: "alice", password: "pw12345678", role: "viewer" });
+    await createUser({
+      username: "alice",
+      password: "pw12345678",
+      role: "administrator",
+      groupId: TEST_GROUP,
+    });
     const [record] = await listUsers();
     expect(record).toBeDefined();
     expect(Object.keys(record as object)).not.toContain("passwordHash");
   });
 
   it("rejects a duplicate username regardless of letter case", async () => {
-    await createUser({ username: "alice", password: "pw12345678", role: "viewer" });
+    await createUser({
+      username: "alice",
+      password: "pw12345678",
+      role: "administrator",
+      groupId: TEST_GROUP,
+    });
     await expect(
-      createUser({ username: "ALICE", password: "other12345", role: "root" }),
+      createUser({ username: "ALICE", password: "other12345", role: "root", groupId: TEST_GROUP }),
     ).rejects.toThrow(/already exists/);
     expect(await countUsers()).toBe(1);
   });
 
   it("authenticates case-insensitively on the username", async () => {
-    await createUser({ username: "Alice", password: "pw12345678", role: "viewer" });
+    await createUser({
+      username: "Alice",
+      password: "pw12345678",
+      role: "administrator",
+      groupId: TEST_GROUP,
+    });
     expect(await authenticate("alice", "pw12345678")).toBeDefined();
   });
 
   it("rejects an empty username", async () => {
-    await expect(createUser({ username: "   ", password: "pw", role: "root" })).rejects.toThrow();
+    await expect(
+      createUser({ username: "   ", password: "pw", role: "root", groupId: TEST_GROUP }),
+    ).rejects.toThrow();
   });
 
   it("changes and removes users", async () => {
-    const user = await createUser({ username: "bob", password: "pw12345678", role: "viewer" });
+    const user = await createUser({
+      username: "bob",
+      password: "pw12345678",
+      role: "administrator",
+      groupId: TEST_GROUP,
+    });
     expect(await setUserRole(user.id, "root")).toBe(true);
     expect((await authenticate("bob", "pw12345678"))?.role).toBe("root");
     expect(await deleteUser(user.id)).toBe(true);
@@ -117,7 +156,12 @@ describe("user store", () => {
   });
 
   it("stores users on disk without any plaintext password", async () => {
-    await createUser({ username: "carol", password: "plaintextpw999", role: "root" });
+    await createUser({
+      username: "carol",
+      password: "plaintextpw999",
+      role: "root",
+      groupId: TEST_GROUP,
+    });
     const raw = await readFile(join(dir, "users.json"), "utf8");
     expect(raw).not.toContain("plaintextpw999");
   });
@@ -125,7 +169,12 @@ describe("user store", () => {
   it("does not lose users when created concurrently", async () => {
     await Promise.all(
       Array.from({ length: 8 }, (_unused, index) =>
-        createUser({ username: `user${index}`, password: "pw12345678", role: "viewer" }),
+        createUser({
+          username: `user${index}`,
+          password: "pw12345678",
+          role: "administrator",
+          groupId: TEST_GROUP,
+        }),
       ),
     );
     expect(await countUsers()).toBe(8);
@@ -134,7 +183,12 @@ describe("user store", () => {
 
 describe("session tokens", () => {
   it("issues, verifies, and revokes a session", async () => {
-    const user = await createUser({ username: "dan", password: "pw12345678", role: "root" });
+    const user = await createUser({
+      username: "dan",
+      password: "pw12345678",
+      role: "root",
+      groupId: TEST_GROUP,
+    });
     const session = await issueSession({ id: user.id, username: user.username, role: user.role });
     expect((await verifySession(session.token))?.username).toBe("dan");
     await revokeSession(session.token);
@@ -147,7 +201,12 @@ describe("session tokens", () => {
   });
 
   it("issues unpredictable tokens", async () => {
-    const user = await createUser({ username: "erin", password: "pw12345678", role: "root" });
+    const user = await createUser({
+      username: "erin",
+      password: "pw12345678",
+      role: "root",
+      groupId: TEST_GROUP,
+    });
     const tokens = new Set<string>();
     for (let index = 0; index < 5; index += 1) {
       const session = await issueSession({
@@ -170,17 +229,43 @@ describe("session tokens", () => {
       username: "frank",
       password: "pw12345678",
       role: "administrator",
+      groupId: TEST_GROUP,
     });
-    await createUser({ username: "grace", password: "pw12345678", role: "root" });
+    await createUser({
+      username: "grace",
+      password: "pw12345678",
+      role: "root",
+      groupId: TEST_GROUP,
+    });
+    // Somebody has to answer for a Viewer since S3, and it cannot be the
+    // account being demoted. This test is about session propagation, so the
+    // manager is scaffolding — but the demotion is refused without it, which is
+    // the invariant doing its job.
+    const manager = await createUser({
+      username: "heidi",
+      password: "pw12345678",
+      role: "administrator",
+      groupId: TEST_GROUP,
+    });
     const session = await issueSession({ id: user.id, username: user.username, role: user.role });
-    await setUserRole(user.id, "viewer");
+    await setUserRole(user.id, "viewer", undefined, manager.id);
     await updateSessionsRoleForUser(user.id, "viewer");
     expect((await verifySession(session.token))?.role).toBe("viewer");
   });
 
   it("revokes every session for one account without touching others", async () => {
-    const doomed = await createUser({ username: "doomed", password: "pw12345678", role: "viewer" });
-    const keeper = await createUser({ username: "keeper", password: "pw12345678", role: "viewer" });
+    const doomed = await createUser({
+      username: "doomed",
+      password: "pw12345678",
+      role: "administrator",
+      groupId: TEST_GROUP,
+    });
+    const keeper = await createUser({
+      username: "keeper",
+      password: "pw12345678",
+      role: "administrator",
+      groupId: TEST_GROUP,
+    });
     const doomedA = await issueSession({
       id: doomed.id,
       username: doomed.username,
@@ -209,7 +294,12 @@ describe("session tokens", () => {
   });
 
   it("treats an expired session as invalid", async () => {
-    const user = await createUser({ username: "gina", password: "pw12345678", role: "root" });
+    const user = await createUser({
+      username: "gina",
+      password: "pw12345678",
+      role: "root",
+      groupId: TEST_GROUP,
+    });
     const session = await issueSession({ id: user.id, username: user.username, role: user.role });
     const path = join(dir, "sessions.json");
     const file = JSON.parse(await readFile(path, "utf8"));
@@ -252,7 +342,12 @@ describe("password cost can be raised later (B9)", () => {
 
   it("upgrades a weak hash in place on a successful sign-in", async () => {
     const user = await createUser(
-      { username: "malek", password: "correct-horse-battery", role: "viewer" },
+      {
+        username: "malek",
+        password: "correct-horse-battery",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
       "root",
     );
     // Downgrade the stored hash to simulate an account created before the cost
@@ -280,7 +375,12 @@ describe("password cost can be raised later (B9)", () => {
 
   it("lets Root set another account's password, and records it", async () => {
     const user = await createUser(
-      { username: "malek", password: "correct-horse-battery", role: "viewer" },
+      {
+        username: "malek",
+        password: "correct-horse-battery",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
       "root",
     );
     expect(await setUserPassword(user.id, "a-brand-new-secret", "root-user")).toBe(true);
@@ -290,7 +390,12 @@ describe("password cost can be raised later (B9)", () => {
 
   it("refuses a reset that would set a password below the minimum length", async () => {
     const user = await createUser(
-      { username: "malek", password: "correct-horse-battery", role: "viewer" },
+      {
+        username: "malek",
+        password: "correct-horse-battery",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
       "root",
     );
     await expect(setUserPassword(user.id, "short", "root-user")).rejects.toThrow();

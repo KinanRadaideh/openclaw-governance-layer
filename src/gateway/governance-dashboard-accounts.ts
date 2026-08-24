@@ -36,6 +36,25 @@ import {
 } from "../governance/user-store.js";
 import { sendInvalidRequest, sendJson } from "./http-common.js";
 
+/**
+ * Whether a target account is one the caller is allowed to touch at all (S3).
+ *
+ * Every mutating route here takes a `userId` from the request body, and before
+ * groups existed that was safe because there was one organisation. Now it is
+ * the shape of a cross-tenant write: a Root in one group naming an account id
+ * in another.
+ *
+ * A miss is reported as **"no such user"** rather than as a refusal, and that
+ * is the point rather than laziness. Distinguishing "does not exist" from
+ * "exists, elsewhere" would turn every one of these routes into a probe for
+ * whether an id is in use anywhere on the installation — the same oracle the
+ * login response, the attachment lookup and the agent-access route each already
+ * decline to be.
+ */
+async function targetIsInCallerGroup(userId: string, session: GovernanceSession): Promise<boolean> {
+  return (await listUsers(session.groupId)).some((user) => user.id === userId);
+}
+
 export type AccountRouteContext = {
   requireRole: (
     res: ServerResponse,
@@ -85,6 +104,10 @@ export async function handleGovernanceAccountRoutes(
       sendInvalidRequest(res, "userId and allowed (boolean) are required");
       return true;
     }
+    if (!(await targetIsInCallerGroup(userId, session))) {
+      sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
+      return true;
+    }
     const updated = await setUserPolicyAuthoring(userId, allowed, auditActor(session));
     if (!updated) {
       sendJson(res, 404, { error: { message: "no such account", type: "not_found" } });
@@ -94,7 +117,7 @@ export async function handleGovernanceAccountRoutes(
     // applies to future sessions is one an operator would believe had taken
     // hold when it had not.
     await updateSessionsPolicyAuthoring(userId, allowed);
-    sendJson(res, 200, { ok: true, users: await listUsers() });
+    sendJson(res, 200, { ok: true, users: await listUsers(session.groupId) });
     return true;
   }
 
@@ -110,7 +133,10 @@ export async function handleGovernanceAccountRoutes(
     if (!requireRole(res, session, "root")) {
       return true;
     }
-    sendJson(res, 200, await listUsers());
+    // Scoped to the caller's own group (S3). A Root owns one organisation, not
+    // the installation, and the account list is the most direct way the
+    // isolation could leak — it names every person in it.
+    sendJson(res, 200, await listUsers(session.groupId));
     return true;
   }
 
@@ -122,10 +148,11 @@ export async function handleGovernanceAccountRoutes(
     if (body === undefined) {
       return true;
     }
-    const { username, password, role } = body as {
+    const { username, password, role, managedBy } = body as {
       username?: unknown;
       password?: unknown;
       role?: unknown;
+      managedBy?: unknown;
     };
     if (typeof username !== "string" || typeof password !== "string") {
       sendInvalidRequest(res, "username and password are required");
@@ -135,8 +162,29 @@ export async function handleGovernanceAccountRoutes(
       sendInvalidRequest(res, "role must be root, administrator, user, or viewer");
       return true;
     }
+    if (managedBy !== undefined && typeof managedBy !== "string") {
+      sendInvalidRequest(res, "managedBy must be an account id");
+      return true;
+    }
     try {
-      sendJson(res, 200, await createUser({ username, password, role }, auditActor(session)));
+      // The group comes from the caller's session and is never taken from the
+      // request. A Root creating an account into somebody else's group is the
+      // one write that would defeat the whole model, and the safest way to
+      // refuse it is to give the caller no way to express it.
+      sendJson(
+        res,
+        200,
+        await createUser(
+          {
+            username,
+            password,
+            role,
+            ...(session.groupId ? { groupId: session.groupId } : {}),
+            ...(managedBy ? { managedBy } : {}),
+          },
+          auditActor(session),
+        ),
+      );
     } catch (err) {
       // createUser enforces uniqueness and the password policy by throwing.
       sendInvalidRequest(res, err instanceof Error ? err.message : "could not create account");
@@ -152,14 +200,22 @@ export async function handleGovernanceAccountRoutes(
     if (body === undefined) {
       return true;
     }
-    const { userId, role } = body as { userId?: unknown; role?: unknown };
+    const { userId, role, managedBy } = body as {
+      userId?: unknown;
+      role?: unknown;
+      managedBy?: unknown;
+    };
     if (typeof userId !== "string" || !userId || !isGovernanceRole(role)) {
       sendInvalidRequest(res, "userId and a valid role are required");
       return true;
     }
+    if (!(await targetIsInCallerGroup(userId, session))) {
+      sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
+      return true;
+    }
     // Lockout guard: demoting the last Root would leave nobody able to manage
     // accounts or trigger the kill switch, with no recovery path in the UI.
-    const roleGuard = guardRoleChange(await listUsers(), userId, role);
+    const roleGuard = guardRoleChange(await listUsers(session.groupId), userId, role);
     if (!roleGuard.allowed) {
       sendJson(res, 409, { error: { message: roleGuard.reason, type: "would_lock_out" } });
       return true;
@@ -168,7 +224,14 @@ export async function handleGovernanceAccountRoutes(
     // the same invariant inside its write lock so two simultaneous demotions
     // cannot both pass. That second refusal surfaces as this error.
     try {
-      if (!(await setUserRole(userId, role, auditActor(session)))) {
+      if (
+        !(await setUserRole(
+          userId,
+          role,
+          auditActor(session),
+          typeof managedBy === "string" ? managedBy : undefined,
+        ))
+      ) {
         sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
         return true;
       }
@@ -212,6 +275,10 @@ export async function handleGovernanceAccountRoutes(
       sendInvalidRequest(res, "userId and password are required");
       return true;
     }
+    if (!(await targetIsInCallerGroup(userId, session))) {
+      sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
+      return true;
+    }
     try {
       if (!(await setUserPassword(userId, password, auditActor(session)))) {
         sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
@@ -252,6 +319,10 @@ export async function handleGovernanceAccountRoutes(
       sendInvalidRequest(res, "userId is required");
       return true;
     }
+    if (!(await targetIsInCallerGroup(userId, session))) {
+      sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
+      return true;
+    }
     if (!Array.isArray(agentIds) || agentIds.some((id) => typeof id !== "string")) {
       sendInvalidRequest(res, "agentIds must be an array of strings");
       return true;
@@ -281,7 +352,11 @@ export async function handleGovernanceAccountRoutes(
       sendInvalidRequest(res, "userId is required");
       return true;
     }
-    const deleteGuard = guardDeletion(await listUsers(), userId, session.userId);
+    if (!(await targetIsInCallerGroup(userId, session))) {
+      sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
+      return true;
+    }
+    const deleteGuard = guardDeletion(await listUsers(session.groupId), userId, session.userId);
     if (!deleteGuard.allowed) {
       sendJson(res, 409, { error: { message: deleteGuard.reason, type: "would_lock_out" } });
       return true;

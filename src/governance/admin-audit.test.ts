@@ -20,6 +20,18 @@ import { defaultPolicyDocument } from "./policy-types.js";
 import { decideRuleRequest, submitRuleRequest } from "./rule-requests.js";
 import { createUser, deleteUser, setUserAssignedAgents, setUserRole } from "./user-store.js";
 
+/**
+ * Every account belongs to a group (S3); these tests all live in one.
+ *
+ * Accounts that were Viewers or Users before S3 are Administrators here unless
+ * the tier is the subject of the test. A User or Viewer now requires an
+ * Administrator answerable for it, which would mean creating a second account
+ * inside tests about username folding, token storage and Root invariants — and
+ * changing the counts several of them assert. The tier was incidental; the
+ * ceremony would not have been.
+ */
+const TEST_GROUP = "group-test";
+
 let dir: string;
 
 beforeEach(async () => {
@@ -111,11 +123,34 @@ describe("policy changes are attributable", () => {
 
 describe("account changes are attributable", () => {
   it("records account creation with the role granted", async () => {
-    await createUser(
-      { username: "malek", password: "correct-horse-battery", role: "user" },
+    // Deliberately a User, because the tier is what this asserts. Since S3 that
+    // means an Administrator has to exist to answer for it.
+    const manager = await createUser(
+      {
+        username: "amina",
+        password: "correct-horse-battery",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
       "root",
     );
-    const entry = await entryFor(ADMIN_ACTIONS.userCreate);
+    await createUser(
+      {
+        username: "malek",
+        password: "correct-horse-battery",
+        role: "user",
+        groupId: TEST_GROUP,
+        managedBy: manager.id,
+      },
+      "root",
+    );
+    // Two accounts were created, so this looks for the one under test rather
+    // than the first entry of that kind.
+    const entry = (await adminEntries()).find(
+      (candidate) =>
+        candidate.toolName === ADMIN_ACTIONS.userCreate &&
+        candidate.resource?.includes("malek") === true,
+    );
     expect(entry?.actor).toBe("root");
     expect(entry?.resource).toContain("malek");
     expect(entry?.resource).toContain("user");
@@ -124,11 +159,31 @@ describe("account changes are attributable", () => {
   it("records a role change in both directions, so a promotion is visible as one", async () => {
     // A Root must survive the change, or the last-Root guard refuses it.
     await createUser(
-      { username: "root-keeper", password: "correct-horse-battery", role: "root" },
+      {
+        username: "root-keeper",
+        password: "correct-horse-battery",
+        role: "root",
+        groupId: TEST_GROUP,
+      },
       "bootstrap",
     );
+    const manager = await createUser(
+      {
+        username: "amina",
+        password: "correct-horse-battery",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
+      "root-keeper",
+    );
     const user = await createUser(
-      { username: "malek", password: "correct-horse-battery", role: "viewer" },
+      {
+        username: "malek",
+        password: "correct-horse-battery",
+        role: "viewer",
+        groupId: TEST_GROUP,
+        managedBy: manager.id,
+      },
       "root-keeper",
     );
     await setUserRole(user.id, "administrator", "kinan");
@@ -139,7 +194,12 @@ describe("account changes are attributable", () => {
 
   it("records who an account's agents were reassigned to", async () => {
     const user = await createUser(
-      { username: "malek", password: "correct-horse-battery", role: "user" },
+      {
+        username: "malek",
+        password: "correct-horse-battery",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
       "root",
     );
     await setUserAssignedAgents(user.id, ["agent-a", "agent-b"], "kinan");
@@ -150,11 +210,21 @@ describe("account changes are attributable", () => {
 
   it("keeps a deleted account's identity, since the account record is gone", async () => {
     const root = await createUser(
-      { username: "root-keeper", password: "correct-horse-battery", role: "root" },
+      {
+        username: "root-keeper",
+        password: "correct-horse-battery",
+        role: "root",
+        groupId: TEST_GROUP,
+      },
       "bootstrap",
     );
     const doomed = await createUser(
-      { username: "temp", password: "correct-horse-battery", role: "administrator" },
+      {
+        username: "temp",
+        password: "correct-horse-battery",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
       "root-keeper",
     );
     expect(root.id).not.toBe(doomed.id);

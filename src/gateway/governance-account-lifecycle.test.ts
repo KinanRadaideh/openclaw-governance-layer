@@ -131,21 +131,52 @@ describe("bootstrap", () => {
     expect(who.body).toMatchObject({ username: "root-user", role: "root" });
   });
 
-  it("refuses a second bootstrap once an account exists", async () => {
+  it("creates a second group rather than refusing a second Root (S3)", async () => {
+    // **This asserted a 409 until S3, and the reversal is deliberate.** A Root
+    // now owns one group rather than the installation, so a second Root is a
+    // different organisation with its own isolated world — there is nothing
+    // left for the old race guard to protect.
     await bootstrapRoot();
     const second = await call("POST", `${AUTH}bootstrap-root`, {
-      body: { username: "impostor", password: ROOT_PASSWORD },
+      body: { username: "other-org", password: ROOT_PASSWORD },
     });
-    expect(second.status).toBe(409);
+    expect(second.status).toBe(200);
+    expect(second.body).toMatchObject({ username: "other-org", role: "root" });
+    // Different groups, which is what makes two Roots safe.
+    expect((second.body as { groupId?: string }).groupId).toBeDefined();
+  });
+
+  it("does not show one group's accounts to another group's Root (S3)", async () => {
+    const first = await bootstrapRoot("org-a-root");
+    await call("POST", `${API}users`, {
+      cookie: first,
+      body: { username: "org-a-admin", password: USER_PASSWORD, role: "administrator" },
+    });
+    const secondLogin = await call("POST", `${AUTH}bootstrap-root`, {
+      body: { username: "org-b-root", password: ROOT_PASSWORD },
+    });
+    const listed = await call("GET", `${API}users`, { cookie: cookieFrom(secondLogin) });
+    const names = (listed.body as Array<{ username: string }>).map((u) => u.username);
+    expect(names).toEqual(["org-b-root"]);
   });
 });
 
 describe("Root creates accounts that can then sign in", () => {
   it("creates an account with a chosen role and signs in as it", async () => {
     const rootCookie = await bootstrapRoot();
+    // Since S3 a User needs an Administrator answerable for it.
+    const admin = await call("POST", `${API}users`, {
+      cookie: rootCookie,
+      body: { username: "amina", password: USER_PASSWORD, role: "administrator" },
+    });
     const created = await call("POST", `${API}users`, {
       cookie: rootCookie,
-      body: { username: "malek", password: USER_PASSWORD, role: "user" },
+      body: {
+        username: "malek",
+        password: USER_PASSWORD,
+        role: "user",
+        managedBy: (admin.body as { id: string }).id,
+      },
     });
     expect(created.status).toBe(200);
     expect(created.body).toMatchObject({ username: "malek", role: "user" });
@@ -163,10 +194,21 @@ describe("Root creates accounts that can then sign in", () => {
 
   it("creates an account at each of the four roles", async () => {
     const rootCookie = await bootstrapRoot();
+    // The Administrator first, because the two managed tiers need one (S3).
+    const manager = await call("POST", `${API}users`, {
+      cookie: rootCookie,
+      body: { username: "person-manager", password: USER_PASSWORD, role: "administrator" },
+    });
+    const managerId = (manager.body as { id: string }).id;
     for (const role of ["viewer", "user", "administrator"] as const) {
       const created = await call("POST", `${API}users`, {
         cookie: rootCookie,
-        body: { username: `person-${role}`, password: USER_PASSWORD, role },
+        body: {
+          username: `person-${role}`,
+          password: USER_PASSWORD,
+          role,
+          ...(role === "administrator" ? {} : { managedBy: managerId }),
+        },
       });
       expect(created.status, `creating ${role}`).toBe(200);
       const login = await call("POST", `${AUTH}login`, {
@@ -221,7 +263,10 @@ describe("Root creates accounts that can then sign in", () => {
 
   it("rejects a duplicate username", async () => {
     const rootCookie = await bootstrapRoot();
-    const body = { username: "malek", password: USER_PASSWORD, role: "user" };
+    // An Administrator rather than a User: this is about the username rule, and
+    // a User would need a manager created first (S3) without changing what is
+    // being asserted.
+    const body = { username: "malek", password: USER_PASSWORD, role: "administrator" };
     expect((await call("POST", `${API}users`, { cookie: rootCookie, body })).status).toBe(200);
     expect((await call("POST", `${API}users`, { cookie: rootCookie, body })).status).toBe(400);
   });

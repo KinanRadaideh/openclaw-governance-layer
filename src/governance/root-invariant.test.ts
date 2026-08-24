@@ -26,6 +26,18 @@ import {
   setUserRole,
 } from "./user-store.js";
 
+/**
+ * Every account belongs to a group (S3); these tests all live in one.
+ *
+ * Accounts that were Viewers or Users before S3 are Administrators here unless
+ * the tier is the subject of the test. A User or Viewer now requires an
+ * Administrator answerable for it, which would mean creating a second account
+ * inside tests about username folding, token storage and Root invariants — and
+ * changing the counts several of them assert. The tier was incidental; the
+ * ceremony would not have been.
+ */
+const TEST_GROUP = "group-test";
+
 let dir: string;
 
 beforeEach(async () => {
@@ -42,7 +54,7 @@ const PASSWORD = "correct-horse-battery";
 
 async function seedRoot(): Promise<string> {
   const root = await createUser(
-    { username: "root-account", password: PASSWORD, role: "root" },
+    { username: "root-account", password: PASSWORD, role: "root", groupId: TEST_GROUP },
     "bootstrap",
   );
   return root.id;
@@ -60,7 +72,10 @@ describe("exactly one Root — the upper bound", () => {
   it("refuses a second Root at creation", async () => {
     await seedRoot();
     await expect(
-      createUser({ username: "second", password: PASSWORD, role: "root" }, "root-account"),
+      createUser(
+        { username: "second", password: PASSWORD, role: "root", groupId: TEST_GROUP },
+        "root-account",
+      ),
     ).rejects.toBeInstanceOf(DuplicateRootError);
     expect((await roleCounts()).root).toBe(1);
   });
@@ -68,7 +83,7 @@ describe("exactly one Root — the upper bound", () => {
   it("refuses promoting an existing account to Root", async () => {
     await seedRoot();
     const admin = await createUser(
-      { username: "admin", password: PASSWORD, role: "administrator" },
+      { username: "admin", password: PASSWORD, role: "administrator", groupId: TEST_GROUP },
       "root-account",
     );
     await expect(setUserRole(admin.id, "root", "root-account")).rejects.toBeInstanceOf(
@@ -79,19 +94,48 @@ describe("exactly one Root — the upper bound", () => {
 
   it("refuses both routes even when several accounts already exist", async () => {
     await seedRoot();
-    for (const role of ["administrator", "user", "viewer"] as const) {
-      await createUser({ username: `acc-${role}`, password: PASSWORD, role }, "root-account");
+    // The Administrator first, because the two managed tiers need somebody
+    // answerable for them since S3.
+    const manager = await createUser(
+      {
+        username: "acc-administrator",
+        password: PASSWORD,
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
+      "root-account",
+    );
+    for (const role of ["user", "viewer"] as const) {
+      await createUser(
+        {
+          username: `acc-${role}`,
+          password: PASSWORD,
+          role,
+          groupId: TEST_GROUP,
+          managedBy: manager.id,
+        },
+        "root-account",
+      );
     }
     await expect(
-      createUser({ username: "sneaky", password: PASSWORD, role: "root" }, "root-account"),
+      createUser(
+        { username: "sneaky", password: PASSWORD, role: "root", groupId: TEST_GROUP },
+        "root-account",
+      ),
     ).rejects.toBeInstanceOf(DuplicateRootError);
     expect((await roleCounts()).root).toBe(1);
   });
 
   it("holds when two promotions are attempted at the same moment", async () => {
     await seedRoot();
-    const a = await createUser({ username: "a", password: PASSWORD, role: "user" }, "root-account");
-    const b = await createUser({ username: "b", password: PASSWORD, role: "user" }, "root-account");
+    const a = await createUser(
+      { username: "a", password: PASSWORD, role: "administrator", groupId: TEST_GROUP },
+      "root-account",
+    );
+    const b = await createUser(
+      { username: "b", password: PASSWORD, role: "administrator", groupId: TEST_GROUP },
+      "root-account",
+    );
     // Both read the same "one Root" state before either writes. The check lives
     // inside the write lock precisely so that is not enough to pass.
     const results = await Promise.allSettled([
@@ -106,14 +150,20 @@ describe("exactly one Root — the upper bound", () => {
 describe("the Root account is permanent — the lower bound", () => {
   it("cannot be deleted", async () => {
     const rootId = await seedRoot();
-    await createUser({ username: "admin", password: PASSWORD, role: "administrator" }, "root");
+    await createUser(
+      { username: "admin", password: PASSWORD, role: "administrator", groupId: TEST_GROUP },
+      "root",
+    );
     await expect(deleteUser(rootId, "root-account")).rejects.toBeInstanceOf(LastRootError);
     expect((await roleCounts()).root).toBe(1);
   });
 
   it("cannot be demoted", async () => {
     const rootId = await seedRoot();
-    await createUser({ username: "admin", password: PASSWORD, role: "administrator" }, "root");
+    await createUser(
+      { username: "admin", password: PASSWORD, role: "administrator", groupId: TEST_GROUP },
+      "root",
+    );
     await expect(setUserRole(rootId, "administrator", "root-account")).rejects.toBeInstanceOf(
       LastRootError,
     );
@@ -144,7 +194,7 @@ describe("the two bounds together", () => {
   it("leaves no sequence of supported operations that changes who Root is", async () => {
     const rootId = await seedRoot();
     const admin = await createUser(
-      { username: "admin", password: PASSWORD, role: "administrator" },
+      { username: "admin", password: PASSWORD, role: "administrator", groupId: TEST_GROUP },
       "root-account",
     );
     // Every order of the two-step handover the code once claimed was possible.

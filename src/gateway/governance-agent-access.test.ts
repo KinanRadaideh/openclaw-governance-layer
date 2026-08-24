@@ -26,6 +26,9 @@ import type { GovernanceSession } from "../governance/session-tokens.js";
 import { createUser } from "../governance/user-store.js";
 import { handleGovernanceApiRequest } from "./governance-dashboard-api.js";
 
+/** Every account belongs to a group (S3); these tests all live in one. */
+const TEST_GROUP = "group-test";
+
 let dir: string;
 
 beforeEach(async () => {
@@ -39,6 +42,8 @@ afterEach(async () => {
   delete process.env.OPENCLAW_GOVERNANCE_DIR;
   resetLedgerKeyCacheForTests();
   await rm(dir, { recursive: true, force: true });
+  // Fresh directory each test, so the cached id would dangle.
+  managerId = undefined;
 });
 
 function session(
@@ -58,6 +63,44 @@ function session(
 }
 
 const ROOT_ACTOR = { username: "rootie", role: "root" as GovernanceRole };
+
+/**
+ * Creates a User or Viewer with the Administrator S3 requires over it.
+ *
+ * The manager is created on demand and reused within a test, because the
+ * invariant is "somebody is answerable", not "somebody new is answerable".
+ */
+let managerId: string | undefined;
+async function assignedAccount(
+  username: string,
+  role: "user" | "viewer",
+  agents: string[],
+): Promise<void> {
+  if (!managerId) {
+    managerId = (
+      await createUser(
+        {
+          username: "manager",
+          password: "correct-horse",
+          role: "administrator",
+          groupId: TEST_GROUP,
+        },
+        ROOT_ACTOR,
+      )
+    ).id;
+  }
+  await createUser(
+    {
+      username,
+      password: "correct-horse",
+      role,
+      assignedAgents: agents,
+      groupId: TEST_GROUP,
+      managedBy: managerId,
+    },
+    ROOT_ACTOR,
+  );
+}
 
 async function accessFor(
   actor: GovernanceSession | undefined,
@@ -100,19 +143,8 @@ async function accessFor(
 
 describe("who can reach an agent", () => {
   it("names the accounts holding it by assignment", async () => {
-    await createUser(
-      { username: "malek", password: "correct-horse", role: "user", assignedAgents: ["agent-a"] },
-      ROOT_ACTOR,
-    );
-    await createUser(
-      {
-        username: "watcher",
-        password: "correct-horse",
-        role: "viewer",
-        assignedAgents: ["agent-a"],
-      },
-      ROOT_ACTOR,
-    );
+    await assignedAccount("malek", "user", ["agent-a"]);
+    await assignedAccount("watcher", "viewer", ["agent-a"]);
     const reply = await accessFor(session("administrator", "amina"), "agent-a");
     expect(reply.status).toBe(200);
     expect([...reply.body.assignedTo].sort()).toEqual(["malek", "watcher"]);
@@ -132,13 +164,10 @@ describe("who can reach an agent", () => {
     // Including them would make every agent look identically staffed and hide
     // the distinction the panel is for.
     await createUser(
-      { username: "amina", password: "correct-horse", role: "administrator" },
+      { username: "amina", password: "correct-horse", role: "administrator", groupId: TEST_GROUP },
       ROOT_ACTOR,
     );
-    await createUser(
-      { username: "malek", password: "correct-horse", role: "user", assignedAgents: ["agent-a"] },
-      ROOT_ACTOR,
-    );
+    await assignedAccount("malek", "user", ["agent-a"]);
     const reply = await accessFor(session("administrator", "amina"), "agent-a");
     expect(reply.body.assignedTo).toEqual(["malek"]);
   });
@@ -147,10 +176,7 @@ describe("who can reach an agent", () => {
     // Deliberate: a Viewer assigned to an agent already reads its unmasked
     // audit entries, which name the accounts that acted. Refusing them the
     // roster while showing them the trail is a distinction with no content.
-    await createUser(
-      { username: "malek", password: "correct-horse", role: "user", assignedAgents: ["agent-a"] },
-      ROOT_ACTOR,
-    );
+    await assignedAccount("malek", "user", ["agent-a"]);
     const reply = await accessFor(session("viewer", "watcher", ["agent-a"]), "agent-a");
     expect(reply.status).toBe(200);
     expect(reply.body.assignedTo).toEqual(["malek"]);
@@ -164,6 +190,49 @@ describe("who can reach an agent", () => {
   it("requires an agent id rather than defaulting to one", async () => {
     const reply = await accessFor(session("administrator", "amina"), "");
     expect(reply.status).toBe(400);
+  });
+
+  it("does not name another group's people who use the same agent id (S3)", async () => {
+    // Agent ids are free-form and are not owned by a group until S4, so two
+    // organisations can independently assign the same one. Without the group
+    // filter this route would answer with the other organisation's staff —
+    // isolation defeated by a coincidence of naming rather than by an attack.
+    await assignedAccount("malek", "user", ["agent-shared"]);
+    const otherRoot = await createUser(
+      {
+        username: "other-root",
+        password: "correct-horse",
+        role: "root",
+        groupId: "group-other",
+      },
+      ROOT_ACTOR,
+    );
+    const otherAdmin = await createUser(
+      {
+        username: "other-admin",
+        password: "correct-horse",
+        role: "administrator",
+        groupId: "group-other",
+      },
+      { username: otherRoot.username, role: "root" },
+    );
+    await createUser(
+      {
+        username: "other-user",
+        password: "correct-horse",
+        role: "user",
+        groupId: "group-other",
+        assignedAgents: ["agent-shared"],
+        managedBy: otherAdmin.id,
+      },
+      { username: otherRoot.username, role: "root" },
+    );
+
+    const mine = session("administrator", "amina");
+    mine.groupId = TEST_GROUP;
+    const reply = await accessFor(mine, "agent-shared");
+    expect(reply.status).toBe(200);
+    expect(reply.body.assignedTo).toEqual(["malek"]);
   });
 
   it("refuses an unauthenticated caller", async () => {

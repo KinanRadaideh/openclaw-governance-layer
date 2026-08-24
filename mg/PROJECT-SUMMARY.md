@@ -304,7 +304,7 @@ Chapter 3 will need them.
 
 ## 5. Quality assurance history
 
-Eighteen rounds, **118 defects found and all fixed**, plus B1
+Eighteen rounds, **119 defects found and all fixed**, plus B1
 and the two defects found while fixing it — closed separately on 2026-08-20 and
 written up as its own item rather than a round — plus two more (#97, #98) found
 on 2026-08-21 while _building_ rather than reviewing: a per-user setting written
@@ -464,7 +464,7 @@ conclusion.
 > paragraph, the two things to do before anything else, and how to verify
 > nothing is broken. This file is the reference beneath it.
 
-- **1,902 governance tests pass across 94 files** — file _runs_, not files; 1,204 distinct tests across 70 distinct files, because the ten gateway files each run under three Vitest projects (measured 2026-08-24, after
+- **1,926 governance tests pass across 95 files** — file _runs_, not files; 1,224 distinct tests across 71 distinct files, because the ten gateway files each run under three Vitest projects (measured 2026-08-24, after
   rounds 13 and 14, A7, B1 and the A1 follow-ups); `pnpm tsgo:core` and `pnpm tsgo:ui` both clean;
   OpenClaw's own harness suite unchanged at its 18 failed / 174 passed baseline.
 - **Branch:** `governance-layer`, **clean as of 2026-08-24**, 22 commits ahead

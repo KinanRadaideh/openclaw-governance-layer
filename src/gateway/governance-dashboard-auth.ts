@@ -24,12 +24,7 @@ import {
 import { isGovernanceRole } from "../governance/roles.js";
 import { issueSession, revokeSession, verifySession } from "../governance/session-tokens.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
-import {
-  AccountsAlreadyExistError,
-  authenticate,
-  countUsers,
-  createUser,
-} from "../governance/user-store.js";
+import { authenticate, createUser, newGroupId } from "../governance/user-store.js";
 import type { AuthRateLimiter } from "./auth-rate-limit.js";
 import type { ResolvedGatewayAuth } from "./auth.js";
 import { authorizeControlUiReadRequest } from "./control-ui.js";
@@ -220,15 +215,29 @@ export async function handleGovernanceAuthRequest(
   // administrator/root dashboard action (src/governance/user-store.ts
   // createUser), not this endpoint.
   if (pathname === `${GOVERNANCE_AUTH_PATH_PREFIX}bootstrap-root` && req.method === "POST") {
-    // Cheap early rejection for the ordinary case. It is *not* the guard —
-    // `onlyAsFirstAccount` below re-checks inside the write lock, because this
-    // one cannot stop two simultaneous requests from both passing it.
-    if ((await countUsers()) > 0) {
-      sendJson(res, 409, {
-        error: { message: "A governance account already exists", type: "already_bootstrapped" },
-      });
-      return true;
-    }
+    // ------------------------------------------------------------------
+    // **Creating a Root now creates a group, and it is no longer one-time (S3).**
+    //
+    // This used to refuse once any account existed, and both the refusal and
+    // the re-check inside the write lock existed to make
+    // the very first account unraceable — the one moment on a fresh install
+    // when an attacker beating the operator to it takes the whole layer.
+    //
+    // Groups change what that moment is. A Root now owns one organisation
+    // rather than the installation, so a second Root is not an attacker
+    // stealing the first one's layer; it is a different organisation with its
+    // own isolated world. The race the old guard closed no longer exists,
+    // because there is nothing left to race *for*.
+    //
+    // **What that costs, stated plainly rather than discovered later:** anyone
+    // who can reach this endpoint can create a group and become a Root in it.
+    // That is defensible only because of the architecture the design doc
+    // already assumes — the Gateway binds loopback-only and is reached through
+    // an SSH tunnel — so "anyone who can reach the dashboard" already means
+    // "anyone who can reach the host". On a deployment that exposes this port
+    // directly, this endpoint is self-service Root and must be fronted by
+    // something that decides who may ask.
+    // ------------------------------------------------------------------
     const body = await readJsonBodyOrError(req, res, MAX_LOGIN_BODY_BYTES);
     if (body === undefined) {
       return true;
@@ -243,19 +252,13 @@ export async function handleGovernanceAuthRequest(
     let user;
     try {
       user = await createUser(
-        { username, password, role: "root", onlyAsFirstAccount: true },
+        { username, password, role: "root", groupId: newGroupId() },
         // No authenticated actor exists yet — this call is what establishes the
         // first one. Attributing it to the account being created would read as
         // if that account had authorised its own existence.
         BOOTSTRAP_ACTOR,
       );
     } catch (err) {
-      if (err instanceof AccountsAlreadyExistError) {
-        sendJson(res, 409, {
-          error: { message: err.message, type: "already_bootstrapped" },
-        });
-        return true;
-      }
       sendInvalidRequest(res, err instanceof Error ? err.message : "could not create account");
       return true;
     }
@@ -277,6 +280,7 @@ export async function handleGovernanceAuthRequest(
       username: user.username,
       role: user.role,
       assignedAgents: session.assignedAgents,
+      groupId: user.groupId,
     });
     return true;
   }

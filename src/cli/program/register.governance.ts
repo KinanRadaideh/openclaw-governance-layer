@@ -49,7 +49,11 @@ import {
 } from "../../governance/rule-validation.js";
 import { updateSessionsPolicyAuthoring } from "../../governance/session-tokens.js";
 import { issueSession } from "../../governance/session-tokens.js";
-import { setUserPolicyAuthoring } from "../../governance/user-store.js";
+import {
+  deleteUnmigratedAccounts,
+  listUnmigratedAccounts,
+  setUserPolicyAuthoring,
+} from "../../governance/user-store.js";
 import { authenticate } from "../../governance/user-store.js";
 import { defaultRuntime } from "../../runtime.js";
 import { runCommandWithRuntime } from "../cli-utils.js";
@@ -186,6 +190,66 @@ export function registerGovernanceCommands(program: Command): void {
         // The sessions file is the other half; without it a signed-in User keeps
         // the old permission until their session expires.
         await updateSessionsPolicyAuthoring(userId, allowed === "true");
+      });
+    });
+
+  const groups = governance
+    .command("groups")
+    .description("Groups: the isolated worlds accounts belong to (S3)");
+
+  groups
+    .command("unmigrated")
+    .description("List accounts written before groups existed, which can no longer sign in")
+    .action(async () => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        const orphans = await listUnmigratedAccounts();
+        if (orphans.length === 0) {
+          defaultRuntime.log("no accounts predate groups; nothing to migrate");
+          return;
+        }
+        defaultRuntime.log(
+          `${orphans.length} account(s) predate groups and cannot sign in until removed:`,
+        );
+        for (const account of orphans) {
+          defaultRuntime.log(`  ${account.username} (${account.role}, id ${account.id})`);
+        }
+        defaultRuntime.log("");
+        defaultRuntime.log("Run: openclaw governance groups migrate --delete");
+      });
+    });
+
+  groups
+    .command("migrate")
+    .description("Delete every account that predates groups. Destructive; requires --delete")
+    .option("--delete", "Confirm the deletion. Without it this only reports what would go")
+    .action(async (options: { delete?: boolean }) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        const orphans = await listUnmigratedAccounts();
+        if (orphans.length === 0) {
+          defaultRuntime.log("no accounts predate groups; nothing to do");
+          return;
+        }
+        if (!options.delete) {
+          // Deliberately two steps. This removes credentials, and the only
+          // recovery is a password nobody has — so the destructive form has to
+          // be typed rather than defaulted into.
+          defaultRuntime.log(`${orphans.length} account(s) would be deleted:`);
+          for (const account of orphans) {
+            defaultRuntime.log(`  ${account.username} (${account.role})`);
+          }
+          defaultRuntime.log("");
+          defaultRuntime.log("Re-run with --delete to remove them.");
+          return;
+        }
+        // Attributed to the signed-in operator when there is one. On an
+        // installation whose only accounts predate groups there is nobody left
+        // who *can* sign in, which is precisely the state this repairs — so the
+        // command still runs, attributed to the command line itself.
+        const identity = await currentCliIdentity();
+        const removed = await deleteUnmigratedAccounts(
+          identity ? toCliAuditActor(identity) : { name: "cli", role: "root" },
+        );
+        defaultRuntime.log(`deleted ${removed} account(s) that predated groups`);
       });
     });
 

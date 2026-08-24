@@ -1316,7 +1316,10 @@ export async function handleGovernanceApiRequest(
       // are deliberately absent: they reach every agent by role, so listing
       // them would make every agent look identically staffed and hide the
       // distinction the panel exists to show.
-      assignedTo: await findUsersForAgent(agentId),
+      // Scoped to the caller's group (S3). Agent ids are free-form and not
+      // owned by a group until S4, so two organisations can use the same one —
+      // without this the route would name people in another organisation.
+      assignedTo: await findUsersForAgent(agentId, session.groupId),
     });
     return true;
   }

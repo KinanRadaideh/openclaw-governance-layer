@@ -21,6 +21,18 @@ import { checkRegexSafety } from "./regex-safety.js";
 import { listRuleRequests, submitRuleRequest } from "./rule-requests.js";
 import { createUser, deleteUser, LastRootError, listUsers, setUserRole } from "./user-store.js";
 
+/**
+ * Every account belongs to a group (S3); these tests all live in one.
+ *
+ * Accounts that were Viewers or Users before S3 are Administrators here unless
+ * the tier is the subject of the test. A User or Viewer now requires an
+ * Administrator answerable for it, which would mean creating a second account
+ * inside tests about username folding, token storage and Root invariants — and
+ * changing the counts several of them assert. The tier was incidental; the
+ * ceremony would not have been.
+ */
+const TEST_GROUP = "group-test";
+
 let dir: string;
 
 beforeEach(async () => {
@@ -117,7 +129,12 @@ describe("the last Root cannot be removed by two requests at once", () => {
    * something the API is right to refuse.
    */
   async function twoRoots() {
-    await createUser({ username: "root-a", password: "correct-horse", role: "root" });
+    await createUser({
+      username: "root-a",
+      password: "correct-horse",
+      role: "root",
+      groupId: TEST_GROUP,
+    });
     const raw = JSON.parse(await readFile(usersFilePath(), "utf8")) as {
       users: Array<Record<string, unknown>>;
     };
@@ -153,14 +170,29 @@ describe("the last Root cannot be removed by two requests at once", () => {
   });
 
   it("refuses the demotion of a sole Root with a typed error", async () => {
-    await createUser({ username: "only-root", password: "correct-horse", role: "root" });
+    await createUser({
+      username: "only-root",
+      password: "correct-horse",
+      role: "root",
+      groupId: TEST_GROUP,
+    });
     const [only] = await listUsers();
     await expect(setUserRole(only?.id as string, "viewer")).rejects.toBeInstanceOf(LastRootError);
   });
 
   it("refuses deleting the sole Root while other accounts survive", async () => {
-    await createUser({ username: "only-root", password: "correct-horse", role: "root" });
-    await createUser({ username: "analyst", password: "correct-horse", role: "viewer" });
+    await createUser({
+      username: "only-root",
+      password: "correct-horse",
+      role: "root",
+      groupId: TEST_GROUP,
+    });
+    await createUser({
+      username: "analyst",
+      password: "correct-horse",
+      role: "administrator",
+      groupId: TEST_GROUP,
+    });
     const root = (await listUsers()).find((user) => user.role === "root");
     await expect(deleteUser(root?.id as string)).rejects.toBeInstanceOf(LastRootError);
   });
@@ -168,7 +200,12 @@ describe("the last Root cannot be removed by two requests at once", () => {
   it("allows removing the very last account, which is a teardown not a lockout", async () => {
     // With no accounts left, bootstrap becomes available again, so this is
     // recoverable — unlike leaving Root-less accounts behind.
-    await createUser({ username: "only-root", password: "correct-horse", role: "root" });
+    await createUser({
+      username: "only-root",
+      password: "correct-horse",
+      role: "root",
+      groupId: TEST_GROUP,
+    });
     const [only] = await listUsers();
     await expect(deleteUser(only?.id as string)).resolves.toBe(true);
     expect(await listUsers()).toHaveLength(0);

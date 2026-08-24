@@ -828,6 +828,15 @@ export class GovernanceApi {
     password: string;
     role: GovernanceRole;
     assignedAgents?: string[];
+    /**
+     * The Administrator answerable for a new User or Viewer (S3).
+     *
+     * The group is deliberately absent: it comes from the caller's session on
+     * the server and is never accepted from a request, because a Root creating
+     * an account into another group is the one write that would defeat the
+     * model.
+     */
+    managedBy?: string;
   }): Promise<GovernanceUserRecord> {
     return this.request<GovernanceUserRecord>("users", { method: "POST", body: input });
   }

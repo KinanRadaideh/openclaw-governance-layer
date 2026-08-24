@@ -18,7 +18,19 @@ import { isShippedRule } from "./baseline-policy.js";
 import { addRule, loadPolicy, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument, type PolicyDocument } from "./policy-types.js";
 import { resolveRuleTtl, validateRulePattern, MAX_RULE_TTL_MINUTES } from "./rule-validation.js";
-import { AccountsAlreadyExistError, createUser, listUsers } from "./user-store.js";
+import { createUser, DuplicateRootError, listUsers, MissingGroupError } from "./user-store.js";
+
+/**
+ * Every account belongs to a group (S3); these tests all live in one.
+ *
+ * Accounts that were Viewers or Users before S3 are Administrators here unless
+ * the tier is the subject of the test. A User or Viewer now requires an
+ * Administrator answerable for it, which would mean creating a second account
+ * inside tests about username folding, token storage and Root invariants — and
+ * changing the counts several of them assert. The tier was incidental; the
+ * ceremony would not have been.
+ */
+const TEST_GROUP = "group-test";
 
 let dir: string;
 
@@ -170,41 +182,60 @@ describe("a rule keeps its generated id", () => {
   });
 });
 
-describe("bootstrap cannot mint a second Root by racing", () => {
-  it("lets exactly one of two simultaneous first-account creations win", async () => {
-    // The endpoint checked "are there zero users?" and then created the account
-    // as a separate step. Two requests in the same tick both passed the check
-    // and both got Root — on a fresh install, the one moment when winning a
-    // race hands an attacker the whole governance layer.
+describe("creating a Root now creates a group (S3)", () => {
+  it("no longer refuses a second Root, because it is a second organisation", async () => {
+    // **This test asserted the opposite until S3, and the reversal is the
+    // point.** The old rule was one Root per installation, protected by
+    // `onlyAsFirstAccount` inside the write lock, because two simultaneous
+    // first-account creations on a fresh install were the one moment when
+    // winning a race handed an attacker the whole layer.
+    //
+    // A Root now owns one group rather than the installation, so a second Root
+    // is a different organisation with its own isolated world — there is
+    // nothing left to race *for*. What replaces the guard is the group
+    // boundary, asserted below.
     const attempts = await Promise.allSettled([
       createUser({
         username: "root-a",
         password: "correct-horse",
         role: "root",
-        onlyAsFirstAccount: true,
+        groupId: "group-a",
       }),
       createUser({
         username: "root-b",
         password: "correct-horse",
         role: "root",
-        onlyAsFirstAccount: true,
+        groupId: "group-b",
       }),
     ]);
-    expect(attempts.filter((result) => result.status === "fulfilled")).toHaveLength(1);
-    const rejected = attempts.find((result) => result.status === "rejected");
-    expect((rejected as PromiseRejectedResult).reason).toBeInstanceOf(AccountsAlreadyExistError);
+    expect(attempts.filter((result) => result.status === "fulfilled")).toHaveLength(2);
+    expect(await listUsers()).toHaveLength(2);
+  });
+
+  it("still refuses a second Root inside one group", async () => {
+    // The invariant did not weaken; its scope moved. Within a group the
+    // original argument holds exactly as written: a second Root can delete the
+    // first, and then "you cannot remove the last Root" protects nobody.
+    await createUser({
+      username: "root-a",
+      password: "correct-horse",
+      role: "root",
+      groupId: "group-a",
+    });
+    await expect(
+      createUser({
+        username: "root-b",
+        password: "correct-horse",
+        role: "root",
+        groupId: "group-a",
+      }),
+    ).rejects.toBeInstanceOf(DuplicateRootError);
     expect(await listUsers()).toHaveLength(1);
   });
 
-  it("still allows ordinary account creation once bootstrapped", async () => {
-    await createUser({
-      username: "root",
-      password: "correct-horse",
-      role: "root",
-      onlyAsFirstAccount: true,
-    });
+  it("refuses an account with no group at all", async () => {
     await expect(
-      createUser({ username: "analyst", password: "correct-horse", role: "viewer" }),
-    ).resolves.toMatchObject({ role: "viewer" });
+      createUser({ username: "nowhere", password: "correct-horse", role: "root" }),
+    ).rejects.toBeInstanceOf(MissingGroupError);
   });
 });

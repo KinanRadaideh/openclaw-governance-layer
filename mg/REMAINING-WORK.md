@@ -60,9 +60,9 @@ over the limit, not two). **T14 closed 2026-08-24** — all three surfaces.
 
 **A new multi-tenancy request landed 2026-08-24** and is planned as subtasks
 S1-S6 (groups, Admin ownership, an agent registry, per-group isolation, an
-Administrator ecosystem panel, and host provisioning). **S1 and S2 are done** —
-the live browser pass, and "who can reach this agent". S3-S6 are designed and
-not started; see `CHAPTER3-MATERIAL.md` §3.5.30 for the gap analysis and the
+Administrator ecosystem panel, and host provisioning). **S1, S2 and S3 are
+done** — the live browser pass, "who can reach this agent", and the group data
+model. S4-S6 are designed and not started; see `CHAPTER3-MATERIAL.md` §3.5.30 for the gap analysis and the
 four decisions already taken.
 
 **T23 closed 2026-08-24** — the last backlog item that changed the security

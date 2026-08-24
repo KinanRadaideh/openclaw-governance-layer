@@ -33,6 +33,9 @@ import { defaultPolicyDocument } from "./policy-types.js";
 import { issueSession, revokeSession } from "./session-tokens.js";
 import { createUser } from "./user-store.js";
 
+/** Every account belongs to a group (S3); these tests all live in one. */
+const TEST_GROUP = "group-test";
+
 let dir: string;
 
 beforeEach(async () => {
@@ -46,15 +49,45 @@ afterEach(async () => {
   delete process.env.OPENCLAW_GOVERNANCE_DIR;
   resetLedgerKeyCacheForTests();
   await rm(dir, { recursive: true, force: true });
+  // The directory is new each test, so the cached id would point at an account
+  // that no longer exists.
+  managerId = undefined;
 });
 
+/**
+ * The Administrator a User or Viewer answers to (S3).
+ *
+ * Created on demand and reused, because the invariant is "somebody is
+ * answerable", not "somebody new is answerable" — and a fresh manager per call
+ * would change the account counts these tests do not otherwise care about.
+ */
+let managerId: string | undefined;
+async function managerAccount(): Promise<string> {
+  if (!managerId) {
+    const manager = await createUser(
+      {
+        username: "manager-account",
+        password: "correct horse battery",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
+      "bootstrap",
+    );
+    managerId = manager.id;
+  }
+  return managerId;
+}
+
 async function signIn(role: "root" | "administrator" | "user" | "viewer", agents: string[] = []) {
+  const needsManager = role === "user" || role === "viewer";
   const user = await createUser(
     {
       username: `${role}-account`,
       password: "correct horse battery",
       role,
       assignedAgents: agents,
+      groupId: TEST_GROUP,
+      ...(needsManager ? { managedBy: await managerAccount() } : {}),
     },
     "bootstrap",
   );

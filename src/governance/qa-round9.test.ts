@@ -14,6 +14,18 @@ import { savePolicy, setUserAskMode } from "./policy-store.js";
 import { defaultPolicyDocument, resolveAskMode } from "./policy-types.js";
 import { createUser, setUserAssignedAgents } from "./user-store.js";
 
+/**
+ * Every account belongs to a group (S3); these tests all live in one.
+ *
+ * Accounts that were Viewers or Users before S3 are Administrators here unless
+ * the tier is the subject of the test. A User or Viewer now requires an
+ * Administrator answerable for it, which would mean creating a second account
+ * inside tests about username folding, token storage and Root invariants — and
+ * changing the counts several of them assert. The tier was incidental; the
+ * ceremony would not have been.
+ */
+const TEST_GROUP = "group-test";
+
 let dir: string;
 
 beforeEach(async () => {
@@ -147,7 +159,12 @@ describe("A4: the escalation toggle has a per-user axis", () => {
   it("applies the user setting to that user's agent, end to end", async () => {
     await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "on-miss" });
     const user = await createUser(
-      { username: "malek", password: "correct-horse-battery", role: "user" },
+      {
+        username: "malek",
+        password: "correct-horse-battery",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
       "root",
     );
     await setUserAssignedAgents(user.id, ["agent-a"], "root");
@@ -170,7 +187,12 @@ describe("A4: the escalation toggle has a per-user axis", () => {
   it("does not affect an agent the user was not assigned", async () => {
     await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "on-miss" });
     const user = await createUser(
-      { username: "malek", password: "correct-horse-battery", role: "user" },
+      {
+        username: "malek",
+        password: "correct-horse-battery",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
       "root",
     );
     await setUserAssignedAgents(user.id, ["agent-a"], "root");

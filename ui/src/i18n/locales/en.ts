@@ -3683,6 +3683,12 @@ export const en: TranslationMap = {
       changeRoleAction: "Change role",
     },
     users: {
+      managedByLabel: "Administrator answerable for this account",
+      managedByHint:
+        "Every User and Viewer answers to one Administrator, who manages their agents. Root can create an Administrator to run themselves.",
+      managedByPlaceholder: "Choose an Administrator…",
+      noAdministrators:
+        "Create an Administrator first — a User or Viewer must have one answerable for it.",
       title: "Accounts",
       created: "Created",
       add: "Create an account",
