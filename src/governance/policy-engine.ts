@@ -17,11 +17,12 @@ import {
   MAX_LEDGER_RESOURCE_LENGTH,
   type LedgerDecision,
 } from "./audit-ledger.js";
+import { resolveGovernedPath } from "./path-normalize.js";
 import { matchesPattern } from "./pattern-match.js";
 import { recordTimedOutEscalation } from "./pending-decisions.js";
 import { loadPolicy } from "./policy-store.js";
 import { isRuleExpired, type PolicyDocument, resolveAskMode } from "./policy-types.js";
-import { resolveGovernedTool } from "./resource-extraction.js";
+import { type GovernedToolSpec, resolveGovernedTool } from "./resource-extraction.js";
 import { findUsersForAgent } from "./user-store.js";
 
 type ToolCallEvent = {
@@ -63,6 +64,24 @@ export type GovernancePolicyDecision =
         timeoutMs?: number;
         onResolution: (decision: string) => Promise<void>;
       };
+      /** See the `params`-only variant below. Carried here so an approved call is bound too. */
+      params?: Record<string, unknown>;
+    }
+  | {
+      /**
+       * Allowed, **and the call is rebound to the path the gate actually judged** (T23).
+       *
+       * The host applies `params` from a `before_tool_call` result, so returning
+       * it here replaces the agent's original string with the canonical absolute
+       * path this decision was made about. That removes the second resolution:
+       * the link name is followed once, by the gate, and never looked at again,
+       * so there is nothing left for a swap to race.
+       *
+       * Only present when canonicalization actually **redirected** the call —
+       * see `resolveGovernedPath`. An ordinary path reaches the tool exactly as
+       * the agent wrote it, byte for byte.
+       */
+      params: Record<string, unknown>;
     };
 
 /**
@@ -221,6 +240,77 @@ export async function recordLoopDetectorBlock(input: {
   }
 }
 
+/**
+ * The parameter rebinding for T23, or `undefined` to leave the call untouched.
+ *
+ * **What this closes.** The gate resolves the agent's string, decides on the
+ * file that string named *at that moment*, and then hands the string back. The
+ * tool resolves it again for itself. Anything that changes what the string
+ * means in between — a symbolic link repointed after the check — is acted on
+ * without ever having been judged (`path-toctou.test.ts`). Substituting the
+ * resolved path removes the second resolution rather than trying to win the
+ * race, which is the only structurally sound answer: two resolutions
+ * microseconds apart would agree during an attack, so re-checking inside the
+ * gate is theatre.
+ *
+ * **Deliberately narrow, in four ways.**
+ *
+ *   1. **Only when the path was actually redirected.** If canonicalization
+ *      changed nothing, the call goes through byte-identical. Almost every call
+ *      an agent makes is in this case, so the blast radius stays close to zero
+ *      and `normalizedParams` keeps flowing untouched to skill-workshop
+ *      approval, voice confirmation, trusted tool policies and every plugin
+ *      hook below this step.
+ *   2. **Only for `path` tools**, and only the parameter the extractor read.
+ *   3. **Never for `apply_patch`.** Its paths arrive as host-derived
+ *      `derivedPaths`, not as `params.path`; there is no parameter to rebind
+ *      and writing one would invent a field the tool does not read. Its
+ *      resolution already happens host-side before the gate sees it.
+ *   4. **Never on a block.** A refused call is not rebound, because it is not
+ *      going to be made.
+ *
+ * **What it does not close**, stated so the report does not overclaim: the
+ * canonical path is link-free at the moment it is produced, but if the file
+ * *at that path* is replaced afterwards, the tool opens the replacement. That
+ * is a different attack — it needs write access to the target rather than to a
+ * name pointing at it — and no parameter substitution can prevent it. The
+ * remaining sliver inside this one is a path that does not exist yet, where
+ * canonicalization resolves the parent and re-attaches the final segment: a
+ * link created at that final segment between the decision and the open is
+ * still followed by the tool.
+ */
+async function resolveGovernedParamBinding(
+  event: ToolCallEvent,
+  spec: GovernedToolSpec,
+  cwd?: string,
+): Promise<Record<string, unknown> | undefined> {
+  if (spec.resourceKind !== "path") {
+    return undefined;
+  }
+  // `apply_patch` carries host-derived paths instead of a path parameter.
+  if (event.derivedPaths && event.derivedPaths.length > 0) {
+    return undefined;
+  }
+  const key =
+    typeof event.params.path === "string" && event.params.path.length > 0
+      ? "path"
+      : typeof event.params.file_path === "string" && event.params.file_path.length > 0
+        ? "file_path"
+        : undefined;
+  if (!key) {
+    return undefined;
+  }
+  const raw = event.params[key];
+  if (typeof raw !== "string") {
+    return undefined;
+  }
+  const resolved = await resolveGovernedPath(raw, cwd);
+  if (!resolved.redirected) {
+    return undefined;
+  }
+  return { ...event.params, [key]: resolved.absolute };
+}
+
 export async function evaluateGovernancePolicy(
   event: ToolCallEvent,
   ctx: ToolCallContext,
@@ -313,6 +403,10 @@ export async function evaluateGovernancePolicy(
   }
 
   const resources = await spec.extract(event, ctx.cwd);
+  // Computed here, once, and used only on the paths that let the call proceed.
+  // Deliberately not inside the deny branch: a refused call is never rebound,
+  // because it is never made.
+  const paramBinding = await resolveGovernedParamBinding(event, spec, ctx.cwd);
   if (resources.length === 0) {
     // A governed tool whose payload yielded nothing to check — typically a
     // shape the extractor does not recognise. We still do not fail closed on
@@ -468,7 +562,14 @@ export async function evaluateGovernancePolicy(
   // baseline and admin verdicts — core denials already returned above.
   const effectiveMode = agentId ? (doc.agentMode[agentId] ?? doc.mode) : doc.mode;
   if (firstMiss === undefined || effectiveMode === "monitor") {
-    return undefined;
+    // Allowed. `undefined` unless the path was redirected, so the overwhelmingly
+    // common case returns exactly what it always returned (T23).
+    //
+    // Monitor is included on purpose. The posture suspends *verdicts*, not
+    // resolution: an agent being observed rather than enforced against should
+    // still open the file the ledger says it opened, or the record is of a
+    // different call than the one that happened.
+    return paramBinding ? { params: paramBinding } : undefined;
   }
 
   {
@@ -561,6 +662,12 @@ export async function evaluateGovernancePolicy(
           });
         },
       },
+      // If the human approves, the tool is handed the path the escalation
+      // described — not the string that produced it. An approval prompt naming
+      // one file while the call opens another would make the audit trail and
+      // the operator's consent disagree, which is the same defect this whole
+      // task is about, one layer up (T23).
+      ...(paramBinding ? { params: paramBinding } : {}),
     };
   }
 

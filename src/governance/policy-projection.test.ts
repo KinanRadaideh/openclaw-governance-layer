@@ -181,7 +181,13 @@ describe("the view agrees with the gate", () => {
     if (!decision) {
       return "allow";
     }
-    return "block" in decision ? "block" : "ask";
+    if ("block" in decision) {
+      return "block";
+    }
+    // T23 — see the identical note in `policy-engine.test.ts`. An allowed call
+    // whose path was redirected returns `params`, so absence is no longer the
+    // only way the engine says "allow".
+    return "requireApproval" in decision ? "ask" : "allow";
   }
 
   it("an agent-scoped allowance appears for its agent and authorizes only that agent", async () => {

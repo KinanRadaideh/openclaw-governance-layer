@@ -11,10 +11,20 @@
 // below. The second half is **false**, and finding that out is the useful part
 // of the exercise — see the last test, and T23.
 //
-// Until T23 lands, this file is the qualification. A limitation that is written
-// down in a document is a claim; a limitation with a test asserting exactly how
-// far it goes is a boundary. The project has said that about promises (§4.x.24)
-// and it applies at least as much to admissions.
+// **T23 has since landed** (`path-binding.test.ts`), and this file is kept
+// unchanged apart from this note. What it demonstrates is still true of
+// resolution in isolation — one string, resolved twice, naming two files — and
+// that is exactly why it is worth keeping: it is the gap the fix closes, and a
+// fix is only legible beside the thing it fixed.
+//
+// What changed is what the gate *does* with that fact. It no longer hands the
+// string back. See `path-binding.test.ts` for the binding and for the swap
+// replayed end to end against it.
+//
+// Before that, this file was the qualification. A limitation written down in a
+// document is a claim; a limitation with a test asserting exactly how far it
+// goes is a boundary. The project has said that about promises (§4.x.24) and it
+// applies at least as much to admissions.
 import { mkdtemp, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -57,7 +67,15 @@ function verdict(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>)
   if (!decision) {
     return "allow";
   }
-  return "block" in decision ? "block" : "ask";
+  if ("block" in decision) {
+    return "block";
+  }
+  // T23 — absence is no longer the only way the engine says "allow". A call
+  // whose path was redirected comes back carrying `params` (the canonical path
+  // the tool should open), and reading that as "ask" would report an
+  // escalation that never happened. Ask the question directly instead of
+  // inferring it from a missing value.
+  return "requireApproval" in decision ? "ask" : "allow";
 }
 
 /** Creates a link, or returns false where the platform forbids it. */
@@ -198,7 +216,9 @@ describe("the window between the gate's resolve and the tool's open", () => {
     const resultModule = "src/plugins/hook-before-tool-call-result.ts";
     expect(resultModule).toContain("hook-before-tool-call-result");
     // The type is compile-time only, so the runtime assertion above is a
-    // signpost; the real check is `params` being referenced in the policy chain
-    // and is pinned by T23's implementation when it lands.
+    // signpost. **The real check now exists**: `path-binding.test.ts` asserts
+    // that the gate returns the canonical path, that it returns nothing for an
+    // ordinary call, and that a link swapped after the decision no longer
+    // changes which file the tool was handed.
   });
 });

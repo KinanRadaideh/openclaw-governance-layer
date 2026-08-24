@@ -120,7 +120,9 @@ export async function runBeforeToolCallHook(args: {
   approvalMode?: "request" | "report" | "deny" | "defer";
 }): Promise<HookOutcome> {
   const toolName = normalizeToolName(args.toolName || "tool");
-  const params = args.params;
+  // `let` because the governance gate may rebind it to the path it actually
+  // judged, before any later stage sees it (T23).
+  let params = args.params;
   let releaseArgumentChurnPolicyWait: (() => void) | undefined;
 
   try {
@@ -218,6 +220,35 @@ export async function runBeforeToolCallHook(args: {
         ...(args.ctx?.cwd && { cwd: args.ctx.cwd }),
       },
     );
+    // T23 — bind the call to the path the gate judged.
+    //
+    // The gate resolves the agent's path string, decides on the file that
+    // string named at that instant, and until now handed the string straight
+    // back for the tool to resolve a second time. A symbolic link repointed in
+    // between made those two resolutions name different files, and the second
+    // one is the file that gets opened (`path-toctou.test.ts`).
+    //
+    // `evaluateGovernancePolicy` now returns `params` carrying the canonical
+    // absolute path **only when canonicalization actually redirected the
+    // call**, so there is nothing to race: the link is followed once, by the
+    // gate, and never looked at again. Every ordinary call — no link anywhere
+    // in the path, which is nearly all of them — returns no `params` at all and
+    // flows on byte-identical.
+    //
+    // Substituted here, above the rest of the chain rather than beside it, so
+    // trusted tool policies, skill-workshop approval, voice confirmation and
+    // every plugin hook below this point judge the same file the gate did.
+    // A later stage forming its own opinion about a different file is the
+    // defect this closes, not a behaviour to preserve.
+    const governanceBoundParams =
+      governanceDecision && "params" in governanceDecision && governanceDecision.params
+        ? governanceDecision.params
+        : undefined;
+    if (governanceBoundParams) {
+      params = governanceBoundParams;
+    }
+    /** `normalizedParams` after the gate's rebinding, which is what every later stage must see. */
+    const governedParams: Record<string, unknown> = governanceBoundParams ?? normalizedParams;
     if (governanceDecision && "block" in governanceDecision && governanceDecision.block) {
       return {
         blocked: true,
@@ -257,7 +288,7 @@ export async function runBeforeToolCallHook(args: {
     }
     const initialCorePolicyResult = await resolveSkillWorkshopToolApproval({
       toolName,
-      toolParams: normalizedParams,
+      toolParams: governedParams,
       ...(args.ctx?.config ? { config: args.ctx.config } : {}),
       ...(args.ctx?.workspaceDir ? { workspaceDir: args.ctx.workspaceDir } : {}),
     });
@@ -267,7 +298,7 @@ export async function runBeforeToolCallHook(args: {
       voiceSessionId: voiceRun?.voiceSessionId,
       runId: args.ctx?.runId,
       toolName,
-      toolParams: normalizedParams,
+      toolParams: governedParams,
       ...(voiceRun ? { isConfirmable: () => isClientVoiceSessionConfirmable(voiceRun) } : {}),
     });
     if (!voiceConfirmation.allowed) {
@@ -289,7 +320,7 @@ export async function runBeforeToolCallHook(args: {
             ...(args.ctx.sandbox ? { sandbox: args.ctx.sandbox } : {}),
           }
         : undefined;
-    const derivedToolParams = deriveToolParams(toolName, normalizedParams, deriveOptions);
+    const derivedToolParams = deriveToolParams(toolName, governedParams, deriveOptions);
     const deriveToolEventParams = (candidateParams: Record<string, unknown>) => {
       const derived = deriveToolParams(toolName, candidateParams, deriveOptions);
       return derived.derivedPaths ? { derivedPaths: derived.derivedPaths } : {};
@@ -316,7 +347,7 @@ export async function runBeforeToolCallHook(args: {
       ? await runTrustedToolPolicies(
           {
             toolName,
-            params: normalizedParams,
+            params: governedParams,
             ...toolIdentity,
             ...(args.ctx?.runId && { runId: args.ctx.runId }),
             ...(args.toolCallId && { toolCallId: args.toolCallId }),

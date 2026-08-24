@@ -25,7 +25,15 @@ function verdict(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>)
   if (!decision) {
     return "allow";
   }
-  return "block" in decision ? "block" : "ask";
+  if ("block" in decision) {
+    return "block";
+  }
+  // T23 — absence is no longer the only way the engine says "allow". A call
+  // whose path was redirected comes back carrying `params` (the canonical path
+  // the tool should open), and reading that as "ask" would report an
+  // escalation that never happened. Ask the question directly instead of
+  // inferring it from a missing value.
+  return "requireApproval" in decision ? "ask" : "allow";
 }
 
 describe("resource extraction edge cases", () => {
