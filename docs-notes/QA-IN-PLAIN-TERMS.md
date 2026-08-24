@@ -2326,6 +2326,84 @@ The note in that shared file exists because this exact mistake had already
 happened once before, to a different setting, which was written under one
 spelling and read under another and therefore silently did nothing.
 
+## 5.24 Opening the page instead of reading it
+
+Everything about sending files to an agent had been checked: the server was
+driven directly, the browser's encoding was checked against the server's
+decoder, and the on-screen pieces were tested in isolation. Nobody had opened
+the actual page in an actual browser and used it.
+
+Doing that took about an hour and found one thing — and it was a thing none of
+the earlier checks could have found.
+
+### The button that only worked for people with a mouse
+
+The "Attach" control looked like every other button on the page and behaved
+like one when clicked. It was not a button. It was a _label_ wrapped around a
+hidden file box — a common web trick, because the browser's own file-picking
+control is famously ugly and cannot be restyled.
+
+The trick has a cost that is invisible unless you go looking. Hiding the file
+box the way this did removes it from the list of things you can reach by
+pressing Tab, and the label wrapped around it was never in that list to begin
+with. So there was nothing to land on. Anyone navigating by keyboard — which
+includes every screen-reader user, and anyone who cannot use a mouse — could
+not attach a file at all. The button was there, it was visible, and it was
+unreachable.
+
+Now it is an actual button that opens the hidden file box when pressed, which
+is what the rest of the page already did.
+
+### How it was noticed, which matters more than the bug
+
+The tool used to inspect the page reads it the way assistive technology does.
+It listed the message box, "Send" and "Cancel" — and no attach control. The
+page's own markup plainly contained one.
+
+That gap _was_ the bug. A control that the author can see and the accessibility
+layer cannot is precisely what "unreachable by keyboard" looks like from the
+outside.
+
+**This has happened before in this project.** An earlier round found ten
+controls with no readable name, and it was found the same way: by driving the
+page rather than reading it. Two rounds later, the same category of mistake, in
+code written by someone who had read that earlier finding.
+
+The lesson is not "remember accessibility". It is that **markup that looks
+correct in the source is not evidence about what the browser actually builds
+from it.** The only way to know is to ask the browser, and no amount of reading
+substitutes for that.
+
+### What the hour confirmed
+
+Most of it worked, and several things could only be confirmed here:
+
+- A filename in Arabic — `تقرير-الربع.png` — went from the browser, through
+  the encoding, across the network, into storage, and back onto the screen
+  intact. That is the exact case the encoding exists for, and the one a bug
+  found in the previous round had nearly broken.
+- The server worked out that the file was an image by _looking at it_, not by
+  believing the label the browser attached to it.
+- Removing a file really gave the space back. The file left the disk and the
+  index emptied — a fix from the previous round, working in the real thing
+  rather than in a test.
+- Sending recorded the file's name, type, size and fingerprint in the permanent
+  log, **and nothing of its contents** — the central promise of the whole
+  feature, watched happening rather than asserted.
+- The agent run itself _failed_ — the test agent did not exist — and the file
+  was still recorded. That is deliberate: the person handed the file over, and
+  whether the agent then succeeded is a separate fact. It had never been seen.
+
+### Two red herrings, kept on purpose
+
+The browser reported two errors, and neither was one. The page asked "who am I?"
+before anyone had signed in and was told nobody — correct. It then offered to
+create the first Root account and was refused, because one already existed —
+that is a security control doing its job, showing up in a list of errors.
+
+Worth recording because a future reader scanning that list would otherwise spend
+an afternoon on two non-problems.
+
 ## 7. The single lesson
 
 Rounds five and six found the same mistake wearing different clothes.

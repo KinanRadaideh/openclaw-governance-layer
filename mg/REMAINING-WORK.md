@@ -57,6 +57,14 @@ to give it. Counted as outstanding here because the remaining work is yours.
 over the limit, not two). **T14 closed 2026-08-24** — all three surfaces.
 **One is deprioritised:** T1 — not being done.
 **Eight remain:** T2, T3, T6, T7, T8, T13, T17, T18, T25.
+
+**A new multi-tenancy request landed 2026-08-24** and is planned as subtasks
+S1-S6 (groups, Admin ownership, an agent registry, per-group isolation, an
+Administrator ecosystem panel, and host provisioning). **S1 and S2 are done** —
+the live browser pass, and "who can reach this agent". S3-S6 are designed and
+not started; see `CHAPTER3-MATERIAL.md` §3.5.30 for the gap analysis and the
+four decisions already taken.
+
 **T23 closed 2026-08-24** — the last backlog item that changed the security
 story rather than the write-up.
 

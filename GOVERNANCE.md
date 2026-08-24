@@ -1636,6 +1636,77 @@ oracle; the size cap refuses during the read rather than after it, across a
 genuinely chunked body; a 0-byte upload is stored but is inert; and T23's
 exclusions — non-`path` tools, `apply_patch`, blocked calls — all hold.
 
+### Eighteenth QA pass (2026-08-24) — the dashboard driven by hand, finding 118
+
+Not a code review. The T14 dashboard upload had been verified through the real
+HTTP handler, component tests and an encoding round-trip, and **never opened in
+a browser** — the same class of gap as T2, one layer down. This is that gap
+closed for one feature.
+
+Setup worth copying, because getting it wrong would have been worse than not
+running it at all:
+
+- A **throwaway governance directory** via `OPENCLAW_GOVERNANCE_DIR`. The real
+  one holds live accounts and a 640 KB ledger; a demonstration that writes to
+  the evidence is not a demonstration.
+- A **throwaway config** with `gateway.auth.mode: "none"`, so no Gateway token
+  was handled. Copying the operator's config would have duplicated every
+  channel secret in it into a scratch directory.
+- `gateway.mode` must be `local`, which the Gateway says plainly when it is not
+  (`Gateway start blocked: set gateway.mode=local`).
+
+| #   | Component            | Defect                                                                                                                                                                                                                                                                                                                                                       | Fix                                                                                                       |
+| --- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| 118 | `governance-page.ts` | The Attach control was a `<label class="btn">` wrapping `<input type="file" style="display:none">`. It looks and clicks like every other button on the page and **cannot be reached by keyboard at all**: `display:none` removes an input from the tab order however its `tabindex` reads, and a `<label>` is not focusable. Attaching a file was mouse-only | A real `<button>` that opens the hidden input, which is the pattern every other control here already uses |
+
+**How it was found is the point.** The symptom appeared before the diagnosis:
+the accessibility tree read back from the live page listed "Send" and "Cancel"
+and no attach control, while the DOM plainly contained one. A tool that reads
+the page the way assistive technology does could not see a control the author
+could, which is the definition of the defect.
+
+**This is finding 103 again** — ten controls shipped with no accessible name,
+also found by driving the page rather than reading it. Two rounds apart, same
+category, same discovery method, in code written by someone who had read the
+earlier finding. The lesson is not "remember accessibility": it is that **markup
+that looks right in a template is not evidence about what the browser builds
+from it**, and the only way to know is to ask the browser.
+
+#### What the pass confirmed, which is most of it
+
+Everything else held, and several of these could only be checked here:
+
+- A **non-ASCII filename survives the round trip**. `تقرير-الربع.png` was typed
+  into the browser's `btoa` path, carried in a header, decoded server-side, and
+  came back intact in the chip and in the store index. This is the case the
+  base64 header exists for and the one finding 117 nearly broke.
+- The server **sniffed `image/png`** from a body the browser labelled
+  `application/octet-stream`, so the recorded type is the one measured rather
+  than the one claimed.
+- The chip showed name and rounded size; **Remove really released the bytes** —
+  the file left the directory and the index went back to empty, which is
+  finding 113's fix working end to end rather than in a unit test.
+- On send, `usedAt` was stamped and the ledger entry read
+  `prompt: … | attachments: evidence.png (image/png, 12 bytes, sha256:…)` —
+  **name, type, size and hash, and no content**, which is requirement #8's
+  restated claim observed rather than asserted.
+- **The run failed and the attachment was still recorded.** The Gateway rejected
+  `demo-agent` as an unknown agent id, and the ledger entry stands. That is the
+  documented decision — a prompt that fails still handed the file over — and it
+  had never been seen happening.
+- The two console errors were **expected protocol answers**, not defects: a 401
+  from `whoami` before signing in, and a 409 from `bootstrap-root` because a
+  Root already existed. The second is the bootstrap guard refusing a second
+  Root, which is a security control observed working.
+
+#### The negative result worth keeping
+
+`preview_start` and a browser were also the only way to learn that the
+**Control UI serves a stale bundle until it finishes building**, answering with
+"Control UI assets are being prepared" and HTTP 503 rather than an error. A
+verification step that treats any non-200 as failure would have reported a
+broken dashboard three times before it was ready.
+
 ## Notes for Chapter 3
 
 Design decisions worth writing up, with the reasoning behind each:

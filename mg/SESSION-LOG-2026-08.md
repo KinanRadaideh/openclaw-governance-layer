@@ -1716,3 +1716,105 @@ surfaces. Ten remain, three of them host-blocked write-ups (T6, T7, T8).
 
 **T2 remains the top item**, and it is now the only remaining item that can
 change what the project can be _shown_ to be rather than what it is.
+
+---
+
+## 21. The dashboard opened rather than read (2026-08-24)
+
+Two things: the live browser pass T14 had never had, and S2 — the first slice of
+the tenant model requested the same day.
+
+### Getting the fixture right mattered more than the pass
+
+Three setup decisions, each of which would have made the exercise worse to skip:
+
+- **A throwaway governance directory.** The real one holds live accounts and a
+  640 KB ledger. A demonstration that writes to the evidence is not a
+  demonstration.
+- **A throwaway config with `gateway.auth.mode: "none"`**, so no Gateway token
+  was handled at all. Copying the operator's config would have duplicated every
+  channel secret in it into a scratch directory to save one field.
+- `gateway.mode` must be `local`, which the Gateway says plainly when it is not.
+
+### One defect, and it is finding 103 wearing a different hat
+
+**Finding 118.** The Attach control was a `<label class="btn">` wrapping
+`<input type="file" style="display:none">`. It looked like every other button
+and clicked like one, and **could not be reached by keyboard at all**:
+`display:none` takes an input out of the tab order however its `tabindex` reads,
+and a `<label>` is not focusable. Attaching a file was mouse-only.
+
+**How it surfaced is the useful part.** The accessibility tree read back from
+the live page listed the message box, Send and Cancel — and no attach control —
+while the DOM plainly contained one. A tool reading the page the way assistive
+technology does could not see a control the author could. That gap _is_ the
+defect; the diagnosis followed the symptom rather than the other way round.
+
+Finding 103 was ten controls with no accessible name, found the same way, two
+rounds earlier, and read by whoever wrote this. So the lesson is not "remember
+accessibility" — it is that **markup that looks right in a template is not
+evidence about what the browser builds from it.** Reading cannot substitute for
+asking the browser.
+
+Fixed as a real `<button>` that opens the hidden input, which is what every
+other control in the composer already was, and re-verified in the browser.
+
+### What the pass confirmed, which is most of it
+
+Several of these could only be checked here. `تقرير-الربع.png` survived the
+browser's `btoa`, the header, the server's decoder and the store index intact —
+the exact case finding 117 nearly broke. The server sniffed `image/png` from a
+body the browser labelled `application/octet-stream`. Remove genuinely released
+the bytes: the file left the directory and the index went back to empty, which
+is finding 113's fix working end to end rather than in a unit test. On send,
+`usedAt` was stamped and the ledger read `prompt: … | attachments: evidence.png
+(image/png, 12 bytes, sha256:…)` — **name, type, size, hash, no content.**
+
+And one that had never been seen: **the run failed and the attachment was still
+recorded.** The Gateway rejected `demo-agent` as an unknown id, and the entry
+stands — the documented decision that a prompt which fails still handed the file
+over, observed rather than asserted.
+
+The two console errors were expected protocol answers: a 401 from `whoami`
+before signing in, and a 409 from `bootstrap-root` because a Root already
+existed. The second is the bootstrap guard refusing a second Root — a security
+control appearing in a list of errors, which is worth writing down before
+somebody spends an afternoon on it.
+
+### S2, and what the larger request actually needs
+
+`findUsersForAgent()` had existed since assignment was built and **nothing ever
+called it**: the dashboard could answer _which agents does this account have?_
+and never _which people does this agent have?_ The second is the question an
+Administrator actually asks, and the one the requested ecosystem panel is built
+around.
+
+Three decisions: `canViewAgent` rather than `canManageAgent`, because seeing who
+shares an agent is visibility and a Viewer already reads the trail naming those
+accounts; scoped, because an unscoped lookup is an enumeration oracle — the
+third time that argument has decided a design here; and Administrators and Root
+deliberately absent from the answer, since they reach every agent by role and
+listing them would make every agent look identically staffed.
+
+**The empty answer is rendered in words.** An agent nobody holds is a real state
+— running under Administrator authority alone — and finding 102 is one line away
+otherwise: an empty list and a failed load both draw nothing.
+
+**The larger request is bigger than it looks, and for one specific reason.**
+Multiple Roots are currently _forbidden in code_; there is no group concept and
+no Admin→User link. But the row that reshapes the work is the agent registry:
+there isn't one. An agent "exists" only once a rule, posture, lock or assignment
+mentions its id, and `knownAgentIds()` reconstructs the set incidentally.
+**Creating an agent is not a missing button; it is a missing noun.**
+
+Decisions taken before designing any of it: full isolation per group, one owning
+Administrator per agent, one Root **per group** — keeping the original
+single-Root argument at a new scope rather than discarding it — and provisioning
+that writes the host's own agent roster. That last is a change of kind: every
+governance change so far has observed and gated OpenClaw, and this would be the
+first time the layer mutates the host it governs.
+
+### State
+
+**1,901 tests across 94 files** before finding 118's regression test. Eighteen
+of twenty-seven backlog items done; S3–S6 are planned and not started.

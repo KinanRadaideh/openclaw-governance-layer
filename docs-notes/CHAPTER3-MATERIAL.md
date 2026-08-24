@@ -454,22 +454,22 @@ grouping is itself part of the design argument.
 
 |                      |                                                                                                                                                                    |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Production total** | **18,651 lines** — 10,954 across 39 files in `src/governance/`, plus 7,697 across the 11 HTTP, CLI and dashboard surface files tabulated below                     |
-| **Test total**       | **17,349 lines across 69 test files.** The suite _reports_ **1,877 tests across 91 files**, and both numbers are right about different things — see the note below |
+| **Production total** | **18,767 lines** — 10,954 across 39 files in `src/governance/`, plus 7,813 across the 11 HTTP, CLI and dashboard surface files tabulated below                     |
+| **Test total**       | **17,594 lines across 70 test files.** The suite _reports_ **1,902 tests across 94 files**, and both numbers are right about different things — see the note below |
 
-> **The 91 is a count of test-file _runs_, not of files. 1,877 is a count of
-> test _executions_, not of distinct tests.** Eleven of the governance test files
+> **The 94 is a count of test-file _runs_, not of files. 1,902 is a count of
+> test _executions_, not of distinct tests.** Twelve of the governance test files
 > live under `src/gateway/` and the repository runs that directory under three
 > Vitest projects — `gateway-core`, `gateway-server`, `gateway-client` — so each
-> of the eleven is executed three times. 55 unit + 3 ui + (11 × 3) = **91**.
-> Those eleven files hold **342 distinct tests, reported as 1,026**, so the
-> distinct totals are **1,193 tests across 69 files**.
+> of the twelve is executed three times. 55 unit + 3 ui + (12 × 3) = **94**.
+> Those twelve files hold **349 distinct tests, reported as 1,047**, so the
+> distinct totals are **1,204 tests across 70 files**.
 >
 > Neither number is wrong and the larger one is not inflated by accident: every
-> one of those 1,877 executions really ran, and running the gateway suite under
-> three project configurations is the point of doing it that way. But "1,877
-> tests across 91 files" invites a reader to believe there are 91 files, and
-> there are 69.
+> one of those 1,902 executions really ran, and running the gateway suite under
+> three project configurations is the point of doing it that way. But "1,902
+> tests across 94 files" invites a reader to believe there are 94 files, and
+> there are 70.
 >
 > **This is the same mistake this project already documented and warned about.**
 > `HANDOFF.md` §4 records that the host harness baseline was once written as "9
@@ -2829,6 +2829,95 @@ the tool holds still names the file that was judged.
 > the same question twice and only listening to the first answer — and to stop
 > asking it twice.
 
+### 3.5.30 Who can reach an agent, and the first step toward a tenant model (S2)
+
+A small change with a disproportionate amount of design behind it, and the first
+slice of a much larger piece of work.
+
+#### The question the dashboard could not answer
+
+`findUsersForAgent()` has existed in `user-store.ts` since agent assignment was
+built, and **nothing ever called it**. The dashboard could always answer _which
+agents does this account have?_ and never _which people does this agent have?_
+
+The asymmetry is not cosmetic. The second question is the one an Administrator
+actually asks — before changing a rule, before handing an agent over, before
+deciding whether an agent is orphaned. A control plane whose purpose is making
+authority legible could show authority in one direction only.
+
+#### Three decisions worth stating
+
+**`canViewAgent`, not `canManageAgent`.** Seeing who else shares an agent is a
+visibility question, not a management one. A Viewer assigned to an agent already
+reads its unmasked audit entries, which name the accounts that acted; refusing
+them the roster while showing them the trail would be a distinction with no
+content. Authority is still required to _change_ anything, and this changes
+nothing.
+
+**Scoped, because otherwise it is an enumeration oracle.** Without the scope
+check any account could ask about any agent id and map the whole installation's
+staffing — the same class of leak the login response avoids for account
+existence, and the attachment reference check avoids for file existence. This is
+the third time that argument has decided a design in this project, which is
+itself worth a sentence: **a lookup that answers for inputs you do not own is a
+directory, whatever it was built for.**
+
+**Administrators and Root are deliberately absent from the answer.** They reach
+every agent by role, so listing them would make every agent look identically
+staffed and hide exactly the distinction the panel exists to show. The answer is
+"who was _given_ this", not "who could open it".
+
+#### The empty answer is an answer
+
+An agent with nobody assigned is a real and interesting state — it is running
+under Administrator authority alone — and the page says so in words rather than
+rendering an empty region. Three states, three renderings: a list, "Nobody — no
+User or Viewer has been assigned this agent", and "Could not load who has
+access."
+
+That third one exists because the first two must not be confused with a failure.
+Finding 102 was a failed transcript load rendering as a permanent "Loading…",
+and the same trap is one line away here: an empty list and a failed request both
+produce nothing to draw.
+
+#### Where this is going
+
+This is subtask S2 of a much larger change requested on 2026-08-24: a tenant
+model in which one person creates a Root, that Root creates the Admin, User and
+Viewer accounts of their **group**, every User and Viewer is associated with an
+Administrator, and each Administrator sees a panel of the agents in their
+ecosystem — who holds them, what policy binds them, and controls to create,
+edit, assign and unassign.
+
+Almost none of that exists yet, and the gap is worth stating precisely because
+it is larger than it looks:
+
+| Piece                                                                             | State                                                                                                |
+| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Four-tier ladder, Root-created accounts, agent assignment, per-agent policy views | **Built**                                                                                            |
+| Multiple Roots                                                                    | **Forbidden in code today** — `DuplicateRootError` caps the installation at one                      |
+| A group / tenant                                                                  | No such concept anywhere                                                                             |
+| User or Viewer belonging to an Administrator                                      | No link; Administrators manage every agent by role                                                   |
+| An agent registry                                                                 | **None** — an agent "exists" only once a rule, posture, lock or assignment happens to mention its id |
+
+The last row is the one that reshapes the work. `knownAgentIds()` reconstructs
+the set of agents incidentally, from whatever the policy document mentions;
+there is no record of an agent, so there is nothing to own, nothing to name, and
+nothing to list when the answer is "none". **Creating an agent is not a missing
+button; it is a missing noun.**
+
+The decisions taken before any of it was designed are recorded here so the
+sequence is legible in the report: full isolation per group (its own policy
+document and its own audit chain), exactly one owning Administrator per agent,
+one Root **per group** rather than per installation — keeping the original
+single-Root argument intact at a new scope rather than discarding it — and
+provisioning that reaches into the host's own agent roster.
+
+That last one is a change of kind rather than degree, and Chapter 4 should say
+so: every governance change so far has _observed and gated_ OpenClaw. Writing
+its configuration would be the first time this layer mutates the host it
+governs.
+
 ### 3.5.9 Recording administrative actions in the same chain
 
 The ledger originally recorded what agents did and how the policy judged them,
@@ -3046,9 +3135,9 @@ long and the grouping is the argument.
 `qa-round8-logic`, `qa-round8-security`: **81 tests** pinning the specific
 defects each round found, so none can silently return.
 
-|           |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Total** | **1,877 tests across 91 files** — measured 2026-08-24, after T14's HTTP and dashboard surfaces and QA round seventeen (§4.x.29); 1,802 across 88 after T23 (§3.5.29); 1,794 across 87 after T4, T5 and T14 (§3.5.26–§3.5.28); 1,722 across 84 after the first dashboard component tests (§4.x.27), the core-tier split (§3.5.24), Root's authoring control (§3.5.23), the kill-switch end-to-end verification and the authoring-scope matrix (§3.5.21, §3.5.22). (1,564 across 75 after the bidirectional policy views, §3.5.20. (1,510 across 71 after the sixteenth QA pass, §4.x.25. (1,499 across 70 after T9, authentication auditing, §3.5.19. (1,480 across 68 before it, after the A1 follow-ups, the last of round thirteen, the hands-on UI pass and the three core invariants; 1,465 across 67 before `core-invariants.test.ts`; 1,404 across 64 after B1; 1,393 across 63 after the fourteenth QA pass and A7; 1,264 across 57 before rounds 13 and 14. The growth is almost entirely regression tests lifted out of the probes that produced each finding.) **Measured with `src/governance/`, `src/gateway/governance-*.test.ts`, `ui/src/pages/governance/`** — adding `ui/src/i18n` gives 1,564 across 73, which is a different set and not a regression. **Every figure in this row is a count of test-file _runs_ and test _executions_:** the ten `src/gateway/` files run under three Vitest projects, so the distinct totals behind the 1,877/91 are **1,193 tests across 69 files**. See §3.5.2. |
+|           |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Total** | **1,902 tests across 94 files** — measured 2026-08-24, after the live browser pass and S2 (§3.5.30); 1,877 across 91 after T14's HTTP and dashboard surfaces and QA round seventeen (§4.x.29); 1,802 across 88 after T23 (§3.5.29); 1,794 across 87 after T4, T5 and T14 (§3.5.26–§3.5.28); 1,722 across 84 after the first dashboard component tests (§4.x.27), the core-tier split (§3.5.24), Root's authoring control (§3.5.23), the kill-switch end-to-end verification and the authoring-scope matrix (§3.5.21, §3.5.22). (1,564 across 75 after the bidirectional policy views, §3.5.20. (1,510 across 71 after the sixteenth QA pass, §4.x.25. (1,499 across 70 after T9, authentication auditing, §3.5.19. (1,480 across 68 before it, after the A1 follow-ups, the last of round thirteen, the hands-on UI pass and the three core invariants; 1,465 across 67 before `core-invariants.test.ts`; 1,404 across 64 after B1; 1,393 across 63 after the fourteenth QA pass and A7; 1,264 across 57 before rounds 13 and 14. The growth is almost entirely regression tests lifted out of the probes that produced each finding.) **Measured with `src/governance/`, `src/gateway/governance-*.test.ts`, `ui/src/pages/governance/`** — adding `ui/src/i18n` gives 1,564 across 73, which is a different set and not a regression. **Every figure in this row is a count of test-file _runs_ and test _executions_:** the ten `src/gateway/` files run under three Vitest projects, so the distinct totals behind the 1,902/94 are **1,204 tests across 70 files**. See §3.5.2. |
 
 Two methodology notes worth keeping:
 
