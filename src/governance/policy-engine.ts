@@ -402,11 +402,26 @@ export async function evaluateGovernancePolicy(
     return undefined;
   }
 
-  const resources = await spec.extract(event, ctx.cwd);
-  // Computed here, once, and used only on the paths that let the call proceed.
-  // Deliberately not inside the deny branch: a refused call is never rebound,
-  // because it is never made.
+  // ---------------------------------------------------------------------
+  // **Order matters here, and the first version of T23 had it wrong.**
+  //
+  // The binding used to be computed *after* `spec.extract`, from the agent's
+  // original string — so the gate resolved that string twice, independently.
+  // A link swapped between the two resolutions would have the extractor judge
+  // one file while the binding handed over another: T23's own defect,
+  // reintroduced inside the gate it was written to fix, in a window measured
+  // in microseconds rather than milliseconds. Narrower is not closed, which is
+  // the argument T23 already makes against re-resolving before the open
+  // (QA round seventeen, finding 116).
+  //
+  // Resolving first and extracting from the **bound** parameters removes it.
+  // The second resolution then operates on a canonical, link-free path, so it
+  // resolves to itself and cannot disagree with the first: what the rules are
+  // matched against and what the tool is handed are the same file by
+  // construction rather than by timing.
   const paramBinding = await resolveGovernedParamBinding(event, spec, ctx.cwd);
+  const judgedEvent = paramBinding ? { ...event, params: paramBinding } : event;
+  const resources = await spec.extract(judgedEvent, ctx.cwd);
   if (resources.length === 0) {
     // A governed tool whose payload yielded nothing to check — typically a
     // shape the extractor does not recognise. We still do not fail closed on

@@ -36,6 +36,11 @@ type PageState = {
   policy: GovernancePolicyDocument | null;
   users: unknown[];
   loading: boolean;
+  conversationAgentId: string;
+  transcript: unknown;
+  promptAttachments: unknown[];
+  attachmentUploading: boolean;
+  promptDraft: string;
   updateComplete: Promise<unknown>;
   requestUpdate(): void;
   remove(): void;
@@ -253,5 +258,105 @@ describe("what each tier is shown", () => {
   it("shows a User the authoring form", async () => {
     const el = await mount({ identity: identity("user", ["mine"]), policy: policy([rule()]) });
     expect(el.textContent).toContain("Add a rule");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T14 — the dashboard half of attachments.
+//
+// The store, the bounds and the HTTP route are asserted elsewhere
+// (`attachment-store.test.ts`, `governance-attachment-http.test.ts`). What can
+// only be checked here is what the operator sees: that the control exists at
+// all for the tier that may use it, that a queued file is legible before it is
+// sent, and that removing one is reachable by a name rather than by a symbol
+// alone.
+//
+// The last of those is finding 103's lesson. Ten controls once shipped with no
+// accessible name, and a "×" button is exactly the shape that happens to.
+// ---------------------------------------------------------------------------
+
+function openConversation(extra: Partial<PageState> = {}): Partial<PageState> {
+  return {
+    identity: identity("user", ["agent-a"]),
+    policy: policy([]),
+    conversationAgentId: "agent-a",
+    transcript: { supported: true, turns: [] },
+    ...extra,
+  };
+}
+
+describe("attaching files to a prompt (T14)", () => {
+  it("offers an attach control on a conversation that can run", async () => {
+    const el = await mount(openConversation());
+    const picker = el.querySelector('input[type="file"]');
+    expect(picker).not.toBeNull();
+    // Multiple, because an operator sending a bug report sends the screenshot
+    // and the log, and making them repeat the flow per file is the kind of
+    // friction that gets a feature called broken.
+    expect(picker?.hasAttribute("multiple")).toBe(true);
+  });
+
+  it("does not offer one where the process cannot run agents", async () => {
+    // A control that is guaranteed to fail is worse than an absent one: it
+    // teaches the operator that the page lies.
+    const el = await mount(openConversation({ transcript: { supported: false, turns: [] } }));
+    expect(el.querySelector('input[type="file"]')).toBeNull();
+  });
+
+  it("shows a queued file by name and size, so the operator sees what they picked", async () => {
+    const el = await mount(
+      openConversation({
+        promptAttachments: [
+          {
+            sha256: "a".repeat(64),
+            bytes: 2_202_010,
+            mimeType: "image/png",
+            declaredName: "screenshot.png",
+          },
+        ],
+      }),
+    );
+    const text = el.textContent ?? "";
+    expect(text).toContain("screenshot.png");
+    // Rounded, not exact. The chip answers "did I pick the big one or the small
+    // one"; the ledger holds the figure anybody has to rely on.
+    expect(text).toContain("2.1 MB");
+  });
+
+  it("gives the remove control a name, not just a symbol (finding 103)", async () => {
+    const el = await mount(
+      openConversation({
+        promptAttachments: [
+          {
+            sha256: "b".repeat(64),
+            bytes: 12,
+            mimeType: "image/png",
+            declaredName: "shot.png",
+          },
+        ],
+      }),
+    );
+    const named = Array.from(el.querySelectorAll("button")).filter((button) =>
+      (button.getAttribute("aria-label") ?? "").includes("shot.png"),
+    );
+    expect(named).toHaveLength(1);
+  });
+
+  it("shows nothing about attachments when none are queued", async () => {
+    const el = await mount(openConversation());
+    expect(el.querySelector('[aria-label="Files attached to this message"]')).toBeNull();
+  });
+
+  it("will not send while bytes are still uploading", async () => {
+    // Sending mid-upload would silently drop whichever files had not landed —
+    // the prompt would go out naming fewer attachments than the operator
+    // attached, and nothing on screen would say so.
+    const el = await mount(
+      openConversation({ attachmentUploading: true, promptDraft: "look at this" }),
+    );
+    const send = Array.from(el.querySelectorAll("button")).find((button) =>
+      (button.textContent ?? "").includes("Send"),
+    );
+    expect(send?.hasAttribute("disabled")).toBe(true);
   });
 });

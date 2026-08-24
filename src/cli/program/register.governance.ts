@@ -671,6 +671,11 @@ export function registerGovernanceCommands(program: Command): void {
                 mimeType: stored.mimeType,
                 declaredName: stored.declaredName,
               });
+              // Marked immediately, because this command stores and sends in
+              // one step: from here a ledger entry will name the file, so it is
+              // no longer the uploader's to discard (QA round 17, finding 113).
+              const { markAttachmentUsed } = await import("../../governance/attachment-store.js");
+              await markAttachmentUsed(stored.sha256);
               defaultRuntime.log(
                 `attached ${stored.declaredName} (${stored.mimeType}, ${stored.bytes} bytes)`,
               );

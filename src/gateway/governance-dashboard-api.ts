@@ -75,6 +75,86 @@ const MAX_BODY_BYTES = 8192;
  * route would widen the surface every other route accepts.
  */
 const MAX_PROMPT_BODY_BYTES = 64 * 1024;
+/**
+ * How many attachments one prompt may name.
+ *
+ * The per-file cap and the per-account quota already bound the bytes; this
+ * bounds the *work*, because each reference costs an index lookup and each
+ * accepted one lengthens the ledger entry describing the prompt. Ten is well
+ * above what an operator sends by hand and far below what would make either
+ * cost interesting.
+ */
+const MAX_ATTACHMENTS_PER_PROMPT = 10;
+/**
+ * Ceiling on an agent id arriving from a caller.
+ *
+ * Generous — real ids are short — because the point is not to validate the
+ * shape of an id but to stop an unbounded string reaching storage that keeps
+ * what it is given.
+ */
+const MAX_AGENT_ID_LENGTH = 200;
+
+/**
+ * Whether a header value is well-formed base64 (QA round 17, finding 112).
+ *
+ * Written as a scan rather than a regular expression because the check has to
+ * be exact: `Buffer.from(value, "base64")` never throws and never reports a
+ * problem — it discards anything outside the alphabet and returns whatever is
+ * left. So this is the only place a malformed name can be caught, and a
+ * validator that is itself slightly wrong would hand the difference straight to
+ * the ledger.
+ */
+function isBase64Header(value: string): boolean {
+  if (value.length === 0 || value.length % 4 !== 0) {
+    return false;
+  }
+  // Padding is counted off the end first, then the remainder is checked for
+  // alphabet characters only. An earlier version walked forwards and tried to
+  // decide, at each "=", whether it was in a legal position — and got the
+  // arithmetic wrong by one, rejecting every name whose encoding ends in "==".
+  // That is most of them, including every non-ASCII name this validator was
+  // added to protect. Caught by the tests written for the finding it fixes.
+  let end = value.length;
+  let padding = 0;
+  while (padding < 2 && end > 0 && value[end - 1] === "=") {
+    end -= 1;
+    padding += 1;
+  }
+  if (end === 0) {
+    return false;
+  }
+  for (let at = 0; at < end; at += 1) {
+    const ch = value[at] ?? "";
+    const ok =
+      (ch >= "A" && ch <= "Z") ||
+      (ch >= "a" && ch <= "z") ||
+      (ch >= "0" && ch <= "9") ||
+      ch === "+" ||
+      ch === "/";
+    if (!ok) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Whether a decoded filename carries characters no real filename carries.
+ *
+ * A name is shown to an operator and written to the audit trail. A carriage
+ * return or a NUL in either is a way to make one thing look like another, and
+ * NULs are exactly what a duplicated header decodes to, because Node joins
+ * repeated headers with ", " and base64 discards both characters.
+ */
+function hasControlCharacters(value: string): boolean {
+  for (const ch of value) {
+    const code = ch.codePointAt(0) ?? 0;
+    if (code < 0x20 || code === 0x7f) {
+      return true;
+    }
+  }
+  return false;
+}
 
 /**
  * Largest page of ledger entries a single read may return.
@@ -1225,6 +1305,163 @@ export async function handleGovernanceApiRequest(
     return true;
   }
 
+  // ---------------------------------------------------------------------
+  // Uploading an attachment (T14, the HTTP surface).
+  //
+  // **Raw body, not multipart.** A multipart parser is a state machine over
+  // attacker-controlled bytes, and this repository does not ship one — writing
+  // one for a security layer would add exactly the kind of surface the layer
+  // exists to reduce. The body is the file, and nothing has to be parsed.
+  //
+  // It also keeps the property the store was built around: `req` is an
+  // `AsyncIterable<Uint8Array>`, so `storeAttachment` refuses **during** the
+  // read. Buffering a multipart body first and checking the length afterwards
+  // would let the uploader choose how much memory the process allocates before
+  // being told no, which is the denial of service the cap exists to prevent.
+  //
+  // **The filename travels in a header, base64-encoded.** Not a query string:
+  // a URL is written to browser history, proxy logs and the Gateway's own
+  // access log, and a filename is user data (`Q3-redundancies.pdf` names
+  // something even when the bytes are never read). Base64 because a header
+  // cannot carry arbitrary UTF-8, and filenames are not ASCII in most of the
+  // world — an Arabic or emoji filename would otherwise be mangled or rejected
+  // by the HTTP layer before this code ever saw it.
+  if (route === "agent/attachment" && req.method === "POST") {
+    if (!requireRole(res, session, "user")) {
+      return true;
+    }
+    const agentIdHeader = req.headers["x-agent-id"];
+    const agentId = typeof agentIdHeader === "string" ? agentIdHeader.trim() : "";
+    if (!agentId) {
+      sendInvalidRequest(res, "x-agent-id header is required");
+      return true;
+    }
+    // Bounded, which the first version of this route was not (QA round
+    // seventeen, finding 115). `canManageAgent` cannot reject an invented id
+    // for an Administrator, who manages every agent by role — so without a
+    // length rule the id an Administrator sends is written verbatim into the
+    // attachment index and from there into the ledger, and the only ceiling on
+    // it is Node's header limit. Every other agent-scoped route bounds this;
+    // this one inherited none of that by arriving through a header instead of
+    // a JSON body.
+    if (agentId.length > MAX_AGENT_ID_LENGTH) {
+      sendInvalidRequest(res, `agent id must be ${MAX_AGENT_ID_LENGTH} characters or fewer`);
+      return true;
+    }
+    // Attaching is part of prompting, so it needs the authority to prompt this
+    // agent — `canManageAgent`, the same check `agent/prompt` makes. It is
+    // deliberately *not* `canAuthorPolicyForAgent`: sending a file is not
+    // writing policy, and a User whose authoring Root has withheld can still
+    // do their job (T27).
+    if (!canManageAgent(toActor(session), agentId)) {
+      sendJson(res, 403, {
+        error: { message: `You do not manage agent "${agentId}"`, type: "forbidden" },
+      });
+      return true;
+    }
+    // **Validated before decoding, because decoding cannot fail** (QA round
+    // seventeen, finding 112). `Buffer.from(value, "base64")` never throws: it
+    // silently discards anything outside the alphabet. The first version of
+    // this route wrapped it in a try/catch and returned 400 on error, which
+    // read like validation and was unreachable code — a malformed header
+    // produced mojibake, and a *duplicated* header produced NUL bytes, because
+    // Node joins repeated headers with ", " and `,` and ` ` are both dropped.
+    // Either way a garbage filename entered a tamper-evident ledger instead of
+    // being refused.
+    const nameHeader = req.headers["x-attachment-name"];
+    let declaredName = "unnamed";
+    if (nameHeader !== undefined) {
+      // An array means the header was sent more than once. Rejected rather than
+      // resolved: there is no correct way to choose between two filenames, and
+      // picking one silently is how a caller's intent gets replaced by ours.
+      if (typeof nameHeader !== "string") {
+        sendInvalidRequest(res, "x-attachment-name must be sent at most once");
+        return true;
+      }
+      if (nameHeader.length > 0) {
+        if (!isBase64Header(nameHeader)) {
+          sendInvalidRequest(res, "x-attachment-name must be base64-encoded UTF-8");
+          return true;
+        }
+        declaredName = Buffer.from(nameHeader, "base64").toString("utf8");
+        // A filename is displayed to an operator and written to the ledger.
+        // Control characters in either are a way to make one thing look like
+        // another, and no real filename contains them.
+        if (hasControlCharacters(declaredName)) {
+          sendInvalidRequest(res, "attachment name must not contain control characters");
+          return true;
+        }
+      }
+    }
+    const { storeAttachment, AttachmentQuotaExceededError, AttachmentTooLargeError } =
+      await import("../governance/attachment-store.js");
+    try {
+      const stored = await storeAttachment({
+        content: req,
+        declaredName,
+        storedBy: session.username,
+        agentId,
+      });
+      // Metadata only, and the same shape the CLI prints. The bytes are never
+      // echoed back by this route or any other: nothing renders an attachment,
+      // because an SVG is a script and the governance page is the worst place
+      // in the installation to run one.
+      sendJson(res, 200, {
+        ok: true,
+        attachment: {
+          sha256: stored.sha256,
+          bytes: stored.bytes,
+          mimeType: stored.mimeType,
+          declaredName: stored.declaredName,
+        },
+      });
+    } catch (err) {
+      if (err instanceof AttachmentTooLargeError || err instanceof AttachmentQuotaExceededError) {
+        // 413 for both. They are different limits with the same shape — the
+        // caller sent more than they may — and the message says which.
+        sendJson(res, 413, { error: { message: err.message, type: "attachment-rejected" } });
+        return true;
+      }
+      throw err;
+    }
+    return true;
+  }
+
+  // Discarding an upload that was never sent (QA round 17, finding 113).
+  if (route === "agent/attachment/release" && req.method === "POST") {
+    if (!requireRole(res, session, "user")) {
+      return true;
+    }
+    const body = await readJsonBodyOrError(req, res, MAX_BODY_BYTES);
+    if (body === undefined) {
+      return true;
+    }
+    const sha256 = (body as { sha256?: unknown }).sha256;
+    if (typeof sha256 !== "string" || !/^[0-9a-f]{64}$/.test(sha256)) {
+      sendInvalidRequest(res, "sha256 must be a SHA-256 hex string");
+      return true;
+    }
+    const { releaseAttachment } = await import("../governance/attachment-store.js");
+    const outcome = await releaseAttachment(sha256, session.username);
+    if (outcome === "not-found") {
+      // Also the answer for somebody else's attachment, so the reply says
+      // nothing about what other accounts hold.
+      sendJson(res, 404, { error: { message: "attachment not found", type: "not-found" } });
+      return true;
+    }
+    if (outcome === "already-sent") {
+      sendJson(res, 409, {
+        error: {
+          message: "this attachment has already been sent and is evidence for a ledger entry",
+          type: "conflict",
+        },
+      });
+      return true;
+    }
+    sendJson(res, 200, { ok: true });
+    return true;
+  }
+
   if (route === "agent/prompt" && req.method === "POST") {
     if (!requireRole(res, session, "user")) {
       return true;
@@ -1255,6 +1492,73 @@ export async function handleGovernanceApiRequest(
       });
       return true;
     }
+    // ---------------------------------------------------------------------
+    // Attachments are referenced by hash, and their facts are read from the
+    // store rather than taken from the request (T14).
+    //
+    // **This is the security-relevant half of the feature.** The client uploads
+    // first and then names hashes here. If the ledger recorded the size, type
+    // and name the *caller* claimed, an operator could store one harmless byte
+    // and have the audit trail describe it as a 4 MB PDF — the trail would be
+    // recording an assertion while reading like an observation. Everything
+    // written to the chain is therefore looked up from the index, which holds
+    // what was actually measured at upload time.
+    //
+    // **A reference must be to your own upload.** Not because another
+    // account's file is dangerous to name, but because accepting any hash
+    // would turn this route into an existence oracle: a caller could confirm
+    // whether a given file had ever been sent by anybody, by guessing its
+    // hash — and for a known file, the hash is not a guess. The same reasoning
+    // the login response uses to avoid an account-existence oracle.
+    const attachmentRefs = (body as { attachments?: unknown }).attachments;
+    const attachments: {
+      sha256: string;
+      bytes: number;
+      mimeType: string;
+      declaredName: string;
+    }[] = [];
+    if (attachmentRefs !== undefined) {
+      if (!Array.isArray(attachmentRefs)) {
+        sendInvalidRequest(res, "attachments must be an array of SHA-256 strings");
+        return true;
+      }
+      if (attachmentRefs.length > MAX_ATTACHMENTS_PER_PROMPT) {
+        sendInvalidRequest(
+          res,
+          `at most ${MAX_ATTACHMENTS_PER_PROMPT} attachments may be sent with one prompt`,
+        );
+        return true;
+      }
+      const { readAttachmentMetadata } = await import("../governance/attachment-store.js");
+      for (const ref of attachmentRefs) {
+        if (typeof ref !== "string" || !/^[0-9a-f]{64}$/.test(ref)) {
+          sendInvalidRequest(res, "each attachment must be a SHA-256 hex string");
+          return true;
+        }
+        const stored = await readAttachmentMetadata(ref);
+        // One message for "no such attachment" and for "not yours", so the
+        // response does not distinguish them. Telling them apart is exactly
+        // the oracle the ownership check exists to close.
+        if (!stored || stored.storedBy !== session.username) {
+          sendJson(res, 404, {
+            error: { message: "attachment not found", type: "not-found" },
+          });
+          return true;
+        }
+        attachments.push({
+          sha256: stored.sha256,
+          bytes: stored.bytes,
+          mimeType: stored.mimeType,
+          declaredName: stored.declaredName,
+        });
+        // Marked here rather than after the run: a prompt that fails still
+        // handed the file over, and from this point a ledger entry names it,
+        // so it is no longer the uploader's to discard (finding 113).
+        const { markAttachmentUsed } = await import("../governance/attachment-store.js");
+        await markAttachmentUsed(stored.sha256);
+      }
+    }
+
     const { promptAgent } = await import("../governance/agent-conversation.js");
 
     // Streaming is opt-in per request, on a POST, and never a separate GET
@@ -1277,6 +1581,7 @@ export async function handleGovernanceApiRequest(
         agentId: agentId.trim(),
         username: session.username,
         message,
+        ...(attachments.length > 0 ? { attachments } : {}),
       });
       // A refused prompt is reported as a *result*, not as a transport failure:
       // the request was well-formed and the caller was entitled to make it, and
@@ -1321,6 +1626,7 @@ export async function handleGovernanceApiRequest(
         agentId: agentId.trim(),
         username: session.username,
         message,
+        ...(attachments.length > 0 ? { attachments } : {}),
         signal: clientGone.signal,
         // Sent first, so the page can offer a cancel control while the run is
         // still going. Without it the run id arrives only with the reply, and a

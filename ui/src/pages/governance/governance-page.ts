@@ -23,6 +23,7 @@ import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
 import {
   GovernanceApi,
   GovernanceApiError,
+  type GovernanceAttachment,
   type GovernanceIdentity,
   type GovernanceLedgerEntry,
   type GovernanceLedgerVerification,
@@ -148,6 +149,22 @@ function tierLabel(tier: GovernancePolicyRule["tier"]): string {
       : t("governance.policy.tierAdmin");
 }
 
+/**
+ * Human-readable byte size for an attachment chip.
+ *
+ * Deliberately coarse. The chip exists so an operator can see they queued the
+ * 4 MB screenshot rather than the 4 KB one; the exact figure is in the ledger,
+ * which is where a number anybody has to rely on belongs.
+ */
+function formatAttachmentSize(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${Math.round(bytes / 1024)} KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 class GovernancePage extends OpenClawLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
@@ -209,6 +226,10 @@ class GovernancePage extends OpenClawLightDomElement {
   @state() private conversationAgentId = "";
   @state() private transcript: GovernanceTranscript | null = null;
   @state() private promptDraft = "";
+  /** Attachments already uploaded and waiting to be sent with the next prompt (T14). */
+  @state() private promptAttachments: GovernanceAttachment[] = [];
+  /** True while bytes are on the wire, so the composer can refuse a second send. */
+  @state() private attachmentUploading = false;
   @state() private promptPending = false;
   @state() private promptError: string | null = null;
   /**
@@ -1706,10 +1727,71 @@ class GovernancePage extends OpenClawLightDomElement {
    * dashboard feel broken during exactly the operation it was built for. The
    * composer carries its own pending state instead.
    */
+  /**
+   * Uploads the chosen files, one at a time, before any prompt is sent.
+   *
+   * Sequential rather than parallel on purpose: the per-account quota is
+   * checked as each file lands, so two uploads racing could both read the same
+   * "space remaining" and both be accepted. Sending them in order makes the
+   * quota mean what it says.
+   *
+   * A failure stops the batch and keeps whatever already succeeded. The
+   * alternative — discarding the lot — throws away good uploads because a
+   * later one was too big, and the operator would have to re-pick every file.
+   */
+  private async addAttachments(files: FileList | null): Promise<void> {
+    if (!files || files.length === 0 || this.attachmentUploading) {
+      return;
+    }
+    const agentId = this.conversationAgentId;
+    if (!agentId) {
+      return;
+    }
+    this.attachmentUploading = true;
+    this.promptError = null;
+    try {
+      for (const file of Array.from(files)) {
+        const stored = await this.api().uploadAttachment(agentId, file);
+        // Content-addressed, so re-picking the same file is not an error and
+        // must not queue it twice — the server stores one copy either way.
+        if (!this.promptAttachments.some((held) => held.sha256 === stored.sha256)) {
+          this.promptAttachments = [...this.promptAttachments, stored];
+        }
+      }
+    } catch (err) {
+      this.promptError = err instanceof Error ? err.message : String(err);
+    } finally {
+      this.attachmentUploading = false;
+    }
+  }
+
+  /**
+   * Takes a file off the message, and gives the bytes back.
+   *
+   * The chip is dropped either way, because the operator asked for that and a
+   * control that sometimes does nothing is worse than one that does less than
+   * it claims. The release is best-effort: if the server refuses — which it
+   * does once a prompt has named the file — the bytes stay, correctly, and
+   * there is nothing useful to tell somebody who is editing a message.
+   *
+   * Without this the quota was a trap (QA round 17, finding 113). Uploading
+   * when a file is *chosen* is what makes its size and type known before the
+   * prompt goes out, and it means an abandoned pick had been charged to the
+   * account permanently, with no way to get it back.
+   */
+  private async removeAttachment(held: GovernanceAttachment): Promise<void> {
+    this.promptAttachments = this.promptAttachments.filter((other) => other.sha256 !== held.sha256);
+    try {
+      await this.api().releaseAttachment(held.sha256);
+    } catch {
+      // See above: refused releases are expected, not exceptional.
+    }
+  }
+
   private async sendPrompt(): Promise<void> {
     const agentId = this.conversationAgentId;
     const message = this.promptDraft.trim();
-    if (!agentId || !message || this.promptPending) {
+    if (!agentId || !message || this.promptPending || this.attachmentUploading) {
       return;
     }
     this.promptPending = true;
@@ -1719,15 +1801,25 @@ class GovernancePage extends OpenClawLightDomElement {
     this.promptStream = "";
     this.promptRunId = "";
     try {
-      const outcome = await this.api().promptAgentStreaming(agentId, message, {
-        onStart: (info) => {
-          this.promptRunId = info.runId;
+      const outcome = await this.api().promptAgentStreaming(
+        agentId,
+        message,
+        {
+          onStart: (info) => {
+            this.promptRunId = info.runId;
+          },
+          onProgress: (replySoFar) => {
+            this.promptStream = replySoFar;
+          },
         },
-        onProgress: (replySoFar) => {
-          this.promptStream = replySoFar;
-        },
-      });
+        undefined,
+        this.promptAttachments.map((held) => held.sha256),
+      );
       this.promptDraft = "";
+      // Cleared only on a completed send. A prompt that threw leaves them
+      // queued, because the files are already uploaded and making the operator
+      // pick them again would be a second failure caused by the first.
+      this.promptAttachments = [];
       if (!outcome.ok) {
         // A cancellation is not a failure and is not reported as one. The
         // operator asked for it, they already know, and dressing it up as an
@@ -1841,6 +1933,33 @@ class GovernancePage extends OpenClawLightDomElement {
         ${this.promptError
           ? html`<div role="alert" style="color:var(--danger, #dc2626)">${this.promptError}</div>`
           : nothing}
+        ${transcript.supported && this.promptAttachments.length > 0
+          ? html`<div
+              style="display:flex;flex-wrap:wrap;gap:0.35rem;align-items:center"
+              aria-label=${t("governance.conversation.attachmentsQueued")}
+            >
+              ${this.promptAttachments.map(
+                (held) => html`<span
+                  class="badge"
+                  style="display:inline-flex;gap:0.35rem;align-items:center"
+                  title=${`${held.mimeType} · sha256:${held.sha256}`}
+                >
+                  ${held.declaredName} (${formatAttachmentSize(held.bytes)})
+                  <button
+                    class="btn"
+                    style="padding:0 0.35rem;line-height:1"
+                    aria-label=${t("governance.conversation.attachmentRemove", {
+                      name: held.declaredName,
+                    })}
+                    ?disabled=${this.promptPending}
+                    @click=${() => void this.removeAttachment(held)}
+                  >
+                    ×
+                  </button>
+                </span>`,
+              )}
+            </div>`
+          : nothing}
         ${transcript.supported
           ? html`<div style="display:flex;gap:0.5rem">
               <input
@@ -1862,9 +1981,36 @@ class GovernancePage extends OpenClawLightDomElement {
                   }
                 }}
               />
+              <label
+                class="btn"
+                style="display:inline-flex;align-items:center"
+                title=${t("governance.conversation.attachHint")}
+              >
+                ${this.attachmentUploading
+                  ? t("governance.conversation.attaching")
+                  : t("governance.conversation.attach")}
+                <input
+                  type="file"
+                  multiple
+                  style="display:none"
+                  aria-label=${t("governance.conversation.attach")}
+                  ?disabled=${this.promptPending || this.attachmentUploading}
+                  @change=${(e: Event) => {
+                    const input = e.target as HTMLInputElement;
+                    void this.addAttachments(input.files).finally(() => {
+                      // Reset so choosing the same file again still fires a
+                      // change event; without this, re-picking a file the
+                      // operator had just removed would silently do nothing.
+                      input.value = "";
+                    });
+                  }}
+                />
+              </label>
               <button
                 class="btn btn-primary"
-                ?disabled=${this.promptPending || !this.promptDraft.trim()}
+                ?disabled=${this.promptPending ||
+                this.attachmentUploading ||
+                !this.promptDraft.trim()}
                 @click=${() => this.sendPrompt()}
               >
                 ${this.promptPending

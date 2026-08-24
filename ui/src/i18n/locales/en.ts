@@ -3735,6 +3735,12 @@ export const en: TranslationMap = {
       cancel: "Cancel",
       cancelHint:
         "Stops this one prompt. The agent stays available — use Stop agent for an emergency.",
+      attach: "Attach",
+      attaching: "Uploading…",
+      attachHint:
+        "Send files with your message. The audit trail records each file's name, type, size and fingerprint — never its contents.",
+      attachmentsQueued: "Files attached to this message",
+      attachmentRemove: "Remove {name} from this message",
     },
     sessions: {
       title: "Active agent sessions",

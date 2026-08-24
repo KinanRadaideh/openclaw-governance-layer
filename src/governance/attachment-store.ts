@@ -69,6 +69,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { redactToolPayloadText } from "../logging/redact.js";
+import { canonicalAccountName } from "./account-name.js";
 import { attachmentsDir } from "./paths.js";
 
 /**
@@ -120,6 +121,16 @@ export type StoredAttachment = {
   storedAt: string;
   storedBy: string;
   agentId: string;
+  /**
+   * When a prompt first named this attachment, if one ever has.
+   *
+   * Absent means no ledger entry refers to it, which is the only state in which
+   * it may be released. Optional so every attachment stored before this field
+   * existed keeps working — absent reads as "never sent", which for those is
+   * either true or safely conservative: the worst case is that an old
+   * attachment can be discarded by the account that uploaded it.
+   */
+  usedAt?: string;
 };
 
 type IndexFile = { version: 1; attachments: StoredAttachment[] };
@@ -238,8 +249,17 @@ export async function storeAttachment(input: {
   await mkdir(attachmentsDir(), { recursive: true, mode: 0o700 });
   const index = await readIndex();
 
+  // **Folded, because `storedBy` is an identity key** (QA round seventeen,
+  // finding 114). `account-name.ts` states the rule its own header was written
+  // for: the canonical form anywhere an account is a key, the stored spelling
+  // only for display. Eight modules obey it; this one was the ninth and did
+  // not, using the display spelling as both the quota key and — once the HTTP
+  // surface landed — the ownership key. The bug it invites is the one that file
+  // documents: `policy.userAsk` was written under one spelling and read under
+  // another, so a governance control silently did nothing.
+  const owner = canonicalAccountName(input.storedBy);
   const used = index.attachments
-    .filter((entry) => entry.storedBy === input.storedBy)
+    .filter((entry) => canonicalAccountName(entry.storedBy) === owner)
     .reduce((sum, entry) => sum + entry.bytes, 0);
   // An identical file already held costs nothing further, so it does not count
   // against the quota a second time.
@@ -268,6 +288,82 @@ export async function storeAttachment(input: {
   };
   await writeFile(indexPath(), JSON.stringify(next), { mode: 0o600 });
   return record;
+}
+
+/**
+ * Marks an attachment as having been named by a prompt.
+ *
+ * The flag exists so `releaseAttachment` can tell the two cases apart, and the
+ * distinction is the whole safety argument for having a delete at all: bytes
+ * nobody has referenced are the operator's to discard, and bytes a ledger entry
+ * names are not. An audit trail that says "a 2.1 MB PNG with this fingerprint
+ * was sent" stops being provable the moment the file behind it can be removed
+ * by the person it incriminates.
+ *
+ * Idempotent, and set at reference time rather than at run time: a prompt that
+ * fails still handed the file over, and the record of that is not conditional
+ * on the agent's reply.
+ */
+export async function markAttachmentUsed(sha256: string): Promise<void> {
+  const index = await readIndex();
+  const entry = index.attachments.find((held) => held.sha256 === sha256);
+  if (!entry || entry.usedAt) {
+    return;
+  }
+  const next: IndexFile = {
+    version: 1,
+    attachments: index.attachments.map((held) =>
+      held.sha256 === sha256 ? { ...held, usedAt: new Date().toISOString() } : held,
+    ),
+  };
+  await writeFile(indexPath(), JSON.stringify(next), { mode: 0o600 });
+}
+
+/** Why a release was refused, so a caller can say something true about it. */
+export type AttachmentReleaseResult = "released" | "not-found" | "already-sent";
+
+/**
+ * Discards an attachment its uploader has not yet sent (QA round 17, finding 113).
+ *
+ * **Why this had to exist.** The store had no delete of any kind and
+ * `sweepOrphans` was exported and never called, so every byte ever uploaded
+ * counted against its account's quota permanently. That was a footnote while
+ * the only surface was the command line, where storing happens at the moment
+ * of sending. The dashboard uploads when a file is *chosen* — which is what
+ * makes the size and type known before the prompt goes out — and that turns the
+ * same gap into a trap: nine abandoned picks of an 8 MB file exhaust a 64 MB
+ * account, with nothing an operator can do about it.
+ *
+ * **Refused once the attachment has been sent**, because at that point a ledger
+ * entry names it and the store is the evidence behind that entry.
+ *
+ * **Refused for anybody but the uploader**, and "not yours" is reported as
+ * `not-found` so the answer carries no information about what other accounts
+ * hold — the same reasoning the login response uses about account existence.
+ */
+export async function releaseAttachment(
+  sha256: string,
+  storedBy: string,
+): Promise<AttachmentReleaseResult> {
+  const index = await readIndex();
+  const entry = index.attachments.find((held) => held.sha256 === sha256);
+  if (!entry || canonicalAccountName(entry.storedBy) !== canonicalAccountName(storedBy)) {
+    return "not-found";
+  }
+  if (entry.usedAt) {
+    return "already-sent";
+  }
+  const next: IndexFile = {
+    version: 1,
+    attachments: index.attachments.filter((held) => held.sha256 !== sha256),
+  };
+  // Index first, then the bytes. The reverse order can leave an entry pointing
+  // at a file that is gone, which reads as corruption; this order can leave a
+  // file nothing references, which is the orphan `sweepOrphans` already counts
+  // and `governance deployment` already reports.
+  await writeFile(indexPath(), JSON.stringify(next), { mode: 0o600 });
+  await rm(join(attachmentsDir(), sha256), { force: true });
+  return "released";
 }
 
 export async function listAttachments(): Promise<StoredAttachment[]> {

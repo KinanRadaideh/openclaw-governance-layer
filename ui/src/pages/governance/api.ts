@@ -361,6 +361,21 @@ export type GovernanceKillResult = {
   inFlightTerminationSupported?: boolean;
 };
 
+/**
+ * What the server records about an attachment, and all it ever returns.
+ *
+ * No content and no URL to fetch content: nothing in this layer renders an
+ * attachment back. An SVG is a script, and the governance dashboard — which
+ * holds the session that administers the installation — is the worst place in
+ * it to run one.
+ */
+export type GovernanceAttachment = {
+  sha256: string;
+  bytes: number;
+  mimeType: string;
+  declaredName: string;
+};
+
 export class GovernanceApi {
   constructor(
     private readonly basePath: string,
@@ -554,11 +569,74 @@ export class GovernanceApi {
     );
   }
 
+  /**
+   * Uploads one attachment and returns what the ledger will record about it.
+   *
+   * The body is the file itself rather than a multipart form: the server does
+   * not ship a multipart parser, and a raw body lets it refuse **while
+   * reading** instead of buffering the whole upload before checking its size.
+   *
+   * The filename goes in a header, base64-encoded — not in the URL, because a
+   * URL is written to browser history and proxy logs and a filename is user
+   * data; and base64 because a header cannot carry the non-ASCII characters
+   * most of the world's filenames contain.
+   */
+  async uploadAttachment(agentId: string, file: File): Promise<GovernanceAttachment> {
+    const encodedName = btoa(String.fromCharCode(...new TextEncoder().encode(file.name)));
+    const response = await fetch(this.url("agent/attachment"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        ...this.headers(false),
+        "Content-Type": "application/octet-stream",
+        "x-agent-id": agentId,
+        "x-attachment-name": encodedName,
+      },
+      body: file,
+    });
+    const text = await response.text();
+    let parsed: { ok?: boolean; attachment?: GovernanceAttachment; error?: { message?: string } };
+    try {
+      parsed = text ? JSON.parse(text) : {};
+    } catch {
+      throw new GovernanceApiError(`Upload failed (${response.status})`, response.status);
+    }
+    if (!response.ok || !parsed.attachment) {
+      throw new GovernanceApiError(
+        parsed.error?.message ?? `Upload failed (${response.status})`,
+        response.status,
+      );
+    }
+    return parsed.attachment;
+  }
+
+  /**
+   * Discards an upload that has not been sent yet.
+   *
+   * The server refuses once a prompt has named the file, because from that
+   * point a ledger entry depends on it. So this is "I picked the wrong file",
+   * not "delete the evidence".
+   */
+  releaseAttachment(sha256: string): Promise<{ ok: true }> {
+    return this.request<{ ok: true }>("agent/attachment/release", {
+      method: "POST",
+      body: { sha256 },
+    });
+  }
+
   /** Sends one prompt and resolves with the reply. */
-  promptAgent(agentId: string, message: string): Promise<GovernancePromptOutcome> {
+  promptAgent(
+    agentId: string,
+    message: string,
+    attachments: readonly string[] = [],
+  ): Promise<GovernancePromptOutcome> {
     return this.request<GovernancePromptOutcome>("agent/prompt", {
       method: "POST",
-      body: { agentId, message },
+      body: {
+        agentId,
+        message,
+        ...(attachments.length > 0 ? { attachments } : {}),
+      },
     });
   }
 
@@ -583,12 +661,21 @@ export class GovernanceApi {
       onProgress: (replySoFar: string) => void;
     },
     signal?: AbortSignal,
+    attachments: readonly string[] = [],
   ): Promise<GovernancePromptOutcome> {
     const response = await fetch(this.url("agent/prompt"), {
       method: "POST",
       credentials: "same-origin",
       headers: { ...this.headers(true), Accept: "text/event-stream" },
-      body: JSON.stringify({ agentId, message, stream: true }),
+      body: JSON.stringify({
+        agentId,
+        message,
+        stream: true,
+        // Hashes only. The bytes were uploaded already, and the server reads
+        // every fact it records from its own index rather than from here —
+        // so a client cannot describe a file as something it is not.
+        ...(attachments.length > 0 ? { attachments } : {}),
+      }),
       ...(signal ? { signal } : {}),
     });
     if (!response.ok || !response.body) {
