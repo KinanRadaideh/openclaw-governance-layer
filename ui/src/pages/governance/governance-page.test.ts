@@ -32,6 +32,8 @@ import type { GovernanceIdentity, GovernancePolicyDocument, GovernancePolicyRule
 import "./governance-page.ts";
 
 type PageState = {
+  agentPolicyView: unknown;
+  agentAccess: unknown;
   identity: GovernanceIdentity | null;
   policy: GovernancePolicyDocument | null;
   users: unknown[];
@@ -286,6 +288,25 @@ function openConversation(extra: Partial<PageState> = {}): Partial<PageState> {
 }
 
 describe("attaching files to a prompt (T14)", () => {
+  it("reaches the attach control by keyboard, not only by mouse (finding 118)", async () => {
+    // The first version was a <label> wrapping a display:none input. It looked
+    // identical and could not be tabbed to at all: display:none takes an input
+    // out of the tab order however its tabindex reads, and a <label> is not
+    // focusable. Same class as finding 103, and found by driving the page
+    // rather than by reading it.
+    const el = await mount(openConversation());
+    const attach = Array.from(el.querySelectorAll("button")).find((button) =>
+      (button.textContent ?? "").includes("Attach"),
+    );
+    expect(attach).toBeDefined();
+    expect(attach?.tagName).toBe("BUTTON");
+    // The input stays hidden and is deliberately out of the tab order, so the
+    // button is the single focusable thing rather than one of two.
+    const hidden = el.querySelector('input[type="file"]');
+    expect(hidden?.getAttribute("tabindex")).toBe("-1");
+    expect(hidden?.getAttribute("aria-hidden")).toBe("true");
+  });
+
   it("offers an attach control on a conversation that can run", async () => {
     const el = await mount(openConversation());
     const picker = el.querySelector('input[type="file"]');
@@ -358,5 +379,63 @@ describe("attaching files to a prompt (T14)", () => {
       (button.textContent ?? "").includes("Send"),
     );
     expect(send?.hasAttribute("disabled")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S2 — who can reach an agent.
+//
+// The route is asserted in `governance-agent-access.test.ts`. What only the
+// component can show is the empty answer, which is the state the requested
+// ecosystem panel specifically calls out: an agent nobody has been assigned,
+// running under Administrator authority alone. Rendering that as blank space
+// would read as a section that failed to load — finding 102, where a failed
+// transcript rendered as a permanent "Loading…".
+// ---------------------------------------------------------------------------
+
+function agentPolicyOpen(access: unknown): Partial<PageState> {
+  return {
+    identity: identity("administrator"),
+    policy: policy([]),
+    agentPolicyView: {
+      agentId: "agent-a",
+      posture: {
+        agentId: "agent-a",
+        mode: "enforce",
+        modeIsOverride: false,
+        ask: "off",
+        askIsOverride: false,
+        lockedDown: false,
+      },
+      rules: [],
+      summary: { allow: 0, deny: 0, global: 0, agentSpecific: 0 },
+    },
+    agentAccess: access,
+  };
+}
+
+describe("who can reach an agent (S2)", () => {
+  it("names the accounts that hold it", async () => {
+    const el = await mount(
+      agentPolicyOpen({ agentId: "agent-a", assignedTo: ["malek", "watcher"] }),
+    );
+    const text = el.textContent ?? "";
+    expect(text).toContain("malek");
+    expect(text).toContain("watcher");
+  });
+
+  it("says nobody in words when the list is empty", async () => {
+    const el = await mount(agentPolicyOpen({ agentId: "agent-a", assignedTo: [] }));
+    expect(el.textContent).toContain("Nobody");
+  });
+
+  it("distinguishes a failed load from an empty list", async () => {
+    // Two different facts. "No one has this agent" and "we could not find out"
+    // must not render identically, or an operator reads a loading failure as a
+    // staffing answer.
+    const el = await mount(agentPolicyOpen(null));
+    const text = el.textContent ?? "";
+    expect(text).toContain("Could not load who has access");
+    expect(text).not.toContain("Nobody");
   });
 });

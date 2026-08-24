@@ -376,6 +376,17 @@ export type GovernanceAttachment = {
   declaredName: string;
 };
 
+/**
+ * Who can reach one agent, by assignment.
+ *
+ * `assignedTo` being empty is a real and important answer — an agent nobody
+ * has been given — and is rendered as such rather than as an absent section.
+ */
+export type GovernanceAgentAccess = {
+  agentId: string;
+  assignedTo: string[];
+};
+
 export class GovernanceApi {
   constructor(
     private readonly basePath: string,
@@ -608,6 +619,19 @@ export class GovernanceApi {
       );
     }
     return parsed.attachment;
+  }
+
+  /**
+   * Which accounts hold this agent by assignment.
+   *
+   * Administrators and Root are deliberately not in the answer: they reach
+   * every agent by role, so including them would make every agent look
+   * identically staffed and hide the distinction this is asked for.
+   */
+  agentAccess(agentId: string): Promise<GovernanceAgentAccess> {
+    return this.request<GovernanceAgentAccess>(
+      `agents/access?agentId=${encodeURIComponent(agentId)}`,
+    );
   }
 
   /**

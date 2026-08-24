@@ -30,6 +30,7 @@ import {
   type GovernancePolicyDocument,
   type GovernancePolicyRule,
   type GovernanceActiveSessionsView,
+  type GovernanceAgentAccess,
   type GovernanceAgentPolicyView,
   type GovernanceRuleTargets,
   type GovernanceKillResult,
@@ -179,6 +180,8 @@ class GovernancePage extends OpenClawLightDomElement {
   /** Agent → policies. Which agent the operator is asking about, and the answer. */
   @state() private agentPolicyAgentId = "";
   @state() private agentPolicyView: GovernanceAgentPolicyView | null = null;
+  /** Who holds this agent by assignment (S2). Null until loaded, [] means nobody. */
+  @state() private agentAccess: GovernanceAgentAccess | null = null;
   @state() private agentPolicyError: string | null = null;
   /**
    * Policies → agents, keyed by rule id.
@@ -753,11 +756,20 @@ class GovernancePage extends OpenClawLightDomElement {
   private async loadAgentPolicy(agentId: string): Promise<void> {
     this.agentPolicyError = null;
     this.agentPolicyView = null;
+    this.agentAccess = null;
     if (!agentId) {
       return;
     }
     try {
       this.agentPolicyView = await this.api().policyForAgent(agentId);
+      // Loaded after the policy and allowed to fail on its own. The roster is
+      // additional context, not the reason the panel was opened, so losing it
+      // must not blank out the rules the operator came to read.
+      try {
+        this.agentAccess = await this.api().agentAccess(agentId);
+      } catch {
+        this.agentAccess = null;
+      }
     } catch (err) {
       // Reported rather than left blank. A 403 here means "not your agent",
       // which is a different fact from "this agent has no rules", and an empty
@@ -823,6 +835,29 @@ class GovernancePage extends OpenClawLightDomElement {
       );
     }
     if (view) {
+      const access = this.agentAccess;
+      rows.push(
+        renderSettingsRow({
+          title: t("governance.agentPolicy.access"),
+          description: t("governance.agentPolicy.accessHint"),
+          // "Nobody" is rendered as a sentence, never as an empty space. An
+          // agent with no User or Viewer assigned is a real and interesting
+          // state — it is running under Administrator authority alone — and an
+          // empty region would read as a section that failed to load, which is
+          // exactly the confusion finding 102 was about.
+          control: access
+            ? access.assignedTo.length > 0
+              ? html`<span>${access.assignedTo.join(", ")}</span>`
+              : renderSettingsStatus({
+                  kind: "warn",
+                  label: t("governance.agentPolicy.accessNobody"),
+                })
+            : renderSettingsStatus({
+                kind: "warn",
+                label: t("governance.agentPolicy.accessUnknown"),
+              }),
+        }),
+      );
       const { posture, summary } = view;
       rows.push(
         renderSettingsRow({
@@ -1981,31 +2016,53 @@ class GovernancePage extends OpenClawLightDomElement {
                   }
                 }}
               />
-              <label
+              <!--
+                A real button that opens a hidden input, rather than a label
+                wrapping one (QA round 18, finding 118).
+
+                The first version was \`<label class="btn"><input type="file"
+                style="display:none">\`, which looks identical and **cannot be
+                reached by keyboard at all**: \`display:none\` takes the input
+                out of the tab order however its \`tabindex\` reads, and a
+                \`<label>\` is not focusable, so there was nothing left to tab
+                to. Every other control in this composer is a \`<button>\`; this
+                one only looked like one.
+
+                Same class as finding 103, and found the same way — by driving
+                the page rather than by reading it.
+              -->
+              <button
                 class="btn"
-                style="display:inline-flex;align-items:center"
+                type="button"
                 title=${t("governance.conversation.attachHint")}
+                ?disabled=${this.promptPending || this.attachmentUploading}
+                @click=${(e: Event) => {
+                  const button = e.currentTarget as HTMLElement;
+                  button.parentElement
+                    ?.querySelector<HTMLInputElement>("input[type=file]")
+                    ?.click();
+                }}
               >
                 ${this.attachmentUploading
                   ? t("governance.conversation.attaching")
                   : t("governance.conversation.attach")}
-                <input
-                  type="file"
-                  multiple
-                  style="display:none"
-                  aria-label=${t("governance.conversation.attach")}
-                  ?disabled=${this.promptPending || this.attachmentUploading}
-                  @change=${(e: Event) => {
-                    const input = e.target as HTMLInputElement;
-                    void this.addAttachments(input.files).finally(() => {
-                      // Reset so choosing the same file again still fires a
-                      // change event; without this, re-picking a file the
-                      // operator had just removed would silently do nothing.
-                      input.value = "";
-                    });
-                  }}
-                />
-              </label>
+              </button>
+              <input
+                type="file"
+                multiple
+                style="display:none"
+                tabindex="-1"
+                aria-hidden="true"
+                @change=${(e: Event) => {
+                  const input = e.target as HTMLInputElement;
+                  void this.addAttachments(input.files).finally(() => {
+                    // Reset so choosing the same file again still fires a
+                    // change event; without this, re-picking a file the
+                    // operator had just removed would silently do nothing.
+                    input.value = "";
+                  });
+                }}
+              />
               <button
                 class="btn btn-primary"
                 ?disabled=${this.promptPending ||

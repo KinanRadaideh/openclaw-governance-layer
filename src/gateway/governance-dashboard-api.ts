@@ -1275,6 +1275,52 @@ export async function handleGovernanceApiRequest(
   // assigned to them. No new permission concept was needed, which is the
   // clearest sign the tier model was drawn correctly.
   // ---------------------------------------------------------------------
+  // Who can reach this agent (S2).
+  //
+  // `findUsersForAgent` has existed in `user-store.ts` since assignment was
+  // built and nothing ever called it: the dashboard could show an operator
+  // which agents *they* had, and never which people an *agent* had. That is
+  // the question an Administrator actually asks before changing a rule or
+  // handing an agent over, and the one the requested ecosystem panel is built
+  // around.
+  //
+  // **`canViewAgent`, not `canManageAgent`.** Seeing who else shares an agent
+  // is a visibility question. A Viewer assigned to an agent may already read
+  // its unmasked audit entries, which name the accounts that acted; refusing
+  // them the roster while showing them the trail would be a distinction with
+  // no content. Authority is still required to *change* anything, and nothing
+  // here changes anything.
+  //
+  // Answering only for an agent the caller can see is what keeps this from
+  // becoming an enumeration oracle: without the scope check a Viewer could ask
+  // about any agent id and map the whole installation's staffing.
+  if (route === "agents/access" && req.method === "GET") {
+    if (!requireRole(res, session, "viewer")) {
+      return true;
+    }
+    const agentId = new URL(req.url ?? "/", "http://localhost").searchParams.get("agentId")?.trim();
+    if (!agentId) {
+      sendInvalidRequest(res, "agentId is required");
+      return true;
+    }
+    if (!canViewAgent(toActor(session), agentId)) {
+      sendJson(res, 403, {
+        error: { message: `You cannot see agent "${agentId}"`, type: "forbidden" },
+      });
+      return true;
+    }
+    const { findUsersForAgent } = await import("../governance/user-store.js");
+    sendJson(res, 200, {
+      agentId,
+      // Accounts that hold this agent by *assignment*. Administrators and Root
+      // are deliberately absent: they reach every agent by role, so listing
+      // them would make every agent look identically staffed and hide the
+      // distinction the panel exists to show.
+      assignedTo: await findUsersForAgent(agentId),
+    });
+    return true;
+  }
+
   if (route === "agent/transcript" && req.method === "GET") {
     if (!requireRole(res, session, "user")) {
       return true;

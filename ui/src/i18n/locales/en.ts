@@ -3626,6 +3626,11 @@ export const en: TranslationMap = {
       expired: "expired",
     },
     agentPolicy: {
+      access: "Who can reach this agent",
+      accessHint:
+        "Accounts given this agent by assignment. Administrators and Root reach every agent by role and are not listed.",
+      accessNobody: "Nobody — no User or Viewer has been assigned this agent.",
+      accessUnknown: "Could not load who has access.",
       title: "What an agent may do",
       hint: "Every rule in force for one agent — the global rules that bind every agent, plus any written for this one. This is what the gate consults, not just what the document lists.",
       pick: "Agent",
