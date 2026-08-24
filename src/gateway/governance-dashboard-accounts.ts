@@ -14,6 +14,7 @@
 // and not a rewrite.
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { guardDeletion, guardRoleChange } from "../governance/account-guards.js";
+import { AgentNotAssignableError, assignAgentsToAccount } from "../governance/agent-registry.js";
 import { canAssignAgents, type GovernanceActor } from "../governance/permissions.js";
 import { isGovernanceRole, type GovernanceRole } from "../governance/roles.js";
 import {
@@ -29,7 +30,6 @@ import {
   DuplicateRootError,
   LastRootError,
   listUsers,
-  setUserAssignedAgents,
   setUserPassword,
   setUserPolicyAuthoring,
   setUserRole,
@@ -319,7 +319,8 @@ export async function handleGovernanceAccountRoutes(
       sendInvalidRequest(res, "userId is required");
       return true;
     }
-    if (!(await targetIsInCallerGroup(userId, session))) {
+    const target = (await listUsers(session.groupId)).find((user) => user.id === userId);
+    if (!target) {
       sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
       return true;
     }
@@ -328,7 +329,23 @@ export async function handleGovernanceAccountRoutes(
       return true;
     }
     const normalized = (agentIds as string[]).map((id) => id.trim()).filter(Boolean);
-    if (!(await setUserAssignedAgents(userId, normalized, auditActor(session)))) {
+    // Through the registry, not straight to the account file (M4). The rule it
+    // adds — an account may only hold agents its own Administrator owns — joins
+    // two stores, and `agent-registry.ts` is the one that owns the join. The
+    // raw `setUserAssignedAgents` still exists as the primitive that writes the
+    // file, and is deliberately no longer reachable from this surface, exactly
+    // as `updatePolicy` is kept out of the policy routes.
+    let assigned: boolean;
+    try {
+      assigned = await assignAgentsToAccount(target, normalized, auditActor(session));
+    } catch (err) {
+      if (err instanceof AgentNotAssignableError) {
+        sendJson(res, 409, { error: { message: err.message, type: "conflict" } });
+        return true;
+      }
+      throw err;
+    }
+    if (!assigned) {
       sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
       return true;
     }

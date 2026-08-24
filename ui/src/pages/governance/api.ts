@@ -387,6 +387,22 @@ export type GovernanceAgentAccess = {
   assignedTo: string[];
 };
 
+/**
+ * One row of the agent registry (M4).
+ *
+ * `registered` is carried rather than inferred from a missing name, because
+ * "this agent has no owner" is a fact the operator has to be told rather than
+ * left to deduce from a blank cell. An unregistered row is an agent that
+ * predates the registry: real, governed by every rule that names it, and owned
+ * by nobody until somebody claims it.
+ */
+export type GovernanceAgentEntry = {
+  agentId: string;
+  displayName?: string;
+  adminId?: string;
+  registered: boolean;
+};
+
 export class GovernanceApi {
   constructor(
     private readonly basePath: string,
@@ -632,6 +648,63 @@ export class GovernanceApi {
     return this.request<GovernanceAgentAccess>(
       `agents/access?agentId=${encodeURIComponent(agentId)}`,
     );
+  }
+
+  /**
+   * The agents in this group: the registry first, and the older reconstruction
+   * only as a fallback (M4).
+   *
+   * The page used to build its agent list by hand from live sessions, locked
+   * agents, assignments and the policy document — everywhere an id happened to
+   * appear. That could never show an agent nobody had yet written a rule for,
+   * which is precisely the agent a newly provisioned one is. This asks the
+   * question directly instead, and the server folds the old reconstruction in
+   * behind it so nothing that used to be listed disappears.
+   */
+  listAgents(): Promise<{ agents: GovernanceAgentEntry[] }> {
+    return this.request<{ agents: GovernanceAgentEntry[] }>("agents");
+  }
+
+  /** Records an agent in this group. Owned by the caller unless Root names another. */
+  registerAgent(
+    agentId: string,
+    displayName: string,
+    adminId?: string,
+  ): Promise<GovernanceAgentEntry> {
+    return this.request<GovernanceAgentEntry>("agents/register", {
+      method: "POST",
+      body: { agentId, displayName, ...(adminId ? { adminId } : {}) },
+    });
+  }
+
+  /** Renames an agent. The id is the host's key and never changes. */
+  renameAgent(agentId: string, displayName: string): Promise<GovernanceAgentEntry> {
+    return this.request<GovernanceAgentEntry>("agents/rename", {
+      method: "POST",
+      body: { agentId, displayName },
+    });
+  }
+
+  /**
+   * Hands an agent to another Administrator.
+   *
+   * Releases it from every account managed by the previous owner, because
+   * assignment is constrained to agents your own Administrator owns — leaving
+   * them holding it would leave the account file contradicting the registry.
+   */
+  setAgentOwner(agentId: string, adminId: string): Promise<GovernanceAgentEntry> {
+    return this.request<GovernanceAgentEntry>("agents/owner", {
+      method: "POST",
+      body: { agentId, adminId },
+    });
+  }
+
+  /** Removes the record only. The agent, its rules and its posture are untouched. */
+  unregisterAgent(agentId: string): Promise<GovernanceAgentEntry> {
+    return this.request<GovernanceAgentEntry>("agents/unregister", {
+      method: "POST",
+      body: { agentId },
+    });
   }
 
   /**

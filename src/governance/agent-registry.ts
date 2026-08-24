@@ -1,0 +1,580 @@
+// The agent registry: the noun the layer never had (M4).
+//
+// Until this file existed, an agent was not a thing the governance layer knew
+// about. It "existed" the moment a rule, a posture override, an escalation
+// override, a lockdown or an account assignment happened to mention its id, and
+// `knownAgentIds()` reconstructed the set incidentally from whatever the policy
+// document named. That is enough to *judge* an agent and not enough to own one:
+// there was nothing to name, nothing to hold, and nothing to list when the
+// honest answer was "none". **Creating an agent was not a missing button; it
+// was a missing noun.**
+//
+// So a record, with the four fields the tenant model actually asks questions
+// about: which agent, what to call it, whose group it is in, and which single
+// Administrator answers for it.
+//
+// **The registry is authoritative and `knownAgentIds()` becomes the fallback**,
+// not the other way round. An id the registry does not hold is a *pre-registry*
+// agent — real, governed, and owned by nobody — and the layer keeps working for
+// it exactly as it did. That is a deliberate asymmetry with M3's treatment of a
+// missing `groupId`, where absence means "unmigrated" and blocks sign-in. The
+// difference is what the absence would cost: an account with no group cannot be
+// placed in one without inventing an answer, while an agent with no record is
+// still governed by every rule that names it, and refusing to work with it
+// would break installations whose agents predate this file for no security
+// gain. The honest cost is stated on `assertAssignable` rather than hidden.
+import { mkdir } from "node:fs/promises";
+import { readJsonIfExists, writeJsonAtomic } from "../infra/json-files.js";
+import { ADMIN_ACTIONS, recordAdminAction, type AuditActorInput } from "./admin-audit.js";
+import { withFileLock } from "./file-lock.js";
+import { agentsFilePath, governanceHomeDir } from "./paths.js";
+import { updateSessionsAssignedAgents } from "./session-tokens.js";
+import { listUsers, setUserAssignedAgents, type GovernanceUserRecord } from "./user-store.js";
+
+/**
+ * One agent, as the governance layer knows it.
+ *
+ * The import direction is one-way and deliberate: this module reads
+ * `user-store.ts` (an agent is owned by an account) and `user-store.ts` knows
+ * nothing about agents. Putting the assignment rule here rather than there is
+ * what keeps it that way — see `assignAgentsToAccount`.
+ */
+export type GovernanceAgent = {
+  /** The id the host and the policy document use. Unique per installation. */
+  id: string;
+  /** What an operator calls it. Free text, bounded, never used as a key. */
+  displayName: string;
+  /** The group that owns it (M3). */
+  groupId: string;
+  /** The single Administrator answerable for it. */
+  adminId: string;
+  createdAt: string;
+};
+
+type AgentsFile = { version: 1; agents: GovernanceAgent[] };
+
+/**
+ * Bounds a display name so one record cannot bloat the registry or the ledger
+ * entry describing it. Matches `MAX_USERNAME_LENGTH`'s reasoning rather than
+ * its number: a name is prose and an account name is a key.
+ */
+export const MAX_AGENT_DISPLAY_NAME_LENGTH = 120;
+
+/**
+ * Ceiling on a registered agent id.
+ *
+ * The same 200 the HTTP surface already clamps an incoming agent id to. Stated
+ * again here because the store is the boundary that keeps what it is given, and
+ * a limit that lives only at one route is a limit the CLI does not have.
+ */
+export const MAX_AGENT_ID_LENGTH = 200;
+
+/** Thrown when the caller names an agent this group does not hold. */
+export class UnknownAgentError extends Error {
+  constructor(agentId: string) {
+    super(`no agent "${agentId}" is registered here`);
+    this.name = "UnknownAgentError";
+  }
+}
+
+/**
+ * Thrown when an id is already registered.
+ *
+ * **Installation-wide, not per group**, and that is the same accepted limit
+ * usernames carry: the id is the key the host's roster and the shared policy
+ * document use, so two groups cannot both hold `main` without one group's rules
+ * binding the other's agent. Until M5 gives each group its own policy document
+ * this is not a naming preference, it is the only correct answer.
+ *
+ * It leaks one bit — that some group, somewhere, has the id — exactly as
+ * "username already exists" does. Recorded as a limit rather than argued away.
+ */
+export class DuplicateAgentError extends Error {
+  constructor(agentId: string) {
+    super(`an agent with id "${agentId}" already exists on this installation`);
+    this.name = "DuplicateAgentError";
+  }
+}
+
+/** Thrown when the nominated owner is not an Administrator in the agent's group. */
+export class AgentOwnerError extends Error {
+  constructor(reason: string) {
+    super(reason);
+    this.name = "AgentOwnerError";
+  }
+}
+
+/**
+ * Thrown when an account is offered an agent its own Administrator does not own.
+ *
+ * The invariant M4 adds to assignment: a User or Viewer may only hold agents
+ * belonging to the Administrator answerable for them. Without it, "each
+ * Administrator owns a set of agents and a set of accounts" is a description of
+ * the panel rather than a property of the system — any Administrator could hand
+ * another's agent to their own staff, and the ownership column would be true of
+ * the record and false of the world.
+ */
+export class AgentNotAssignableError extends Error {
+  constructor(reason: string) {
+    super(reason);
+    this.name = "AgentNotAssignableError";
+  }
+}
+
+async function ensureHomeDir(): Promise<void> {
+  await mkdir(governanceHomeDir(), { recursive: true, mode: 0o700 });
+}
+
+async function readAgentsFile(): Promise<AgentsFile> {
+  return (await readJsonIfExists<AgentsFile>(agentsFilePath())) ?? { version: 1, agents: [] };
+}
+
+/**
+ * The registry's view of an id.
+ *
+ * Unscoped on purpose, and every caller that acts on the result scopes it
+ * afterwards. Registration needs to see across groups (the id is unique per
+ * installation), and the assignment rule needs to know that an id belongs to
+ * *somebody else* rather than to nobody — a distinction that would be lost if
+ * the lookup itself filtered by group.
+ */
+export async function findAgent(agentId: string): Promise<GovernanceAgent | undefined> {
+  const trimmed = agentId.trim();
+  return (await readAgentsFile()).agents.find((agent) => agent.id === trimmed);
+}
+
+/** Every agent registered to one group, oldest first. */
+export async function listAgents(groupId: string | undefined): Promise<GovernanceAgent[]> {
+  const file = await readAgentsFile();
+  // An undefined group is a session issued before M3, which holds nothing.
+  // Returning the whole installation for it would make an unmigrated session
+  // the one view with no boundary at all.
+  if (!groupId) {
+    return [];
+  }
+  return file.agents.filter((agent) => agent.groupId === groupId);
+}
+
+/** The ids one Administrator owns. The set an account they manage may be given. */
+export async function agentIdsOwnedBy(adminId: string): Promise<string[]> {
+  return (await readAgentsFile()).agents
+    .filter((agent) => agent.adminId === adminId)
+    .map((agent) => agent.id)
+    .toSorted();
+}
+
+/**
+ * Validates an owner against the account file.
+ *
+ * Checked at all for the same reason M3 checks a manager: an owner who is not
+ * an Administrator, or is in another group, makes the ownership field a claim
+ * rather than a fact.
+ *
+ * **What this does not give, said plainly.** M3's manager check runs inside the
+ * lock on the file it reads, so it is atomic. This one cannot be: the lock held
+ * here is on `agents.json` and the accounts live in `users.json`, so the
+ * snapshot is taken before the lock and an owner deleted in the same instant
+ * would still pass. The result is a record naming an account that no longer
+ * exists — visible, repairable by re-owning, and not a privilege escalation,
+ * because a deleted account holds nothing. Claiming atomicity here would be the
+ * more dangerous error, so it is written down instead.
+ */
+function assertOwnerEligible(
+  accounts: readonly GovernanceUserRecord[],
+  adminId: string,
+  groupId: string,
+): void {
+  const owner = accounts.find((account) => account.id === adminId);
+  if (!owner || owner.groupId !== groupId) {
+    // One message for "no such account" and for "not in your group", so the
+    // reply says nothing about accounts elsewhere — the oracle the login
+    // response, the attachment lookup and the agent-access route each decline
+    // to be.
+    throw new AgentOwnerError("the nominated Administrator was not found in this group");
+  }
+  if (owner.role !== "administrator") {
+    // Root is excluded for the reason M3 excludes it from `managedBy`: if Root
+    // wants to own an agent directly it creates an Administrator account and
+    // signs into that, which keeps one statable rule and keeps the act
+    // attributable to the hat it was done in.
+    throw new AgentOwnerError("agents are owned by an Administrator");
+  }
+}
+
+export type RegisterAgentInput = {
+  id: string;
+  displayName: string;
+  groupId: string;
+  adminId: string;
+};
+
+/**
+ * Records an agent.
+ *
+ * **This does not create an agent in the host.** M6 does that, by writing
+ * `agents.entries` through `src/config/agent-roster-provenance.ts`, and it is a
+ * change of kind rather than degree — the first time this layer mutates the
+ * host it governs. Registering an id the host does not have is not a mistake in
+ * the meantime: it is exactly how an operator declares ownership of an agent
+ * that already exists in the roster, which is the migration path every existing
+ * installation takes into the registry.
+ */
+export async function registerAgent(
+  input: RegisterAgentInput,
+  actor: AuditActorInput,
+): Promise<GovernanceAgent> {
+  const id = input.id.trim();
+  const displayName = input.displayName.trim();
+  if (!id) {
+    throw new Error("agent id must not be empty");
+  }
+  if (id.length > MAX_AGENT_ID_LENGTH) {
+    throw new Error(`agent id must be at most ${MAX_AGENT_ID_LENGTH} characters in length`);
+  }
+  if (!displayName) {
+    throw new Error("a display name is required");
+  }
+  if (displayName.length > MAX_AGENT_DISPLAY_NAME_LENGTH) {
+    throw new Error(
+      `display name must be at most ${MAX_AGENT_DISPLAY_NAME_LENGTH} characters in length`,
+    );
+  }
+  if (!input.groupId) {
+    throw new Error("an agent must belong to a group");
+  }
+  await ensureHomeDir();
+  const accounts = await listUsers();
+  const created = await withFileLock(agentsFilePath(), async () => {
+    const file = await readAgentsFile();
+    // Uniqueness is re-checked inside the lock, not merely before it: two
+    // registrations of the same id arriving together would otherwise both read
+    // "not taken", both pass, and leave two records for one agent — the same
+    // race the Root cap has been checked inside its own lock for since it
+    // existed.
+    if (file.agents.some((agent) => agent.id === id)) {
+      throw new DuplicateAgentError(id);
+    }
+    assertOwnerEligible(accounts, input.adminId, input.groupId);
+    const agent: GovernanceAgent = {
+      id,
+      displayName,
+      groupId: input.groupId,
+      adminId: input.adminId,
+      createdAt: new Date().toISOString(),
+    };
+    file.agents.push(agent);
+    await writeJsonAtomic(agentsFilePath(), file, { mode: 0o600 });
+    return agent;
+  });
+  await recordAdminAction({
+    actor,
+    action: ADMIN_ACTIONS.agentRegister,
+    // The owner is the security-relevant half of registering an agent, so it is
+    // recorded here rather than left to be inferred from an ownership-change
+    // entry that may never exist.
+    target: `agent ${created.id} ("${created.displayName}") registered to account ${created.adminId}`,
+    agentId: created.id,
+    subjectId: created.id,
+  });
+  return created;
+}
+
+/** Renames an agent. The id never changes; it is the host's key, not ours. */
+export async function renameAgent(
+  agentId: string,
+  displayName: string,
+  groupId: string,
+  actor: AuditActorInput,
+): Promise<GovernanceAgent> {
+  const name = displayName.trim();
+  if (!name) {
+    throw new Error("a display name is required");
+  }
+  if (name.length > MAX_AGENT_DISPLAY_NAME_LENGTH) {
+    throw new Error(
+      `display name must be at most ${MAX_AGENT_DISPLAY_NAME_LENGTH} characters in length`,
+    );
+  }
+  await ensureHomeDir();
+  const changed = await withFileLock(agentsFilePath(), async () => {
+    const file = await readAgentsFile();
+    const agent = file.agents.find((entry) => entry.id === agentId.trim());
+    // An agent in another group is reported as absent rather than refused, for
+    // the reason the account routes report a cross-group id as "no such user":
+    // distinguishing the two would turn every mutator into a probe for whether
+    // an id is in use anywhere on the installation.
+    if (!agent || agent.groupId !== groupId) {
+      throw new UnknownAgentError(agentId);
+    }
+    const previous = agent.displayName;
+    agent.displayName = name;
+    await writeJsonAtomic(agentsFilePath(), file, { mode: 0o600 });
+    return { agent: { ...agent }, previous };
+  });
+  await recordAdminAction({
+    actor,
+    action: ADMIN_ACTIONS.agentRename,
+    target: `agent ${changed.agent.id} name "${changed.previous}" -> "${changed.agent.displayName}"`,
+    agentId: changed.agent.id,
+    subjectId: changed.agent.id,
+  });
+  return changed.agent;
+}
+
+/**
+ * Hands an agent to a different Administrator, and takes it off the people the
+ * previous owner had given it to.
+ *
+ * The second half is not tidying. Assignment is constrained to agents owned by
+ * the account's own Administrator, so leaving the old holders in place would
+ * leave the account file stating something the registry contradicts — an
+ * invariant that holds at the moment of writing and rots afterwards. This
+ * project has already paid for that shape once: `userAsk` was a setting saved,
+ * displayed as active, and never consulted. Repair the state at the moment its
+ * producer changes, rather than teaching every reader to re-derive it.
+ */
+export async function setAgentOwner(
+  agentId: string,
+  adminId: string,
+  groupId: string,
+  actor: AuditActorInput,
+): Promise<GovernanceAgent> {
+  await ensureHomeDir();
+  const accounts = await listUsers();
+  const changed = await withFileLock(agentsFilePath(), async () => {
+    const file = await readAgentsFile();
+    const agent = file.agents.find((entry) => entry.id === agentId.trim());
+    if (!agent || agent.groupId !== groupId) {
+      throw new UnknownAgentError(agentId);
+    }
+    assertOwnerEligible(accounts, adminId, groupId);
+    const previous = agent.adminId;
+    agent.adminId = adminId;
+    await writeJsonAtomic(agentsFilePath(), file, { mode: 0o600 });
+    return { agent: { ...agent }, previous };
+  });
+  await recordAdminAction({
+    actor,
+    action: ADMIN_ACTIONS.agentOwnerChange,
+    // Both owners, because a transfer is only legible as a transition — "owned
+    // by malek" does not say who lost it.
+    target: `agent ${changed.agent.id} owner ${changed.previous} -> ${changed.agent.adminId}`,
+    agentId: changed.agent.id,
+    subjectId: changed.agent.id,
+  });
+  await revokeHoldersOutsideOwner(changed.agent, accounts, actor);
+  return changed.agent;
+}
+
+/**
+ * Removes the record.
+ *
+ * The agent itself is untouched: its rules, its posture and its lockdown all
+ * survive, because the registry never owned those. What it stops being is
+ * *owned* — the id falls back to the pre-registry state it had before M4, which
+ * is the only unregistration that does not silently disarm the assignment rule.
+ * Every account holding it is released for the same reason ownership transfer
+ * releases the ones that no longer qualify.
+ */
+export async function unregisterAgent(
+  agentId: string,
+  groupId: string,
+  actor: AuditActorInput,
+): Promise<GovernanceAgent> {
+  await ensureHomeDir();
+  const accounts = await listUsers();
+  const removed = await withFileLock(agentsFilePath(), async () => {
+    const file = await readAgentsFile();
+    const agent = file.agents.find((entry) => entry.id === agentId.trim());
+    if (!agent || agent.groupId !== groupId) {
+      throw new UnknownAgentError(agentId);
+    }
+    file.agents = file.agents.filter((entry) => entry.id !== agent.id);
+    await writeJsonAtomic(agentsFilePath(), file, { mode: 0o600 });
+    return { ...agent };
+  });
+  await recordAdminAction({
+    actor,
+    action: ADMIN_ACTIONS.agentUnregister,
+    // Name and owner are captured here because the record is gone: after this
+    // point the ledger is the only place that says the agent was ever owned.
+    target: `agent ${removed.id} ("${removed.displayName}", owner ${removed.adminId}) unregistered`,
+    agentId: removed.id,
+    subjectId: removed.id,
+  });
+  await revokeHoldersOutsideOwner({ ...removed, adminId: "" }, accounts, actor);
+  return removed;
+}
+
+/**
+ * Drops one agent from every account in its group whose Administrator is not
+ * its owner.
+ *
+ * Passing `adminId: ""` releases it from everyone, which is what
+ * unregistration wants: an agent nobody owns is an agent nobody can be given.
+ */
+async function revokeHoldersOutsideOwner(
+  agent: GovernanceAgent,
+  accounts: readonly GovernanceUserRecord[],
+  actor: AuditActorInput,
+): Promise<void> {
+  for (const account of accounts) {
+    if (account.groupId !== agent.groupId || !account.assignedAgents.includes(agent.id)) {
+      continue;
+    }
+    // Administrators and Root reach every agent by role, so their assignment
+    // list is inert (see permissions.ts) and there is nothing to revoke. Only
+    // the managed tiers hold an agent by assignment.
+    if (!account.managedBy || account.managedBy === agent.adminId) {
+      continue;
+    }
+    const remaining = account.assignedAgents.filter((id) => id !== agent.id);
+    await setUserAssignedAgents(account.id, remaining, actor);
+    // Bound into any live session immediately, exactly as the assignment route
+    // does. A revocation that only applied at the holder's next login is one an
+    // Administrator would reasonably believe had taken hold when it had not —
+    // the `userAsk` shape again, and the reason `setUserPolicyAuthoring`
+    // carries the same instruction in its own doc comment.
+    await updateSessionsAssignedAgents(account.id, remaining);
+  }
+}
+
+/**
+ * Refuses agents the account's own Administrator does not own.
+ *
+ * Three outcomes, and the middle one is the honest limit of M4:
+ *
+ *   - **Registered here, owned by this account's Administrator** — allowed.
+ *   - **Not registered at all** — allowed, because the id is a pre-registry
+ *     agent. Every installation that predates this file has these, they are
+ *     governed by every rule that names them, and refusing them would break
+ *     working assignments to buy nothing: an agent nobody has claimed cannot be
+ *     stolen from an owner who does not exist. **The cost is that the rule can
+ *     be sidestepped by not registering**, which makes the registry a statement
+ *     of ownership rather than a gate on it. Closing that needs registration to
+ *     be mandatory, which needs M6's provisioning to exist first — there is no
+ *     honest way to require a record for agents the layer cannot yet create.
+ *   - **Registered to somebody else** — refused, and this is the case with
+ *     teeth. It covers both another Administrator inside the group and another
+ *     group entirely, and it is the one an ownership model exists to stop.
+ *
+ * The ownership half applies to **managed accounts only**. An Administrator or
+ * a Root has no `managedBy`, reaches every agent by role, and carries an
+ * assignment list that `permissions.ts` ignores entirely — so "which
+ * Administrator owns it" is not a question their list can answer wrongly. The
+ * group half still applies to them, because group isolation is not conditional
+ * on what a list is used for.
+ */
+export async function assertAssignable(
+  agentIds: readonly string[],
+  managerId: string | undefined,
+  groupId: string | undefined,
+): Promise<void> {
+  if (agentIds.length === 0) {
+    return;
+  }
+  const file = await readAgentsFile();
+  for (const agentId of agentIds) {
+    const agent = file.agents.find((entry) => entry.id === agentId);
+    if (!agent) {
+      continue;
+    }
+    if (agent.groupId !== groupId) {
+      // Said as "not yours" rather than "belongs to group X", so the refusal
+      // does not become a way to enumerate another organisation's agents.
+      throw new AgentNotAssignableError(`agent "${agentId}" is not yours to assign`);
+    }
+    if (managerId && agent.adminId !== managerId) {
+      throw new AgentNotAssignableError(
+        `agent "${agentId}" belongs to a different Administrator, so it cannot be assigned here`,
+      );
+    }
+  }
+}
+
+/**
+ * Assigns agents to an account, checking ownership first.
+ *
+ * **The governed entry point, and the reason it lives here rather than in
+ * `user-store.ts`.** The rule joins two stores — the registry owns who owns an
+ * agent, the account file owns who holds one — and putting the check in
+ * `setUserAssignedAgents` would make `user-store.ts` import this module while
+ * this module already imports it. One direction is worth more than one
+ * function: the registry knows about accounts, accounts know nothing about
+ * agents, and the cycle never exists to be reasoned about.
+ *
+ * `setUserAssignedAgents` survives as the unchecked primitive that writes the
+ * file, the same arrangement `updatePolicy` has under the policy setters. Every
+ * caller that answers to an operator — the route, the command line — comes
+ * through here.
+ *
+ * The two files are locked separately, so an ownership change racing an
+ * assignment can land after the check. That leaves an account holding an agent
+ * its Administrator no longer owns, which `setAgentOwner` then repairs on its
+ * own next pass — a state the system corrects rather than one it cannot
+ * describe.
+ */
+export async function assignAgentsToAccount(
+  account: GovernanceUserRecord,
+  agentIds: readonly string[],
+  actor: AuditActorInput,
+): Promise<boolean> {
+  await assertAssignable(agentIds, account.managedBy, account.groupId);
+  return setUserAssignedAgents(account.id, agentIds, actor);
+}
+
+/**
+ * The group's agents, registry first and `knownAgentIds()` as the fallback.
+ *
+ * Both halves are needed and neither is sufficient. The registry holds agents
+ * that exist and have never been mentioned in a rule — which is the whole point
+ * of having one, and is invisible to the old reconstruction. The fallback holds
+ * agents that predate the registry, which are real, governed, and would vanish
+ * from every picker the day the registry became the only source.
+ *
+ * `registered` is carried rather than inferred, because "this agent has no
+ * owner" is exactly what an Administrator's panel has to be able to say out
+ * loud. An unregistered row rendered identically to a registered one would hide
+ * the one fact the operator needs in order to fix it.
+ */
+export type AgentListEntry = {
+  agentId: string;
+  displayName?: string;
+  adminId?: string;
+  registered: boolean;
+};
+
+export async function listAgentsWithFallback(
+  groupId: string | undefined,
+  fallbackAgentIds: readonly string[],
+): Promise<AgentListEntry[]> {
+  // One read, then both partitions from it. Reading the file twice would let
+  // the two halves of one answer come from two different states of it.
+  const file = await readAgentsFile();
+  const registered = groupId
+    ? file.agents.filter((agent) => agent.groupId === groupId)
+    : // An undefined group is a session issued before M3, which holds nothing.
+      [];
+  const entries: AgentListEntry[] = registered.map((agent) => ({
+    agentId: agent.id,
+    displayName: agent.displayName,
+    adminId: agent.adminId,
+    registered: true,
+  }));
+  const held = new Set(registered.map((agent) => agent.id));
+  // An id registered to *another* group is deliberately not folded in as a
+  // fallback row: it is somebody else's agent, and the shared policy document
+  // is the only reason this caller ever saw the id at all. That reason
+  // disappears at M5, and this filter is what stops the interim leaking.
+  const elsewhere = new Set(
+    file.agents.filter((agent) => agent.groupId !== groupId).map((agent) => agent.id),
+  );
+  for (const agentId of fallbackAgentIds) {
+    if (!agentId || held.has(agentId) || elsewhere.has(agentId)) {
+      continue;
+    }
+    held.add(agentId);
+    entries.push({ agentId, registered: false });
+  }
+  return entries.toSorted((a, b) => a.agentId.localeCompare(b.agentId));
+}

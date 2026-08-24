@@ -184,6 +184,34 @@ const ROUTES: RouteCase[] = [
     floor: "administrator",
     body: { userId: "nope", agentIds: [] },
   },
+  // The agent registry (M4). Reading the group's agents is a Viewer act;
+  // changing the registry is agent management, so the floor is Administrator.
+  // Ownership is checked *after* the tier, and is not what this suite is about.
+  { method: "GET", route: "agents", floor: "viewer" },
+  {
+    method: "POST",
+    route: "agents/register",
+    floor: "administrator",
+    body: { agentId: "agent-a", displayName: "A" },
+  },
+  {
+    method: "POST",
+    route: "agents/rename",
+    floor: "administrator",
+    body: { agentId: "agent-a", displayName: "A" },
+  },
+  {
+    method: "POST",
+    route: "agents/owner",
+    floor: "administrator",
+    body: { agentId: "agent-a", adminId: "nope" },
+  },
+  {
+    method: "POST",
+    route: "agents/unregister",
+    floor: "administrator",
+    body: { agentId: "agent-a" },
+  },
   { method: "POST", route: "policy/hitl-timeout", floor: "root", body: { seconds: 60 } },
   // Root, not viewer like its neighbour `system`: this route reports the bind
   // mode, port, gateway auth mode and governance directory — a map of how to

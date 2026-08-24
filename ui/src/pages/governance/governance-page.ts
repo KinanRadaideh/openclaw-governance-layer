@@ -31,6 +31,7 @@ import {
   type GovernancePolicyRule,
   type GovernanceActiveSessionsView,
   type GovernanceAgentAccess,
+  type GovernanceAgentEntry,
   type GovernanceAgentPolicyView,
   type GovernanceRuleTargets,
   type GovernanceKillResult,
@@ -182,6 +183,16 @@ class GovernancePage extends OpenClawLightDomElement {
   @state() private agentPolicyView: GovernanceAgentPolicyView | null = null;
   /** Who holds this agent by assignment (M2). Null until loaded, [] means nobody. */
   @state() private agentAccess: GovernanceAgentAccess | null = null;
+  /**
+   * The agent registry for this group (M4).
+   *
+   * The source of truth for "which agents exist"; the reconstruction in
+   * `knownAgentIds()` below is now the fallback rather than the answer. An
+   * empty array is a real state — a group that has registered nothing — and is
+   * not the same as the request having failed, so it is distinguished by the
+   * refresh flag rather than by emptiness.
+   */
+  @state() private agents: GovernanceAgentEntry[] = [];
   @state() private agentPolicyError: string | null = null;
   /**
    * Policies → agents, keyed by rule id.
@@ -390,6 +401,9 @@ class GovernancePage extends OpenClawLightDomElement {
       // position below, so inserting into the middle silently misassigns every
       // field after the insertion point.
       this.identity?.role === "root" ? api.deploymentStatus() : Promise.resolve(null),
+      // The agent registry (M4). Appended at the end for the reason stated
+      // immediately above: this array is destructured by position.
+      api.listAgents(),
     ]);
 
     // A 401 anywhere means the login is gone, and that *does* end the session —
@@ -411,6 +425,7 @@ class GovernancePage extends OpenClawLightDomElement {
       pendingDecisions,
       users,
       deployment,
+      agents,
     ] = results;
     if (policy.status === "fulfilled") {
       this.policy = policy.value;
@@ -436,6 +451,9 @@ class GovernancePage extends OpenClawLightDomElement {
     if (deployment.status === "fulfilled") {
       this.deployment = deployment.value;
     }
+    if (agents.status === "fulfilled") {
+      this.agents = agents.value.agents;
+    }
 
     const failed = results.filter((result) => result.status === "rejected").length;
     // Say so rather than leaving the operator to notice a panel is stale. On the
@@ -460,6 +478,7 @@ class GovernancePage extends OpenClawLightDomElement {
     this.ledger = [];
     this.users = [];
     this.activeSessions = null;
+    this.agents = [];
     this.pendingDecisions = [];
     this.ruleRequests = [];
     this.systemStatus = null;
@@ -817,7 +836,9 @@ class GovernancePage extends OpenClawLightDomElement {
             }}
           />
           <datalist id="governance-agent-policy-ids">
-            ${choices.map((agentId) => html`<option value=${agentId}></option>`)}
+            ${choices.map(
+              (agentId) => html`<option value=${agentId}>${this.agentLabel(agentId)}</option>`,
+            )}
           </datalist>
           <button
             class="btn btn-primary"
@@ -1319,7 +1340,10 @@ class GovernancePage extends OpenClawLightDomElement {
                       ${(this.canAdminister()
                         ? this.knownAgentIds()
                         : (this.identity?.assignedAgents ?? [])
-                      ).map((agentId) => html`<option value=${agentId}></option>`)}
+                      ).map(
+                        (agentId) =>
+                          html`<option value=${agentId}>${this.agentLabel(agentId)}</option>`,
+                      )}
                     </datalist>`
                 }
                 <input
@@ -1400,15 +1424,30 @@ class GovernancePage extends OpenClawLightDomElement {
   /**
    * Every agent id this page has seen, for the controls that take one.
    *
-   * Drawn from the three places the page already knows about agents — live
-   * sessions, agents already locked down, and the accounts' assignments — so it
-   * needs no new request and stays correct as those refresh. Deliberately a
-   * *superset* of the running agents: an operator stopping an agent that is
-   * idle right now is doing something legitimate, and an idle agent must not
-   * disappear from the list of things you can stop.
+   * **The registry leads and the reconstruction follows (M4).** What follows
+   * used to be the whole answer: the page inferred which agents existed from
+   * every place an id happened to appear — live sessions, lockdowns,
+   * assignments, and the four doors into the policy document. That is a
+   * reasonable reconstruction and it has one hole it can never close: an agent
+   * that exists and has never been the subject of a rule, a posture, a lock or
+   * an assignment is invisible to it. A newly provisioned agent is exactly
+   * that agent, which is why the panel M6 builds could not have been built on
+   * this method.
+   *
+   * Both halves are kept, and neither is redundant. The registry holds agents
+   * the reconstruction cannot see; the reconstruction holds agents that
+   * predate the registry, which are real, governed, and would vanish from every
+   * picker on this page the day the registry became the only source.
+   *
+   * Still deliberately a *superset* of the running agents: an operator stopping
+   * an agent that is idle right now is doing something legitimate, and an idle
+   * agent must not disappear from the list of things you can stop.
    */
   private knownAgentIds(): string[] {
     const ids = new Set<string>();
+    for (const agent of this.agents) {
+      ids.add(agent.agentId);
+    }
     for (const session of this.activeSessions?.sessions ?? []) {
       ids.add(session.agentId);
     }
@@ -1438,11 +1477,25 @@ class GovernancePage extends OpenClawLightDomElement {
     for (const agentId of Object.keys(this.policy?.agentAsk ?? {})) {
       ids.add(agentId);
     }
-    return [...ids].sort();
+    return [...ids].toSorted();
   }
 
   private isKnownAgentId(agentId: string): boolean {
     return this.knownAgentIds().includes(agentId);
+  }
+
+  /**
+   * What to call an agent in a list.
+   *
+   * The id alone was the only thing the page could ever show, because the id
+   * was the only thing it had. Where a name is registered it is shown beside
+   * the id rather than instead of it: the id is what every rule, ledger entry
+   * and command line argument uses, so replacing it would make the screen and
+   * the audit trail talk about the same agent in two vocabularies.
+   */
+  private agentLabel(agentId: string): string {
+    const registered = this.agents.find((agent) => agent.agentId === agentId);
+    return registered?.displayName ? `${agentId} — ${registered.displayName}` : agentId;
   }
 
   private async engageKillSwitch(agentId: string): Promise<void> {
@@ -2329,8 +2382,11 @@ class GovernancePage extends OpenClawLightDomElement {
             })
           : nothing,
         ...visibleLedger
-          .slice()
-          .reverse()
+          // `toReversed`, which copies — the `slice()` that used to guard the
+          // in-place `reverse()` is no longer needed, and `visibleLedger` is
+          // derived from `this.ledger`, so reversing it in place would have
+          // reordered the state behind every other reader of that array.
+          .toReversed()
           .slice(0, 50)
           .map((entry) =>
             renderSettingsRow({
@@ -2490,7 +2546,7 @@ class GovernancePage extends OpenClawLightDomElement {
     const recent = this.ruleRequests
       .filter((request) => request.status !== "pending")
       .slice(-5)
-      .reverse();
+      .toReversed();
     // Users propose; Administrators decide. Both see the queue.
     const canPropose = this.canManageAnyAgent() || this.identity?.role === "user";
     const canDecide = this.canAdminister();
@@ -3007,7 +3063,15 @@ class GovernancePage extends OpenClawLightDomElement {
                 : nothing
             }
             <datalist id="governance-known-agents">
-              ${this.knownAgentIds().map((agentId) => html`<option value=${agentId}></option>`)}
+              ${
+                // The label is the option's *text*, the id stays its value — so
+                // a registered name helps the operator find the right agent
+                // while what lands in the field is still the id every rule and
+                // ledger entry uses (M4).
+                this.knownAgentIds().map(
+                  (agentId) => html`<option value=${agentId}>${this.agentLabel(agentId)}</option>`,
+                )
+              }
             </datalist>
             <button
               class="btn btn--danger"

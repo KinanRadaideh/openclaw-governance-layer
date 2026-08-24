@@ -221,3 +221,15 @@ export function watchClientDisconnect(
     }
   };
 }
+
+/**
+ * Ceiling for a small JSON control message.
+ *
+ * Lives beside `readJsonBodyOrError` because it is always its second argument,
+ * and because it is a property of the HTTP surface rather than of any one route
+ * module — it was a private constant in `governance-dashboard-api.ts` until the
+ * agent-control routes were split out of that file (T16) and needed the same
+ * number. Two copies of a body limit is how the two drift apart, and the
+ * smaller of them becomes a bug nobody looks for.
+ */
+export const MAX_JSON_BODY_BYTES = 8192;

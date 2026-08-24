@@ -123,6 +123,25 @@ export const ADMIN_ACTIONS = {
    * find nothing if this were folded into the role change that did not happen.
    */
   userPolicyAuthoringChange: "governance.account.policy-authoring",
+  /**
+   * The agent registry (M4): an agent recorded, renamed, handed over, or
+   * removed from the registry.
+   *
+   * Four actions rather than one because they answer different questions, and
+   * because three of them are the only place some facts survive. An
+   * unregistration deletes the record, so the ledger becomes the sole account
+   * of who owned the agent; a transfer is only legible as a transition, since
+   * "owned by malek" does not say who lost it.
+   *
+   * `agentRegister` is deliberately **not** a claim that an agent was created
+   * in the host. Nothing here writes OpenClaw's roster — M6 does that — so an
+   * auditor reading this entry learns that a group claimed an id, which is
+   * exactly what happened.
+   */
+  agentRegister: "governance.agent.register",
+  agentRename: "governance.agent.rename",
+  agentOwnerChange: "governance.agent.owner",
+  agentUnregister: "governance.agent.unregister",
   ruleRequestSubmit: "governance.rule-request.submit",
   ruleRequestDecide: "governance.rule-request.decide",
   pendingDecisionDecide: "governance.pending-decision.decide",

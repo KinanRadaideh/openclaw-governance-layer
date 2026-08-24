@@ -153,3 +153,16 @@ export function conversationsFilePath(): string {
 export function pendingDecisionsFilePath(): string {
   return join(governanceHomeDir(), "pending-decisions.json");
 }
+
+/**
+ * The agent registry (M4).
+ *
+ * Beside `users.json` rather than inside the policy document, and the split is
+ * the point: the policy document says how an agent is *judged*, the registry
+ * says that the agent *exists*, who owns it and what to call it. Folding the
+ * second into the first would make deleting a rule capable of deleting an
+ * agent, which is the confusion the registry exists to end.
+ */
+export function agentsFilePath(): string {
+  return join(governanceHomeDir(), "agents.json");
+}

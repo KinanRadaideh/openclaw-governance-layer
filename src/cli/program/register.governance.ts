@@ -2,7 +2,6 @@
 // tamper-evident audit ledger, and trigger the kill switch from the terminal.
 import type { Command } from "commander";
 import { listActiveSessions } from "../../governance/active-sessions.js";
-import type { AuditActorInput } from "../../governance/admin-audit.js";
 import { tailLedger, verifyLedgerChain } from "../../governance/audit-ledger.js";
 import { auditLoginSuccess, auditLogout } from "../../governance/auth-audit.js";
 import { coreRules, seedRuleId } from "../../governance/baseline-policy.js";
@@ -20,7 +19,6 @@ import {
   canManageAccounts,
   canManageAgent,
   canManageGlobalPolicy,
-  type GovernanceActor,
 } from "../../governance/permissions.js";
 import {
   agentPolicyView,
@@ -58,35 +56,8 @@ import { authenticate } from "../../governance/user-store.js";
 import { defaultRuntime } from "../../runtime.js";
 import { runCommandWithRuntime } from "../cli-utils.js";
 import { promptSecret, promptText } from "../prompt.js";
-
-/**
- * Resolves the signed-in operator and checks their tier, or refuses.
- *
- * One helper rather than a check per command, and it takes the *question* as a
- * predicate so every command asks it through the same permission functions the
- * HTTP routes use (`canManageGlobalPolicy`, `canAuthorPolicyForAgent`,
- * `canManageAgent`). Two surfaces that ask the same question two ways is how
- * they end up giving two answers, which is this project's most-found defect.
- *
- * Returns the audit actor on success so the caller has nothing to remember: the
- * only way to get past this function is holding the value it produces.
- */
-async function requireCliActor(
-  runtime: typeof defaultRuntime,
-  what: string,
-  permitted: (actor: GovernanceActor) => boolean,
-): Promise<AuditActorInput | undefined> {
-  const identity = await currentCliIdentity();
-  if (!identity) {
-    runtime.log("Not signed in. Run `openclaw governance login` first.");
-    return undefined;
-  }
-  if (!permitted(toCliActor(identity))) {
-    runtime.log(`Your account (${identity.role}) is not permitted to ${what}.`);
-    return undefined;
-  }
-  return toCliAuditActor(identity);
-}
+import { requireCliActor } from "./governance-cli-gate.js";
+import { registerGovernanceAgentCommands } from "./register.governance.agents.js";
 
 export function registerGovernanceCommands(program: Command): void {
   const governance = program
@@ -252,6 +223,12 @@ export function registerGovernanceCommands(program: Command): void {
         defaultRuntime.log(`deleted ${removed} account(s) that predated groups`);
       });
     });
+
+  // The agent registry (M4) lives in its own module: it added a command group
+  // to a file already 163 lines past the project's 700-line limit (T16), and
+  // the seam is the same one the HTTP routes were split along — one file, one
+  // statable authorization rule.
+  registerGovernanceAgentCommands(governance);
 
   policy
     .command("request-setting <agentId> <setting> <value>")

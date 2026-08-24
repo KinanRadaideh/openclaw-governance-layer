@@ -93,6 +93,10 @@ const MUTATING_ROUTES: Array<[string, GovernanceRole]> = [
   ["users", "root"],
   ["users/role", "root"],
   ["users/agents", "administrator"],
+  ["agents/register", "administrator"],
+  ["agents/rename", "administrator"],
+  ["agents/owner", "administrator"],
+  ["agents/unregister", "administrator"],
   ["users/delete", "root"],
   ["kill", "user"],
 ];

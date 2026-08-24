@@ -72,6 +72,23 @@ export type CliIdentity = {
   role: GovernanceRole;
   assignedAgents: string[];
   canAuthorPolicy?: boolean;
+  /**
+   * The account id and the group it acts inside, carried from the session (M4).
+   *
+   * Neither was needed while every command-line act was either installation-wide
+   * or scoped by assignment. The agent registry needs both: the group bounds
+   * what the operator can see at all, and the id answers "is this my agent?",
+   * which is the question that decides whether they may rename, re-own or
+   * unregister it. Resolving those from the username instead would be a second
+   * lookup that could disagree with the session — and a session is already the
+   * one place both facts are authoritative.
+   *
+   * Optional because a session issued before M3 carries no group. That session
+   * belongs to an account that can no longer sign in, so it holds nothing and
+   * the registry answers it with an empty list rather than an error.
+   */
+  userId: string;
+  groupId?: string;
 };
 
 /**
@@ -95,7 +112,9 @@ export async function currentCliIdentity(): Promise<CliIdentity | undefined> {
     username: session.username,
     role: session.role,
     assignedAgents: session.assignedAgents,
+    userId: session.userId,
     ...(session.canAuthorPolicy !== undefined ? { canAuthorPolicy: session.canAuthorPolicy } : {}),
+    ...(session.groupId ? { groupId: session.groupId } : {}),
   };
 }
 
