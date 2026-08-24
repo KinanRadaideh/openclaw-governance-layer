@@ -24,6 +24,8 @@ import { buildGatewaySessionRow } from "../../gateway/session-utils.js";
 import { withTempConfig } from "../../gateway/test-temp-config.js";
 import { emitAgentEvent, resetAgentEventsForTest } from "../../infra/agent-events.js";
 import { resolvePreferredOpenClawTmpDir } from "../../infra/tmp-openclaw-dir.js";
+import { closeOpenClawAgentDatabases } from "../../state/openclaw-agent-db.js";
+import { closeOpenClawStateDatabaseForTest } from "../../state/openclaw-state-db.js";
 import { withEnvAsync } from "../../test-utils/env.js";
 import type {
   AgentToolResultMiddlewareContext,
@@ -163,6 +165,19 @@ async function withHostHookState(
       });
     });
   } finally {
+    // Close the cached SQLite handles before removing the directory holding
+    // them. This fixture points both `OPENCLAW_STATE_DIR` and the session store
+    // at `stateDir`, so a run that touches session state leaves
+    // `openclaw-agent.sqlite` (and its `-wal` sidecar) open inside it. POSIX
+    // allows unlinking an open file, so the omission is invisible on Linux and
+    // macOS; Windows refuses with EBUSY and nine tests fail in teardown while
+    // the behaviour they assert has already passed.
+    //
+    // Both closers are needed because two different caches are involved — the
+    // agent database and the shared state database — and this fixture can open
+    // either.
+    closeOpenClawAgentDatabases();
+    closeOpenClawStateDatabaseForTest();
     await fs.rm(stateDir, { recursive: true, force: true });
   }
 }

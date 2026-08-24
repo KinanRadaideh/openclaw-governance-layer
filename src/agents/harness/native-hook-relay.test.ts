@@ -16,6 +16,7 @@ import { createMockPluginRegistry } from "../../plugins/hooks.test-fixtures.js";
 import { patchPluginSessionExtension } from "../../plugins/host-hook-state.js";
 import { createEmptyPluginRegistry } from "../../plugins/registry-empty.js";
 import { setActivePluginRegistry } from "../../plugins/runtime.js";
+import { closeOpenClawAgentDatabases } from "../../state/openclaw-agent-db.js";
 import { resolveOpenClawStateSqlitePath } from "../../state/openclaw-state-db.paths.js";
 import { invokeNativeHookRelayBridge } from "./native-hook-relay-client.js";
 import {
@@ -34,6 +35,38 @@ import {
 } from "./native-hook-relay.js";
 
 const NATIVE_HOOK_RELAY_EXEC_PREFIX = process.platform === "win32" ? "" : "exec ";
+
+/**
+ * Quotes one argument the way a shell on *this* platform needs it.
+ *
+ * The relay builds its command for whatever shell will run it, so the expected
+ * string differs by platform: `cmd.exe` needs `"..."` and a POSIX shell needs
+ * `'...'`. This file already knew that much — `NATIVE_HOOK_RELAY_EXEC_PREFIX`
+ * above is the same idea — but every command expectation below still spelled
+ * the POSIX form as a literal, so eight tests failed on Windows against code
+ * that was behaving correctly.
+ *
+ * **Deliberately restated here rather than imported from
+ * `native-hook-relay-utils.ts`.** A test that builds its expectation by calling
+ * the function under test asserts `f(x) === f(x)`: it passes whatever the rule
+ * is, including a wrong one. Writing the rule out a second time is what lets
+ * these assertions disagree with the implementation, which is the only reason
+ * they are worth running.
+ */
+function shellQuoteForTests(value: string): string {
+  // Arguments made only of these characters need no quoting on either
+  // platform, which is why a POSIX temp path appears bare below and a Windows
+  // one (with its backslashes and drive colon) does not.
+  if (/^[A-Za-z0-9_/:=.,@%+-]+$/.test(value)) {
+    return value;
+  }
+  return process.platform === "win32"
+    ? `"${value.replaceAll('"', '\\"')}"`
+    : `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+/** The relay executable path used throughout, quoted for the running platform. */
+const RELAY_SCRIPT_ARG = shellQuoteForTests("/opt/Open Claw/openclaw.mjs");
 
 afterEach(() => {
   vi.useRealTimers();
@@ -117,7 +150,11 @@ function uniqueNativeHookRelayIdForTests(prefix: string): string {
 }
 
 function nativeHookRelayStateDbArgForTests(): string {
-  return `--state-db ${resolveOpenClawStateSqlitePath()}`;
+  // Quoted through the same rule as every other argument. On POSIX the temp
+  // path is all safe characters and comes back bare; on Windows its
+  // backslashes put it outside that set, so the relay quotes it and so must
+  // this expectation.
+  return `--state-db ${shellQuoteForTests(resolveOpenClawStateSqlitePath())}`;
 }
 
 function openDeferredNativeHookRelayBridgeRequest(
@@ -248,15 +285,15 @@ describe("native hook relay registry", () => {
       },
     );
     expect(relay.commandForEvent("pre_tool_use")).toBe(
-      `${NATIVE_HOOK_RELAY_EXEC_PREFIX}/usr/local/bin/node '/opt/Open Claw/openclaw.mjs' hooks relay --provider codex --relay-id ` +
+      `${NATIVE_HOOK_RELAY_EXEC_PREFIX}/usr/local/bin/node ${RELAY_SCRIPT_ARG} hooks relay --provider codex --relay-id ` +
         `${relay.relayId} ${nativeHookRelayStateDbArgForTests()} --generation ${relay.generation} --event pre_tool_use --timeout 1234`,
     );
     expect(relay.commandForEvent("pre_tool_use", { timeoutMs: 900 })).toBe(
-      `${NATIVE_HOOK_RELAY_EXEC_PREFIX}/usr/local/bin/node '/opt/Open Claw/openclaw.mjs' hooks relay --provider codex --relay-id ` +
+      `${NATIVE_HOOK_RELAY_EXEC_PREFIX}/usr/local/bin/node ${RELAY_SCRIPT_ARG} hooks relay --provider codex --relay-id ` +
         `${relay.relayId} ${nativeHookRelayStateDbArgForTests()} --generation ${relay.generation} --event pre_tool_use --timeout 900`,
     );
     expect(relay.commandForEvent("pre_tool_use", { timeoutMs: 2_000 })).toBe(
-      `${NATIVE_HOOK_RELAY_EXEC_PREFIX}/usr/local/bin/node '/opt/Open Claw/openclaw.mjs' hooks relay --provider codex --relay-id ` +
+      `${NATIVE_HOOK_RELAY_EXEC_PREFIX}/usr/local/bin/node ${RELAY_SCRIPT_ARG} hooks relay --provider codex --relay-id ` +
         `${relay.relayId} ${nativeHookRelayStateDbArgForTests()} --generation ${relay.generation} --event pre_tool_use --timeout 1234`,
     );
   });
@@ -543,7 +580,7 @@ describe("native hook relay registry", () => {
     expect(relay.shouldRelayEvent("before_agent_finalize")).toBe(false);
     expect(relay.shouldRelayEvent("permission_request")).toBe(true);
     expect(relay.commandForEvent("pre_tool_use")).toBe(
-      `${NATIVE_HOOK_RELAY_EXEC_PREFIX}/usr/local/bin/node '/opt/Open Claw/openclaw.mjs' hooks relay --provider codex --relay-id ` +
+      `${NATIVE_HOOK_RELAY_EXEC_PREFIX}/usr/local/bin/node ${RELAY_SCRIPT_ARG} hooks relay --provider codex --relay-id ` +
         `${relay.relayId} ${nativeHookRelayStateDbArgForTests()} --generation ${relay.generation} --event pre_tool_use --pre-tool-use-unavailable noop --timeout 1234`,
     );
   });
@@ -569,7 +606,7 @@ describe("native hook relay registry", () => {
     expect(relay.shouldRelayEvent("pre_tool_use")).toBe(true);
     expect(relay.toolMatcherForEvent("pre_tool_use")).toEqual(["exec"]);
     expect(relay.commandForEvent("pre_tool_use")).toBe(
-      `${NATIVE_HOOK_RELAY_EXEC_PREFIX}/usr/local/bin/node '/opt/Open Claw/openclaw.mjs' hooks relay --provider codex --relay-id ` +
+      `${NATIVE_HOOK_RELAY_EXEC_PREFIX}/usr/local/bin/node ${RELAY_SCRIPT_ARG} hooks relay --provider codex --relay-id ` +
         `${relay.relayId} ${nativeHookRelayStateDbArgForTests()} --generation ${relay.generation} --event pre_tool_use --timeout 1234`,
     );
   });
@@ -637,7 +674,7 @@ describe("native hook relay registry", () => {
 
     expect(relay.shouldRelayEvent("pre_tool_use")).toBe(true);
     expect(relay.commandForEvent("pre_tool_use")).toBe(
-      `${NATIVE_HOOK_RELAY_EXEC_PREFIX}/usr/local/bin/node '/opt/Open Claw/openclaw.mjs' hooks relay --provider codex --relay-id ` +
+      `${NATIVE_HOOK_RELAY_EXEC_PREFIX}/usr/local/bin/node ${RELAY_SCRIPT_ARG} hooks relay --provider codex --relay-id ` +
         `${relay.relayId} ${nativeHookRelayStateDbArgForTests()} --generation ${relay.generation} --event pre_tool_use --timeout 1234`,
     );
   });
@@ -689,7 +726,7 @@ describe("native hook relay registry", () => {
     expect(relay.toolMatcherForEvent("post_tool_use")).toEqual(["apply_patch"]);
     expect(relay.shouldRelayEvent("before_agent_finalize")).toBe(false);
     expect(relay.commandForEvent("post_tool_use")).toBe(
-      `${NATIVE_HOOK_RELAY_EXEC_PREFIX}/usr/local/bin/node '/opt/Open Claw/openclaw.mjs' hooks relay --provider codex --relay-id ` +
+      `${NATIVE_HOOK_RELAY_EXEC_PREFIX}/usr/local/bin/node ${RELAY_SCRIPT_ARG} hooks relay --provider codex --relay-id ` +
         `${relay.relayId} ${nativeHookRelayStateDbArgForTests()} --generation ${relay.generation} --event post_tool_use --timeout 1234`,
     );
   });
@@ -711,7 +748,7 @@ describe("native hook relay registry", () => {
 
     expect(relay.shouldRelayEvent("before_agent_finalize")).toBe(true);
     expect(relay.commandForEvent("before_agent_finalize")).toBe(
-      `${NATIVE_HOOK_RELAY_EXEC_PREFIX}/usr/local/bin/node '/opt/Open Claw/openclaw.mjs' hooks relay --provider codex --relay-id ` +
+      `${NATIVE_HOOK_RELAY_EXEC_PREFIX}/usr/local/bin/node ${RELAY_SCRIPT_ARG} hooks relay --provider codex --relay-id ` +
         `${relay.relayId} ${nativeHookRelayStateDbArgForTests()} --generation ${relay.generation} --event before_agent_finalize --timeout 1234`,
     );
   });
@@ -2104,7 +2141,9 @@ describe("native hook relay registry", () => {
       toolName: "exec",
       params: {
         cmd: ["cat", "/tmp/private key"],
-        command: "cat '/tmp/private key'",
+        // Reconstructed from argv by the same platform-aware quoting the relay
+        // command uses, so the expectation is built rather than written out.
+        command: `cat ${shellQuoteForTests("/tmp/private key")}`,
       },
       runId: "run-1",
       toolCallId: "native-exec-command-array-1",
@@ -2576,6 +2615,15 @@ describe("native hook relay registry", () => {
       });
       expect(seen).toEqual([{ block: true }]);
     } finally {
+      // Close the cached agent database before removing the directory it lives
+      // in. Reading the session extension opens `openclaw-agent.sqlite` inside
+      // `stateDir` and the handle is cached deliberately; POSIX allows
+      // unlinking an open file, so this omission is invisible there, and
+      // Windows refuses with EBUSY. `openclaw-agent-db.ts` already carries the
+      // matching note — "Windows otherwise cannot remove the file during caller
+      // cleanup" — so the hazard was known and this caller simply never
+      // cleaned up after itself.
+      closeOpenClawAgentDatabases();
       await fs.rm(stateDir, { recursive: true, force: true });
     }
   });
@@ -2613,7 +2661,10 @@ describe("native hook relay registry", () => {
     expectRecordFields(event, {
       toolName: "apply_patch",
       params: { input: patch },
-      derivedPaths: [path.join(cwd, "src/new.ts")],
+      // `resolve`, not `join`: a derived path is absolute, and on Windows that
+      // means drive-qualified. `join` leaves "\tmp\..." with no drive, which is
+      // what this expectation used to assert against a correctly resolved path.
+      derivedPaths: [path.resolve(cwd, "src/new.ts")],
     });
     const context = getMockCallArg(beforeToolCall, 0, 1, "before tool call context");
     expectRecordFields(context, {
