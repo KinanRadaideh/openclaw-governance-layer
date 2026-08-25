@@ -455,18 +455,18 @@ grouping is itself part of the design argument.
 |                      |                                                                                                                                                |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Production total** | **19,215 lines** — 11,201 across 40 files in `src/governance/`, plus 8,014 across the 11 HTTP, CLI and dashboard surface files tabulated below |
-| **Test total**       | **73 test files.** The suite _reports_ **2,108 tests across 99 files**, and both numbers are right about different things — see the note below |
+| **Test total**       | **73 test files.** The suite _reports_ **2,116 tests across 99 files**, and both numbers are right about different things — see the note below |
 
-> **The 99 is a count of test-file _runs_, not of files. 2,108 is a count of
+> **The 99 is a count of test-file _runs_, not of files. 2,116 is a count of
 > test _executions_, not of distinct tests.** Thirteen of the governance test
 > files live under `src/gateway/` and the repository runs that directory under
 > three Vitest projects — `gateway-core`, `gateway-server`, `gateway-client` — so
 > each of the thirteen is executed three times. 57 unit + 3 ui + (13 × 3) =
-> **99**, and the distinct totals are **1,300 tests across 73 files**.
+> **99**, and the distinct totals are **1,308 tests across 73 files**.
 >
 > Neither number is wrong and the larger one is not inflated by accident: every
-> one of those 2,108 executions really ran, and running the gateway suite under
-> three project configurations is the point of doing it that way. But "2,108
+> one of those 2,116 executions really ran, and running the gateway suite under
+> three project configurations is the point of doing it that way. But "2,116
 > tests across 99 files" invites a reader to believe there are 99 files, and
 > there are 73.
 >
@@ -3542,14 +3542,142 @@ one tractable:
 
 - **`governance-page.ts` — 2,412 code lines**, one Lit component, no seam yet
   named. The largest single file in the project.
-- **`register.governance.ts` — 848.** Its agent commands were extracted in
-  §3.5.33; its policy commands are the obvious next cut along the same seam.
+- ~~**`register.governance.ts` — 848.**~~ **Closed later the same day at 459 —
+  §3.5.36**, which also records why the criterion this section states had to
+  narrow when applied to it.
 
 Reporting this as "T16 partially done" rather than as a win is the honest
 position, and the useful part for a reader is the criterion rather than the
 count: **the seam that made five of these files reviewable was the authorization
 sentence, and the two files that remain are the two where no such sentence has
 been found.**
+
+### 3.5.35 Unreachable code in the gate, and what a test can honestly claim (T28)
+
+Engineering detail in `GOVERNANCE.md` §"T28"; plain language in
+`QA-IN-PLAIN-TERMS.md` §5.29.
+
+#### The defect
+
+`oxlint` reported `no-unreachable` at the closing `return undefined;` of
+`evaluateGovernancePolicy` — the function every governed tool call passes
+through. It was recorded as a backlog item rather than deleted on sight, because
+two readings have opposite fixes:
+
+1. The section above always returns, so the line is dead and should go.
+2. A path that _should_ reach it returns early somewhere it should not, in which
+   case deleting it hides a defect.
+
+Only reading the whole function separates them, and this is the file §3.5.1's
+entire argument rests on. **Recording it rather than deleting it is the reported
+decision**, and it is the same instinct §3.5.29 applied to T23: the cost of
+being wrong about a security-critical control is asymmetric, so the cheap fix is
+not automatically the right one.
+
+#### Reading one, established exhaustively
+
+The function has eight exits and every one returns: posture `off`; lockdown (or
+an unattributable call while any lock is engaged); no extractor for the tool;
+the extractor yielding nothing; a matched deny rule; everything allowed or the
+posture monitor; unlisted with `ask: "off"`; unlisted with `ask: "on-miss"`.
+
+The last two sit inside a bare `{ … }` block. That block is the explanation: it
+was once `if (firstMiss !== undefined) { … }`, which needs a statement beneath
+it. When the negation moved into the preceding `if` — which returns — the
+condition became redundant, the `if` degenerated to a block used only to name a
+variable, and the statement below it was orphaned.
+
+#### Why an unreachable line mattered here
+
+**In this file `undefined` is the value that means _allowed_.** The dead
+statement was therefore a default-allow at the bottom of the policy gate:
+correct only because nothing could reach it, and one careless edit above from
+becoming reachable. A future change that dropped a `return` while editing a
+branch would have landed on it silently, and the resulting grant would appear in
+no ledger entry, because the ledger records decisions and this would have been
+the absence of one.
+
+Third instance of one family in this project, and the first inside the engine:
+
+|             | Advertised                                  | Actually                               |
+| ----------- | ------------------------------------------- | -------------------------------------- |
+| Finding 112 | A validator that rejects malformed headers  | The rejection branch could not execute |
+| Finding 113 | `sweepOrphans`, an exported cleanup routine | Nothing called it                      |
+| **T28**     | A final fallback in the gate                | Unreachable — and it meant _allow_     |
+
+The family is worth naming in Chapter 4 because its members look different and
+fail the same way: **code that exists, passes review, and makes a promise the
+control flow does not keep.** Two were found by tooling and one by reading a
+diff; none by a failing test, because in each case nothing was failing.
+
+#### What a test can and cannot claim here
+
+This is the part worth the most space, because it is a methodological point
+rather than a defect.
+
+**The deletion cannot be tested.** The statement was unreachable, so removing it
+changes nothing observable, and a test asserting its absence would be theatre.
+Reporting "fixed, with a regression test" would be the comfortable sentence and
+a false one.
+
+What _is_ testable is the property the statement pretended to provide, so
+`policy-engine.test.ts` gained a block driving all eight exits and asserting the
+decision each returns. A future edit that lets a path fall through makes one of
+them return `undefined`, which the suite's own `verdict` helper reports as
+`"allow"` — a failing test instead of a silent grant.
+
+That guard was then **mutation-checked rather than assumed**: the `ask: "off"`
+branch was temporarily made to fall through instead of blocking, twelve tests
+failed, and it was restored. Checking that a new test can fail is a step this
+project has learned to take — §4.x.25's round-eleven finding was a guard that
+could not say what it compared against, and a test nobody has watched fail is
+the same shape of unexamined claim.
+
+**The honest accounting of what is new:** most of those twelve were pre-existing
+tests already covering that path. The addition is not first coverage of any
+single exit — it is the _set_, asserted together, under a name that states the
+property, so the invariant is visible in one place instead of reconstructable
+from a dozen scattered cases.
+
+### 3.5.36 The command line finishes T16, and the criterion narrows
+
+`register.governance.ts` went from **848 code lines to 459**, and every file in
+`src/cli/program/` is now within the project's 700-line limit.
+
+| Module                          | Subject                                         | Code lines |
+| ------------------------------- | ----------------------------------------------- | ---------- |
+| `register.governance.policy.ts` | The policy document, and requests to change it  | 400        |
+| `register.governance.agents.ts` | The agent registry (§3.5.33)                    | 169        |
+| `governance-cli-gate.ts`        | The identity gate all three share               | 33         |
+| `register.governance.ts`        | Identity, groups, oversight, audit, kill switch | 459        |
+
+#### The criterion had to narrow, and that is the finding
+
+§3.5.34 reported the route split's criterion as **one statable authorization
+rule per file**, and that held for all five route modules.
+
+It does not hold here. The policy command module spans tiers by design — a
+Viewer runs `policy show`, a User submits `request-setting`, an Administrator
+sets a per-agent posture, Root toggles a core denial. There is no single
+authorization sentence, and writing one would have been the tidy claim and the
+false one.
+
+What makes the file coherent is its **subject**: everything in it reads or edits
+the policy document. Authorization consistency is preserved by a different
+mechanism — every command asks through `requireCliActor` and the same
+`permissions.ts` helpers the HTTP routes use, which is the property T5
+introduced that gate for, so the two surfaces cannot drift into different
+answers about who may do what.
+
+> **The corrected criterion, for the report:** a file should have **one
+> subject**; where it can _also_ have one authorization rule, that is stronger
+> and worth stating. Reporting the narrower rule as though it were universal
+> would have been a claim that fitted five files and broke on the sixth — which
+> is precisely the shape of error §4.x.31 is about.
+
+**One file remains over the limit**: `governance-page.ts` at 2,412 code lines, a
+single Lit component. It is the largest file in the project, and no seam —
+subject or authorization — has yet been named for it.
 
 ### 3.5.9 Recording administrative actions in the same chain
 
@@ -3768,9 +3896,9 @@ long and the grouping is the argument.
 `qa-round8-logic`, `qa-round8-security`: **81 tests** pinning the specific
 defects each round found, so none can silently return.
 
-|           |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Total** | **2,108 tests across 99 files** — measured 2026-08-24, after M4, the agent registry (§3.5.33); 1,926 across 95 after M3, the group data model (§3.5.31); 1,902 across 94 after the live browser pass and M2 (§3.5.30); 1,877 across 91 after T14's HTTP and dashboard surfaces and QA round seventeen (§4.x.29); 1,802 across 88 after T23 (§3.5.29); 1,794 across 87 after T4, T5 and T14 (§3.5.26–§3.5.28); 1,722 across 84 after the first dashboard component tests (§4.x.27), the core-tier split (§3.5.24), Root's authoring control (§3.5.23), the kill-switch end-to-end verification and the authoring-scope matrix (§3.5.21, §3.5.22). (1,564 across 75 after the bidirectional policy views, §3.5.20. (1,510 across 71 after the sixteenth QA pass, §4.x.25. (1,499 across 70 after T9, authentication auditing, §3.5.19. (1,480 across 68 before it, after the A1 follow-ups, the last of round thirteen, the hands-on UI pass and the three core invariants; 1,465 across 67 before `core-invariants.test.ts`; 1,404 across 64 after B1; 1,393 across 63 after the fourteenth QA pass and A7; 1,264 across 57 before rounds 13 and 14. The growth is almost entirely regression tests lifted out of the probes that produced each finding.) **Measured with `src/governance/`, `src/gateway/governance-*.test.ts`, `ui/src/pages/governance/`** — adding `ui/src/i18n` gives 1,564 across 73, which is a different set and not a regression. **Every figure in this row is a count of test-file _runs_ and test _executions_:** the thirteen `src/gateway/` files run under three Vitest projects, so the distinct totals behind the 2,108/99 are **1,300 tests across 73 files**. M4's 182-execution jump is mostly _not_ its two new files — 111 of it came from adding the five new routes to the malformed-body table and the privilege matrix, which is what those two tables exist to make cheap. See §3.5.2. |
+|           |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Total** | **2,116 tests across 99 files** — measured 2026-08-25, after T28 added the gate's eight exhaustiveness cases (§3.5.35); 2,108 across 99 after M4, the agent registry (§3.5.33); 1,926 across 95 after M3, the group data model (§3.5.31); 1,902 across 94 after the live browser pass and M2 (§3.5.30); 1,877 across 91 after T14's HTTP and dashboard surfaces and QA round seventeen (§4.x.29); 1,802 across 88 after T23 (§3.5.29); 1,794 across 87 after T4, T5 and T14 (§3.5.26–§3.5.28); 1,722 across 84 after the first dashboard component tests (§4.x.27), the core-tier split (§3.5.24), Root's authoring control (§3.5.23), the kill-switch end-to-end verification and the authoring-scope matrix (§3.5.21, §3.5.22). (1,564 across 75 after the bidirectional policy views, §3.5.20. (1,510 across 71 after the sixteenth QA pass, §4.x.25. (1,499 across 70 after T9, authentication auditing, §3.5.19. (1,480 across 68 before it, after the A1 follow-ups, the last of round thirteen, the hands-on UI pass and the three core invariants; 1,465 across 67 before `core-invariants.test.ts`; 1,404 across 64 after B1; 1,393 across 63 after the fourteenth QA pass and A7; 1,264 across 57 before rounds 13 and 14. The growth is almost entirely regression tests lifted out of the probes that produced each finding.) **Measured with `src/governance/`, `src/gateway/governance-*.test.ts`, `ui/src/pages/governance/`** — adding `ui/src/i18n` gives 1,564 across 73, which is a different set and not a regression. **Every figure in this row is a count of test-file _runs_ and test _executions_:** the thirteen `src/gateway/` files run under three Vitest projects, so the distinct totals behind the 2,116/99 are **1,308 tests across 73 files**. M4's 182-execution jump is mostly _not_ its two new files — 111 of it came from adding the five new routes to the malformed-body table and the privilege matrix, which is what those two tables exist to make cheap. See §3.5.2. |
 
 Two methodology notes worth keeping:
 

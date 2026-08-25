@@ -2779,6 +2779,108 @@ Two files are still too long, and the honest position is that they are the
 harder two: the dashboard page is one large component with no obvious seam, and
 the command-line file needs the same treatment its agent commands already got.
 
+## 5.29 One line that could never run, in the worst possible place
+
+The linter flagged a single line at the very bottom of the file that decides
+what agents are allowed to do: a final instruction that no input could ever
+reach.
+
+It would have been a two-second delete. It was written down as a task instead,
+because there are two reasons a line can be unreachable and only one of them is
+harmless:
+
+- Everything above it always finishes and answers. The line is leftover. Delete
+  it.
+- Something above it answers **too early** — a case that should have fallen
+  through to the bottom is quietly being handled somewhere else. Then the line
+  is a symptom, and deleting it hides the real problem.
+
+Telling those apart means reading the whole decision process end to end, in the
+one file the project's entire safety argument depends on. That is not a
+two-second job, so it was booked as one.
+
+### It was the harmless kind
+
+The decision process has eight ways out — the system is switched off, the agent
+has been emergency-stopped, the tool is one nothing knows how to judge, nothing
+could be extracted to check, a rule forbids it, everything was permitted, it is
+unlisted and the setting says refuse, or it is unlisted and the setting says ask
+a human. All eight answer. Nothing falls off the end.
+
+The leftover line has a small history. The last section used to be written as
+"if there is still an unanswered item, handle it" — and an "if" needs something
+after it in case the "if" is not taken. Later the check moved higher up, so by
+the time you reach that section there is _always_ an unanswered item. The "if"
+became unnecessary, and the line beneath it became unreachable and stayed.
+
+### Why it was worth the trouble
+
+**In that file, "no answer" means "allowed."**
+
+So the dead line was not a harmless leftover. It was a _permit everything_
+instruction sitting at the bottom of the gate, correct only because nothing
+could reach it. One careless edit above — deleting a line while changing a
+nearby rule, say — and the system would have started quietly allowing exactly
+the things it exists to refuse, with nothing in the log to say why.
+
+This is the third time this project has found code that advertised something it
+did not do. Once, a check that rejected bad input had a rejection step that
+could never run. Once, a cleanup routine nobody ever called. Now, a final
+fallback that could not fire — and this one meant _yes_.
+
+### What actually protects it now
+
+Here is the honest part. **Deleting the line cannot be tested.** It could never
+run, so removing it changes nothing you could observe. A test proving it is gone
+would be theatre.
+
+What can be tested is the promise the line was pretending to keep: that every
+route through the decision ends in a real answer. So there are now eight tests,
+one per exit, each checking the specific answer that exit should give. If a
+future change ever lets a case slip through to the bottom, the answer becomes
+"allowed" and one of those eight fails loudly.
+
+That guard was then checked rather than trusted: the code was deliberately
+broken — one refusal was made to fall through instead of refusing — and twelve
+tests failed, including the new one. Then it was put back.
+
+**Credit where it is due:** most of those twelve already existed and already
+covered that route well. What is genuinely new is having all eight exits
+asserted _together_, in one place, under a heading that says what the property
+is — so that the next person reading the file can see the promise being made,
+rather than having to reconstruct it from a dozen scattered tests.
+
+## 5.30 Finishing the split on the command line
+
+The command-line file had the same problem the web-endpoint file had: too long,
+by the project's own standard. It is now 459 lines instead of 848, with the
+policy commands moved into their own file.
+
+One thing is worth saying plainly, because it would have been easy to claim
+otherwise.
+
+The web endpoints were split so that **each file has one permission rule that
+can be said in a sentence** — "the owner manages people", "you may act on an
+agent that is yours". That is what makes a file checkable in one go.
+
+The policy commands do **not** have that. Reading the current settings is open
+to anyone; changing a built-in protection is owner-only; there are four or five
+different levels in between. Writing "one permission rule" on that file would
+have been the tidy sentence and the false one.
+
+What holds it together is its **subject** — everything in it reads or edits the
+policy document — and every command still asks "may this person do this?"
+through the same shared checks the website uses, so the two cannot drift into
+different answers.
+
+So the rule that survives is narrower than it first looked: **a file should have
+one subject; where it can also have one permission rule, say so — and where it
+cannot, do not pretend.**
+
+One file is still too long: the dashboard page, at around 2,400 lines. It is a
+single screen's worth of component, and nobody has yet found the line to cut it
+along.
+
 ## 7. The single lesson
 
 Rounds five and six found the same mistake wearing different clothes.

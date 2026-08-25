@@ -2122,7 +2122,7 @@ rather than claiming the three-surface rule is met.
 
 ### The state
 
-**2,108 tests across 99 files** (1,300 distinct across 73), both typechecks
+**2,108 tests across 99 files** (1,308 distinct across 73), both typechecks
 clean, host harness unchanged at 18 failed / 174 passed. The suite grew by 182
 executions and two-thirds of that came from extending the malformed-body table
 and the privilege matrix with the five new routes rather than from the two new
@@ -2268,3 +2268,112 @@ first time **no known-failing host tests**: `native-hook-relay.test.ts` 192
 passed, `host-hooks.contract.test.ts` 71 passed.
 
 Nothing is committed; the tree holds M4, T25 and T16 together for review.
+
+---
+
+## 26. T28 and the rest of T16 (2026-08-25, later)
+
+The session's earlier work was committed first, in three commits: T25, the
+M4 + T16 code (together, because they share two files and no split of them
+builds independently), and the documentation across all three registers.
+
+### T28 — the harmless reading, but only after establishing it
+
+`oxlint` had reported `no-unreachable` at the closing `return undefined;` of
+`evaluateGovernancePolicy`. It was filed rather than deleted on sight, because
+two readings have opposite fixes: either the section above always returns and
+the line is leftover, or something returns early that should not and deleting
+the line hides a defect.
+
+Reading the function settled it. Eight exits, all of them return: posture `off`,
+lockdown, no extractor, nothing extracted, a denial, everything allowed or
+monitor, unlisted with `ask: "off"`, unlisted with `ask: "on-miss"`. The last two
+sit in a bare block that was once `if (firstMiss !== undefined)`; when the
+negation moved into the `if` above, the condition became redundant, the `if`
+degenerated into a naming scope, and the statement below it was orphaned.
+
+**Why it was worth the trip.** In that file `undefined` is the value that means
+_allowed_. The dead statement was a default-allow at the bottom of the gate,
+correct only because nothing reached it, and one dropped `return` above from
+becoming reachable — and it would have produced no ledger entry, because the
+ledger records decisions and this would have been the absence of one.
+
+Third member of a family this project keeps finding: finding 112's validator
+whose rejection branch could not execute, finding 113's exported `sweepOrphans`
+that nothing called, and now this. Code that exists, passes review, and makes a
+promise the control flow does not keep. None was found by a failing test,
+because in each case nothing was failing.
+
+### The methodological half, which is the part worth reporting
+
+**Deleting the line cannot be tested, and that is not fudged.** It was
+unreachable; removing it changes nothing observable, and a test asserting its
+absence would be theatre. "Fixed, with a regression test" would have been the
+comfortable sentence and a false one.
+
+What is testable is the property it pretended to provide, so
+`policy-engine.test.ts` gained a block driving all eight exits and asserting
+each decision. A future edit that lets a path fall through makes one of them
+return `undefined`, which the suite's `verdict` helper reports as `"allow"`.
+
+The guard was then mutation-checked rather than assumed: the `ask: "off"` branch
+was made to fall through instead of blocking, twelve tests failed, and it was
+restored. That step exists because of round eleven — a guard that could not say
+what it compared against — and a test nobody has watched fail is the same shape
+of unexamined claim.
+
+**And the credit is stated accurately:** most of those twelve are pre-existing
+tests that already covered that path. What is new is the _set_, asserted
+together under a name that states the property, rather than first coverage of
+any single exit.
+
+`file-lock.test.ts` was cleaned up in the same pass, as T28's row named: a
+dynamic `import` of `utimes` shadowing the static one, a helper parameter
+shadowing the suite-level `target`, and five Promise executors returning a
+`Timeout` handle.
+
+### T16 — the command line, and a criterion that had to narrow
+
+`register.governance.ts` went **848 → 459** code lines. Every file in
+`src/cli/program/` is now under the limit; the policy commands moved to
+`register.governance.policy.ts`, beside the agent commands M4 had already
+extracted, with the three `assert*` helpers travelling with the commands that
+use them.
+
+The interesting part is not the number. §3.5.34 had reported the route split's
+criterion as **one statable authorization rule per file**, which held for all
+five route modules. It does not hold here: the policy command module spans
+tiers by design, from a Viewer running `policy show` to Root toggling a core
+denial. Writing "one authorization rule" on that file would have been the tidy
+claim and the false one.
+
+What makes it coherent is its **subject** — everything in it reads or edits the
+policy document — with authorization consistency preserved by a different
+mechanism: every command asks through `requireCliActor` and the same
+`permissions.ts` helpers the HTTP routes use, which is what T5 built that gate
+for.
+
+> **Corrected criterion:** a file should have one _subject_; where it can also
+> have one _authorization rule_, that is stronger and worth saying. Reporting
+> the narrower version as universal would have been a rule that fitted five
+> files and broke on the sixth — the same shape as the T25 misattribution, one
+> level up.
+
+Verified beyond the type checker: `governance --help` lists all fourteen
+subcommands and `governance policy --help` all fifteen of its own, so the tree
+still registers rather than merely compiling.
+
+### What is left of T16
+
+One file: `governance-page.ts`, 2,412 code lines, a single Lit component. It is
+the largest file in the project and the only one for which no seam — subject or
+authorization — has been named.
+
+### The state
+
+Governance suite **2,116 across 99 files** (1,308 distinct across 73) — the
+eight new cases are the whole of the increase. Both typechecks clean, host
+harness still fully green at 192 passed, oxlint clean across
+`src/gateway/`, `src/cli/program/` and `src/governance/`.
+
+**T16 has one file left.** Everything else that was over the limit is under it.

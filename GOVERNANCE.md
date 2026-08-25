@@ -2223,14 +2223,139 @@ half:
 
 - **`governance-page.ts` — 2,412 code lines.** One Lit component, and no seam
   has been named for it. It is the largest single file in the project.
-- **`register.governance.ts` — 848.** Its agent commands were split out in M4;
-  its policy commands are the obvious next cut, along the same seam.
+- ~~**`register.governance.ts` — 848.**~~ **Done later the same day — 459.** Its
+  policy commands moved beside the agent commands M4 had already extracted. See
+  §"T16 — the command line finishes the split".
 
 Three `unicorn` array-mutation errors in the page were fixed on the way past
 (`sort` → `toSorted`, two `reverse` → `toReversed`). One of them was
 load-bearing rather than cosmetic: the ledger view reversed an array derived
 from component state, guarded only by a `slice()` that a later edit could have
 dropped.
+
+### T28 — a dead statement at the bottom of the gate (2026-08-25)
+
+Raised on 2026-08-25 while linting the T16 split and closed the same day. Report
+material in `CHAPTER3-MATERIAL.md` §3.5.35; plain language in
+`QA-IN-PLAIN-TERMS.md` §5.29.
+
+#### What it was
+
+`oxlint` reported `no-unreachable` at the closing `return undefined;` of
+`evaluateGovernancePolicy`. It was recorded rather than deleted on sight,
+because two readings have opposite fixes and one of them is a real defect:
+
+1. The branch above always returns, so the line is dead and should go.
+2. Some path that _should_ reach it returns early somewhere it should not — in
+   which case deleting the line hides a bug.
+
+Distinguishing them needs the whole function's control flow read, in the file
+the project's entire security argument rests on. That is the reason it was filed
+as a task rather than fixed in passing.
+
+#### Reading one, established by walking every exit
+
+`evaluateGovernancePolicy` has eight exits and all of them return:
+
+| Exit                                                  | Returns                          |
+| ----------------------------------------------------- | -------------------------------- |
+| posture `off`                                         | `undefined` (gate not running)   |
+| lockdown, or unattributable while any lock is engaged | `block`                          |
+| no resource extractor for the tool                    | `undefined`, recorded ungoverned |
+| extractor yielded nothing                             | `undefined`, recorded ungoverned |
+| a deny rule matched                                   | `block`                          |
+| every resource matched an allowance, or monitor       | allow (`undefined` or `params`)  |
+| unlisted, `ask: "off"`                                | `block`                          |
+| unlisted, `ask: "on-miss"`                            | `requireApproval`                |
+
+The last two sit inside a bare `{ … }` block, and that block is why the trailing
+statement existed: it was once `if (firstMiss !== undefined) { … }`, which
+_needed_ a return underneath it. When the negation moved into the `if` above —
+which returns — the `if` became a bare block used only to name the resource, and
+the return below it was orphaned.
+
+#### Why it was worth more than a lint fix
+
+**In this file `undefined` means allowed.** A dead statement at the bottom of
+the policy engine was therefore a default-_allow_ that could never fire: correct
+today, and one refactor away from being the most expensive line in the project.
+Anything that made a path fall through — deleting a `return` while editing a
+branch, say — would have landed on it silently.
+
+That is the third time this project has found code advertising a property it did
+not have, and the first time in the engine itself:
+
+|             | What it advertised                      | What was true                          |
+| ----------- | --------------------------------------- | -------------------------------------- |
+| Finding 112 | A validator rejecting malformed headers | The rejection branch could not execute |
+| Finding 113 | `sweepOrphans`, an exported cleanup     | Nothing called it                      |
+| **T28**     | A final fallback in the gate            | Unreachable — and it meant _allow_     |
+
+#### The repair, and what actually guards it
+
+The statement is deleted, and the bare block carries a comment saying the
+function is exhaustive and why there is no trailing return — so the next reader
+who expects one does not restore it.
+
+**Deleting it cannot be tested directly**, and that is worth being straight
+about: the line was unreachable, so re-adding it changes no observable
+behaviour. What _can_ be tested is the property it pretended to provide, so
+`policy-engine.test.ts` gained a `describe` block driving all eight exits and
+asserting the decision each produces. A future edit that lets a path fall
+through would make one of them return `undefined`, which the suite's `verdict`
+helper reports as `"allow"` — a failing test rather than a silent grant.
+
+The guard was mutation-checked rather than assumed: making the `ask: "off"`
+branch fall through instead of blocking fails twelve tests, including the new
+one. **Honest note on the credit:** most of those twelve are pre-existing tests
+that already covered that path well. What the new block adds is the _set_ — all
+eight exits asserted together, in one place, under a name that says what the
+property is — rather than first coverage of any single one.
+
+`file-lock.test.ts` was cleaned up in the same pass, since T28's row named it:
+two shadowed bindings (a dynamic `import` of `utimes` that was already imported
+statically, and a helper parameter named `target`, shadowing the suite-level
+path it is rebound to in `beforeEach`) and five Promise executors returning a
+`Timeout` handle.
+
+### T16 — the command line finishes the split (2026-08-25)
+
+Report material in `CHAPTER3-MATERIAL.md` §3.5.36; plain language in
+`QA-IN-PLAIN-TERMS.md` §5.30.
+
+`register.governance.ts` was the second of the three files T16 tracked. It is
+now **459 code lines, from 848**, and every file in `src/cli/program/` is under
+the limit.
+
+The seam is the one M4 had already used for the agent-registry commands:
+
+| Module                          | Its subject                                     | Code lines |
+| ------------------------------- | ----------------------------------------------- | ---------- |
+| `register.governance.policy.ts` | The policy document, and requests to change it  | 400        |
+| `register.governance.agents.ts` | The agent registry (M4)                         | 169        |
+| `governance-cli-gate.ts`        | The identity gate all three share               | 33         |
+| `register.governance.ts`        | Identity, groups, oversight, audit, kill switch | 459        |
+
+**One difference from the route split is worth stating rather than glossing.**
+Each route module states a single _authorization_ sentence. The policy command
+module cannot: its tiers genuinely differ per command, from a Viewer running
+`policy show` to Root toggling a core denial. What makes it coherent is its
+**subject** — everything in it reads or edits the policy document — and every
+command still asks its question through `requireCliActor` and the same
+`permissions.ts` helpers the HTTP routes use, so the two surfaces cannot drift
+into different answers about who may do what.
+
+Claiming "one authorization rule" for it would have been the easy sentence and
+the false one. The criterion that survives is narrower than it first looked:
+**a file should have one subject, and where it can also have one authorization
+rule, say so.**
+
+The three `assertGovernanceMode` / `assertAskMode` / `assertResourceKind`
+helpers moved with the commands that use them; nothing else consumed them.
+
+**T16 now has one file left**: `governance-page.ts` at 2,412 code lines, a
+single Lit component with no seam named for it. It is the largest file in the
+project and the only remaining item on the row.
 
 ## Notes for Chapter 3
 

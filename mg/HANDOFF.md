@@ -14,8 +14,8 @@ beneath this.
 
 **Current as of 2026-08-24.** The governance layer is **built and verified, and
 still not demonstrated.** Eight of the nine design requirements are fully met;
-the ninth (Linux deployment) is tested but never deployed. **2,108 automated
-tests pass across 99 files** (1,300 distinct across 73 — see §4), both
+the ninth (Linux deployment) is tested but never deployed. **2,116 automated
+tests pass across 99 files** (1,308 distinct across 73 — see §4), both
 typechecks are clean, and OpenClaw's own test
 suite is **fully green for the first time**: the 18 pre-existing Windows
 failures used as this project's baseline were fixed on 2026-08-25 (T25), along
@@ -290,12 +290,12 @@ Expected, measured 2026-08-24:
 
 | Command          | Expected                         |
 | ---------------- | -------------------------------- |
-| Governance suite | **2,108 passed across 99 files** |
+| Governance suite | **2,116 passed across 99 files** |
 
 **All four re-run and green on 2026-08-24**, most recently after M4:
-**2,108/99**, both typechecks clean, host harness at **0 failed / 192 passed**
+**2,116/99**, both typechecks clean, host harness at **0 failed / 192 passed**
 (it was 18 failed / 174 passed until T25 closed on 2026-08-25). The figure has moved seven times today — 1,794/87, 1,802/88, 1,877/91,
-1,901/94, 1,902/94, 1,926/95, 2,108/99 — which is why the command matters more
+1,901/94, 1,902/94, 1,926/95, 2,116/99 — which is why the command matters more
 than the number.
 
 > One test (`qa-round5-storage.test.ts`, ledger rotation) has a 120-second
@@ -304,10 +304,10 @@ than the number.
 > That is load, not a regression; re-run it on a quiet machine before believing
 > a failure there.
 
-> **The 99 is file _runs_, not files, and 2,108 is test _executions_.**
+> **The 99 is file _runs_, not files, and 2,116 is test _executions_.**
 > Thirteen governance test files live under `src/gateway/` and run under three
 > Vitest projects, so each is executed three times: 57 + 3 + (13 × 3) = 99.
-> **Distinct totals: 1,300 tests across 73 files.** Quote 2,108/99 if you also
+> **Distinct totals: 1,300 tests across 73 files.** Quote 2,116/99 if you also
 > state the command; quote 1,300/73 if you are describing how much test code
 > exists. This is the same trap as the 18-versus-9 harness baseline three
 > paragraphs below — recorded there, missed here, for as long as the number had
@@ -621,15 +621,27 @@ Administrator manages agents_ — so the new file states one authorization rule
 for its whole contents. Behaviour unchanged, proved by the privilege matrix and
 account-lifecycle suites passing untouched.
 
-**Finished for that file on 2026-08-25.** `governance-dashboard-api.ts` is
-**613** code lines, under the limit for the first time, from 1,219. Four more
-cuts, each chosen so the resulting file states one authorization rule rather
-than to even out line counts: `-agents` (M4), `-agent-control`, `-oversight`
-(the ledger seam T16 named, widened to the set sharing its rule), and
-`-rule-requests`. **T16 is still open**: `governance-page.ts` (2,412) and
-`register.governance.ts` (848) remain over, and are the harder two because no
-authorization sentence has been found for either. Full reasoning in
-`GOVERNANCE.md` §"T16".
+**Finished for two of the three files on 2026-08-25.**
+`governance-dashboard-api.ts` is **613** code lines, from 1,219 — under the
+limit for the first time — split four more ways, each cut chosen so the file
+states one authorization rule rather than to even out line counts: `-agents`
+(M4), `-agent-control`, `-oversight` (the ledger seam T16 named, widened to the
+set sharing its rule), and `-rule-requests`. `register.governance.ts` followed:
+**459** from 848, its policy commands moving beside the agent commands M4 had
+already extracted.
+
+**The criterion narrowed on the way, and the narrower version is the one to
+carry forward.** Each route module states one _authorization_ rule. The policy
+command module cannot — its tiers run from Viewer (`policy show`) to Root
+(`policy core-rule`) by design — so what makes it coherent is its **subject**,
+with authorization consistency preserved instead by every command asking through
+the same `permissions.ts` helpers the HTTP routes use. A file should have one
+subject; where it can also have one authorization rule, that is stronger and
+worth stating.
+
+**T16 is still open, with one file left**: `governance-page.ts` (2,412), a single
+Lit component, the largest file in the project and the only one with no seam
+named for it. Full reasoning in `GOVERNANCE.md` §"T16".
 
 ### T12, T19, T13 (2026-08-22)
 
