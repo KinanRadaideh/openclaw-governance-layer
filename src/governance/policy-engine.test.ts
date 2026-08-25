@@ -502,4 +502,101 @@ describe("per-agent HITL override (design doc §1.6)", () => {
       ),
     ).toBe("block");
   });
+
+  // ---------------------------------------------------------------------
+  // T28 — the gate is exhaustive: no input reaches the end without deciding.
+  //
+  // `evaluateGovernancePolicy` used to carry a trailing `return undefined;`
+  // that no input could reach, left behind when an `if` became a bare block.
+  // It mattered more than an ordinary dead line because in this file
+  // **`undefined` means allowed**, so a dead statement at the bottom of the
+  // gate read as a default-allow that could never fire.
+  //
+  // Deleting it makes the lint rule pass. These cases are what stop it coming
+  // back as a real one: each drives a different exit from the function, and
+  // together they assert the property the deleted line pretended to provide —
+  // that every path decides something, and that the *last* path decides too.
+  // A future edit that reintroduces a fall-through would have to make one of
+  // these return `undefined`, and `verdict` reports that as "allow".
+  // ---------------------------------------------------------------------
+  describe("every path through the gate ends in a decision", () => {
+    it("posture off — the gate is not running, and says so by allowing", async () => {
+      await setMode("off", "tester");
+      expect(
+        verdict(
+          await evaluateGovernancePolicy({ toolName: "exec", params: { command: "id" } }, ctx),
+        ),
+      ).toBe("allow");
+    });
+
+    it("lockdown — refused before the tool is even classified", async () => {
+      await lockAgent("demo");
+      expect(
+        verdict(
+          await evaluateGovernancePolicy({ toolName: "exec", params: { command: "id" } }, ctx),
+        ),
+      ).toBe("block");
+    });
+
+    it("no extractor — ungoverned, recorded, and allowed", async () => {
+      expect(
+        verdict(
+          await evaluateGovernancePolicy({ toolName: "not_a_governed_tool", params: {} }, ctx),
+        ),
+      ).toBe("allow");
+    });
+
+    it("nothing extracted — the blind spot is recorded, not fatal", async () => {
+      expect(verdict(await evaluateGovernancePolicy({ toolName: "exec", params: {} }, ctx))).toBe(
+        "allow",
+      );
+    });
+
+    it("a denial — blocked", async () => {
+      await addRule(
+        { resourceKind: "command", pattern: "^id$", effect: "deny", description: "no id" },
+        "tester",
+      );
+      expect(
+        verdict(
+          await evaluateGovernancePolicy({ toolName: "exec", params: { command: "id" } }, ctx),
+        ),
+      ).toBe("block");
+    });
+
+    it("an allowance — allowed", async () => {
+      await addRule({ resourceKind: "command", pattern: "^id$" }, "tester");
+      expect(
+        verdict(
+          await evaluateGovernancePolicy({ toolName: "exec", params: { command: "id" } }, ctx),
+        ),
+      ).toBe("allow");
+    });
+
+    it("unlisted with ask off — the last path, and it blocks", async () => {
+      // This and the case below are the two the deleted statement sat beneath.
+      // If a fall-through ever returned here instead, both would report
+      // "allow" — an unlisted resource silently permitted by the gate whose
+      // entire purpose is default-deny.
+      await updatePolicy((doc) => {
+        doc.ask = "off";
+      });
+      expect(
+        verdict(
+          await evaluateGovernancePolicy({ toolName: "exec", params: { command: "id" } }, ctx),
+        ),
+      ).toBe("block");
+    });
+
+    it("unlisted with ask on-miss — the last path, and it escalates", async () => {
+      await updatePolicy((doc) => {
+        doc.ask = "on-miss";
+      });
+      expect(
+        verdict(
+          await evaluateGovernancePolicy({ toolName: "exec", params: { command: "id" } }, ctx),
+        ),
+      ).toBe("ask");
+    });
+  });
 });

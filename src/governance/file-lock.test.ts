@@ -25,7 +25,9 @@ describe("cross-process file lock", () => {
         inside += 1;
         expect(inside).toBe(1); // never two holders at once
         order.push(`${name}-start`);
-        await new Promise((resolve) => setTimeout(resolve, 10));
+        await new Promise((resolve) => {
+          setTimeout(resolve, 10);
+        });
         order.push(`${name}-end`);
         inside -= 1;
       });
@@ -50,7 +52,6 @@ describe("cross-process file lock", () => {
   it("reclaims a stale lock left behind by a crashed process", async () => {
     const lockPath = `${target}.lock`;
     await writeFile(lockPath, "");
-    const { utimes } = await import("node:fs/promises");
     const longAgo = new Date(Date.now() - 5 * 60 * 1000);
     await utimes(lockPath, longAgo, longAgo);
     await expect(withFileLock(target, async () => "recovered", 5000)).resolves.toBe("recovered");
@@ -77,9 +78,12 @@ describe("cross-process file lock", () => {
 // the same condition the reaper tests for, and it makes a race that would
 // otherwise depend on host load deterministic.
 describe("a holder that gets reclaimed while still working", () => {
-  async function backdateLock(target: string): Promise<void> {
+  // The parameter is named for what it is rather than reusing `target`, which
+  // is the suite-level path this file rebinds in `beforeEach`. A helper that
+  // shadows it reads as though it operates on that path whatever it is passed.
+  async function backdateLock(lockedPath: string): Promise<void> {
     const past = new Date(Date.now() - STALE_LOCK_MS_FOR_TESTS - 5_000);
-    await utimes(`${target}.lock`, past, past);
+    await utimes(`${lockedPath}.lock`, past, past);
   }
 
   it("is told, rather than continuing as though it still held the lock (104)", async () => {
@@ -93,7 +97,9 @@ describe("a holder that gets reclaimed while still working", () => {
       await aInside;
       return "a";
     });
-    await new Promise((r) => setTimeout(r, 50));
+    await new Promise((r) => {
+      setTimeout(r, 50);
+    });
 
     // B judges A dead and takes the lock.
     await expect(withFileLock(target, async () => "b", 5000)).resolves.toBe("b");
@@ -114,7 +120,9 @@ describe("a holder that gets reclaimed while still working", () => {
       await backdateLock(target);
       await aInside;
     });
-    await new Promise((r) => setTimeout(r, 50));
+    await new Promise((r) => {
+      setTimeout(r, 50);
+    });
 
     let releaseB: () => void = () => {};
     const bInside = new Promise<void>((resolve) => {
@@ -125,7 +133,9 @@ describe("a holder that gets reclaimed while still working", () => {
       bHeld = true;
       await bInside;
     });
-    await new Promise((r) => setTimeout(r, 100));
+    await new Promise((r) => {
+      setTimeout(r, 100);
+    });
     expect(bHeld).toBe(true);
 
     // A exits. Unconditional `rm` used to remove whatever lock file was there,
@@ -152,7 +162,9 @@ describe("a holder that gets reclaimed while still working", () => {
     const lockPath = `${target}.lock`;
     const first = await withFileLock(target, async () => {
       const before = (await stat(lockPath)).mtimeMs;
-      await new Promise((r) => setTimeout(r, 50));
+      await new Promise((r) => {
+        setTimeout(r, 50);
+      });
       return before;
     });
     expect(typeof first).toBe("number");

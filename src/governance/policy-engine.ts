@@ -587,6 +587,28 @@ export async function evaluateGovernancePolicy(
     return paramBinding ? { params: paramBinding } : undefined;
   }
 
+  // A bare block, not an `if`, and the distinction is why there is no trailing
+  // `return` after it (T28).
+  //
+  // Reaching here means `firstMiss` is a real resource and the posture is not
+  // monitor, because the `if` above returned in both of those cases. The block
+  // exists only to name that resource; every branch inside it returns, and so
+  // does every branch before it — posture `off`, lockdown, no extractor, no
+  // resource extracted, a denial, and the allow path. **The function is
+  // exhaustive**, which is the property that matters in a gate: there is no
+  // path through it that reaches the end without having decided something.
+  //
+  // A `return undefined;` used to sit below this block, left behind when an
+  // `if (firstMiss !== undefined)` became the bare block that no longer needs
+  // one. `oxlint` reported it as unreachable, and it is worth more than a lint
+  // fix: in this file `undefined` means *allowed*, so a dead line at the bottom
+  // of the gate read as a default-allow that could never fire. This project has
+  // twice shipped code that advertised a property it did not have — an
+  // unreachable validator branch (finding 112) and an exported function nothing
+  // called (finding 113) — and a dead allow at the end of the policy engine
+  // would have been the worst-placed member of that family. Removed rather than
+  // silenced, and this comment is here so it does not come back the next time
+  // somebody expects a trailing return.
   {
     const resource = firstMiss;
     if (askMode === "off") {
@@ -685,6 +707,4 @@ export async function evaluateGovernancePolicy(
       ...(paramBinding ? { params: paramBinding } : {}),
     };
   }
-
-  return undefined;
 }
