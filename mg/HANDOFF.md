@@ -14,8 +14,8 @@ beneath this.
 
 **Current as of 2026-08-24.** The governance layer is **built and verified, and
 still not demonstrated.** Eight of the nine design requirements are fully met;
-the ninth (Linux deployment) is tested but never deployed. **2,116 automated
-tests pass across 99 files** (1,308 distinct across 73 — see §4), both
+the ninth (Linux deployment) is tested but never deployed. **2,151 automated
+tests pass across 101 files** (1,343 distinct across 75 — see §4), both
 typechecks are clean, and OpenClaw's own test
 suite is **fully green for the first time**: the 18 pre-existing Windows
 failures used as this project's baseline were fixed on 2026-08-25 (T25), along
@@ -288,14 +288,14 @@ node node_modules/vitest/vitest.mjs run src/agents/harness/native-hook-relay.tes
 
 Expected, measured 2026-08-24:
 
-| Command          | Expected                         |
-| ---------------- | -------------------------------- |
-| Governance suite | **2,116 passed across 99 files** |
+| Command          | Expected                          |
+| ---------------- | --------------------------------- |
+| Governance suite | **2,151 passed across 101 files** |
 
 **All four re-run and green on 2026-08-24**, most recently after M4:
-**2,116/99**, both typechecks clean, host harness at **0 failed / 192 passed**
+**2,151/101**, both typechecks clean, host harness at **0 failed / 192 passed**
 (it was 18 failed / 174 passed until T25 closed on 2026-08-25). The figure has moved seven times today — 1,794/87, 1,802/88, 1,877/91,
-1,901/94, 1,902/94, 1,926/95, 2,116/99 — which is why the command matters more
+1,901/94, 1,902/94, 1,926/95, 2,151/101 — which is why the command matters more
 than the number.
 
 > One test (`qa-round5-storage.test.ts`, ledger rotation) has a 120-second
@@ -307,7 +307,7 @@ than the number.
 > **The 99 is file _runs_, not files, and 2,116 is test _executions_.**
 > Thirteen governance test files live under `src/gateway/` and run under three
 > Vitest projects, so each is executed three times: 57 + 3 + (13 × 3) = 99.
-> **Distinct totals: 1,300 tests across 73 files.** Quote 2,116/99 if you also
+> **Distinct totals: 1,300 tests across 73 files.** Quote 2,151/101 if you also
 > state the command; quote 1,300/73 if you are describing how much test code
 > exists. This is the same trap as the 18-versus-9 harness baseline three
 > paragraphs below — recorded there, missed here, for as long as the number had

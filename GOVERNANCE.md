@@ -1130,11 +1130,11 @@ session key is built by `mintSpawnSessionKey` (`src/agents/spawn-plan.ts`) as
 is not a continuation of the parent, it is **a different principal**. Three
 findings follow, all measured.
 
-| #   | Defect                                                                                                                                                                                     | Why it mattered                                                                                                                                                                                                                                                                                                                                                                                  | Status                                                                                                                                                                                                                                                                                                                                                                                  |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 94  | **The spawn resource did not name the identity being spawned into.** `sessions_spawn` derived `sessions_spawn:spawn` and the prompt, and nothing else.                                     | The `agentId` parameter chooses which agent the child runs as, and the host allows a different one (`resolveSubagentTargetPolicy`). So the one decision with governance consequences — _which principal does this become?_ — was the one an operator could not write a rule about. Spawning as yourself and spawning as the least-restricted agent in the installation were the same permission. | **Fixed.** The target is derived as a second resource, `sessions_spawn:agent:<id>`. Every derived resource must be permitted, so a cross-agent spawn is default-denied until an operator names the target. An omitted `agentId` — the ordinary same-agent spawn — derives nothing extra and is unaffected.                                                                              |
-| 95  | **Agent-scoped confinement was escapable by spawning into another identity.** A denial scoped to `agent-a` did not bind a child running as `agent-b`, which got `agent-b`'s rules instead. | This is the delegation guarantee inverted. `ROLE-MODEL.md` argues that "delegation cannot escalate" because a User writes rules _within_ their agent — and a User whose agent could spawn as a less-restricted one had a route out of their own confinement that no rule expressed.                                                                                                              | **Fixed by 94**, which is the correct level: the escape was that changing identity was free, not that scoping is wrong. Scoping is now what it always claimed to be, and changing identity is a permission.                                                                                                                                                                             |
-| 96  | **A lockdown on the parent does not reach a child already running under another id.**                                                                                                      | Requirement #7 is about stopping a runaway agent, and the blast radius of an agent includes what it started. The parent's identity is nowhere in the child's session key, so this layer has nothing to trace lineage with.                                                                                                                                                                       | **Open, and pinned by a test** that asserts the current behaviour so that closing it makes the test fail. Needs the host to report the requester alongside the child — `spawnedBy` already exists in its spawn records — which is a `HookContext` change, not a policy-engine one. Bounded meanwhile by 94: a cross-agent child exists only where an operator explicitly permitted one. |
+| #   | Defect                                                                                                                                                                                     | Why it mattered                                                                                                                                                                                                                                                                                                                                                                                  | Status                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 94  | **The spawn resource did not name the identity being spawned into.** `sessions_spawn` derived `sessions_spawn:spawn` and the prompt, and nothing else.                                     | The `agentId` parameter chooses which agent the child runs as, and the host allows a different one (`resolveSubagentTargetPolicy`). So the one decision with governance consequences — _which principal does this become?_ — was the one an operator could not write a rule about. Spawning as yourself and spawning as the least-restricted agent in the installation were the same permission. | **Fixed.** The target is derived as a second resource, `sessions_spawn:agent:<id>`. Every derived resource must be permitted, so a cross-agent spawn is default-denied until an operator names the target. An omitted `agentId` — the ordinary same-agent spawn — derives nothing extra and is unaffected.                                                                                                                                                                                                                                                       |
+| 95  | **Agent-scoped confinement was escapable by spawning into another identity.** A denial scoped to `agent-a` did not bind a child running as `agent-b`, which got `agent-b`'s rules instead. | This is the delegation guarantee inverted. `ROLE-MODEL.md` argues that "delegation cannot escalate" because a User writes rules _within_ their agent — and a User whose agent could spawn as a less-restricted one had a route out of their own confinement that no rule expressed.                                                                                                              | **Fixed by 94**, which is the correct level: the escape was that changing identity was free, not that scoping is wrong. Scoping is now what it always claimed to be, and changing identity is a permission.                                                                                                                                                                                                                                                                                                                                                      |
+| 96  | **A lockdown on the parent does not reach a child already running under another id.**                                                                                                      | Requirement #7 is about stopping a runaway agent, and the blast radius of an agent includes what it started. The parent's identity is nowhere in the child's session key, so this layer has nothing to trace lineage with.                                                                                                                                                                       | **CLOSED 2026-08-25 (T6), and the pinning test did its job** — it asserted the broken behaviour deliberately, failed when the gap closed, and sent the fix straight to its own explanation. The note said this needed a `HookContext` change, which was true of the _hook_ and false of the _project_: `spawnedBy` is on the session entry, and a fork can read the session store. `session-lineage.ts` walks the chain; nothing upstream changed. §3.5.38. Bounded meanwhile by 94: a cross-agent child exists only where an operator explicitly permitted one. |
 
 Three properties were confirmed to hold and are now asserted rather than assumed:
 a **same-agent** child inherits the parent's rules and lockdown unchanged (the
@@ -2356,6 +2356,242 @@ helpers moved with the commands that use them; nothing else consumed them.
 **T16 now has one file left**: `governance-page.ts` at 2,412 code lines, a
 single Lit component with no seam named for it. It is the largest file in the
 project and the only remaining item on the row.
+
+### T16 closed — the dashboard split, and where the 700-line limit came from (2026-08-25)
+
+The last file over the limit is under it. Report material in
+`CHAPTER3-MATERIAL.md` §3.5.37; plain language in `QA-IN-PLAIN-TERMS.md` §5.31.
+
+#### Where the limit comes from, and what it is not
+
+Worth stating plainly, because the answer changes how much the work was worth.
+
+**It is upstream OpenClaw's, inherited with the fork.** `.oxlintrc.json` carries
+`"max-lines": ["error", { "max": 700, "skipBlankLines": true, "skipComments": true }]`
+for `.ts` sources, 800 for `.mjs`/`.cjs`, 1,000 for tests — and **two hand-written
+per-file exemptions upstream wrote for its own code** (`copilot/src/event-bridge.ts`
+at 950, `attempt-transcript-journal.test.ts` at 1,200).
+
+**It is not one of this project's nine requirements.** None of the requirements
+in Chapter 1 §1.3 mentions file length or code structure. The nearest is #1
+("Node ≥ 18, TypeScript, static type checking"), which is satisfied by
+`strict: true`, `noUncheckedIndexedAccess` and clean `tsgo` runs; a lint rule is
+not type checking.
+
+**Nothing in this fork enforces it automatically.** The pre-commit hook runs
+`oxfmt --write` only, and GitHub Actions are disabled on the private remote
+(T21). The limit surfaces when somebody runs `oxlint` by hand. That is how every
+commit carrying `governance-page.ts` at 2,412 lines went through unremarked.
+
+So the honest framing for the report: **the limit was the prompt, not the
+payoff.** Given it binds nothing, exempting the file — as upstream does for two
+of its own — was a legitimate option and was considered. What made the work
+worth doing anyway is the property the splits produced, which the line count
+only pointed at: five route files that each state one authorization rule, and
+now a dashboard whose panels sit at the same granularity as the routes serving
+them. A reviewer asking "who can see the ledger?" reads one route file and one
+panel file.
+
+#### The seam: panels matching routes
+
+`governance-page.ts` went from **2,412 code lines to 696**. The cut is by panel,
+and the panels line up with the route modules split from
+`governance-dashboard-api.ts` on the same day:
+
+| Panel module                    | Route counterpart                               | Code lines |
+| ------------------------------- | ----------------------------------------------- | ---------- |
+| `panels/policy-panels.ts`       | `-api` (the policy routes)                      | 590        |
+| `panels/agent-panels.ts`        | `-agent-control`                                | 513        |
+| `panels/account-panels.ts`      | `-accounts`, `-rule-requests`                   | 489        |
+| `panels/oversight-panels.ts`    | `-oversight`                                    | 213        |
+| `panels/session-panels.ts`      | `-auth`                                         | 169        |
+| `panels/agent-policy-lookup.ts` | the `policy/by-agent` and `agents/access` reads | 155        |
+| `agent-directory.ts`            | — (a pure derivation)                           | 53         |
+| `panels/format.ts`              | — (two shared formatters)                       | 20         |
+| `governance-page.ts`            | state, lifecycle, effects                       | **696**    |
+
+Two of those are not panels and are the more interesting cuts.
+`agent-directory.ts` holds `knownAgentIds`, `isKnownAgentId` and `agentLabel` —
+pure derivations over loaded data, in the same shape as `rule-filter.ts` and
+`ledger-filter.ts`, which is the pattern that has meant _their_ behaviour was
+always testable while the component's was not. `format.ts` exists so the panels
+never import from the page, which would be a cycle between a component and its
+own views.
+
+#### The architecture, and one trade-off stated rather than hidden
+
+Every panel is a **pure function of explicit props**. Three kinds:
+
+1. **State it reads** — plain data.
+2. **`drafts` + `onDraft`** — the half-typed form fields an operator is mid-edit,
+   with one patch channel rather than a setter per field. A panel with eight
+   inputs would otherwise need eight callbacks that all do the same thing, and
+   the eighth is the one somebody forgets.
+3. **`api`, `run`, `confirmThen`** — the page's effect primitives.
+
+**The third group is a trade-off.** Naming every action individually
+(`onSetRole`, `onDeleteUser`, …) would make the props an exhaustive capability
+list, and would have meant roughly twenty hand-written callbacks for the
+accounts module alone — each one a place to wire the wrong thing. Passing the
+three primitives keeps call sites explicit _inside_ the panel, at the cost of
+the props no longer documenting precisely what a panel can reach. The property
+that mattered most survives either way: a panel renders against a stub `api`
+without a page.
+
+`confirmThen` stays a primitive rather than becoming per-action callbacks
+because the _wording_ of a confirmation is presentation — it names the account
+and the change in the operator's language — while showing a dialog and running
+the action is the page's job.
+
+#### The characterization tests, and why they came first
+
+`governance-page.test.ts` covered the policy section and the conversation flow
+and **none** of the seven panels this work moved. Extracting untested panels and
+then reporting "the tests still pass" would have been a claim about the tests.
+
+So `governance-panels.test.ts` — 24 tests over the ledger, host resources,
+deployment, accounts, the request queue, running sessions and timed-out
+escalations — was written against the component _as it was_, run green, and
+committed before the extraction started. That ordering is what makes them
+characterization tests: they describe behaviour that already existed, so a
+difference afterwards is a regression by definition rather than a disagreement
+about intent.
+
+**They earned it immediately.** The first extraction that passed a pre-built
+`api` client to a panel threw on first paint: `api()` resolves the gateway out
+of the application context, which is not guaranteed to exist when the page first
+renders, and every real call site is an event handler. Handing panels an
+instance moved that work from click-time to render-time. Twelve tests failed at
+once. The fix is a getter (`api: () => GovernanceApi`), which preserves the
+laziness the component always had — and the trade would have shipped silently
+without tests written the day before.
+
+#### What the empty states are for
+
+Several panels are asserted twice: once with data, once without. That is
+deliberate. This project's worst bug class is an action ending in no visible
+outcome, and its dashboard equivalent is a section that renders blank whether it
+has nothing to show or failed to load — finding 102 exactly, and finding 117
+nearly again. The tests assert the _sentence_ ("No audit entries yet", "Live
+session view unavailable"), not merely that something rendered, so the
+distinction between "nothing running" and "cannot report" cannot quietly
+collapse.
+
+### T6 closed — a lockdown now reaches what the locked agent started (2026-08-25)
+
+Finding 96, open since round fourteen, carried as blocked on OpenClaw. Report
+material in `CHAPTER3-MATERIAL.md` §3.5.38; plain language in
+`QA-IN-PLAIN-TERMS.md` §5.32.
+
+#### The gap
+
+Requirement #7 is about stopping a runaway agent, and an agent's blast radius
+includes what it started. Agent A spawns work that runs under agent B's
+identity; an operator stops A; the child keeps running, because
+`mintSpawnSessionKey` puts only the _target's_ identity in the child's session
+key and the layer had nothing to trace lineage with.
+
+#### Why it was recorded as blocked, and why that was wrong
+
+The backlog said it "needs the host to report the requester (`spawnedBy`)
+through `HookContext`". That is a **true statement about the hook** — the
+`before_tool_call` payload carries `agentId` and `sessionKey` and no lineage.
+
+It was read as a statement about the project. **It is not, because this is a
+fork.** The host already records `spawnedBy` on the session entry
+(`src/config/sessions/types.ts`, written by `acp-spawn.ts`), and a fork can read
+the session store directly rather than waiting for a field to appear in a
+payload it does not control.
+
+> **The transferable claim, and it generalises past this one item:** in a fork,
+> "the host does not report X" is a statement about one interface, not about
+> what is reachable. The gate had been treating the hook payload as the only
+> thing it was allowed to look at, and nobody had re-asked why. The limitation
+> sat open for six days behind a sentence that was accurate and misread.
+
+#### What was built
+
+`src/governance/session-lineage.ts` — `findLockedAncestor` walks a session's
+`spawnedBy` chain and returns the **first** locked ancestor found, so the reason
+an operator is shown names the nearest cause rather than the oldest.
+
+| Property                            | How                                                                                                                              |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Costs nothing outside an incident   | Returns immediately when `lockedAgents` is empty; the gate never reads the store on the ordinary path                            |
+| Cannot loop                         | A seen-set terminates a cycle, and `MAX_LINEAGE_DEPTH` (16) bounds the walk                                                      |
+| No `await` inside the walk          | `openSessionEntryReadView` borrows rows rather than cloning them, and its contract requires the view be dropped before any await |
+| Fails closed on an unreadable store | `lineageUnknown` — see below                                                                                                     |
+
+Four ledger ids now distinguish the ways a call is stopped: `kill-switch` (the
+agent you named), `kill-switch-lineage` (its child), `kill-switch-lineage-unknown`
+(unprovable during an incident) and `kill-switch-unattributable` (finding 81's
+case). An auditor counting kill-switch hits can separate "we stopped the agent
+you named" from the three ways a call is stopped _because of_ that agent without
+being it.
+
+#### The fail-closed decision
+
+A call whose lineage **cannot be read** while a lockdown is in force is refused.
+That is the same choice finding 81 made for a call carrying no agent id at all,
+and for the same reason: during an incident, over-blocking costs one unrelated
+call and under-blocking costs the containment the operator asked for.
+
+It is narrow by construction — with nothing locked the check is never consulted,
+so an unreadable store is only ever a problem during an incident, which is
+exactly when erring toward refusal is what an operator wants.
+
+#### The test that had to fail
+
+`qa-round14.test.ts` pinned the old limitation deliberately, with a comment
+saying that closing the gap would make the test fail and send whoever closed it
+straight to the explanation. That is what happened. The test now asserts the
+opposite — a cross-agent child is refused **even though its own agent holds an
+explicit allowance for that exact command**, because lineage is checked before
+any rule — and a second test asserts an unrelated agent keeps running, because
+failing closed is only defensible while it stays narrow.
+
+That is the strongest argument this project has produced for pinning a
+limitation rather than merely writing it down: the note said what to do, and the
+suite made sure it was read.
+
+### T7 investigated — the hook exists, and it buys audit rather than prevention
+
+Not closed, and the row is corrected rather than left as it was.
+
+T7 says search tools are governed at their root only: `grep`, `find` and `ls`
+recurse, so a search rooted at the workspace still reads files a core denial
+names. The backlog recorded it as needing "the host to report files actually
+opened (`after_tool_call`)".
+
+**`after_tool_call` already exists** — `src/plugins/hook-types.ts:1327`, fired
+from `embedded-agent-subscribe.handlers.tools.ts` and `harness/hook-helpers.ts`,
+carrying `result`, `error` and `durationMs`.
+
+**It cannot close the gap, and the reason is structural rather than missing
+work.** The hook runs _after_ the tool has executed, its handler returns
+`Promise<void>`, and in the embedded path it is dispatched fire-and-forget
+(`void hookRunnerAfter.runAfterToolCall(...)`). By the time it fires, the bytes
+have been read and the result is on its way to the model. A hook that cannot
+refuse and cannot alter can **record** that a search reached a denied path; it
+cannot stop it.
+
+So T7 splits into two halves that the original row treated as one:
+
+| Half                                                                      | Status                                                        |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| **Audit** — make the coverage gap visible and recorded rather than silent | **Closable here**, with `after_tool_call`, no upstream change |
+| **Prevention** — stop a recursive search reading a denied file            | **Not closable this way**                                     |
+
+Two routes exist for the prevention half, and both are design changes rather
+than plumbing. The search tool could accept an exclusion set from the gate,
+which is a real host change. Or the gate could **narrow the search root before
+the call** using the parameter rewriting T23 already established — which is
+reachable from this fork, and carries an obvious risk of breaking legitimate
+searches that the design would have to answer.
+
+Recorded rather than attempted, because the choice between them is a decision
+about how much a security control may change what an operator asked for, and
+that belongs with the M5/M6 decisions rather than inside a refactoring session.
 
 ## Notes for Chapter 3
 

@@ -2881,6 +2881,171 @@ One file is still too long: the dashboard page, at around 2,400 lines. It is a
 single screen's worth of component, and nobody has yet found the line to cut it
 along.
 
+## 5.31 Breaking up the dashboard, and the rule that started it
+
+The dashboard was one file of about 2,400 lines. It is now about 700, with the
+rest split into eight smaller files. Two things about that are worth explaining:
+where the "too long" rule came from, and why the work was worth doing even
+though the rule turned out not to be ours.
+
+### The rule is inherited, and nothing here enforces it
+
+The size limit comes from **OpenClaw's own settings file**, which arrived with
+the fork. It is not one of this project's nine requirements — none of those says
+anything about how long a file may be. And nothing in this repository actually
+checks it: the automatic check that runs before each save only reformats code,
+and the online checks are switched off to avoid the bill. The limit only appears
+when somebody runs the checker by hand.
+
+OpenClaw itself has written **two exemptions for its own files** that were too
+long to split. So "add an exemption and move on" was a real option, and an
+honest one.
+
+### Why it was done anyway
+
+Because the size was pointing at something the size was not itself about.
+
+Earlier the same week, the web endpoints were split so each file could state, in
+one sentence, **who is allowed to use everything in it**. That made each one
+checkable as a whole rather than line by line — a real benefit for a security
+project, and nothing to do with length.
+
+The dashboard now matches that shape. The panel showing the audit log sits in
+the same-sized piece as the endpoint serving it; the panel for accounts matches
+the endpoint for accounts, and so on. Somebody asking "who can see the audit
+log?" now reads two short files instead of hunting through two long ones.
+
+So the fair summary for the report: **the limit was the prompt, not the point.**
+
+### Writing the safety net first, and it catching something within the hour
+
+Only two of the nine dashboard sections had any tests. Moving seven untested
+sections and then saying "the tests still pass" would have been a statement
+about the tests, not about the sections.
+
+So 24 tests were written first — against the dashboard exactly as it was, run
+until green, and only then was anything moved. That ordering matters: they
+describe behaviour that already existed, so any difference afterwards is a
+mistake by definition rather than an argument about what it should do.
+
+They paid for themselves almost immediately. The first attempt handed each panel
+a ready-made connection to the server. That looks harmless and is not: the
+connection is built from information that may not exist yet when the page first
+draws, and every real use of it happens later, when somebody clicks something.
+Building it up front moved that work to the wrong moment and the page failed to
+draw at all. Twelve tests went red at once. Without them the fault would have
+reached a browser.
+
+### The empty screens, again
+
+Several panels are tested twice: once with data, once with none. That is
+deliberate, and it is the same lesson this project keeps relearning. A section
+that shows nothing looks identical whether it _has_ nothing or _failed to load_.
+So the tests check for the actual sentence — "No audit entries yet", "Live
+session view unavailable" — rather than merely that something appeared. In
+particular, "no agents are running" and "this system cannot tell you what is
+running" are different facts an operator would act on differently, and the tests
+now make sure they cannot quietly become the same blank space.
+
+## 5.32 The emergency stop now reaches what the stopped agent started
+
+### The hole
+
+The emergency stop is the system's most important control: one click and an
+agent takes no further action. It had a hole that had been known, written down,
+and left open for weeks.
+
+If agent A had started work that runs under agent B's name, stopping A did not
+stop that work. The child carries B's name and nothing recording where it came
+from, so the system had no way to know it was A's doing.
+
+### Why it stayed open, and why that reason was wrong
+
+The note said this needed OpenClaw itself to pass along who requested the work,
+and OpenClaw was somebody else's project.
+
+That reasoning had a flaw nobody caught: **this project is a fork of OpenClaw.**
+And it turned out the information was already there — OpenClaw records who
+spawned each session in its own session file. What was missing was that one
+field being _handed to_ the security check. But a fork does not have to wait to
+be handed things; it can go and read them.
+
+> The lesson is small and worth keeping: **"the other system doesn't tell us" is
+> a statement about one doorway, not about what is reachable.** The check had
+> quietly assumed the only thing it was allowed to look at was what arrived on
+> its doorstep, and nobody had asked why for six days.
+
+Nothing in OpenClaw was changed to fix this.
+
+### How it works now, and what it costs
+
+When something is stopped, the check now follows the chain upward — who started
+this, and who started _them_ — and refuses the action if anyone in that chain
+has been stopped. The reason shown names the nearest one, because during an
+incident an operator needs the cause, not the oldest ancestor.
+
+Three deliberate limits:
+
+- **It costs nothing normally.** With nothing stopped, the check exits
+  immediately and never looks anything up. A control for emergencies should not
+  slow down everyday work.
+- **It cannot run away.** The chain-following stops after sixteen steps and
+  detects loops, because the file it reads sits on disk and a security check
+  should not assume the file is well-formed.
+- **When it cannot tell, it refuses.** If the record cannot be read while an
+  emergency stop is active, the action is blocked rather than allowed. That
+  errs on the side of stopping one unrelated thing rather than letting through
+  something that might be the very thing being stopped — and it only ever
+  applies during an incident.
+
+The other half matters just as much: an unrelated agent keeps working normally
+throughout. A stop that halted everything would be indistinguishable from a
+broken system.
+
+### The test that was written to fail
+
+Months ago, when this hole was recorded, somebody wrote a test asserting the
+**broken** behaviour on purpose, with a note saying: whoever fixes this will see
+this test fail, and it will send them here to read why.
+
+That is exactly what happened. The test failed, the note explained itself, and
+it has now been rewritten to assert the fix. It is the best argument this
+project has produced for pinning a known problem with a test instead of only
+writing it in a document — the document said what to do, and the test made sure
+somebody read it.
+
+## 5.33 The other search hole: why finding the tool did not fix it
+
+The third known gap is that search commands are only checked where they are
+pointed. Search a whole folder and it reads everything underneath, including
+files a rule forbids.
+
+The note said this needed a particular OpenClaw feature — a way to report which
+files a tool actually opened. Having just learned that "OpenClaw doesn't do it"
+deserves checking, it was checked.
+
+**The feature exists.** It has existed all along.
+
+**It still does not fix the problem**, for a reason worth understanding: it runs
+_after_ the tool has finished. It is told what happened; it cannot say no. By
+the time it hears about the search, the files have been read and the results are
+already on their way back.
+
+So the gap splits into two, where the note had treated it as one:
+
+- **Recording it** — noting that a search reached a forbidden file, so the blind
+  spot is visible instead of silent. That _is_ possible now, with no changes to
+  OpenClaw.
+- **Preventing it** — stopping the search reading the file at all. That is not,
+  by this route.
+
+Preventing it would need either the search tool to accept a list of things to
+skip, or the security check to quietly narrow the search before it runs. The
+second is possible in this project today. It is also a security control changing
+what an operator asked for without saying so, which is a decision worth making
+deliberately rather than in passing — so it has been written down as a choice,
+not implemented on the way past.
+
 ## 7. The single lesson
 
 Rounds five and six found the same mistake wearing different clothes.

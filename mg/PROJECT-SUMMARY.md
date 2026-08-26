@@ -489,7 +489,7 @@ conclusion.
 > paragraph, the two things to do before anything else, and how to verify
 > nothing is broken. This file is the reference beneath it.
 
-- **2,116 governance tests pass across 99 files** — file _runs_, not files; 1,308 distinct tests across 73 distinct files, because the thirteen gateway files each run under three Vitest projects (measured 2026-08-24, after M4, the agent registry); `pnpm tsgo:core` and `pnpm tsgo:ui` both clean;
+- **2,151 governance tests pass across 101 files** — file _runs_, not files; 1,343 distinct tests across 75 distinct files, because the thirteen gateway files each run under three Vitest projects (measured 2026-08-24, after M4, the agent registry); `pnpm tsgo:core` and `pnpm tsgo:ui` both clean;
   OpenClaw's own harness suite **fully green (192 passed)** since T25 closed on
   2026-08-25; it had been 18 failed / 174 passed for the life of the project.
 - **Branch:** `governance-layer`, **clean as of 2026-08-24**, 22 commits ahead

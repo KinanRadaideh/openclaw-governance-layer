@@ -2377,3 +2377,107 @@ harness still fully green at 192 passed, oxlint clean across
 `src/gateway/`, `src/cli/program/` and `src/governance/`.
 
 **T16 has one file left.** Everything else that was over the limit is under it.
+
+---
+
+## 27. T16 closed, T6 closed, and a phrase that had gone unaudited (2026-08-25)
+
+Three items, and the thread joining them is a sentence nobody had re-read:
+**"blocked on the host."**
+
+### T16 — the dashboard, and the rule that prompted it
+
+`governance-page.ts` went from 2,412 code lines to **696**, split into eight
+modules. Every file in the project is now inside the limit.
+
+Before the work, the limit itself was examined, because that changes what the
+work proves. It is **upstream OpenClaw's** (`.oxlintrc.json`), **not one of the
+nine requirements**, and **nothing in this fork enforces it** — the pre-commit
+hook only formats and Actions are off (T21). Upstream exempts two of its own
+files, so exempting this one was a real option and was considered.
+
+It was split anyway, because the seam bought something the line count only
+pointed at: the panels now sit at the same granularity as the route modules
+serving them, so "who can see the ledger?" is two short files rather than two
+long ones. **The limit was the prompt, not the payoff** — worth saying that way
+in the report rather than implying a rule was obeyed.
+
+**Characterization tests came first**, and that ordering earned itself within
+the hour. Only two of nine sections had coverage, so 24 tests were written
+against the component as it was and run green before anything moved. The first
+extraction handed each panel a pre-built API client — which is built from the
+application context, may not exist at first paint, and is only ever used from
+event handlers. Building it eagerly moved that work from click-time to
+render-time and the page threw before drawing. Twelve tests went red at once.
+The general form is worth reporting: **a refactor's risk is not the code that
+moves, which the type checker verifies, but the evaluation order that moving
+changes, which it does not.**
+
+### T6 — closed, and never actually blocked
+
+Finding 96: a lockdown did not reach a cross-agent child already running. The
+backlog said it needed the host to report `spawnedBy` through `HookContext`.
+
+That is a true statement about the **hook**. It was read as a statement about
+the **project**, and this is a fork. `spawnedBy` is already written onto the
+session entry by the host's own spawn path, and the gate can read the session
+store instead of waiting for a payload field. Nothing upstream changed.
+
+`session-lineage.ts` walks the chain and refuses a call descending from a locked
+agent, naming the nearest cause. Three limits are deliberate: it reads nothing
+when nothing is locked, it is bounded at depth 16 with a cycle guard, and it
+**fails closed when lineage cannot be read during an incident** — finding 81's
+reasoning, and narrow because it only applies while something is locked.
+
+**The round-14 test that pinned the limitation was written to fail when the gap
+closed.** It did. That is the strongest evidence this project has produced for
+pinning a known limitation with a test rather than only writing it down: the
+document said what to do, and the suite made sure it was read at the moment it
+mattered.
+
+**One defect of my own, caught by an existing test.** `view.get` throws for a
+session key the SQLite scope cannot resolve, and the first version guarded only
+the _open_. So the exception escaped `evaluateGovernancePolicy` whenever a
+lockdown was in force — and **a gate that throws does not deny**; what leaves
+the hook is an exception, not a decision. A round-six test caught it before the
+suite did. The walk is now total, with a regression test.
+
+### T7 — re-examined on the same reasoning, with a different answer
+
+Having learned that "blocked on the host" deserves checking, T7 was checked.
+
+**Its blocker exists.** `after_tool_call` has been in the host all along.
+
+**It still cannot close the gap**, structurally rather than for want of work: it
+runs after the tool, returns `Promise<void>`, and is fire-and-forget on the
+embedded path. By the time it fires the bytes are read. A hook that can neither
+refuse nor alter can _record_ that a search reached a denied path; it cannot
+prevent it.
+
+So the row now splits: **audit is closable here with no upstream change;
+prevention is not, by this route.** Prevention needs either the tool to accept
+an exclusion set (a real host change) or the gate to narrow the search root
+before the call using T23's parameter rewriting — which is reachable here and is
+a security control silently altering what an operator asked for. Recorded as a
+decision rather than implemented in passing.
+
+### The finding that outlives all three
+
+"Blocked on the host" was recorded three times and audited zero times. Two have
+now been examined and **both moved**. T8 has not been, and its row should be
+read as an unverified claim until it is.
+
+> In a fork, _"the host does not report X"_ is a statement about **one
+> interface**, not about what is reachable. It is also a claim with a date on
+> it. This project already found the same shape twice — a guard that could not
+> say what it compared against, and a baseline attributed to the wrong file —
+> and each time the cause was the same: a sentence cheap to re-read and
+> expensive to re-verify, where re-reading quietly replaced re-verifying.
+
+### The state
+
+Governance suite **2,151 across 101 files** (1,343 distinct across 75), both
+typechecks clean, host suites still fully green (263 passed), oxlint clean on
+everything touched. Four pre-existing lint errors remain in `file-lock.ts` and
+`audit-ledger.ts` — untouched by this work, and worth folding into a future
+tidy-up.
