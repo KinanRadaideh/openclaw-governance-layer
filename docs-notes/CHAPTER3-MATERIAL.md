@@ -3385,6 +3385,9 @@ in files already past the project's 700-line limit. Each was split along a seam
 T16 had already identified, and both finished smaller than they started:
 `governance-dashboard-api.ts` 1,219 → 1,208, `register.governance.ts` 863 → 848.
 
+> **Superseded 2026-08-25: T16 is closed** — see §3.5.37, which also records
+> where the limit comes from and why it binds nothing here.
+
 Both remain over the limit and T16 stays open. The point worth reporting is the
 direction: a feature change that would ordinarily deepen a piece of technical
 debt was made to reduce it slightly instead, at the cost of two file moves.

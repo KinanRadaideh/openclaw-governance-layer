@@ -12,7 +12,7 @@ beneath this.
 
 ## 1. The one-paragraph state of things
 
-**Current as of 2026-08-24.** The governance layer is **built and verified, and
+**Current as of 2026-08-25.** The governance layer is **built and verified, and
 still not demonstrated.** Eight of the nine design requirements are fully met;
 the ninth (Linux deployment) is tested but never deployed. **2,151 automated
 tests pass across 101 files** (1,343 distinct across 75 — see §4), both
@@ -21,7 +21,9 @@ suite is **fully green for the first time**: the 18 pre-existing Windows
 failures used as this project's baseline were fixed on 2026-08-25 (T25), along
 with nine more in `host-hooks.contract.test.ts`. Eighteen
 QA rounds have found 119 defects, all fixed; **there is no known
-security hole.**
+security hole**, and as of 2026-08-25 **no known-failing test anywhere** — the
+project's own suite, OpenClaw's harness, and the plugin contract suite are all
+green, and every source file is inside the line limit inherited from upstream.
 
 What has _not_ happened is a single end-to-end run with a real language model
 driving a real tool call — so every claim rests on tests, not on observation.
@@ -32,12 +34,82 @@ item by a wide margin.
 holds **T1–T28**, the original project, and supersedes every older list.
 §"The M-series" holds **M1–M6**, a multi-tenancy feature requested on
 2026-08-24 and added on top — **four done, two not started**; M4 gave the layer a
-first-class agent record, which is what M6 was blocked on. Seventeen of
-twenty-seven T-items are done
+first-class agent record, which is what M6 was blocked on. **Twenty-one of twenty-eight T-items are done** — one of those (T13) is
+drafted and still waiting to be read, and T1 is deprioritised, so **six are
+genuinely outstanding: T2, T3, T7, T8, T17, T18**
 (T26 and T27 were added 2026-08-24 for work that shipped on the 22nd and had
-never been entered). The old letters
+never been entered; T28 was added and closed on the 25th). The old letters
 (A-, B-, F-, R5, G) survive only as a `Ref` column pointing at their historical
 write-ups; nothing is orphaned.
+
+### 2026-08-25 — the session that emptied the "blocked" column
+
+One working session, eleven commits, and the most useful output was not any of
+the code: it was discovering that **three of the backlog's blockers had never
+been checked**, and that two of them were not blockers.
+
+Read this before `REMAINING-WORK.md`, because it changes how that file's
+`Blocked` column should be read.
+
+#### What was closed
+
+| Item    | What it was                                   | What it turned out to be                                                         |
+| ------- | --------------------------------------------- | -------------------------------------------------------------------------------- |
+| **M4**  | The agent registry                            | The unlock for M6; an agent is now a record, not an inference                    |
+| **T25** | 18 known-failing host tests                   | Attributed to the wrong file for two weeks. 27 tests fixed; the baseline is zero |
+| **T28** | Unreachable code in `policy-engine.ts`        | A default-_allow_ that could never fire, one refactor from firing                |
+| **T16** | Three files over the inherited 700-line limit | Closed. The limit is upstream's and enforces nothing here                        |
+| **T6**  | A lockdown missing a cross-agent child        | **Never blocked on OpenClaw.** Closed without touching upstream                  |
+
+#### The finding that outlives them
+
+**"Blocked on the host" was recorded three times and audited zero times.**
+
+- **T6** said it needed `spawnedBy` through `HookContext`. True of the _hook_;
+  read as true of the _project_. This is a fork — the host already writes
+  `spawnedBy` onto the session entry, and the gate can read the session store.
+  Closed the same day it was questioned.
+- **T7** said it needed `after_tool_call`. That hook **already exists and always
+  has**. It still cannot close the gap, because it runs after the tool and
+  returns `void` — so T7 now splits into an _audit_ half (doable here) and a
+  _prevention_ half (needs a decision).
+- **T8** has **not** been re-examined. On this record its "needs a fourth
+  resource kind" should be read as an unverified claim.
+
+> In a fork, _"the host does not report X"_ is a statement about **one
+> interface**, not about what is reachable — and it is a claim with a date on
+> it. This is the third instance of one pattern in the project's own records,
+> after round eleven's guard that could not name what it compared against and
+> T25's baseline attributed to the wrong file. Each time the cause was the same:
+> a sentence cheap to re-read and expensive to re-verify, where re-reading
+> quietly replaced re-verifying.
+
+#### Two method points worth taking to the defence
+
+**Pinning a limitation with a test works, and there is now proof.** The
+round-fourteen test asserted finding 96's _broken_ behaviour on purpose, with a
+comment saying that closing the gap would make it fail and send whoever closed
+it to the explanation. That is exactly what happened. The document said what to
+do; the suite made sure it was read at the moment it mattered.
+
+**Characterization tests before a refactor, not after.** Only two of the
+dashboard's nine sections had coverage, so 24 tests were written against the
+component _as it was_ and run green before anything moved. They caught a real
+defect within the hour — an API client built at render time instead of
+click-time, which threw before the page could draw. The general form:
+**a refactor's risk is not the code that moves, which the type checker verifies,
+but the evaluation order that moving changes, which it does not.**
+
+#### Where things stand
+
+Six T-items genuinely outstanding (**T2, T3, T7, T8, T17, T18**), plus T13 to
+read and T1 deprioritised. **M5 and M6 are the only substantial engineering
+left, and both are blocked on decisions rather than effort** — eleven of them,
+listed in `REMAINING-WORK.md` §"Open before M5 or M6 starts".
+
+**T2 remains the single highest-value item on the project** and has since
+2026-08-19. Everything above is worth less than one real agent driving one real
+tool call.
 
 ### What changed in the last three days, and why it matters
 
@@ -109,10 +181,16 @@ backlog.**
 
 **Two things need doing before anything else:**
 
-| #   | Action                                                                                | Effort   |
-| --- | ------------------------------------------------------------------------------------- | -------- |
-| 1   | **Push to the private remote.** 18 commits exist only on this machine and in OneDrive | 1 min    |
-| 2   | **Run it once with a real agent** and record what happens (T2)                        | 2–4 days |
+| #   | Action                                                                                                                                                                      | Effort   |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| 1   | **Push to the private remote.** **29 commits** exist only on this machine and in OneDrive — re-measured 2026-08-25 with `git log --oneline personal/governance-layer..HEAD` | 1 min    |
+| 2   | **Run it once with a real agent** and record what happens (T2)                                                                                                              | 2–4 days |
+
+> **Do not confuse the two counts.** `main..HEAD` is **44** and
+> `personal/governance-layer..HEAD` is **29**; the first is how far the branch
+> has diverged from upstream, the second is what is actually unpushed. This
+> document has quoted the wrong one before. `origin` is upstream
+> `openclaw/openclaw` and **this branch must never be pushed there**.
 
 **F1 is done as of 2026-08-21**, and it used to be the item at the top of this
 table — the only one whose failure mode was losing everything. The tree was
@@ -122,11 +200,11 @@ remote. The push was **verified by cloning it back from GitHub**: same tip
 (`f4b7325241a`), same tree (`3debbb521…`), the governance work all present.
 The work now exists in three places rather than one.
 
-> ### ⚠ The tree is clean, and 18 commits have never left this machine
+> ### ⚠ The tree is clean, and 29 commits have never left this machine
 >
 > Everything since 2026-08-21 is committed — the sixteenth QA pass, T9, T24,
-> T26, T4, T27, T5, T14, T15, T16's split, T23, rounds seventeen and eighteen,
-> and M1–M3 — in eighteen commits grouped by workstream.
+> T26, T4, T27, T5, T14, T15, T23, rounds seventeen and eighteen, M1–M4, T25,
+> T28, and T16 and T6 in full — in twenty-nine commits grouped by workstream.
 >
 > **None of them has been pushed.** The private remote is still at the
 > 2026-08-21 tip, so a fortnight's work exists on this machine and in OneDrive
@@ -283,20 +361,35 @@ OneDrive folder. Worth a `.gitignore` entry so it stops appearing in
 node node_modules/vitest/vitest.mjs run src/governance/ src/gateway/governance-*.test.ts ui/src/pages/governance/
 node scripts/run-tsgo.mjs -p tsconfig.core.json
 node scripts/run-tsgo.mjs -p tsconfig.ui.json
-node node_modules/vitest/vitest.mjs run src/agents/harness/native-hook-relay.test.ts
+node node_modules/vitest/vitest.mjs run src/agents/harness/native-hook-relay.test.ts src/plugins/contracts/host-hooks.contract.test.ts
+node node_modules/oxlint/bin/oxlint --config .oxlintrc.json src ui/src
 ```
 
-Expected, measured 2026-08-24:
+Expected, measured **2026-08-25**:
 
-| Command          | Expected                          |
-| ---------------- | --------------------------------- |
-| Governance suite | **2,151 passed across 101 files** |
+| Command                  | Expected                                                                                                                                             |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Governance suite         | **2,151 passed across 101 files**                                                                                                                    |
+| `tsgo:core`              | clean                                                                                                                                                |
+| `tsgo:ui`                | clean                                                                                                                                                |
+| Host suites (both)       | **263 passed, 0 failed**                                                                                                                             |
+| oxlint over `src ui/src` | clean under `src/governance/` and `ui/src/pages/governance/`; four pre-existing errors remain in `src/governance/file-lock.ts` and `audit-ledger.ts` |
 
-**All four re-run and green on 2026-08-24**, most recently after M4:
-**2,151/101**, both typechecks clean, host harness at **0 failed / 192 passed**
-(it was 18 failed / 174 passed until T25 closed on 2026-08-25). The figure has moved seven times today — 1,794/87, 1,802/88, 1,877/91,
-1,901/94, 1,902/94, 1,926/95, 2,151/101 — which is why the command matters more
-than the number.
+**All five re-run and green on 2026-08-25**, after T16 and T6. The suite figure
+has moved nine times across two days — 1,794/87, 1,802/88, 1,877/91, 1,901/94,
+1,902/94, 1,926/95, 2,108/99, 2,116/99, 2,151/101 — **which is exactly why the
+command matters more than the number**, and why every row above names the
+command that produced it.
+
+> **Two things changed on 2026-08-25 that make older notes misleading.**
+>
+> The **harness baseline is zero**, not 18 failed / 174 passed. T25 fixed all
+> eighteen and nine more in `host-hooks.contract.test.ts`, so any failure in
+> either file is now a regression rather than the weather. Older text quoting
+> "18 failed" is history, not instruction.
+>
+> The **oxlint line-limit check now passes** for every governance file, T16
+> having closed. If it fails, something new is over — not the old debt.
 
 > One test (`qa-round5-storage.test.ts`, ledger rotation) has a 120-second
 > budget and writes enough entries to rotate the ledger. It times out when the
@@ -304,21 +397,20 @@ than the number.
 > That is load, not a regression; re-run it on a quiet machine before believing
 > a failure there.
 
-> **The 99 is file _runs_, not files, and 2,116 is test _executions_.**
+> **The 101 is file _runs_, not files, and 2,151 is test _executions_.**
 > Thirteen governance test files live under `src/gateway/` and run under three
-> Vitest projects, so each is executed three times: 57 + 3 + (13 × 3) = 99.
-> **Distinct totals: 1,300 tests across 73 files.** Quote 2,151/101 if you also
-> state the command; quote 1,300/73 if you are describing how much test code
-> exists. This is the same trap as the 18-versus-9 harness baseline three
-> paragraphs below — recorded there, missed here, for as long as the number had
-> been quoted.
+> Vitest projects, so each is executed three times: 58 + 4 + (13 × 3) = 101.
+> **Distinct totals: 1,343 tests across 75 files.** Quote 2,151/101 if you also
+> state the command; quote 1,343/75 if you are describing how much test code
+> exists. This is the same trap as the 18-versus-9 harness baseline recorded
+> below — and it went unnoticed here for as long as the number had been quoted.
 >
-> M4 accounts for the whole of the last jump, and the arithmetic is worth having
-> because most of it is not the new suites: 23 (registry store) + 16×3 (registry
-> routes) + 24×3 (four routes added to the malformed-body table) + 13×3 (five
-> routes added to the privilege matrix) = 182. **Two-thirds of the growth came
-> from extending two existing tables rather than from writing new files**, which
-> is what those two tables are for.
+> **The two jumps on 2026-08-24–25 are worth keeping, because neither is what
+> it looks like.** M4 added 182 executions and only 39 of them are its two new
+> files: 111 came from adding five routes to the malformed-body table and the
+> privilege matrix, which is what those two tables exist to make cheap. T16 and
+> T6 added 35, of which 24 are the dashboard characterization tests — written
+> _before_ the refactor they cover, which is why they could catch anything.
 
 > **Compare like for like.** That figure is the command in this table exactly —
 > `src/governance/`, `src/gateway/governance-*.test.ts`, `ui/src/pages/governance/`.
@@ -639,9 +731,12 @@ the same `permissions.ts` helpers the HTTP routes use. A file should have one
 subject; where it can also have one authorization rule, that is stronger and
 worth stating.
 
-**T16 is still open, with one file left**: `governance-page.ts` (2,412), a single
-Lit component, the largest file in the project and the only one with no seam
-named for it. Full reasoning in `GOVERNANCE.md` §"T16".
+**T16 closed on 2026-08-25.** `governance-page.ts` went 2,412 → **696**, split
+into eight modules whose panels match the route modules serving them — the seam
+turned out to be _panel matching route_, not the authorization sentence that
+worked for the routes themselves. Every file in the project is now inside the
+limit. Full reasoning in `GOVERNANCE.md` §"T16 closed", including where the
+700-line limit comes from and why it enforces nothing here.
 
 ### T12, T19, T13 (2026-08-22)
 
@@ -970,13 +1065,13 @@ F1 closed once already.
 
 ### Mine, and nothing blocks them
 
-| #           | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Effort   |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| ~~**T23**~~ | ~~Bind the decision to the resolved path.~~ **DONE 2026-08-24.** The gate hands the tool the path it judged, so a symlink swapped afterwards has nothing to race. Narrow by design — it fires only on a call canonicalization actually redirected, so ordinary calls are byte-identical. §3.5.29                                                                                                                                                                                                                 | done     |
-| ~~**T14**~~ | ~~Finish attachments.~~ **DONE 2026-08-24 — all three surfaces.** Raw-body upload route (no multipart parser to write, and the store can refuse mid-read), filename base64 in a header, and a dashboard picker. The prompt route reads every recorded fact from the store index rather than the request. QA round seventeen then found four defects in it                                                                                                                                                        | done     |
-| ~~**T25**~~ | ~~The 18 host-harness failures.~~ **DONE 2026-08-25.** All 18 fixed, plus nine more in `host-hooks.contract.test.ts`. The baseline is now 0 failed / 192 passed and every verification step moved with it. **The row was wrong about the cause** — eight of the nine distinct failures were POSIX-only assertions in the tests against correct platform-aware production code, not the SQLite bug; both files having exactly nine failures is what let the misattribution survive                                | done     |
-| **T16**     | **Finish the file split — three files, not two.** Re-measured after M4 with the lint rule's own measure (not `wc -l`): `governance-dashboard-api.ts` **1,208**, `register.governance.ts` **848**, `governance-page.ts` **2,413**. M4 took the first two _down_ (from 1,219 and 863) by splitting the agent routes and the agent commands into their own files — the agent-routes seam this row named is now used. **Remaining seam: the ledger routes**, plus the page, which is the largest and has none marked | 1 day    |
-| **T17**     | **Redraw the Mermaid diagrams** in the report's style. Candidates already marked "Figure candidate" throughout `CHAPTER3-MATERIAL.md`                                                                                                                                                                                                                                                                                                                                                                            | 2–3 days |
+| #           | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Effort   |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| ~~**T23**~~ | ~~Bind the decision to the resolved path.~~ **DONE 2026-08-24.** The gate hands the tool the path it judged, so a symlink swapped afterwards has nothing to race. Narrow by design — it fires only on a call canonicalization actually redirected, so ordinary calls are byte-identical. §3.5.29                                                                                                                                                                                    | done     |
+| ~~**T14**~~ | ~~Finish attachments.~~ **DONE 2026-08-24 — all three surfaces.** Raw-body upload route (no multipart parser to write, and the store can refuse mid-read), filename base64 in a header, and a dashboard picker. The prompt route reads every recorded fact from the store index rather than the request. QA round seventeen then found four defects in it                                                                                                                           | done     |
+| ~~**T25**~~ | ~~The 18 host-harness failures.~~ **DONE 2026-08-25.** All 18 fixed, plus nine more in `host-hooks.contract.test.ts`. The baseline is now 0 failed / 192 passed and every verification step moved with it. **The row was wrong about the cause** — eight of the nine distinct failures were POSIX-only assertions in the tests against correct platform-aware production code, not the SQLite bug; both files having exactly nine failures is what let the misattribution survive   | done     |
+| ~~**T16**~~ | ~~Finish the file split.~~ **DONE 2026-08-25.** `governance-page.ts` 2,412 → **696**, split into eight modules whose panels match the route modules serving them; every file in the project is now inside the limit. **The limit is upstream OpenClaw's, is not one of the nine requirements, and nothing in this fork enforces it** — worth knowing before treating the work as compliance. 24 characterization tests were written first, and caught a real defect within the hour | done     |
+| **T17**     | **Redraw the Mermaid diagrams** in the report's style. Candidates already marked "Figure candidate" throughout `CHAPTER3-MATERIAL.md`                                                                                                                                                                                                                                                                                                                                               | 2–3 days |
 
 ### The M-series — the multi-tenancy feature, four of six done
 
@@ -997,6 +1092,12 @@ and controls to create, edit and assign.
 | ~~**M4**~~ | ~~The agent registry.~~ **DONE.** A record per agent (id, name, `groupId`, one owning `adminId`); `knownAgentIds` demoted to the fallback; assignment refuses another Administrator's agent. **An unregistered id is still assignable — a deliberate, tested hole that needs M6 to close** | done            | done     |
 | **M5**     | **Storage isolation** — per-group policy document, audit chain, ledger key and checkpoint. The largest and riskiest. The existing chain must keep verifying byte-identically                                                                                                               | **not started** | 4–6 days |
 | **M6**     | **The Administrator panel, and provisioning** a real OpenClaw agent by writing `agents.entries` in the host config                                                                                                                                                                         | **not started** | 3–5 days |
+
+> **Before starting either M5 or M6, read `REMAINING-WORK.md` §"Open before M5
+> or M6 starts".** Eleven decisions are recorded there, and several change the
+> shape of the work rather than a detail inside it. **M5's first question and
+> M6's third are the same question from two directions** — what happens to an
+> agent that is not in the registry — so neither can be answered alone.
 
 **Three risks worth knowing before picking this up.** M5 changes the project's
 strongest security claim — per-group ledgers mean per-group keys, so the "delete

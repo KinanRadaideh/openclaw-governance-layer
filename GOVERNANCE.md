@@ -2025,6 +2025,9 @@ finished **smaller than they started**:
 | `governance-dashboard-api.ts` | 1,219  | **1,208** |
 | `register.governance.ts`      | 863    | **848**   |
 
+> **Superseded 2026-08-25** — see §"T16 closed". Kept because the point being
+> made here is about the direction a feature change pushed the number.
+
 Still over the limit, and T16 stays open — but the change that would ordinarily
 have pushed them further over did not.
 
