@@ -26,21 +26,45 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mintSpawnSessionKey } from "../agents/spawn-plan.js";
+import type { SessionEntry } from "../config/sessions.js";
+import { replaceSessionEntry } from "../config/sessions/session-accessor.js";
 import { parseAgentSessionKey } from "../sessions/session-key-utils.js";
+import { closeOpenClawAgentDatabases } from "../state/openclaw-agent-db.js";
+import { closeOpenClawStateDatabaseForTest } from "../state/openclaw-state-db.js";
 import { evaluateGovernancePolicy } from "./policy-engine.js";
 import { loadPolicy, savePolicy } from "./policy-store.js";
 
 let dir: string;
 let workspace: string;
+let previousStateDir: string | undefined;
 
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-qa14-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
   workspace = await mkdtemp(join(tmpdir(), "governance-qa14-ws-"));
+  // T6 reads the session store to resolve lineage, so the suite gets its own.
+  previousStateDir = process.env.OPENCLAW_STATE_DIR;
+  process.env.OPENCLAW_STATE_DIR = dir;
 });
+
+/** Records a session and, optionally, the session that spawned it (T6). */
+async function recordSession(sessionKey: string, spawnedBy?: string): Promise<void> {
+  await replaceSessionEntry({ sessionKey }, {
+    sessionId: sessionKey,
+    updatedAt: Date.now(),
+    ...(spawnedBy ? { spawnedBy } : {}),
+  } as SessionEntry);
+}
 
 afterEach(async () => {
   delete process.env.OPENCLAW_GOVERNANCE_DIR;
+  if (previousStateDir === undefined) {
+    delete process.env.OPENCLAW_STATE_DIR;
+  } else {
+    process.env.OPENCLAW_STATE_DIR = previousStateDir;
+  }
+  closeOpenClawAgentDatabases();
+  closeOpenClawStateDatabaseForTest();
   await rm(dir, { recursive: true, force: true });
   await rm(workspace, { recursive: true, force: true });
 });
@@ -194,34 +218,52 @@ describe("qa round 14 — what a spawned child inherits", () => {
   });
 
   /**
-   * **Known limitation, asserted so it cannot be forgotten.**
+   * **Closed on 2026-08-25 (T6). This test used to assert the opposite.**
    *
-   * A child already running under a *different* agent id is a different
-   * principal, so a lockdown on the parent does not reach it. The parent's
-   * identity is not in the child's session key — `mintSpawnSessionKey` puts
-   * only the target's there — so this layer has nothing to trace the lineage
-   * with. Closing it needs the host to report the requester alongside the
-   * child (`spawnedBy` exists in the host's own spawn records), which is a
-   * change in `HookContext`, not in the policy engine.
+   * It read: a child already running under a *different* agent id is a
+   * different principal, so a lockdown on the parent does not reach it — and
+   * closing that "needs the host to report the requester alongside the child
+   * (`spawnedBy` exists in the host's own spawn records), which is a change in
+   * `HookContext`, not in the policy engine".
    *
-   * What bounds the exposure meanwhile is finding 94 above: a cross-agent
-   * spawn is now default-denied, so a child under another identity exists only
-   * where an operator explicitly permitted it — and that operator can be told,
-   * in `PERMISSION-SPEC.md` §5, that stopping the parent will not stop it.
+   * The first half was right and the second was a mistake worth recording.
+   * `spawnedBy` does exist in the host's spawn records — on the **session
+   * entry**, which this fork can read. What was blocked was the *hook payload*,
+   * not the project. Reading "needs a change in `HookContext`" as "needs
+   * upstream" is how a limitation with a route out sat open for six days.
    *
-   * The test asserts the **current** behaviour deliberately. Writing it the
-   * other way round would leave a failing test that reads as a fix in
-   * progress; written this way, closing the gap makes this test fail and
-   * whoever closes it is sent straight to this comment.
+   * The old comment ended by saying that closing the gap would make this test
+   * fail and send whoever closed it straight to the explanation. That is
+   * exactly what happened, which is the whole argument for pinning a
+   * limitation rather than merely writing it down.
    */
-  it("does NOT bind a cross-agent child to the parent's lockdown (known limitation)", async () => {
+  it("binds a cross-agent child to its parent's lockdown (T6)", async () => {
     const doc = await loadPolicy();
     await savePolicy({ ...doc, mode: "enforce", ask: "off", lockedAgents: ["agent-a"] });
     await allow("^ls$", "agent-b");
     const childKey = mintSpawnSessionKey({ targetAgentId: "agent-b", backend: "subagent" });
+    await recordSession("agent:agent-a:main");
+    await recordSession(childKey, "agent:agent-a:main");
     const decision = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "ls" } },
       { sessionKey: childKey, cwd: workspace },
+    );
+    // Refused even though `agent-b` has an explicit allowance for this exact
+    // command: lineage is checked before any rule, exactly as the agent's own
+    // lockdown is.
+    expect(verdict(decision)).toBe("block");
+  });
+
+  it("leaves an unrelated agent's session running during that lockdown", async () => {
+    // The half that makes the rule above defensible. Failing closed at an
+    // incident is only acceptable while it stays narrow.
+    const doc = await loadPolicy();
+    await savePolicy({ ...doc, mode: "enforce", ask: "off", lockedAgents: ["agent-a"] });
+    await allow("^ls$", "agent-c");
+    await recordSession("agent:agent-c:solo");
+    const decision = await evaluateGovernancePolicy(
+      { toolName: "exec", params: { command: "ls" } },
+      { sessionKey: "agent:agent-c:solo", cwd: workspace },
     );
     expect(verdict(decision)).toBe("allow");
   });

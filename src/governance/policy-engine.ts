@@ -23,6 +23,7 @@ import { recordTimedOutEscalation } from "./pending-decisions.js";
 import { loadPolicy } from "./policy-store.js";
 import { isRuleExpired, type PolicyDocument, resolveAskMode } from "./policy-types.js";
 import { type GovernedToolSpec, resolveGovernedTool } from "./resource-extraction.js";
+import { findLockedAncestor, lineageUnknown } from "./session-lineage.js";
 import { findUsersForAgent } from "./user-store.js";
 
 type ToolCallEvent = {
@@ -349,7 +350,29 @@ export async function evaluateGovernancePolicy(
   // the first error, not the second. The condition is also narrow by
   // construction: with no agent locked, nothing changes at all.
   const lockedButUnattributable = !agentId && doc.lockedAgents.length > 0;
-  if ((agentId && doc.lockedAgents.includes(agentId)) || lockedButUnattributable) {
+  // ------------------------------------------------------------------
+  // T6: a lockdown reaches what the locked agent started.
+  //
+  // Finding 96 recorded that stopping a parent left a **cross-agent** child
+  // running, because the child's session key says nothing about where it came
+  // from. It was carried as "blocked on the host" — true of the hook payload,
+  // which has no lineage in it, and false of this fork, which can read the
+  // `spawnedBy` the host already records on the session entry.
+  //
+  // Evaluated only while something is locked, so the ordinary path pays
+  // nothing: `findLockedAncestor` returns immediately on an empty list.
+  // ------------------------------------------------------------------
+  const lockedAncestor = findLockedAncestor(ctx.sessionKey, doc.lockedAgents);
+  // Lineage that cannot be read while an incident is in force is *unproven*,
+  // not *clear*. The same fail-closed choice finding 81 made for a call that
+  // carries no agent id at all, and for the same reason.
+  const lineageUnreadable = !lockedAncestor && lineageUnknown(ctx.sessionKey, doc.lockedAgents);
+  if (
+    (agentId && doc.lockedAgents.includes(agentId)) ||
+    lockedButUnattributable ||
+    lockedAncestor ||
+    lineageUnreadable
+  ) {
     await appendLedgerEntry({
       agentId,
       sessionKey: ctx.sessionKey,
@@ -361,7 +384,16 @@ export async function evaluateGovernancePolicy(
       // was in force". The second is a coverage gap being handled safely, and
       // an auditor should be able to count them rather than read them as
       // ordinary kill-switch hits.
-      ruleId: lockedButUnattributable ? "kill-switch-unattributable" : "kill-switch",
+      // Four distinct ids, because an auditor counting kill-switch hits should
+      // be able to separate "we stopped the agent you named" from the three
+      // ways a call is stopped *because of* that agent without being it.
+      ruleId: lockedAncestor
+        ? "kill-switch-lineage"
+        : lineageUnreadable
+          ? "kill-switch-lineage-unknown"
+          : lockedButUnattributable
+            ? "kill-switch-unattributable"
+            : "kill-switch",
       decision: "deny",
     });
     // Lockdown blocks in every posture except `off`, monitor included.
@@ -377,10 +409,15 @@ export async function evaluateGovernancePolicy(
     // all and says so plainly.
     return {
       block: true,
-      blockReason: lockedButUnattributable
-        ? "governance: a kill switch is engaged and this call carries no agent id, " +
-          "so it cannot be shown to come from an agent that is still permitted to run"
-        : `governance: agent "${agentId}" is locked down`,
+      blockReason: lockedAncestor
+        ? `governance: this session was spawned by agent "${lockedAncestor.agentId}", which is locked down`
+        : lineageUnreadable
+          ? "governance: a kill switch is engaged and this session's origin cannot be read, " +
+            "so it cannot be shown to be unrelated to the agent that was stopped"
+          : lockedButUnattributable
+            ? "governance: a kill switch is engaged and this call carries no agent id, " +
+              "so it cannot be shown to come from an agent that is still permitted to run"
+            : `governance: agent "${agentId}" is locked down`,
     };
   }
 
