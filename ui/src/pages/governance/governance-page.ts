@@ -12,14 +12,10 @@ import {
   renderDocsLink,
   renderSettingsEmpty,
   renderSettingsPage,
-  renderSettingsRow,
-  renderSettingsSection,
-  renderSettingsSegmented,
-  renderSettingsStatus,
-  renderSettingsValue,
 } from "../../components/settings-ui.ts";
 import { t } from "../../i18n/index.ts";
 import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
+import { agentLabel, isKnownAgentId, knownAgentIds, type AgentSources } from "./agent-directory.ts";
 import {
   GovernanceApi,
   GovernanceApiError,
@@ -39,101 +35,44 @@ import {
   type GovernanceRuleConflict,
   type GovernanceRuleWarning,
   type GovernanceRuleRequest,
-  type GovernanceDeploymentCheck,
   type GovernanceDeploymentStatus,
   type GovernanceSystemStatus,
   type GovernanceTranscript,
   type GovernanceUserRecord,
 } from "./api.ts";
-import { describeLedgerEntry, filterLedger, type LedgerFilter } from "./ledger-filter.ts";
+import type { LedgerFilter } from "./ledger-filter.ts";
+import { MIN_PASSWORD_LENGTH } from "./panels/account-panels.ts";
 import {
-  EMPTY_RULE_FILTER,
-  filterRules,
-  isRuleFilterEmpty,
-  type RuleFilter,
-  ruleScopes,
-} from "./rule-filter.ts";
-
-/**
- * Core rules Root may not switch off, matched by id fragment.
- *
- * Mirrored by hand from `selfProtecting` in `src/governance/baseline-policy.ts`
- * for the same reason every type in `api.ts` is: the dashboard bundle does not
- * import from `src/`. The server refuses these regardless — this list only
- * decides whether a *button* appears, so the worst case of it drifting is a
- * control that produces an honest 403 rather than a silent failure. Pinned by
- * `src/governance/core-rule-mirror.contract.test.ts` all the same.
- */
-const CORE_RULES_ROOT_CANNOT_DISABLE = [
-  "the-governance-layer-s-own-policy",
-  "naming-the-governance-state-director",
-  "the-governance-command-line",
-  "the-governance-directory-in-use",
-  "naming-the-governance-directory-in-u",
-] as const;
+  renderRuleRequestsSection,
+  renderUsersSection,
+  setAccountPassword,
+  type PanelEffects,
+} from "./panels/account-panels.ts";
+import {
+  renderActiveSessionsSection,
+  renderAgentsSection,
+  renderKillNotice,
+  renderKillSwitchSection,
+  renderPendingDecisionsSection,
+  type AgentsSectionProps,
+  type PendingDecisionsProps,
+} from "./panels/agent-panels.ts";
+import { renderAgentPolicySection } from "./panels/agent-policy-lookup.ts";
+import {
+  renderDeploymentSection,
+  renderLedgerSection,
+  renderSystemSection,
+} from "./panels/oversight-panels.ts";
+import {
+  renderConflictNotice,
+  renderPolicySection,
+  renderRuleWarnings,
+  type PolicyPanelProps,
+} from "./panels/policy-panels.ts";
+import { renderIdentityRow, renderLogin } from "./panels/session-panels.ts";
+import { EMPTY_RULE_FILTER, type RuleFilter } from "./rule-filter.ts";
 
 /** Ordered least- to most-privileged so the control reads as a ladder. */
-/**
- * Shortest password the server will accept.
- *
- * Mirrored by hand from `MIN_PASSWORD_LENGTH` in `src/governance/user-store.ts`,
- * like every type in `api.ts` — the dashboard bundle deliberately does not
- * import from `src/`. The server remains the authority and still enforces it;
- * this copy exists only so the form can state the rule *before* the request
- * rather than relaying the refusal afterwards.
- */
-const MIN_PASSWORD_LENGTH = 8;
-
-/**
- * Roles an account can actually be given.
- *
- * **`root` is deliberately absent.** There is exactly one Root per
- * installation, permanently: the server refuses a second on both routes —
- * creating one outright and promoting an existing account — and Root cannot be
- * demoted either. Offering it in a picker produced a control whose only
- * possible outcome was the error "A Root account already exists; there can be
- * only one", which is what driving the page by hand actually produced.
- *
- * The page already applies this principle elsewhere — a core rule shows no
- * Remove button, because the server would refuse it — and this is the same
- * rule applied to the account tier.
- */
-const ASSIGNABLE_ROLE_OPTIONS: ReadonlyArray<{ value: GovernanceRole; label: string }> = [
-  { value: "viewer", label: "viewer" },
-  { value: "user", label: "user" },
-  { value: "administrator", label: "administrator" },
-];
-
-/**
- * Describes a rule's lifetime in words. "Indefinite" is stated outright rather
- * than implied by an absent date, so an operator scanning the list can tell a
- * permanent grant from a temporary one without inferring anything.
- */
-function formatRuleLifetime(expiresAt: string | undefined): string {
-  if (!expiresAt) {
-    return ` — ${t("governance.policy.indefinite")}`;
-  }
-  const remainingMs = Date.parse(expiresAt) - Date.now();
-  if (!Number.isFinite(remainingMs) || remainingMs <= 0) {
-    return ` — ${t("governance.policy.expired")}`;
-  }
-  return ` — ${t("governance.policy.expiresIn")} ${formatDuration(Math.round(remainingMs / 1000))}`;
-}
-
-/** Compact human duration for run ages: 45s, 12m 30s, 3h 04m. */
-function formatDuration(totalSeconds: number): string {
-  if (totalSeconds < 60) {
-    return `${totalSeconds}s`;
-  }
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  if (minutes < 60) {
-    return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
-  }
-  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}m`;
-}
-
-const SECURITY_DOCS_URL = "https://docs.openclaw.ai/gateway/security";
 
 /**
  * How often the page reloads itself.
@@ -143,30 +82,8 @@ const SECURITY_DOCS_URL = "https://docs.openclaw.ai/gateway/security";
  */
 const AUTO_REFRESH_MS = 15_000;
 
-function tierLabel(tier: GovernancePolicyRule["tier"]): string {
-  return tier === "core"
-    ? t("governance.policy.tierCore")
-    : tier === "baseline"
-      ? t("governance.policy.tierBaseline")
-      : t("governance.policy.tierAdmin");
-}
+const SECURITY_DOCS_URL = "https://docs.openclaw.ai/gateway/security";
 
-/**
- * Human-readable byte size for an attachment chip.
- *
- * Deliberately coarse. The chip exists so an operator can see they queued the
- * 4 MB screenshot rather than the 4 KB one; the exact figure is in the ledger,
- * which is where a number anybody has to rely on belongs.
- */
-function formatAttachmentSize(bytes: number): string {
-  if (bytes < 1024) {
-    return `${bytes} B`;
-  }
-  if (bytes < 1024 * 1024) {
-    return `${Math.round(bytes / 1024)} KB`;
-  }
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 class GovernancePage extends OpenClawLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
@@ -367,6 +284,117 @@ class GovernancePage extends OpenClawLightDomElement {
       return;
     }
     await this.run(action);
+  }
+
+  /**
+   * The page's effect primitives, handed to every panel that acts.
+   *
+   * One place rather than a spread at each call site, so a panel cannot be
+   * given a different `run` from its neighbour — which is how two sections end
+   * up disagreeing about whether an error clears the busy flag.
+   */
+  /**
+   * The state and behaviours every agent panel shares.
+   *
+   * Built once per render rather than per panel: three of them render the same
+   * conversation props, and assembling those separately is how two sections
+   * come to disagree about whether a prompt is still in flight.
+   */
+  private agentPanelProps(): AgentsSectionProps & PendingDecisionsProps {
+    return {
+      ...this.effects(),
+      busy: this.busy,
+      policy: this.policy,
+      identity: this.identity,
+      canAdminister: this.canAdminister(),
+      canManageAnyAgent: this.canManageAnyAgent(),
+      pendingDecisions: this.pendingDecisions,
+      conversationAgentId: this.conversationAgentId,
+      transcript: this.transcript,
+      promptDraft: this.promptDraft,
+      promptAttachments: this.promptAttachments,
+      promptError: this.promptError,
+      promptPending: this.promptPending,
+      promptRunId: this.promptRunId,
+      promptStream: this.promptStream,
+      attachmentUploading: this.attachmentUploading,
+      onDraft: (patch) => Object.assign(this, patch),
+      sendPrompt: () => this.sendPrompt(),
+      cancelPrompt: () => this.cancelPrompt(),
+      addAttachments: (files) => this.addAttachments(files),
+      removeAttachment: (held) => this.removeAttachment(held),
+      openConversation: (agentId) => this.openConversation(agentId),
+    };
+  }
+
+  /**
+   * Everything the policy panels read, assembled once.
+   *
+   * The rule list, its filter, the authoring form and the two notices are one
+   * screen an operator works in a single motion, so they are given one props
+   * object rather than four — which also means the filter above the list and the
+   * list itself cannot be handed different rule sets.
+   */
+  private policyPanelProps(): PolicyPanelProps {
+    return {
+      ...this.effects(),
+      policy: this.policy,
+      identity: this.identity,
+      busy: this.busy,
+      canAdminister: this.canAdminister(),
+      canManageAnyAgent: this.canManageAnyAgent(),
+      knownAgentIds: knownAgentIds(this.agentSources()),
+      agentLabel: (agentId) => agentLabel(this.agents, agentId),
+      agentPolicyView: this.agentPolicyView,
+      agentPolicyError: this.agentPolicyError,
+      agentAccess: this.agentAccess,
+      ruleTargets: this.ruleTargets,
+      conflictNotice: this.conflictNotice,
+      ruleWarnings: this.ruleWarnings,
+      drafts: {
+        newRuleKind: this.newRuleKind,
+        newRuleEffect: this.newRuleEffect,
+        newRuleAccess: this.newRuleAccess,
+        newRulePattern: this.newRulePattern,
+        newRuleTtl: this.newRuleTtl,
+        newRuleAgentId: this.newRuleAgentId,
+        postureAgentId: this.postureAgentId,
+        agentPolicyAgentId: this.agentPolicyAgentId,
+        ruleFilter: this.ruleFilter,
+      },
+      onDraft: (patch) => Object.assign(this, patch),
+      onDismissConflict: () => {
+        this.conflictNotice = null;
+      },
+      loadAgentPolicy: (agentId) => this.loadAgentPolicy(agentId),
+      loadRuleTargets: (ruleId) => this.loadRuleTargets(ruleId),
+    };
+  }
+
+  /**
+   * The five places an agent id can come from, gathered for `agent-directory.ts`.
+   *
+   * Built here rather than inside the derivations so those stay pure functions
+   * of their input — which is what lets them be tested without a page.
+   */
+  private agentSources(): AgentSources {
+    return {
+      agents: this.agents,
+      activeSessions: this.activeSessions,
+      policy: this.policy,
+      users: this.users,
+      identity: this.identity,
+    };
+  }
+
+  private effects(): PanelEffects {
+    return {
+      // Lazily: `api()` needs the gateway from the application context, which
+      // may not exist at first paint. Panels only call it from handlers.
+      api: () => this.api(),
+      run: (action) => this.run(action),
+      confirmThen: (options, action) => this.confirmThen(options, action),
+    };
   }
 
   /**
@@ -598,145 +626,6 @@ class GovernancePage extends OpenClawLightDomElement {
     });
   }
 
-  private submitLoginOnEnter(event: KeyboardEvent, bootstrapping: boolean): void {
-    if (event.key !== "Enter") {
-      return;
-    }
-    event.preventDefault();
-    void this.performLogin(bootstrapping);
-  }
-
-  private renderLogin(): TemplateResult {
-    const bootstrapping = this.needsBootstrap;
-    return renderSettingsPage(
-      renderSettingsSection(
-        {
-          title: bootstrapping ? t("governance.login.bootstrapTitle") : t("governance.login.title"),
-        },
-        html`
-          ${this.sessionExpired
-            ? html`<div class="settings-empty" role="alert">
-                ${t("governance.login.sessionExpired")}
-              </div>`
-            : nothing}
-          ${this.error
-            ? html`<div class="settings-empty" role="alert">${this.error}</div>`
-            : nothing}
-          <div class="settings-row settings-row--stacked">
-            <div class="settings-row__text">
-              <span class="settings-row__desc">
-                ${bootstrapping ? t("governance.login.bootstrapHint") : t("governance.login.hint")}
-              </span>
-            </div>
-            <div class="settings-row__control" style="gap:0.5rem;flex-wrap:wrap">
-              <!--
-                Named via aria-label, not by the placeholder. A placeholder is
-                not a label: it is not reliably exposed as an accessible name,
-                and it disappears the moment the field has content — so the hint
-                vanishes exactly when someone reviewing what they typed needs it.
-                aria-label rather than a visually-hidden <label> because this
-                page has no global sr-only class to hide one with, and an
-                unstyled label would simply render as stray text.
-                Enter now submits, which every sign-in form on the web does and
-                whose absence reads as the page being broken.
-              -->
-              <input
-                id="governance-login-username"
-                class="input"
-                type="text"
-                autocomplete="username"
-                aria-label=${t("governance.login.username")}
-                placeholder=${t("governance.login.username")}
-                .value=${this.loginUsername}
-                @input=${(e: Event) => {
-                  this.loginUsername = (e.target as HTMLInputElement).value;
-                }}
-                @keydown=${(e: KeyboardEvent) => this.submitLoginOnEnter(e, bootstrapping)}
-              />
-              <input
-                id="governance-login-password"
-                class="input"
-                type="password"
-                autocomplete=${bootstrapping ? "new-password" : "current-password"}
-                aria-label=${t("governance.login.password")}
-                placeholder=${bootstrapping
-                  ? t("governance.users.passwordPlaceholder")
-                  : t("governance.login.password")}
-                .value=${this.loginPassword}
-                @input=${(e: Event) => {
-                  this.loginPassword = (e.target as HTMLInputElement).value;
-                }}
-                @keydown=${(e: KeyboardEvent) => this.submitLoginOnEnter(e, bootstrapping)}
-              />
-              <!--
-                Confirmation, on the bootstrap form only.
-                A second field is friction, and friction is only worth adding
-                where a mistake is expensive. Signing in wrongly costs one more
-                attempt; mistyping the *first* Root password costs the
-                installation, because nothing can reset it afterwards. So the
-                field appears exactly where the cost is, and nowhere else.
-              -->
-              ${bootstrapping
-                ? html`<input
-                    id="governance-login-confirm"
-                    class="input"
-                    type="password"
-                    autocomplete="new-password"
-                    aria-label=${t("governance.login.confirmPassword")}
-                    placeholder=${t("governance.login.confirmPassword")}
-                    .value=${this.loginConfirm}
-                    @input=${(e: Event) => {
-                      this.loginConfirm = (e.target as HTMLInputElement).value;
-                    }}
-                    @keydown=${(e: KeyboardEvent) => this.submitLoginOnEnter(e, bootstrapping)}
-                  />`
-                : nothing}
-              <button
-                class="btn btn--primary"
-                ?disabled=${this.busy ||
-                !this.loginUsername ||
-                !this.loginPassword ||
-                (bootstrapping && !this.loginConfirm)}
-                @click=${() => this.performLogin(bootstrapping)}
-              >
-                ${bootstrapping ? t("governance.login.createRoot") : t("governance.login.signIn")}
-              </button>
-            </div>
-          </div>
-        `,
-      ),
-      {
-        intro: html`${t("governance.intro")}
-        ${renderDocsLink(SECURITY_DOCS_URL, t("common.learnMore"))}`,
-      },
-    );
-  }
-
-  private renderIdentityRow(): TemplateResult {
-    return renderSettingsSection({ title: t("governance.identity.title") }, [
-      renderSettingsRow({
-        title: t("governance.identity.signedInAs"),
-        control: renderSettingsValue(`${this.identity?.username} (${this.identity?.role})`),
-      }),
-      renderSettingsRow({
-        title: t("governance.identity.signOut"),
-        control: html`<button
-          class="btn"
-          ?disabled=${this.busy}
-          @click=${() =>
-            this.run(async () => {
-              await this.api().logout();
-              this.identity = null;
-              this.policy = null;
-              this.ledger = [];
-            })}
-        >
-          ${t("governance.identity.signOutButton")}
-        </button>`,
-      }),
-    ]);
-  }
-
   private canAdminister(): boolean {
     return this.identity?.role === "administrator" || this.identity?.role === "root";
   }
@@ -744,34 +633,6 @@ class GovernancePage extends OpenClawLightDomElement {
   /** User and above may manage the agents assigned to them. */
   private canManageAnyAgent(): boolean {
     return this.canAdminister() || this.identity?.role === "user";
-  }
-
-  /**
-   * Policies → agents, rendered inline beside the rule it answers about.
-   *
-   * The global case leads with the fact that it is global and *then* lists the
-   * known agents, rather than the other way round. A reader shown three ids and
-   * a footnote has already concluded "three agents"; a global rule binds those
-   * three, every agent this account cannot see, and every agent created
-   * tomorrow.
-   */
-  private renderRuleTargets(ruleId: string): TemplateResult | typeof nothing {
-    const targets = this.ruleTargets[ruleId];
-    if (!targets) {
-      return nothing;
-    }
-    if (targets.scope === "agent") {
-      return html`<span class="governance-rule__targets"
-        >${t("governance.policy.bindsOne", { agent: targets.agentIds[0] ?? "?" })}</span
-      >`;
-    }
-    return html`<span class="governance-rule__targets">
-      ${t("governance.policy.bindsAll")}
-      ${targets.agentIds.length > 0
-        ? t("governance.policy.bindsKnown", { agents: targets.agentIds.join(", ") })
-        : t("governance.policy.bindsNoneKnown")}
-      ${targets.scopedToAssignment ? t("governance.policy.bindsScoped") : ""}
-    </span>`;
   }
 
   private async loadAgentPolicy(agentId: string): Promise<void> {
@@ -811,979 +672,14 @@ class GovernancePage extends OpenClawLightDomElement {
   }
 
   /**
-   * Agent → policies.
-   *
-   * Separate from the rule list rather than folded into it, because the two
-   * answer different questions. The rule list is the policy *document*: what
-   * has been written. This is what is in *force* for one workload, which is the
-   * question anyone actually has when they open the page — and it cannot be
-   * read off the document by eye, because an absent agent id means "binds
-   * everyone" rather than "binds nobody".
-   */
-  private renderAgentPolicySection(): TemplateResult | typeof nothing {
-    const choices = this.knownAgentIds();
-    const view = this.agentPolicyView;
-    const rows = [
-      renderSettingsRow({
-        title: t("governance.agentPolicy.pick"),
-        description: t("governance.agentPolicy.pickHint"),
-        control: html`<input
-            list="governance-agent-policy-ids"
-            aria-label=${t("governance.agentPolicy.pick")}
-            .value=${this.agentPolicyAgentId}
-            @input=${(event: Event) => {
-              this.agentPolicyAgentId = (event.target as HTMLInputElement).value;
-            }}
-          />
-          <datalist id="governance-agent-policy-ids">
-            ${choices.map(
-              (agentId) => html`<option value=${agentId}>${this.agentLabel(agentId)}</option>`,
-            )}
-          </datalist>
-          <button
-            class="btn btn-primary"
-            ?disabled=${this.busy || !this.agentPolicyAgentId.trim()}
-            @click=${() => this.run(() => this.loadAgentPolicy(this.agentPolicyAgentId.trim()))}
-          >
-            ${t("governance.agentPolicy.show")}
-          </button>`,
-      }),
-    ];
-    if (this.agentPolicyError) {
-      rows.push(
-        renderSettingsRow({
-          title: t("governance.agentPolicy.failed"),
-          control: renderSettingsStatus({ kind: "warn", label: this.agentPolicyError }),
-        }),
-      );
-    }
-    if (view) {
-      const access = this.agentAccess;
-      rows.push(
-        renderSettingsRow({
-          title: t("governance.agentPolicy.access"),
-          description: t("governance.agentPolicy.accessHint"),
-          // "Nobody" is rendered as a sentence, never as an empty space. An
-          // agent with no User or Viewer assigned is a real and interesting
-          // state — it is running under Administrator authority alone — and an
-          // empty region would read as a section that failed to load, which is
-          // exactly the confusion finding 102 was about.
-          control: access
-            ? access.assignedTo.length > 0
-              ? html`<span>${access.assignedTo.join(", ")}</span>`
-              : renderSettingsStatus({
-                  kind: "warn",
-                  label: t("governance.agentPolicy.accessNobody"),
-                })
-            : renderSettingsStatus({
-                kind: "warn",
-                label: t("governance.agentPolicy.accessUnknown"),
-              }),
-        }),
-      );
-      const { posture, summary } = view;
-      rows.push(
-        renderSettingsRow({
-          title: t("governance.agentPolicy.posture"),
-          // Whether the value is an override is shown beside the value, not
-          // instead of it. "In monitor" and "in monitor because somebody chose
-          // it" lead to different actions, and since the shipped default is
-          // enforce, a monitor override is always a deliberate decision worth
-          // seeing.
-          description: posture.modeIsOverride
-            ? t("governance.agentPolicy.override")
-            : t("governance.agentPolicy.inherited"),
-          control: renderSettingsStatus({
-            kind: posture.mode === "enforce" ? "ok" : posture.mode === "off" ? "warn" : "muted",
-            label: posture.mode,
-          }),
-        }),
-        renderSettingsRow({
-          title: t("governance.agentPolicy.escalation"),
-          description: posture.askIsOverride
-            ? t("governance.agentPolicy.override")
-            : t("governance.agentPolicy.inherited"),
-          control: renderSettingsValue(posture.ask),
-        }),
-      );
-      if (posture.lockedDown) {
-        rows.push(
-          renderSettingsRow({
-            title: t("governance.agentPolicy.locked"),
-            control: renderSettingsStatus({ kind: "warn", label: t("governance.kill.engaged") }),
-          }),
-        );
-      }
-      rows.push(
-        renderSettingsRow({
-          title: t("governance.agentPolicy.summary"),
-          control: renderSettingsValue(
-            t("governance.agentPolicy.counts", {
-              total: String(summary.total),
-              global: String(summary.global),
-              scoped: String(summary.agentSpecific),
-              allows: String(summary.allows),
-              denies: String(summary.denies),
-            }),
-          ),
-        }),
-      );
-      if (view.rules.length === 0) {
-        rows.push(renderSettingsEmpty(t("governance.agentPolicy.none")));
-      }
-      for (const { rule, scope } of view.rules) {
-        rows.push(
-          renderSettingsRow({
-            // The rule's own sentence, not its regular expression — finding 99,
-            // applied here rather than rediscovered.
-            title: rule.description || rule.pattern,
-            description: `${rule.resourceKind} · ${rule.pattern}${
-              rule.expiresAt ? ` · ${t("governance.rules.expires")} ${rule.expiresAt}` : ""
-            }`,
-            control: renderSettingsStatus({
-              kind: rule.effect === "deny" ? "warn" : "ok",
-              label:
-                scope === "global"
-                  ? t("governance.agentPolicy.viaGlobal")
-                  : t("governance.agentPolicy.viaAgent"),
-            }),
-          }),
-        );
-      }
-    }
-    return renderSettingsSection(
-      {
-        title: t("governance.agentPolicy.title"),
-        description: t("governance.agentPolicy.hint"),
-      },
-      rows,
-    );
-  }
-
-  private renderPolicySection(): TemplateResult {
-    const policy = this.policy;
-    if (!policy) {
-      return renderSettingsEmpty(t("governance.policy.loading"));
-    }
-    // Posture and global rules are Administrator-level; agent-scoped rule
-    // editing reaches down to the User tier.
-    const canEditGlobal = this.canAdminister() && !this.busy;
-    const canEditRules = this.canManageAnyAgent() && !this.busy;
-    return renderSettingsSection({ title: t("governance.policy.title") }, [
-      renderSettingsRow({
-        title: t("governance.policy.mode"),
-        description: t("governance.policy.modeHint"),
-        stacked: true,
-        control: renderSettingsSegmented({
-          value: policy.mode,
-          disabled: !canEditGlobal,
-          options: [
-            { value: "enforce", label: t("governance.policy.modeEnforce") },
-            { value: "monitor", label: t("governance.policy.modeMonitor") },
-            { value: "off", label: t("governance.policy.modeOff") },
-          ],
-          // QA round 13, finding 87 — the risk gradient on this page was
-          // inverted. Deleting a single rule, which is recoverable in seconds,
-          // opened a confirmation dialog styled as dangerous. Switching the
-          // installation to `off` — which stops every protection for every
-          // agent, including the core denials the whole tier model exists to
-          // make unconditional — was a third segment in a toggle with no
-          // dialog, no distinct styling and no confirmation at all.
-          //
-          // Only `off` is gated. `monitor` still records every decision and
-          // `enforce` is stricter, so neither is a step an operator needs
-          // protecting from; interposing a dialog on those would train them to
-          // dismiss the one that matters.
-          onChange: (mode) => {
-            const next = mode as GovernancePolicyDocument["mode"];
-            if (next !== "off") {
-              return this.run(() => this.api().setMode(next));
-            }
-            return this.confirmThen(
-              {
-                message: t("governance.policy.confirmOff"),
-                details: t("governance.policy.confirmOffDetails"),
-                confirmLabel: t("governance.policy.confirmOffAction"),
-              },
-              () => this.api().setMode(next),
-            );
-          },
-        }),
-      }),
-      renderSettingsRow({
-        title: t("governance.policy.ask"),
-        description: t("governance.policy.askHint"),
-        stacked: true,
-        control: renderSettingsSegmented({
-          value: policy.ask,
-          disabled: !canEditGlobal,
-          options: [
-            { value: "on-miss", label: t("governance.policy.askOnMiss") },
-            { value: "off", label: t("governance.policy.askOff") },
-          ],
-          onChange: (ask) =>
-            this.run(() => this.api().setAsk(ask as GovernancePolicyDocument["ask"])),
-        }),
-      }),
-      ...Object.entries(policy.agentAsk ?? {}).map(([agentId, ask]) =>
-        renderSettingsRow({
-          title: `${t("governance.policy.agentOverride")}: ${agentId}`,
-          description: t("governance.policy.agentOverrideHint"),
-          control: html`
-            <div class="settings-row__control" style="gap:0.5rem">
-              ${renderSettingsValue(
-                ask === "off" ? t("governance.policy.askOff") : t("governance.policy.askOnMiss"),
-              )}
-              ${canEditRules
-                ? html`<button
-                    class="btn"
-                    ?disabled=${this.busy}
-                    @click=${() => this.run(() => this.api().setAgentAsk(agentId, null))}
-                  >
-                    ${t("governance.policy.clearOverride")}
-                  </button>`
-                : nothing}
-            </div>
-          `,
-        }),
-      ),
-      // Per-agent posture. Monitor stopped being the shipped default when the
-      // tier model landed and became an opt-in observation tool — but the only
-      // way to turn it on was a store function nothing called, so the tool the
-      // supervisor's brief describes could not be used. Design requirement #2
-      // asks for a dashboard that configures policy, and a setting reachable
-      // only from a test does not meet it.
-      ...Object.entries(policy.agentMode ?? {}).map(([agentId, mode]) =>
-        renderSettingsRow({
-          title: `${t("governance.policy.agentPosture")}: ${agentId}`,
-          description: t("governance.policy.agentPostureHint"),
-          control: html`
-            <div class="settings-row__control" style="gap:0.5rem">
-              ${renderSettingsValue(
-                mode === "monitor"
-                  ? t("governance.policy.modeMonitor")
-                  : mode === "off"
-                    ? t("governance.policy.modeOff")
-                    : t("governance.policy.modeEnforce"),
-              )}
-              ${canEditRules
-                ? html`<button
-                    class="btn"
-                    ?disabled=${this.busy}
-                    @click=${() => this.run(() => this.api().setAgentMode(agentId, null))}
-                  >
-                    ${t("governance.policy.clearOverride")}
-                  </button>`
-                : nothing}
-            </div>
-          `,
-        }),
-      ),
-      canEditRules
-        ? renderSettingsRow({
-            title: t("governance.policy.observeAgent"),
-            description: t("governance.policy.observeAgentHint"),
-            stacked: true,
-            control: html`
-              <div class="settings-row__control" style="gap:0.5rem">
-                <input
-                  class="input"
-                  type="text"
-                  aria-label=${t("governance.policy.observeAgent")}
-                  placeholder=${t("governance.kill.agentIdPlaceholder")}
-                  .value=${this.postureAgentId}
-                  @input=${(e: Event) => {
-                    this.postureAgentId = (e.target as HTMLInputElement).value;
-                  }}
-                />
-                ${(["monitor", "enforce"] as const).map(
-                  (mode) => html`<button
-                    class="btn"
-                    ?disabled=${this.busy || !this.postureAgentId.trim()}
-                    @click=${() =>
-                      this.run(async () => {
-                        await this.api().setAgentMode(this.postureAgentId.trim(), mode);
-                        this.postureAgentId = "";
-                      })}
-                  >
-                    ${mode === "monitor"
-                      ? t("governance.policy.modeMonitor")
-                      : t("governance.policy.modeEnforce")}
-                  </button>`,
-                )}
-              </div>
-            `,
-          })
-        : nothing,
-      // The filter (Q-89). Rendered above the list rather than beside the
-      // heading so it reads as belonging to the rows beneath it.
-      policy.rules.length > 0 ? this.renderRuleFilter(policy.rules) : nothing,
-      // Core rules first, then baseline, then operator rules — the order the
-      // engine evaluates them in, so the list reads the way the system thinks.
-      ...filterRules(policy.rules, this.ruleFilter).map((rule) =>
-        renderSettingsRow({
-          // **What the rule is for leads; the pattern it uses follows.**
-          //
-          // This was the other way round, and driving the page by hand is what
-          // made the cost obvious: a shipped installation opens on ten core
-          // denials whose titles are case-folded regular expressions up to two
-          // hundred characters long, with the one human-readable sentence —
-          // "Credential files (.env, private keys, .npmrc, .netrc)" — buried
-          // after the kind, the tier and the scope. An operator scanning for
-          // "what stops the agent reading secrets?" has to parse
-          // `[eE][nN][vV]` to find it.
-          //
-          // A regular expression is what the *engine* matches on; it is not
-          // what a person recognises a rule by. So the description becomes the
-          // title, and the pattern moves to a monospace line beneath it, still
-          // complete and still exact — nothing is hidden, the emphasis is
-          // simply put where a human reads. An operator-written rule with no
-          // description falls back to its pattern, which is then genuinely the
-          // best name it has.
-          //
-          // The deny badge stays on the title line: it is the first thing that
-          // has to be true about a rule, and it was the fix for allow and deny
-          // rules being indistinguishable.
-          title: html`${rule.effect === "deny"
-            ? html`<strong>${t("governance.policy.denyBadge")}</strong> `
-            : nothing}${rule.description
-            ? html`${rule.description}`
-            : html`<code>${rule.pattern}</code>`}`,
-          description: html`${rule.description
-            ? html`<code class="governance-rule__pattern">${rule.pattern}</code><br />`
-            : nothing}${rule.resourceKind}${
-            // A rule narrowed to one direction reads identically to one
-            // covering both unless the list says so, and the difference is
-            // the whole point of the narrowing.
-            rule.access
-              ? ` (${rule.access === "read" ? t("governance.policy.readOnlyBadge") : t("governance.policy.writeOnlyBadge")})`
-              : ""
-          }
-          · ${tierLabel(rule.tier)} ·
-          ${rule.agentId
-            ? `agent ${rule.agentId}`
-            : t("governance.policy.globalScope")}${formatRuleLifetime(rule.expiresAt)}`,
-          // No delete control on a core rule: the server refuses it, and
-          // offering a button that cannot work is worse than offering none.
-          //
-          // "Who does this affect?" sits *beside* Remove deliberately. It is
-          // the question an operator should be able to answer before deleting a
-          // rule, and putting the answer one click from the delete button is
-          // what makes asking it the easy path rather than the diligent one.
-          control: html`<button
-              class="btn"
-              @click=${() => this.run(() => this.loadRuleTargets(rule.id))}
-            >
-              ${t("governance.policy.whichAgents")}
-            </button>
-            ${this.renderRuleTargets(rule.id)}
-            ${
-              // Root may switch off a shipped core denial that is not
-              // self-protecting (T24). Offered on the row itself, because the
-              // decision is about *this* rule and a separate panel would
-              // separate the choice from the thing it is about.
-              //
-              // The self-protecting three carry no control at all rather than a
-              // disabled one: the server refuses them, and a button that cannot
-              // work is the shape of finding 100.
-              this.identity?.role === "root" &&
-              rule.tier === "core" &&
-              !CORE_RULES_ROOT_CANNOT_DISABLE.some((fragment) => rule.id.includes(fragment))
-                ? html`<button
-                    class="btn btn--danger"
-                    ?disabled=${this.busy}
-                    title=${t("governance.policy.coreRuleHint")}
-                    @click=${() =>
-                      this.confirmThen(
-                        {
-                          message: t("governance.confirm.disableCoreRule"),
-                          details: rule.description ?? rule.pattern,
-                          confirmLabel: t("governance.policy.coreRuleDisable"),
-                        },
-                        () => this.api().setCoreRule(rule.id, false),
-                      )}
-                  >
-                    ${t("governance.policy.coreRuleDisable")}
-                  </button>`
-                : nothing
-            }
-            ${canEditRules && rule.tier !== "core"
-              ? html`<button
-                  class="btn btn--danger"
-                  @click=${() =>
-                    this.confirmThen(
-                      {
-                        message: t("governance.confirm.removeRule"),
-                        details: `${rule.resourceKind} ${rule.pattern}`,
-                        confirmLabel: t("governance.policy.removeRule"),
-                      },
-                      () => this.api().removeRule(rule.id),
-                    )}
-                >
-                  ${t("governance.policy.removeRule")}
-                </button>`
-              : nothing}`,
-        }),
-      ),
-      policy.rules.length === 0
-        ? renderSettingsRow({
-            title: t("governance.policy.noRules"),
-            description: t("governance.policy.noRulesHint"),
-          })
-        : // "No rules exist" and "your filter matches none of them" are
-          // different facts, and a panel that shows the first when the second
-          // is true tells an operator their policy is empty when it is not.
-          filterRules(policy.rules, this.ruleFilter).length === 0
-          ? renderSettingsRow({
-              title: t("governance.policy.noMatchingRules"),
-              description: t("governance.policy.noMatchingRulesHint"),
-            })
-          : nothing,
-      canEditRules
-        ? renderSettingsRow({
-            title: t("governance.policy.addRule"),
-            stacked: true,
-            control: html`
-              <div class="settings-row__control" style="gap:0.5rem;flex-wrap:wrap">
-                <select
-                  class="input"
-                  aria-label=${t("governance.policy.kindLabel")}
-                  .value=${this.newRuleKind}
-                  @change=${(e: Event) => {
-                    this.newRuleKind = (e.target as HTMLSelectElement)
-                      .value as GovernancePolicyRule["resourceKind"];
-                  }}
-                >
-                  <option value="command">command</option>
-                  <option value="path">path</option>
-                  <option value="network">network</option>
-                </select>
-                <select
-                  class="input"
-                  aria-label=${t("governance.policy.effectLabel")}
-                  title=${t("governance.policy.effectHint")}
-                  .value=${this.newRuleEffect}
-                  @change=${(e: Event) => {
-                    this.newRuleEffect = (e.target as HTMLSelectElement).value as "allow" | "deny";
-                  }}
-                >
-                  <option value="allow">${t("governance.policy.effectAllow")}</option>
-                  <option value="deny">${t("governance.policy.effectDeny")}</option>
-                </select>
-                ${
-                  // Read/write narrowing is only consulted for path rules — a
-                  // command is not a read or a write, it is whatever it does —
-                  // so the control appears only where it means something. The
-                  // server refuses the field on other kinds rather than
-                  // ignoring it, and a form offering a choice the server
-                  // rejects would be the worse half of that pair.
-                  this.newRuleKind === "path"
-                    ? html`<select
-                        class="input"
-                        aria-label=${t("governance.policy.accessLabel")}
-                        title=${t("governance.policy.accessHint")}
-                        .value=${this.newRuleAccess}
-                        @change=${(e: Event) => {
-                          this.newRuleAccess = (e.target as HTMLSelectElement).value as
-                            | ""
-                            | "read"
-                            | "write";
-                        }}
-                      >
-                        <option value="">${t("governance.policy.accessBoth")}</option>
-                        <option value="read">${t("governance.policy.accessRead")}</option>
-                        <option value="write">${t("governance.policy.accessWrite")}</option>
-                      </select>`
-                    : nothing
-                }
-                <input
-                  class="input"
-                  type="text"
-                  aria-label=${t("governance.policy.patternLabel")}
-                  placeholder=${t("governance.policy.patternPlaceholder")}
-                  .value=${this.newRulePattern}
-                  @input=${(e: Event) => {
-                    this.newRulePattern = (e.target as HTMLInputElement).value;
-                  }}
-                />
-                ${
-                  // **The agent field is required for a User and optional for
-                  // an Administrator, and the form has to say so.**
-                  //
-                  // Leaving it blank means "global rule", which the server
-                  // refuses below Administrator — so for a User the empty form
-                  // is a guaranteed 403. That is the shape of finding 100, where
-                  // the account form offered a `root` role the server always
-                  // rejects: an interface that lets somebody complete an action
-                  // it knows will fail is teaching them the tool is broken.
-                  //
-                  // Their assigned agents are offered as suggestions, because
-                  // those are exactly the values the server will accept from
-                  // them and typing an id from memory is how the wrong one gets
-                  // used.
-                  html`<input
-                      class="input"
-                      type="text"
-                      style="max-width:11rem"
-                      list="governance-new-rule-agents"
-                      ?required=${!this.canAdminister()}
-                      aria-label=${t("governance.policy.ruleAgentLabel")}
-                      placeholder=${this.canAdminister()
-                        ? t("governance.policy.agentPlaceholder")
-                        : t("governance.policy.agentRequiredPlaceholder")}
-                      .value=${this.newRuleAgentId}
-                      @input=${(e: Event) => {
-                        this.newRuleAgentId = (e.target as HTMLInputElement).value;
-                      }}
-                    />
-                    <datalist id="governance-new-rule-agents">
-                      ${(this.canAdminister()
-                        ? this.knownAgentIds()
-                        : (this.identity?.assignedAgents ?? [])
-                      ).map(
-                        (agentId) =>
-                          html`<option value=${agentId}>${this.agentLabel(agentId)}</option>`,
-                      )}
-                    </datalist>`
-                }
-                <input
-                  class="input"
-                  type="number"
-                  min="1"
-                  style="max-width:9rem"
-                  aria-label=${t("governance.policy.ttlLabel")}
-                  placeholder=${t("governance.policy.ttlPlaceholder")}
-                  title=${t("governance.policy.ttlHint")}
-                  .value=${this.newRuleTtl}
-                  @input=${(e: Event) => {
-                    this.newRuleTtl = (e.target as HTMLInputElement).value;
-                  }}
-                />
-                <button
-                  class="btn btn--primary"
-                  ?disabled=${!this.newRulePattern}
-                  @click=${() =>
-                    this.run(async () => {
-                      const ttl = Number.parseInt(this.newRuleTtl, 10);
-                      const agentId = this.newRuleAgentId.trim();
-                      const created = await this.api().addRule({
-                        resourceKind: this.newRuleKind,
-                        pattern: this.newRulePattern,
-                        ...(Number.isFinite(ttl) && ttl > 0 ? { ttlMinutes: ttl } : {}),
-                        ...(agentId ? { agentId } : {}),
-                        // Sent only when they carry meaning: `allow` is the
-                        // server's default, and `access` is refused outright on
-                        // a non-path rule.
-                        ...(this.newRuleEffect === "deny" ? { effect: "deny" as const } : {}),
-                        ...(this.newRuleKind === "path" && this.newRuleAccess
-                          ? { access: this.newRuleAccess }
-                          : {}),
-                      });
-                      this.newRulePattern = "";
-                      this.newRuleTtl = "";
-                      this.newRuleAgentId = "";
-                      // Effect and access deliberately survive the reset. An
-                      // operator writing a denial is usually writing several,
-                      // and silently reverting to `allow` between them is how
-                      // somebody grants what they meant to forbid.
-                      // Surface the clash rather than letting the operator walk
-                      // away believing a restriction took hold that did not.
-                      this.conflictNotice =
-                        created.conflicts && created.conflicts.length > 0
-                          ? created.conflicts
-                          : null;
-                      // A pattern that is valid but broader than it looks. Shown
-                      // beside the clash notice because both say the same thing
-                      // to the operator: this is not what you probably think.
-                      this.ruleWarnings =
-                        created.warnings && created.warnings.length > 0 ? created.warnings : null;
-                    })}
-                >
-                  ${t("governance.policy.addRuleButton")}
-                </button>
-                ${
-                  // Said in the form rather than discovered from a refusal.
-                  this.canAdminister() || this.newRuleAgentId.trim()
-                    ? nothing
-                    : html`<span class="settings-row__hint"
-                        >${t("governance.policy.agentRequiredHint")}</span
-                      >`
-                }
-              </div>
-            `,
-          })
-        : nothing,
-    ]);
-  }
-
-  /**
    * Engages the kill switch and keeps the evidence of what it achieved.
    *
    * Both call sites go through here so neither can quietly drop the outcome.
    */
-  /**
-   * Every agent id this page has seen, for the controls that take one.
-   *
-   * **The registry leads and the reconstruction follows (M4).** What follows
-   * used to be the whole answer: the page inferred which agents existed from
-   * every place an id happened to appear — live sessions, lockdowns,
-   * assignments, and the four doors into the policy document. That is a
-   * reasonable reconstruction and it has one hole it can never close: an agent
-   * that exists and has never been the subject of a rule, a posture, a lock or
-   * an assignment is invisible to it. A newly provisioned agent is exactly
-   * that agent, which is why the panel M6 builds could not have been built on
-   * this method.
-   *
-   * Both halves are kept, and neither is redundant. The registry holds agents
-   * the reconstruction cannot see; the reconstruction holds agents that
-   * predate the registry, which are real, governed, and would vanish from every
-   * picker on this page the day the registry became the only source.
-   *
-   * Still deliberately a *superset* of the running agents: an operator stopping
-   * an agent that is idle right now is doing something legitimate, and an idle
-   * agent must not disappear from the list of things you can stop.
-   */
-  private knownAgentIds(): string[] {
-    const ids = new Set<string>();
-    for (const agent of this.agents) {
-      ids.add(agent.agentId);
-    }
-    for (const session of this.activeSessions?.sessions ?? []) {
-      ids.add(session.agentId);
-    }
-    for (const agentId of this.policy?.lockedAgents ?? []) {
-      ids.add(agentId);
-    }
-    for (const user of this.users) {
-      for (const agentId of user.assignedAgents ?? []) {
-        ids.add(agentId);
-      }
-    }
-    for (const agentId of this.identity?.assignedAgents ?? []) {
-      ids.add(agentId);
-    }
-    // An agent enters the policy document by four doors, and three of them were
-    // missing here: a rule written for it, a posture override, an escalation
-    // override. An agent configured but not currently running was therefore
-    // absent from every picker on this page — including the kill switch's.
-    for (const rule of this.policy?.rules ?? []) {
-      if (rule.agentId) {
-        ids.add(rule.agentId);
-      }
-    }
-    for (const agentId of Object.keys(this.policy?.agentMode ?? {})) {
-      ids.add(agentId);
-    }
-    for (const agentId of Object.keys(this.policy?.agentAsk ?? {})) {
-      ids.add(agentId);
-    }
-    return [...ids].toSorted();
-  }
-
-  private isKnownAgentId(agentId: string): boolean {
-    return this.knownAgentIds().includes(agentId);
-  }
-
-  /**
-   * What to call an agent in a list.
-   *
-   * The id alone was the only thing the page could ever show, because the id
-   * was the only thing it had. Where a name is registered it is shown beside
-   * the id rather than instead of it: the id is what every rule, ledger entry
-   * and command line argument uses, so replacing it would make the screen and
-   * the audit trail talk about the same agent in two vocabularies.
-   */
-  private agentLabel(agentId: string): string {
-    const registered = this.agents.find((agent) => agent.agentId === agentId);
-    return registered?.displayName ? `${agentId} — ${registered.displayName}` : agentId;
-  }
 
   private async engageKillSwitch(agentId: string): Promise<void> {
     this.killNotice = null;
     this.killNotice = await this.api().setLockdown(agentId, true);
-  }
-
-  /**
-   * States plainly whether the in-flight run was actually stopped.
-   *
-   * "Locked down" alone is a half-truth: it guarantees the agent takes no
-   * *further* governed action, not that whatever it is doing right now has
-   * ceased. When termination was unavailable, or matched no run, the operator
-   * has to know to go and check.
-   */
-  private renderKillNotice(): TemplateResult | typeof nothing {
-    const notice = this.killNotice;
-    if (!notice) {
-      return nothing;
-    }
-    const aborted = notice.abortedRunIds?.length ?? 0;
-    if (notice.inFlightTerminationSupported === false) {
-      return html`<div class="settings-empty" role="alert">
-        ${t("governance.kill.noticeNoTermination")}
-      </div>`;
-    }
-    if (aborted === 0) {
-      return html`<div class="settings-empty" role="alert">
-        ${t("governance.kill.noticeNoRuns")}
-      </div>`;
-    }
-    // Distinguish "confirmed stopped" from "signal sent". Reporting one number
-    // for both let an operator read "we asked in 4ms" as "the agent stopped in
-    // 4ms" — the claim requirement #7 actually makes.
-    if (notice.stoppedConfirmed === false) {
-      return html`<div class="settings-empty" role="alert">
-        ${t("governance.kill.noticeUnconfirmed")} ${aborted}
-        ${notice.dispatchMs === undefined
-          ? nothing
-          : html`(${t("governance.kill.signalled")} ${notice.dispatchMs}ms)`}
-      </div>`;
-    }
-    return html`<div class="settings-empty" role="status">
-      ${t("governance.kill.noticeStopped")} ${aborted}
-      ${notice.elapsedMs === undefined ? nothing : html`(${notice.elapsedMs}ms)`}
-    </div>`;
-  }
-
-  private renderRuleWarnings(): TemplateResult | typeof nothing {
-    const warnings = this.ruleWarnings;
-    if (!warnings || warnings.length === 0) {
-      return nothing;
-    }
-    return html`
-      <div class="settings-empty" role="alert" style="border-left:3px solid var(--warn, #fbbf24)">
-        <strong>${t("governance.policy.warningTitle")}</strong>
-        <ul style="margin:0.5rem 0 0.5rem 1rem">
-          ${warnings.map((warning) => html`<li>${warning.message}</li>`)}
-        </ul>
-        <button
-          class="btn"
-          @click=${() => {
-            this.ruleWarnings = null;
-          }}
-        >
-          ${t("governance.policy.conflictDismiss")}
-        </button>
-      </div>
-    `;
-  }
-
-  private renderConflictNotice(): TemplateResult | typeof nothing {
-    const conflicts = this.conflictNotice;
-    if (!conflicts || conflicts.length === 0) {
-      return nothing;
-    }
-    return html`
-      <div class="settings-empty" role="alert" style="border-left:3px solid var(--warn, #fbbf24)">
-        <strong
-          >${
-            // The two kinds mean opposite things: an allowance clash says the
-            // new rule adds nothing, a denial clash says it does nothing at
-            // all. One heading over both would understate the second.
-            conflicts.some((conflict) => conflict.kind === "overridden-by-deny")
-              ? t("governance.policy.overriddenTitle")
-              : t("governance.policy.conflictTitle")
-          }</strong
-        >
-        <ul style="margin:0.5rem 0 0.5rem 1rem">
-          ${conflicts.map(
-            (conflict) => html`<li>
-              <code>${conflict.existingPattern}</code> — ${conflict.message}
-            </li>`,
-          )}
-        </ul>
-        <button
-          class="btn"
-          @click=${() => {
-            this.conflictNotice = null;
-          }}
-        >
-          ${t("governance.policy.conflictDismiss")}
-        </button>
-      </div>
-    `;
-  }
-
-  private renderPendingDecisionsSection(): TemplateResult | typeof nothing {
-    if (!this.canManageAnyAgent()) {
-      return nothing;
-    }
-    const waiting = this.pendingDecisions.filter((entry) => entry.status === "pending");
-    if (waiting.length === 0) {
-      return nothing;
-    }
-    return renderSettingsSection({ title: t("governance.pending.title") }, [
-      renderSettingsRow({
-        title: t("governance.pending.explainer"),
-        description: t("governance.pending.explainerHint"),
-      }),
-      ...waiting.map((entry) =>
-        renderSettingsRow({
-          title: html`<code>${entry.toolName}</code> ${entry.resource}`,
-          description: `${t("governance.pending.agent")} ${entry.agentId} · ${t("governance.pending.timedOut")} ${new Date(entry.timedOutAt).toLocaleString()}`,
-          control: html`
-            <div class="settings-row__control" style="gap:0.5rem">
-              <button
-                class="btn btn--primary"
-                ?disabled=${this.busy}
-                @click=${() => this.run(() => this.api().decidePendingDecision(entry.id, true))}
-              >
-                ${t("governance.pending.allow")}
-              </button>
-              <button
-                class="btn btn--danger"
-                ?disabled=${this.busy}
-                @click=${() => this.run(() => this.api().decidePendingDecision(entry.id, false))}
-              >
-                ${t("governance.pending.deny")}
-              </button>
-            </div>
-          `,
-        }),
-      ),
-    ]);
-  }
-
-  /**
-   * The monitor switch for one agent, and the label saying where it currently
-   * stands.
-   *
-   * Three states are shown rather than two, because "this agent follows the
-   * installation" and "this agent is pinned to enforce" are different facts and
-   * an operator deciding whether to intervene needs to tell them apart. Turning
-   * monitor off clears the override rather than pinning `enforce`, so the agent
-   * resumes following a later change to the installation posture.
-   *
-   * `off` is never offered. It is not a third posture but the absence of the
-   * gate — the kill switch and the core denials stop applying — and the server
-   * refuses it at every tier, so a button for it could only ever produce an
-   * error. See `ROLE-MODEL.md`.
-   */
-  private renderPostureToggle(agentId: string): TemplateResult {
-    const override = this.policy?.agentMode?.[agentId];
-    const monitoring = override === "monitor";
-    return html`<div class="settings-row__control" style="gap:0.5rem">
-      ${renderSettingsStatus({
-        kind: monitoring ? "warn" : "ok",
-        label: monitoring
-          ? t("governance.sessions.observing")
-          : override === undefined
-            ? t("governance.sessions.followsDefault")
-            : t("governance.policy.modeEnforce"),
-      })}
-      <button
-        class="btn"
-        ?disabled=${this.busy}
-        title=${t("governance.policy.observeAgentHint")}
-        @click=${() =>
-          this.run(() => this.api().setAgentMode(agentId, monitoring ? null : "monitor"))}
-      >
-        ${monitoring ? t("governance.sessions.stopObserving") : t("governance.sessions.observe")}
-      </button>
-    </div>`;
-  }
-
-  /**
-   * Filter controls for the rule list (Q-89).
-   *
-   * A shipped installation already carries the core and baseline tiers, so this
-   * list is never short — and the panel is where somebody answers "what
-   * actually permits this?" during an incident. A ruleset you cannot search is
-   * a control you cannot audit.
-   *
-   * The count is always shown, including when nothing is filtered, so an
-   * operator can see at a glance that the list they are reading is the whole
-   * policy and not a slice they forgot they had narrowed.
-   */
-  private renderRuleFilter(rules: readonly GovernancePolicyRule[]): TemplateResult {
-    const matching = filterRules(rules, this.ruleFilter).length;
-    const update = (patch: Partial<RuleFilter>) => {
-      this.ruleFilter = { ...this.ruleFilter, ...patch };
-    };
-    const picker = (
-      label: string,
-      value: string,
-      options: ReadonlyArray<{ value: string; label: string }>,
-      onPick: (value: string) => void,
-    ) => html`<select
-      class="input"
-      aria-label=${label}
-      .value=${value}
-      @change=${(e: Event) => onPick((e.target as HTMLSelectElement).value)}
-    >
-      ${options.map((option) => html`<option value=${option.value}>${option.label}</option>`)}
-    </select>`;
-    return renderSettingsRow({
-      title: t("governance.policy.filterTitle"),
-      description: t("governance.policy.filterCount", {
-        matching: String(matching),
-        total: String(rules.length),
-      }),
-      stacked: true,
-      control: html`
-        <div class="settings-row__control" style="gap:0.5rem;flex-wrap:wrap">
-          <input
-            class="input"
-            type="search"
-            style="flex:1;min-width:12rem"
-            aria-label=${t("governance.policy.filterSearchLabel")}
-            placeholder=${t("governance.policy.filterSearchPlaceholder")}
-            .value=${this.ruleFilter.search}
-            @input=${(e: Event) => update({ search: (e.target as HTMLInputElement).value })}
-          />
-          ${picker(
-            t("governance.policy.filterKind"),
-            this.ruleFilter.kind,
-            [
-              { value: "all", label: t("governance.policy.filterAnyKind") },
-              { value: "command", label: "command" },
-              { value: "path", label: "path" },
-              { value: "network", label: "network" },
-            ],
-            (value) => update({ kind: value as RuleFilter["kind"] }),
-          )}
-          ${picker(
-            t("governance.policy.filterTier"),
-            this.ruleFilter.tier,
-            [
-              { value: "all", label: t("governance.policy.filterAnyTier") },
-              { value: "core", label: t("governance.policy.tierCore") },
-              { value: "baseline", label: t("governance.policy.tierBaseline") },
-              { value: "admin", label: t("governance.policy.tierAdmin") },
-            ],
-            (value) => update({ tier: value as RuleFilter["tier"] }),
-          )}
-          ${picker(
-            t("governance.policy.filterEffect"),
-            this.ruleFilter.effect,
-            [
-              { value: "all", label: t("governance.policy.filterAnyEffect") },
-              { value: "allow", label: t("governance.policy.effectAllow") },
-              { value: "deny", label: t("governance.policy.effectDeny") },
-            ],
-            (value) => update({ effect: value as RuleFilter["effect"] }),
-          )}
-          ${picker(
-            t("governance.policy.filterScope"),
-            this.ruleFilter.scope,
-            [
-              { value: "all", label: t("governance.policy.filterAnyScope") },
-              { value: "global", label: t("governance.policy.globalScope") },
-              ...ruleScopes(rules).map((agentId) => ({ value: agentId, label: agentId })),
-            ],
-            (value) => update({ scope: value }),
-          )}
-          <button
-            class="btn"
-            ?disabled=${isRuleFilterEmpty(this.ruleFilter)}
-            @click=${() => {
-              this.ruleFilter = { ...EMPTY_RULE_FILTER };
-            }}
-          >
-            ${t("governance.policy.filterClear")}
-          </button>
-        </div>
-      `,
-    });
   }
 
   /**
@@ -1967,1143 +863,6 @@ class GovernancePage extends OpenClawLightDomElement {
   }
 
   /**
-   * The conversation panel: the User tier's own capability (§1.6, "Users may
-   * strictly prompt the agents for task execution").
-   *
-   * Rendered inside the sessions panel, under the agent it belongs to, because
-   * an agent is the subject of both — its runs and the conversation that starts
-   * them are one thing seen from two sides.
-   */
-  private renderConversation(agentId: string): TemplateResult | typeof nothing {
-    if (this.conversationAgentId !== agentId) {
-      return nothing;
-    }
-    const transcript = this.transcript;
-    if (!transcript) {
-      // **A failed load must not look like a slow one.**
-      //
-      // `openConversation` sets `promptError` and leaves `transcript` null when
-      // the fetch fails, and this early return came *before* the block that
-      // renders that error — so any failure showed "Loading the conversation…"
-      // for ever, with the explanation rendered nowhere. Observed by opening a
-      // conversation whose request was refused: a spinner that never resolves
-      // and no way to find out why.
-      //
-      // A progress message that cannot end is worse than an error, because it
-      // tells the operator to keep waiting.
-      return this.promptError
-        ? html`<div class="settings-empty" role="alert" style="color:var(--danger, #dc2626)">
-            ${this.promptError}
-          </div>`
-        : html`<div class="settings-empty">${t("governance.conversation.loading")}</div>`;
-    }
-    return html`
-      <div class="settings-empty" style="display:flex;flex-direction:column;gap:0.5rem">
-        ${transcript.turns.length === 0
-          ? html`<span>${t("governance.conversation.empty")}</span>`
-          : transcript.turns.map(
-              (turn) => html`<div>
-                <strong
-                  >${turn.role === "user" ? t("governance.conversation.you") : agentId}</strong
-                >
-                <span style="opacity:0.6"> · ${new Date(turn.at).toLocaleTimeString()}</span>
-                <div style="white-space:pre-wrap">
-                  ${turn.error
-                    ? html`<em>${t("governance.conversation.failed")}: ${turn.error}</em>`
-                    : turn.body}
-                </div>
-              </div>`,
-            )}
-        ${this.promptPending
-          ? html`<div>
-              <strong>${agentId}</strong>
-              <span style="opacity:0.6"> · ${t("governance.conversation.working")}</span>
-              <div style="white-space:pre-wrap">
-                ${this.promptStream
-                  ? this.promptStream
-                  : html`<em>${t("governance.conversation.thinking")}</em>`}
-              </div>
-            </div>`
-          : nothing}
-        ${this.promptError
-          ? html`<div role="alert" style="color:var(--danger, #dc2626)">${this.promptError}</div>`
-          : nothing}
-        ${transcript.supported && this.promptAttachments.length > 0
-          ? html`<div
-              style="display:flex;flex-wrap:wrap;gap:0.35rem;align-items:center"
-              aria-label=${t("governance.conversation.attachmentsQueued")}
-            >
-              ${this.promptAttachments.map(
-                (held) => html`<span
-                  class="badge"
-                  style="display:inline-flex;gap:0.35rem;align-items:center"
-                  title=${`${held.mimeType} · sha256:${held.sha256}`}
-                >
-                  ${held.declaredName} (${formatAttachmentSize(held.bytes)})
-                  <button
-                    class="btn"
-                    style="padding:0 0.35rem;line-height:1"
-                    aria-label=${t("governance.conversation.attachmentRemove", {
-                      name: held.declaredName,
-                    })}
-                    ?disabled=${this.promptPending}
-                    @click=${() => void this.removeAttachment(held)}
-                  >
-                    ×
-                  </button>
-                </span>`,
-              )}
-            </div>`
-          : nothing}
-        ${transcript.supported
-          ? html`<div style="display:flex;gap:0.5rem">
-              <input
-                class="input"
-                type="text"
-                style="flex:1"
-                aria-label=${t("governance.conversation.promptLabel")}
-                placeholder=${t("governance.conversation.promptPlaceholder")}
-                .value=${this.promptDraft}
-                ?disabled=${this.promptPending}
-                @input=${(e: Event) => {
-                  this.promptDraft = (e.target as HTMLInputElement).value;
-                }}
-                @keydown=${(e: KeyboardEvent) => {
-                  // Enter sends, which is what every chat input on the web does.
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    void this.sendPrompt();
-                  }
-                }}
-              />
-              <!--
-                A real button that opens a hidden input, rather than a label
-                wrapping one (QA round 18, finding 118).
-
-                The first version was \`<label class="btn"><input type="file"
-                style="display:none">\`, which looks identical and **cannot be
-                reached by keyboard at all**: \`display:none\` takes the input
-                out of the tab order however its \`tabindex\` reads, and a
-                \`<label>\` is not focusable, so there was nothing left to tab
-                to. Every other control in this composer is a \`<button>\`; this
-                one only looked like one.
-
-                Same class as finding 103, and found the same way — by driving
-                the page rather than by reading it.
-              -->
-              <button
-                class="btn"
-                type="button"
-                title=${t("governance.conversation.attachHint")}
-                ?disabled=${this.promptPending || this.attachmentUploading}
-                @click=${(e: Event) => {
-                  const button = e.currentTarget as HTMLElement;
-                  button.parentElement
-                    ?.querySelector<HTMLInputElement>("input[type=file]")
-                    ?.click();
-                }}
-              >
-                ${this.attachmentUploading
-                  ? t("governance.conversation.attaching")
-                  : t("governance.conversation.attach")}
-              </button>
-              <input
-                type="file"
-                multiple
-                style="display:none"
-                tabindex="-1"
-                aria-hidden="true"
-                @change=${(e: Event) => {
-                  const input = e.target as HTMLInputElement;
-                  void this.addAttachments(input.files).finally(() => {
-                    // Reset so choosing the same file again still fires a
-                    // change event; without this, re-picking a file the
-                    // operator had just removed would silently do nothing.
-                    input.value = "";
-                  });
-                }}
-              />
-              <button
-                class="btn btn-primary"
-                ?disabled=${this.promptPending ||
-                this.attachmentUploading ||
-                !this.promptDraft.trim()}
-                @click=${() => this.sendPrompt()}
-              >
-                ${this.promptPending
-                  ? t("governance.conversation.sending")
-                  : t("governance.conversation.send")}
-              </button>
-              ${this.promptPending
-                ? html`<button
-                    class="btn"
-                    ?disabled=${!this.promptRunId}
-                    @click=${() => this.cancelPrompt()}
-                    title=${t("governance.conversation.cancelHint")}
-                  >
-                    ${t("governance.conversation.cancel")}
-                  </button>`
-                : nothing}
-            </div>`
-          : html`<em>${t("governance.conversation.unsupported")}</em>`}
-      </div>
-    `;
-  }
-
-  /**
-   * The agents this account may talk to, and the way in to each conversation.
-   *
-   * A separate section from the live-sessions panel on purpose: that one lists
-   * agents that are *currently running*, and the commonest thing a User wants
-   * to do is start one that is not. Listing the assignment answers "which
-   * agents are mine" without the operator having to know an id — which for the
-   * User tier, the one tier that is handed specific agents rather than all of
-   * them, is the whole point.
-   *
-   * Administrator and above have no assignment list (their scope is every
-   * agent), so they get an id box instead. Viewer never sees this section: §1.6
-   * says a Viewer "cannot interact with the agent", and the server refuses the
-   * route by tier regardless.
-   */
-  private renderAgentsSection(): TemplateResult | typeof nothing {
-    if (!this.canManageAnyAgent()) {
-      return nothing;
-    }
-    const assigned = this.identity?.assignedAgents ?? [];
-    const rows =
-      assigned.length > 0
-        ? assigned.map((agentId) =>
-            renderSettingsRow({
-              title: html`<code>${agentId}</code>`,
-              description: t("governance.conversation.agentHint"),
-              stacked: this.conversationAgentId === agentId,
-              control: html`<button
-                class="btn"
-                ?disabled=${this.busy}
-                @click=${() => void this.openConversation(agentId)}
-              >
-                ${this.conversationAgentId === agentId
-                  ? t("governance.conversation.close")
-                  : t("governance.conversation.open")}
-              </button>`,
-            }),
-          )
-        : [
-            renderSettingsRow({
-              title: t("governance.conversation.chooseAgent"),
-              description: t("governance.conversation.chooseAgentHint"),
-              stacked: true,
-              control: html`<div class="settings-row__control" style="gap:0.5rem">
-                <input
-                  class="input"
-                  type="text"
-                  aria-label=${t("governance.conversation.chooseAgent")}
-                  placeholder=${t("governance.kill.agentIdPlaceholder")}
-                  .value=${this.conversationAgentId}
-                  @input=${(e: Event) => {
-                    this.conversationAgentId = (e.target as HTMLInputElement).value;
-                  }}
-                />
-                <button
-                  class="btn"
-                  ?disabled=${this.busy || !this.conversationAgentId.trim()}
-                  @click=${() => {
-                    const agentId = this.conversationAgentId.trim();
-                    // Force a fetch even though the field already holds the id.
-                    this.conversationAgentId = "";
-                    void this.openConversation(agentId);
-                  }}
-                >
-                  ${t("governance.conversation.open")}
-                </button>
-              </div>`,
-            }),
-          ];
-    return renderSettingsSection({ title: t("governance.conversation.title") }, [
-      ...rows,
-      this.conversationAgentId
-        ? renderSettingsRow({
-            title: html`<code>${this.conversationAgentId}</code>`,
-            stacked: true,
-            control: this.renderConversation(this.conversationAgentId),
-          })
-        : nothing,
-    ]);
-  }
-
-  private renderActiveSessionsSection(): TemplateResult | typeof nothing {
-    const view = this.activeSessions;
-    if (!view) {
-      return nothing;
-    }
-    if (!view.supported) {
-      // Distinguish "cannot see" from "nothing running" — they mean very
-      // different things to somebody deciding whether to intervene.
-      return renderSettingsSection({ title: t("governance.sessions.title") }, [
-        renderSettingsRow({
-          title: t("governance.sessions.unavailable"),
-          description: t("governance.sessions.unavailableHint"),
-        }),
-      ]);
-    }
-    const canStop = this.canManageAnyAgent();
-    return renderSettingsSection({ title: t("governance.sessions.title") }, [
-      view.sessions.length === 0
-        ? renderSettingsRow({
-            title: t("governance.sessions.idle"),
-            description: t("governance.sessions.idleHint"),
-          })
-        : nothing,
-      ...view.sessions.map((entry) =>
-        renderSettingsRow({
-          title: html`<code>${entry.agentId}</code> ${entry.runId}`,
-          description: `${t("governance.sessions.runningFor")} ${formatDuration(entry.runningForSeconds)} · ${entry.sessionKey}`,
-          control: html`
-            <div class="settings-row__control" style="gap:0.5rem">
-              ${
-                // Monitor on the row for the agent it applies to. The policy
-                // panel also carries a control, but it asks for an agent id
-                // typed into a box, and the moment somebody wants to observe an
-                // agent is the moment they are looking at it running. A control
-                // that exists and is not where the decision is made is only
-                // marginally better than one that does not exist — which is the
-                // state this feature was found in.
-                //
-                // Authority is the server's to decide and it does
-                // (`canManageAgent`): a User sees this for the agents assigned
-                // to them, an Administrator for every agent, a Viewer not at
-                // all.
-                canStop ? this.renderPostureToggle(entry.agentId) : nothing
-              }
-              ${renderSettingsStatus({
-                kind: entry.lockedDown ? "warn" : "ok",
-                label: entry.lockedDown
-                  ? t("governance.sessions.lockedDown")
-                  : t("governance.sessions.running"),
-              })}
-              ${canStop && !entry.lockedDown
-                ? html`<button
-                    class="btn btn--danger"
-                    ?disabled=${this.busy}
-                    @click=${() =>
-                      this.confirmThen(
-                        {
-                          message: t("governance.confirm.stopAgent"),
-                          details: entry.agentId,
-                          confirmLabel: t("governance.sessions.stop"),
-                        },
-                        () => this.engageKillSwitch(entry.agentId),
-                      )}
-                  >
-                    ${t("governance.sessions.stop")}
-                  </button>`
-                : nothing}
-              ${
-                // The release control used to live only in the kill-switch
-                // section, which is Administrator-gated — so a User could stop
-                // their own agent and then had to find an administrator to
-                // start it again. Whoever is trusted to stop an agent is
-                // trusted to undo that.
-                canStop && entry.lockedDown
-                  ? html`<button
-                      class="btn"
-                      ?disabled=${this.busy}
-                      @click=${() => this.run(() => this.api().setLockdown(entry.agentId, false))}
-                    >
-                      ${t("governance.kill.release")}
-                    </button>`
-                  : nothing
-              }
-            </div>
-          `,
-        }),
-      ),
-    ]);
-  }
-
-  private renderLedgerSection(): TemplateResult {
-    const verification = this.verification;
-    // Administrative entries and agent entries answer different questions, and
-    // an installation doing real work produces far more of the latter. Without
-    // a filter, "who changed this rule?" means scrolling past thousands of tool
-    // calls — the trail exists but is not usable, which for an accountability
-    // feature amounts to much the same thing.
-    const visibleLedger = filterLedger(this.ledger, this.ledgerFilter);
-    const filterButton = (value: LedgerFilter, label: string) => html`<button
-      class="btn ${this.ledgerFilter === value ? "btn-primary" : ""}"
-      aria-pressed=${this.ledgerFilter === value ? "true" : "false"}
-      @click=${() => {
-        this.ledgerFilter = value;
-      }}
-    >
-      ${label}
-    </button>`;
-    return renderSettingsSection(
-      {
-        title: t("governance.ledger.title"),
-        actions: html`${filterButton("all", t("governance.ledger.filterAll"))}
-          ${filterButton("agent", t("governance.ledger.filterAgent"))}
-          ${filterButton("admin", t("governance.ledger.filterAdmin"))}
-          ${filterButton("auth", t("governance.ledger.filterAuth"))}
-          <button
-            class="btn"
-            ?disabled=${this.busy}
-            @click=${() =>
-              this.run(async () => {
-                this.verification = await this.api().verifyLedger();
-              })}
-          >
-            ${t("governance.ledger.verify")}
-          </button>`,
-      },
-      [
-        verification
-          ? renderSettingsRow({
-              title: t("governance.ledger.integrity"),
-              control: renderSettingsStatus({
-                kind: verification.ok ? "ok" : "warn",
-                label: verification.ok
-                  ? `${t("governance.ledger.intact")} (${verification.entriesChecked})`
-                  : verification.brokenAtSeq === undefined
-                    ? // No sequence number when the failure is not tied to one
-                      // entry — an unparseable line, or a checkpoint saying the
-                      // file is short. Printing "#undefined" in exactly the
-                      // situation the feature exists for undermined the one
-                      // message an operator most needs to trust.
-                      `${t("governance.ledger.tampered")}: ${verification.reason}`
-                    : `${t("governance.ledger.tampered")} #${verification.brokenAtSeq}: ${verification.reason}`,
-              }),
-            })
-          : nothing,
-        visibleLedger.length === 0
-          ? renderSettingsRow({
-              title: t("governance.ledger.empty"),
-              description: t("governance.ledger.emptyHint"),
-            })
-          : nothing,
-        ...visibleLedger
-          // `toReversed`, which copies — the `slice()` that used to guard the
-          // in-place `reverse()` is no longer needed, and `visibleLedger` is
-          // derived from `this.ledger`, so reversing it in place would have
-          // reordered the state behind every other reader of that array.
-          .toReversed()
-          .slice(0, 50)
-          .map((entry) =>
-            renderSettingsRow({
-              title: html`<code>#${entry.seq} ${entry.toolName}</code> ${entry.resource}`,
-              description: describeLedgerEntry(entry, { by: t("governance.ledger.by") }),
-              control: renderSettingsStatus({
-                kind:
-                  entry.entryKind === "admin"
-                    ? "accent"
-                    : entry.decision === "allow"
-                      ? "ok"
-                      : entry.decision === "deny"
-                        ? "warn"
-                        : "muted",
-                label:
-                  entry.entryKind === "admin" ? t("governance.ledger.adminBadge") : entry.decision,
-              }),
-            }),
-          ),
-      ],
-    );
-  }
-
-  /**
-   * The deployment and network report (backlog item A7).
-   *
-   * Root only, and gated **server-side** as well — hiding the panel is a
-   * convenience, not the control. It reports the bind mode, port, gateway auth
-   * mode and governance directory, which together are a map of how to reach and
-   * attack this installation, so the tier is enforced in
-   * `governance-dashboard-api.ts` and asserted in the privilege matrix.
-   *
-   * Read-only by design: changing a bind address from the dashboard you are
-   * connected through can lock you out of it in one click.
-   */
-  private renderDeploymentSection(): TemplateResult | typeof nothing {
-    if (this.identity?.role !== "root") {
-      return nothing;
-    }
-    const report = this.deployment;
-    if (!report) {
-      return nothing;
-    }
-    const kindFor = (status: GovernanceDeploymentCheck["status"]) =>
-      status === "pass"
-        ? "ok"
-        : status === "warn"
-          ? "warn"
-          : status === "fail"
-            ? "danger"
-            : "muted";
-    const facts = report.facts;
-    return renderSettingsSection(
-      {
-        title: t("governance.deployment.title"),
-        description: t("governance.deployment.hint"),
-      },
-      [
-        renderSettingsRow({
-          title: t("governance.deployment.summary"),
-          control: renderSettingsStatus({
-            kind: kindFor(report.overall),
-            label: t("governance.deployment.counts", {
-              fail: String(report.summary.fail),
-              warn: String(report.summary.warn),
-              unknown: String(report.summary.unknown),
-              pass: String(report.summary.pass),
-            }),
-          }),
-        }),
-        ...(facts
-          ? [
-              renderSettingsRow({
-                title: t("governance.deployment.facts.gateway"),
-                control: renderSettingsValue(
-                  `${facts.bind}:${facts.port} · ${facts.authMode} · ${facts.platform}`,
-                ),
-              }),
-              renderSettingsRow({
-                title: t("governance.deployment.facts.dir"),
-                description: facts.governanceDirRelocated
-                  ? t("governance.deployment.facts.relocated")
-                  : undefined,
-                control: renderSettingsValue(facts.governanceDir),
-              }),
-            ]
-          : []),
-        ...report.checks.map((check) =>
-          renderSettingsRow({
-            title: check.title,
-            // The remediation rides on the description rather than getting its
-            // own row: an operator reading a failure needs the fix in the same
-            // glance, and a separate row would scan as a separate finding.
-            description: check.remediation
-              ? `${check.detail} → ${check.remediation}`
-              : check.detail,
-            control: renderSettingsStatus({
-              kind: kindFor(check.status),
-              label: t(`governance.deployment.status.${check.status}`),
-            }),
-          }),
-        ),
-        ...(facts?.gatewayNotes ?? []).map((note) =>
-          renderSettingsRow({
-            title: note,
-            control: renderSettingsStatus({
-              kind: "muted",
-              label: t("governance.deployment.note"),
-            }),
-          }),
-        ),
-      ],
-    );
-  }
-
-  private renderSystemSection(): TemplateResult | typeof nothing {
-    const status = this.systemStatus;
-    if (!status) {
-      return nothing;
-    }
-    const gib = (bytes: number) => `${(bytes / 1024 ** 3).toFixed(1)} GiB`;
-    const duration = (seconds: number) => {
-      const days = Math.floor(seconds / 86_400);
-      const hours = Math.floor((seconds % 86_400) / 3600);
-      const minutes = Math.floor((seconds % 3600) / 60);
-      return days > 0 ? `${days}d ${hours}h` : hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-    };
-    return renderSettingsSection({ title: t("governance.system.title") }, [
-      renderSettingsRow({
-        title: t("governance.system.memory"),
-        control: renderSettingsStatus({
-          // A nearly-full host is the condition a runaway agent produces, so
-          // surface it as a warning rather than a neutral number.
-          kind: status.usedMemoryPercent > 90 ? "warn" : "ok",
-          label: `${status.usedMemoryPercent}% of ${gib(status.totalMemoryBytes)}`,
-        }),
-      }),
-      renderSettingsRow({
-        title: t("governance.system.cpu"),
-        control: renderSettingsValue(
-          status.loadAverageSupported
-            ? `${status.cpuCount} cores · load ${status.loadAverage.map((n) => n.toFixed(2)).join(" / ")}`
-            : `${status.cpuCount} cores`,
-        ),
-      }),
-      renderSettingsRow({
-        title: t("governance.system.uptime"),
-        control: renderSettingsValue(
-          `${t("governance.system.host")} ${duration(status.uptimeSeconds)} · ${t("governance.system.gateway")} ${duration(status.processUptimeSeconds)}`,
-        ),
-      }),
-    ]);
-  }
-
-  private renderRuleRequestsSection(): TemplateResult | typeof nothing {
-    const pending = this.ruleRequests.filter((request) => request.status === "pending");
-    const recent = this.ruleRequests
-      .filter((request) => request.status !== "pending")
-      .slice(-5)
-      .toReversed();
-    // Users propose; Administrators decide. Both see the queue.
-    const canPropose = this.canManageAnyAgent() || this.identity?.role === "user";
-    const canDecide = this.canAdminister();
-    return renderSettingsSection({ title: t("governance.requests.title") }, [
-      ...pending.map((request) =>
-        renderSettingsRow({
-          // A setting request has no pattern; an empty code block for it would
-          // read as a rule request whose pattern failed to load. Applied to the
-          // decided list as well as the pending one — a request an operator
-          // reviews and a request they later look back at are the same object.
-          title:
-            request.kind === "agent-setting"
-              ? html`${t("governance.requests.settingTitle", {
-                  setting:
-                    request.setting === "ask"
-                      ? t("governance.requests.settingAsk")
-                      : t("governance.requests.settingMode"),
-                  value: request.value ?? "",
-                })}`
-              : html`<code>${request.pattern}</code>`,
-          // Scope is stated first and unambiguously. An approver deciding from
-          // pattern and reason alone cannot tell a single-agent request from
-          // one that will bind every agent in the installation, and those are
-          // very different decisions.
-          description: html`${renderSettingsStatus(
-            request.agentId
-              ? { kind: "ok", label: `${t("governance.requests.scopeAgent")} ${request.agentId}` }
-              : { kind: "warn", label: t("governance.requests.scopeGlobal") },
-          )}
-          ${request.kind === "agent-setting"
-            ? t("governance.requests.settingKind")
-            : request.resourceKind}
-          · ${t("governance.requests.by")} ${request.requestedBy} — ${request.reason}`,
-          control: canDecide
-            ? html`
-                <div class="settings-row__control" style="gap:0.5rem">
-                  <button
-                    class="btn btn--primary"
-                    ?disabled=${this.busy}
-                    @click=${() => this.run(() => this.api().decideRuleRequest(request.id, true))}
-                  >
-                    ${t("governance.requests.approve")}
-                  </button>
-                  <button
-                    class="btn btn--danger"
-                    ?disabled=${this.busy}
-                    @click=${() => this.run(() => this.api().decideRuleRequest(request.id, false))}
-                  >
-                    ${t("governance.requests.reject")}
-                  </button>
-                </div>
-              `
-            : renderSettingsStatus({ kind: "muted", label: t("governance.requests.pending") }),
-        }),
-      ),
-      ...recent.map((request) =>
-        renderSettingsRow({
-          // A setting request has no pattern; an empty code block for it would
-          // read as a rule request whose pattern failed to load. Applied to the
-          // decided list as well as the pending one — a request an operator
-          // reviews and a request they later look back at are the same object.
-          title:
-            request.kind === "agent-setting"
-              ? html`${t("governance.requests.settingTitle", {
-                  setting:
-                    request.setting === "ask"
-                      ? t("governance.requests.settingAsk")
-                      : t("governance.requests.settingMode"),
-                  value: request.value ?? "",
-                })}`
-              : html`<code>${request.pattern}</code>`,
-          description: `${t("governance.requests.by")} ${request.requestedBy} · ${t("governance.requests.decidedBy")} ${request.decidedBy ?? "—"}`,
-          control: renderSettingsStatus({
-            kind: request.status === "approved" ? "ok" : "warn",
-            label: request.status,
-          }),
-        }),
-      ),
-      pending.length === 0 && recent.length === 0
-        ? renderSettingsRow({
-            title: t("governance.requests.empty"),
-            description: t("governance.requests.emptyHint"),
-          })
-        : nothing,
-      canPropose
-        ? renderSettingsRow({
-            title: t("governance.requests.submit"),
-            description: t("governance.requests.submitHint"),
-            stacked: true,
-            control: html`
-              <div class="settings-row__control" style="gap:0.5rem;flex-wrap:wrap">
-                <select
-                  class="input"
-                  aria-label=${t("governance.policy.kindLabel")}
-                  .value=${this.requestKind}
-                  @change=${(e: Event) => {
-                    this.requestKind = (e.target as HTMLSelectElement)
-                      .value as GovernancePolicyRule["resourceKind"];
-                  }}
-                >
-                  <option value="command">command</option>
-                  <option value="path">path</option>
-                  <option value="network">network</option>
-                </select>
-                <input
-                  class="input"
-                  type="text"
-                  aria-label=${t("governance.policy.patternLabel")}
-                  placeholder=${t("governance.policy.patternPlaceholder")}
-                  .value=${this.requestPattern}
-                  @input=${(e: Event) => {
-                    this.requestPattern = (e.target as HTMLInputElement).value;
-                  }}
-                />
-                <input
-                  class="input"
-                  type="text"
-                  style="min-width:14rem"
-                  aria-label=${t("governance.requests.reasonLabel")}
-                  placeholder=${t("governance.requests.reasonPlaceholder")}
-                  .value=${this.requestReason}
-                  @input=${(e: Event) => {
-                    this.requestReason = (e.target as HTMLInputElement).value;
-                  }}
-                />
-                <input
-                  class="input"
-                  type="text"
-                  aria-label=${t("governance.requests.agentLabel")}
-                  placeholder=${t("governance.requests.agentPlaceholder")}
-                  .value=${this.requestAgentId}
-                  @input=${(e: Event) => {
-                    this.requestAgentId = (e.target as HTMLInputElement).value;
-                  }}
-                />
-                <button
-                  class="btn btn--primary"
-                  ?disabled=${this.busy || !this.requestPattern || !this.requestReason}
-                  @click=${() =>
-                    this.run(async () => {
-                      const agentId = this.requestAgentId.trim();
-                      await this.api().submitRuleRequest({
-                        resourceKind: this.requestKind,
-                        pattern: this.requestPattern,
-                        reason: this.requestReason,
-                        // Sent only when non-empty: an empty string would be a
-                        // request for an agent literally named "", whereas an
-                        // absent field is the deliberate "installation-wide"
-                        // choice the server understands.
-                        ...(agentId ? { agentId } : {}),
-                      });
-                      this.requestPattern = "";
-                      this.requestReason = "";
-                      this.requestAgentId = "";
-                    })}
-                >
-                  ${t("governance.requests.submitButton")}
-                </button>
-              </div>
-            `,
-          })
-        : nothing,
-    ]);
-  }
-
-  /**
-   * Sets one account's password, including Root's own.
-   *
-   * Two things make this more than a form submit, and both are about telling
-   * the operator the truth before they commit:
-   *
-   *   1. **Every session for that account is revoked** by the server, because a
-   *      password change is usually a response to it being compromised. When
-   *      Root changes its own password that includes the session making the
-   *      request, so the page is about to sign itself out. Saying that
-   *      afterwards would read as a bug; saying it in the confirmation makes it
-   *      the expected outcome.
-   *   2. **Root's password has no other recovery path.** Bootstrap refuses once
-   *      an account exists and Root cannot be demoted or deleted, so this
-   *      control is the only way to change it — which is exactly why it is
-   *      worth confirming rather than firing on a single click.
-   *
-   * The length rule is checked here as well as on the server, for the same
-   * reason the bootstrap form checks it: an operator should be told the rule by
-   * the form that has to satisfy it, not by a refusal afterwards.
-   */
-  private async setPassword(userId: string, username: string): Promise<void> {
-    const password = (this.passwordEdits[userId] ?? "").trim();
-    if (!password) {
-      return;
-    }
-    if (password.length < MIN_PASSWORD_LENGTH) {
-      this.error = t("governance.login.passwordTooShort", { min: String(MIN_PASSWORD_LENGTH) });
-      return;
-    }
-    const isSelf = username === this.identity?.username;
-    await this.confirmThen(
-      {
-        message: isSelf
-          ? t("governance.confirm.setOwnPassword")
-          : t("governance.confirm.setPassword"),
-        details: username,
-        confirmLabel: t("governance.users.setPassword"),
-        danger: isSelf,
-      },
-      async () => {
-        await this.api().setUserPassword(userId, password);
-        // Cleared whatever happens next: on a self-reset the page is about to
-        // return to sign-in, and leaving a password sitting in a field behind
-        // that transition is the kind of thing nobody notices until it matters.
-        this.passwordEdits = { ...this.passwordEdits, [userId]: "" };
-      },
-    );
-  }
-
-  private renderUsersSection(): TemplateResult | typeof nothing {
-    // Account administration is the Root tier's defining responsibility: the
-    // design doc gives Root the human side of the system and Administrator the
-    // agent side, so this section is hidden below Root entirely.
-    if (this.identity?.role !== "root") {
-      return nothing;
-    }
-    return renderSettingsSection({ title: t("governance.users.title") }, [
-      ...this.users.map((user) =>
-        renderSettingsRow({
-          title: user.username,
-          description: `${t("governance.users.created")} ${new Date(user.createdAt).toLocaleDateString()}`,
-          stacked: true,
-          control: html`
-            <div class="settings-row__control" style="gap:0.5rem;flex-wrap:wrap">
-              ${user.role === "root"
-                ? // Root is permanent: it cannot be demoted, and no second Root
-                  // can be created or promoted. So this row states the role
-                  // rather than offering a control that would only ever be
-                  // refused — and says *why*, because "the buttons are missing"
-                  // is otherwise indistinguishable from a page that failed to
-                  // render.
-                  renderSettingsValue(t("governance.users.rootPermanent"))
-                : renderSettingsSegmented({
-                    value: user.role,
-                    disabled: this.busy,
-                    options: ASSIGNABLE_ROLE_OPTIONS,
-                    // A privilege change used to apply the instant the control
-                    // was clicked, including a mis-click onto a higher tier. It
-                    // is the most consequential control on the page and had the
-                    // lightest interaction of any of them.
-                    onChange: (role) =>
-                      this.confirmThen(
-                        {
-                          message: t("governance.confirm.changeRole"),
-                          details: `${user.username}: ${user.role} → ${role}`,
-                          confirmLabel: t("governance.confirm.changeRoleAction"),
-                          danger: role === "administrator",
-                        },
-                        () => this.api().setUserRole(user.id, role as GovernanceRole),
-                      ),
-                  })}
-              ${user.role === "user" || user.role === "viewer"
-                ? html`<input
-                      class="input"
-                      type="text"
-                      style="max-width:14rem"
-                      aria-label=${t("governance.users.agentsLabel")}
-                      placeholder=${t("governance.users.agentsPlaceholder")}
-                      .value=${this.agentEdits[user.id] ?? user.assignedAgents.join(", ")}
-                      @input=${(e: Event) => {
-                        this.agentEdits = {
-                          ...this.agentEdits,
-                          [user.id]: (e.target as HTMLInputElement).value,
-                        };
-                      }}
-                    />
-                    <button
-                      class="btn"
-                      ?disabled=${this.busy}
-                      @click=${() =>
-                        this.run(async () => {
-                          const raw = this.agentEdits[user.id] ?? user.assignedAgents.join(", ");
-                          await this.api().setUserAgents(
-                            user.id,
-                            raw
-                              .split(",")
-                              .map((id) => id.trim())
-                              .filter(Boolean),
-                          );
-                          const { [user.id]: _cleared, ...rest } = this.agentEdits;
-                          this.agentEdits = rest;
-                        })}
-                    >
-                      ${t("governance.users.saveAgents")}
-                    </button>`
-                : nothing}
-              ${
-                // Root decides how much of the §3.7 User expansion this account
-                // actually gets. Offered on the User tier only, because the
-                // flag is inert above it and a control that does nothing is a
-                // control that misleads — the shape of finding 100.
-                //
-                // Withholding removes *writing policy*, not the tier: the
-                // account keeps reading its agents' policy and ledger,
-                // prompting them, stopping them, and submitting rule requests.
-                this.identity?.role === "root" && user.role === "user"
-                  ? html`<button
-                      class="btn"
-                      ?disabled=${this.busy}
-                      title=${t("governance.users.policyAuthoringHint")}
-                      @click=${() =>
-                        this.run(async () => {
-                          await this.api().setUserPolicyAuthoring(
-                            user.id,
-                            user.canAuthorPolicy === false,
-                          );
-                          this.users = await this.api().listUsers();
-                        })}
-                    >
-                      ${user.canAuthorPolicy === false
-                        ? t("governance.users.policyAuthoringGrant")
-                        : t("governance.users.policyAuthoringWithhold")}
-                    </button>`
-                  : nothing
-              }
-              <!--
-                Setting a password, including Root's own.
-                The route was Root-only and enforced from the day scrypt
-                parameters became upgradeable, and no surface ever called it —
-                so the account that governs every other one had a password that
-                could not be changed after it was first chosen, on a page whose
-                bootstrap step is already irreversible. Offered per row rather
-                than as a separate panel because the account it acts on has to
-                be unmistakable: a password field that could be pointed at the
-                wrong person by a mis-set dropdown is a worse control than none.
-              -->
-              <input
-                class="input"
-                type="password"
-                autocomplete="new-password"
-                style="max-width:14rem"
-                aria-label=${t("governance.users.newPasswordFor", { username: user.username })}
-                placeholder=${t("governance.users.passwordPlaceholder")}
-                .value=${this.passwordEdits[user.id] ?? ""}
-                @input=${(e: Event) => {
-                  this.passwordEdits = {
-                    ...this.passwordEdits,
-                    [user.id]: (e.target as HTMLInputElement).value,
-                  };
-                }}
-              />
-              <button
-                class="btn"
-                ?disabled=${this.busy || !(this.passwordEdits[user.id] ?? "").trim()}
-                @click=${() => this.setPassword(user.id, user.username)}
-              >
-                ${t("governance.users.setPassword")}
-              </button>
-              <button
-                class="btn btn--danger"
-                ?disabled=${this.busy || user.username === this.identity?.username}
-                title=${user.username === this.identity?.username
-                  ? t("governance.users.cannotDeleteSelf")
-                  : ""}
-                @click=${() =>
-                  this.confirmThen(
-                    {
-                      message: t("governance.confirm.deleteUser"),
-                      details: user.username,
-                      confirmLabel: t("governance.users.delete"),
-                    },
-                    () => this.api().deleteUser(user.id),
-                  )}
-              >
-                ${t("governance.users.delete")}
-              </button>
-            </div>
-          `,
-        }),
-      ),
-      renderSettingsRow({
-        title: t("governance.users.add"),
-        description: t("governance.users.addHint"),
-        stacked: true,
-        control: html`
-          <div class="settings-row__control" style="gap:0.5rem;flex-wrap:wrap">
-            <input
-              class="input"
-              type="text"
-              autocomplete="off"
-              aria-label=${t("governance.users.newUsernameLabel")}
-              placeholder=${t("governance.login.username")}
-              .value=${this.newUserName}
-              @input=${(e: Event) => {
-                this.newUserName = (e.target as HTMLInputElement).value;
-              }}
-            />
-            <input
-              class="input"
-              type="password"
-              autocomplete="new-password"
-              aria-label=${t("governance.users.newPasswordLabel")}
-              placeholder=${t("governance.users.passwordPlaceholder")}
-              .value=${this.newUserPassword}
-              @input=${(e: Event) => {
-                this.newUserPassword = (e.target as HTMLInputElement).value;
-              }}
-            />
-            <select
-              class="input"
-              aria-label=${t("governance.users.newRoleLabel")}
-              .value=${this.newUserRole}
-              @change=${(e: Event) => {
-                this.newUserRole = (e.target as HTMLSelectElement).value as GovernanceRole;
-              }}
-            >
-              ${ASSIGNABLE_ROLE_OPTIONS.map(
-                (option) => html`<option value=${option.value}>${option.label}</option>`,
-              )}
-            </select>
-            ${this.newUserRole === "user" || this.newUserRole === "viewer"
-              ? html`<select
-                  class="input"
-                  aria-label=${t("governance.users.managedByLabel")}
-                  title=${t("governance.users.managedByHint")}
-                  .value=${this.newUserManagedBy}
-                  @change=${(e: Event) => {
-                    this.newUserManagedBy = (e.target as HTMLSelectElement).value;
-                  }}
-                >
-                  <option value="">${t("governance.users.managedByPlaceholder")}</option>
-                  ${this.administrators().map(
-                    (admin) => html`<option value=${admin.id}>${admin.username}</option>`,
-                  )}
-                </select>`
-              : nothing}
-            ${(this.newUserRole === "user" || this.newUserRole === "viewer") &&
-            this.administrators().length === 0
-              ? // The tier cannot be created at all until somebody can answer
-                // for it, and saying so beats a server error the operator has
-                // to interpret. Root's way forward is to create an
-                // Administrator first — possibly one they sign into themselves.
-                html`<span class="settings-hint">${t("governance.users.noAdministrators")}</span>`
-              : nothing}
-            <button
-              class="btn btn--primary"
-              ?disabled=${this.busy ||
-              !this.newUserName ||
-              !this.newUserPassword ||
-              ((this.newUserRole === "user" || this.newUserRole === "viewer") &&
-                !this.newUserManagedBy)}
-              @click=${() =>
-                this.run(async () => {
-                  await this.api().createUser({
-                    username: this.newUserName,
-                    password: this.newUserPassword,
-                    role: this.newUserRole,
-                    ...(this.newUserManagedBy ? { managedBy: this.newUserManagedBy } : {}),
-                  });
-                  this.newUserName = "";
-                  this.newUserPassword = "";
-                  this.newUserManagedBy = "";
-                })}
-            >
-              ${t("governance.users.addButton")}
-            </button>
-          </div>
-        `,
-      }),
-    ]);
-  }
-
-  private renderKillSwitchSection(): TemplateResult | typeof nothing {
-    // Administrator tier and above — see the server-side note in
-    // governance-dashboard-api.ts: stopping a runaway agent is agent
-    // management, which is the Administrator's domain.
-    if (!this.canAdminister()) {
-      return nothing;
-    }
-    const locked = this.policy?.lockedAgents ?? [];
-    return renderSettingsSection({ title: t("governance.kill.title") }, [
-      renderSettingsRow({
-        title: t("governance.kill.engage"),
-        description: t("governance.kill.hint"),
-        stacked: true,
-        control: html`
-          <div class="settings-row__control" style="gap:0.5rem;flex-wrap:wrap">
-            <input
-              class="input"
-              type="text"
-              list="governance-known-agents"
-              aria-label=${t("governance.kill.engage")}
-              placeholder=${t("governance.kill.agentIdPlaceholder")}
-              .value=${this.killAgentId}
-              @input=${(e: Event) => {
-                this.killAgentId = (e.target as HTMLInputElement).value;
-              }}
-            />
-            ${
-              // QA round 13, finding 88. The field was free text with nothing
-              // checking it against the agents this page has already loaded, so
-              // stopping `agent-1` when the agent is `agent1` returned 200 OK,
-              // wrote a lockdown entry to the ledger, and reported
-              // `abortedRunIds: []` — which the notice below renders as "no runs
-              // stopped", indistinguishable from "the agent was idle". For the
-              // one control that exists for emergencies, needing to spell
-              // something correctly with no help and no feedback is the wrong
-              // design.
-              //
-              // The datalist offers what is known; the warning covers the case
-              // where the operator means an agent that is real but idle, which
-              // is legitimate and must stay possible — so this informs rather
-              // than blocks.
-              this.killAgentId.trim() && !this.isKnownAgentId(this.killAgentId.trim())
-                ? html`<div class="settings-empty" role="status" style="flex-basis:100%">
-                    ${t("governance.kill.unknownAgent")}
-                  </div>`
-                : nothing
-            }
-            <datalist id="governance-known-agents">
-              ${
-                // The label is the option's *text*, the id stays its value — so
-                // a registered name helps the operator find the right agent
-                // while what lands in the field is still the id every rule and
-                // ledger entry uses (M4).
-                this.knownAgentIds().map(
-                  (agentId) => html`<option value=${agentId}>${this.agentLabel(agentId)}</option>`,
-                )
-              }
-            </datalist>
-            <button
-              class="btn btn--danger"
-              ?disabled=${this.busy || !this.killAgentId.trim()}
-              @click=${() =>
-                this.run(async () => {
-                  await this.engageKillSwitch(this.killAgentId.trim());
-                  this.killAgentId = "";
-                })}
-            >
-              ${t("governance.kill.button")}
-            </button>
-          </div>
-        `,
-      }),
-      ...locked.map((agentId) =>
-        renderSettingsRow({
-          title: agentId,
-          control: html`<button
-            class="btn"
-            ?disabled=${this.busy}
-            @click=${() => this.run(() => this.api().setLockdown(agentId, false))}
-          >
-            ${t("governance.kill.release")}
-          </button>`,
-        }),
-      ),
-      locked.length === 0 ? renderSettingsRow({ title: t("governance.kill.noneLocked") }) : nothing,
-    ]);
-  }
-
-  /**
    * States how current the page is.
    *
    * Everything here is oversight information, so "when was this true?" is part
@@ -3128,18 +887,116 @@ class GovernancePage extends OpenClawLightDomElement {
       return renderSettingsPage(renderSettingsEmpty(t("governance.loading")));
     }
     if (!this.identity) {
-      return this.renderLogin();
+      return renderLogin({
+        busy: this.busy,
+        error: this.error,
+        needsBootstrap: this.needsBootstrap,
+        sessionExpired: this.sessionExpired,
+        drafts: {
+          loginUsername: this.loginUsername,
+          loginPassword: this.loginPassword,
+          loginConfirm: this.loginConfirm,
+        },
+        onDraft: (patch) => Object.assign(this, patch),
+        performLogin: (bootstrapping) => this.performLogin(bootstrapping),
+      });
     }
+    const agentProps = this.agentPanelProps();
+    const policyProps = this.policyPanelProps();
     return renderSettingsPage(
       html`
         ${this.error ? html`<div class="settings-empty" role="alert">${this.error}</div>` : nothing}
-        ${this.renderFreshness()} ${this.renderKillNotice()} ${this.renderConflictNotice()}
-        ${this.renderRuleWarnings()} ${this.renderIdentityRow()} ${this.renderAgentsSection()}
-        ${this.renderPendingDecisionsSection()} ${this.renderActiveSessionsSection()}
-        ${this.renderAgentPolicySection()} ${this.renderPolicySection()}
-        ${this.renderLedgerSection()} ${this.renderRuleRequestsSection()}
-        ${this.renderSystemSection()} ${this.renderDeploymentSection()} ${this.renderUsersSection()}
-        ${this.renderKillSwitchSection()}
+        ${this.renderFreshness()} ${renderKillNotice(this.killNotice)}
+        ${renderConflictNotice(policyProps)}
+        ${renderRuleWarnings(this.ruleWarnings, () => {
+          this.ruleWarnings = null;
+        })}
+        ${renderIdentityRow({
+          ...this.effects(),
+          identity: this.identity,
+          busy: this.busy,
+          onSignOut: () => {
+            this.identity = null;
+            this.ledger = [];
+            this.policy = null;
+          },
+        })}
+        ${renderAgentsSection(agentProps)} ${renderPendingDecisionsSection(agentProps)}
+        ${renderActiveSessionsSection({
+          ...agentProps,
+          activeSessions: this.activeSessions,
+          engageKillSwitch: (agentId) => this.engageKillSwitch(agentId),
+        })}
+        ${renderAgentPolicySection(policyProps)} ${renderPolicySection(policyProps)}
+        ${renderLedgerSection({
+          ledger: this.ledger,
+          ledgerFilter: this.ledgerFilter,
+          verification: this.verification,
+          busy: this.busy,
+          onFilter: (value) => {
+            this.ledgerFilter = value;
+          },
+          onVerify: () =>
+            void this.run(async () => {
+              this.verification = await this.api().verifyLedger();
+            }),
+        })}
+        ${renderRuleRequestsSection({
+          ...this.effects(),
+          role: this.identity?.role,
+          identity: this.identity,
+          ruleRequests: this.ruleRequests,
+          busy: this.busy,
+          canAdminister: this.canAdminister(),
+          canManageAnyAgent: this.canManageAnyAgent(),
+          drafts: {
+            requestKind: this.requestKind,
+            requestPattern: this.requestPattern,
+            requestReason: this.requestReason,
+            requestAgentId: this.requestAgentId,
+          },
+          onDraft: (patch) => Object.assign(this, patch),
+        })}
+        ${renderSystemSection(this.systemStatus)}
+        ${renderDeploymentSection({ deployment: this.deployment, role: this.identity?.role })}
+        ${renderUsersSection({
+          ...this.effects(),
+          role: this.identity?.role,
+          identity: this.identity,
+          users: this.users,
+          administrators: this.administrators(),
+          busy: this.busy,
+          drafts: {
+            agentEdits: this.agentEdits,
+            passwordEdits: this.passwordEdits,
+            newUserName: this.newUserName,
+            newUserPassword: this.newUserPassword,
+            newUserRole: this.newUserRole,
+            newUserManagedBy: this.newUserManagedBy,
+          },
+          onDraft: (patch) => Object.assign(this, patch),
+          setPassword: (userId, username) =>
+            setAccountPassword(userId, username, {
+              ...this.effects(),
+              identity: this.identity,
+              passwordEdits: this.passwordEdits,
+              onDraft: (patch) => Object.assign(this, patch),
+              onError: (message) => {
+                this.error = message;
+              },
+            }),
+          reloadUsers: async () => {
+            this.users = await this.api().listUsers();
+          },
+        })}
+        ${renderKillSwitchSection({
+          ...agentProps,
+          killAgentId: this.killAgentId,
+          knownAgentIds: knownAgentIds(this.agentSources()),
+          isKnownAgentId: (agentId) => isKnownAgentId(this.agentSources(), agentId),
+          agentLabel: (agentId) => agentLabel(this.agents, agentId),
+          engageKillSwitch: (agentId) => this.engageKillSwitch(agentId),
+        })}
       `,
       {
         intro: html`${t("governance.intro")}
