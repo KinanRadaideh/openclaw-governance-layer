@@ -75,6 +75,65 @@ by decision — so any older sentence listing it as outstanding is stale. The ol
 (A-, B-, F-, R5, G) survive only as a `Ref` column pointing at their historical
 write-ups; nothing is orphaned.
 
+### 2026-08-28 — T33: the fork installs on Linux, the normal way
+
+**Read this before T3.** Kinan has a VPS and asked whether the PowerShell
+launcher blocks deploying to it. It does not; something larger did.
+
+**Neither of upstream's install routes can deliver a fork.** Both
+`curl -fsSL https://openclaw.ai/install.sh | bash` and
+`npm install -g openclaw@latest` fetch upstream's **published npm package**,
+which contains none of this work. An operator following the README on a server
+gets an OpenClaw with no governance in it — silently, with nothing to say so.
+The route that works is the one upstream documents for its own contributors:
+clone and build from source. **Kinan's decision: a bare source build rather than
+Docker, so the VPS looks like a normal OpenClaw install.**
+
+**Delivered and verified on Ubuntu 24.04.4 / Node v22.23.2**, from a tree with no
+`node_modules` and no `dist`: `scripts/vps-install.sh` (preflight → `pnpm
+install` → `pnpm build` → `pnpm ui:build` → platform probe → `openclaw` on PATH),
+`scripts/start-governance.sh`, and `docs-notes/LINUX-INSTALL.md`. Installer exit
+**0**, probe **14/14**, `openclaw --version` → **OpenClaw 2026.8.1**,
+`openclaw governance --help` answering. The 8 GB check correctly _warned_ at
+7 GB rather than refusing.
+
+> ### The correction that matters most, and it came from Kinan's follow-up
+>
+> He asked that setup be **"just like normal setup of openclaw"**. Checking that
+> properly found the first version was not. **OpenClaw already has a service
+> installer** — `openclaw daemon install|start|stop|restart|status|uninstall`,
+> and `openclaw onboard --install-daemon` in the README's own quick start — and
+> the first version of this work shipped a **hand-written
+> `deploy/openclaw-governance.service`** instead. That duplicated a mechanism the
+> fork already had, diverged from normal setup for no benefit, and risked two
+> units fighting over one port. **The unit is deleted.** Verified on Ubuntu:
+> `Installed systemd service: /root/.config/systemd/user/openclaw-gateway.service`
+> and a clean `uninstall`.
+>
+> **So the shape of the answer is: one unavoidable difference, then nothing.**
+> Building from source is forced by the fork. After that it is
+> `openclaw onboard --install-daemon`, `openclaw gateway status`,
+> `openclaw dashboard` — the same three commands every OpenClaw user runs.
+> **There is no fork-specific setup step**: the governance layer is compiled in
+> and gates every tool call from the first start.
+>
+> **Two operational facts a server needs and a laptop does not.** The service
+> OpenClaw installs is a systemd **user** service, which stops when its user logs
+> out — so `sudo loginctl enable-linger "$USER"` is required, or the Gateway dies
+> when SSH closes, taking the kill switch and the ledger with it. And **18799 is
+> not a property of the fork**: `grep -rn 18799 src/` returns nothing. It is a
+> Windows-machine convention from `start-governance.ps1`, where a stock OpenClaw
+> already holds 18789. A VPS should use the default.
+
+**Two findings came out of building it, 137 and 138**, and they are the sharpest
+of the twenty-three rounds — see §1's round-twenty-three entry below and
+`REMAINING-WORK.md`. In short: the harness that proved Linux support **had never
+run once**, and the report cited it as "14 checks — All passed".
+
+**What still needs the real host, and is therefore T3:** the dashboard through an
+SSH tunnel, and the service surviving a reboot. Kinan's one manual step is the
+**deploy key** — `LINUX-INSTALL.md` §1.
+
 ### 2026-08-28 — round twenty-two: the documentation audited against the code
 
 **Read this before §4 and §6.** The 2026-08-27 documentation pass asserted a
@@ -571,6 +630,12 @@ shape:
 A finding that appears in only the middle column is not finished.
 
 ---
+
+> **Added 2026-08-28: `docs-notes/LINUX-INSTALL.md`.** Read it before T3. It is
+> the only document describing how this fork reaches a server, and it explains
+> the one thing that surprises people — that neither of upstream's install
+> routes can deliver a fork, and that everything after the source build is
+> ordinary OpenClaw.
 
 ## 3. Where the code is, right now
 
@@ -1458,13 +1523,13 @@ F1 closed once already.
 
 ### Needs you — three decisions and one machine
 
-| #       | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Effort   |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
-| **T2**  | **Run it once with a real agent** and record what happens. Every proof is a test calling the gate directly; no language model has driven a tool call through it. _The single highest-value item left_                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | 2–4 days |
-| **T33** | **Make the fork build and start on Linux at all — do this before T3.** Added 2026-08-28. The PowerShell launcher is _not_ the blocker (forty lines, trivially bash; a VPS wants a systemd unit anyway). The blocker is that upstream's two install routes both fetch **upstream's npm package**, so a fork must be installed from source — and that has never been done on Linux. `scripts/linux-setup.sh` hardcodes a `/mnt/c/...` WSL mount, installs with `--ignore-scripts` and never runs `pnpm build`, so `dist/` — which `openclaw.mjs` refuses to start without — has never existed there. Needs **one decision from you** (Docker, whose `COPY . .` already forks correctly, or a bare source build); after that it is mine | 1 day    |
-| **T3**  | **Deploy to a real Linux host.** The suite runs on Ubuntu under WSL2; nothing has run on a VPS, and the launcher is PowerShell-only. The one requirement (#9) not fully met. **Blocked on T33** — a VPS that cannot run the build wastes the booking rather than the afternoon                                                                                                                                                                                                                                                                                                                                                                                                                                                       | 3–5 days |
-| **T18** | **Write Chapters 3, 4 and the conclusion.** Material is organised and keyed to section numbers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | the rest |
-| **T13** | The prompt-injection defence answer is **drafted** (§4.x.26) — read it and make it yours. You have to be able to give it without notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | 30 min   |
+| #           | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Effort   |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| **T2**      | **Run it once with a real agent** and record what happens. Every proof is a test calling the gate directly; no language model has driven a tool call through it. _The single highest-value item left_                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | 2–4 days |
+| ~~**T33**~~ | ~~**Make the fork build and start on Linux at all.**~~ **DONE 2026-08-28** — see §1's T33 entry. Bare source build (your call), verified on Ubuntu 24.04: installer exit 0, probe 14/14, `openclaw` on PATH. Setup after the build is **identical to normal OpenClaw** — `openclaw onboard --install-daemon`, `openclaw daemon status`, `openclaw dashboard`; the hand-written systemd unit was deleted in favour of the fork's own `openclaw daemon install`. **Your one step: the deploy key** (`LINUX-INSTALL.md` §1). Originally added 2026-08-28. The PowerShell launcher is _not_ the blocker (forty lines, trivially bash; a VPS wants a systemd unit anyway). The blocker is that upstream's two install routes both fetch **upstream's npm package**, so a fork must be installed from source — and that has never been done on Linux. `scripts/linux-setup.sh` hardcodes a `/mnt/c/...` WSL mount, installs with `--ignore-scripts` and never runs `pnpm build`, so `dist/` — which `openclaw.mjs` refuses to start without — has never existed there. Needs **one decision from you** (Docker, whose `COPY . .` already forks correctly, or a bare source build); after that it is mine | 1 day    |
+| **T3**      | **Deploy to a real Linux host.** The suite runs on Ubuntu under WSL2; nothing has run on a VPS, and the launcher is PowerShell-only. The one requirement (#9) not fully met. **Blocked on T33** — a VPS that cannot run the build wastes the booking rather than the afternoon                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | 3–5 days |
+| **T18**     | **Write Chapters 3, 4 and the conclusion.** Material is organised and keyed to section numbers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | the rest |
+| **T13**     | The prompt-injection defence answer is **drafted** (§4.x.26) — read it and make it yours. You have to be able to give it without notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | 30 min   |
 
 ### Mine, and nothing blocks them
 

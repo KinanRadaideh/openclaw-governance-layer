@@ -808,11 +808,44 @@ and the build all have to work on the host rather than inside an image.
 | #   | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Effort   | State |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ----- |
 | a   | ~~**Decide the delivery route.**~~ **Bare source build**, decided 2026-08-28. Docker was the alternative and was declined on purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | decision | done  |
-| b   | ~~The launcher's bash equivalent, plus a systemd unit.~~ **DONE 2026-08-28** — `scripts/start-governance.sh` and `deploy/openclaw-governance.service`. The launcher deliberately does **not** open a browser: a VPS has no display and the Gateway binds loopback, so it prints the `ssh -L` command instead                                                                                                                                                                                                                                                                                                                                       | 1 h      | done  |
+| b   | ~~The launcher's bash equivalent, plus a systemd unit.~~ **DONE 2026-08-28, then half of it deleted the same day.** `scripts/start-governance.sh` stays — a convenience that prints the `ssh -L` command rather than opening a browser, since a VPS has no display. **The systemd unit was removed**: `openclaw daemon install` already does exactly this, and shipping a second mechanism diverged from normal setup for no benefit. See the box below                                                                                                                                                                                            | 1 h      | done  |
 | c   | ~~**Replace `scripts/linux-setup.sh`.**~~ **DONE 2026-08-28.** Renamed to `wsl-dev-setup.sh` (with `wsl-dev-sync.sh` and `wsl-dev-test.sh`), and its header now states the three reasons it was never a deployment path. Superseded by `scripts/vps-install.sh`                                                                                                                                                                                                                                                                                                                                                                                    | 2 h      | done  |
 | d   | ~~**Run the from-source path end to end on Linux once.**~~ **DONE 2026-08-28**, Ubuntu 24.04.4 LTS / Node v22.23.2, from a tree with no `node_modules` and no `dist`: `pnpm install` (1,397 packages), `pnpm build` (`dist/entry.js`), `pnpm ui:build` (`dist/control-ui`), platform probe **14/14**, installer exit **0**, and `openclaw` on PATH answering `OpenClaw 2026.8.1` and `openclaw governance --help`. **The 8 GB check correctly warned at 7 GB rather than refusing.** Two findings came out of it — 137 and 138. **Still needs a real host: the dashboard through an SSH tunnel, and the systemd unit across a reboot. That is T3** | ½ day    | done  |
 | e   | ~~Correct every document claiming Linux is "tested" without saying what was tested.~~ **DONE 2026-08-28** — `CHAPTER3-MATERIAL.md` §3.1 row 9, §3.3, and the file inventory                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | 1 h      | done  |
 | f   | **Deploy-key access for the private repository.** Documented in `LINUX-INSTALL.md` §1 and **yours to execute**: the key is generated on the VPS and registered on GitHub, and neither step is mine to take                                                                                                                                                                                                                                                                                                                                                                                                                                         | 15 min   | yours |
+
+> ### Kinan's follow-up, 2026-08-28: "make setup just like normal OpenClaw"
+>
+> Checking that properly found the first version of this work was **not** like
+> normal setup, in one specific way. **OpenClaw already ships a service
+> installer** — `openclaw daemon install|start|stop|restart|status|uninstall`,
+> and `openclaw onboard --install-daemon` in the README's own quick start — and
+> subtask (b) had delivered a **hand-written `deploy/openclaw-governance.service`**
+> beside it. Two mechanisms for one job, one of them non-standard, both able to
+> claim the same port.
+>
+> **The unit is deleted.** Verified on Ubuntu 24.04 that the built-in path works
+> for this fork: `openclaw daemon install` reported
+> `Installed systemd service: /root/.config/systemd/user/openclaw-gateway.service`
+> and auto-generated the Gateway token; `openclaw daemon uninstall` removed it
+> cleanly.
+>
+> **The resulting shape is worth stating plainly for Chapter 4:** a fork forces
+> exactly **one** deviation from a normal install — it must be built from source,
+> because npm can only ever serve upstream. Everything downstream of that build
+> is unmodified OpenClaw, and **there is no fork-specific setup step at all**:
+> the governance layer is compiled in and gates every tool call from the first
+> start. That is a stronger claim than "we wrote an installer", and it is also
+> the honest one.
+>
+> **Two server-only facts found while checking.** The service OpenClaw installs
+> is a systemd **user** service, so it stops when its user logs out —
+> `sudo loginctl enable-linger "$USER"` is mandatory on a VPS, or the Gateway
+> dies with the SSH session and takes the kill switch and the ledger with it.
+> And **18799 is not a property of the fork**: `grep -rn 18799 src/` returns
+> nothing. It is a convention from `start-governance.ps1`, because Kinan's
+> Windows machine already runs a stock OpenClaw on 18789. A dedicated VPS should
+> use the default.
 
 **Two risks worth expecting on the first Linux build**, both from this project's
 own history: the upstream bug in `UPSTREAM-BUG-REPORT.md` is a POSIX-vs-Windows

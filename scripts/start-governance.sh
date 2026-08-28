@@ -12,17 +12,36 @@
 #   ./scripts/start-governance.sh              # run in the foreground
 #   ./scripts/start-governance.sh --background # detach, log to gateway.log
 #
-# For anything long-lived, prefer the systemd unit in
-# deploy/openclaw-governance.service — it restarts on failure and on boot,
-# which a shell job does not.
+# THIS IS NOT THE DEPLOYMENT PATH. It is a convenience for looking around, and
+# it starts the *dev* runner (scripts/run-node.mjs), which rebuilds on change.
+#
+# To deploy, use OpenClaw's own service manager, exactly as a normal install
+# would — the fork changes nothing about it:
+#
+#     openclaw onboard --install-daemon
+#     openclaw daemon status
+#     openclaw dashboard
+#
+# A hand-written unit used to live in deploy/openclaw-governance.service. It was
+# deleted on 2026-08-28: it duplicated a mechanism the fork already had, so it
+# diverged from normal setup for no benefit and risked two units fighting over
+# one port. See docs-notes/LINUX-INSTALL.md §4.
+#
+# On a server, note that `openclaw daemon install` writes a systemd *user*
+# service, which stops when its user logs out. Run this once:
+#
+#     sudo loginctl enable-linger "$USER"
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-# The fork runs on 18799 so it never collides with a separately installed
-# OpenClaw on the default 18789.
+# 18799 is a *development machine* convention, not a property of the fork:
+# `grep -rn 18799 src/` returns nothing. It exists because Kinan's Windows box
+# also runs a stock OpenClaw on the default 18789, and two Gateways cannot share
+# a port. A dedicated VPS has no collision to avoid and should use the default,
+# which is what `openclaw daemon` does. Override with --port or the env var.
 PORT="${OPENCLAW_GATEWAY_PORT:-18799}"
 BACKGROUND=0
 for arg in "$@"; do

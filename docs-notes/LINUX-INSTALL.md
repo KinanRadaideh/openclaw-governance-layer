@@ -132,70 +132,111 @@ production, scrypt, the role ladder, Viewer masking and load average.
 
 ---
 
-## 3. Create the config and the Gateway token
+## 3. From here on it is ordinary OpenClaw
 
-Once per host:
+**This is the point of the whole exercise.** Building from source is the one
+unavoidable difference, because a fork cannot come from npm. Everything after it
+is the same three commands the OpenClaw README gives every user:
 
 ```bash
-openclaw onboard
+openclaw onboard --install-daemon
+openclaw gateway status
+openclaw dashboard
 ```
 
-This writes `~/.openclaw/openclaw.json`, which holds `gateway.auth.token` — the
-shared secret the browser session presents. Override the location with
-`$OPENCLAW_STATE_DIR` if you want it elsewhere.
+`onboard` creates the config and workspace at `~/.openclaw/`, generates the
+Gateway token, and installs the service. There is **no fork-specific setup step**
+— the governance layer is compiled into this build and gates every tool call
+from the first start. Nothing to enable, nothing to switch on.
+
+> **The token is generated for you.** `openclaw daemon install` reports
+> _"No gateway token found. Auto-generated one and saving to config."_ You never
+> have to invent or type one.
 
 ---
 
-## 4. Start it
+## 4. Run it as a service — the normal way
 
-**For a look around**, the launcher script:
-
-```bash
-./scripts/start-governance.sh              # foreground, Ctrl-C to stop
-./scripts/start-governance.sh --background # detach, logs to gateway.log
-```
-
-It prints the dashboard URL, the exact `ssh -L` command for this host, and the
-Gateway token. Unlike its PowerShell twin it does **not** open a browser — a
-server has no display, and the page is only reachable through the tunnel anyway.
-
-**For anything that should survive logging out**, use systemd:
+Use OpenClaw's own service manager. It writes and manages the unit for you, on
+systemd, launchd and schtasks alike:
 
 ```bash
-sudo cp deploy/openclaw-governance.service /etc/systemd/system/
-sudoedit /etc/systemd/system/openclaw-governance.service   # set User + WorkingDirectory
-sudo systemctl daemon-reload
-sudo systemctl enable --now openclaw-governance
-systemctl status openclaw-governance
-journalctl -u openclaw-governance -f
+openclaw daemon install     # writes the unit and enables it
+openclaw daemon start
+openclaw daemon status      # install status plus a live connectivity probe
+openclaw daemon restart
+openclaw daemon stop
+openclaw daemon uninstall   # stops and removes the unit
 ```
 
-This is not an operations nicety. **The kill switch and the audit ledger only
-mean anything while the Gateway is running**, so "restarts on failure and on
-boot" is a governance property. A shell job dies with its shell.
+Verified on Ubuntu 24.04, 2026-08-28 — install and uninstall both clean:
 
-> **If Node came from nvm**, systemd will not find it — nvm is a shell function
-> and the unit runs a non-login shell. Point `Environment=PATH` at the real
-> directory, e.g. `/root/.nvm/versions/node/v22.23.2/bin`, or install Node
-> system-wide for the service host.
+```
+Installed systemd service: /root/.config/systemd/user/openclaw-gateway.service
+Stopped systemd service: openclaw-gateway.service
+Removed systemd service: /root/.config/systemd/user/openclaw-gateway.service
+```
+
+> ### One thing a server needs that a laptop does not
+>
+> That is a systemd **user** service, under `~/.config/systemd/user/`, not a
+> system unit in `/etc/systemd/system/`. **A user service stops when its user
+> logs out** — which on a VPS means the Gateway dies when you close SSH, and the
+> kill switch and the audit ledger only mean anything while it is running.
+>
+> Enable lingering once, and it survives logout and reboot:
+>
+> ```bash
+> sudo loginctl enable-linger "$USER"
+> ```
+>
+> This is the single most important line in this document for anyone deploying
+> rather than experimenting.
+
+**An earlier version of this runbook shipped a hand-written
+`deploy/openclaw-governance.service`. It was deleted on 2026-08-28.** It was a
+_system_ unit duplicating a mechanism the fork already had, so it diverged from
+normal OpenClaw setup for no benefit and risked two competing units fighting
+over one port. `scripts/start-governance.sh` stays as a convenience for looking
+around — the Linux twin of `start-governance.ps1` — but **the daemon commands
+above are the deployment path.**
 
 ---
 
 ## 5. Reach the dashboard
 
-The Gateway binds **loopback only**, by design. From your own machine:
+The Gateway binds **loopback only**, by design. Find the port it is actually on,
+then forward it from your own machine:
 
 ```bash
-ssh -N -L 18799:127.0.0.1:18799 <user>@<vps-host>
+openclaw config get gateway.port     # unset means OpenClaw's default, 18789
 ```
 
-Then open **http://127.0.0.1:18799/settings/governance**.
+```bash
+ssh -N -L 18789:127.0.0.1:18789 <user>@<vps-host>
+```
 
-> **Do not publish port 18799.** Signup is open — creating a Root creates a
-> group, and the endpoint is ungated. That is defensible _only_ because the
-> control plane is unreachable from the network. Expose the port directly and it
-> becomes self-service Root. This is caveat 2 in `HANDOFF.md` §7 and it belongs
-> in the deployment instructions, not just the report.
+Then open **http://127.0.0.1:18789/settings/governance**, or run
+`openclaw dashboard` on the server, which prints the URL with the current token
+already in it.
+
+> **On the port, and why this document no longer says 18799.** That number comes
+> from `start-governance.ps1` and exists for one reason: Kinan's Windows machine
+> also has a stock OpenClaw on the default 18789, and two Gateways cannot share a
+> port. **Nothing in the application uses 18799** — `grep -rn 18799 src/` returns
+> nothing. A dedicated VPS has no collision to avoid, so it should use the
+> default and look like every other OpenClaw install. Set it explicitly only if
+> you want to:
+>
+> ```bash
+> openclaw config set gateway.port 18799
+> ```
+
+> **Do not publish that port.** Signup is open — creating a Root creates a group,
+> and the endpoint is ungated. That is defensible _only_ because the control
+> plane is unreachable from the network. Expose the port directly and it becomes
+> self-service Root. This is caveat 2 in `HANDOFF.md` §7, and it belongs in the
+> deployment instructions rather than only in the report.
 
 ---
 
@@ -216,15 +257,17 @@ plain SSH session, before any tunnel exists.
 
 ## Troubleshooting
 
-| Symptom                                             | Cause                                                                         |
-| --------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `openclaw: missing dist/entry.(m)js (build output)` | The build did not run or did not finish. Re-run `./scripts/vps-install.sh`    |
-| `ERR_PNPM_UNSUPPORTED_ENGINE` or an engine warning  | Node is outside the supported ranges. `node -v`, then install a supported one |
-| Plain `npm install` errors at the root              | Not supported — this is a pnpm workspace. Use the installer                   |
-| The build is OOM-killed                             | Under 8 GB. Add swap for the build, or build elsewhere and copy `dist/`       |
-| Dashboard 404s or renders blank                     | The Control UI was not built. Re-run without `--skip-ui`                      |
-| systemd: `node: command not found`                  | nvm's Node is invisible to systemd. See the note in §4                        |
-| The dashboard loads but nothing is governed         | Wrong branch. `git branch --show-current` must say `governance-layer`         |
+| Symptom                                             | Cause                                                                                                                  |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `openclaw: missing dist/entry.(m)js (build output)` | The build did not run or did not finish. Re-run `./scripts/vps-install.sh`                                             |
+| `ERR_PNPM_UNSUPPORTED_ENGINE` or an engine warning  | Node is outside the supported ranges. `node -v`, then install a supported one                                          |
+| Plain `npm install` errors at the root              | Not supported — this is a pnpm workspace. Use the installer                                                            |
+| The build is OOM-killed                             | Under 8 GB. Add swap for the build, or build elsewhere and copy `dist/`                                                |
+| Dashboard 404s or renders blank                     | The Control UI was not built. Re-run without `--skip-ui`                                                               |
+| The Gateway dies when you close SSH                 | The service is a systemd **user** service. Run `sudo loginctl enable-linger "$USER"` — see §4                          |
+| `openclaw daemon status` says the unit is missing   | Run `openclaw daemon install`. Do not hand-write a unit; the fork manages its own                                      |
+| systemd: `node: command not found`                  | nvm's Node is invisible to a non-login shell. Install Node system-wide, or point the unit's PATH at the real directory |
+| The dashboard loads but nothing is governed         | Wrong branch. `git branch --show-current` must say `governance-layer`                                                  |
 
 **Two cross-platform risks specific to this codebase**, both from its own
 history: the upstream bug in `UPSTREAM-BUG-REPORT.md` is a POSIX-vs-Windows

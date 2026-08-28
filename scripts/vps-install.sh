@@ -187,10 +187,10 @@ step "Command"
 #
 # `pnpm link --global` puts the command in a per-user directory and then needs
 # that directory on PATH, which means editing a shell profile — and **systemd
-# does not read shell profiles**. The unit in deploy/ would still not find
-# `openclaw`, so the link would look like success and solve nothing for the
-# deployment that matters. /usr/local/bin is always on PATH, for every user and
-# for services. Observed on Ubuntu 24.04, 2026-08-28:
+# does not read shell profiles**. The unit `openclaw daemon install` writes would
+# still not find `openclaw`, so the link would look like success and solve
+# nothing for the deployment that matters. /usr/local/bin is always on PATH, for
+# every user and for services. Observed on Ubuntu 24.04, 2026-08-28:
 #
 #     [ERROR] The configured global bin directory
 #             "/root/.local/share/pnpm/bin" is not in PATH
@@ -228,26 +228,36 @@ fi
 # --------------------------------------------------------------------------
 printf '\n%s%s Installed.%s\n\n' "$BOLD" "$GREEN" "$RESET"
 cat <<NEXT
-  Next, in order:
+  From here it is ordinary OpenClaw. The three commands from the README:
 
-    1. Create the config and the Gateway token (once):
-         openclaw onboard
+    openclaw onboard --install-daemon
+    openclaw gateway status
+    openclaw dashboard
 
-    2. Start the Gateway and print the tunnel command:
-         ./scripts/start-governance.sh
+  onboard creates the config and workspace, generates the Gateway token and
+  installs the service. There is no fork-specific setup step: the governance
+  layer is compiled into this build and gates every tool call from the first
+  start.
 
-       or install it as a service that survives logout and reboot:
-         sudo cp deploy/openclaw-governance.service /etc/systemd/system/
-         sudo systemctl daemon-reload
-         sudo systemctl enable --now openclaw-governance
+  ON A SERVER, ONE EXTRA LINE. The service OpenClaw installs is a systemd *user*
+  service, and a user service stops when its user logs out - which on a VPS
+  means the Gateway dies when you close SSH. Enable lingering once:
 
-    3. From your own machine, forward the port and open the dashboard:
-         ssh -N -L 18799:127.0.0.1:18799 <user>@<this-host>
-         http://127.0.0.1:18799/settings/governance
+    sudo loginctl enable-linger "\$USER"
 
-  The Gateway binds loopback only and is reached through the tunnel. That is
-  the architecture the specification describes, and it is what makes the open
-  signup endpoint defensible — do not publish port 18799.
+  Then reach the dashboard through a tunnel from your own machine. The Gateway
+  binds loopback only, by design:
+
+    openclaw config get gateway.port          # unset means the default, 18789
+    ssh -N -L 18789:127.0.0.1:18789 USER@THIS-HOST
+
+  Do not publish that port. Signup is open, so an exposed port is self-service
+  Root - it is defensible only because the control plane is off the network.
+
+  Confirm the layer is actually governing, which is not the same as running:
+
+    openclaw governance deployment
+    openclaw governance policy show
 
   Full runbook: docs-notes/LINUX-INSTALL.md
 NEXT
