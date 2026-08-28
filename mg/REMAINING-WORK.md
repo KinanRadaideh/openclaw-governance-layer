@@ -66,19 +66,20 @@ to give it. Counted as outstanding here because the remaining work is yours.
 **One is deprioritised:** T1 — not being done. **T13** is drafted and waiting to
 be read.
 
-**Current as of 2026-08-26: 24 done, 8 open** across T1–T32 — the list grew by
+**Current as of 2026-08-28: 24 done, 9 open** across T1–T33 (T33 added 2026-08-28) — the list grew by
 four (T29–T32) after two investigations and a request. What is open:
 
-| Open    | Who has to move                                                                                             |
-| ------- | ----------------------------------------------------------------------------------------------------------- |
-| **T2**  | You — one real agent driving one real tool call. Still the highest-value item left                          |
-| **T3**  | You — a Linux host that does not exist yet. The only unmet design requirement                               |
-| **T17** | You — a judgement about how the report should look                                                          |
-| **T18** | You — it is your report                                                                                     |
-| **T7**  | A decision (prevention half). The audit half shipped 2026-08-26                                             |
-| **T31** | Claude — 16 lint errors across **14** test files, mechanical (re-counted 2026-08-27; the row said 13 files) |
-| **T32** | Waits on M, and on T7 prevention                                                                            |
-| **T1**  | Deprioritised, not being done                                                                               |
+| Open    | Who has to move                                                                                                                                                                                                  |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **T2**  | You — one real agent driving one real tool call. Still the highest-value item left                                                                                                                               |
+| **T3**  | You — a Linux host that does not exist yet. The only unmet design requirement                                                                                                                                    |
+| **T17** | You — a judgement about how the report should look                                                                                                                                                               |
+| **T18** | You — it is your report                                                                                                                                                                                          |
+| **T7**  | A decision (prevention half). The audit half shipped 2026-08-26                                                                                                                                                  |
+| **T31** | Claude — 16 lint errors across **14** test files, mechanical (re-counted 2026-08-27; the row said 13 files)                                                                                                      |
+| **T32** | Waits on M, and on T7 prevention                                                                                                                                                                                 |
+| **T1**  | Deprioritised, not being done                                                                                                                                                                                    |
+| **T33** | Claude, after one decision from you — **make the fork build and start on Linux at all.** Added 2026-08-28; a **prerequisite to T3**, because nothing has ever been built or run on Linux, only unit-tested there |
 
 **"Blocked on the host" was recorded three times and was true zero times, and
 all three are now resolved.** T6 closed 2026-08-25 without touching upstream —
@@ -594,6 +595,81 @@ material in `CHAPTER3-MATERIAL.md` §3.5.59; plain language in
 - **The dashboard does not surface it.** Recording was the requested scope. The
   field is in the ledger and in the API response; no UI column reads it yet.
 
+### QA round twenty-two — the documentation pass audited against the code (2026-08-28)
+
+**Every number the 2026-08-27 documentation pass asserted was re-measured
+against the thing it described.** Not a review of the layer — a review of the
+_claims about_ the layer, which is the one kind of round this project had never
+run despite the whole Chapter 4 argument being about stale claims surviving
+review. **Two findings, 135–136, both fixed.** Four further corrections were
+documentation-only and are listed below the table.
+
+| #       | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | State |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| **135** | **`entryKind`'s documentation was orphaned by the intent field.** `intent?: string` and its JSDoc were inserted _between_ `entryKind`'s doc comment and `entryKind` itself, leaving two consecutive doc blocks before one field. TypeScript binds the last, so `intent` was documented correctly and **`entryKind` — the flag that distinguishes an administrative entry from an agent one — silently lost its own**. In the file that defines the ledger's field contract | fixed |
+| **136** | **T16 regressed in the commit whose documentation declared it closed.** M6's registry wiring took `governance-page.ts` from 696 code lines to **703**, over the 700-line limit T16 existed to clear — while `HANDOFF.md` §4 read "**`max-lines` reports zero errors repo-wide**, so T16 is still closed", and the lint row read "16 errors remain and **all of them are in `.test.ts` files**". The real count was 17 across 15 files, one of them production code         | fixed |
+
+**How 136 was fixed matters more than that it was.** The limit could have been
+cleared by moving any four lines. What moved instead was `renderFreshness` — the
+last piece of markup still living in `governance-page.ts`, in a file T16 had
+split precisely so that the page holds state and effects and the panels hold
+markup. The regression pointed at the one thing already in the wrong place.
+
+**136 is the fourth instance of this project's recurring pattern**, and the
+sharpest: a claim of compliance and the violation of it were written **in the
+same commit**, and the documentation sweep that followed the next day re-asserted
+the claim without running the command beside it. The other three are the
+`T25` 18-versus-9 harness baseline, `T19`'s "re-measured every row" (21 of 37
+were wrong), and `T29`'s two findings both numbered 104.
+
+**The mechanical cause is worth more than the defect, and it is fixable.**
+`max-lines` is checked only when somebody types the command. Two things would
+have caught 136 automatically and neither was in force:
+
+- **`.pre-commit-config.yaml` configures oxlint and is not installed.**
+  `.git/hooks/` contains **fourteen `.sample` files and zero active hooks**, and
+  `git-hooks/pre-commit` exists in the repository unwired. The check was written,
+  committed, and never connected to anything.
+- **Even installed, it would have missed this file.** The oxlint entry runs
+  `--type-aware src test` — **`ui/src` is not in its paths**, and
+  `governance-page.ts` lives there. The dashboard, which is where the limit was
+  actually breached, is outside the only automated lint the repository has.
+
+That is a better Chapter 4 sentence than the finding itself: _a control that is
+configured but not installed is indistinguishable, at the moment it matters, from
+one that was never written._ It is the same shape as B1 — a gate correctly built
+and placed where nothing dispatched to it — and as §3.2's note that a control
+correct in isolation is useless in the wrong position. **Three instances of one
+lesson now, in three different layers of the project.**
+
+**Four documentation-only corrections, all verified against the thing described:**
+
+- **The unpushed-commit count was 32 and is 33** — 48 ahead of `main`, not 47.
+  The 32 was written into the documentation _by_ `79c9618`, the commit that made
+  it 33. A number measured before the act that changed it, then committed as
+  though it described the result.
+- **`CHAPTER3-MATERIAL.md` §3.1 row 9 said requirement #9 was "Met"** while
+  §4.x.5b in the same file said "Partially met — the one requirement not fully
+  demonstrated", and §3.4 said the same. The optimistic reading sat in the status
+  column the report is told to quote directly. Now "Partially met".
+- **§3.3's "All development and testing has been on Windows 11"** stopped being
+  true when the suite was run natively on Ubuntu 24.04 and was never updated —
+  the same row's drift in the opposite direction.
+- **`Q-73b` still read "A CLI login remains open, and is still the proper fix."**
+  T5 built it on 2026-08-24 (`cli-identity.ts`). Last place in the documentation
+  still calling it open.
+
+**What was re-measured and found correct**, recorded so the round is not read as
+finding only faults: the suite at **2,311 passed across 107 files** (exact, 742 s);
+both typechecks clean; findings 132–134 genuinely fixed in code, with
+`sanitizeLedgerEntry` masking `intent` and `forgetAgentIntent` deleted rather
+than wired up; the intent field documented in all four operator documents; the
+nine requirements extracted from the PDF matching §1.3 verbatim; the appendix
+numbering fault (1–10 against §1.3's 1–9) real; requirement #5's "100%" holding
+in code, `policy-engine.ts` recording unjudgeable calls as `ungoverned` rather
+than dropping them; and `agent-intent.ts` capturing by direct call rather than a
+registered hook, as B1 requires.
+
 ### Decided but not built — flag-style password masking (2026-08-27)
 
 Round twenty found that the ledger's redactor misses passwords passed as command
@@ -611,6 +687,104 @@ Not implemented — Kinan scoped this round to the intent field alone. The short
 `mysql -p` form stays a **stated limitation**, and it is worth noting that
 §2.1.5.2's suggested entropy analysis would not catch it either: a memorable
 password is low-entropy by nature.
+
+> **Re-scoped 2026-08-28, and almost all of it turns out to be already done.**
+> The item above was written from the round-twenty observation without measuring
+> what the redactor already covers. A probe against `redactSensitiveText(…,
+{ mode: "tools" })` — ten inputs, run and then deleted — gives:
+>
+> | Form                                         | Result              |
+> | -------------------------------------------- | ------------------- |
+> | `--password=hunter2brown`                    | **masked**          |
+> | `--password hunter2brown`                    | **masked**          |
+> | `--token=…` / `--token …`                    | **masked**          |
+> | `--api-key=…`, `--client-secret=…`           | **masked**          |
+> | `postgres://admin:hunter2brown@db.test:5432` | **masked**          |
+> | `https://admin:hunter2brown@api.test/v1`     | **masked**          |
+> | `--http-password=hunter2brown`               | **leaks**           |
+> | `mysql -phunter2brown`                       | leaks (by decision) |
+>
+> **Three of the four spellings the decision named were already covered by
+> upstream's own redactor**, which the ledger has always called. What is left of
+> a "2–3 hour build" is one compound key — `http-password` — plus whatever
+> siblings a scan of the key list turns up. **It is minutes, not hours, and it
+> touches `src/logging/redact.ts`, which is upstream code**: the fork diff that
+> `CHAPTER3-MATERIAL.md` §3.5.2b measures grows by the change, so it is worth
+> deciding rather than doing on sight.
+>
+> Same shape as finding 120's dissolved decision and the three "blocked on the
+> host" claims: **the estimate was reasoned from the observation instead of
+> measured against the code.** The observation (`mysql -p` leaks) was correct
+> throughout; everything inferred from it about the long forms was not.
+
+---
+
+### T33 — make the fork installable and startable on Linux (2026-08-28)
+
+**A prerequisite to T3, not a part of it.** Added after Kinan asked whether the
+PowerShell launcher blocks a VPS install. It does not — but the question exposed
+something larger, and the honest answer is that **nobody has ever built or
+started this application on Linux.**
+
+**The launcher is not the problem.** `start-governance.ps1` is forty lines that
+check the Node version, look for a listener on 18799, run
+`node scripts/run-node.mjs gateway --port 18799`, read the Gateway token out of
+`~/.openclaw/openclaw.json`, and open a browser. Every step is plain Node or a
+port check. A bash equivalent is half an hour — and on a VPS it is the wrong
+shape anyway, because a server needs a **systemd unit** that survives logout and
+restarts on boot, not a script somebody runs by hand.
+
+**The real problem is what a fork is.** Both of upstream's install routes —
+`curl -fsSL https://openclaw.ai/install.sh | bash` and
+`npm install -g openclaw@latest` — fetch **upstream's published package from
+npm**. This fork's 48 commits were never published there, so neither route can
+deliver the governance layer. **It must be installed from source**, which is the
+README's own "Development" path (`git clone` → `pnpm install` → `pnpm build` →
+`pnpm ui:build`) and is supported — but it is not the path a normal user takes,
+and it has never been run on Linux. `openclaw.mjs` hard-requires `dist/entry.js`
+and refuses to start without it: _"openclaw: missing dist/entry.(m)js (build
+output)"_.
+
+**What "Linux tested" actually covered, and it is narrower than the phrase.**
+This sharpens requirement #9's already-partial standing rather than changing it:
+
+| Artefact                             | What it really does                                                                                                                                   |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/linux-setup.sh`             | **Hardcodes `SRC=/mnt/c/Users/kinan/openclaw`** — a WSL mount. It cannot run on a VPS. Installs with `--ignore-scripts`, and **never builds `dist/`** |
+| `scripts/linux-run-tests.sh`         | `vitest` only                                                                                                                                         |
+| `scripts/linux-sync-test.sh`         | Re-copies `src`, `scripts`, `ui/src` from the same WSL mount; `vitest` only                                                                           |
+| `scripts/governance-linux-check.mjs` | States in its own header that it runs **"without needing a full monorepo install"** — the modules it exercises import only Node built-ins             |
+
+So the Linux evidence is **unit tests plus a built-ins-only probe**. That probe
+is good and covers the right surface — file locks, `0700`/`0600` permissions
+which are advisory on Windows and enforced on Linux, POSIX path production,
+scrypt, the role ladder, Viewer masking, load average. **What has never happened
+is a build and a running gateway.**
+
+**Docker is probably the answer, and it already works for a fork.** The
+`Dockerfile` does `COPY . .` and builds from the working tree rather than pulling
+from npm — which is exactly the property the source route needs and the npm route
+lacks. It produces a runtime stage carrying `dist`, `node_modules` and
+`openclaw.mjs`. Worth costing against a bare-metal source build before choosing.
+
+**The subtasks.**
+
+| #   | What                                                                                                                                                                                   | Effort   |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| a   | **Decide the delivery route** — Docker (`COPY . .` already forks correctly) or a bare source build. Kinan's call; costs differ                                                         | decision |
+| b   | `start-governance.sh` — the launcher's bash equivalent, plus a **systemd unit**, which is the shape a server actually needs                                                            | 1 h      |
+| c   | **Replace `scripts/linux-setup.sh`.** It is a WSL dev helper wearing a deployment name: hardcoded mount path, `--ignore-scripts`, no build                                             | 2 h      |
+| d   | **Run the from-source path end to end on Linux once** — `pnpm install`, `pnpm build`, `pnpm ui:build`, start the gateway, load the dashboard. This is the step that has never happened | ½ day    |
+| e   | Correct every document that says Linux is "tested" without saying what was tested                                                                                                      | 1 h      |
+
+**Two risks worth expecting on the first Linux build**, both from this project's
+own history: the upstream bug in `UPSTREAM-BUG-REPORT.md` is a POSIX-vs-Windows
+filesystem-semantics difference, and defect 6 was path separators. Cross-platform
+assumptions in this codebase have not held automatically before.
+
+**Ordering.** T33 comes **before** T3 and before everything in the "mine alone"
+list. A VPS that cannot run the build is not a deployment problem, and finding
+that out during T3 wastes the VPS booking rather than the afternoon.
 
 ---
 
@@ -1908,10 +2082,10 @@ material in `CHAPTER3-MATERIAL.md` §4.x.20; plain-language version in
 
 | Ref   | Item                                                                                                                                                                                                                                                                                                                                                                            | Effort           |
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| Q-73b | **The governance CLI has no authentication and no core denial names it**, so any broad operator allow-rule (`^(node\|npm\|npx\|pnpm) .*$`) lets an agent run `openclaw governance policy set-mode off`. This is A6 upgraded from an attribution note to a threat-model finding. Minimum viable fix: a core command denial on `governance` subcommands. Proper fix: a CLI login. | 2 hours / 2 days | **DONE** (the denial). A CLI login remains open, and is still the proper fix.                                                                               |
-| Q-80  | **`agentMode: "off"` written into `policy.json` disables the gate for that agent, kill switch included.** `loadPolicy` re-asserts `CORE_RULES` and does not sanitise the posture maps. Coerce a stored `off` to `enforce` on load, as the HTTP route already refuses it.                                                                                                        | 1 hour           | **DONE.**                                                                                                                                                   |
-| Q-81  | **Lockdown does not hold when neither `agentId` nor `sessionKey` is present.** Decide the policy: fail closed for every locked installation, or record the unattributable call distinctly so the gap is visible rather than silent.                                                                                                                                             | 2 hours          | **DONE.** Fails closed and records `kill-switch-unattributable`.                                                                                            |
-| Q-83  | **"Allow always" on a chat-delivered escalation writes a permanent policy rule** from someone with no governance account. Simplest correct fix: drop `allow-always` from `allowedDecisions` when the turn came from a channel, leaving persistent policy writes to the dashboard.                                                                                               | 2 hours          | **DONE.** `allow-always` withdrawn entirely rather than per-channel — simpler, and it removes policy authorship from the escalation path for every surface. |
+| Q-73b | **The governance CLI has no authentication and no core denial names it**, so any broad operator allow-rule (`^(node\|npm\|npx\|pnpm) .*$`) lets an agent run `openclaw governance policy set-mode off`. This is A6 upgraded from an attribution note to a threat-model finding. Minimum viable fix: a core command denial on `governance` subcommands. Proper fix: a CLI login. | 2 hours / 2 days | **DONE — both halves.** The denial shipped in round thirteen. _"A CLI login remains open, and is still the proper fix" was true when written and stopped being true on 2026-08-24, when **T5 built it** (`cli-identity.ts`: `governance login` / `logout` / `whoami`, a masked prompt, a `0600` session inside the self-protected governance directory, and the same permission helpers the HTTP routes use, so the two surfaces cannot drift). Corrected 2026-08-28 — the row was the last place in the documentation still calling it open._ **The honest residual is narrower and is stated in `cli-identity.ts` itself:** a login makes the command line attributable and authorized, not a security boundary — anyone who can run these commands can also write `policy.json` directly, and no login changes that. |
+| Q-80  | **`agentMode: "off"` written into `policy.json` disables the gate for that agent, kill switch included.** `loadPolicy` re-asserts `CORE_RULES` and does not sanitise the posture maps. Coerce a stored `off` to `enforce` on load, as the HTTP route already refuses it.                                                                                                        | 1 hour           | **DONE.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Q-81  | **Lockdown does not hold when neither `agentId` nor `sessionKey` is present.** Decide the policy: fail closed for every locked installation, or record the unattributable call distinctly so the gap is visible rather than silent.                                                                                                                                             | 2 hours          | **DONE.** Fails closed and records `kill-switch-unattributable`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Q-83  | **"Allow always" on a chat-delivered escalation writes a permanent policy rule** from someone with no governance account. Simplest correct fix: drop `allow-always` from `allowedDecisions` when the turn came from a channel, leaving persistent policy writes to the dashboard.                                                                                               | 2 hours          | **DONE.** `allow-always` withdrawn entirely rather than per-channel — simpler, and it removes policy authorship from the escalation path for every surface.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 #### 13d. Availability of the gate
 

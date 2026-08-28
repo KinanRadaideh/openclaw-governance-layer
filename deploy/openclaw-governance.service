@@ -1,0 +1,76 @@
+# systemd unit for the OpenClaw governance fork.
+#
+#   sudo cp deploy/openclaw-governance.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now openclaw-governance
+#   sudo systemctl status openclaw-governance
+#   journalctl -u openclaw-governance -f
+#
+# Edit User, WorkingDirectory and Environment=PATH to match the host before
+# enabling. The defaults assume the repository is at /opt/openclaw-governance
+# and owned by a dedicated `openclaw` user.
+#
+# Why a unit rather than the launcher script: the launcher starts a process,
+# and a process dies with its shell. The kill switch and the audit ledger only
+# mean something while the Gateway is actually running, so "restarts on failure
+# and on boot" is a governance property here, not an operations nicety.
+
+[Unit]
+Description=OpenClaw Governance Gateway (forked)
+Documentation=file:/opt/openclaw-governance/docs-notes/LINUX-INSTALL.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=openclaw
+Group=openclaw
+WorkingDirectory=/opt/openclaw-governance
+
+# Node must be on PATH for the non-login shell systemd uses. If Node came from
+# nvm, point at that version's bin directory explicitly — nvm's shell function
+# does not exist here.
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=NODE_ENV=production
+
+# The fork runs on 18799 so it never collides with a separately installed
+# OpenClaw on the default 18789.
+Environment=OPENCLAW_GATEWAY_PORT=18799
+
+ExecStart=/usr/bin/env node scripts/run-node.mjs gateway --port 18799
+
+Restart=on-failure
+RestartSec=5s
+# The first start after a build can be slow; do not shoot it for being slow.
+TimeoutStartSec=600
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=openclaw-governance
+
+# --- Hardening -------------------------------------------------------------
+# The governance directory holds the audit ledger, its HMAC key and the account
+# store. A layer that governs an agent's filesystem access should not itself
+# run with more of the filesystem than it needs.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=false
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+# Writable paths: the repository (build stamps, logs) and the state directory.
+ReadWritePaths=/opt/openclaw-governance
+ReadWritePaths=/home/openclaw/.openclaw
+
+# The Gateway binds loopback only by design and is reached through an SSH
+# tunnel. Uncomment to have systemd enforce that as well as the application:
+# RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# IPAddressAllow=localhost
+# IPAddressDeny=any
+
+[Install]
+WantedBy=multi-user.target

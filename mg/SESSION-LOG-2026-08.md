@@ -3025,4 +3025,4 @@ lesson recorded in one place is not a lesson applied in the next.**
 typechecks clean. Host baseline 263 passed / 0 failed. oxlint 16 errors across 14
 files, all pre-existing T31 debt; `max-lines` zero repo-wide.
 
-**134 defects found, 134 fixed, none open.**
+**136 defects found, 136 fixed, none open.**

@@ -6,17 +6,24 @@ supervisor, or the same person after a break. Everything else in `mg/` is detail
 beneath this.
 
 > **If you read three things:** §1 for the state, §6 for what is left, and the
-> `git push` in §8 — **32 commits** exist only on this machine (re-measured
-> 2026-08-27 with `git log --oneline personal/governance-layer..HEAD | wc -l`;
+> `git push` in §8 — **33 commits** exist only on this machine (re-measured
+> 2026-08-28 with `git log --oneline personal/governance-layer..HEAD | wc -l`;
 > re-measure rather than trust it, see §1).
 >
 > **The working tree is clean as of 2026-08-27**, and that is new. For most of
 > August it was not: M5, M6, T7's audit half, T29, T30, finding 120's fix and QA
 > rounds nineteen to twenty-one all sat uncommitted at once — 113 entries, eleven
 > of them untracked files that a careless `git checkout .` would have destroyed.
-> They are now in two commits, `76a0a51` (code) and `add4f9c` (documentation).
+> They are now in **three** commits, `76a0a51` (code), `add4f9c` (documentation)
+> and `79c9618` (the documentation sweep that followed).
 > **What is left is the push**, and nothing else stands between this work and
 > the only off-machine copy.
+>
+> **The count said 32 until 2026-08-28, and why it was wrong is the point.** It
+> was written into the documentation _by_ `79c9618`, the commit that made it 33 —
+> a number measured before the act that changed it and then committed as though
+> it described the result. Same shape as every other stale claim this file
+> records. Re-measure; do not trust the number in the prose, including this one.
 
 ---
 
@@ -30,8 +37,8 @@ typechecks are clean, and OpenClaw's own test
 suite is **fully green for the first time**: the 18 pre-existing Windows
 failures used as this project's baseline were fixed on 2026-08-25 (T25), along
 with nine more in `host-hooks.contract.test.ts`. **The M-series is complete**
-(M1–M6, finished 2026-08-27), so no substantial engineering is left. Twenty-one
-QA rounds and the build itself have found **134 defects, all fixed — zero open.** The count moved from 120 to 121 when T29's numbering audit (2026-08-26) found **two different defects both numbered 104**; to 127 on 2026-08-27 when M5's four and M6's two were numbered **122–127**, having been fixed and written up in all three registers but never entered on the numbered list; to **130** the same day when **QA round nineteen** audited the M-series as one system and found **128–130**; and to **131** when **QA round twenty** read the rest of the window's work against the nine design requirements and found `search-audit.ts` writing grep's matched file content — secrets included — into the tamper-evident ledger, a direct breach of requirement 8; and to **134** when **round twenty-one** built §1.6's missing "raw LLM intent" field and audited it, finding three defects in one day's work (**132–134**). **Standing rule from 2026-08-27: every defect gets a number when it is found.** Finding 120 was found and
+(M1–M6, finished 2026-08-27), so no substantial engineering is left. Twenty-two
+QA rounds and the build itself have found **136 defects, all fixed — zero open.** The count moved from 120 to 121 when T29's numbering audit (2026-08-26) found **two different defects both numbered 104**; to 127 on 2026-08-27 when M5's four and M6's two were numbered **122–127**, having been fixed and written up in all three registers but never entered on the numbered list; to **130** the same day when **QA round nineteen** audited the M-series as one system and found **128–130**; and to **131** when **QA round twenty** read the rest of the window's work against the nine design requirements and found `search-audit.ts` writing grep's matched file content — secrets included — into the tamper-evident ledger, a direct breach of requirement 8; and to **134** when **round twenty-one** built §1.6's missing "raw LLM intent" field and audited it, finding three defects in one day's work (**132–134**); and to **136** on 2026-08-28 when **round twenty-two** re-measured the previous day's documentation against the code and found **135–136** — `entryKind`'s JSDoc orphaned by the insertion of the intent field, and **T16 regressed in the very commit whose documentation declared it closed** (`governance-page.ts` back to 703 lines against a 700-line limit, while §4 read "`max-lines` reports zero errors repo-wide"). **Standing rule from 2026-08-27: every defect gets a number when it is found.** Finding 120 was found and
 closed on 2026-08-26: T6's fail-closed branch could not fire, so a lockdown
 whose lineage records were unreadable degraded to fail-_open_. It was closed by
 probing the store with a scoped listing rather than a keyed read — which
@@ -65,6 +72,49 @@ by decision — so any older sentence listing it as outstanding is stale. The ol
 (A-, B-, F-, R5, G) survive only as a `Ref` column pointing at their historical
 write-ups; nothing is orphaned.
 
+### 2026-08-28 — round twenty-two: the documentation audited against the code
+
+**Read this before §4 and §6.** The 2026-08-27 documentation pass asserted a
+great many numbers. This round re-measured each one against the thing it
+described, and found **two defects (135–136)** plus four stale claims.
+
+**136 is the one to know, and it is this project's own pattern turned on
+itself.** T16 — the file split that brought every file inside the 700-line limit
+— **regressed under M6**, which took `governance-page.ts` to 703 lines. The
+regression and the sentence denying it were written **in the same commit**, and
+the documentation sweep the next day re-asserted "`max-lines` reports zero errors
+repo-wide" without running the command beside it. The lint row also said all 16
+errors were in test files; the real figure was 17 across 15, one of them
+production code. **Fixed by moving `renderFreshness`** — the last markup left in
+the page T16 split so the page would hold state and effects only. The regression
+pointed at the one thing already in the wrong place.
+
+**135**: inserting the `intent` field into `LedgerEntry` put it _between_
+`entryKind`'s doc comment and `entryKind` itself. TypeScript binds the last of
+two consecutive doc blocks, so `intent` documented correctly and the flag that
+distinguishes an administrative entry from an agent one silently lost its own
+documentation — in the file defining the ledger's field contract.
+
+**Four stale claims, all corrected.** The unpushed count was 32 and is **33**
+(48 ahead of `main`, not 47) — and the 32 was written _by_ the commit that made
+it 33. `CHAPTER3-MATERIAL.md` §3.1 called requirement **#9 "Met"** while §4.x.5b
+in the same file said "Partially met"; the optimistic reading sat in the status
+column the report is told to quote. §3.3 still said all testing was on Windows,
+which the Ubuntu runs ended. And `Q-73b` still called a CLI login open — **T5
+built it on 2026-08-24**.
+
+**One estimate collapsed on contact with the code.** "Flag-style password
+masking, 2–3 hours" assumed the long forms were unmasked. A probe found
+`--password=`, `--token=`, `--api-key=`, `--client-secret=` and both URL forms
+**already masked by upstream's redactor**. Only `--http-password=` leaks. Same
+shape as finding 120 and the three "blocked on the host" claims: reasoned from an
+observation instead of measured against the code.
+
+**What was re-measured and found correct:** the suite at **2,311 / 107** exactly,
+both typechecks clean, findings 132–134 genuinely fixed, the intent field in all
+four operator documents, the nine requirements matching §1.3 verbatim, the
+appendix numbering fault real, and requirement #5's "100%" holding in code.
+
 ### 2026-08-27 — three QA rounds, the intent field, and the first commit in a fortnight
 
 **Read this before §6.** Four things happened, and the last one changes how the
@@ -95,7 +145,7 @@ the model's narration verbatim**, and an exported function nothing called.
 
 **And it is all committed.** For most of August this file warned about an
 uncommitted tree; it reached 113 entries before it landed in two commits on
-2026-08-27. The tree is clean. **32 commits have never been pushed**, and that is
+2026-08-27. The tree is clean. **33 commits have never been pushed**, and that is
 now the only thing standing between this work and its only off-machine copy.
 
 ### 2026-08-27 — M6, and the M-series is finished
@@ -408,7 +458,7 @@ backlog.**
 
 | #   | Action                                                                                                                                                                                                                                                                           | Effort   |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| 1   | **Push to the private remote.** **32 commits** exist only on this machine and in OneDrive — re-measured 2026-08-27 with `git log --oneline personal/governance-layer..HEAD \| wc -l`. Every later commit, this file's own edits included, adds one: re-measure rather than quote | 1 min    |
+| 1   | **Push to the private remote.** **33 commits** exist only on this machine and in OneDrive — re-measured 2026-08-27 with `git log --oneline personal/governance-layer..HEAD \| wc -l`. Every later commit, this file's own edits included, adds one: re-measure rather than quote | 1 min    |
 | 2   | **Run it once with a real agent** and record what happens (T2)                                                                                                                                                                                                                   | 2–4 days |
 
 > **Do not confuse the two counts.** `main..HEAD` is **45** and
@@ -426,7 +476,7 @@ remote. The push was **verified by cloning it back from GitHub**: same tip
 (`f4b7325241a`), same tree (`3debbb521…`), the governance work all present.
 The work now exists in three places rather than one.
 
-> ### ⚠ The tree is clean, and 32 commits have never left this machine
+> ### ⚠ The tree is clean, and 33 commits have never left this machine
 >
 > Everything since 2026-08-21 is committed — the sixteenth QA pass, T9, T24,
 > T26, T4, T27, T5, T14, T15, T23, rounds seventeen and eighteen, M1–M4, T25,
@@ -521,7 +571,7 @@ A finding that appears in only the middle column is not finished.
 
 ## 3. Where the code is, right now
 
-**Branch `governance-layer`, 47 commits ahead of `main`, and the working tree is
+**Branch `governance-layer`, 48 commits ahead of `main`, and the working tree is
 clean as of 2026-08-27.** Re-check both with
 `git rev-list --count main..HEAD` and `git status --porcelain | wc -l` rather
 than trusting these numbers — they move with every commit, and a hard-coded
@@ -551,7 +601,7 @@ T4, T27, T5, T14, T15, the T16 split, and the documentation. Commits have
 continued since (T16's dashboard split, T6, and their write-ups, through
 `48fa83c` on 2026-08-26). **The private
 remote has not received any of them**; it is still at the 2026-08-21 tip
-(`e5a7876431b`), so **32 commits** — not seven — exist on this machine and in
+(`e5a7876431b`), so **33 commits** — not seven — exist on this machine and in
 OneDrive only. That is a larger version of the same risk F1 closed. It grew every
 day it was left; committing stopped it growing, and only the push closes it.
 
@@ -626,7 +676,7 @@ Expected, and **every row below re-measured on 2026-08-27** (the table said
 | `tsgo:core`              | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `tsgo:ui`                | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | Host suites (both)       | **263 passed, 0 failed** — re-run 2026-08-27, exact match. **263 = 192 (`native-hook-relay.test.ts`) + 71 (`host-hooks.contract.test.ts`)**; older notes below quote the 192 alone and are not contradicting this row                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| oxlint over `src ui/src` | **Every non-test file under `src/governance/` and `ui/src/pages/governance/` is clean as of 2026-08-26.** The row here used to say "clean, except four pre-existing errors in `file-lock.ts` and `audit-ledger.ts`" and **that was false** — there were 24, across 18 files; the row named two of them. Twelve were fixed (the four documented ones plus eight more in `agent-terminator.ts`, `user-store.ts`, `rule-validation.ts`, `active-sessions.ts` and `attachment-store.ts`), three of those as `oxlint-disable-next-line` with a stated reason where the rule's suggested fix would have been _wrong_ — `no-map-spread` recommends in-place mutation, and all three sites copy on purpose so a caller's object is not changed underneath them. **16 errors remain and all of them are in `.test.ts` files** across **14** files, not 13 — re-counted 2026-08-27 with `oxlint … | grep ': error' | sed 's/:.*//' | sort -u | wc -l`(shadowed names,`filter(...)[0]`, an unused import, `sort()`over`toSorted()`, a `return` in a Promise executor, a dangling underscore); tracked as **T31**. **`max-lines` reports zero errors repo-wide**, so T16 is still closed |
+| oxlint over `src ui/src` | **Every non-test file under `src/governance/` and `ui/src/pages/governance/` is clean as of 2026-08-26.** The row here used to say "clean, except four pre-existing errors in `file-lock.ts` and `audit-ledger.ts`" and **that was false** — there were 24, across 18 files; the row named two of them. Twelve were fixed (the four documented ones plus eight more in `agent-terminator.ts`, `user-store.ts`, `rule-validation.ts`, `active-sessions.ts` and `attachment-store.ts`), three of those as `oxlint-disable-next-line` with a stated reason where the rule's suggested fix would have been _wrong_ — `no-map-spread` recommends in-place mutation, and all three sites copy on purpose so a caller's object is not changed underneath them. **16 errors remain and all of them are in `.test.ts` files** across **14** files, not 13 — re-counted 2026-08-27 with `oxlint … | grep ': error' | sed 's/:.*//' | sort -u | wc -l`(shadowed names,`filter(...)[0]`, an unused import, `sort()`over`toSorted()`, a `return` in a Promise executor, a dangling underscore); tracked as **T31**. **`max-lines`reports zero errors repo-wide**, so T16 is closed. **Both halves of this row were false when written on 2026-08-27 and are true again as of 2026-08-28 (finding 136).** M6 had taken`governance-page.ts`to 703 code lines against the 700 limit, so the real count was **17 errors across 15 files, one of them production code** — and the sentence asserting`max-lines`clean was written in the documentation pass that followed the commit which broke it. Fixed by moving`renderFreshness`into`panels/oversight-panels.ts`, the last markup still living in the page T16 split to hold state and effects only. **Run the command; do not read this cell and believe it.** |
 
 **All five re-run and green on 2026-08-27**, after M5. The suite figure
 has moved **sixteen** times across three days — 1,794/87, 1,802/88, 1,877/91, 1,901/94,
@@ -1013,7 +1063,7 @@ the same `permissions.ts` helpers the HTTP routes use. A file should have one
 subject; where it can also have one authorization rule, that is stronger and
 worth stating.
 
-**T16 closed on 2026-08-25.** `governance-page.ts` went 2,412 → **696**, split
+**T16 closed on 2026-08-25, regressed under M6, and was restored on 2026-08-28 (finding 136).** `governance-page.ts` went 2,412 → **696** → 703 (over the 700 limit) → **697**, split
 into eight modules whose panels match the route modules serving them — the seam
 turned out to be _panel matching route_, not the authorization sentence that
 worked for the routes themselves. Every file in the project is now inside the
@@ -1338,15 +1388,27 @@ Of the eight left, four are yours (**T2, T3, T17, T18**), one is deprioritised
 one waits on T7's decision (**T32** — the M-series it also waited on is finished).
 Sorted below by who has to move first.
 
-> **Five items are outstanding that have never had a T-number**, added on
-> 2026-08-27 and listed here so the backlog's arithmetic is not the only place
-> they exist. Three need nothing from you:
+> **Seven items are outstanding that have never had a T-number**, added on
+> 2026-08-27 and 2026-08-28 and listed here so the backlog's arithmetic is not
+> the only place they exist. Five need nothing from you:
 >
-> - **Flag-style password masking**, long forms only — your decision of
->   2026-08-27, taken and not yet built. `--password=`, `--http-password=`,
->   `--token=` and URL credentials. A bare `-p` is deliberately excluded: it
->   means "make parent directories" to `mkdir` and "publish a port" to `docker`,
->   and masking those would make the ledger say something other than what ran
+> - **Flag-style password masking** — **re-scoped 2026-08-28, and it is nearly
+>   done already.** A probe of `redactSensitiveText(…, { mode: "tools" })` found
+>   `--password=`, `--password `, `--token=`, `--token `, `--api-key=`,
+>   `--client-secret=` and **both URL-credential forms already masked by
+>   upstream's own redactor**, which the ledger has always called. Of the four
+>   spellings the decision named, only **`--http-password=` leaks**. What was
+>   estimated at 2–3 hours is one compound key plus a scan of the key list — but
+>   it touches `src/logging/redact.ts`, **upstream code**, so it grows the fork
+>   diff §3.5.2b measures. A bare `-p` stays deliberately excluded: it means
+>   "make parent directories" to `mkdir` and "publish a port" to `docker`, and
+>   masking those would make the ledger say something other than what ran
+> - **The 700-line limit has three lines of headroom** on
+>   `governance-page.ts` (697 of 700, measured 2026-08-28). Finding 136 was this
+>   file crossing it unnoticed; nothing stops the next panel doing the same,
+>   because **nothing in this fork runs `max-lines` automatically** — it is
+>   checked only when somebody types the command. Either extract another panel
+>   now or put the lint command in the verification list you actually run
 > - **The pre-M3 route audit**, which `REMAINING-WORK.md` records as unfinished:
 >   _every route written before groups existed still deserves the question "does
 >   this cross a group?"_. Finding 119 was one consequence; nobody has checked
@@ -1374,7 +1436,7 @@ does not carry an uncommitted tree.
 rounds nineteen to twenty-one. What is left is the push, and it is the whole of
 this step now.
 
-**32 commits have never left this machine** (re-measure with
+**33 commits have never left this machine** (re-measure with
 `git log --oneline personal/governance-layer..HEAD | wc -l`; the remote is at the
 2026-08-21 tip `e5a7876431b`):
 
@@ -1393,12 +1455,13 @@ F1 closed once already.
 
 ### Needs you — three decisions and one machine
 
-| #       | What                                                                                                                                                                                                  | Effort   |
-| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| **T2**  | **Run it once with a real agent** and record what happens. Every proof is a test calling the gate directly; no language model has driven a tool call through it. _The single highest-value item left_ | 2–4 days |
-| **T3**  | **Deploy to a real Linux host.** The suite runs on Ubuntu under WSL2; nothing has run on a VPS, and the launcher is PowerShell-only. The one requirement (#9) not fully met                           | 3–5 days |
-| **T18** | **Write Chapters 3, 4 and the conclusion.** Material is organised and keyed to section numbers                                                                                                        | the rest |
-| **T13** | The prompt-injection defence answer is **drafted** (§4.x.26) — read it and make it yours. You have to be able to give it without notes                                                                | 30 min   |
+| #       | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Effort   |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| **T2**  | **Run it once with a real agent** and record what happens. Every proof is a test calling the gate directly; no language model has driven a tool call through it. _The single highest-value item left_                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | 2–4 days |
+| **T33** | **Make the fork build and start on Linux at all — do this before T3.** Added 2026-08-28. The PowerShell launcher is _not_ the blocker (forty lines, trivially bash; a VPS wants a systemd unit anyway). The blocker is that upstream's two install routes both fetch **upstream's npm package**, so a fork must be installed from source — and that has never been done on Linux. `scripts/linux-setup.sh` hardcodes a `/mnt/c/...` WSL mount, installs with `--ignore-scripts` and never runs `pnpm build`, so `dist/` — which `openclaw.mjs` refuses to start without — has never existed there. Needs **one decision from you** (Docker, whose `COPY . .` already forks correctly, or a bare source build); after that it is mine | 1 day    |
+| **T3**  | **Deploy to a real Linux host.** The suite runs on Ubuntu under WSL2; nothing has run on a VPS, and the launcher is PowerShell-only. The one requirement (#9) not fully met. **Blocked on T33** — a VPS that cannot run the build wastes the booking rather than the afternoon                                                                                                                                                                                                                                                                                                                                                                                                                                                       | 3–5 days |
+| **T18** | **Write Chapters 3, 4 and the conclusion.** Material is organised and keyed to section numbers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | the rest |
+| **T13** | The prompt-injection defence answer is **drafted** (§4.x.26) — read it and make it yours. You have to be able to give it without notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | 30 min   |
 
 ### Mine, and nothing blocks them
 
@@ -1586,7 +1649,7 @@ Stated here so they are not discovered late.
 
 **Push to the private remote, then run it once with a real agent (T2).**
 
-The push takes a minute and is not optional. **32 commits** have never
+The push takes a minute and is not optional. **33 commits** have never
 left this machine (2026-08-26) — the sixteenth QA pass, T9, T24, T26, T4, T27,
 T5, T14, T15, T23, QA rounds seventeen and eighteen, M1–M4, T25, T28, and T16
 and T6 in full — so a fortnight of work exists here and in OneDrive only. F1,
