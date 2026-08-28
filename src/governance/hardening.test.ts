@@ -11,6 +11,7 @@ import {
   listRuleRequests,
   submitRuleRequest,
   MAX_STORED_RULE_REQUESTS,
+  setMaxStoredRuleRequestsForTests,
 } from "./rule-requests.js";
 import { issueSession, verifySession } from "./session-tokens.js";
 import { seedNamedGroup } from "./test-group.js";
@@ -37,15 +38,30 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  // Restored so a lowered cap cannot leak into another suite's expectations.
+  setMaxStoredRuleRequestsForTests(undefined);
   delete process.env.OPENCLAW_GOVERNANCE_DIR;
   await rm(dir, { recursive: true, force: true });
 });
+
+/**
+ * The cap these tests drive pruning with.
+ *
+ * Small on purpose (finding 146). Reaching the real 500 meant 525 submit-plus-
+ * decide pairs, each rewriting the whole file with a durable `fsync` — 76
+ * seconds alone, and a timeout inside a full run, so the test reported on
+ * machine load rather than on the code. The property being checked is *which*
+ * requests are dropped, which a dozen entries settle deterministically. The
+ * real default is asserted separately below.
+ */
+const TEST_CAP = 12;
 
 describe("rule-request store cannot grow without bound", () => {
   it("prunes the oldest decided requests once the cap is reached", async () => {
     // The per-user pending cap stops a burst, but decided requests were never
     // removed, so a patient user could grow the file forever.
-    const total = MAX_STORED_RULE_REQUESTS + 25;
+    setMaxStoredRuleRequestsForTests(TEST_CAP);
+    const total = TEST_CAP + 5;
     for (let index = 0; index < total; index += 1) {
       const request = await submitRuleRequest(TEST_GROUP, {
         resourceKind: "command",
@@ -56,18 +72,19 @@ describe("rule-request store cannot grow without bound", () => {
       await decideRuleRequest(TEST_GROUP, { id: request.id, approve: false, decidedBy: "admin" });
     }
     const stored = await listRuleRequests(TEST_GROUP);
-    expect(stored.length).toBeLessThanOrEqual(MAX_STORED_RULE_REQUESTS);
+    expect(stored.length).toBeLessThanOrEqual(TEST_CAP);
   });
 
   it("never prunes a pending request, even when over the cap", async () => {
     // Dropping an undecided request would silently lose an operator's ask.
+    setMaxStoredRuleRequestsForTests(TEST_CAP);
     const pending = await submitRuleRequest(TEST_GROUP, {
       resourceKind: "command",
       pattern: "^keep-me$",
       reason: "still waiting",
       requestedBy: "alice",
     });
-    for (let index = 0; index < MAX_STORED_RULE_REQUESTS + 10; index += 1) {
+    for (let index = 0; index < TEST_CAP + 5; index += 1) {
       const request = await submitRuleRequest(TEST_GROUP, {
         resourceKind: "command",
         pattern: `^noise-${index}$`,
@@ -78,6 +95,12 @@ describe("rule-request store cannot grow without bound", () => {
     }
     const stored = await listRuleRequests(TEST_GROUP);
     expect(stored.some((request) => request.id === pending.id)).toBe(true);
+  });
+
+  it("still ships the production cap it was built with", async () => {
+    // The promise the override makes: lowering the cap for a test cannot hide a
+    // change to the real one, because the real one is asserted on its own.
+    expect(MAX_STORED_RULE_REQUESTS).toBe(500);
   });
 });
 

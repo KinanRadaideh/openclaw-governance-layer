@@ -948,6 +948,73 @@ every refusal arrived looking like a 200, and the response body said "forbidden"
 while the status said success. **A test harness that cannot see a refusal will
 report a working control as broken, and on a worse day the reverse.**
 
+### QA round twenty-eight — one agent, one organisation (2026-08-29)
+
+Kinan asked what the relationship between an agent and an organisation is, and
+whether an agent can only be in one. **It can only be in one, and that is
+enforced in four places** — a single `groupId` on the record, an
+installation-wide uniqueness check inside a file lock, `resolveAgentGroup` mapping
+each id to exactly one group on every tool call, and `assertAssignable` refusing
+to hand an agent to another organisation. Explaining it surfaced a narrow gap.
+**One finding, 145.**
+
+**A correction Kinan asked for, which the code refused.** He read the explanation
+as saying agent ids are case-insensitive by our choice, and asked for them to be
+made case-sensitive. **They are case-insensitive by OpenClaw's choice, not
+ours.** `packages/normalization-core/src/agent-id.ts` lowercases every id as part
+of producing the "filesystem-safe canonical form", and **910 call sites** across
+routing, session keys and directory layout depend on it. On Windows and macOS the
+filesystem would treat `Scout/` and `scout/` as one folder regardless.
+
+**Making our registry case-sensitive would reintroduce finding 128 exactly**: the
+host would route `Scout`'s session as `scout`, the gate would look up `scout`,
+and a case-sensitively stored `Scout` record would govern nothing — an agent that
+looks owned and is refused on every call. Recorded here because "the fix the
+user asked for would restore a closed finding" is worth keeping, not just acting
+on.
+
+| #       | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | State |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----- |
+| **145** | **Two rows could claim one agent for two organisations.** Registration compared the incoming _canonical_ id against each stored id **as written**. Every row written since finding 128 is canonical so those agreed — but a registry written before it can hold `"Scout"`, and `"Scout" === "scout"` is false. Two rows could therefore exist for one real agent, in different organisations, and `resolveAgentGroup` kept **whichever the file listed last**. Which organisation governs a real agent would depend on file order: silently, and differently after any rewrite | fixed |
+
+**Closed at both ends, because either alone leaves a hole.** Registration now
+compares canonically on both sides, so the state cannot be created. And the
+resolver **withdraws** an id two organisations claim rather than picking one —
+the gate then refuses that agent, which is loud and safe, and an operator fixes
+it by deleting the stale row. The module's own header already said there is "no
+third answer that quietly picks a rulebook"; keeping the last row read was
+exactly that.
+
+**Two deliberate non-behaviours, both tested.** Duplicate rows that _agree_ on
+the organisation still resolve — redundant is not ambiguous, and refusing would
+cost an operator their agent over an untidy file. And withdrawal is targeted: one
+contradictory pair does not take unrelated agents down with it, which would turn
+a stale row into an outage.
+
+**Verified by mutation**: reverting either half fails four of the six tests.
+
+### Finding 146 — the third load-sensitive test, found by running the full suite (2026-08-29)
+
+Caught by the full-suite run at the end of the session rather than by reading:
+**one test failed in the suite and passed on its own.** That is the signature T30
+already diagnosed twice.
+
+`hardening.test.ts` proved the rule-request cap by **reaching it** — 525
+submit-plus-decide pairs, each rewriting the whole file with a durable `fsync`.
+76 seconds alone, and a timeout inside a full run where it competes with
+everything else. The test was reporting on machine load, not on the code.
+
+**T30 fixed exactly this shape for the two ledger-rotation tests and recorded
+that a failure in either should now be believed.** This file was a **third
+instance and was not covered by that** — which is the part worth keeping: _a
+caveat naming two of three cases teaches a reader to dismiss the third._
+
+Fixed with the same seam T30 used (`setLedgerRotateBytesForTests`): an exported
+test-only override, not reachable from configuration or the network, driving
+pruning with a cap of 12 instead of 500. **76 s → 7 s**, and no load
+sensitivity. The production default is asserted on its own line, so lowering the
+cap for a test cannot hide a change to the real one.
+
 ### Settled 2026-08-28 — entropy analysis will not be built
 
 Kinan's decision, and it closes the item rather than deferring it. §2.1.5.2

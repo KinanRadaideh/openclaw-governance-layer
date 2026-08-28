@@ -58,20 +58,30 @@ the model to follow.
   is held to them. When something is described as a "divergence", check which of
   the two it is before accepting it.
 
+**And one thing to check before you act on a request.** On 2026-08-29 Kinan asked
+for agent ids to be made case-sensitive, having read an explanation that made the
+current behaviour sound like this project's choice. It is not: OpenClaw
+lowercases every agent id, 910 call sites depend on it, and the change would have
+reintroduced a closed finding (128) — an agent that looks correctly set up and is
+refused on every call. **The request was declined with the reason, and the narrow
+real gap underneath it was fixed instead** (finding 145). Kinan is direct and
+will tell you when he disagrees; saying "this would break X, here is what I think
+you actually want" is more use to him than doing it.
+
 ---
 
 ## 1. The one-paragraph state of things
 
-**Current as of 2026-08-27.** The governance layer is **built and verified, and
+**Current as of 2026-08-29.** The governance layer is **built and verified, and
 still not demonstrated.** Eight of the nine design requirements are fully met;
-the ninth (Linux deployment) is tested but never deployed. **2,339 automated
-tests pass across 111 files** (1,467 distinct across 81 — see §4), both
+the ninth (Linux deployment) is tested but never deployed. **2,346 automated
+tests pass across 112 files** (1,467 distinct across 81 — see §4), both
 typechecks are clean, and OpenClaw's own test
 suite is **fully green for the first time**: the 18 pre-existing Windows
 failures used as this project's baseline were fixed on 2026-08-25 (T25), along
 with nine more in `host-hooks.contract.test.ts`. **The M-series is complete**
-(M1–M6, finished 2026-08-27), so no substantial engineering is left. Twenty-seven
-QA rounds and the build itself have found **144 defects, all fixed — zero open.** The count moved from 120 to 121 when T29's numbering audit (2026-08-26) found **two different defects both numbered 104**; to 127 on 2026-08-27 when M5's four and M6's two were numbered **122–127**, having been fixed and written up in all three registers but never entered on the numbered list; to **130** the same day when **QA round nineteen** audited the M-series as one system and found **128–130**; and to **131** when **QA round twenty** read the rest of the window's work against the nine design requirements and found `search-audit.ts` writing grep's matched file content — secrets included — into the tamper-evident ledger, a direct breach of requirement 8; and to **134** when **round twenty-one** built §1.6's missing "raw LLM intent" field and audited it, finding three defects in one day's work (**132–134**); and to **136** on 2026-08-28 when **round twenty-two** re-measured the previous day's documentation against the code and found **135–136** — `entryKind`'s JSDoc orphaned by the insertion of the intent field, and **T16 regressed in the very commit whose documentation declared it closed** (`governance-page.ts` back to 703 lines against a 700-line limit, while §4 read "`max-lines` reports zero errors repo-wide"). **Standing rule from 2026-08-27: every defect gets a number when it is found.** Finding 120 was found and
+(M1–M6, finished 2026-08-27), so no substantial engineering is left. Twenty-eight
+QA rounds and the build itself have found **146 defects, all fixed — zero open.** The count moved from 120 to 121 when T29's numbering audit (2026-08-26) found **two different defects both numbered 104**; to 127 on 2026-08-27 when M5's four and M6's two were numbered **122–127**, having been fixed and written up in all three registers but never entered on the numbered list; to **130** the same day when **QA round nineteen** audited the M-series as one system and found **128–130**; and to **131** when **QA round twenty** read the rest of the window's work against the nine design requirements and found `search-audit.ts` writing grep's matched file content — secrets included — into the tamper-evident ledger, a direct breach of requirement 8; and to **134** when **round twenty-one** built §1.6's missing "raw LLM intent" field and audited it, finding three defects in one day's work (**132–134**); and to **136** on 2026-08-28 when **round twenty-two** re-measured the previous day's documentation against the code and found **135–136** — `entryKind`'s JSDoc orphaned by the insertion of the intent field, and **T16 regressed in the very commit whose documentation declared it closed** (`governance-page.ts` back to 703 lines against a 700-line limit, while §4 read "`max-lines` reports zero errors repo-wide"). **Standing rule from 2026-08-27: every defect gets a number when it is found.** Finding 120 was found and
 closed on 2026-08-26: T6's fail-closed branch could not fire, so a lockdown
 whose lineage records were unreadable degraded to fail-_open_. It was closed by
 probing the store with a scoped listing rather than a keyed read — which
@@ -104,6 +114,47 @@ the 26th, and T29 and T30 closed the same day). **T8 is closed** — 2026-08-26,
 by decision — so any older sentence listing it as outstanding is stale. The old letters
 (A-, B-, F-, R5, G) survive only as a `Ref` column pointing at their historical
 write-ups; nothing is orphaned.
+
+### 2026-08-29 — one agent, one organisation, and a request the code refused
+
+**Finding 146, and it is the reason to keep running the whole suite.** The
+full-suite run at the end of the session had **one failure that passed on its
+own** — `hardening.test.ts`, proving the rule-request cap by reaching it: 525
+submit-plus-decide pairs, each rewriting the file with a durable `fsync`, 76
+seconds alone and a timeout under contention. T30 fixed this shape twice and
+wrote that a failure in either of _those two_ should be believed; **this was a
+third file that caveat did not cover.** Same seam applied, 76 s → 7 s.
+
+**Finding 145.** Explaining the agent-to-organisation relationship surfaced a
+narrow gap: registration compared the incoming _canonical_ id against each stored
+id **as written**, so a registry written before finding 128 (which holds `"Scout"`
+rather than `"scout"`) would not recognise `"scout"` as a duplicate. Two rows
+could then claim one real agent for two organisations, and the resolver kept
+**whichever the file listed last** — meaning file order decided whose rules
+govern a real agent. Closed at both ends: registration compares canonically, and
+the resolver **withdraws** a contested id rather than picking one.
+
+> ### Read this before anyone "fixes" agent-id casing
+>
+> Kinan asked for agent ids to be made **case-sensitive**, reading the
+> explanation as describing a choice this project had made. **It is not ours.**
+> `packages/normalization-core/src/agent-id.ts` lowercases every id to produce
+> OpenClaw's "filesystem-safe canonical form", and **910 call sites** across
+> routing, session keys and directory layout depend on it — and on Windows and
+> macOS the filesystem treats `Scout/` and `scout/` as one folder anyway.
+>
+> **Making the registry case-sensitive would reintroduce finding 128 exactly:**
+> the host routes `Scout`'s session as `scout`, the gate looks up `scout`, and a
+> case-sensitively stored `Scout` record governs nothing — an agent that looks
+> owned and is refused on every call, with nothing explaining why. The narrow
+> real gap was the duplicate check, and that is what was fixed.
+
+**The relationship itself, for the report.** One agent belongs to exactly one
+organisation, enforced in four places: a single `groupId` on the record;
+uniqueness checked installation-wide inside a file lock; `resolveAgentGroup`
+mapping each id to one group on every tool call, with no record meaning _refuse_
+rather than _use a default_; and `assertAssignable` refusing to hand an agent to
+another organisation, worded "not yours" so it cannot be used to enumerate them.
 
 ### 2026-08-28 — the multi-tenancy re-audit: the emergency stop crossed organisations
 
@@ -870,7 +921,7 @@ Expected, and **every row below re-measured on 2026-08-27** (the table said
 
 | Command                  | Expected                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Governance suite         | **2,339 passed across 111 files** — measured 2026-08-28 after round twenty-seven. Was 2,327/108, 2,322/108, 2,315/107 and 2,311/107 before that. Was 2,292/106, 2,283/105, 2,247/104 after M6                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Governance suite         | **2,346 passed across 112 files** — measured 2026-08-29 after round twenty-eight and finding 146. Was 2,339/111, 2,327/108, 2,322/108, 2,315/107 and 2,311/107 before that. Was 2,292/106, 2,283/105, 2,247/104 after M6                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `tsgo:core`              | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `tsgo:ui`                | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | Host suites (both)       | **263 passed, 0 failed** — re-run 2026-08-27, exact match. **263 = 192 (`native-hook-relay.test.ts`) + 71 (`host-hooks.contract.test.ts`)**; older notes below quote the 192 alone and are not contradicting this row                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
@@ -887,6 +938,15 @@ per-group migration rewrote existing tests rather than adding any. **M6 moved it
 by 76**, of which only 22 are its two new test files: the other 54 came from
 entering two routes in the privilege matrix and the malformed-body table, which
 is exactly what those two tables exist to make cheap.
+
+> **Run the suite alone (2026-08-29).** Two full runs were started concurrently
+> while chasing a count, and the second reported **three failures that do not
+> exist** — the suites fight over the same temporary directories and the
+> `OPENCLAW_GOVERNANCE_DIR` environment variable. A clean run immediately after,
+> with nothing else running, was **2,346 / 112, zero failures**. Worth knowing
+> before believing a failure: check what else is running first. This is a
+> property of the harness, not of the code, and it is the reason finding 146's
+> diagnosis started by re-running the file alone.
 
 > **Two things changed on 2026-08-25 that make older notes misleading.**
 >
@@ -906,8 +966,7 @@ is exactly what those two tables exist to make cheap.
 > the one actually timing out, with no warning attached to it at all.
 >
 > Both now drive rotation through a lowered threshold instead of writing 8 MB:
-> twelve entries each, 5.7 seconds for both files, no load sensitivity. **A
-> failure in either is now a regression and should be believed.** A caveat
+> twelve entries each, 5.7 seconds for both files, no load sensitivity. **A failure in either is now a regression and should be believed** — and on 2026-08-29 that sentence was found to name **two of three** files. `hardening.test.ts` had the same shape, reached the rule-request cap by writing 525 entries, and timed out inside a full run while passing alone (finding 146). It now uses the same seam. _A caveat covering some of the cases teaches a reader to dismiss the ones it does not_ — which is the reason the original was written, and it happened anyway. A caveat
 > covering some of the cases teaches a reader to dismiss the ones it does not,
 > which is why this was fixed rather than extended to cover the second file.
 
@@ -1002,6 +1061,71 @@ regression introduced here.
 ---
 
 ## 5. What was done in the most recent stretch of work
+
+### 2026-08-28 / 29 — the whole session, in order
+
+The longest stretch of work in the project, and unusually it produced almost no
+new capability: **eleven findings (135–145) across seven QA rounds**, plus the
+Linux install and the last of the backlog Claude could close alone. What follows
+is the order it happened in, because several items only exist because the one
+before them did.
+
+**Round 22 — the documentation audited against the code.** Every number the
+2026-08-27 write-up asserted was re-measured. **136**: T16's 700-line limit had
+regressed **in the commit whose documentation declared it clean**, and a sweep the
+next day repeated the claim without running the command. **135**: inserting the
+intent field orphaned `entryKind`'s documentation. Four stale claims corrected,
+including a requirements table that said #9 was "Met" while the same file's
+validation section said "Partially met".
+
+**T33 — the fork installs on Linux.** Neither of upstream's install routes can
+deliver a fork; both fetch upstream's npm package. Kinan chose a **bare source
+build** so the VPS looks like a normal install. `scripts/vps-install.sh`,
+`scripts/start-governance.sh` and `docs-notes/LINUX-INSTALL.md`, verified on
+Ubuntu 24.04: installer exit 0, `openclaw` on PATH reporting 2026.8.1.
+
+**Round 23 — building it found the check that never ran.** **137**:
+`governance-linux-check.mjs` had **never executed once** in the seventeen days
+since it was written, for three stacked reasons, while the report cited it as
+"14 checks, all passed" evidence for requirement #9. **138** exists only because
+137 was fixed: with it finally running, a check failed immediately because M5 had
+changed a signature underneath it two days earlier.
+
+**Setup parity.** Kinan asked that setup be "just like normal OpenClaw". Checking
+found it was not: the work had shipped a hand-written systemd unit beside
+`openclaw daemon install`, which already does the job. Unit deleted.
+
+**Lane A, all eight items.** T31 (16 lint errors) closed _first_, so the new
+pre-commit lint gate would start from zero rather than teach people `--no-verify`.
+The gate was proven by planting an error. A panel extraction, the pre-M3 route
+audit (**139** — live sessions never scoped by group, five call sites), the
+sanitiser guard (whose first version was **inert**, because `tsconfig.core.json`
+excludes test files), the intent field surfaced in the dashboard, T29's
+register-coverage half, and `docs-notes/T2-LIVE-RUN.md`.
+
+**Round 25 — is every feature reachable from the dashboard?** **140**: two
+Root-only policy settings worked end to end and had no control anywhere. This is
+requirement 2's real test, and the rule to quote is the eleventh pass's: _a
+policy tier settable only from code does not satisfy "configure customized
+privilege policies"._
+
+**Round 26 — the universal sweep.** **141–143**, and all three were in that same
+day's own code. **141** is the instructive one: `--port` was parsed inside
+`for arg in "$@"` while `shift` mutated the parameters underneath the loop, so
+`--port 18789` worked _by luck_ and `--background --port 18789` did not.
+
+**Round 27 — the multi-tenancy re-audit.** **144**, the most serious of the
+session: the emergency stop terminated from the machine-wide run registry, so an
+Administrator of one organisation could **stop another organisation's work**.
+Fixed as a class with `requireAgentInGroup`.
+
+**Round 28 — one agent, one organisation.** **145**, and a request the code
+refused: see the 2026-08-29 entry in §1 before anyone revisits agent-id casing.
+
+**Two decisions settled by Kinan, both recorded in §0.** Entropy analysis will
+not be built. And the line that matters more: the implementation **may** diverge
+from §1.6's preliminary design and Chapter 2's background; it **may not** diverge
+from §1.3's nine requirements, which come from the supervisor.
 
 ### M1–M4 — the multi-tenancy feature begins (2026-08-24)
 
@@ -1586,47 +1710,23 @@ Of the eight left, four are yours (**T2, T3, T17, T18**), one is deprioritised
 one waits on T7's decision (**T32** — the M-series it also waited on is finished).
 Sorted below by who has to move first.
 
-> **Seven items are outstanding that have never had a T-number**, added on
-> 2026-08-27 and 2026-08-28 and listed here so the backlog's arithmetic is not
-> the only place they exist. Five need nothing from you:
+> **What used to be listed here as un-numbered outstanding items is now down to
+> two, and both are decisions rather than work.** Five were closed on
+> 2026-08-28: flag-style masking was re-scoped and found to be almost entirely
+> done already, the 700-line headroom was extracted, the pre-M3 route audit ran
+> (finding 139), the sanitiser guard was built, and the intent field reached the
+> dashboard.
 >
-> - **Flag-style password masking** — **re-scoped 2026-08-28, and it is nearly
->   done already.** A probe of `redactSensitiveText(…, { mode: "tools" })` found
->   `--password=`, `--password `, `--token=`, `--token `, `--api-key=`,
->   `--client-secret=` and **both URL-credential forms already masked by
->   upstream's own redactor**, which the ledger has always called. Of the four
->   spellings the decision named, only **`--http-password=` leaks**. What was
->   estimated at 2–3 hours is one compound key plus a scan of the key list — but
->   it touches `src/logging/redact.ts`, **upstream code**, so it grows the fork
->   diff §3.5.2b measures. A bare `-p` stays deliberately excluded: it means
->   "make parent directories" to `mkdir` and "publish a port" to `docker`, and
->   masking those would make the ledger say something other than what ran
-> - **The 700-line limit has three lines of headroom** on
->   `governance-page.ts` (697 of 700, measured 2026-08-28). Finding 136 was this
->   file crossing it unnoticed; nothing stops the next panel doing the same,
->   because **nothing in this fork runs `max-lines` automatically** — it is
->   checked only when somebody types the command. Either extract another panel
->   now or put the lint command in the verification list you actually run
-> - **The pre-M3 route audit**, which `REMAINING-WORK.md` records as unfinished:
->   _every route written before groups existed still deserves the question "does
->   this cross a group?"_. Finding 119 was one consequence; nobody has checked
->   for others
-> - **A sanitiser guard.** Finding 133 happened because the Viewer mask is a
->   hand-maintained list and a new ledger field did not inherit it. A test that
->   fails when a field is added without being classified would stop the next one
->
-> And two are decisions:
->
-> - ~~**Entropy analysis.**~~ **SETTLED 2026-08-28 — not being built, and this
->   is no longer a decision.** §2.1.5.2 prescribes "regex **and** entropy
->   analysis" and only regex exists. That is a **deliberate divergence from
->   Chapter 2's background**, which is allowed; §1.3's requirements are what bind
->   the project, and requirement 8 is about the _outcome_ — no plaintext secrets
->   in the log — not about the technique. Supporting reasons, for the write-up:
->   it would not have caught finding 131, and it cannot catch a memorable
->   password, which is low-entropy by definition. Do not re-open it
-> - **Surfacing the intent field.** It is recorded and returned by the API; no
->   dashboard column reads it. Recording was the scope you set
+> - **`--http-password=` still reaches the ledger in plaintext.** The one leak
+>   the round-twenty-two probe found; every other spelling the decision named was
+>   already masked by upstream's own redactor. **This is a gap against
+>   requirement 8, which binds** — not a background divergence like entropy
+>   analysis — so Kinan's clarification about §1.3 makes it more pressing rather
+>   than less. The fix is one key in a list; the cost is that it edits
+>   `src/logging/redact.ts`, which is upstream code, so the fork diff §3.5.2b
+>   measures grows by it.
+> - ~~**Entropy analysis.**~~ **SETTLED 2026-08-28 — not being built.** See §0.
+>   Do not re-open it.
 
 ### Do this before anything else
 
@@ -1666,6 +1766,14 @@ F1 closed once already.
 | **T13**     | The prompt-injection defence answer is **drafted** (§4.x.26) — read it and make it yours. You have to be able to give it without notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | 30 min   |
 
 ### Mine, and nothing blocks them
+
+> **This section is empty as of 2026-08-29.** Every item Claude could close alone
+> is closed — the eight-item Lane A list finished on 2026-08-28, and T31, T29 and
+> T33 with it. What remains needs Kinan: a live model (T2), a server (T3), a
+> judgement about the report's look (T17), the writing itself (T18), thirty
+> minutes of reading (T13), and three decisions (`--http-password`, T7
+> prevention, and T32 which waits on T7). The rows below are kept as the record
+> of what was done.
 
 | #           | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Effort   |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
@@ -1846,10 +1954,22 @@ Stated here so they are not discovered late.
 
 ## 8. If you only do one thing
 
-**Push to the private remote, then run it once with a real agent (T2).**
+**Run it once with a real agent (T2), and follow `docs-notes/T2-LIVE-RUN.md`.**
 
-The push was done on 2026-08-28 and took under a minute. **35 commits** had never
-left this machine (2026-08-26) — the sixteenth QA pass, T9, T24, T26, T4, T27,
+This slot has been occupied by two other things and both are now closed. F1 —
+losing everything — closed 2026-08-21. **The push closed 2026-08-28**, and
+nothing has been left unpushed since; check with
+`git log --oneline personal/governance-layer..HEAD | wc -l` rather than trusting
+this sentence, but the habit now is to push after every commit.
+
+**T2 is scripted as of 2026-08-28.** `docs-notes/T2-LIVE-RUN.md` has the
+scenario and why that one, the exact commands, the **contrast prompt** that turns
+a single refusal into evidence, the capture checklist, what a _failed_ run means
+and why it is still publishable, and the `jq` recipe for the one question no
+further testing can close. Budget 30–45 minutes, not a day.
+
+_The paragraph below is kept for the record of what the push involved._ **35
+commits** had never left this machine (2026-08-26) — the sixteenth QA pass, T9, T24, T26, T4, T27,
 T5, T14, T15, T23, QA rounds seventeen and eighteen, M1–M4, T25, T28, and T16
 and T6 in full — so a fortnight of work exists here and in OneDrive only. F1,
 the item that used to occupy this slot and the only one whose failure mode was

@@ -85,15 +85,39 @@ async function loadCache(): Promise<Map<string, string>> {
   }
   const file = await readJsonIfExists<AgentsFileShape>(path);
   const next = new Map<string, string>();
+  // Ids seen more than once after canonicalisation. Their group is **withdrawn**
+  // rather than guessed — see below.
+  const ambiguous = new Set<string>();
   for (const row of file?.agents ?? []) {
     // A row missing either half is skipped rather than defaulted. An agent with
     // no group is exactly the case mandatory registration refuses, and giving
     // it one here would be inventing the answer the refusal exists to withhold.
-    if (row?.id && row?.groupId) {
-      // Keyed canonically so a registry written before finding 128 was fixed
-      // still resolves, rather than silently governing nothing.
-      next.set(normalizeAgentId(row.id), row.groupId);
+    if (!row?.id || !row?.groupId) {
+      continue;
     }
+    // Keyed canonically so a registry written before finding 128 was fixed
+    // still resolves, rather than silently governing nothing.
+    const key = normalizeAgentId(row.id);
+    const seen = next.get(key);
+    if (seen !== undefined && seen !== row.groupId) {
+      // **Two rows, one agent, two different organisations (finding 145).**
+      //
+      // `Map.set` would keep the last row read, so which organisation governs a
+      // real agent would be decided by file order — silently, and differently
+      // after any rewrite. That is the one outcome this module exists to
+      // prevent: its own header says there is "no third answer that quietly
+      // picks a rulebook", and quietly picking one of two is exactly that.
+      //
+      // Registration now refuses to create this (see `registerAgent`), so it is
+      // only reachable on a registry written before finding 128 or edited by
+      // hand. Withdrawing the id makes the gate refuse that agent, which is
+      // loud, safe and fixed by an operator deleting the stale row.
+      ambiguous.add(key);
+    }
+    next.set(key, row.groupId);
+  }
+  for (const key of ambiguous) {
+    next.delete(key);
   }
   cache = { path, agents: next };
   return next;

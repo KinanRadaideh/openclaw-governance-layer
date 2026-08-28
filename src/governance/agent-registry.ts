@@ -329,7 +329,20 @@ export async function registerAgent(
     // "not taken", both pass, and leave two records for one agent — the same
     // race the Root cap has been checked inside its own lock for since it
     // existed.
-    if (file.agents.some((agent) => agent.id === id)) {
+    // **Compared canonically on both sides (finding 145).**
+    //
+    // `id` is already canonical; `agent.id` is whatever that row stores. Since
+    // finding 128 every row is written canonically, so for any registry created
+    // after that fix the two forms agree and this is the same comparison it
+    // always was.
+    //
+    // A registry written *before* it can still hold `"Scout"`, and comparing
+    // that against `"scout"` said "not taken" — leaving two rows that both
+    // resolve to one agent, with `resolveAgentGroup` silently keeping whichever
+    // came last. Two organisations could then each hold a record for one real
+    // agent, which is the exact shape finding 128 closed at the gate and this
+    // left open at the door.
+    if (file.agents.some((agent) => canonicalAgentId(agent.id) === id)) {
       throw new DuplicateAgentError(id);
     }
     assertOwnerEligible(accounts, input.adminId, input.groupId);

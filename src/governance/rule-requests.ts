@@ -81,14 +81,49 @@ export const MAX_PENDING_REQUESTS_PER_USER = 20;
  */
 export const MAX_STORED_RULE_REQUESTS = 500;
 
+/**
+ * Test-only override of the cap, in the shape `setLedgerRotateBytesForTests`
+ * already uses — same problem, third occurrence (finding 146).
+ *
+ * The tests that prove pruning works reached the real cap **by writing to it**:
+ * 525 requests, each submitted and then decided, and every one of those writes
+ * rewrites the whole file with a durable `fsync`. That took 76 seconds alone and
+ * timed out inside a full suite run, where it competes with everything else —
+ * so the test reported on machine load rather than on the code.
+ *
+ * T30 fixed exactly this twice, for the two ledger-rotation tests, and wrote
+ * that a failure in either should now be believed. **This file was the third
+ * instance and was not covered by that**, which is the part worth keeping: a
+ * caveat naming two of three cases teaches a reader to dismiss the third.
+ *
+ * The property under test — *the oldest decided requests are dropped and pending
+ * ones never are* — has nothing to do with the number 500. A dozen entries prove
+ * it deterministically. The production default is asserted separately, so
+ * lowering it here cannot hide a change to the real one.
+ *
+ * Not reachable from configuration, a policy file, or the network: an exported
+ * function a test calls.
+ */
+let storedCapOverride: number | undefined;
+
+/** Test-only: exercise pruning without writing the full cap. */
+export function setMaxStoredRuleRequestsForTests(cap: number | undefined): void {
+  storedCapOverride = cap;
+}
+
+function storedCap(): number {
+  return storedCapOverride ?? MAX_STORED_RULE_REQUESTS;
+}
+
 /** Drops the oldest decided requests until the store is within its cap. */
 function pruneDecided(requests: RuleRequest[]): RuleRequest[] {
-  if (requests.length <= MAX_STORED_RULE_REQUESTS) {
+  const cap = storedCap();
+  if (requests.length <= cap) {
     return requests;
   }
   const pending = requests.filter((request) => request.status === "pending");
   const decided = requests.filter((request) => request.status !== "pending");
-  const keepDecided = Math.max(0, MAX_STORED_RULE_REQUESTS - pending.length);
+  const keepDecided = Math.max(0, cap - pending.length);
   // `requests` is append-ordered, so the tail is the most recent.
   // `slice(-0)` is `slice(0)` — the whole array, not an empty one. Once pending
   // filled the budget this silently returned every decided request ever made

@@ -4368,3 +4368,104 @@ said "forbidden" attached to a status that said "fine".
 Worth remembering in both directions: **scaffolding that cannot see a refusal
 will report a working control as broken, and on a worse day will report a broken
 one as working.**
+
+## 5.60 One agent, one organisation — and a fix we did not make
+
+The question was simple: can an agent belong to more than one organisation? The
+answer is no, and it is no in four separate places — the record has a single
+slot for it, names are unique across the whole installation, the system looks the
+answer up on every single action, and handing an agent to someone in another
+organisation is refused outright.
+
+Answering it properly turned up a narrow gap, and also a change we were asked to
+make and did not.
+
+### The change we did not make
+
+The explanation above was read as saying that agent names ignore capital letters
+**because we decided so**, and the reasonable follow-up was: they shouldn't, make
+them case-sensitive.
+
+They ignore capital letters because **OpenClaw decided so**, not us. The
+underlying framework lowercases every agent name to build what it calls a
+"filesystem-safe" form, and around nine hundred places across the framework —
+message routing, session identity, folder names — depend on that. On Windows and
+Macs, the folder for `Scout` and the folder for `scout` are the same folder no
+matter what the code thinks.
+
+Making our part case-sensitive would recreate a bug we had already fixed once. The
+framework would file the agent's activity under `scout`, our checks would look for
+`Scout`, the two would never meet, and the agent would appear correctly set up
+while being refused on every single action — with nothing anywhere explaining
+why. That was one of the worse bugs this project has had.
+
+So the request was declined, and the actual gap underneath it was fixed instead.
+
+### The actual gap
+
+When registering an agent, the check for "is this name taken?" compared the
+tidied-up new name against each stored name **exactly as it was written down**.
+Since the earlier fix every name is stored tidied-up, so the two always matched
+— but a records file written _before_ that fix could still contain `Scout`, and
+`Scout` does not look equal to `scout`.
+
+So two entries could exist for one real agent, owned by two different
+organisations. And when the system built its lookup table, it kept whichever one
+appeared **last in the file**.
+
+Which meant: whose rules govern a real agent could be decided by the order of
+lines in a file. Silently, and differently after any rewrite of it.
+
+### Fixed at both ends, because either alone leaves a hole
+
+Registering now compares tidied-up names on both sides, so the situation cannot
+be created any more.
+
+And if a file already contains it, the system now **refuses to answer** for that
+agent rather than guessing. The agent stops working, loudly, and an operator
+fixes it by deleting the stale line. That is much better than it quietly working
+under the wrong organisation's rules.
+
+Two things deliberately still work. Two entries that **agree** on the
+organisation are untidy rather than contradictory, so they still resolve — there
+is only one right answer, and refusing would cost somebody their agent over a
+messy file. And the refusal is targeted: one bad pair does not take unrelated
+agents down with it, which would turn a stale line into an outage.
+
+## 5.61 A test that measured the machine instead of the code
+
+Found by running the whole suite at the end of the session rather than by
+reading anything: **one test failed in the full run and passed on its own.**
+
+The test proves that old, already-answered requests get cleaned up once the
+store gets too full. It proved it by actually filling the store — 525 requests,
+each one submitted and then answered, and every single one of those steps
+rewrites the whole file and waits for the disk to confirm it. Seventy-six seconds
+on its own, and a timeout when run alongside everything else competing for the
+same disk.
+
+So on a busy machine it failed, and on a quiet one it passed. It was reporting on
+the computer, not on the code.
+
+### We had already fixed this twice
+
+An earlier round found the same shape in two other tests and fixed both, then
+wrote a note saying a failure in **either of those two** should now be believed
+rather than shrugged off.
+
+This was a third file with the same problem, and the note did not cover it.
+
+> **A warning that names some of the cases teaches people to dismiss the ones it
+> does not.** That was the exact reason the original note was written — and it
+> happened anyway, to the note itself.
+
+### The fix
+
+The thing being tested is _which_ requests get dropped and which are protected.
+That has nothing to do with the number five hundred. A dozen entries settle it
+just as well, and settle it the same way every time.
+
+So the limit can now be turned down for tests, using the same mechanism the
+earlier fix used. Seventy-six seconds became seven, and the result no longer
+depends on what else the machine is doing. The real limit is checked on its own
+line, so turning it down for a test cannot hide somebody changing the real one.
