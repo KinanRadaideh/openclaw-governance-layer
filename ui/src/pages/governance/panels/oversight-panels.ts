@@ -69,6 +69,41 @@ export type DeploymentPanelProps = {
   role: GovernanceRole | undefined;
 };
 
+export type FreshnessProps = {
+  /** `null` until the first refresh completes, which is when there is nothing to date. */
+  lastRefreshedAt: number | null;
+  /** True when the last refresh returned some sections and failed others. */
+  partialFailure: boolean;
+};
+
+/**
+ * States how current the page is.
+ *
+ * Everything here is oversight information, so "when was this true?" is part of
+ * the information. Nothing refreshed on its own before and nothing said how old
+ * the view was, so "no agent sessions running" could be hours stale on the panel
+ * meant to catch a runaway agent.
+ *
+ * **Moved out of `governance-page.ts` on 2026-08-28**, and the reason is worth a
+ * line. It was the last piece of markup left in the page, which the split (T16)
+ * had established should hold state and effects only — and M6's registry wiring
+ * pushed the file from 696 code lines back over the 700-line limit T16 closed.
+ * The limit was reported as clean in the same commit that broke it, so the
+ * regression survived a documentation pass that asserted its absence. Extracting
+ * the one thing that was already in the wrong file fixes both.
+ */
+export function renderFreshness(props: FreshnessProps): TemplateResult | typeof nothing {
+  if (props.lastRefreshedAt === null) {
+    return nothing;
+  }
+  if (props.partialFailure) {
+    return html`<div class="settings-empty" role="status">
+      ${t("governance.freshness.partial")}
+    </div>`;
+  }
+  return nothing;
+}
+
 export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
   const { verification, ledger, ledgerFilter, busy, onFilter, onVerify } = props;
   // Administrative entries and agent entries answer different questions, and

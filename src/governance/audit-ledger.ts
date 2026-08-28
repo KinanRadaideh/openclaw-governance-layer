@@ -59,18 +59,6 @@ export type LedgerEntry = {
   prevHash: string;
   hash: string;
   /**
-   * Marks an entry as an administrative action rather than an agent action.
-   *
-   * Design requirement #5 asks for agent actions, policy decisions **and
-   * administrative approvals**. The first two were recorded from the start; the
-   * third was not recorded anywhere, so the ledger could say everything about
-   * what an agent did and nothing about who changed the rules it was judged by.
-   * For an accountability system that is the more important half.
-   *
-   * Absent on agent entries — see `canonicalPayload` for why absence rather
-   * than an explicit `"agent"` value.
-   */
-  /**
    * What the model said it was doing on the turn that produced this call.
    *
    * §1.6's "Granular Event Tracking" asks the log to capture the **raw LLM
@@ -88,6 +76,18 @@ export type LedgerEntry = {
    * this field existed. See `agent-intent.ts`.
    */
   intent?: string;
+  /**
+   * Marks an entry as an administrative action rather than an agent action.
+   *
+   * Design requirement #5 asks for agent actions, policy decisions **and
+   * administrative approvals**. The first two were recorded from the start; the
+   * third was not recorded anywhere, so the ledger could say everything about
+   * what an agent did and nothing about who changed the rules it was judged by.
+   * For an accountability system that is the more important half.
+   *
+   * Absent on agent entries — see `canonicalPayload` for why absence rather
+   * than an explicit `"agent"` value.
+   */
   entryKind?: "admin";
   /**
    * The named account responsible for an administrative action, or `"cli"` for

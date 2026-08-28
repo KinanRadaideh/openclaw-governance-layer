@@ -2,7 +2,7 @@
 // policy-based governance layer — login/role identity, default-deny policy
 // rules, the tamper-evident audit ledger, and the emergency kill switch.
 import { consume } from "@lit/context";
-import { html, nothing, type TemplateResult } from "lit";
+import { html, nothing } from "lit";
 import { state } from "lit/decorators.js";
 import type { GovernanceRole } from "../../../../src/governance/roles.ts";
 import { applicationContext, type ApplicationContext } from "../../app/context.ts";
@@ -65,6 +65,7 @@ import {
 } from "./panels/agent-registry-panels.ts";
 import {
   renderDeploymentSection,
+  renderFreshness,
   renderLedgerSection,
   renderSystemSection,
 } from "./panels/oversight-panels.ts";
@@ -880,26 +881,6 @@ class GovernancePage extends OpenClawLightDomElement {
     }
   }
 
-  /**
-   * States how current the page is.
-   *
-   * Everything here is oversight information, so "when was this true?" is part
-   * of the information. Nothing refreshed on its own before and nothing said
-   * how old the view was, so "no agent sessions running" could be hours stale on
-   * the panel meant to catch a runaway agent.
-   */
-  private renderFreshness(): TemplateResult | typeof nothing {
-    if (this.lastRefreshedAt === null) {
-      return nothing;
-    }
-    if (this.partialFailure) {
-      return html`<div class="settings-empty" role="status">
-        ${t("governance.freshness.partial")}
-      </div>`;
-    }
-    return nothing;
-  }
-
   override render(): unknown {
     if (this.loading) {
       return renderSettingsPage(renderSettingsEmpty(t("governance.loading")));
@@ -924,8 +905,11 @@ class GovernancePage extends OpenClawLightDomElement {
     return renderSettingsPage(
       html`
         ${this.error ? html`<div class="settings-empty" role="alert">${this.error}</div>` : nothing}
-        ${this.renderFreshness()} ${renderKillNotice(this.killNotice)}
-        ${renderConflictNotice(policyProps)}
+        ${renderFreshness({
+          lastRefreshedAt: this.lastRefreshedAt,
+          partialFailure: this.partialFailure,
+        })}
+        ${renderKillNotice(this.killNotice)} ${renderConflictNotice(policyProps)}
         ${renderRuleWarnings(this.ruleWarnings, () => {
           this.ruleWarnings = null;
         })}
