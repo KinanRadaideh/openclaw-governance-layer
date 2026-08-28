@@ -172,7 +172,9 @@ export async function terminateAgentRuns(agentId: string): Promise<TerminationOu
   const deadline = Date.now() + CONFIRM_STOPPED_TIMEOUT_MS;
   let stillRunning = probe(abortedRunIds);
   while (stillRunning.length > 0 && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, CONFIRM_POLL_INTERVAL_MS));
+    await new Promise((resolve) => {
+      setTimeout(resolve, CONFIRM_POLL_INTERVAL_MS);
+    });
     stillRunning = probe(abortedRunIds);
   }
   return {

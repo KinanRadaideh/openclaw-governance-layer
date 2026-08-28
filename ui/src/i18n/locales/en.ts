@@ -3610,6 +3610,12 @@ export const en: TranslationMap = {
       effectDeny: "forbid",
       effectHint:
         "A forbid rule is checked before every allow rule and cannot be overridden by one — use it for something the agent must never do, whatever else permits it.",
+      evaluationTitle: "How these rules are read",
+      evaluationHint:
+        "Forbid beats allow, always. Every forbid rule is checked first, whatever tier it belongs to, so a narrow forbid carves an exception out of a broad allow — grant a folder, forbid one subfolder inside it, and the subfolder stays out of reach. Order in this list does not decide anything; effect does.",
+      searchCaveatTitle: "One place a forbid rule does not reach yet",
+      searchCaveatHint:
+        "A forbid rule stops a file being opened. It does not stop a search finding it: grep, find and ls are judged on the folder they start from, then read everything beneath it. A search rooted above a forbidden path can still return that path's contents. Every time this happens it is written to the audit trail as an ungoverned read, so it is visible — but it is not prevented. Do not rely on a forbid rule alone to keep a folder out of a search.",
       accessLabel: "Read or write",
       accessBoth: "read + write",
       accessRead: "read only",
@@ -3721,6 +3727,39 @@ export const en: TranslationMap = {
       timedOut: "timed out",
       allow: "Would allow",
       deny: "Keep denied",
+    },
+    agents: {
+      title: "Agents in your organisation",
+      none: "No agents yet",
+      noneHint: "Create one below, or register an agent OpenClaw already has.",
+      ownedBy: "Owned by {owner}",
+      unregisteredHint:
+        "This agent exists in OpenClaw but is not governed, so every tool call it makes is refused. Register it to bring it under your policy.",
+      register: "Register",
+      remove: "Remove…",
+      cancelRemove: "Keep this agent",
+      unregister: "Remove from governance",
+      unregisterExplain:
+        "Stops governing it. The agent keeps running in OpenClaw and its workspace is untouched — but because unregistered agents are refused, it will stop being able to do anything until it is registered again. Reversible.",
+      delete: "Delete the agent",
+      deleteExplain:
+        "Removes it from governance AND deletes it from OpenClaw entirely, including its workspace and transcripts. Cannot be undone.",
+      confirmUnregister: "Stop governing “{name}”?",
+      confirmUnregisterDetails:
+        "The agent and its workspace stay exactly as they are. It will be refused on every tool call until it is registered again, and you can register it again at any time.",
+      confirmDelete: "Permanently delete “{name}”?",
+      confirmDeleteDetails:
+        "This deletes the agent from OpenClaw, not just from governance. Its workspace and transcripts go with it. This cannot be undone.",
+      createTitle: "Create an agent",
+      createHint:
+        "Creates a real OpenClaw agent and records it here in one step. You own it, and it is governed from the moment it exists.",
+      nameLabel: "Agent name",
+      idLabel: "Agent id",
+      idPlaceholder: "Optional — derived from the name",
+      workspaceLabel: "Workspace",
+      workspacePlaceholder: "Optional — OpenClaw chooses one",
+      create: "Create agent",
+      created: "Created {id}, and OpenClaw has picked it up.",
     },
     conversation: {
       title: "Your agents",

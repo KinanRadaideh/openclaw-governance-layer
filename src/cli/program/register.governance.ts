@@ -213,6 +213,10 @@ export function registerGovernanceCommands(program: Command): void {
         options: { stream?: boolean; attach?: string[] },
       ) => {
         await runCommandWithRuntime(defaultRuntime, async () => {
+          const actor = await requireCliActor(defaultRuntime, "prompt an agent", () => true);
+          if (!actor) {
+            return;
+          }
           // Registered lazily, on use. Importing the agent stack at module load
           // would make every `openclaw governance ...` invocation — including
           // `policy show` — pay for a capability almost none of them need.
@@ -268,7 +272,7 @@ export function registerGovernanceCommands(program: Command): void {
             const { basename } = await import("node:path");
             const { storeAttachment } = await import("../../governance/attachment-store.js");
             try {
-              const stored = await storeAttachment({
+              const stored = await storeAttachment(actor.groupId, {
                 content: new Uint8Array(await readAttachment(path)),
                 declaredName: basename(path),
                 storedBy: promptIdentity.username,
@@ -284,7 +288,7 @@ export function registerGovernanceCommands(program: Command): void {
               // one step: from here a ledger entry will name the file, so it is
               // no longer the uploader's to discard (QA round 17, finding 113).
               const { markAttachmentUsed } = await import("../../governance/attachment-store.js");
-              await markAttachmentUsed(stored.sha256);
+              await markAttachmentUsed(actor.groupId, stored.sha256);
               defaultRuntime.log(
                 `attached ${stored.declaredName} (${stored.mimeType}, ${stored.bytes} bytes)`,
               );
@@ -295,7 +299,7 @@ export function registerGovernanceCommands(program: Command): void {
           }
           let printed = 0;
           try {
-            const outcome = await promptAgent({
+            const outcome = await promptAgent(actor.groupId, {
               agentId,
               username: promptIdentity.username,
               message: messageParts.join(" "),
@@ -352,7 +356,12 @@ export function registerGovernanceCommands(program: Command): void {
           defaultRuntime.log("Not signed in. Run `openclaw governance login` first.");
           return;
         }
-        const turns = await readConversation(agentId, reader.username);
+        const readerGroup = reader.groupId?.trim();
+        if (!readerGroup) {
+          defaultRuntime.log("Your account does not belong to an organisation.");
+          return;
+        }
+        const turns = await readConversation(readerGroup, agentId, reader.username);
         const shown = Number.isFinite(limit) && limit > 0 ? turns.slice(-limit) : turns;
         if (shown.length === 0) {
           defaultRuntime.log(`no conversation with "${agentId}" from this machine`);
@@ -387,6 +396,14 @@ export function registerGovernanceCommands(program: Command): void {
     .option("--strict", "exit non-zero when any check fails")
     .action(async (options: { json?: boolean; strict?: boolean }) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
+        const actor = await requireCliActor(
+          defaultRuntime,
+          "read the deployment report",
+          () => true,
+        );
+        if (!actor) {
+          return;
+        }
         // Lazy: these pull in the security audit and the config loader, and
         // `governance policy show` should not pay for them.
         const { resolveDeploymentEnvironmentInput } =
@@ -396,6 +413,7 @@ export function registerGovernanceCommands(program: Command): void {
           await import("../../config/config.js");
         const cfg = getRuntimeConfig();
         const status = await readDeploymentStatus(
+          actor.groupId,
           resolveDeploymentEnvironmentInput({
             cfg,
             sourceConfig: getRuntimeConfigSourceSnapshot() ?? cfg,
@@ -466,7 +484,12 @@ export function registerGovernanceCommands(program: Command): void {
           defaultRuntime.log("Not signed in. Run `openclaw governance login` first.");
           return;
         }
-        const sessionsPolicy = await loadPolicy();
+        const viewerGroup = viewer.groupId?.trim();
+        if (!viewerGroup) {
+          defaultRuntime.log("Your account does not belong to an organisation.");
+          return;
+        }
+        const sessionsPolicy = await loadPolicy(viewerGroup);
         const view = listActiveSessions({
           actor: toCliActor(viewer),
           lockedAgents: sessionsPolicy.lockedAgents,
@@ -490,7 +513,11 @@ export function registerGovernanceCommands(program: Command): void {
     .description("Show the pending-decision stack, newest first")
     .action(async () => {
       await runCommandWithRuntime(defaultRuntime, async () => {
-        defaultRuntime.log(JSON.stringify(await listPendingDecisions(), null, 2));
+        const actor = await requireCliActor(defaultRuntime, "list pending decisions", () => true);
+        if (!actor) {
+          return;
+        }
+        defaultRuntime.log(JSON.stringify(await listPendingDecisions(actor.groupId), null, 2));
       });
     });
 
@@ -504,7 +531,15 @@ export function registerGovernanceCommands(program: Command): void {
         if (options.allow === options.deny) {
           throw new Error("specify exactly one of --allow or --deny");
         }
-        const decided = await decidePendingDecision({
+        const actor = await requireCliActor(
+          defaultRuntime,
+          "decide a pending decision",
+          () => true,
+        );
+        if (!actor) {
+          return;
+        }
+        const decided = await decidePendingDecision(actor.groupId, {
           id,
           allow: Boolean(options.allow),
           decidedBy: "cli",
@@ -532,7 +567,11 @@ export function registerGovernanceCommands(program: Command): void {
     .option("--limit <n>", "number of entries", "50")
     .action(async (options: { limit: string }) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
-        const entries = await tailLedger(Number(options.limit));
+        const actor = await requireCliActor(defaultRuntime, "read the ledger", () => true);
+        if (!actor) {
+          return;
+        }
+        const entries = await tailLedger(actor.groupId, Number(options.limit));
         defaultRuntime.log(JSON.stringify(entries, null, 2));
       });
     });
@@ -542,7 +581,11 @@ export function registerGovernanceCommands(program: Command): void {
     .description("Recompute the hash chain and report the first tampered entry, if any")
     .action(async () => {
       await runCommandWithRuntime(defaultRuntime, async () => {
-        const result = await verifyLedgerChain();
+        const actor = await requireCliActor(defaultRuntime, "verify the ledger chain", () => true);
+        if (!actor) {
+          return;
+        }
+        const result = await verifyLedgerChain(actor.groupId);
         defaultRuntime.log(JSON.stringify(result, null, 2));
         if (!result.ok) {
           defaultRuntime.exit(1);
@@ -556,12 +599,18 @@ export function registerGovernanceCommands(program: Command): void {
     .option("--release", "Release a previously engaged lockdown instead")
     .action(async (agentId: string, options: { release?: boolean }) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
+        // The kill switch acts on one organisation's agent, so the lockdown and
+        // the administrative entry recording it both land in that organisation.
+        const killActor = await requireCliActor(defaultRuntime, "stop an agent", () => true);
+        if (!killActor) {
+          return;
+        }
         if (options.release) {
-          await releaseAgentLockdown(agentId, "cli");
+          await releaseAgentLockdown(killActor.groupId, agentId, "cli");
           defaultRuntime.log(`governance lockdown released for agent "${agentId}"`);
           return;
         }
-        const outcome = await lockDownAgent(agentId, "cli");
+        const outcome = await lockDownAgent(killActor.groupId, agentId, "cli");
         defaultRuntime.log(
           `governance lockdown engaged for agent "${agentId}" in ${outcome.elapsedMs.toFixed(1)}ms`,
         );

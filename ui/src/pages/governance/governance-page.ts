@@ -58,6 +58,11 @@ import {
   type PendingDecisionsProps,
 } from "./panels/agent-panels.ts";
 import { renderAgentPolicySection } from "./panels/agent-policy-lookup.ts";
+import type { AgentRegistryPageProps } from "./panels/agent-registry-panels.ts";
+import {
+  AgentRegistryController,
+  renderAgentRegistrySection,
+} from "./panels/agent-registry-panels.ts";
 import {
   renderDeploymentSection,
   renderLedgerSection,
@@ -110,6 +115,14 @@ class GovernancePage extends OpenClawLightDomElement {
    * refresh flag rather than by emptiness.
    */
   @state() private agents: GovernanceAgentEntry[] = [];
+  /**
+   * The registry panel's half-typed form and its open chooser (M6).
+   *
+   * One object rather than six fields, matching the accounts panel: a panel
+   * with several inputs otherwise needs a setter per field, and the last one
+   * added is the one somebody forgets to wire.
+   */
+  private readonly agentRegistry = new AgentRegistryController(this);
   @state() private agentPolicyError: string | null = null;
   /**
    * Policies → agents, keyed by rule id.
@@ -300,10 +313,15 @@ class GovernancePage extends OpenClawLightDomElement {
    * conversation props, and assembling those separately is how two sections
    * come to disagree about whether a prompt is still in flight.
    */
-  private agentPanelProps(): AgentsSectionProps & PendingDecisionsProps {
+  // The registry panel's own drafts come from its controller, spread at the call
+  // site so its `onDraft` wins over this bundle's — see `slice()`.
+  private agentPanelProps(): AgentsSectionProps & PendingDecisionsProps & AgentRegistryPageProps {
     return {
       ...this.effects(),
       busy: this.busy,
+      agents: this.agents,
+      administrators: this.administrators(),
+      refresh: () => this.refreshData(),
       policy: this.policy,
       identity: this.identity,
       canAdminister: this.canAdminister(),
@@ -921,6 +939,7 @@ class GovernancePage extends OpenClawLightDomElement {
             this.policy = null;
           },
         })}
+        ${renderAgentRegistrySection({ ...agentProps, ...this.agentRegistry.slice() })}
         ${renderAgentsSection(agentProps)} ${renderPendingDecisionsSection(agentProps)}
         ${renderActiveSessionsSection({
           ...agentProps,
@@ -1006,4 +1025,16 @@ class GovernancePage extends OpenClawLightDomElement {
   }
 }
 
-customElements.define("openclaw-governance-page", GovernancePage);
+// Guarded, like every other custom element in this repository (121 of 121
+// registrations use this form; this file was the one exception).
+//
+// A bare `define` throws "This name has already been registered" the second
+// time the module is evaluated in one environment, which is what happens when
+// two test files that both import it share a Vitest worker. It surfaced on
+// 2026-08-26 as `governance-panels.test.ts` failing to load in a full run while
+// passing on its own — an ordering-dependent failure, the same class as T30's
+// load-dependent one, and worth the same treatment: fix the test-visible
+// defect rather than document when to disbelieve the suite.
+if (!customElements.get("openclaw-governance-page")) {
+  customElements.define("openclaw-governance-page", GovernancePage);
+}

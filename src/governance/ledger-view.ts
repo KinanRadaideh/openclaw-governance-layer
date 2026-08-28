@@ -48,8 +48,24 @@ export const REDACTED_RESOURCE = "[redacted for viewer role]";
  * given the contents needed to check it themselves.
  */
 export function sanitizeLedgerEntry(entry: LedgerEntry): LedgerEntry {
-  return { ...entry, resource: REDACTED_RESOURCE };
+  return {
+    ...entry,
+    resource: REDACTED_RESOURCE,
+    // **`intent` is masked for the same reason `resource` is, and finding 133
+    // is that the first version of the field forgot it.** A Viewer is masked
+    // from the literal command, path and host because those disclose workspace
+    // detail. Model narration discloses *more*: it names the files it is about
+    // to touch, describes the project, and quotes what it has already read. A
+    // field added to the ledger after this function was written does not
+    // inherit its protection — it has to be added here, and "which entries
+    // carry private text" is a judgement every new field has to make
+    // explicitly, exactly as `isPromptEntry` says below.
+    ...(entry.intent === undefined ? {} : { intent: REDACTED_INTENT }),
+  };
 }
+
+/** Placeholder for model narration a Viewer may not read (finding 133). */
+export const REDACTED_INTENT = "[intent visible to users and administrators]";
 
 /** Placeholder for a prompt body belonging to a different account. */
 export const REDACTED_PROMPT = "[prompt text visible to its author and to administrators]";

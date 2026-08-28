@@ -58,9 +58,9 @@ import { tryReadDiskSpace } from "../infra/disk-space.js";
 import type { SecurityAuditFinding } from "../security/audit.types.js";
 import { shortenHomePath } from "../utils.js";
 import { attachmentStoreStats } from "./attachment-store.js";
+import { hasCheckpointForGroup } from "./audit-ledger.js";
 import {
   governanceHomeDir,
-  ledgerCheckpointFilePath,
   ledgerFilePath,
   ledgerKeyFilePath,
   sessionsFilePath,
@@ -303,6 +303,18 @@ function foldGatewayFindings(findings: readonly SecurityAuditFinding[]): {
 }
 
 export async function readDeploymentStatus(
+  /**
+   * The organisation this report is about (M5).
+   *
+   * The report mixes two scopes and always has: some checks are about the
+   * **installation** (the ledger key's permissions, the listener, the tunnel)
+   * and some about **one organisation's** state (its policy, its chain). Before
+   * per-group storage the distinction did not exist, because there was one of
+   * everything. It does now, so the caller says whose — and a Root reading this
+   * sees their own organisation's rulebook and ledger beside the installation
+   * facts, never another organisation's.
+   */
+  groupId: string,
   input: DeploymentEnvironmentInput,
   options: ReadDeploymentStatusOptions = {},
 ): Promise<DeploymentStatus> {
@@ -455,7 +467,7 @@ export async function readDeploymentStatus(
   // an installation that looks clean on this report while a credential denial
   // is switched off would be worse than one with no report at all.
   // -------------------------------------------------------------------
-  const disabledCore = (await loadPolicyForDeployment()).disabledCoreRules ?? [];
+  const disabledCore = (await loadPolicyForDeployment(groupId)).disabledCoreRules ?? [];
   checks.push(
     disabledCore.length === 0
       ? check(
@@ -483,7 +495,7 @@ export async function readDeploymentStatus(
   // see how much of it there is and whether any of it is unreferenced, without
   // going to look on the host.
   // -------------------------------------------------------------------
-  const attachments = await attachmentStoreStats();
+  const attachments = await attachmentStoreStats(groupId);
   checks.push(
     attachments.orphanCount === 0
       ? check(
@@ -553,7 +565,12 @@ export async function readDeploymentStatus(
             ),
     );
 
-    const files = [ledgerKeyFilePath(), usersFilePath(), sessionsFilePath(), ledgerFilePath()];
+    const files = [
+      ledgerKeyFilePath(),
+      usersFilePath(),
+      sessionsFilePath(),
+      ledgerFilePath(groupId),
+    ];
     const offenders: string[] = [];
     let checkedAny = false;
     for (const file of files) {
@@ -615,8 +632,12 @@ export async function readDeploymentStatus(
         ),
   );
 
-  const ledgerPresent = (await statAt(ledgerFilePath())).exists;
-  const checkpointPresent = (await statAt(ledgerCheckpointFilePath())).exists;
+  const ledgerPresent = (await statAt(ledgerFilePath(groupId))).exists;
+  // **This group's checkpoint, not merely the file's existence (M5).** One file
+  // now holds a head per group, so it exists as soon as any organisation has
+  // written — and asking about the file would report a truncation defence this
+  // group does not have.
+  const checkpointPresent = await hasCheckpointForGroup(groupId);
   checks.push(
     checkpointPresent
       ? check(

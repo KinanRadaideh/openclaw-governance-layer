@@ -18,16 +18,29 @@ import { loadPolicy, savePolicy } from "../governance/policy-store.js";
 import { defaultPolicyDocument } from "../governance/policy-types.js";
 import type { GovernanceRole } from "../governance/roles.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
+import { seedGroupWithAgents } from "../governance/test-group.js";
 import { handleGovernanceApiRequest } from "./governance-dashboard-api.js";
 
 let dir: string;
 
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-r3-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  TEST_GROUP = await seedGroupWithAgents([
+    "__proto__",
+    "agent-a",
+    "agent-b",
+    "confidential-agent",
+    "secret-agent",
+  ]);
   // The shipped default posture is `monitor` so a fresh install is not bricked;
   // these authorization checks is about enforcement, so it says so explicitly.
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce" });
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce" });
   clearActiveSessionsSupplier();
 });
 
@@ -46,6 +59,7 @@ function session(role: GovernanceRole, assignedAgents: string[] = []): Governanc
     createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
     assignedAgents,
+    groupId: TEST_GROUP,
   };
 }
 
@@ -125,7 +139,7 @@ describe("per-agent HITL override authorization", () => {
         })
       ).status,
     ).toBe(200);
-    expect((await loadPolicy()).agentAsk["agent-a"]).toBe("off");
+    expect((await loadPolicy(TEST_GROUP)).agentAsk["agent-a"]).toBe("off");
 
     expect(
       (
@@ -145,7 +159,7 @@ describe("per-agent HITL override authorization", () => {
       ask: "off",
     });
     expect(result.status).toBe(403);
-    expect((await loadPolicy()).agentAsk["agent-b"]).toBeUndefined();
+    expect((await loadPolicy(TEST_GROUP)).agentAsk["agent-b"]).toBeUndefined();
   });
 
   it("rejects an invalid ask value", async () => {
@@ -166,7 +180,7 @@ describe("per-agent HITL override authorization", () => {
       ask: null,
     });
     expect(cleared.status).toBe(200);
-    expect(Object.hasOwn((await loadPolicy()).agentAsk, "agent-a")).toBe(false);
+    expect(Object.hasOwn((await loadPolicy(TEST_GROUP)).agentAsk, "agent-a")).toBe(false);
   });
 
   it("requires an agentId", async () => {
@@ -185,7 +199,7 @@ describe("per-agent HITL override authorization", () => {
     expect([200, 400]).toContain(result.status);
     // Whatever the response, Object.prototype must be untouched.
     expect(({} as Record<string, unknown>).ask).toBeUndefined();
-    const policy = await loadPolicy();
+    const policy = await loadPolicy(TEST_GROUP);
     expect(policy.ask).toBe("on-miss");
   });
 });

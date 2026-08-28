@@ -38,13 +38,14 @@ export type KillSwitchResult = {
  * this agent", which is the first question asked after an incident.
  */
 export async function lockDownAgent(
+  groupId: string,
   agentId: string,
   actor?: AuditActorInput,
 ): Promise<KillSwitchResult> {
   const startedAt = process.hrtime.bigint();
   // Lock before aborting: the reverse order leaves a window where the agent
   // may legally start a fresh action between the abort and the lock landing.
-  await lockAgent(agentId);
+  await lockAgent(groupId, agentId);
   const termination = await terminateAgentRuns(agentId);
   const elapsedMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
 
@@ -55,7 +56,7 @@ export async function lockDownAgent(
   // field. This used to be written as `ruleId: "kill-switch:alice"`, which put
   // the most important fact about an emergency stop — who ordered it — inside a
   // field named after something else, where no filter would find it.
-  await recordAdminAction({
+  await recordAdminAction(groupId, {
     actor: actor ?? UNKNOWN_ACTOR,
     action: ADMIN_ACTIONS.agentLock,
     agentId,
@@ -82,11 +83,12 @@ export async function lockDownAgent(
 
 /** Releases a lockdown. Does not restart anything that was aborted. */
 export async function releaseAgentLockdown(
+  groupId: string,
   agentId: string,
   actor?: AuditActorInput,
 ): Promise<void> {
-  await unlockAgent(agentId);
-  await recordAdminAction({
+  await unlockAgent(groupId, agentId);
+  await recordAdminAction(groupId, {
     actor: actor ?? UNKNOWN_ACTOR,
     action: ADMIN_ACTIONS.agentRelease,
     agentId,

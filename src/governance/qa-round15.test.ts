@@ -22,8 +22,14 @@ import { registerNativeHookRelay } from "../agents/harness/native-hook-relay.js"
 import { governanceRequiresNativeToolRelay } from "./native-relay-requirement.js";
 import { isUnconfiguredTestRun } from "./paths.js";
 import { loadPolicy } from "./policy-store.js";
+import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
+
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
 
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-relay-"));
@@ -96,7 +102,8 @@ describe("B1 — the relay requirement and the shipped posture cannot drift apar
 
   it("agrees on an installation: posture governs, relay required", async () => {
     process.env.OPENCLAW_GOVERNANCE_DIR = dir;
-    const policy = await loadPolicy();
+    TEST_GROUP = await seedGroupWithAgents([]);
+    const policy = await loadPolicy(TEST_GROUP);
     expect(policy.mode).not.toBe("off");
     expect(governanceRequiresNativeToolRelay()).toBe(policy.mode !== "off");
   });
@@ -108,7 +115,7 @@ describe("B1 — the relay requirement and the shipped posture cannot drift apar
     // processes to reach a gate that is switched off — and forcing it on is
     // what made the naive one-line fix break thirty host tests.
     expect(isUnconfiguredTestRun()).toBe(true);
-    const policy = await loadPolicy();
+    const policy = await loadPolicy(TEST_GROUP);
     expect(policy.mode).toBe("off");
     expect(governanceRequiresNativeToolRelay()).toBe(policy.mode !== "off");
   });

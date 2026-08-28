@@ -20,12 +20,19 @@ import {
   type ReadDeploymentStatusOptions,
 } from "./deployment-status.js";
 import { ledgerCheckpointFilePath, ledgerFilePath } from "./paths.js";
+import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
+
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
 
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-a7-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  TEST_GROUP = await seedGroupWithAgents([]);
   delete process.env.OPENCLAW_GOVERNANCE_LEDGER_KEY;
 });
 
@@ -88,7 +95,7 @@ async function statusOf(
   input: Partial<DeploymentEnvironmentInput> = {},
   opts: ReadDeploymentStatusOptions = {},
 ) {
-  return readDeploymentStatus(conformingInput(input), options(opts));
+  return readDeploymentStatus(TEST_GROUP, conformingInput(input), options(opts));
 }
 
 function checkFor(
@@ -253,7 +260,7 @@ describe("A7 — governance state", () => {
   });
 
   it("warns when a ledger exists without its checkpoint", async () => {
-    await writeFile(ledgerFilePath(), "{}\n", "utf8");
+    await writeFile(ledgerFilePath(TEST_GROUP), "{}\n", "utf8");
     const status = await statusOf();
     const check = checkFor(status, "deployment.ledger_checkpoint");
     expect(check.status).toBe("warn");
@@ -261,8 +268,14 @@ describe("A7 — governance state", () => {
   });
 
   it("passes when both are present", async () => {
-    await writeFile(ledgerFilePath(), "{}\n", "utf8");
-    await writeFile(ledgerCheckpointFilePath(), "{}", "utf8");
+    await writeFile(ledgerFilePath(TEST_GROUP), "{}\n", "utf8");
+    // Keyed by group since M5 — an empty object is a file with no checkpoint
+    // for anybody, which is what "no checkpoint" now looks like.
+    await writeFile(
+      ledgerCheckpointFilePath(),
+      JSON.stringify({ [TEST_GROUP]: { seq: 1, hash: "x", updatedAt: "now" } }),
+      "utf8",
+    );
     expect(checkFor(await statusOf(), "deployment.ledger_checkpoint").status).toBe("pass");
   });
 
@@ -322,7 +335,7 @@ describe("A7 — file permissions, tested without depending on the host's", () =
     // Neither `platform` nor `statPath` is injected here — that is the whole
     // point of this one test, and injecting either would make it assert the
     // fixture rather than the dispatch.
-    const status = await readDeploymentStatus(conformingInput(), {
+    const status = await readDeploymentStatus(TEST_GROUP, conformingInput(), {
       totalMemoryBytes: 16 * 1000 ** 3,
       readDiskSpace: () => ({ availableBytes: 50 * 1000 ** 3, totalBytes: 100 * 1000 ** 3 }),
     });
@@ -414,7 +427,7 @@ describe("A7 — secrets do not reach the report", () => {
   });
 
   it("home-shortens the governance directory it reports", async () => {
-    const status = await readDeploymentStatus(conformingInput(), options());
+    const status = await readDeploymentStatus(TEST_GROUP, conformingInput(), options());
     // Root may see where the directory is — that is the point of the check, and
     // QA round 13 finding 86 showed the location is materially important. What
     // it should not do is print an absolute home path when a `~` will do.

@@ -134,14 +134,34 @@ export const ADMIN_ACTIONS = {
    * "owned by malek" does not say who lost it.
    *
    * `agentRegister` is deliberately **not** a claim that an agent was created
-   * in the host. Nothing here writes OpenClaw's roster — M6 does that — so an
-   * auditor reading this entry learns that a group claimed an id, which is
-   * exactly what happened.
+   * in the host — that is `agentProvision` below, added by M6. The distinction
+   * is the whole reason both exist: an auditor reading `agentRegister` learns
+   * that a group **claimed an id**, and one reading `agentProvision` learns
+   * that an agent **was brought into being**. Collapsing them into one action
+   * would make the ledger unable to answer "where did this agent come from?",
+   * which is the first question asked about an agent that did something bad.
    */
   agentRegister: "governance.agent.register",
   agentRename: "governance.agent.rename",
   agentOwnerChange: "governance.agent.owner",
   agentUnregister: "governance.agent.unregister",
+  /**
+   * The host roster, written by this layer (M6).
+   *
+   * **This is the only pair of actions in this list that records the layer
+   * mutating the system it governs**, rather than observing or gating it. Every
+   * other entry describes a decision *about* OpenClaw; these two describe a
+   * change *to* it. Chapter 4 states that as a change of kind, and the ledger
+   * is where the claim is kept honest.
+   *
+   * `agentProvision` is recorded **before the attempt**, not after it. An
+   * action written only on success cannot answer "who kept trying to create
+   * agents and failing?" — and a creation attempt that is refused is exactly
+   * the event an investigator wants. A failed provision therefore leaves this
+   * entry and no `agentRegister`, which is a legible pair.
+   */
+  agentProvision: "governance.agent.provision",
+  agentDeprovision: "governance.agent.deprovision",
   ruleRequestSubmit: "governance.rule-request.submit",
   ruleRequestDecide: "governance.rule-request.decide",
   pendingDecisionDecide: "governance.pending-decision.decide",
@@ -284,10 +304,22 @@ export type AdminAuditInput = {
   outcome?: "allow" | "deny";
 };
 
-/** Appends one administrative entry to the same chain as agent activity. */
-export async function recordAdminAction(input: AdminAuditInput): Promise<LedgerEntry> {
+/**
+ * Appends one administrative entry to the same chain as agent activity.
+ *
+ * **The group comes from the caller, not from the action (M5).** Every
+ * administrative act is performed by an account, and an account belongs to
+ * exactly one organisation, so the entry belongs in that organisation's chain.
+ * Deriving it from the *subject* instead would put a Root's account changes
+ * into whichever group the affected agent happened to be in, splitting one
+ * person's administrative history across several trails.
+ */
+export async function recordAdminAction(
+  groupId: string,
+  input: AdminAuditInput,
+): Promise<LedgerEntry> {
   const actorParts = splitAuditActor(input.actor);
-  return appendLedgerEntry({
+  return appendLedgerEntry(groupId, {
     entryKind: "admin",
     // Never allow `entryKind` without `actor`. The hashed field list is chosen
     // by whether *both* administrative fields are present (see

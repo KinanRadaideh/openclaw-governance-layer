@@ -14,11 +14,13 @@ import {
   resetLoginThrottle,
 } from "./login-throttle.js";
 import { usersFilePath } from "./paths.js";
+import { INSTALLATION_LEDGER_GROUP } from "./paths.js";
 import { evaluateGovernancePolicy } from "./policy-engine.js";
 import { addRule, loadPolicy, lockAgent, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
 import { checkRegexSafety } from "./regex-safety.js";
 import { listRuleRequests, submitRuleRequest } from "./rule-requests.js";
+import { seedNamedGroup } from "./test-group.js";
 import { createUser, deleteUser, LastRootError, listUsers, setUserRole } from "./user-store.js";
 
 /**
@@ -38,6 +40,7 @@ let dir: string;
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-qa6-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  await seedNamedGroup(TEST_GROUP, ["agent-a", "agent-b"]);
   resetLoginThrottle();
 });
 
@@ -224,14 +227,16 @@ describe("the rule-request cap holds when the queue is full of pending items", (
     // test decided every request immediately so it never reached that branch.
     const { MAX_STORED_RULE_REQUESTS } = await import("./rule-requests.js");
     for (let index = 0; index < 40; index += 1) {
-      await submitRuleRequest({
+      await submitRuleRequest(TEST_GROUP, {
         resourceKind: "command",
         pattern: `^cmd-${index}$`,
         reason: "load",
         requestedBy: `user-${index % 5}`,
       });
     }
-    expect((await listRuleRequests()).length).toBeLessThanOrEqual(MAX_STORED_RULE_REQUESTS);
+    expect((await listRuleRequests(TEST_GROUP)).length).toBeLessThanOrEqual(
+      MAX_STORED_RULE_REQUESTS,
+    );
   });
 });
 
@@ -242,8 +247,8 @@ describe("the kill switch is not suspended by monitor mode", () => {
     // incident, that this agent stops now. Once monitor became the shipped
     // default, treating the stop as advisory meant a fresh install had an
     // emergency stop that did not stop anything.
-    await savePolicy({ ...defaultPolicyDocument(), mode: "monitor" });
-    await lockAgent("agent-a");
+    await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "monitor" });
+    await lockAgent(TEST_GROUP, "agent-a");
     const decision = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "ls" } },
       { agentId: "agent-a" },
@@ -257,8 +262,8 @@ describe("the kill switch is not suspended by monitor mode", () => {
   it("records the stop even when the posture is off, and does not block", async () => {
     // `off` is the one posture that exempts it, because `off` means the gate is
     // not running at all rather than running quietly.
-    await savePolicy({ ...defaultPolicyDocument(), mode: "off" });
-    await lockAgent("agent-a");
+    await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "off" });
+    await lockAgent(TEST_GROUP, "agent-a");
     expect(
       await evaluateGovernancePolicy(
         { toolName: "exec", params: { command: "ls" } },
@@ -273,11 +278,11 @@ describe("the agent id is resolved from the session when it is not passed explic
   // while the termination path already fell back to the session key. The two
   // disagreed about which agent a call belonged to.
   beforeEach(async () => {
-    await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
+    await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
   });
 
   it("blocks a locked agent identified only by its session key (B6)", async () => {
-    await lockAgent("agent-a");
+    await lockAgent(TEST_GROUP, "agent-a");
     const decision = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "ls" } },
       // No agentId — exactly the shape that slipped past the kill switch.
@@ -287,17 +292,21 @@ describe("the agent id is resolved from the session when it is not passed explic
   });
 
   it("records the lockdown against the agent, not against 'unknown'", async () => {
-    await lockAgent("agent-a");
+    await lockAgent(TEST_GROUP, "agent-a");
     await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "ls" } },
       { sessionKey: "agent:agent-a:main" },
     );
-    const entry = (await tailLedger()).at(-1);
+    const entry = (await tailLedger(TEST_GROUP)).at(-1);
     expect(entry?.agentId).toBe("agent-a");
   });
 
   it("keeps an agent-scoped rule from authorizing a different agent by session key", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls$", agentId: "agent-a" }, "tester");
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "command", pattern: "^ls$", agentId: "agent-a" },
+      "tester",
+    );
     const allowed = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "ls" } },
       { sessionKey: "agent:agent-a:main" },
@@ -314,13 +323,20 @@ describe("the agent id is resolved from the session when it is not passed explic
     // The fallback must not invent an identity. A non-agent session key yields
     // no agent, and the call is governed as unattributed rather than being
     // wrongly bound to someone.
-    await lockAgent("agent-a");
+    //
+    // **The entry moved installation-wide at M5, and that follows from the
+    // model rather than being a workaround.** A call the gate cannot attribute
+    // belongs to no organisation, so there is no organisation's ledger to write
+    // it to — see `INSTALLATION_LEDGER_GROUP`. Writing it to some group would
+    // mean choosing one, and an unattributable call is exactly the shape where
+    // choosing is guessing.
+    await lockAgent(TEST_GROUP, "agent-a");
     const decision = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "ls" } },
       { sessionKey: "channel:whatsapp:12345" },
     );
     expect(decision && "block" in decision && decision.block).toBeTruthy();
-    const entry = (await tailLedger()).at(-1);
+    const entry = (await tailLedger(INSTALLATION_LEDGER_GROUP)).at(-1);
     expect(entry?.agentId).toBe("unknown");
   });
 });
@@ -331,7 +347,7 @@ describe("QA pass: corrupted settings must not resolve to the more permissive br
     // straight to AskMode; the engine tests `=== "off"`, so anything
     // unrecognised fell through to "ask a human" — which can end in allow,
     // while `off` denies outright.
-    await savePolicy({
+    await savePolicy(TEST_GROUP, {
       ...defaultPolicyDocument(),
       mode: "enforce",
       ask: "off",
@@ -346,16 +362,16 @@ describe("QA pass: corrupted settings must not resolve to the more permissive br
   });
 
   it("drops the bad entry on load rather than carrying it in memory", async () => {
-    await savePolicy({
+    await savePolicy(TEST_GROUP, {
       ...defaultPolicyDocument(),
       agentAsk: { good: "off", bad: 42 as never },
     });
-    const doc = await loadPolicy();
+    const doc = await loadPolicy(TEST_GROUP);
     expect(doc.agentAsk).toEqual({ good: "off" });
   });
 
   it("still honours a valid per-agent override", async () => {
-    await savePolicy({
+    await savePolicy(TEST_GROUP, {
       ...defaultPolicyDocument(),
       mode: "enforce",
       ask: "off",

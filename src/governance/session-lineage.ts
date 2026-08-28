@@ -74,30 +74,113 @@ export function findLockedAncestor(
   sessionKey: string | undefined,
   lockedAgents: readonly string[],
 ): LockedAncestor | undefined {
-  if (!hasWalkableLineage(sessionKey, lockedAgents)) {
-    return undefined;
+  const verdict = resolveLineage(sessionKey, lockedAgents);
+  return verdict.kind === "locked" ? verdict.ancestor : undefined;
+}
+
+/**
+ * What a lineage walk concluded.
+ *
+ * Three outcomes, not two, and the third is the whole of finding 120. `clear`
+ * means the chain was **read** and holds no locked ancestor — the call is proven
+ * unrelated to the incident. `unreadable` means the store could not answer, so
+ * nothing is proven either way.
+ */
+export type LineageVerdict =
+  | { kind: "locked"; ancestor: LockedAncestor }
+  | { kind: "clear" }
+  | { kind: "unreadable" };
+
+const CLEAR: LineageVerdict = { kind: "clear" };
+const UNREADABLE: LineageVerdict = { kind: "unreadable" };
+
+/**
+ * Whether this agent's session store can be read at all.
+ *
+ * **The distinction finding 120 turned on, and the reason it is `entries` and
+ * not `get`.** A keyed probe answers `undefined` both for a row that is absent
+ * and for a store that is gone — measured with the state directory replaced by
+ * a file, where `get` returns `undefined` rather than throwing. A scoped
+ * listing separates them: it returns an empty array for an agent with no
+ * sessions, and **throws** when the store behind it cannot be opened.
+ *
+ * Consulted only when a keyed probe already came back empty, so the ordinary
+ * walk — every hop of which finds its row — never pays for it.
+ */
+function storeReadableFor(agentId: string, checked: Map<string, boolean>): boolean {
+  const cached = checked.get(agentId);
+  if (cached !== undefined) {
+    return cached;
   }
+  let readable: boolean;
+  try {
+    openSessionEntryReadView({ agentId }).entries();
+    readable = true;
+  } catch {
+    readable = false;
+  }
+  checked.set(agentId, readable);
+  return readable;
+}
+
+/**
+ * Walks a session's spawn chain and says which of the three things happened.
+ *
+ * One walk rather than two. The gate needs both "is there a locked ancestor?"
+ * and "could the chain be read?", and computing them separately meant walking
+ * twice and — before finding 120 — getting the second answer wrong.
+ *
+ * **Readability is checked at every hop, not only the first.** Sessions are
+ * stored per agent, so a chain crossing three agents crosses three stores, and
+ * one unreadable store in the middle would otherwise truncate the walk into a
+ * confident `clear`. That is the same defect as the original one, moved two
+ * hops up.
+ */
+export function resolveLineage(
+  sessionKey: string | undefined,
+  lockedAgents: readonly string[],
+): LineageVerdict {
+  if (!hasWalkableLineage(sessionKey, lockedAgents)) {
+    // Not applicable rather than unreadable. See `hasWalkableLineage`: a call
+    // with no agent session key is already refused by the unattributable rule,
+    // and reporting it here as well would double-count it.
+    return CLEAR;
+  }
+  const checked = new Map<string, boolean>();
   try {
     const view: SessionEntryReadView = openSessionEntryReadView();
     const locked = new Set(lockedAgents);
     const seen = new Set<string>([sessionKey]);
     let current = sessionKey;
     for (let depth = 1; depth <= MAX_LINEAGE_DEPTH; depth += 1) {
-      const parent = view.get(current)?.spawnedBy;
+      const currentAgentId = parseAgentSessionKey(current)?.agentId;
+      const entry = view.get(current);
+      if (!entry) {
+        // The ambiguous answer, and the one the whole finding is about. A row
+        // that is absent from a **readable** store is a session with no
+        // recorded parent, which is proof of nothing sinister. The same
+        // `undefined` from a store that cannot be opened proves nothing at all.
+        return currentAgentId && !storeReadableFor(currentAgentId, checked) ? UNREADABLE : CLEAR;
+      }
+      const parent = entry.spawnedBy;
       if (!parent || seen.has(parent)) {
-        // No parent, or a cycle. A cycle is not something the host writes, but
-        // the store is on disk and this is a security path: stopping is the
-        // only safe response to a shape that should not exist.
-        return undefined;
+        // No parent recorded — the chain ends here, and it ended in a row we
+        // actually read. Or a cycle, which is not a shape the host writes; the
+        // store is on disk and this is a security path, so stopping is the only
+        // safe response to a shape that should not exist.
+        return CLEAR;
       }
       seen.add(parent);
       const parentAgentId = parseAgentSessionKey(parent)?.agentId;
       if (parentAgentId && locked.has(parentAgentId)) {
-        return { agentId: parentAgentId, sessionKey: parent, depth };
+        return { kind: "locked", ancestor: { agentId: parentAgentId, sessionKey: parent, depth } };
       }
       current = parent;
     }
-    return undefined;
+    // The depth cap, reached. The chain is longer than anything real, so what
+    // lies above it is unread rather than absent — and during an incident that
+    // is exactly the shape this verdict exists to name.
+    return UNREADABLE;
   } catch {
     // **Total by construction, and this is not defensive padding.**
     //
@@ -109,9 +192,10 @@ export function findLockedAncestor(
     // decision. Caught by an existing round-six test, which is exactly the
     // service a suite is for.
     //
-    // The caller distinguishes "no ancestor" from "could not tell" through
-    // `lineageUnknown`, so returning `undefined` here loses nothing.
-    return undefined;
+    // It now returns `unreadable` rather than `undefined`, because an exception
+    // out of the store during an incident is the definition of not being able
+    // to tell.
+    return UNREADABLE;
   }
 }
 
@@ -149,21 +233,28 @@ function hasWalkableLineage(
  * Narrow by construction: with nothing locked this is never consulted, so a
  * store that cannot be read is only ever a problem during an incident, which is
  * when erring toward refusal is what an operator wants.
+ *
+ * ---------------------------------------------------------------------------
+ * **Finding 120: this could not fire until 2026-08-26, and now can.**
+ *
+ * It used to probe with `get`, which answers `undefined` both for a row that is
+ * absent and for a store that is gone — so the two cases the design depends on
+ * separating produced the same answer, the branch was dead, and a lockdown
+ * whose lineage records were lost degraded to fail-**open** with nothing
+ * recorded. Verified end to end at the time: lock an agent, make the session
+ * store unreadable, and a cross-agent child of it was allowed through.
+ *
+ * The fix is not a new policy, it is a better question. A **scoped listing**
+ * distinguishes what a keyed probe cannot: an empty array for an agent with no
+ * sessions, and a throw when the store behind it will not open. So the gap
+ * closes without costing narrowness — a session genuinely absent from a
+ * readable store is still `clear`, and still runs during someone else's
+ * lockdown.
+ * ---------------------------------------------------------------------------
  */
 export function lineageUnknown(
   sessionKey: string | undefined,
   lockedAgents: readonly string[],
 ): boolean {
-  if (!hasWalkableLineage(sessionKey, lockedAgents)) {
-    // Not "readable" — *not applicable*. See `hasWalkableLineage`: a call with
-    // no agent session key is already refused by the unattributable rule, and
-    // reporting it here as well would double-count it.
-    return false;
-  }
-  try {
-    openSessionEntryReadView().get(sessionKey);
-    return false;
-  } catch {
-    return true;
-  }
+  return resolveLineage(sessionKey, lockedAgents).kind === "unreadable";
 }

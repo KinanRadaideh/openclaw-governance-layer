@@ -29,15 +29,22 @@ import { savePolicy } from "../governance/policy-store.js";
 import { defaultPolicyDocument } from "../governance/policy-types.js";
 import type { GovernanceRole } from "../governance/roles.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
+import { seedGroupWithAgents } from "../governance/test-group.js";
 import { handleGovernanceApiRequest } from "./governance-dashboard-api.js";
 
 let dir: string;
 
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-attach-http-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  TEST_GROUP = await seedGroupWithAgents(["agent-a"]);
   resetLedgerKeyCacheForTests();
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce" });
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce" });
   registerAgentRunner(async () => ({ ok: true, reply: "done", ending: "completed" }));
 });
 
@@ -61,6 +68,7 @@ function session(
     createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
     assignedAgents,
+    groupId: TEST_GROUP,
   };
 }
 
@@ -238,13 +246,13 @@ describe("uploading an attachment over HTTP", () => {
   it("refuses a Viewer, who may watch and change nothing", async () => {
     const reply = await upload(session("viewer", "val", ["agent-a"]), "agent-a", "x.png", PNG);
     expect(reply.status).toBe(403);
-    expect(await listAttachments()).toHaveLength(0);
+    expect(await listAttachments(TEST_GROUP)).toHaveLength(0);
   });
 
   it("refuses an agent the caller does not manage", async () => {
     const reply = await upload(session("user", "kinan", ["agent-a"]), "agent-b", "x.png", PNG);
     expect(reply.status).toBe(403);
-    expect(await listAttachments()).toHaveLength(0);
+    expect(await listAttachments(TEST_GROUP)).toHaveLength(0);
   });
 
   it("requires the agent id, rather than defaulting to one", async () => {
@@ -277,7 +285,7 @@ describe("uploading an attachment over HTTP", () => {
       64,
     );
     expect(reply.status).toBe(413);
-    expect(await listAttachments()).toHaveLength(0);
+    expect(await listAttachments(TEST_GROUP)).toHaveLength(0);
   });
 });
 
@@ -297,7 +305,7 @@ describe("sending a prompt that names attachments", () => {
       attachments: [sha256],
     });
     expect(reply.status).toBe(200);
-    const entries = await tailLedger(50);
+    const entries = await tailLedger(TEST_GROUP, 50);
     const promptEntry = entries.find((entry) => entry.resource?.includes("shot.png"));
     expect(promptEntry).toBeDefined();
     expect(promptEntry?.resource).toContain(sha256);
@@ -319,7 +327,7 @@ describe("sending a prompt that names attachments", () => {
       attachmentMime: "text/plain",
     });
     expect(reply.status).toBe(200);
-    const entries = await tailLedger(50);
+    const entries = await tailLedger(TEST_GROUP, 50);
     const promptEntry = entries.find((entry) => entry.resource?.includes("shot.png"));
     expect(promptEntry?.resource).toContain(`${PNG.byteLength} bytes`);
     expect(promptEntry?.resource).toContain("image/png");
@@ -416,7 +424,7 @@ describe("round 17 regressions", () => {
     // try/catch, which read as validation and was unreachable code.
     const reply = await uploadWithRawName(actor(), "agent-a", "not!!base64");
     expect(reply.status).toBe(400);
-    expect(await listAttachments()).toHaveLength(0);
+    expect(await listAttachments(TEST_GROUP)).toHaveLength(0);
   });
 
   it("refuses a duplicated name header rather than picking one (112)", async () => {
@@ -425,7 +433,7 @@ describe("round 17 regressions", () => {
     // the space — a filename of control characters, in a tamper-evident log.
     const reply = await uploadWithRawName(actor(), "agent-a", ["QQ==", "QQ=="]);
     expect(reply.status).toBe(400);
-    expect(await listAttachments()).toHaveLength(0);
+    expect(await listAttachments(TEST_GROUP)).toHaveLength(0);
   });
 
   it("refuses a name carrying control characters (112)", async () => {
@@ -450,20 +458,20 @@ describe("round 17 regressions", () => {
     const admin = session("administrator", "amina");
     const reply = await upload(admin, "a".repeat(500), "x.png", PNG);
     expect(reply.status).toBe(400);
-    expect(await listAttachments()).toHaveLength(0);
+    expect(await listAttachments(TEST_GROUP)).toHaveLength(0);
   });
 
   it("gives back the quota when an unsent upload is released (113)", async () => {
     const who = actor();
     const up = await upload(who, "agent-a", "wrong.png", PNG);
     expect(up.status).toBe(200);
-    expect(await listAttachments()).toHaveLength(1);
+    expect(await listAttachments(TEST_GROUP)).toHaveLength(1);
 
     const released = await postJson(who, "agent/attachment/release", {
       sha256: up.body.attachment.sha256,
     });
     expect(released.status).toBe(200);
-    expect(await listAttachments()).toHaveLength(0);
+    expect(await listAttachments(TEST_GROUP)).toHaveLength(0);
   });
 
   it("refuses to release an attachment a prompt already named (113)", async () => {
@@ -482,7 +490,7 @@ describe("round 17 regressions", () => {
       sha256: up.body.attachment.sha256,
     });
     expect(released.status).toBe(409);
-    expect(await listAttachments()).toHaveLength(1);
+    expect(await listAttachments(TEST_GROUP)).toHaveLength(1);
   });
 
   it("will not let one account release another's upload, or learn it exists (113)", async () => {
@@ -498,7 +506,7 @@ describe("round 17 regressions", () => {
     });
     expect(theirs.status).toBe(404);
     expect(JSON.stringify(theirs.body)).toBe(JSON.stringify(invented.body));
-    expect(await listAttachments()).toHaveLength(1);
+    expect(await listAttachments(TEST_GROUP)).toHaveLength(1);
   });
 
   it("counts the quota under one spelling of an account (114)", async () => {

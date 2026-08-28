@@ -31,6 +31,7 @@ import { canManageGlobalPolicy, canAuthorPolicyForAgent } from "./permissions.js
 import { savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
 import { issueSession, revokeSession } from "./session-tokens.js";
+import { seedNamedGroup } from "./test-group.js";
 import { createUser } from "./user-store.js";
 
 /** Every account belongs to a group (M3); these tests all live in one. */
@@ -41,8 +42,9 @@ let dir: string;
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-cli-identity-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  await seedNamedGroup(TEST_GROUP, []);
   resetLedgerKeyCacheForTests();
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce" });
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce" });
 });
 
 afterEach(async () => {
@@ -207,13 +209,13 @@ describe("what lands in the ledger", () => {
     const { recordAdminAction, ADMIN_ACTIONS } = await import("./admin-audit.js");
     const { tailLedger } = await import("./audit-ledger.js");
 
-    await recordAdminAction({
+    await recordAdminAction(TEST_GROUP, {
       actor: toCliAuditActor((await currentCliIdentity())!),
       action: ADMIN_ACTIONS.modeChange,
       target: "mode enforce",
     });
 
-    const [entry] = await tailLedger(1);
+    const [entry] = await tailLedger(TEST_GROUP, 1);
     // The whole point of A6: not "cli".
     expect(entry?.actor).toBe("root-account");
     expect(entry?.actor).not.toBe("cli");
@@ -232,12 +234,12 @@ describe("the limitation this does not remove", () => {
     const { policyFilePath } = await import("./paths.js");
     const { loadPolicy } = await import("./policy-store.js");
 
-    const raw = JSON.parse(await readFile(policyFilePath(), "utf8"));
+    const raw = JSON.parse(await readFile(policyFilePath(TEST_GROUP), "utf8"));
     raw.ask = "off";
-    await writeFile(policyFilePath(), JSON.stringify(raw));
+    await writeFile(policyFilePath(TEST_GROUP), JSON.stringify(raw));
 
     // The edit took, with no login and no tier check, because no login was
     // involved. This is why `cli-identity.ts` says what it says.
-    expect((await loadPolicy()).ask).toBe("off");
+    expect((await loadPolicy(TEST_GROUP)).ask).toBe("off");
   });
 });

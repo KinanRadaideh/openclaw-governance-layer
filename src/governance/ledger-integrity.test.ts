@@ -17,12 +17,19 @@ import {
 } from "./audit-ledger.js";
 import { loadLedgerKey, resetLedgerKeyCacheForTests } from "./ledger-key.js";
 import { ledgerCheckpointFilePath, ledgerFilePath, ledgerKeyFilePath } from "./paths.js";
+import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
+
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
 
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-integrity-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  TEST_GROUP = await seedGroupWithAgents(["agent-a"]);
   delete process.env.OPENCLAW_GOVERNANCE_LEDGER_KEY;
   resetLedgerKeyCacheForTests();
   resetLedgerCursorForTests();
@@ -38,7 +45,7 @@ afterEach(async () => {
 
 async function writeEntries(count: number): Promise<void> {
   for (let index = 0; index < count; index += 1) {
-    await appendLedgerEntry({
+    await appendLedgerEntry(TEST_GROUP, {
       agentId: "agent-a",
       toolName: "exec",
       resourceKind: "command",
@@ -98,7 +105,7 @@ async function writeLegacyUnkeyedEntries(count: number): Promise<void> {
     lines.push(JSON.stringify({ ...entry, hash }));
     prevHash = hash;
   }
-  await writeFile(ledgerFilePath(), `${lines.join("\n")}\n`, "utf8");
+  await writeFile(ledgerFilePath(TEST_GROUP), `${lines.join("\n")}\n`, "utf8");
   await rm(ledgerCheckpointFilePath(), { force: true });
   await rm(ledgerKeyFilePath(), { force: true });
   resetLedgerKeyCacheForTests();
@@ -106,7 +113,7 @@ async function writeLegacyUnkeyedEntries(count: number): Promise<void> {
 }
 
 async function readEntries(): Promise<LedgerEntry[]> {
-  const raw = await readFile(ledgerFilePath(), "utf8");
+  const raw = await readFile(ledgerFilePath(TEST_GROUP), "utf8");
   return raw
     .trim()
     .split("\n")
@@ -115,9 +122,13 @@ async function readEntries(): Promise<LedgerEntry[]> {
 }
 
 async function writeEntries_(entries: LedgerEntry[]): Promise<void> {
-  await writeFile(ledgerFilePath(), `${entries.map((e) => JSON.stringify(e)).join("\n")}\n`, {
-    mode: 0o600,
-  });
+  await writeFile(
+    ledgerFilePath(TEST_GROUP),
+    `${entries.map((e) => JSON.stringify(e)).join("\n")}\n`,
+    {
+      mode: 0o600,
+    },
+  );
 }
 
 describe("the chain is keyed (B3)", () => {
@@ -129,7 +140,7 @@ describe("the chain is keyed (B3)", () => {
 
   it("verifies a chain it wrote", async () => {
     await writeEntries(5);
-    expect(await verifyLedgerChain()).toMatchObject({ ok: true, entriesChecked: 5 });
+    expect(await verifyLedgerChain(TEST_GROUP)).toMatchObject({ ok: true, entriesChecked: 5 });
   });
 
   it("cannot be re-forged by someone who recomputes the hashes without the key", async () => {
@@ -166,7 +177,7 @@ describe("the chain is keyed (B3)", () => {
       prevHash = entry.hash;
     }
     await writeEntries_(entries);
-    const result = await verifyLedgerChain();
+    const result = await verifyLedgerChain(TEST_GROUP);
     expect(result.ok).toBe(false);
     expect(result.brokenAtSeq).toBe(2);
   });
@@ -179,7 +190,7 @@ describe("the chain is keyed (B3)", () => {
     const victim = entries[2] as LedgerEntry & { keyed?: true };
     delete victim.keyed;
     await writeEntries_(entries);
-    const result = await verifyLedgerChain();
+    const result = await verifyLedgerChain(TEST_GROUP);
     expect(result.ok).toBe(false);
   });
 
@@ -189,7 +200,7 @@ describe("the chain is keyed (B3)", () => {
     process.env.OPENCLAW_GOVERNANCE_LEDGER_KEY = "a-secret-from-a-vault";
     resetLedgerKeyCacheForTests();
     await writeEntries(3);
-    expect(await verifyLedgerChain()).toMatchObject({ ok: true, entriesChecked: 3 });
+    expect(await verifyLedgerChain(TEST_GROUP)).toMatchObject({ ok: true, entriesChecked: 3 });
   });
 
   it("fails verification when the key is wrong", async () => {
@@ -198,7 +209,7 @@ describe("the chain is keyed (B3)", () => {
     await writeEntries(3);
     process.env.OPENCLAW_GOVERNANCE_LEDGER_KEY = "the-wrong-key";
     resetLedgerKeyCacheForTests();
-    expect((await verifyLedgerChain()).ok).toBe(false);
+    expect((await verifyLedgerChain(TEST_GROUP)).ok).toBe(false);
   });
 });
 
@@ -210,7 +221,7 @@ describe("truncation is detected (B4)", () => {
     // is precisely why the chain alone cannot see it.
     await writeEntries_(entries.slice(0, 4));
     resetLedgerCursorForTests();
-    const result = await verifyLedgerChain();
+    const result = await verifyLedgerChain(TEST_GROUP);
     expect(result.ok).toBe(false);
     expect(result.reason).toContain("2 entries were removed from the end");
   });
@@ -220,14 +231,14 @@ describe("truncation is detected (B4)", () => {
     const entries = await readEntries();
     await writeEntries_(entries.slice(0, 2));
     resetLedgerCursorForTests();
-    expect((await verifyLedgerChain()).reason).toContain("1 entry was removed");
+    expect((await verifyLedgerChain(TEST_GROUP)).reason).toContain("1 entry was removed");
   });
 
   it("detects the whole ledger being emptied", async () => {
     await writeEntries(4);
-    await writeFile(ledgerFilePath(), "", { mode: 0o600 });
+    await writeFile(ledgerFilePath(TEST_GROUP), "", { mode: 0o600 });
     resetLedgerCursorForTests();
-    expect((await verifyLedgerChain()).ok).toBe(false);
+    expect((await verifyLedgerChain(TEST_GROUP)).ok).toBe(false);
   });
 
   it("detects the final entry being swapped for a different one", async () => {
@@ -237,7 +248,7 @@ describe("truncation is detected (B4)", () => {
     last.resource = "rewritten";
     await writeEntries_(entries);
     resetLedgerCursorForTests();
-    expect((await verifyLedgerChain()).ok).toBe(false);
+    expect((await verifyLedgerChain(TEST_GROUP)).ok).toBe(false);
   });
 
   /**
@@ -263,7 +274,7 @@ describe("truncation is detected (B4)", () => {
   it("reports a deleted checkpoint on an installation that writes them", async () => {
     await writeEntries(3);
     await rm(ledgerCheckpointFilePath(), { force: true });
-    const result = await verifyLedgerChain();
+    const result = await verifyLedgerChain(TEST_GROUP);
     expect(result.ok).toBe(false);
     expect(result.reason).toMatch(/checkpoint file is missing/i);
   });
@@ -273,7 +284,7 @@ describe("truncation is detected (B4)", () => {
     // checkpoint. Nothing here is evidence of tampering, and saying otherwise
     // would make every pre-upgrade installation look attacked on first verify.
     await writeLegacyUnkeyedEntries(3);
-    expect(await verifyLedgerChain()).toMatchObject({ ok: true, entriesChecked: 3 });
+    expect(await verifyLedgerChain(TEST_GROUP)).toMatchObject({ ok: true, entriesChecked: 3 });
   });
 
   /**
@@ -297,7 +308,7 @@ describe("truncation is detected (B4)", () => {
     await writeLegacyUnkeyedEntries(3);
     await writeFile(ledgerKeyFilePath(), keyBeforeRewrite, "utf8");
     resetLedgerKeyCacheForTests();
-    const result = await verifyLedgerChain();
+    const result = await verifyLedgerChain(TEST_GROUP);
     expect(result.ok).toBe(false);
     expect(result.reason).toMatch(/pre-key format/i);
   });
@@ -309,12 +320,16 @@ describe("truncation is detected (B4)", () => {
     await writeEntries(3);
     const entries = await readEntries();
     const second = entries[1] as LedgerEntry;
+    // One file, one head per group (M5): the record is written under the
+    // group's key rather than at the top level.
     await writeFile(
       ledgerCheckpointFilePath(),
-      JSON.stringify({ seq: second.seq, hash: second.hash, updatedAt: second.timestamp }),
+      JSON.stringify({
+        [TEST_GROUP]: { seq: second.seq, hash: second.hash, updatedAt: second.timestamp },
+      }),
       { mode: 0o600 },
     );
-    expect(await verifyLedgerChain()).toMatchObject({ ok: true });
+    expect(await verifyLedgerChain(TEST_GROUP)).toMatchObject({ ok: true });
   });
 });
 
@@ -338,7 +353,7 @@ describe("reordering", () => {
     entries[1] = second;
     entries[2] = first;
     await writeEntries_(entries);
-    const result = await verifyLedgerChain();
+    const result = await verifyLedgerChain(TEST_GROUP);
     expect(result.ok).toBe(false);
     // Caught on the sequence number, which is the earliest signal: the swapped
     // pair puts seq 3 where seq 2 belongs.
@@ -351,7 +366,7 @@ describe("reordering", () => {
     const moved = entries.splice(1, 2);
     entries.push(...moved);
     await writeEntries_(entries);
-    expect((await verifyLedgerChain()).ok).toBe(false);
+    expect((await verifyLedgerChain(TEST_GROUP)).ok).toBe(false);
   });
 
   it("detects an entry re-fingerprinted to match its new neighbours", async () => {
@@ -371,7 +386,7 @@ describe("reordering", () => {
       hash: "f".repeat(64),
     };
     await writeEntries_(entries);
-    const result = await verifyLedgerChain();
+    const result = await verifyLedgerChain(TEST_GROUP);
     expect(result.ok).toBe(false);
     expect(result.brokenAtSeq).toBe(2);
   });

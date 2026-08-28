@@ -19,13 +19,20 @@ import {
 import { clearAgentRunner, registerAgentRunner, type AgentRunRequest } from "./agent-runner.js";
 import { tailLedger } from "./audit-ledger.js";
 import { lockDownAgent, releaseAgentLockdown } from "./kill-switch.js";
+import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
 let seen: AgentRunRequest[];
 
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-convo-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  TEST_GROUP = await seedGroupWithAgents(["agent-a", "agent-b"]);
   seen = [];
   registerAgentRunner(async (request) => {
     seen.push(request);
@@ -41,7 +48,7 @@ afterEach(async () => {
 
 async function ledgerActions(): Promise<Array<{ toolName: string; actor?: string }>> {
   const rows: Array<{ toolName: string; actor?: string }> = [];
-  for (const entry of await tailLedger(200)) {
+  for (const entry of await tailLedger(TEST_GROUP, 200)) {
     const row: { toolName: string; actor?: string } = { toolName: entry.toolName };
     if (entry.actor) {
       row.actor = entry.actor;
@@ -85,7 +92,7 @@ describe("the session key the run is given", () => {
 
 describe("prompting", () => {
   it("delivers the message and returns the reply", async () => {
-    const outcome = await promptAgent({
+    const outcome = await promptAgent(TEST_GROUP, {
       agentId: "agent-a",
       username: "kinan",
       message: "list the files",
@@ -97,7 +104,7 @@ describe("prompting", () => {
   });
 
   it("records the prompt against the person who sent it", async () => {
-    await promptAgent({ agentId: "agent-a", username: "kinan", message: "hello" });
+    await promptAgent(TEST_GROUP, { agentId: "agent-a", username: "kinan", message: "hello" });
     const actions = await ledgerActions();
     // Both halves: the intent, recorded before the run, and the outcome after.
     expect(actions).toContainEqual({ toolName: "governance.agent.prompt", actor: "kinan" });
@@ -113,17 +120,25 @@ describe("prompting", () => {
       expect(actions.some((entry) => entry.toolName === "governance.agent.prompt")).toBe(true);
       throw new Error("model unreachable");
     });
-    const outcome = await promptAgent({ agentId: "agent-a", username: "kinan", message: "hi" });
+    const outcome = await promptAgent(TEST_GROUP, {
+      agentId: "agent-a",
+      username: "kinan",
+      message: "hi",
+    });
     expect(outcome.ok).toBe(false);
   });
 
   it("reports a failed run without throwing, and records it as a denial", async () => {
     clearAgentRunner();
     registerAgentRunner(async () => ({ ok: false, reply: "", error: "model unreachable" }));
-    const outcome = await promptAgent({ agentId: "agent-a", username: "kinan", message: "hi" });
+    const outcome = await promptAgent(TEST_GROUP, {
+      agentId: "agent-a",
+      username: "kinan",
+      message: "hi",
+    });
     expect(outcome.ok).toBe(false);
     expect(outcome.error).toBe("model unreachable");
-    const results = (await tailLedger(200)).filter(
+    const results = (await tailLedger(TEST_GROUP, 200)).filter(
       (entry) => entry.toolName === "governance.agent.prompt-result",
     );
     expect(results.at(-1)?.decision).toBe("deny");
@@ -131,42 +146,46 @@ describe("prompting", () => {
 
   it("says plainly that nothing can run the prompt when no runner is attached", async () => {
     clearAgentRunner();
-    const outcome = await promptAgent({ agentId: "agent-a", username: "kinan", message: "hi" });
+    const outcome = await promptAgent(TEST_GROUP, {
+      agentId: "agent-a",
+      username: "kinan",
+      message: "hi",
+    });
     expect(outcome.ok).toBe(false);
     expect(outcome.error).toMatch(/Gateway/);
   });
 
   it("refuses an empty prompt", async () => {
     await expect(
-      promptAgent({ agentId: "agent-a", username: "kinan", message: "   " }),
+      promptAgent(TEST_GROUP, { agentId: "agent-a", username: "kinan", message: "   " }),
     ).rejects.toBeInstanceOf(EmptyPromptError);
   });
 
   it("bounds a prompt so one message cannot flood the ledger or the transcript", async () => {
-    await promptAgent({
+    await promptAgent(TEST_GROUP, {
       agentId: "agent-a",
       username: "kinan",
       message: "x".repeat(MAX_PROMPT_LENGTH * 3),
     });
-    const turns = await readConversation("agent-a", "kinan");
+    const turns = await readConversation(TEST_GROUP, "agent-a", "kinan");
     expect(turns[0]?.body.length).toBeLessThanOrEqual(MAX_PROMPT_LENGTH);
   });
 
   it("redacts a secret pasted into a prompt", async () => {
-    await promptAgent({
+    await promptAgent(TEST_GROUP, {
       agentId: "agent-a",
       username: "kinan",
       message: "use sk-ant-SUPERSECRETVALUE12345 please",
     });
-    const turns = await readConversation("agent-a", "kinan");
+    const turns = await readConversation(TEST_GROUP, "agent-a", "kinan");
     expect(JSON.stringify(turns)).not.toContain("SUPERSECRETVALUE12345");
   });
 });
 
 describe("a locked-down agent", () => {
   it("refuses the prompt at the door rather than running it", async () => {
-    await lockDownAgent("agent-a", "kinan");
-    const outcome = await promptAgent({
+    await lockDownAgent(TEST_GROUP, "agent-a", "kinan");
+    const outcome = await promptAgent(TEST_GROUP, {
       agentId: "agent-a",
       username: "kinan",
       message: "keep going",
@@ -178,54 +197,68 @@ describe("a locked-down agent", () => {
   });
 
   it("records the refusal, attributed to whoever tried", async () => {
-    await lockDownAgent("agent-a", "root");
-    await promptAgent({ agentId: "agent-a", username: "kinan", message: "keep going" });
-    const refusals = (await tailLedger(200)).filter(
+    await lockDownAgent(TEST_GROUP, "agent-a", "root");
+    await promptAgent(TEST_GROUP, { agentId: "agent-a", username: "kinan", message: "keep going" });
+    const refusals = (await tailLedger(TEST_GROUP, 200)).filter(
       (entry) => entry.toolName === "governance.agent.prompt" && entry.decision === "deny",
     );
     expect(refusals.at(-1)?.actor).toBe("kinan");
   });
 
   it("accepts prompts again once the lockdown is released", async () => {
-    await lockDownAgent("agent-a", "root");
-    await releaseAgentLockdown("agent-a", "root");
-    const outcome = await promptAgent({ agentId: "agent-a", username: "kinan", message: "hi" });
+    await lockDownAgent(TEST_GROUP, "agent-a", "root");
+    await releaseAgentLockdown(TEST_GROUP, "agent-a", "root");
+    const outcome = await promptAgent(TEST_GROUP, {
+      agentId: "agent-a",
+      username: "kinan",
+      message: "hi",
+    });
     expect(outcome.ok).toBe(true);
   });
 
   it("leaves other agents alone", async () => {
-    await lockDownAgent("agent-a", "root");
-    const outcome = await promptAgent({ agentId: "agent-b", username: "kinan", message: "hi" });
+    await lockDownAgent(TEST_GROUP, "agent-a", "root");
+    const outcome = await promptAgent(TEST_GROUP, {
+      agentId: "agent-b",
+      username: "kinan",
+      message: "hi",
+    });
     expect(outcome.ok).toBe(true);
   });
 });
 
 describe("transcripts", () => {
   it("keeps both sides of the exchange, oldest first", async () => {
-    await promptAgent({ agentId: "agent-a", username: "kinan", message: "first" });
-    await promptAgent({ agentId: "agent-a", username: "kinan", message: "second" });
-    const turns = await readConversation("agent-a", "kinan");
+    await promptAgent(TEST_GROUP, { agentId: "agent-a", username: "kinan", message: "first" });
+    await promptAgent(TEST_GROUP, { agentId: "agent-a", username: "kinan", message: "second" });
+    const turns = await readConversation(TEST_GROUP, "agent-a", "kinan");
     expect(turns.map((turn) => turn.role)).toEqual(["user", "agent", "user", "agent"]);
     expect(turns[0]?.body).toBe("first");
     expect(turns[1]?.body).toBe("echo: first");
   });
 
   it("correlates each pair of turns with the run and the ledger", async () => {
-    const outcome = await promptAgent({ agentId: "agent-a", username: "kinan", message: "hi" });
-    const turns = await readConversation("agent-a", "kinan");
+    const outcome = await promptAgent(TEST_GROUP, {
+      agentId: "agent-a",
+      username: "kinan",
+      message: "hi",
+    });
+    const turns = await readConversation(TEST_GROUP, "agent-a", "kinan");
     expect(turns.every((turn) => turn.runId === outcome.runId)).toBe(true);
-    const entries = (await tailLedger(200)).filter((entry) => entry.ruleId === outcome.runId);
+    const entries = (await tailLedger(TEST_GROUP, 200)).filter(
+      (entry) => entry.ruleId === outcome.runId,
+    );
     expect(entries).toHaveLength(2);
   });
 
   it("does not let one account read another's conversation with the same agent", async () => {
-    await promptAgent({ agentId: "agent-a", username: "kinan", message: "mine" });
-    expect(await readConversation("agent-a", "malek")).toEqual([]);
+    await promptAgent(TEST_GROUP, { agentId: "agent-a", username: "kinan", message: "mine" });
+    expect(await readConversation(TEST_GROUP, "agent-a", "malek")).toEqual([]);
   });
 
   it("keeps conversations with different agents apart", async () => {
-    await promptAgent({ agentId: "agent-a", username: "kinan", message: "for a" });
-    expect(await readConversation("agent-b", "kinan")).toEqual([]);
+    await promptAgent(TEST_GROUP, { agentId: "agent-a", username: "kinan", message: "for a" });
+    expect(await readConversation(TEST_GROUP, "agent-b", "kinan")).toEqual([]);
   });
 });
 
@@ -239,7 +272,7 @@ describe("streaming, cancellation and capacity (A1 follow-up, and Q-90)", () => 
       return { ok: true, reply: "Looking at the file now." };
     });
     const snapshots: string[] = [];
-    const outcome = await promptAgent({
+    const outcome = await promptAgent(TEST_GROUP, {
       agentId: "agent-a",
       username: "malek",
       message: "read the file",
@@ -261,7 +294,7 @@ describe("streaming, cancellation and capacity (A1 follow-up, and Q-90)", () => 
       return { ok: true, reply: "done" };
     });
     const snapshots: string[] = [];
-    await promptAgent({
+    await promptAgent(TEST_GROUP, {
       agentId: "agent-a",
       username: "malek",
       message: "show me",
@@ -281,7 +314,7 @@ describe("streaming, cancellation and capacity (A1 follow-up, and Q-90)", () => 
       return { ok: true, reply: "ok" };
     });
     let announced = "";
-    const outcome = await promptAgent({
+    const outcome = await promptAgent(TEST_GROUP, {
       agentId: "agent-a",
       username: "malek",
       message: "hello",
@@ -300,7 +333,7 @@ describe("streaming, cancellation and capacity (A1 follow-up, and Q-90)", () => 
       cancelPromptRun({ runId: request.runId, username: "malek", mayCancelOthers: false });
       return { ok: false, reply: "", error: "aborted" };
     });
-    const outcome = await promptAgent({
+    const outcome = await promptAgent(TEST_GROUP, {
       agentId: "agent-a",
       username: "malek",
       message: "long job",
@@ -317,8 +350,8 @@ describe("streaming, cancellation and capacity (A1 follow-up, and Q-90)", () => 
       cancelPromptRun({ runId: request.runId, username: "malek", mayCancelOthers: false });
       return { ok: false, reply: "", error: "aborted" };
     });
-    await promptAgent({ agentId: "agent-a", username: "malek", message: "long job" });
-    const result = (await tailLedger(50)).find(
+    await promptAgent(TEST_GROUP, { agentId: "agent-a", username: "malek", message: "long job" });
+    const result = (await tailLedger(TEST_GROUP, 50)).find(
       (entry) => entry.toolName === "governance.agent.prompt-result",
     );
     // Three outcomes, not two. "The operator stopped this" and "the run failed"
@@ -338,7 +371,7 @@ describe("streaming, cancellation and capacity (A1 follow-up, and Q-90)", () => 
       abortedDuringRun = request.signal?.aborted === true;
       return { ok: false, reply: "", error: "aborted" };
     });
-    await promptAgent({ agentId: "agent-a", username: "malek", message: "long job" });
+    await promptAgent(TEST_GROUP, { agentId: "agent-a", username: "malek", message: "long job" });
     expect(sawSignal).toBe(true);
     expect(abortedDuringRun).toBe(true);
   });
@@ -381,7 +414,7 @@ describe("streaming, cancellation and capacity (A1 follow-up, and Q-90)", () => 
       return { ok: true, reply: "ok" };
     });
     const running = Array.from({ length: MAX_CONCURRENT_PROMPTS_PER_ACCOUNT }, () =>
-      promptAgent({ agentId: "agent-a", username, message: "busy" }),
+      promptAgent(TEST_GROUP, { agentId: "agent-a", username, message: "busy" }),
     );
     await Promise.all(allClaimed);
     return {
@@ -399,14 +432,14 @@ describe("streaming, cancellation and capacity (A1 follow-up, and Q-90)", () => 
     // investigation may need, and it is how a flood becomes visible in the
     // ledger rather than only in a rejected HTTP response.
     const filled = await fillAllowance("malek");
-    const refused = await promptAgent({
+    const refused = await promptAgent(TEST_GROUP, {
       agentId: "agent-a",
       username: "malek",
       message: "one too many",
     });
     expect(refused.ok).toBe(false);
     expect(refused.error).toContain("prompts running");
-    const entries = await tailLedger(50);
+    const entries = await tailLedger(TEST_GROUP, 50);
     expect(
       entries.some(
         (entry) =>
@@ -419,7 +452,11 @@ describe("streaming, cancellation and capacity (A1 follow-up, and Q-90)", () => 
 
   it("does not let one account's flood block another account", async () => {
     const filled = await fillAllowance("malek");
-    const other = await promptAgent({ agentId: "agent-a", username: "kinan", message: "hello" });
+    const other = await promptAgent(TEST_GROUP, {
+      agentId: "agent-a",
+      username: "kinan",
+      message: "hello",
+    });
     expect(other.ok).toBe(true);
     await filled.release();
   });

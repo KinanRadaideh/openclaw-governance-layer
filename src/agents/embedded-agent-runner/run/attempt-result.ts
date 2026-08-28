@@ -1,6 +1,7 @@
 /**
  * Projects stream state into the stable embedded-attempt result contract.
  */
+import { recordAgentIntent } from "../../../governance/agent-intent.js";
 import { freezeDiagnosticTraceContext } from "../../../infra/diagnostic-trace-context.js";
 import type { DiagnosticTraceContext } from "../../../infra/diagnostic-trace-context.js";
 import {
@@ -210,6 +211,24 @@ export function completeEmbeddedAttemptResult(
       });
     }
   }
+
+  // Governance: remember what the model said it was doing, so the tool calls
+  // this turn produces can be recorded with the intent behind them (§1.6's
+  // "raw LLM intent").
+  //
+  // **A direct call, deliberately outside the `hasHooks` guard below.** The
+  // host dispatches `llm_output` only when some plugin registered for it, and
+  // B1 is the finding that governance must not be reachable only in the
+  // configurations where a plugin happens to be loaded. `search-audit.ts` is
+  // wired the same way, for the same reason.
+  //
+  // Never throws: `recordAgentIntent` swallows nothing but does nothing that
+  // can fail, and a failure to capture an intent must never cost the turn.
+  recordAgentIntent({
+    sessionKey: attempt.sessionKey,
+    assistantTexts,
+    lastAssistant: state.lastAssistant,
+  });
 
   if (
     attempt.operation !== "settled-tool-finalization" &&

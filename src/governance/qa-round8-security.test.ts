@@ -16,6 +16,7 @@ import { evaluateGovernancePolicy } from "./policy-engine.js";
 import { addRule, loadPolicy, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument, resolveAskMode } from "./policy-types.js";
 import { issueSession, verifySession } from "./session-tokens.js";
+import { seedNamedGroup } from "./test-group.js";
 import { createUser } from "./user-store.js";
 
 /**
@@ -35,7 +36,8 @@ let dir: string;
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-qa8sec-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
+  await seedNamedGroup(TEST_GROUP, ["agent-a", "agent-b"]);
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
 });
 
 afterEach(async () => {
@@ -52,7 +54,7 @@ describe("secrets must not reach the audit trail", () => {
       },
       { agentId: "agent-a" },
     );
-    const raw = await readFile(ledgerFilePath(), "utf8");
+    const raw = await readFile(ledgerFilePath(TEST_GROUP), "utf8");
     expect(raw).not.toContain("sk-ant-api03-SUPERSECRETVALUE");
   });
 
@@ -63,7 +65,7 @@ describe("secrets must not reach the audit trail", () => {
       { toolName: "some_unknown_tool", params: { token: "sk-ant-api03-ANOTHERSECRET" } },
       { agentId: "agent-a" },
     );
-    const raw = await readFile(ledgerFilePath(), "utf8");
+    const raw = await readFile(ledgerFilePath(TEST_GROUP), "utf8");
     expect(raw).not.toContain("sk-ant-api03-ANOTHERSECRET");
   });
 
@@ -75,7 +77,7 @@ describe("secrets must not reach the audit trail", () => {
       { toolName: "exec", params: { command: huge } },
       { agentId: "agent-a" },
     );
-    const entry = (await tailLedger()).at(-1);
+    const entry = (await tailLedger(TEST_GROUP)).at(-1);
     expect(entry?.resource.length ?? 0).toBeLessThan(10_000);
   });
 
@@ -94,7 +96,7 @@ describe("secrets must not reach the audit trail", () => {
       username: user.username,
       role: user.role,
     });
-    await appendLedgerEntry({
+    await appendLedgerEntry(TEST_GROUP, {
       agentId: "agent-a",
       toolName: "exec",
       resourceKind: "command",
@@ -102,7 +104,7 @@ describe("secrets must not reach the audit trail", () => {
       ruleId: "r",
       decision: "allow",
     });
-    const raw = await readFile(ledgerFilePath(), "utf8");
+    const raw = await readFile(ledgerFilePath(TEST_GROUP), "utf8");
     expect(raw).not.toContain(session.token);
   });
 });
@@ -161,7 +163,7 @@ describe("sessions expire and cannot be resurrected", () => {
 
 describe("agent-controlled keys cannot reach object internals", () => {
   it("an agent named __proto__ does not inherit a policy override", async () => {
-    const doc = await loadPolicy();
+    const doc = await loadPolicy(TEST_GROUP);
     // Even if such a key were present, resolution must read own properties only.
     expect(resolveAskMode(doc, "__proto__")).toBe(doc.ask);
     expect(resolveAskMode(doc, "constructor")).toBe(doc.ask);
@@ -178,7 +180,7 @@ describe("agent-controlled keys cannot reach object internals", () => {
       // keeps the gap visible rather than silent.
       expect(decision, toolName).toBeUndefined();
     }
-    const entries = await tailLedger();
+    const entries = await tailLedger(TEST_GROUP);
     expect(entries.filter((entry) => entry.decision === "ungoverned")).toHaveLength(4);
   });
 });
@@ -192,7 +194,7 @@ describe("the viewer tier is confidentiality, not just read-only", () => {
       { toolName: "exec", params: { command: "cat /etc/shadow" } },
       { agentId: "agent-a" },
     );
-    const projected = projectLedgerForActor(await tailLedger(), viewer);
+    const projected = projectLedgerForActor(await tailLedger(TEST_GROUP), viewer);
     expect(projected.at(0)?.resource).toBe(REDACTED_RESOURCE);
     expect(JSON.stringify(projected)).not.toContain("/etc/shadow");
   });
@@ -204,8 +206,8 @@ describe("the viewer tier is confidentiality, not just read-only", () => {
       { toolName: "exec", params: { command: "ls" } },
       { agentId: "agent-b" },
     );
-    expect(projectLedgerForActor(await tailLedger(), viewer)).toHaveLength(0);
-    expect(projectLedgerForActor(await tailLedger(), user)).toHaveLength(0);
+    expect(projectLedgerForActor(await tailLedger(TEST_GROUP), viewer)).toHaveLength(0);
+    expect(projectLedgerForActor(await tailLedger(TEST_GROUP), user)).toHaveLength(0);
   });
 
   it("shows the User tier the literal resource for its own agent", async () => {
@@ -213,7 +215,7 @@ describe("the viewer tier is confidentiality, not just read-only", () => {
       { toolName: "exec", params: { command: "cat /etc/shadow" } },
       { agentId: "agent-a" },
     );
-    expect(projectLedgerForActor(await tailLedger(), user).at(0)?.resource).toContain(
+    expect(projectLedgerForActor(await tailLedger(TEST_GROUP), user).at(0)?.resource).toContain(
       "/etc/shadow",
     );
   });
@@ -221,14 +223,14 @@ describe("the viewer tier is confidentiality, not just read-only", () => {
   it("hides installation-wide administrative entries from a scoped account", async () => {
     // An installation-wide change carries no agent, so the scope filter keeps
     // it to Administrator and above. A User must not learn the posture changed.
-    await addRule({ resourceKind: "command", pattern: "^ls$" }, "kinan");
-    expect(projectLedgerForActor(await tailLedger(), user)).toHaveLength(0);
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "kinan");
+    expect(projectLedgerForActor(await tailLedger(TEST_GROUP), user)).toHaveLength(0);
   });
 });
 
 describe("a denial cannot be turned into an allow by malformed input", () => {
   it("an unparseable rule pattern never matches", async () => {
-    await savePolicy({
+    await savePolicy(TEST_GROUP, {
       ...defaultPolicyDocument(),
       mode: "enforce",
       ask: "off",
@@ -251,7 +253,7 @@ describe("a denial cannot be turned into an allow by malformed input", () => {
   it("a rule whose expiry is unreadable is treated as expired, not as permanent", async () => {
     // Failing the other way would silently promote a temporary grant into a
     // permanent one, which is the direction that loses access control.
-    await savePolicy({
+    await savePolicy(TEST_GROUP, {
       ...defaultPolicyDocument(),
       mode: "enforce",
       ask: "off",

@@ -106,6 +106,68 @@ beforeEach(() => {
   document.body.innerHTML = "";
 });
 
+describe("the page explains how rules are read (2026-08-26)", () => {
+  /**
+   * Two facts an operator needs in order to read the rule list correctly. Both
+   * were already true of the engine and neither was visible on the page.
+   *
+   * Precedence lived in the `title=` attribute of the effect dropdown in the
+   * authoring form: hover-only, absent on touch, and gone entirely once you are
+   * reading rules rather than writing one. The search limitation was in the
+   * backlog and the report and nowhere a person using the page could see it.
+   */
+  it("says that forbid beats allow, on the page rather than in a tooltip", async () => {
+    const el = await mount({
+      identity: identity("administrator"),
+      policy: policy([rule({ description: "Something", pattern: "^ls$" })]),
+    });
+    const text = (el.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain("How these rules are read");
+    expect(text).toContain("Forbid beats allow");
+    // The consequence, spelled out, because it is the thing an operator wants
+    // and would otherwise have to infer: a narrow forbid carves an exception
+    // out of a broad allow.
+    expect(text).toContain("grant a folder, forbid one subfolder");
+  });
+
+  it("discloses that a forbid rule does not stop a search finding the file", async () => {
+    // **This test should fail when T7's prevention half lands, and that is the
+    // point.** At that moment the caveat becomes untrue, and whoever closes T7
+    // must come here, see why the sentence existed, and delete it along with
+    // the two i18n keys. The same device as the round-fourteen test that pinned
+    // finding 96 before T6 closed it — which did exactly this and worked.
+    //
+    // Until then the sentence stays, because an interface that lets somebody
+    // write "this folder, except that subfolder" while a search walks straight
+    // through the exception is making a promise the gate does not keep. This
+    // project has recorded that shape four times in code (findings 112, 113,
+    // 120, T28); made to a person, in words they chose, it is harder to catch.
+    const el = await mount({
+      identity: identity("administrator"),
+      policy: policy([rule({ description: "Something", pattern: "^ls$" })]),
+    });
+    const text = (el.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain("One place a forbid rule does not reach yet");
+    expect(text).toContain("grep, find and ls are judged on the folder they start from");
+    // The honest half: it is recorded even though it is not prevented, so the
+    // disclosure does not read as a shrug.
+    expect(text).toContain("written to the audit trail");
+  });
+
+  it("shows both notices to a User, not only to an administrator", async () => {
+    // A User authors rules for their own agent, so a User can write exactly the
+    // grant this caveat is about. Showing the explanation only to the tier that
+    // needs it least would be the whole defect again.
+    const el = await mount({
+      identity: identity("user"),
+      policy: policy([rule({ description: "Something", pattern: "^ls$" })]),
+    });
+    const text = (el.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain("Forbid beats allow");
+    expect(text).toContain("One place a forbid rule does not reach yet");
+  });
+});
+
 describe("rule rows say what the rule is for (finding 99)", () => {
   it("leads with the description, not the regular expression", async () => {
     const el = await mount({

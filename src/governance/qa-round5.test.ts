@@ -15,14 +15,21 @@ import { evaluateGovernancePolicy } from "./policy-engine.js";
 import { addRule, loadPolicy, lockAgent, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
 import { resolveGovernedTool } from "./resource-extraction.js";
+import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
+
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
 
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-qa5-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  TEST_GROUP = await seedGroupWithAgents(["agent-a", "agent-b"]);
   resetLedgerCursorForTests();
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
 });
 
 afterEach(async () => {
@@ -74,7 +81,7 @@ describe("the governed tool registry matches the tools OpenClaw actually ships",
   });
 
   it("allows a file edit that a path rule covers", async () => {
-    await addRule({ resourceKind: "path", pattern: "^workspace/.*$" });
+    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^workspace/.*$" });
     const decision = await evaluateGovernancePolicy(
       { toolName: "edit", params: { path: "workspace/main.ts", edits: [] } },
       ctx,
@@ -109,7 +116,7 @@ describe("the kill switch cannot be stepped around", () => {
     // no resource extractor, so a locked agent could keep working through any
     // tool the registry did not know about. An emergency stop with a documented
     // way around it is not an emergency stop.
-    await lockAgent("agent-a");
+    await lockAgent(TEST_GROUP, "agent-a");
     const decision = await evaluateGovernancePolicy(
       { toolName: "image_generate", params: { prompt: "x" } },
       ctx,
@@ -121,15 +128,15 @@ describe("the kill switch cannot be stepped around", () => {
   });
 
   it("records the blocked attempt rather than dropping it", async () => {
-    await lockAgent("agent-a");
+    await lockAgent(TEST_GROUP, "agent-a");
     await evaluateGovernancePolicy({ toolName: "sessions_spawn", params: {} }, ctx);
-    const [entry] = await tailLedger();
+    const [entry] = await tailLedger(TEST_GROUP);
     expect(entry?.decision).toBe("deny");
     expect(entry?.ruleId).toBe("kill-switch");
   });
 
   it("still lets an unlocked agent use the same tool", async () => {
-    await lockAgent("other-agent");
+    await lockAgent(TEST_GROUP, "other-agent");
     const decision = await evaluateGovernancePolicy(
       { toolName: "image_generate", params: { prompt: "x" } },
       ctx,
@@ -156,8 +163,8 @@ describe("an approved escalation grants only what was reviewed", () => {
    * another agent" is still worth failing on.
    */
   it("lets an approval unblock the action without authoring any policy", async () => {
-    await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "on-miss" });
-    const before = (await loadPolicy()).rules.length;
+    await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce", ask: "on-miss" });
+    const before = (await loadPolicy(TEST_GROUP)).rules.length;
     const decision = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "npm test" } },
       ctx,
@@ -171,7 +178,7 @@ describe("an approved escalation grants only what was reviewed", () => {
     // a separate component that takes its own view of what it may send — the
     // callback must not write a rule.
     await decision.requireApproval.onResolution("allow-always");
-    expect((await loadPolicy()).rules).toHaveLength(before);
+    expect((await loadPolicy(TEST_GROUP)).rules).toHaveLength(before);
 
     // The next identical action escalates again rather than being silently
     // permitted, for this agent and for any other.

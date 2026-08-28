@@ -34,14 +34,21 @@ import { normalizeGovernedPath } from "./path-normalize.js";
 import { evaluateGovernancePolicy } from "./policy-engine.js";
 import { addRule, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
+import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
 let workspace: string;
 let outside: string;
 
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-toctou-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = join(dir, "gov");
+  TEST_GROUP = await seedGroupWithAgents(["agent-a"]);
   resetLedgerKeyCacheForTests();
   workspace = join(dir, "workspace");
   outside = join(dir, "outside");
@@ -50,7 +57,7 @@ beforeEach(async () => {
   await mkdir(outside, { recursive: true });
   await writeFile(join(workspace, "safe", "notes.txt"), "harmless\n");
   await writeFile(join(outside, "notes.txt"), "SECRET\n");
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce" });
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce" });
 });
 
 afterEach(async () => {
@@ -99,7 +106,7 @@ describe("the window between the gate's resolve and the tool's open", () => {
     const asChecked = await normalizeGovernedPath("link/notes.txt", workspace);
     expect(asChecked).toBe("safe/notes.txt");
 
-    await addRule({ resourceKind: "path", pattern: "^safe/.*$", access: "read" });
+    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^safe/.*$", access: "read" });
     expect(
       verdict(
         await evaluateGovernancePolicy(
@@ -168,7 +175,7 @@ describe("the window between the gate's resolve and the tool's open", () => {
     if (!(await link(outside, linkPath))) {
       return;
     }
-    await addRule({ resourceKind: "path", pattern: "^escape/.*$", access: "read" });
+    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^escape/.*$", access: "read" });
 
     // Under the shipped default posture (`ask: "on-miss"`) the escape does not
     // match the rule any more, misses the policy, and goes to a human. Asserted
@@ -187,8 +194,8 @@ describe("the window between the gate's resolve and the tool's open", () => {
     // With escalation switched off there is nobody to ask, and default-deny
     // refuses it outright. Both postures agree on the thing that matters: the
     // escape is never silently allowed.
-    await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
-    await addRule({ resourceKind: "path", pattern: "^escape/.*$", access: "read" });
+    await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
+    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^escape/.*$", access: "read" });
     expect(
       verdict(
         await evaluateGovernancePolicy(

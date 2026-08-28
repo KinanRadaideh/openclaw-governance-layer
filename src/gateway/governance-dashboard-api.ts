@@ -54,6 +54,7 @@ import type { GovernanceSession } from "../governance/session-tokens.js";
 import { handleGovernanceAccountRoutes } from "./governance-dashboard-accounts.js";
 import { handleGovernanceAgentControlRoutes } from "./governance-dashboard-agent-control.js";
 import { handleGovernanceAgentRoutes } from "./governance-dashboard-agents.js";
+import { requireGroup } from "./governance-dashboard-group.js";
 import { handleGovernanceOversightRoutes } from "./governance-dashboard-oversight.js";
 import { handleGovernanceRuleRequestRoutes } from "./governance-dashboard-rule-requests.js";
 import {
@@ -167,9 +168,13 @@ export async function handleGovernanceApiRequest(
     if (!requireRole(res, session, "viewer")) {
       return true;
     }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
     // A scoped account sees global rules (they bind its agents too) plus the
     // rules for agents it was assigned — never another team's agent rules.
-    const policy = await loadPolicy();
+    const policy = await loadPolicy(groupId);
     const actor = toActor(session);
     sendJson(res, 200, {
       ...policy,
@@ -210,6 +215,10 @@ export async function handleGovernanceApiRequest(
     if (!requireRole(res, session, "root")) {
       return true;
     }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
     const body = await readJsonObjectBodyOrError(req, res);
     if (body === undefined) {
       return true;
@@ -220,7 +229,7 @@ export async function handleGovernanceApiRequest(
       return true;
     }
     try {
-      const updated = await setCoreRuleEnabled(ruleId, enabled, auditActor(session));
+      const updated = await setCoreRuleEnabled(groupId, ruleId, enabled, auditActor(session));
       sendJson(res, 200, { ok: true, disabledCoreRules: updated.disabledCoreRules ?? [] });
     } catch (err) {
       if (err instanceof SelfProtectingCoreRuleError) {
@@ -252,6 +261,10 @@ export async function handleGovernanceApiRequest(
     if (!requireRole(res, session, "viewer")) {
       return true;
     }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
     const agentId = new URL(req.url ?? "/", "http://localhost").searchParams.get("agentId")?.trim();
     if (!agentId) {
       sendInvalidRequest(res, "agentId is required");
@@ -268,7 +281,7 @@ export async function handleGovernanceApiRequest(
       });
       return true;
     }
-    sendJson(res, 200, agentPolicyView(await loadPolicy(), agentId));
+    sendJson(res, 200, agentPolicyView(await loadPolicy(groupId), agentId));
     return true;
   }
 
@@ -285,12 +298,16 @@ export async function handleGovernanceApiRequest(
     if (!requireRole(res, session, "viewer")) {
       return true;
     }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
     const ruleId = new URL(req.url ?? "/", "http://localhost").searchParams.get("ruleId")?.trim();
     if (!ruleId) {
       sendInvalidRequest(res, "ruleId is required");
       return true;
     }
-    const policy = await loadPolicy();
+    const policy = await loadPolicy(groupId);
     const rule = policy.rules.find((candidate) => candidate.id === ruleId);
     if (!rule) {
       sendJson(res, 404, { error: { message: "No such rule", type: "not_found" } });
@@ -336,6 +353,10 @@ export async function handleGovernanceApiRequest(
     if (!requireRole(res, session, "root")) {
       return true;
     }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
     // Lazily imported: `governance-deployment-input` pulls in `src/security/*` and
     // `src/config/*`, which no other route on this surface needs, and this
     // module is itself already lazily loaded from governance-dashboard-auth.ts.
@@ -371,7 +392,7 @@ export async function handleGovernanceApiRequest(
       });
       return true;
     }
-    sendJson(res, 200, await readDeploymentStatus(input));
+    sendJson(res, 200, await readDeploymentStatus(groupId, input));
     return true;
   }
 
@@ -380,6 +401,10 @@ export async function handleGovernanceApiRequest(
   // Answering requires authority over the agent in question.
   if (route === "pending-decisions/decide" && req.method === "POST") {
     if (!requireRole(res, session, "user")) {
+      return true;
+    }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
       return true;
     }
     const body = await readJsonObjectBodyOrError(req, res);
@@ -391,7 +416,7 @@ export async function handleGovernanceApiRequest(
       sendInvalidRequest(res, "id and allow are required");
       return true;
     }
-    const target = (await listPendingDecisions()).find((entry) => entry.id === id);
+    const target = (await listPendingDecisions(groupId)).find((entry) => entry.id === id);
     if (!target || target.status !== "pending") {
       sendJson(res, 404, { error: { message: "no such pending decision", type: "not_found" } });
       return true;
@@ -403,7 +428,11 @@ export async function handleGovernanceApiRequest(
       });
       return true;
     }
-    const decided = await decidePendingDecision({ id, allow, decidedBy: session.username });
+    const decided = await decidePendingDecision(groupId, {
+      id,
+      allow,
+      decidedBy: session.username,
+    });
     sendJson(res, 200, decided ?? { ok: true });
     return true;
   }
@@ -411,6 +440,10 @@ export async function handleGovernanceApiRequest(
   // Root only: the escalation timeout window (§1.6, "preset by the Root").
   if (route === "policy/hitl-timeout" && req.method === "POST") {
     if (!requireRole(res, session, "root")) {
+      return true;
+    }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
       return true;
     }
     const body = await readJsonObjectBodyOrError(req, res);
@@ -427,8 +460,8 @@ export async function handleGovernanceApiRequest(
       sendInvalidRequest(res, "seconds must be a number between 5 and 86400");
       return true;
     }
-    await setHitlTimeout(Math.round(seconds), auditActor(session));
-    sendJson(res, 200, await loadPolicy());
+    await setHitlTimeout(groupId, Math.round(seconds), auditActor(session));
+    sendJson(res, 200, await loadPolicy(groupId));
     return true;
   }
 
@@ -441,6 +474,10 @@ export async function handleGovernanceApiRequest(
     if (!requireRole(res, session, "administrator")) {
       return true;
     }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
     const body = await readJsonObjectBodyOrError(req, res);
     if (body === undefined) {
       return true;
@@ -450,13 +487,17 @@ export async function handleGovernanceApiRequest(
       sendInvalidRequest(res, "mode must be enforce, monitor, or off");
       return true;
     }
-    await setMode(mode, auditActor(session));
-    sendJson(res, 200, await loadPolicy());
+    await setMode(groupId, mode, auditActor(session));
+    sendJson(res, 200, await loadPolicy(groupId));
     return true;
   }
 
   if (route === "policy/ask" && req.method === "POST") {
     if (!requireRole(res, session, "administrator")) {
+      return true;
+    }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
       return true;
     }
     const body = await readJsonObjectBodyOrError(req, res);
@@ -468,8 +509,8 @@ export async function handleGovernanceApiRequest(
       sendInvalidRequest(res, "ask must be off or on-miss");
       return true;
     }
-    await setAskMode(ask, auditActor(session));
-    sendJson(res, 200, await loadPolicy());
+    await setAskMode(groupId, ask, auditActor(session));
+    sendJson(res, 200, await loadPolicy(groupId));
     return true;
   }
 
@@ -491,6 +532,10 @@ export async function handleGovernanceApiRequest(
   // `rule-requests.ts`.
   if (route === "policy/agent-ask" && req.method === "POST") {
     if (!requireRole(res, session, "administrator")) {
+      return true;
+    }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
       return true;
     }
     const body = await readJsonObjectBodyOrError(req, res);
@@ -520,8 +565,13 @@ export async function handleGovernanceApiRequest(
       });
       return true;
     }
-    await setAgentAskMode(agentId.trim(), ask === null ? undefined : ask, auditActor(session));
-    sendJson(res, 200, await loadPolicy());
+    await setAgentAskMode(
+      groupId,
+      agentId.trim(),
+      ask === null ? undefined : ask,
+      auditActor(session),
+    );
+    sendJson(res, 200, await loadPolicy(groupId));
     return true;
   }
 
@@ -542,6 +592,10 @@ export async function handleGovernanceApiRequest(
   // `agent-setting` request — see `rule-requests.ts`.
   if (route === "policy/agent-mode" && req.method === "POST") {
     if (!requireRole(res, session, "administrator")) {
+      return true;
+    }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
       return true;
     }
     const body = await readJsonObjectBodyOrError(req, res);
@@ -584,8 +638,13 @@ export async function handleGovernanceApiRequest(
       });
       return true;
     }
-    await setAgentMode(agentId.trim(), mode === null ? undefined : mode, auditActor(session));
-    sendJson(res, 200, await loadPolicy());
+    await setAgentMode(
+      groupId,
+      agentId.trim(),
+      mode === null ? undefined : mode,
+      auditActor(session),
+    );
+    sendJson(res, 200, await loadPolicy(groupId));
     return true;
   }
 
@@ -593,6 +652,10 @@ export async function handleGovernanceApiRequest(
   // axis to Root, as against the per-agent axis an Administrator controls).
   if (route === "policy/user-ask" && req.method === "POST") {
     if (!requireRole(res, session, "root")) {
+      return true;
+    }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
       return true;
     }
     const body = await readJsonObjectBodyOrError(req, res);
@@ -617,8 +680,13 @@ export async function handleGovernanceApiRequest(
       sendInvalidRequest(res, "username is not a valid key");
       return true;
     }
-    await setUserAskMode(username.trim(), ask === null ? undefined : ask, auditActor(session));
-    sendJson(res, 200, await loadPolicy());
+    await setUserAskMode(
+      groupId,
+      username.trim(),
+      ask === null ? undefined : ask,
+      auditActor(session),
+    );
+    sendJson(res, 200, await loadPolicy(groupId));
     return true;
   }
 
@@ -626,6 +694,10 @@ export async function handleGovernanceApiRequest(
     // Tier floor is User: a User manages the agents assigned to them. The
     // scope check below decides whether *this* rule is inside their remit.
     if (!requireRole(res, session, "user")) {
+      return true;
+    }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
       return true;
     }
     const body = await readJsonObjectBodyOrError(req, res);
@@ -721,6 +793,7 @@ export async function handleGovernanceApiRequest(
     let conflicts;
     try {
       ({ rule, conflicts } = await addRuleChecked(
+        groupId,
         {
           resourceKind,
           pattern: validatedRulePattern.pattern,
@@ -759,6 +832,10 @@ export async function handleGovernanceApiRequest(
     if (!requireRole(res, session, "user")) {
       return true;
     }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
     const body = await readJsonObjectBodyOrError(req, res);
     if (body === undefined) {
       return true;
@@ -771,7 +848,7 @@ export async function handleGovernanceApiRequest(
     // Authorize against the rule's own scope, read from storage — never from
     // the caller's payload, so a User cannot delete a global or foreign rule
     // by claiming it belongs to their agent.
-    const existing = (await loadPolicy()).rules.find((rule) => rule.id === id);
+    const existing = (await loadPolicy(groupId)).rules.find((rule) => rule.id === id);
     if (!existing) {
       sendJson(res, 404, { error: { message: "no such rule", type: "not_found" } });
       return true;
@@ -788,7 +865,7 @@ export async function handleGovernanceApiRequest(
       return true;
     }
     try {
-      sendJson(res, 200, { ok: await removeRule(id, auditActor(session)) });
+      sendJson(res, 200, { ok: await removeRule(groupId, id, auditActor(session)) });
     } catch (err) {
       // A core rule. Refused for every tier including Root, so this is a
       // statement about the rule rather than about the caller — 409, not 403.

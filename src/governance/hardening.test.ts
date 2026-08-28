@@ -13,6 +13,7 @@ import {
   MAX_STORED_RULE_REQUESTS,
 } from "./rule-requests.js";
 import { issueSession, verifySession } from "./session-tokens.js";
+import { seedNamedGroup } from "./test-group.js";
 import { createUser, MAX_USERNAME_LENGTH } from "./user-store.js";
 
 /**
@@ -32,6 +33,7 @@ let dir: string;
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-hardening-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  await seedNamedGroup(TEST_GROUP, []);
 });
 
 afterEach(async () => {
@@ -45,36 +47,36 @@ describe("rule-request store cannot grow without bound", () => {
     // removed, so a patient user could grow the file forever.
     const total = MAX_STORED_RULE_REQUESTS + 25;
     for (let index = 0; index < total; index += 1) {
-      const request = await submitRuleRequest({
+      const request = await submitRuleRequest(TEST_GROUP, {
         resourceKind: "command",
         pattern: `^cmd-${index}$`,
         reason: "r",
         requestedBy: `user-${index}`,
       });
-      await decideRuleRequest({ id: request.id, approve: false, decidedBy: "admin" });
+      await decideRuleRequest(TEST_GROUP, { id: request.id, approve: false, decidedBy: "admin" });
     }
-    const stored = await listRuleRequests();
+    const stored = await listRuleRequests(TEST_GROUP);
     expect(stored.length).toBeLessThanOrEqual(MAX_STORED_RULE_REQUESTS);
   });
 
   it("never prunes a pending request, even when over the cap", async () => {
     // Dropping an undecided request would silently lose an operator's ask.
-    const pending = await submitRuleRequest({
+    const pending = await submitRuleRequest(TEST_GROUP, {
       resourceKind: "command",
       pattern: "^keep-me$",
       reason: "still waiting",
       requestedBy: "alice",
     });
     for (let index = 0; index < MAX_STORED_RULE_REQUESTS + 10; index += 1) {
-      const request = await submitRuleRequest({
+      const request = await submitRuleRequest(TEST_GROUP, {
         resourceKind: "command",
         pattern: `^noise-${index}$`,
         reason: "r",
         requestedBy: `user-${index}`,
       });
-      await decideRuleRequest({ id: request.id, approve: false, decidedBy: "admin" });
+      await decideRuleRequest(TEST_GROUP, { id: request.id, approve: false, decidedBy: "admin" });
     }
-    const stored = await listRuleRequests();
+    const stored = await listRuleRequests(TEST_GROUP);
     expect(stored.some((request) => request.id === pending.id)).toBe(true);
   });
 });

@@ -15,11 +15,10 @@
 //
 // Stored newest-first ("a stack", per the design doc) because the most recent
 // block is usually the one an operator is being asked about.
-import { mkdir } from "node:fs/promises";
 import { readJsonIfExists, writeJsonAtomic } from "../infra/json-files.js";
 import { ADMIN_ACTIONS, recordAdminAction } from "./admin-audit.js";
 import { withFileLock } from "./file-lock.js";
-import { governanceHomeDir, pendingDecisionsFilePath } from "./paths.js";
+import { pendingDecisionsFilePath, ensureGroupDir } from "./paths.js";
 import type { ResourceKind } from "./policy-types.js";
 
 export type PendingDecisionStatus = "pending" | "allowed" | "denied";
@@ -63,12 +62,20 @@ type PendingDecisionsFile = { version: 1; decisions: PendingDecision[] };
  */
 export const MAX_STORED_PENDING_DECISIONS = 500;
 
-async function ensureHomeDir(): Promise<void> {
-  await mkdir(governanceHomeDir(), { recursive: true, mode: 0o700 });
+async function ensureHomeDir(groupId: string): Promise<void> {
+  // The **group's** directory, not just the installation root (M5).
+  //
+  // Every file this module touches now lives under `groups/<groupId>/`, and
+  // `withFileLock` creates its lock beside the file it guards — so a first write
+  // for a brand-new organisation failed with ENOENT on the *lock*, before the
+  // write it was protecting was ever attempted. A fresh group is the one state
+  // every installation passes through exactly once, which is precisely the kind
+  // of path that is easy to leave untested.
+  await ensureGroupDir(groupId);
 }
 
-async function readFileOrEmpty(): Promise<PendingDecisionsFile> {
-  const existing = await readJsonIfExists<PendingDecisionsFile>(pendingDecisionsFilePath());
+async function readFileOrEmpty(groupId: string): Promise<PendingDecisionsFile> {
+  const existing = await readJsonIfExists<PendingDecisionsFile>(pendingDecisionsFilePath(groupId));
   return existing ?? { version: 1, decisions: [] };
 }
 
@@ -130,11 +137,12 @@ export type RecordTimedOutEscalationInput = {
 
 /** Pushes a timed-out escalation onto the stack. */
 export async function recordTimedOutEscalation(
+  groupId: string,
   input: RecordTimedOutEscalationInput,
 ): Promise<PendingDecision> {
-  await ensureHomeDir();
-  return withFileLock(pendingDecisionsFilePath(), async () => {
-    const file = await readFileOrEmpty();
+  await ensureHomeDir(groupId);
+  return withFileLock(pendingDecisionsFilePath(groupId), async () => {
+    const file = await readFileOrEmpty(groupId);
     const decision: PendingDecision = {
       id: `pend-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       agentId: input.agentId,
@@ -155,18 +163,18 @@ export async function recordTimedOutEscalation(
     if (existing) {
       existing.occurrences = (existing.occurrences ?? 1) + 1;
       existing.lastTimedOutAt = decision.timedOutAt;
-      await writeJsonAtomic(pendingDecisionsFilePath(), file, { mode: 0o600 });
+      await writeJsonAtomic(pendingDecisionsFilePath(groupId), file, { mode: 0o600 });
       return existing;
     }
     // Newest first: a stack, as the design doc specifies.
     file.decisions = pruneDecided([decision, ...file.decisions]);
-    await writeJsonAtomic(pendingDecisionsFilePath(), file, { mode: 0o600 });
+    await writeJsonAtomic(pendingDecisionsFilePath(groupId), file, { mode: 0o600 });
     return decision;
   });
 }
 
-export async function listPendingDecisions(): Promise<PendingDecision[]> {
-  return (await readFileOrEmpty()).decisions;
+export async function listPendingDecisions(groupId: string): Promise<PendingDecision[]> {
+  return (await readFileOrEmpty(groupId)).decisions;
 }
 
 /**
@@ -179,14 +187,17 @@ export async function listPendingDecisions(): Promise<PendingDecision[]> {
  *
  * Single-shot: an already-decided entry cannot be flipped by a stale view.
  */
-export async function decidePendingDecision(params: {
-  id: string;
-  allow: boolean;
-  decidedBy: string;
-}): Promise<PendingDecision | undefined> {
-  await ensureHomeDir();
-  const decided = await withFileLock(pendingDecisionsFilePath(), async () => {
-    const file = await readFileOrEmpty();
+export async function decidePendingDecision(
+  groupId: string,
+  params: {
+    id: string;
+    allow: boolean;
+    decidedBy: string;
+  },
+): Promise<PendingDecision | undefined> {
+  await ensureHomeDir(groupId);
+  const decided = await withFileLock(pendingDecisionsFilePath(groupId), async () => {
+    const file = await readFileOrEmpty(groupId);
     const entry = file.decisions.find((candidate) => candidate.id === params.id);
     if (!entry || entry.status !== "pending") {
       return undefined;
@@ -194,13 +205,13 @@ export async function decidePendingDecision(params: {
     entry.status = params.allow ? "allowed" : "denied";
     entry.decidedBy = params.decidedBy;
     entry.decidedAt = new Date().toISOString();
-    await writeJsonAtomic(pendingDecisionsFilePath(), file, { mode: 0o600 });
+    await writeJsonAtomic(pendingDecisionsFilePath(groupId), file, { mode: 0o600 });
     return entry;
   });
   if (!decided) {
     return undefined;
   }
-  await recordAdminAction({
+  await recordAdminAction(groupId, {
     actor: params.decidedBy,
     action: ADMIN_ACTIONS.pendingDecisionDecide,
     outcome: params.allow ? "allow" : "deny",

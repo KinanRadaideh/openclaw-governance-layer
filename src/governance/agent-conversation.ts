@@ -33,14 +33,13 @@ import { randomUUID } from "node:crypto";
 // still passes through the governance gate exactly as it always did. That is
 // the property that makes this safe to add: prompting grants no new capability
 // to the agent, only a new way for an authorised person to ask.
-import { mkdir } from "node:fs/promises";
 import { readJsonIfExists, writeJsonAtomic } from "../infra/json-files.js";
 import { redactToolPayloadText } from "../logging/redact.js";
 import { canonicalAccountName } from "./account-name.js";
 import { ADMIN_ACTIONS, recordAdminAction } from "./admin-audit.js";
 import { runAgentPrompt, type AgentRunOutcome } from "./agent-runner.js";
 import { withFileLock } from "./file-lock.js";
-import { conversationsFilePath, governanceHomeDir } from "./paths.js";
+import { conversationsFilePath, ensureGroupDir } from "./paths.js";
 import { loadPolicy } from "./policy-store.js";
 import {
   beginPromptRun,
@@ -201,14 +200,22 @@ function sanitize(value: string, max: number): string {
   return clamp(redactToolPayloadText(value), max);
 }
 
-async function ensureHomeDir(): Promise<void> {
-  await mkdir(governanceHomeDir(), { recursive: true, mode: 0o700 });
+async function ensureHomeDir(groupId: string): Promise<void> {
+  // The **group's** directory, not just the installation root (M5).
+  //
+  // Every file this module touches now lives under `groups/<groupId>/`, and
+  // `withFileLock` creates its lock beside the file it guards — so a first write
+  // for a brand-new organisation failed with ENOENT on the *lock*, before the
+  // write it was protecting was ever attempted. A fresh group is the one state
+  // every installation passes through exactly once, which is precisely the kind
+  // of path that is easy to leave untested.
+  await ensureGroupDir(groupId);
 }
 
-async function readConversations(): Promise<ConversationsFile> {
+async function readConversations(groupId: string): Promise<ConversationsFile> {
   let existing: ConversationsFile | null | undefined;
   try {
-    existing = await readJsonIfExists<ConversationsFile>(conversationsFilePath());
+    existing = await readJsonIfExists<ConversationsFile>(conversationsFilePath(groupId));
   } catch {
     // An unparseable transcript file is treated as no transcript (QA round 12).
     //
@@ -243,14 +250,15 @@ async function readConversations(): Promise<ConversationsFile> {
 
 /** Appends one turn, under the cross-process lock the rest of this layer uses. */
 async function appendTurn(
+  groupId: string,
   agentId: string,
   username: string,
   turn: ConversationTurn,
 ): Promise<void> {
-  await ensureHomeDir();
+  await ensureHomeDir(groupId);
   const key = conversationKey(username);
-  await withFileLock(conversationsFilePath(), async () => {
-    const file = await readConversations();
+  await withFileLock(conversationsFilePath(groupId), async () => {
+    const file = await readConversations(groupId);
     let conversation = file.conversations.find(
       (entry) => entry.agentId === agentId && entry.username === key,
     );
@@ -265,7 +273,7 @@ async function appendTurn(
     if (file.conversations.length > MAX_CONVERSATIONS) {
       file.conversations = file.conversations.slice(-MAX_CONVERSATIONS);
     }
-    await writeJsonAtomic(conversationsFilePath(), file, { mode: 0o600 });
+    await writeJsonAtomic(conversationsFilePath(groupId), file, { mode: 0o600 });
   });
 }
 
@@ -278,11 +286,12 @@ async function appendTurn(
  * rule in one place.
  */
 export async function readConversation(
+  groupId: string,
   agentId: string,
   username: string,
 ): Promise<ConversationTurn[]> {
   const key = conversationKey(username);
-  const file = await readConversations();
+  const file = await readConversations(groupId);
   return (
     file.conversations.find((entry) => entry.agentId === agentId && entry.username === key)
       ?.turns ?? []
@@ -324,60 +333,63 @@ export class EmptyPromptError extends Error {
  * agent-scoped operation. This function assumes the caller may act and
  * concerns itself with what must be true regardless of who asked.
  */
-export async function promptAgent(input: {
-  agentId: string;
-  username: string;
-  message: string;
-  /**
-   * Files sent with the prompt (T14), already in the governed store.
-   *
-   * **Metadata, not content.** The caller stores the bytes through
-   * `attachment-store.ts` and passes what the ledger should record: hash, type,
-   * size and declared name. Requirement #8 is satisfied because the content
-   * never reaches a log — redaction is a text operation and an image is not
-   * text, so the answer is to record what is provable about the file rather
-   * than the file.
-   */
-  attachments?: readonly {
-    sha256: string;
-    bytes: number;
-    mimeType: string;
-    declaredName: string;
-  }[];
-  signal?: AbortSignal;
-  /**
-   * Called with the reply **so far**, as the model produces it (A1 follow-up).
-   *
-   * A *snapshot*, not an append-only delta. The host's own OpenAI-compatible
-   * surface has to accumulate deltas and fails the stream outright when the
-   * model retracts text it already emitted, because SSE cannot unsend bytes to
-   * a client expecting concatenation. This surface is not bound by that
-   * contract — the dashboard renders whatever it was last given — so sending
-   * the whole text each time makes a retraction representable instead of fatal,
-   * and removes an entire class of "the two sides disagree about what has
-   * already been sent".
-   *
-   * It also lets each snapshot be redacted independently and completely: a
-   * secret split across two deltas matches no pattern in either half, and would
-   * survive per-delta redaction.
-   */
-  onProgress?: (replySoFar: string) => void;
-  /**
-   * Called once the run exists and is cancellable, with the id it was given.
-   *
-   * The run id is minted here and otherwise only reaches the caller in the
-   * result — which is too late to be useful, because the thing an operator
-   * wants to do with it is **stop the run that is still going**. A cancel
-   * control that only appears once the reply has arrived is not a cancel
-   * control.
-   *
-   * Fired after the slot is claimed, deliberately: an id handed out before the
-   * run is registered would name something the cancel route cannot find, which
-   * is the "reports success it did not achieve" failure this layer keeps
-   * refusing to commit.
-   */
-  onStart?: (info: { runId: string; sessionKey: string }) => void;
-}): Promise<PromptOutcome> {
+export async function promptAgent(
+  groupId: string,
+  input: {
+    agentId: string;
+    username: string;
+    message: string;
+    /**
+     * Files sent with the prompt (T14), already in the governed store.
+     *
+     * **Metadata, not content.** The caller stores the bytes through
+     * `attachment-store.ts` and passes what the ledger should record: hash, type,
+     * size and declared name. Requirement #8 is satisfied because the content
+     * never reaches a log — redaction is a text operation and an image is not
+     * text, so the answer is to record what is provable about the file rather
+     * than the file.
+     */
+    attachments?: readonly {
+      sha256: string;
+      bytes: number;
+      mimeType: string;
+      declaredName: string;
+    }[];
+    signal?: AbortSignal;
+    /**
+     * Called with the reply **so far**, as the model produces it (A1 follow-up).
+     *
+     * A *snapshot*, not an append-only delta. The host's own OpenAI-compatible
+     * surface has to accumulate deltas and fails the stream outright when the
+     * model retracts text it already emitted, because SSE cannot unsend bytes to
+     * a client expecting concatenation. This surface is not bound by that
+     * contract — the dashboard renders whatever it was last given — so sending
+     * the whole text each time makes a retraction representable instead of fatal,
+     * and removes an entire class of "the two sides disagree about what has
+     * already been sent".
+     *
+     * It also lets each snapshot be redacted independently and completely: a
+     * secret split across two deltas matches no pattern in either half, and would
+     * survive per-delta redaction.
+     */
+    onProgress?: (replySoFar: string) => void;
+    /**
+     * Called once the run exists and is cancellable, with the id it was given.
+     *
+     * The run id is minted here and otherwise only reaches the caller in the
+     * result — which is too late to be useful, because the thing an operator
+     * wants to do with it is **stop the run that is still going**. A cancel
+     * control that only appears once the reply has arrived is not a cancel
+     * control.
+     *
+     * Fired after the slot is claimed, deliberately: an id handed out before the
+     * run is registered would name something the cancel route cannot find, which
+     * is the "reports success it did not achieve" failure this layer keeps
+     * refusing to commit.
+     */
+    onStart?: (info: { runId: string; sessionKey: string }) => void;
+  },
+): Promise<PromptOutcome> {
   const message = input.message.trim();
   if (!message) {
     throw new EmptyPromptError();
@@ -393,9 +405,9 @@ export async function promptAgent(input: {
   // inconsistent with. Refusing here is not the policy engine acting on a
   // decision; it is a control declining to start something an operator has
   // explicitly stopped.
-  const policy = await loadPolicy();
+  const policy = await loadPolicy(groupId);
   if (policy.lockedAgents.includes(input.agentId)) {
-    await recordAdminAction({
+    await recordAdminAction(groupId, {
       actor: input.username,
       action: ADMIN_ACTIONS.agentPrompt,
       agentId: input.agentId,
@@ -434,7 +446,7 @@ export async function promptAgent(input: {
         `${file.declaredName} (${file.mimeType}, ${file.bytes} bytes, sha256:${file.sha256})`,
     )
     .join("; ");
-  await recordAdminAction({
+  await recordAdminAction(groupId, {
     actor: input.username,
     action: ADMIN_ACTIONS.agentPrompt,
     agentId: input.agentId,
@@ -443,7 +455,7 @@ export async function promptAgent(input: {
       ? `prompt: ${prompt} | attachments: ${attachmentSummary}`
       : `prompt: ${prompt}`,
   });
-  await appendTurn(input.agentId, input.username, {
+  await appendTurn(groupId, input.agentId, input.username, {
     id: randomUUID(),
     role: "user",
     body: prompt,
@@ -467,7 +479,7 @@ export async function promptAgent(input: {
     if (!(err instanceof PromptCapacityError)) {
       throw err;
     }
-    await recordAdminAction({
+    await recordAdminAction(groupId, {
       actor: input.username,
       action: ADMIN_ACTIONS.agentPromptResult,
       agentId: input.agentId,
@@ -514,7 +526,7 @@ export async function promptAgent(input: {
   }
 
   const reply = outcome.reply ? sanitize(outcome.reply, MAX_REPLY_LENGTH) : "";
-  await appendTurn(input.agentId, input.username, {
+  await appendTurn(groupId, input.agentId, input.username, {
     id: randomUUID(),
     role: "agent",
     body: reply,
@@ -522,7 +534,7 @@ export async function promptAgent(input: {
     runId,
     ...(outcome.ok ? {} : { error: outcome.error ?? "the run did not complete" }),
   });
-  await recordAdminAction({
+  await recordAdminAction(groupId, {
     actor: input.username,
     action: ADMIN_ACTIONS.agentPromptResult,
     agentId: input.agentId,

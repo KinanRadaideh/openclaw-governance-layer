@@ -20,13 +20,20 @@ import {
   setAgentMode,
 } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
+import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
 let workspace: string;
 
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-tiers-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  TEST_GROUP = await seedGroupWithAgents(["agent-a", "agent-b"]);
   workspace = await mkdtemp(join(tmpdir(), "governance-tier-ws-"));
 });
 
@@ -65,17 +72,17 @@ function notAllowed(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy
 
 /** Switches the installation to refuse rather than escalate, keeping shipped rules. */
 async function enforceStrictly(): Promise<void> {
-  const doc = await loadPolicy();
-  await savePolicy({ ...doc, mode: "enforce", ask: "off" });
+  const doc = await loadPolicy(TEST_GROUP);
+  await savePolicy(TEST_GROUP, { ...doc, mode: "enforce", ask: "off" });
 }
 
 describe("a fresh installation is usable and restricted at the same time", () => {
   it("starts in enforce, not observe-only", async () => {
-    expect((await loadPolicy()).mode).toBe("enforce");
+    expect((await loadPolicy(TEST_GROUP)).mode).toBe("enforce");
   });
 
   it("ships the core and baseline rules", async () => {
-    const rules = (await loadPolicy()).rules;
+    const rules = (await loadPolicy(TEST_GROUP)).rules;
     // `coreRules()`, not `CORE_RULES`: since QA round 13 (finding 86) the core
     // tier also carries two rules derived from the governance directory
     // actually in use, so that relocating it with OPENCLAW_GOVERNANCE_DIR —
@@ -182,7 +189,7 @@ describe("core denials beat every allowance", () => {
   });
 
   it("cannot be overridden by an operator rule that allows everything", async () => {
-    await addRule({ resourceKind: "path", pattern: "^.*$" }, "over-eager-admin");
+    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^.*$" }, "over-eager-admin");
     await writeFile(join(workspace, "id_rsa"), "key\n");
     expect(
       verdict(
@@ -233,8 +240,8 @@ describe("core denials beat every allowance", () => {
 
 describe("core rules are immutable in the ways that matter", () => {
   it("refuses removal, even for Root", async () => {
-    const core = (await loadPolicy()).rules.find((rule) => rule.tier === "core");
-    await expect(removeRule(core?.id ?? "", "root-user")).rejects.toBeInstanceOf(
+    const core = (await loadPolicy(TEST_GROUP)).rules.find((rule) => rule.tier === "core");
+    await expect(removeRule(TEST_GROUP, core?.id ?? "", "root-user")).rejects.toBeInstanceOf(
       ImmutableRuleError,
     );
   });
@@ -244,12 +251,17 @@ describe("core rules are immutable in the ways that matter", () => {
     // restriction — including a core-tier *allow*, which would outrank the
     // denials the tier exists to guarantee.
     await expect(
-      addRule({ resourceKind: "path", pattern: "^.*$", tier: "core", effect: "allow" }, "attacker"),
+      addRule(
+        TEST_GROUP,
+        { resourceKind: "path", pattern: "^.*$", tier: "core", effect: "allow" },
+        "attacker",
+      ),
     ).rejects.toBeInstanceOf(ImmutableRuleError);
   });
 
   it("marks an operator rule as admin even when it claims another tier", async () => {
     const rule = await addRule(
+      TEST_GROUP,
       { resourceKind: "command", pattern: "^mine$", tier: "baseline" },
       "admin",
     );
@@ -259,24 +271,27 @@ describe("core rules are immutable in the ways that matter", () => {
   });
 
   it("restores core rules deleted by editing the file on disk", async () => {
-    const doc = await loadPolicy();
-    await savePolicy({ ...doc, rules: doc.rules.filter((rule) => rule.tier !== "core") });
+    const doc = await loadPolicy(TEST_GROUP);
+    await savePolicy(TEST_GROUP, {
+      ...doc,
+      rules: doc.rules.filter((rule) => rule.tier !== "core"),
+    });
     // Straight from disk: the file really does lack them.
-    const onDisk = JSON.parse(await readFile(policyFilePathForTests(), "utf8")) as {
+    const onDisk = JSON.parse(await readFile(policyFilePathForTests(TEST_GROUP), "utf8")) as {
       rules: Array<{ tier?: string }>;
     };
     expect(onDisk.rules.some((rule) => rule.tier === "core")).toBe(false);
     // Loading puts them back, so the guarantee does not depend on the file.
-    expect((await loadPolicy()).rules.filter((rule) => rule.tier === "core")).toHaveLength(
-      coreRules().length,
-    );
+    expect(
+      (await loadPolicy(TEST_GROUP)).rules.filter((rule) => rule.tier === "core"),
+    ).toHaveLength(coreRules().length);
   });
 
   it("discards a forged core-tier allow injected into the file", async () => {
     // The attack the reassertion is really for: not deleting a restriction, but
     // adding a permission that carries core authority.
-    const doc = await loadPolicy();
-    await savePolicy({
+    const doc = await loadPolicy(TEST_GROUP);
+    await savePolicy(TEST_GROUP, {
       ...doc,
       rules: [
         {
@@ -290,7 +305,7 @@ describe("core rules are immutable in the ways that matter", () => {
         ...doc.rules,
       ],
     });
-    const reloaded = await loadPolicy();
+    const reloaded = await loadPolicy(TEST_GROUP);
     expect(reloaded.rules.some((rule) => rule.id === "forged")).toBe(false);
     await writeFile(join(workspace, ".env"), "SECRET=1\n");
     expect(
@@ -303,11 +318,11 @@ describe("core rules are immutable in the ways that matter", () => {
 
 describe("monitor is opt-in, per agent, and never lifts a core denial", () => {
   it("is not the shipped posture", async () => {
-    expect((await loadPolicy()).mode).not.toBe("monitor");
+    expect((await loadPolicy(TEST_GROUP)).mode).not.toBe("monitor");
   });
 
   it("suspends ordinary verdicts for one agent only", async () => {
-    await setAgentMode("agent-a", "monitor", "kinan");
+    await setAgentMode(TEST_GROUP, "agent-a", "monitor", "kinan");
     // Unlisted command: observed rather than blocked, for this agent.
     expect(
       verdict(
@@ -331,7 +346,7 @@ describe("monitor is opt-in, per agent, and never lifts a core denial", () => {
   it("does NOT lift core denials for the monitored agent", async () => {
     // The property that stops monitor being a one-click way to remove every
     // protection — a User can enable it on their own agent.
-    await setAgentMode("agent-a", "monitor", "kinan");
+    await setAgentMode(TEST_GROUP, "agent-a", "monitor", "kinan");
     await writeFile(join(workspace, ".env"), "SECRET=1\n");
     expect(
       verdict(
@@ -347,10 +362,12 @@ describe("monitor is opt-in, per agent, and never lifts a core denial", () => {
 
   it("records what it would have done, so the observation is usable", async () => {
     await enforceStrictly();
-    await setAgentMode("agent-a", "monitor", "kinan");
+    await setAgentMode(TEST_GROUP, "agent-a", "monitor", "kinan");
     await evaluateGovernancePolicy({ toolName: "exec", params: { command: "npm publish" } }, ctx());
     const { tailLedger } = await import("./audit-ledger.js");
-    const last = (await tailLedger()).filter((entry) => entry.entryKind !== "admin").at(-1);
+    const last = (await tailLedger(TEST_GROUP))
+      .filter((entry) => entry.entryKind !== "admin")
+      .at(-1);
     expect(last?.decision).toBe("deny");
     expect(last?.resource).toBe("npm publish");
   });
@@ -377,9 +394,9 @@ describe("the shipped rules are themselves well-formed", () => {
   });
 
   it("keeps shipped ids stable across reloads, so re-seeding cannot duplicate", async () => {
-    const first = (await loadPolicy()).rules.map((rule) => rule.id);
-    await savePolicy(await loadPolicy());
-    const second = (await loadPolicy()).rules.map((rule) => rule.id);
+    const first = (await loadPolicy(TEST_GROUP)).rules.map((rule) => rule.id);
+    await savePolicy(TEST_GROUP, await loadPolicy(TEST_GROUP));
+    const second = (await loadPolicy(TEST_GROUP)).rules.map((rule) => rule.id);
     expect(second).toEqual(first);
     expect(new Set(second).size).toBe(second.length);
   });
@@ -387,26 +404,30 @@ describe("the shipped rules are themselves well-formed", () => {
 
 describe("an operator can still narrow the shipped baseline", () => {
   it("allows removing a baseline rule, unlike a core one", async () => {
-    const baseline = (await loadPolicy()).rules.find((rule) => rule.tier === "baseline");
-    expect(await removeRule(baseline?.id ?? "", "admin")).toBe(true);
-    expect((await loadPolicy()).rules.some((rule) => rule.id === baseline?.id)).toBe(false);
+    const baseline = (await loadPolicy(TEST_GROUP)).rules.find((rule) => rule.tier === "baseline");
+    expect(await removeRule(TEST_GROUP, baseline?.id ?? "", "admin")).toBe(true);
+    expect((await loadPolicy(TEST_GROUP)).rules.some((rule) => rule.id === baseline?.id)).toBe(
+      false,
+    );
   });
 
   it("keeps a removed baseline rule removed across reloads", async () => {
     // Only core is reasserted. Baseline is a starting point, so an operator's
     // decision to drop one must stick.
-    const baseline = (await loadPolicy()).rules.find(
+    const baseline = (await loadPolicy(TEST_GROUP)).rules.find(
       (rule) => rule.tier === "baseline" && rule.resourceKind === "command",
     );
-    await removeRule(baseline?.id ?? "", "admin");
-    await loadPolicy();
-    expect((await loadPolicy()).rules.some((rule) => rule.id === baseline?.id)).toBe(false);
+    await removeRule(TEST_GROUP, baseline?.id ?? "", "admin");
+    await loadPolicy(TEST_GROUP);
+    expect((await loadPolicy(TEST_GROUP)).rules.some((rule) => rule.id === baseline?.id)).toBe(
+      false,
+    );
   });
 });
 
 describe("documents written before tiers existed keep working", () => {
   it("treats an untiered rule as an admin allowance", async () => {
-    await savePolicy({
+    await savePolicy(TEST_GROUP, {
       ...defaultPolicyDocument(),
       rules: [
         {
@@ -462,7 +483,11 @@ describe("reads and writes are separable permissions (G8)", () => {
   });
 
   it("lets an operator grant writes deliberately", async () => {
-    await addRule({ resourceKind: "path", pattern: "^src/.*$", access: "write" }, "admin");
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "path", pattern: "^src/.*$", access: "write" },
+      "admin",
+    );
     await writeFile(join(workspace, "src.txt"), "x\n");
     expect(
       verdict(
@@ -474,7 +499,7 @@ describe("reads and writes are separable permissions (G8)", () => {
   it("keeps a rule with no access narrowing granting both directions", async () => {
     // Every path rule written before this distinction existed must keep its
     // meaning, or the change would silently revoke permissions.
-    await addRule({ resourceKind: "path", pattern: "^legacy/.*$" }, "admin");
+    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^legacy/.*$" }, "admin");
     for (const toolName of ["read", "write"]) {
       expect(
         verdict(

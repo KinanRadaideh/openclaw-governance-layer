@@ -62,7 +62,19 @@ export function registerGovernancePolicyCommands(governance: Command): void {
     .description("Print the current policy document")
     .action(async () => {
       await runCommandWithRuntime(defaultRuntime, async () => {
-        defaultRuntime.log(JSON.stringify(await loadPolicy(), null, 2));
+        // **A read now needs an identity, which it did not before (M5).**
+        //
+        // Not a new permission so much as a newly answerable question: with one
+        // policy document, "print the policy" had an unambiguous subject. With a
+        // document per organisation it does not, and the only honest source for
+        // *which* is the signed-in account — the same rule the HTTP surface
+        // applies in `requireGroup`. `() => true` is the viewer tier: any
+        // signed-in account may read its own organisation's rulebook.
+        const actor = await requireCliActor(defaultRuntime, "read the policy", () => true);
+        if (!actor) {
+          return;
+        }
+        defaultRuntime.log(JSON.stringify(await loadPolicy(actor.groupId), null, 2));
       });
     });
 
@@ -93,7 +105,17 @@ export function registerGovernancePolicyCommands(governance: Command): void {
             defaultRuntime.log(`You do not manage agent "${agentId}".`);
             return;
           }
-          const request = await submitRuleRequest({
+          // The request is filed in the requester's own organisation (M5).
+          // A User asking for a change to their agent cannot file it anywhere
+          // else, because the only group they hold is their own.
+          const requesterGroup = requester.groupId?.trim();
+          if (!requesterGroup) {
+            defaultRuntime.log(
+              "Your account does not belong to an organisation, so it cannot file a request.",
+            );
+            return;
+          }
+          const request = await submitRuleRequest(requesterGroup, {
             kind: "agent-setting",
             agentId,
             setting,
@@ -123,7 +145,7 @@ export function registerGovernancePolicyCommands(governance: Command): void {
           if (!actor) {
             return;
           }
-          await setCoreRuleEnabled(ruleId, enabled === "true", actor);
+          await setCoreRuleEnabled(actor.groupId, ruleId, enabled === "true", actor);
           defaultRuntime.log(
             `core rule ${ruleId} ${enabled === "true" ? "re-enabled" : "DISABLED"}`,
           );
@@ -138,7 +160,11 @@ export function registerGovernancePolicyCommands(governance: Command): void {
     .description("List the shipped core denials and which are switched off")
     .action(async () => {
       await runCommandWithRuntime(defaultRuntime, async () => {
-        const doc = await loadPolicy();
+        const actor = await requireCliActor(defaultRuntime, "list core rules", () => true);
+        if (!actor) {
+          return;
+        }
+        const doc = await loadPolicy(actor.groupId);
         const disabled = new Set(doc.disabledCoreRules ?? []);
         // Read from the document, which is the reasserted view: a disabled
         // rule is absent from `doc.rules` by then, so its state is read from
@@ -161,7 +187,19 @@ export function registerGovernancePolicyCommands(governance: Command): void {
     .description("Show the posture and every rule in force for one agent")
     .action(async (agentId: string) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
-        const view = agentPolicyView(await loadPolicy(), agentId);
+        // **A read now needs an identity, which it did not before (M5).**
+        //
+        // Not a new permission so much as a newly answerable question: with one
+        // policy document, "print the policy" had an unambiguous subject. With a
+        // document per organisation it does not, and the only honest source for
+        // *which* is the signed-in account — the same rule the HTTP surface
+        // applies in `requireGroup`. `() => true` is the viewer tier: any
+        // signed-in account may read its own organisation's rulebook.
+        const actor = await requireCliActor(defaultRuntime, "read an agent's policy", () => true);
+        if (!actor) {
+          return;
+        }
+        const view = agentPolicyView(await loadPolicy(actor.groupId), agentId);
         const { posture, summary } = view;
         defaultRuntime.log(`agent ${posture.agentId}`);
         defaultRuntime.log(
@@ -193,7 +231,15 @@ export function registerGovernancePolicyCommands(governance: Command): void {
     .description("Show which agents a rule binds")
     .action(async (ruleId: string) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
-        const doc = await loadPolicy();
+        const actor = await requireCliActor(
+          defaultRuntime,
+          "see which agents a rule binds",
+          () => true,
+        );
+        if (!actor) {
+          return;
+        }
+        const doc = await loadPolicy(actor.groupId);
         const rule = doc.rules.find((candidate) => candidate.id === ruleId);
         if (!rule) {
           defaultRuntime.log(`no rule with id ${ruleId}`);
@@ -232,7 +278,7 @@ export function registerGovernancePolicyCommands(governance: Command): void {
         if (!actor) {
           return;
         }
-        await setMode(mode, actor);
+        await setMode(actor.groupId, mode, actor);
         defaultRuntime.log(`mode set to ${mode}`);
       });
     });
@@ -249,7 +295,7 @@ export function registerGovernancePolicyCommands(governance: Command): void {
         if (!actor) {
           return;
         }
-        await setAskMode(mode, actor);
+        await setAskMode(actor.groupId, mode, actor);
         defaultRuntime.log(`ask set to ${mode}`);
       });
     });
@@ -324,6 +370,7 @@ export function registerGovernancePolicyCommands(governance: Command): void {
             return;
           }
           const { rule, conflicts } = await addRuleChecked(
+            ruleActor.groupId,
             {
               resourceKind: options.kind,
               pattern: validated.pattern,
@@ -367,7 +414,7 @@ export function registerGovernancePolicyCommands(governance: Command): void {
         if (!actor) {
           return;
         }
-        const removed = await removeRule(id, actor);
+        const removed = await removeRule(actor.groupId, id, actor);
         defaultRuntime.log(removed ? `removed ${id}` : `no rule with id ${id}`);
         if (!removed) {
           defaultRuntime.exit(1);
@@ -391,12 +438,12 @@ export function registerGovernancePolicyCommands(governance: Command): void {
           return;
         }
         if (mode === "default") {
-          await setAgentAskMode(agentId, undefined, actor);
+          await setAgentAskMode(actor.groupId, agentId, undefined, actor);
           defaultRuntime.log(`agent "${agentId}" now follows the installation default`);
           return;
         }
         assertAskMode(mode);
-        await setAgentAskMode(agentId, mode, actor);
+        await setAgentAskMode(actor.groupId, agentId, mode, actor);
         defaultRuntime.log(`agent "${agentId}" ask set to ${mode}`);
       });
     });
@@ -413,7 +460,7 @@ export function registerGovernancePolicyCommands(governance: Command): void {
           return;
         }
         if (mode === "default") {
-          await setAgentMode(agentId, undefined, actor);
+          await setAgentMode(actor.groupId, agentId, undefined, actor);
           defaultRuntime.log(`agent "${agentId}" now follows the installation posture`);
           return;
         }
@@ -427,7 +474,7 @@ export function registerGovernancePolicyCommands(governance: Command): void {
               `Use "governance policy set-mode off" to switch the gate off installation-wide.`,
           );
         }
-        await setAgentMode(agentId, mode, actor);
+        await setAgentMode(actor.groupId, agentId, mode, actor);
         defaultRuntime.log(`agent "${agentId}" posture set to ${mode}`);
       });
     });
@@ -447,7 +494,7 @@ export function registerGovernancePolicyCommands(governance: Command): void {
         if (!actor) {
           return;
         }
-        await setHitlTimeout(Math.round(value), actor);
+        await setHitlTimeout(actor.groupId, Math.round(value), actor);
         defaultRuntime.log(`escalation timeout set to ${Math.round(value)}s`);
       });
     });

@@ -25,7 +25,9 @@
 // gain. The honest cost is stated on `assertAssignable` rather than hidden.
 import { mkdir } from "node:fs/promises";
 import { readJsonIfExists, writeJsonAtomic } from "../infra/json-files.js";
+import { normalizeAgentId } from "../routing/session-key.js";
 import { ADMIN_ACTIONS, recordAdminAction, type AuditActorInput } from "./admin-audit.js";
+import { invalidateAgentGroupCache } from "./agent-group.js";
 import { withFileLock } from "./file-lock.js";
 import { agentsFilePath, governanceHomeDir } from "./paths.js";
 import { updateSessionsAssignedAgents } from "./session-tokens.js";
@@ -138,9 +140,62 @@ async function readAgentsFile(): Promise<AgentsFile> {
  * *somebody else* rather than to nobody — a distinction that would be lost if
  * the lookup itself filtered by group.
  */
+/**
+ * The canonical form of an agent id — **the key, not the spelling** (finding 128).
+ *
+ * The registry stored `id.trim()` and the gate looked up
+ * `normalizeAgentId(...)`, which the host applies to every agent id it creates
+ * or routes. Those are the same string only when the operator happens to type
+ * the canonical form, and when they diverge the consequences are silent:
+ *
+ *   - **"Scout" registers and is never governed.** The panel shows it owned and
+ *     registered; the gate resolves no group for `scout` and refuses every tool
+ *     call it makes, with nothing anywhere explaining why.
+ *   - **An id over 64 characters can never match**, because the host truncates
+ *     there while `MAX_AGENT_ID_LENGTH` allows 200.
+ *   - **`DuplicateAgentError` was bypassable by case.** "Scout" and "scout"
+ *     were two records for one real agent, so the installation-wide uniqueness
+ *     M5 deliberately kept — session keys are `agent:<id>:…` and global — did
+ *     not actually hold. Two groups could each own "their" record of one agent,
+ *     and the one whose spelling is canonical wins the gate while the other
+ *     writes policy into a document the gate never reads.
+ *
+ * This is finding 114 one file over: **the display spelling used as a key.**
+ * `account-name.ts` exists to prevent exactly this for accounts and says so in
+ * its header. The registry already carries a `displayName` for what the operator
+ * typed, so the id can be canonical without losing anything.
+ */
+function canonicalAgentId(value: string): string {
+  return normalizeAgentId(value);
+}
+
+/**
+ * Whether this id has a canonical form **of its own** (finding 129).
+ *
+ * `normalizeAgentId` is a coercion, not a validator: when nothing survives the
+ * character filter it returns the host's default id, `main`. So `"###"`,
+ * `"✓✓"`, `"--"` and `"   "` all canonicalise to `main` — and once finding 128
+ * made the registry *store* the canonical form, registering an agent called
+ * `"###"` would have silently claimed **the installation's default agent**,
+ * complete with ownership, assignment and this group's policy document
+ * governing it. Nobody asked for that, and the operator would not see it: the
+ * panel would simply show a row called `main`.
+ *
+ * This is the shape of findings 116 and 117 — *a fix is not audited as hard as
+ * the thing it fixes.* 128's repair introduced it, and it was caught by asking
+ * what the coercion does at its edges rather than in the middle.
+ *
+ * Claiming `main` deliberately is still allowed, because an installation's
+ * default agent is exactly the one an operator migrating into the registry
+ * needs to claim first. Only the accidental route is closed.
+ */
+function hasOwnCanonicalForm(raw: string): boolean {
+  return canonicalAgentId(raw) !== "main" || raw.trim().toLowerCase() === "main";
+}
+
 export async function findAgent(agentId: string): Promise<GovernanceAgent | undefined> {
-  const trimmed = agentId.trim();
-  return (await readAgentsFile()).agents.find((agent) => agent.id === trimmed);
+  const wanted = canonicalAgentId(agentId);
+  return (await readAgentsFile()).agents.find((agent) => agent.id === wanted);
 }
 
 /** Every agent registered to one group, oldest first. */
@@ -179,6 +234,20 @@ export async function agentIdsOwnedBy(adminId: string): Promise<string[]> {
  * because a deleted account holds nothing. Claiming atomicity here would be the
  * more dangerous error, so it is written down instead.
  */
+/**
+ * The owner rule, asked **before** anything is written (finding 130).
+ *
+ * `registerAgent` enforces it inside its own lock, which is where it has to be.
+ * But provisioning writes to the host *first*, so an ineligible owner meant
+ * creating a real agent — workspace, identity file, roster entry — and then
+ * deleting it again, for a condition that was knowable from the account file.
+ * The comment above that preflight claimed it held every knowable refusal; this
+ * is what made the claim true.
+ */
+export async function assertAgentOwnerEligible(adminId: string, groupId: string): Promise<void> {
+  assertOwnerEligible(await listUsers(), adminId, groupId);
+}
+
 function assertOwnerEligible(
   accounts: readonly GovernanceUserRecord[],
   adminId: string,
@@ -223,12 +292,21 @@ export async function registerAgent(
   input: RegisterAgentInput,
   actor: AuditActorInput,
 ): Promise<GovernanceAgent> {
-  const id = input.id.trim();
+  // Canonicalised, not merely trimmed: the stored id must be the id the gate
+  // will look up, or the record governs nothing (finding 128).
+  const rawId = input.id.trim();
+  const id = canonicalAgentId(rawId);
   const displayName = input.displayName.trim();
-  if (!id) {
+  if (!rawId) {
     throw new Error("agent id must not be empty");
   }
-  if (id.length > MAX_AGENT_ID_LENGTH) {
+  if (!hasOwnCanonicalForm(rawId)) {
+    throw new Error(
+      `"${rawId}" contains no characters usable in an agent id. ` +
+        "Agent ids may use letters, digits, hyphens and underscores.",
+    );
+  }
+  if (rawId.length > MAX_AGENT_ID_LENGTH) {
     throw new Error(`agent id must be at most ${MAX_AGENT_ID_LENGTH} characters in length`);
   }
   if (!displayName) {
@@ -264,9 +342,18 @@ export async function registerAgent(
     };
     file.agents.push(agent);
     await writeJsonAtomic(agentsFilePath(), file, { mode: 0o600 });
+    // Every write drops the group cache the gate reads on each tool call (M5).
+    // Placed next to the write rather than in the callers so a future mutation
+    // cannot forget it: the invalidation is part of writing this file.
+    invalidateAgentGroupCache();
     return agent;
   });
-  await recordAdminAction({
+  // **The agent's own group owns the entry.** Registering is performed by an
+  // account in exactly one organisation and creates a record in that same one,
+  // so there is no ambiguity here — and `created.groupId` is the value the
+  // route took from the session rather than from the request, which is what
+  // stops an Administrator writing into another organisation's trail (M5).
+  await recordAdminAction(created.groupId, {
     actor,
     action: ADMIN_ACTIONS.agentRegister,
     // The owner is the security-relevant half of registering an agent, so it is
@@ -298,7 +385,7 @@ export async function renameAgent(
   await ensureHomeDir();
   const changed = await withFileLock(agentsFilePath(), async () => {
     const file = await readAgentsFile();
-    const agent = file.agents.find((entry) => entry.id === agentId.trim());
+    const agent = file.agents.find((entry) => entry.id === canonicalAgentId(agentId));
     // An agent in another group is reported as absent rather than refused, for
     // the reason the account routes report a cross-group id as "no such user":
     // distinguishing the two would turn every mutator into a probe for whether
@@ -309,9 +396,13 @@ export async function renameAgent(
     const previous = agent.displayName;
     agent.displayName = name;
     await writeJsonAtomic(agentsFilePath(), file, { mode: 0o600 });
+    // Every write drops the group cache the gate reads on each tool call (M5).
+    // Placed next to the write rather than in the callers so a future mutation
+    // cannot forget it: the invalidation is part of writing this file.
+    invalidateAgentGroupCache();
     return { agent: { ...agent }, previous };
   });
-  await recordAdminAction({
+  await recordAdminAction(changed.agent.groupId, {
     actor,
     action: ADMIN_ACTIONS.agentRename,
     target: `agent ${changed.agent.id} name "${changed.previous}" -> "${changed.agent.displayName}"`,
@@ -343,7 +434,7 @@ export async function setAgentOwner(
   const accounts = await listUsers();
   const changed = await withFileLock(agentsFilePath(), async () => {
     const file = await readAgentsFile();
-    const agent = file.agents.find((entry) => entry.id === agentId.trim());
+    const agent = file.agents.find((entry) => entry.id === canonicalAgentId(agentId));
     if (!agent || agent.groupId !== groupId) {
       throw new UnknownAgentError(agentId);
     }
@@ -351,9 +442,13 @@ export async function setAgentOwner(
     const previous = agent.adminId;
     agent.adminId = adminId;
     await writeJsonAtomic(agentsFilePath(), file, { mode: 0o600 });
+    // Every write drops the group cache the gate reads on each tool call (M5).
+    // Placed next to the write rather than in the callers so a future mutation
+    // cannot forget it: the invalidation is part of writing this file.
+    invalidateAgentGroupCache();
     return { agent: { ...agent }, previous };
   });
-  await recordAdminAction({
+  await recordAdminAction(changed.agent.groupId, {
     actor,
     action: ADMIN_ACTIONS.agentOwnerChange,
     // Both owners, because a transfer is only legible as a transition — "owned
@@ -385,15 +480,19 @@ export async function unregisterAgent(
   const accounts = await listUsers();
   const removed = await withFileLock(agentsFilePath(), async () => {
     const file = await readAgentsFile();
-    const agent = file.agents.find((entry) => entry.id === agentId.trim());
+    const agent = file.agents.find((entry) => entry.id === canonicalAgentId(agentId));
     if (!agent || agent.groupId !== groupId) {
       throw new UnknownAgentError(agentId);
     }
     file.agents = file.agents.filter((entry) => entry.id !== agent.id);
     await writeJsonAtomic(agentsFilePath(), file, { mode: 0o600 });
+    // Every write drops the group cache the gate reads on each tool call (M5).
+    // Placed next to the write rather than in the callers so a future mutation
+    // cannot forget it: the invalidation is part of writing this file.
+    invalidateAgentGroupCache();
     return { ...agent };
   });
-  await recordAdminAction({
+  await recordAdminAction(removed.groupId, {
     actor,
     action: ADMIN_ACTIONS.agentUnregister,
     // Name and owner are captured here because the record is gone: after this
@@ -445,15 +544,16 @@ async function revokeHoldersOutsideOwner(
  * Three outcomes, and the middle one is the honest limit of M4:
  *
  *   - **Registered here, owned by this account's Administrator** — allowed.
- *   - **Not registered at all** — allowed, because the id is a pre-registry
- *     agent. Every installation that predates this file has these, they are
- *     governed by every rule that names them, and refusing them would break
- *     working assignments to buy nothing: an agent nobody has claimed cannot be
- *     stolen from an owner who does not exist. **The cost is that the rule can
- *     be sidestepped by not registering**, which makes the registry a statement
- *     of ownership rather than a gate on it. Closing that needs registration to
- *     be mandatory, which needs M6's provisioning to exist first — there is no
- *     honest way to require a record for agents the layer cannot yet create.
+ *   - **Not registered at all** — **refused, as of M5.** This was allowed, on the
+ *     reasoning that an agent nobody has claimed cannot be stolen from an owner
+ *     who does not exist. True, and it left the ownership rule sidesteppable by
+ *     simply never registering. M5 made registration mandatory: the gate now
+ *     refuses an agent it has no record of, so an unregistered agent cannot act
+ *     at all, and allowing it to be *assigned* would hand somebody a thing that
+ *     does nothing while leaving the sidestep looking open where an operator
+ *     reads it. The old row said closing this needed M6 first; that rested on
+ *     reading registration and provisioning as one act, and they are not —
+ *     registration already exists on all three surfaces.
  *   - **Registered to somebody else** — refused, and this is the case with
  *     teeth. It covers both another Administrator inside the group and another
  *     group entirely, and it is the one an ownership model exists to stop.
@@ -475,9 +575,25 @@ export async function assertAssignable(
   }
   const file = await readAgentsFile();
   for (const agentId of agentIds) {
-    const agent = file.agents.find((entry) => entry.id === agentId);
+    const agent = file.agents.find((entry) => entry.id === canonicalAgentId(agentId));
     if (!agent) {
-      continue;
+      // **Refused, as of M5. This used to `continue`, and that was the hole.**
+      //
+      // The middle case above described an unregistered id as assignable
+      // because "an agent nobody has claimed cannot be stolen from an owner who
+      // does not exist" — true, and it made the ownership rule sidesteppable by
+      // simply never registering. M5 made registration mandatory at the gate,
+      // so an unregistered agent can no longer act at all; leaving it
+      // *assignable* would hand somebody a thing that does nothing, and leave
+      // the sidestep looking open in the one place an operator reads it.
+      //
+      // Closing it here needed M6's provisioning only under the old reading
+      // that registering and provisioning were the same act. They are not:
+      // registration exists on all three surfaces already.
+      throw new AgentNotAssignableError(
+        `agent "${agentId}" is not in the agent registry, so it cannot be assigned. ` +
+          "An Administrator must register it first.",
+      );
     }
     if (agent.groupId !== groupId) {
       // Said as "not yours" rather than "belongs to group X", so the refusal

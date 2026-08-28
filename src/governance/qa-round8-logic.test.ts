@@ -14,13 +14,20 @@ import { lockDownAgent, releaseAgentLockdown } from "./kill-switch.js";
 import { evaluateGovernancePolicy } from "./policy-engine.js";
 import { addRule, loadPolicy, removeRule, savePolicy, setMode } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
+import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
+
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
 
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-qa8-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
+  TEST_GROUP = await seedGroupWithAgents(["agent-a", "agent-b", "agent-c"]);
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
 });
 
 afterEach(async () => {
@@ -68,18 +75,18 @@ describe("requirement 3: default-deny actually denies", () => {
   it("a rule for one kind never authorises another kind", async () => {
     // Each resource kind is a separate world; a command allowlist must not
     // become a path allowlist by accident.
-    await addRule({ resourceKind: "command", pattern: ".*" }, "tester");
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: ".*" }, "tester");
     expect(
       verdict(await evaluateGovernancePolicy({ toolName: "read", params: { path: "x" } }, ctx)),
     ).toBe("block");
   });
 
   it("removing the rule that permitted an action restores the denial", async () => {
-    const rule = await addRule({ resourceKind: "command", pattern: "^ls$" }, "tester");
+    const rule = await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "tester");
     expect(
       verdict(await evaluateGovernancePolicy({ toolName: "exec", params: { command: "ls" } }, ctx)),
     ).toBe("allow");
-    await removeRule(rule.id, "tester");
+    await removeRule(TEST_GROUP, rule.id, "tester");
     expect(
       verdict(await evaluateGovernancePolicy({ toolName: "exec", params: { command: "ls" } }, ctx)),
     ).toBe("block");
@@ -94,6 +101,7 @@ describe("requirement 4: time-limited permissions actually lapse", () => {
   // unrelated to its subject teaches people to re-run rather than to look.
   it("allows a rule whose expiry is still in the future", async () => {
     await addRule(
+      TEST_GROUP,
       {
         resourceKind: "command",
         pattern: "^ls$",
@@ -108,6 +116,7 @@ describe("requirement 4: time-limited permissions actually lapse", () => {
 
   it("denies once the expiry has passed", async () => {
     await addRule(
+      TEST_GROUP,
       {
         resourceKind: "command",
         pattern: "^ls$",
@@ -125,6 +134,7 @@ describe("requirement 4: time-limited permissions actually lapse", () => {
     // the clock, so it is deterministic.
     const pattern = "^deploy$";
     await addRule(
+      TEST_GROUP,
       { resourceKind: "command", pattern, expiresAt: new Date(Date.now() + 60_000).toISOString() },
       "tester",
     );
@@ -134,8 +144,8 @@ describe("requirement 4: time-limited permissions actually lapse", () => {
       ),
     ).toBe("allow");
     // Rewrite the same rule with an expiry in the past.
-    const doc = await loadPolicy();
-    await savePolicy({
+    const doc = await loadPolicy(TEST_GROUP);
+    await savePolicy(TEST_GROUP, {
       ...doc,
       rules: doc.rules.map((rule) =>
         rule.pattern === pattern
@@ -153,10 +163,12 @@ describe("requirement 4: time-limited permissions actually lapse", () => {
 
 describe("requirement 5: the record is complete and ordered", () => {
   it("records an entry for every decision, in the order they happened", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls$" }, "tester");
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "tester");
     await evaluateGovernancePolicy({ toolName: "exec", params: { command: "ls" } }, ctx);
     await evaluateGovernancePolicy({ toolName: "exec", params: { command: "rm -rf /" } }, ctx);
-    const agentEntries = (await tailLedger()).filter((entry) => entry.entryKind !== "admin");
+    const agentEntries = (await tailLedger(TEST_GROUP)).filter(
+      (entry) => entry.entryKind !== "admin",
+    );
     expect(agentEntries.map((entry) => entry.decision)).toEqual(["allow", "deny"]);
     expect(agentEntries.map((entry) => entry.resource)).toEqual(["ls", "rm -rf /"]);
   });
@@ -165,9 +177,9 @@ describe("requirement 5: the record is complete and ordered", () => {
     // The property that makes the trail answer the question an investigation
     // starts from: was this allowed because it was legitimate, or because
     // somebody widened the rules moments earlier?
-    await addRule({ resourceKind: "command", pattern: "^ls$" }, "kinan");
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "kinan");
     await evaluateGovernancePolicy({ toolName: "exec", params: { command: "ls" } }, ctx);
-    const entries = await tailLedger();
+    const entries = await tailLedger(TEST_GROUP);
     expect(entries.at(0)?.entryKind).toBe("admin");
     expect(entries.at(0)?.actor).toBe("kinan");
     expect(entries.at(1)?.entryKind).toBeUndefined();
@@ -177,31 +189,31 @@ describe("requirement 5: the record is complete and ordered", () => {
   });
 
   it("keeps the chain verifiable through a full mixed workload", async () => {
-    await setMode("enforce", "kinan");
-    const rule = await addRule({ resourceKind: "command", pattern: "^ls$" }, "kinan");
+    await setMode(TEST_GROUP, "enforce", "kinan");
+    const rule = await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "kinan");
     for (let index = 0; index < 5; index += 1) {
       await evaluateGovernancePolicy({ toolName: "exec", params: { command: "ls" } }, ctx);
       await evaluateGovernancePolicy({ toolName: "mystery", params: { i: index } }, ctx);
     }
-    await lockDownAgent("agent-b", "kinan");
-    await releaseAgentLockdown("agent-b", "kinan");
-    await removeRule(rule.id, "kinan");
-    expect((await verifyLedgerChain()).ok).toBe(true);
+    await lockDownAgent(TEST_GROUP, "agent-b", "kinan");
+    await releaseAgentLockdown(TEST_GROUP, "agent-b", "kinan");
+    await removeRule(TEST_GROUP, rule.id, "kinan");
+    expect((await verifyLedgerChain(TEST_GROUP)).ok).toBe(true);
   });
 });
 
 describe("requirement 7: the kill switch overrides everything else", () => {
   it("denies a locked agent even for an action an active rule permits", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls$" }, "tester");
-    await lockDownAgent("agent-a", "kinan");
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "tester");
+    await lockDownAgent(TEST_GROUP, "agent-a", "kinan");
     expect(
       verdict(await evaluateGovernancePolicy({ toolName: "exec", params: { command: "ls" } }, ctx)),
     ).toBe("block");
   });
 
   it("does not leak the lockdown to a different agent", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls$" }, "tester");
-    await lockDownAgent("agent-a", "kinan");
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "tester");
+    await lockDownAgent(TEST_GROUP, "agent-a", "kinan");
     expect(
       verdict(
         await evaluateGovernancePolicy(
@@ -213,9 +225,9 @@ describe("requirement 7: the kill switch overrides everything else", () => {
   });
 
   it("releasing restores exactly the access the rules describe, no more", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls$" }, "tester");
-    await lockDownAgent("agent-a", "kinan");
-    await releaseAgentLockdown("agent-a", "kinan");
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "tester");
+    await lockDownAgent(TEST_GROUP, "agent-a", "kinan");
+    await releaseAgentLockdown(TEST_GROUP, "agent-a", "kinan");
     expect(
       verdict(await evaluateGovernancePolicy({ toolName: "exec", params: { command: "ls" } }, ctx)),
     ).toBe("allow");
@@ -226,8 +238,8 @@ describe("requirement 7: the kill switch overrides everything else", () => {
   });
 
   it("holds under monitor, because an emergency stop is not a policy decision", async () => {
-    await setMode("monitor", "kinan");
-    await lockDownAgent("agent-a", "kinan");
+    await setMode(TEST_GROUP, "monitor", "kinan");
+    await lockDownAgent(TEST_GROUP, "agent-a", "kinan");
     expect(
       verdict(await evaluateGovernancePolicy({ toolName: "exec", params: { command: "ls" } }, ctx)),
     ).toBe("block");
@@ -236,27 +248,31 @@ describe("requirement 7: the kill switch overrides everything else", () => {
 
 describe("posture semantics", () => {
   it("monitor records the verdict enforce would have reached, without acting", async () => {
-    await setMode("monitor", "kinan");
+    await setMode(TEST_GROUP, "monitor", "kinan");
     expect(
       verdict(await evaluateGovernancePolicy({ toolName: "exec", params: { command: "rm" } }, ctx)),
     ).toBe("allow");
-    const last = (await tailLedger()).filter((entry) => entry.entryKind !== "admin").at(-1);
+    const last = (await tailLedger(TEST_GROUP))
+      .filter((entry) => entry.entryKind !== "admin")
+      .at(-1);
     // The recorded decision is what the policy concluded, not what happened.
     expect(last?.decision).toBe("deny");
   });
 
   it("off records nothing for the agent and enforces nothing", async () => {
-    await setMode("off", "kinan");
+    await setMode(TEST_GROUP, "off", "kinan");
     expect(
       verdict(await evaluateGovernancePolicy({ toolName: "exec", params: { command: "rm" } }, ctx)),
     ).toBe("allow");
-    expect((await tailLedger()).filter((entry) => entry.entryKind !== "admin")).toHaveLength(0);
+    expect(
+      (await tailLedger(TEST_GROUP)).filter((entry) => entry.entryKind !== "admin"),
+    ).toHaveLength(0);
   });
 });
 
 describe("agent scoping", () => {
   it("a global rule binds every agent", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls$" }, "tester");
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "tester");
     for (const agentId of ["agent-a", "agent-b", "agent-c"]) {
       expect(
         verdict(
@@ -271,7 +287,11 @@ describe("agent scoping", () => {
   });
 
   it("an agent-scoped rule binds only that agent", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls$", agentId: "agent-a" }, "tester");
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "command", pattern: "^ls$", agentId: "agent-a" },
+      "tester",
+    );
     expect(
       verdict(await evaluateGovernancePolicy({ toolName: "exec", params: { command: "ls" } }, ctx)),
     ).toBe("allow");
@@ -286,7 +306,11 @@ describe("agent scoping", () => {
   });
 
   it("an unidentified caller is not authorised by an agent-scoped rule", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls$", agentId: "agent-a" }, "tester");
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "command", pattern: "^ls$", agentId: "agent-a" },
+      "tester",
+    );
     expect(
       verdict(await evaluateGovernancePolicy({ toolName: "exec", params: { command: "ls" } }, {})),
     ).toBe("block");
@@ -295,7 +319,7 @@ describe("agent scoping", () => {
 
 describe("policy document robustness", () => {
   it("a corrupted rules array falls back to denying, not to crashing", async () => {
-    await savePolicy({
+    await savePolicy(TEST_GROUP, {
       ...defaultPolicyDocument(),
       mode: "enforce",
       ask: "off",
@@ -307,7 +331,7 @@ describe("policy document robustness", () => {
   });
 
   it("a rule missing its pattern is dropped rather than matching everything", async () => {
-    await savePolicy({
+    await savePolicy(TEST_GROUP, {
       ...defaultPolicyDocument(),
       mode: "enforce",
       ask: "off",
@@ -315,7 +339,9 @@ describe("policy document robustness", () => {
     });
     // Filtered to operator rules: core rules are reasserted on every load by
     // design, and this document deliberately replaced the baseline set.
-    expect((await loadPolicy()).rules.filter((rule) => !isShippedRule(rule))).toHaveLength(0);
+    expect(
+      (await loadPolicy(TEST_GROUP)).rules.filter((rule) => !isShippedRule(rule)),
+    ).toHaveLength(0);
     expect(
       verdict(await evaluateGovernancePolicy({ toolName: "exec", params: { command: "ls" } }, ctx)),
     ).toBe("block");

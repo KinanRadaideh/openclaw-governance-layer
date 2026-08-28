@@ -14,17 +14,24 @@ import { normalizeGovernedPath } from "./path-normalize.js";
 import { evaluateGovernancePolicy } from "./policy-engine.js";
 import { addRule, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
+import { seedGroupWithAgents } from "./test-group.js";
 
 let governanceDir: string;
 let workspace: string;
 
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
+
 beforeEach(async () => {
   governanceDir = await mkdtemp(join(tmpdir(), "governance-paths-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = governanceDir;
+  TEST_GROUP = await seedGroupWithAgents(["demo"]);
   workspace = await mkdtemp(join(tmpdir(), "governance-workspace-"));
   await mkdir(join(workspace, "src"), { recursive: true });
   await writeFile(join(workspace, "src", "app.ts"), "// file\n");
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
 });
 
 afterEach(async () => {
@@ -95,7 +102,7 @@ describe("path traversal (B2: rules could be walked around)", () => {
   });
 
   it("blocks the documented traversal attack end to end", async () => {
-    await addRule({ resourceKind: "path", pattern: "^src/.*$" });
+    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^src/.*$" });
     // The rule allows the project's own source directory.
     expect(
       verdict(
@@ -115,7 +122,7 @@ describe("path traversal (B2: rules could be walked around)", () => {
   });
 
   it("applies the same rule identically to read and to apply_patch", async () => {
-    await addRule({ resourceKind: "path", pattern: "^src/app[.]ts$" });
+    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^src/app[.]ts$" });
     const absolute = join(workspace, "src", "app.ts");
     expect(
       verdict(
@@ -154,7 +161,7 @@ describe("symbolic links", () => {
       expect(resolved.startsWith("notes/")).toBe(false);
       expect(resolved).toContain("secret.txt");
 
-      await addRule({ resourceKind: "path", pattern: "^notes/.*$" });
+      await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^notes/.*$" });
       expect(
         verdict(
           await evaluateGovernancePolicy(

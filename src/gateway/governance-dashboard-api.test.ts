@@ -16,14 +16,21 @@ import { addRule, savePolicy } from "../governance/policy-store.js";
 import { defaultPolicyDocument } from "../governance/policy-types.js";
 import type { GovernanceRole } from "../governance/roles.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
+import { seedGroupWithAgents } from "../governance/test-group.js";
 import { handleGovernanceApiRequest } from "./governance-dashboard-api.js";
 
 let dir: string;
 
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-api-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
-  await savePolicy(defaultPolicyDocument());
+  TEST_GROUP = await seedGroupWithAgents(["__proto__", "agent-a", "agent-anything", "agent-b"]);
+  await savePolicy(TEST_GROUP, defaultPolicyDocument());
 });
 
 afterEach(async () => {
@@ -40,6 +47,7 @@ function session(role: GovernanceRole, assignedAgents: string[] = []): Governanc
     createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
     assignedAgents,
+    groupId: TEST_GROUP,
   };
 }
 
@@ -195,13 +203,13 @@ describe("agent scope", () => {
   });
 
   it("authorizes rule removal against the rule's stored scope, not the caller's claim", async () => {
-    const globalRule = await addRule({ resourceKind: "command", pattern: "^global$" });
-    const foreignRule = await addRule({
+    const globalRule = await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^global$" });
+    const foreignRule = await addRule(TEST_GROUP, {
       resourceKind: "command",
       pattern: "^foreign$",
       agentId: "agent-b",
     });
-    const ownRule = await addRule({
+    const ownRule = await addRule(TEST_GROUP, {
       resourceKind: "command",
       pattern: "^own$",
       agentId: "agent-a",
@@ -232,9 +240,9 @@ describe("agent scope", () => {
   });
 
   it("hides another agent's rules from a scoped account's policy read", async () => {
-    await addRule({ resourceKind: "command", pattern: "^global$" });
-    await addRule({ resourceKind: "command", pattern: "^a$", agentId: "agent-a" });
-    await addRule({ resourceKind: "command", pattern: "^b$", agentId: "agent-b" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^global$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^a$", agentId: "agent-a" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^b$", agentId: "agent-b" });
     const result = await call("GET", "policy", session("user", ["agent-a"]));
     const patterns = (result.body as { rules: { pattern: string }[] }).rules.map((r) => r.pattern);
     expect(patterns).toContain("^global$");

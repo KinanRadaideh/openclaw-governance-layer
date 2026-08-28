@@ -699,6 +699,50 @@ export class GovernanceApi {
     });
   }
 
+  /**
+   * Creates a real OpenClaw agent and records it here, as one act (M6).
+   *
+   * Distinct from `registerAgent`, and the distinction is load-bearing:
+   * register **claims an id the host already has**, provision **brings an agent
+   * into being**. The server refuses to provision an id the host already holds
+   * and says to register it instead, so the two can never be confused into one
+   * destructive operation.
+   */
+  provisionAgent(input: {
+    displayName: string;
+    agentId?: string;
+    adminId?: string;
+    workspace?: string;
+    model?: string;
+  }): Promise<{
+    agent: GovernanceAgentEntry & { id: string };
+    workspace: string;
+    /** Whether the running host was observed to pick the agent up. */
+    confirmed: boolean;
+    confirmWaitedMs: number;
+    /** Present only when it was created but had not appeared in time. */
+    warning?: string;
+  }> {
+    return this.request("agents/provision", { method: "POST", body: { ...input } });
+  }
+
+  /**
+   * Removes an agent, optionally deleting it from OpenClaw as well.
+   *
+   * `deleteFromHost` is required by the server rather than defaulted: a missing
+   * flag on a destructive route is a caller who has not decided, and guessing
+   * is how an irreversible act happens by omission.
+   */
+  deprovisionAgent(
+    agentId: string,
+    deleteFromHost: boolean,
+  ): Promise<{ agentId: string; displayName: string; deletedFromHost: boolean }> {
+    return this.request("agents/deprovision", {
+      method: "POST",
+      body: { agentId, deleteFromHost },
+    });
+  }
+
   /** Removes the record only. The agent, its rules and its posture are untouched. */
   unregisterAgent(agentId: string): Promise<GovernanceAgentEntry> {
     return this.request<GovernanceAgentEntry>("agents/unregister", {

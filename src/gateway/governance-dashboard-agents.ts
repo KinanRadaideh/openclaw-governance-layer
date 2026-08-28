@@ -15,6 +15,7 @@
 // across two modules, which costs a reader more than the move saves.
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { listActiveSessions } from "../governance/active-sessions.js";
+import { deprovisionAgent, provisionAgent } from "../governance/agent-provisioning.js";
 import {
   AgentNotAssignableError,
   AgentOwnerError,
@@ -35,6 +36,7 @@ import { loadPolicy } from "../governance/policy-store.js";
 import type { GovernanceRole } from "../governance/roles.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
 import { findUsersForAgent } from "../governance/user-store.js";
+import { requireGroup } from "./governance-dashboard-group.js";
 import { sendInvalidRequest, sendJson } from "./http-common.js";
 
 export type AgentRouteContext = {
@@ -122,8 +124,12 @@ export async function handleGovernanceAgentRoutes(
     if (!requireRole(res, session, "viewer")) {
       return true;
     }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
     const actor = toActor(session);
-    const policy = await loadPolicy();
+    const policy = await loadPolicy(groupId);
     const live = listActiveSessions({ actor, lockedAgents: policy.lockedAgents });
     const entries = await listAgentsWithFallback(
       session.groupId,
@@ -153,6 +159,10 @@ export async function handleGovernanceAgentRoutes(
   // ---------------------------------------------------------------------
   if (route === "agents/register" && req.method === "POST") {
     if (!requireRole(res, session, "administrator")) {
+      return true;
+    }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
       return true;
     }
     const body = await readJsonObjectBodyOrError(req, res);
@@ -226,8 +236,223 @@ export async function handleGovernanceAgentRoutes(
     return true;
   }
 
+  // ---------------------------------------------------------------------
+  // Administrator and above: create an agent for real (M6).
+  //
+  // The route that makes this layer a writer rather than only a reader. It is
+  // deliberately separate from `agents/register`, because the two verbs mean
+  // different things and collapsing them is what kept M4's ownership hole open
+  // for a week: **register claims an existing id; provision brings an agent
+  // into being.** A caller who wants the first must not get the second by
+  // accident, and the transaction underneath refuses an id the host already
+  // has for exactly that reason.
+  //
+  // The group comes from the session and never from the request, as everywhere
+  // else on this surface. Provisioning into another organisation is the one
+  // write that would defeat the whole model, so the caller is given no way to
+  // say it.
+  // ---------------------------------------------------------------------
+  if (route === "agents/provision" && req.method === "POST") {
+    if (!requireRole(res, session, "administrator")) {
+      return true;
+    }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
+    const body = await readJsonObjectBodyOrError(req, res);
+    if (body === undefined) {
+      return true;
+    }
+    const { displayName, agentId, adminId, workspace, model } = body as {
+      displayName?: unknown;
+      agentId?: unknown;
+      adminId?: unknown;
+      workspace?: unknown;
+      model?: unknown;
+    };
+    if (typeof displayName !== "string" || !displayName.trim()) {
+      sendInvalidRequest(res, "displayName is required");
+      return true;
+    }
+    if (displayName.length > MAX_AGENT_DISPLAY_NAME_LENGTH) {
+      sendInvalidRequest(
+        res,
+        `displayName must be at most ${MAX_AGENT_DISPLAY_NAME_LENGTH} characters`,
+      );
+      return true;
+    }
+    if (agentId !== undefined && typeof agentId !== "string") {
+      sendInvalidRequest(res, "agentId must be a string");
+      return true;
+    }
+    if (typeof agentId === "string" && agentId.length > MAX_AGENT_ID_LENGTH) {
+      sendInvalidRequest(res, `agentId must be at most ${MAX_AGENT_ID_LENGTH} characters`);
+      return true;
+    }
+    if (adminId !== undefined && typeof adminId !== "string") {
+      sendInvalidRequest(res, "adminId must be an account id");
+      return true;
+    }
+    if (workspace !== undefined && typeof workspace !== "string") {
+      sendInvalidRequest(res, "workspace must be a path");
+      return true;
+    }
+    if (model !== undefined && typeof model !== "string") {
+      sendInvalidRequest(res, "model must be a string");
+      return true;
+    }
+    if (adminId && adminId !== session.userId && session.role !== "root") {
+      sendJson(res, 403, {
+        error: {
+          message: "Only Root may provision an agent to another Administrator",
+          type: "forbidden",
+        },
+      });
+      return true;
+    }
+    // Lazily imported for the same reason the deployment route does it: this is
+    // the only route on this surface that needs the host's runtime config, and
+    // pulling `src/config/*` in at module load would cost every other route.
+    const { getRuntimeConfig } = await import("../config/config.js");
+    const { listAgentEntries } = await import("../agents/agent-scope-config.js");
+    const { normalizeAgentId } = await import("../routing/session-key.js");
+    const result = await provisionAgent(
+      {
+        displayName,
+        ...(typeof agentId === "string" && agentId.trim() ? { agentId } : {}),
+        groupId,
+        adminId: adminId || session.userId,
+        ...(typeof workspace === "string" && workspace.trim() ? { workspace } : {}),
+        ...(typeof model === "string" && model.trim() ? { model } : {}),
+      },
+      auditActor(session),
+      {
+        // The confirmation asks the **running** host, not the file this call
+        // just wrote. Asking the file would confirm only that the write landed,
+        // which is not in doubt; asking the runtime confirms the fact the
+        // operator actually cares about, which is that the agent is there.
+        hostSeesAgent: (id) => {
+          try {
+            const wanted = normalizeAgentId(id);
+            return listAgentEntries(getRuntimeConfig()).some(
+              (entry) => normalizeAgentId(entry.id) === wanted,
+            );
+          } catch {
+            return false;
+          }
+        },
+      },
+    );
+    if (!result.ok) {
+      // 409 for "something already holds this name", 400 for everything else.
+      // The body carries `stage`, `remedy` and `rolledBack` because a failure
+      // an operator cannot act on is the failure mode this project treats as a
+      // defect — see `agent-provisioning.ts`.
+      const conflict = result.code === "already-registered" || result.code === "host-has-id";
+      sendJson(res, conflict ? 409 : 400, {
+        error: {
+          message: result.message,
+          type: conflict ? "conflict" : "invalid_request_error",
+          stage: result.stage,
+          code: result.code,
+          remedy: result.remedy,
+          rolledBack: result.rolledBack,
+          ...(result.rollbackMessage ? { rollbackMessage: result.rollbackMessage } : {}),
+        },
+      });
+      return true;
+    }
+    sendJson(res, 200, {
+      agent: result.agent,
+      workspace: result.workspace,
+      confirmed: result.confirmed,
+      confirmWaitedMs: result.confirmWaitedMs,
+      ...(result.warning ? { warning: result.warning } : {}),
+    });
+    return true;
+  }
+
+  // ---------------------------------------------------------------------
+  // Administrator and above: remove an agent, with or without deleting it.
+  //
+  // Two outcomes behind one route, chosen by an explicit flag rather than
+  // inferred. `agents/unregister` still exists and still means exactly what it
+  // meant in M4 — drop the record, leave the agent running — because changing
+  // what an existing action does to an operator who already relies on it is a
+  // worse failure than adding a second action.
+  // ---------------------------------------------------------------------
+  if (route === "agents/deprovision" && req.method === "POST") {
+    if (!requireRole(res, session, "administrator")) {
+      return true;
+    }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
+    const body = await readJsonObjectBodyOrError(req, res);
+    if (body === undefined) {
+      return true;
+    }
+    const { agentId, deleteFromHost } = body as {
+      agentId?: unknown;
+      deleteFromHost?: unknown;
+    };
+    if (typeof agentId !== "string" || !agentId.trim()) {
+      sendInvalidRequest(res, "agentId is required");
+      return true;
+    }
+    // Required rather than defaulted. A missing flag on a destructive route is
+    // a caller who has not decided, and guessing on their behalf is how an
+    // irreversible act happens by omission.
+    if (typeof deleteFromHost !== "boolean") {
+      sendInvalidRequest(res, "deleteFromHost must be true or false");
+      return true;
+    }
+    const existing = await findAgent(agentId.trim());
+    if (!existing || existing.groupId !== groupId) {
+      sendJson(res, 404, { error: { message: "no such agent", type: "not_found" } });
+      return true;
+    }
+    if (!mayAdministerAgent(session, existing.adminId)) {
+      sendJson(res, 403, {
+        error: { message: "that agent belongs to another Administrator", type: "forbidden" },
+      });
+      return true;
+    }
+    const result = await deprovisionAgent(
+      { agentId: agentId.trim(), groupId, deleteFromHost },
+      auditActor(session),
+    );
+    if (!result.ok) {
+      // No `rolledBack` on this shape, unlike provisioning: removal deletes from
+      // the host before touching the registry, so a failure at either step
+      // leaves nothing half-done and there is never anything to report undoing.
+      sendJson(res, 400, {
+        error: {
+          message: result.message,
+          type: "invalid_request_error",
+          stage: result.stage,
+          code: result.code,
+          remedy: result.remedy,
+        },
+      });
+      return true;
+    }
+    sendJson(res, 200, {
+      agentId: result.agentId,
+      displayName: result.displayName,
+      deletedFromHost: result.deletedFromHost,
+    });
+    return true;
+  }
+
   if (route === "agents/rename" && req.method === "POST") {
     if (!requireRole(res, session, "administrator")) {
+      return true;
+    }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
       return true;
     }
     const body = await readJsonObjectBodyOrError(req, res);
@@ -262,6 +487,10 @@ export async function handleGovernanceAgentRoutes(
     if (!requireRole(res, session, "administrator")) {
       return true;
     }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
     const body = await readJsonObjectBodyOrError(req, res);
     if (body === undefined) {
       return true;
@@ -292,6 +521,10 @@ export async function handleGovernanceAgentRoutes(
 
   if (route === "agents/unregister" && req.method === "POST") {
     if (!requireRole(res, session, "administrator")) {
+      return true;
+    }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
       return true;
     }
     const body = await readJsonObjectBodyOrError(req, res);
@@ -333,6 +566,10 @@ export async function handleGovernanceAgentRoutes(
   // ---------------------------------------------------------------------
   if (route === "agents/access" && req.method === "GET") {
     if (!requireRole(res, session, "viewer")) {
+      return true;
+    }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
       return true;
     }
     const agentId = new URL(req.url ?? "/", "http://localhost").searchParams.get("agentId")?.trim();

@@ -12,12 +12,15 @@
 // existing check unchanged.
 import { parseAgentSessionKey } from "../sessions/session-key-utils.js";
 import { parseGovernanceSessionKey } from "./agent-conversation.js";
+import { resolveAgentGroup } from "./agent-group.js";
+import { readAgentIntent } from "./agent-intent.js";
 import {
   appendLedgerEntry,
   MAX_LEDGER_RESOURCE_LENGTH,
   type LedgerDecision,
 } from "./audit-ledger.js";
 import { resolveGovernedPath } from "./path-normalize.js";
+import { INSTALLATION_LEDGER_GROUP, isUnconfiguredTestRun } from "./paths.js";
 import { matchesPattern } from "./pattern-match.js";
 import { recordTimedOutEscalation } from "./pending-decisions.js";
 import { loadPolicy } from "./policy-store.js";
@@ -143,6 +146,23 @@ function accessMatches(
  *
  * One resolution point, used by both, so the two cannot drift apart again.
  */
+/**
+ * The model's stated intent for this session, shaped for a ledger append.
+ *
+ * Spread rather than assigned so an absent intent leaves the key off the object
+ * entirely: `canonicalPayload` hashes on **presence**, so writing
+ * `intent: undefined` would change the payload of every entry that has none and
+ * break every chain written before the field existed.
+ *
+ * Read at the moment of the append, not captured earlier, because one model
+ * turn issues several tool calls and all of them share the purpose the model
+ * stated for that turn.
+ */
+function intentFields(sessionKey: string | undefined): { intent?: string } {
+  const intent = readAgentIntent(sessionKey);
+  return intent ? { intent } : {};
+}
+
 function resolveEffectiveAgentId(ctx: ToolCallContext): string | undefined {
   return ctx.agentId ?? parseAgentSessionKey(ctx.sessionKey)?.agentId;
 }
@@ -220,16 +240,27 @@ export async function recordLoopDetectorBlock(input: {
   reason: string;
 }): Promise<void> {
   try {
-    const doc = await loadPolicy();
+    // The loop detector fires on a call the gate never judged, so it has no
+    // group in hand and has to resolve one the same way the gate does (M5).
+    // Unresolvable means unregistered, and the gate has already refused it under
+    // its own id — recording it twice would double-count one blocked call.
+    const groupId = await resolveAgentGroup(
+      input.agentId ?? parseAgentSessionKey(input.sessionKey)?.agentId,
+    );
+    if (!groupId) {
+      return;
+    }
+    const doc = await loadPolicy(groupId);
     if (doc.mode === "off") {
       // The gate is not running; recording would imply oversight that is not
       // happening, exactly as in the main evaluation path.
       return;
     }
     const spec = resolveGovernedTool(input.toolName);
-    await appendLedgerEntry({
+    await appendLedgerEntry(groupId, {
       agentId: input.agentId,
       sessionKey: input.sessionKey,
+      ...intentFields(input.sessionKey),
       toolName: input.toolName,
       resourceKind: spec?.resourceKind ?? "unknown",
       resource: summarizeUngovernedParams(input.params),
@@ -317,8 +348,59 @@ export async function evaluateGovernancePolicy(
   ctx: ToolCallContext,
 ): Promise<GovernancePolicyDecision> {
   const spec = resolveGovernedTool(event.toolName);
-  const doc = await loadPolicy();
   const agentId = resolveEffectiveAgentId(ctx);
+  // ---------------------------------------------------------------------
+  // **Whose rulebook? — the question M5 added to the front of the gate.**
+  //
+  // Before per-group storage there was one policy document, so an agent id was
+  // enough to know which rules applied. Now the document belongs to a group and
+  // a tool call carries none: the hook gives us an agent id and a session key.
+  // The registry is the only thing that knows, and `resolveAgentGroup` caches it
+  // so the hot path still performs one policy read rather than two.
+  //
+  // **No group means refused, and that is mandatory registration** (M5). The
+  // alternative — a shared fallback document for agents nobody registered —
+  // keeps M4's ownership hole open: `assertAssignable` skips an agent it has no
+  // record of, so the rule could be sidestepped by simply never registering.
+  // Refusing removes the fallback the sidestep depends on.
+  // ---------------------------------------------------------------------
+  const groupId = await resolveAgentGroup(agentId);
+  if (!groupId) {
+    // A test process that never asked for a governance directory is not an
+    // installation and has no operator to register anything — the same narrow
+    // exemption `isUnconfiguredTestRun` already carves for the shipped posture,
+    // and for the same reason. Production never reaches it.
+    if (isUnconfiguredTestRun()) {
+      return undefined;
+    }
+    // Recorded before it is refused, into the installation-scope ledger,
+    // because there is no group ledger to record it in — see
+    // `INSTALLATION_LEDGER_GROUP`. Requirement #5 asks for every action, and
+    // "an unregistered agent tried to act" is exactly the one an operator needs.
+    await appendLedgerEntry(INSTALLATION_LEDGER_GROUP, {
+      agentId,
+      sessionKey: ctx.sessionKey,
+      ...intentFields(ctx.sessionKey),
+      toolName: event.toolName,
+      resourceKind: spec?.resourceKind ?? "unknown",
+      resource: "*",
+      ruleId: "agent-not-registered",
+      decision: "deny",
+    });
+    // **The reason names the remedy, deliberately.** An agent the host has and
+    // governance does not is otherwise inert with no visible cause — every call
+    // failing for a reason nobody can see is this project's worst bug class, and
+    // it would arrive here as a *consequence of a security decision*, which is
+    // the hardest kind to diagnose. The message says what happened and who can
+    // fix it, so the failure explains itself at the point it occurs.
+    return {
+      block: true,
+      blockReason:
+        `governance: agent "${agentId ?? "unknown"}" is not in the agent registry, so no ` +
+        "policy applies to it. An Administrator must register it before it can act.",
+    };
+  }
+  const doc = await loadPolicy(groupId);
   if ((agentId ? (doc.agentMode[agentId] ?? doc.mode) : doc.mode) === "off") {
     // The gate is switched off entirely; recording would imply oversight that
     // is not happening.
@@ -333,23 +415,28 @@ export async function evaluateGovernancePolicy(
   // return came first. An emergency stop that only covers the tools we happened
   // to enumerate is not an emergency stop — the whole point of the kill switch
   // is that it holds when the specific rules do not.
-  // An unattributable call, while *any* agent is locked down, is refused too
-  // (QA round 13, finding 81).
+  // **`lockedButUnattributable` used to live here, and M5 made it unreachable.**
   //
-  // B6 fixed the case where `ctx.agentId` was absent by falling back to the
-  // session key. Where both are absent — and both are optional on the hook
-  // context — `resolveEffectiveAgentId` returns `undefined`, the lockdown list
-  // was never consulted, and the call proceeded. That is the residue of the
-  // very defect B6 described: *an emergency stop that holds on some code paths
-  // and not others is not an emergency stop.*
+  // Finding 81 refused a call carrying no agent id while any agent was locked,
+  // because "an emergency stop that holds on some code paths and not others is
+  // not an emergency stop". The refusal it asked for still happens — it just
+  // happens earlier and for a broader reason. Reaching this point at all now
+  // requires a resolved `groupId`, and a group is resolved *from* the agent id,
+  // so `!agentId` cannot be true here. The condition was dead.
   //
-  // Failing closed here over-blocks, and that is the deliberate choice. It
-  // costs an unattributable call from some *other*, unlocked agent during an
-  // incident somebody declared; the alternative costs the locked agent's
-  // containment. An operator who has pressed the emergency stop is asking for
-  // the first error, not the second. The condition is also narrow by
-  // construction: with no agent locked, nothing changes at all.
-  const lockedButUnattributable = !agentId && doc.lockedAgents.length > 0;
+  // The behaviour it protected has widened rather than gone: an unattributable
+  // call is refused **always**, not only during an incident, because with a
+  // policy document per organisation there is no longer a shared rulebook to
+  // judge a caller that names no organisation. The bound the original comment
+  // relied on — "with no agent locked, nothing changes at all" — was the shared
+  // document, not the lockdown list.
+  //
+  // Deleted rather than left in place, for the reason T28 records: in a gate, a
+  // condition that cannot fire advertises a protection the control flow does
+  // not provide, and the next reader has no way to tell which. Its ledger id
+  // `kill-switch-unattributable` goes with it; the same call is now recorded as
+  // `agent-not-registered` against the installation-scope trail, which is both
+  // where it can be written and what actually happened.
   // ------------------------------------------------------------------
   // T6: a lockdown reaches what the locked agent started.
   //
@@ -367,15 +454,11 @@ export async function evaluateGovernancePolicy(
   // not *clear*. The same fail-closed choice finding 81 made for a call that
   // carries no agent id at all, and for the same reason.
   const lineageUnreadable = !lockedAncestor && lineageUnknown(ctx.sessionKey, doc.lockedAgents);
-  if (
-    (agentId && doc.lockedAgents.includes(agentId)) ||
-    lockedButUnattributable ||
-    lockedAncestor ||
-    lineageUnreadable
-  ) {
-    await appendLedgerEntry({
+  if ((agentId && doc.lockedAgents.includes(agentId)) || lockedAncestor || lineageUnreadable) {
+    await appendLedgerEntry(groupId, {
       agentId,
       sessionKey: ctx.sessionKey,
+      ...intentFields(ctx.sessionKey),
       toolName: event.toolName,
       resourceKind: spec?.resourceKind ?? "unknown",
       resource: "*",
@@ -391,9 +474,7 @@ export async function evaluateGovernancePolicy(
         ? "kill-switch-lineage"
         : lineageUnreadable
           ? "kill-switch-lineage-unknown"
-          : lockedButUnattributable
-            ? "kill-switch-unattributable"
-            : "kill-switch",
+          : "kill-switch",
       decision: "deny",
     });
     // Lockdown blocks in every posture except `off`, monitor included.
@@ -414,10 +495,7 @@ export async function evaluateGovernancePolicy(
         : lineageUnreadable
           ? "governance: a kill switch is engaged and this session's origin cannot be read, " +
             "so it cannot be shown to be unrelated to the agent that was stopped"
-          : lockedButUnattributable
-            ? "governance: a kill switch is engaged and this call carries no agent id, " +
-              "so it cannot be shown to come from an agent that is still permitted to run"
-            : `governance: agent "${agentId}" is locked down`,
+          : `governance: agent "${agentId}" is locked down`,
     };
   }
 
@@ -427,9 +505,10 @@ export async function evaluateGovernancePolicy(
     // of *all* agent actions, not only the ones we know how to judge. Logging
     // it as `ungoverned` is what makes coverage gaps visible instead of
     // invisible: an auditor can ask which tools are slipping past the policy.
-    await appendLedgerEntry({
+    await appendLedgerEntry(groupId, {
       agentId,
       sessionKey: ctx.sessionKey,
+      ...intentFields(ctx.sessionKey),
       toolName: event.toolName,
       resourceKind: "unknown",
       resource: summarizeUngovernedParams(event.params),
@@ -465,9 +544,10 @@ export async function evaluateGovernancePolicy(
     // our own extraction gap (every other check underneath still applies),
     // but the attempt is recorded so the blind spot is discoverable rather
     // than silent.
-    await appendLedgerEntry({
+    await appendLedgerEntry(groupId, {
       agentId,
       sessionKey: ctx.sessionKey,
+      ...intentFields(ctx.sessionKey),
       toolName: event.toolName,
       resourceKind: spec.resourceKind,
       resource: summarizeUngovernedParams(event.params),
@@ -537,9 +617,10 @@ export async function evaluateGovernancePolicy(
   const first = refusals[0];
   if (first) {
     for (const refusal of refusals) {
-      await appendLedgerEntry({
+      await appendLedgerEntry(groupId, {
         agentId,
         sessionKey: ctx.sessionKey,
+        ...intentFields(ctx.sessionKey),
         toolName: event.toolName,
         resourceKind: spec.resourceKind,
         resource: refusal.resource,
@@ -594,9 +675,10 @@ export async function evaluateGovernancePolicy(
     // audit trail useless for predicting the effect of switching to enforce.
     const decision: LedgerDecision = matched ? "allow" : askMode === "off" ? "deny" : "ask";
 
-    await appendLedgerEntry({
+    await appendLedgerEntry(groupId, {
       agentId,
       sessionKey: ctx.sessionKey,
+      ...intentFields(ctx.sessionKey),
       toolName: event.toolName,
       resourceKind: spec.resourceKind,
       resource,
@@ -696,7 +778,7 @@ export async function evaluateGovernancePolicy(
           // later, instead of the agent silently failing with no trace of what
           // it was blocked from doing.
           if (resolutionDecision === "timeout" || resolutionDecision === "cancelled") {
-            await recordTimedOutEscalation({
+            await recordTimedOutEscalation(groupId, {
               agentId: agentId ?? "unknown",
               ...(ctx.sessionKey ? { sessionKey: ctx.sessionKey } : {}),
               toolName: event.toolName,
@@ -704,9 +786,10 @@ export async function evaluateGovernancePolicy(
               resource,
               waitedMs: Math.max(1, doc.hitlTimeoutSeconds) * 1000,
             });
-            await appendLedgerEntry({
+            await appendLedgerEntry(groupId, {
               agentId,
               sessionKey: ctx.sessionKey,
+              ...intentFields(ctx.sessionKey),
               toolName: event.toolName,
               resourceKind: spec.resourceKind,
               resource,
@@ -722,9 +805,10 @@ export async function evaluateGovernancePolicy(
           // would be a worse answer than honouring the part of it that is
           // legitimate. What it must not do is write a rule.
           const finalDecision: LedgerDecision = resolutionDecision === "deny" ? "deny" : "allow";
-          await appendLedgerEntry({
+          await appendLedgerEntry(groupId, {
             agentId,
             sessionKey: ctx.sessionKey,
+            ...intentFields(ctx.sessionKey),
             toolName: event.toolName,
             resourceKind: spec.resourceKind,
             resource,

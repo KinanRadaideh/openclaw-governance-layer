@@ -33,6 +33,7 @@ import { loadPolicy } from "../governance/policy-store.js";
 import type { GovernanceRole } from "../governance/roles.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
 import { readSystemStatus } from "../governance/system-status.js";
+import { requireGroup } from "./governance-dashboard-group.js";
 import { sendJson } from "./http-common.js";
 
 /**
@@ -76,6 +77,10 @@ export async function handleGovernanceOversightRoutes(
     if (!requireRole(res, session, "viewer")) {
       return true;
     }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
     const limitRaw = new URL(req.url ?? "/", "http://localhost").searchParams.get("limit");
     const limit = Number.parseInt(limitRaw ?? "", 10);
     // Bounded above as well as below (QA round 13, finding 82). Only the lower
@@ -89,6 +94,7 @@ export async function handleGovernanceOversightRoutes(
     // wants "as much as you have", and refusing a number would break the
     // dashboard for a request that has an obvious correct answer.
     const entries = await tailLedger(
+      groupId,
       Number.isFinite(limit) && limit > 0 ? Math.min(limit, MAX_LEDGER_PAGE) : 200,
     );
     // The design doc grants Viewers "sanitized audit logs" specifically, a
@@ -105,6 +111,10 @@ export async function handleGovernanceOversightRoutes(
   // usage)") — oversight without any power to change anything.
   if (route === "system" && req.method === "GET") {
     if (!requireRole(res, session, "viewer")) {
+      return true;
+    }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
       return true;
     }
     sendJson(res, 200, readSystemStatus());
@@ -134,7 +144,11 @@ export async function handleGovernanceOversightRoutes(
     if (!requireRole(res, session, "viewer")) {
       return true;
     }
-    const policy = await loadPolicy();
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
+    const policy = await loadPolicy(groupId);
     sendJson(
       res,
       200,
@@ -149,8 +163,12 @@ export async function handleGovernanceOversightRoutes(
     if (!requireRole(res, session, "user")) {
       return true;
     }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
     const actor = toActor(session);
-    const all = await listPendingDecisions();
+    const all = await listPendingDecisions(groupId);
     sendJson(
       res,
       200,
@@ -163,7 +181,11 @@ export async function handleGovernanceOversightRoutes(
     if (!requireRole(res, session, "viewer")) {
       return true;
     }
-    sendJson(res, 200, await verifyLedgerChain());
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
+    sendJson(res, 200, await verifyLedgerChain(groupId));
     return true;
   }
 

@@ -16,15 +16,22 @@ import { lockDownAgent, releaseAgentLockdown } from "./kill-switch.js";
 import { evaluateGovernancePolicy } from "./policy-engine.js";
 import { addRule, loadPolicy, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
+import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
+
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
 
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-kill-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  TEST_GROUP = await seedGroupWithAgents(["agent-a", "agent-b"]);
   // The shipped default posture is `monitor` so a fresh install is not bricked;
   // the kill switch is about enforcement, so it says so explicitly.
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce" });
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce" });
   clearAgentTerminator();
 });
 
@@ -36,7 +43,7 @@ afterEach(async () => {
 
 describe("lockdown", () => {
   it("blocks every subsequent governed action, even an allowlisted one", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
     expect(
       await evaluateGovernancePolicy(
         { toolName: "exec", params: { command: "ls" } },
@@ -44,7 +51,7 @@ describe("lockdown", () => {
       ),
     ).toBeUndefined();
 
-    await lockDownAgent("agent-a", "admin");
+    await lockDownAgent(TEST_GROUP, "agent-a", "admin");
 
     const decision = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "ls" } },
@@ -54,8 +61,8 @@ describe("lockdown", () => {
   });
 
   it("does not affect other agents", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls$" });
-    await lockDownAgent("agent-a");
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
+    await lockDownAgent(TEST_GROUP, "agent-a");
     const other = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "ls" } },
       { agentId: "agent-b" },
@@ -64,10 +71,10 @@ describe("lockdown", () => {
   });
 
   it("is reversible", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls$" });
-    await lockDownAgent("agent-a");
-    await releaseAgentLockdown("agent-a");
-    expect((await loadPolicy()).lockedAgents).not.toContain("agent-a");
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
+    await lockDownAgent(TEST_GROUP, "agent-a");
+    await releaseAgentLockdown(TEST_GROUP, "agent-a");
+    expect((await loadPolicy(TEST_GROUP)).lockedAgents).not.toContain("agent-a");
     expect(
       await evaluateGovernancePolicy(
         { toolName: "exec", params: { command: "ls" } },
@@ -77,8 +84,8 @@ describe("lockdown", () => {
   });
 
   it("records who engaged it in the tamper-evident trail", async () => {
-    await lockDownAgent("agent-a", "kinan");
-    const entries = await tailLedger();
+    await lockDownAgent(TEST_GROUP, "agent-a", "kinan");
+    const entries = await tailLedger(TEST_GROUP);
     const killEntry = entries.find((entry) => entry.toolName === ADMIN_ACTIONS.agentLock);
     expect(killEntry).toBeDefined();
     // The operator lands in `actor`, a field named after what it holds. This
@@ -91,9 +98,9 @@ describe("lockdown", () => {
   });
 
   it("records a release, so a lockdown and its lifting are both accountable", async () => {
-    await lockDownAgent("agent-a", "kinan");
-    await releaseAgentLockdown("agent-a", "malek");
-    const release = (await tailLedger()).find(
+    await lockDownAgent(TEST_GROUP, "agent-a", "kinan");
+    await releaseAgentLockdown(TEST_GROUP, "agent-a", "malek");
+    const release = (await tailLedger(TEST_GROUP)).find(
       (entry) => entry.toolName === ADMIN_ACTIONS.agentRelease,
     );
     expect(release?.actor).toBe("malek");
@@ -108,7 +115,7 @@ describe("in-flight termination", () => {
       aborted.push(agentId);
       return { abortedRunIds: ["run-1", "run-2"] };
     });
-    const result = await lockDownAgent("agent-a");
+    const result = await lockDownAgent(TEST_GROUP, "agent-a");
     expect(aborted).toEqual(["agent-a"]);
     expect(result.termination.supported).toBe(true);
     expect(result.termination.abortedRunIds).toEqual(["run-1", "run-2"]);
@@ -118,10 +125,10 @@ describe("in-flight termination", () => {
     // The CLI and unit tests run with no Gateway. Lockdown must still apply,
     // and the result must not imply an in-flight run was stopped.
     expect(hasAgentTerminator()).toBe(false);
-    const result = await lockDownAgent("agent-a");
+    const result = await lockDownAgent(TEST_GROUP, "agent-a");
     expect(result.termination.supported).toBe(false);
     expect(result.termination.abortedRunIds).toEqual([]);
-    expect((await loadPolicy()).lockedAgents).toContain("agent-a");
+    expect((await loadPolicy(TEST_GROUP)).lockedAgents).toContain("agent-a");
   });
 
   it("still locks down when the terminator throws", async () => {
@@ -129,9 +136,9 @@ describe("in-flight termination", () => {
     registerAgentTerminator(() => {
       throw new Error("gateway exploded");
     });
-    const result = await lockDownAgent("agent-a");
+    const result = await lockDownAgent(TEST_GROUP, "agent-a");
     expect(result.termination.error).toMatch(/exploded/);
-    expect((await loadPolicy()).lockedAgents).toContain("agent-a");
+    expect((await loadPolicy(TEST_GROUP)).lockedAgents).toContain("agent-a");
   });
 
   it("locks before aborting, so no action slips through the gap", async () => {
@@ -139,10 +146,10 @@ describe("in-flight termination", () => {
     // between the abort and the lock landing.
     let lockedWhenAborted: boolean | undefined;
     registerAgentTerminator(async () => {
-      lockedWhenAborted = (await loadPolicy()).lockedAgents.includes("agent-a");
+      lockedWhenAborted = (await loadPolicy(TEST_GROUP)).lockedAgents.includes("agent-a");
       return { abortedRunIds: [] };
     });
-    await lockDownAgent("agent-a");
+    await lockDownAgent(TEST_GROUP, "agent-a");
     expect(lockedWhenAborted).toBe(true);
   });
 });
@@ -150,7 +157,7 @@ describe("in-flight termination", () => {
 describe("requirement #7 — termination latency", () => {
   it("completes well inside the one-second bound", async () => {
     registerAgentTerminator(() => ({ abortedRunIds: ["run-1"] }));
-    const result = await lockDownAgent("agent-a");
+    const result = await lockDownAgent(TEST_GROUP, "agent-a");
     // The whole operation: policy write (with cross-process lock), abort
     // signal, and the audit-ledger append.
     expect(result.elapsedMs).toBeLessThan(1000);
@@ -160,7 +167,7 @@ describe("requirement #7 — termination latency", () => {
   it("stays inside the bound with many in-flight runs", async () => {
     const runIds = Array.from({ length: 250 }, (_unused, index) => `run-${index}`);
     registerAgentTerminator(() => ({ abortedRunIds: runIds }));
-    const result = await lockDownAgent("agent-a");
+    const result = await lockDownAgent(TEST_GROUP, "agent-a");
     expect(result.termination.abortedRunIds).toHaveLength(250);
     expect(result.elapsedMs).toBeLessThan(1000);
   });

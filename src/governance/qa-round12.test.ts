@@ -27,14 +27,28 @@ import { lockDownAgent } from "./kill-switch.js";
 import { conversationsFilePath } from "./paths.js";
 import { evaluateGovernancePolicy } from "./policy-engine.js";
 import { addRule, loadPolicy, savePolicy } from "./policy-store.js";
+import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
 let workspace: string;
 let seen: AgentRunRequest[];
 
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-qa12-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  TEST_GROUP = await seedGroupWithAgents([
+    "__proto__",
+    "a",
+    "agent-a",
+    "agent-b",
+    "ghost",
+    "support-bot",
+  ]);
   workspace = await mkdtemp(join(tmpdir(), "governance-qa12-ws-"));
   seen = [];
   registerAgentRunner(async (request) => {
@@ -66,8 +80,8 @@ function verdict(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>)
 }
 
 async function enforceStrictly(): Promise<void> {
-  const doc = await loadPolicy();
-  await savePolicy({ ...doc, mode: "enforce", ask: "off" });
+  const doc = await loadPolicy(TEST_GROUP);
+  await savePolicy(TEST_GROUP, { ...doc, mode: "enforce", ask: "off" });
 }
 
 /**
@@ -114,7 +128,7 @@ describe("qa round 12 — the gate works on a real chat deployment", () => {
       peerKind: "channel",
       peerId: "1234567890",
     });
-    await lockDownAgent("agent-a", "root");
+    await lockDownAgent(TEST_GROUP, "agent-a", "root");
     // No explicit agentId — the case that matters, because it is the one where
     // the id has to come out of the session key.
     const decision = await evaluateGovernancePolicy(
@@ -132,7 +146,11 @@ describe("qa round 12 — the gate works on a real chat deployment", () => {
       peerKind: "direct",
       peerId: "987654321",
     });
-    await addRule({ resourceKind: "command", pattern: "^deploy$", agentId: "agent-a" }, "kinan");
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "command", pattern: "^deploy$", agentId: "agent-a" },
+      "kinan",
+    );
     expect(
       verdict(
         await evaluateGovernancePolicy(
@@ -189,7 +207,7 @@ describe("qa round 12 — the gate works on a real chat deployment", () => {
       { toolName: "exec", params: { command: "ls" } },
       { sessionKey, cwd: workspace },
     );
-    const entry = (await tailLedger(20)).at(-1);
+    const entry = (await tailLedger(TEST_GROUP, 20)).at(-1);
     expect(entry?.agentId).toBe("agent-a");
     expect(entry?.sessionKey).toContain("discord");
   });
@@ -213,7 +231,7 @@ describe("qa round 12 — A1 under attack", () => {
     // The caller supplies an agent id and a message and nothing else; the key
     // is derived server-side from the agent and the authenticated account. If a
     // caller could name the key they could join another account's conversation.
-    await promptAgent({ agentId: "agent-a", username: "kinan", message: "hi" });
+    await promptAgent(TEST_GROUP, { agentId: "agent-a", username: "kinan", message: "hi" });
     expect(seen[0]?.sessionKey).toBe(governanceSessionKey("agent-a", "kinan"));
   });
 
@@ -222,24 +240,24 @@ describe("qa round 12 — A1 under attack", () => {
     // do the work, while the ledger and the transcript are a record somebody
     // else will read. Redacting what the agent receives would break the feature;
     // not redacting what is stored would break requirement #8.
-    await promptAgent({
+    await promptAgent(TEST_GROUP, {
       agentId: "agent-a",
       username: "kinan",
       message: "use sk-ant-SUPERSECRETVALUE12345",
     });
     expect(seen[0]?.message).toContain("SUPERSECRETVALUE12345");
-    const turns = await readConversation("agent-a", "kinan");
+    const turns = await readConversation(TEST_GROUP, "agent-a", "kinan");
     expect(JSON.stringify(turns)).not.toContain("SUPERSECRETVALUE12345");
-    const ledger = JSON.stringify(await tailLedger(50));
+    const ledger = JSON.stringify(await tailLedger(TEST_GROUP, 50));
     expect(ledger).not.toContain("SUPERSECRETVALUE12345");
   });
 
   it("keeps two accounts apart even when their names differ only by case or form", async () => {
     // Account creation folds names for uniqueness, so these are the *same*
     // account and must share one conversation rather than silently forking it.
-    await promptAgent({ agentId: "agent-a", username: "Kinan", message: "first" });
-    await promptAgent({ agentId: "agent-a", username: "kinan", message: "second" });
-    const turns = await readConversation("agent-a", "KINAN");
+    await promptAgent(TEST_GROUP, { agentId: "agent-a", username: "Kinan", message: "first" });
+    await promptAgent(TEST_GROUP, { agentId: "agent-a", username: "kinan", message: "second" });
+    const turns = await readConversation(TEST_GROUP, "agent-a", "KINAN");
     expect(turns.filter((turn) => turn.role === "user").map((turn) => turn.body)).toEqual([
       "first",
       "second",
@@ -247,11 +265,11 @@ describe("qa round 12 — A1 under attack", () => {
   });
 
   it("does not let an agent id that aliases an object internal poison the store", async () => {
-    await promptAgent({ agentId: "__proto__", username: "kinan", message: "hi" });
+    await promptAgent(TEST_GROUP, { agentId: "__proto__", username: "kinan", message: "hi" });
     // The prototype must be untouched, and an unrelated conversation must not
     // have acquired turns from it.
     expect(({} as Record<string, unknown>).turns).toBeUndefined();
-    expect(await readConversation("agent-a", "kinan")).toEqual([]);
+    expect(await readConversation(TEST_GROUP, "agent-a", "kinan")).toEqual([]);
   });
 
   it("survives concurrent prompts to the same conversation without losing a turn", async () => {
@@ -260,10 +278,10 @@ describe("qa round 12 — A1 under attack", () => {
     // says so.
     await Promise.all(
       ["one", "two", "three", "four"].map((message) =>
-        promptAgent({ agentId: "agent-a", username: "kinan", message }),
+        promptAgent(TEST_GROUP, { agentId: "agent-a", username: "kinan", message }),
       ),
     );
-    const turns = await readConversation("agent-a", "kinan");
+    const turns = await readConversation(TEST_GROUP, "agent-a", "kinan");
     expect(turns.filter((turn) => turn.role === "user")).toHaveLength(4);
     expect(turns.filter((turn) => turn.role === "agent")).toHaveLength(4);
   });
@@ -271,42 +289,50 @@ describe("qa round 12 — A1 under attack", () => {
   it("still records every prompt in the ledger under concurrency", async () => {
     await Promise.all(
       ["a", "b", "c"].map((message) =>
-        promptAgent({ agentId: "agent-a", username: "kinan", message }),
+        promptAgent(TEST_GROUP, { agentId: "agent-a", username: "kinan", message }),
       ),
     );
-    const prompts = (await tailLedger(100)).filter(
+    const prompts = (await tailLedger(TEST_GROUP, 100)).filter(
       (entry) => entry.toolName === "governance.agent.prompt",
     );
     expect(prompts).toHaveLength(3);
     // The chain must still be intact — concurrent appends are the case that
     // corrupted it once before.
     const { verifyLedgerChain } = await import("./audit-ledger.js");
-    expect((await verifyLedgerChain()).ok).toBe(true);
+    expect((await verifyLedgerChain(TEST_GROUP)).ok).toBe(true);
   });
 
   it("treats a corrupted transcript file as empty rather than crashing", async () => {
-    await writeFile(conversationsFilePath(), "{ not json");
+    await writeFile(conversationsFilePath(TEST_GROUP), "{ not json");
     // A prompt must still work: the transcript is a convenience, and losing it
     // must not take the capability down with it.
-    expect(await readConversation("agent-a", "kinan")).toEqual([]);
-    const outcome = await promptAgent({ agentId: "agent-a", username: "kinan", message: "hi" });
+    expect(await readConversation(TEST_GROUP, "agent-a", "kinan")).toEqual([]);
+    const outcome = await promptAgent(TEST_GROUP, {
+      agentId: "agent-a",
+      username: "kinan",
+      message: "hi",
+    });
     expect(outcome.ok).toBe(true);
   });
 
   it("discards transcript entries that are the wrong shape", async () => {
     await writeFile(
-      conversationsFilePath(),
+      conversationsFilePath(TEST_GROUP),
       JSON.stringify({ version: 1, conversations: [null, 7, { agentId: "agent-a" }] }),
     );
-    expect(await readConversation("agent-a", "kinan")).toEqual([]);
+    expect(await readConversation(TEST_GROUP, "agent-a", "kinan")).toEqual([]);
   });
 
   it("refuses a prompt for an agent locked down between two prompts", async () => {
-    expect((await promptAgent({ agentId: "agent-a", username: "kinan", message: "one" })).ok).toBe(
-      true,
-    );
-    await lockDownAgent("agent-a", "root");
-    const second = await promptAgent({ agentId: "agent-a", username: "kinan", message: "two" });
+    expect(
+      (await promptAgent(TEST_GROUP, { agentId: "agent-a", username: "kinan", message: "one" })).ok,
+    ).toBe(true);
+    await lockDownAgent(TEST_GROUP, "agent-a", "root");
+    const second = await promptAgent(TEST_GROUP, {
+      agentId: "agent-a",
+      username: "kinan",
+      message: "two",
+    });
     expect(second.lockedDown).toBe(true);
     expect(seen).toHaveLength(1);
   });
@@ -317,23 +343,31 @@ describe("qa round 12 — A1 under attack", () => {
     // guarantee.
     clearAgentRunner();
     registerAgentRunner(async (request) => {
-      await lockDownAgent("agent-a", "root");
+      await lockDownAgent(TEST_GROUP, "agent-a", "root");
       const decision = await evaluateGovernancePolicy(
         { toolName: "exec", params: { command: "ls" } },
         { sessionKey: request.sessionKey, cwd: workspace },
       );
       return { ok: true, reply: verdict(decision) };
     });
-    const outcome = await promptAgent({ agentId: "agent-a", username: "kinan", message: "go" });
+    const outcome = await promptAgent(TEST_GROUP, {
+      agentId: "agent-a",
+      username: "kinan",
+      message: "go",
+    });
     expect(outcome.reply).toBe("block");
   });
 
   it("records a prompt to an agent that does not exist, and reports the failure", async () => {
     clearAgentRunner();
     registerAgentRunner(async () => ({ ok: false, reply: "", error: 'unknown agent "ghost"' }));
-    const outcome = await promptAgent({ agentId: "ghost", username: "kinan", message: "hi" });
+    const outcome = await promptAgent(TEST_GROUP, {
+      agentId: "ghost",
+      username: "kinan",
+      message: "hi",
+    });
     expect(outcome.ok).toBe(false);
-    const entries = (await tailLedger(50)).filter((entry) => entry.agentId === "ghost");
+    const entries = (await tailLedger(TEST_GROUP, 50)).filter((entry) => entry.agentId === "ghost");
     // Both halves recorded: the attempt, and that it failed.
     expect(entries).toHaveLength(2);
   });
@@ -411,24 +445,29 @@ describe("qa round 12 — escalation on a chat deployment", () => {
 
 describe("qa round 12 — what the gate does not cover on a chat deployment", () => {
   it("records an outbound message as ungoverned rather than silently allowing it", async () => {
-    // **A stated limitation, pinned so it stays visible.**
+    // **A settled decision, pinned so it stays true — T8, closed 2026-08-26.**
     //
     // The policy language has three resource kinds — command, path, network —
     // and none of them describes "post this text into a Discord channel". So an
     // agent that legitimately reads a permitted file can repeat its contents to
-    // chat, and no rule in this system is consulted. On a chat deployment that
-    // is an exfiltration path the gate does not close.
+    // chat, and no rule in this system is consulted.
     //
-    // It is left ungoverned deliberately rather than by oversight, and the
-    // reason is the one that made governing `grep` easy and this hard: the
-    // reply *is* the product. Refusing `message` by default would stop the
-    // agent answering the user who asked, so a fourth resource kind would have
-    // to distinguish "reply where you were spoken to" from "message somewhere
-    // else" before it could ship — a design change, not a registry entry.
+    // This was carried as an open limitation needing "a fourth resource kind".
+    // It is not open, and the specification is what settles it: §1.3
+    // requirements 3 and 4 name exactly the three resource categories that
+    // exist, twice, and messaging is not among them. §2.1.1.3 presents chat
+    // platforms as the *interface users interact through* rather than as an
+    // egress. **Connecting an agent to a channel is itself the permission** —
+    // an operator who attached it meant it to speak there, and refusing would
+    // override the grant. Refusing by default would also stop the agent
+    // answering the user who asked, and on a chat deployment the reply *is*
+    // the product.
     //
-    // What holds today is that the attempt is *recorded* as `ungoverned`, which
-    // is the same property that made the round-eleven coverage gaps findable at
-    // all. This test fails if that silently becomes `allow`.
+    // So what is pinned here is no longer a gap that might close. It is the
+    // shape of the decision: **allowed, and recorded** — the send passes, and
+    // the ledger carries who sent it and where to. This fails if the pass
+    // silently becomes `allow` (which would lose the record) or if the
+    // destination stops being captured (which would lose the audit).
     const sessionKey = buildAgentPeerSessionKey({
       agentId: "agent-a",
       channel: "discord",
@@ -441,10 +480,16 @@ describe("qa round 12 — what the gate does not cover on a chat deployment", ()
     );
     // Not blocked — the agent must still be able to reply.
     expect(verdict(decision)).toBe("allow");
-    const entry = (await tailLedger(20)).at(-1);
+    const entry = (await tailLedger(TEST_GROUP, 20)).at(-1);
     expect(entry?.decision).toBe("ungoverned");
     expect(entry?.toolName).toBe("message");
     // And attributable, so an investigation can still see which agent did it.
     expect(entry?.agentId).toBe("agent-a");
+    // **And the destination, which is the half the decision rests on.** The
+    // position "the integration is the permission" is only defensible while an
+    // operator can see afterwards where the agent actually sent things — a
+    // record naming the tool but not the channel would make "we do not gate
+    // this, we record it" an empty claim.
+    expect(entry?.resource).toContain("#other-channel");
   });
 });

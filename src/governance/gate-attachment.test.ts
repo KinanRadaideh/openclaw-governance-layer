@@ -22,14 +22,21 @@ import { resetLedgerCursorForTests, tailLedger } from "./audit-ledger.js";
 import { governanceRequiresNativeToolRelay } from "./native-relay-requirement.js";
 import { addRule, lockAgent, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
+import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
+
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
 
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-gate-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  TEST_GROUP = await seedGroupWithAgents(["agent-a"]);
   resetLedgerCursorForTests();
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
 });
 
 afterEach(async () => {
@@ -65,7 +72,7 @@ describe("the policy gate is reached through the host's tool hook", () => {
   });
 
   it("lets an allowed command through", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
     const outcome = await runBeforeToolCallHook({
       toolName: "exec",
       params: { command: "ls" },
@@ -75,8 +82,8 @@ describe("the policy gate is reached through the host's tool hook", () => {
   });
 
   it("enforces lockdown through the hook", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls$" });
-    await lockAgent("agent-a");
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
+    await lockAgent(TEST_GROUP, "agent-a");
     const outcome = await runBeforeToolCallHook({
       toolName: "exec",
       params: { command: "ls" },
@@ -89,7 +96,7 @@ describe("the policy gate is reached through the host's tool hook", () => {
 
   it("writes a ledger entry for a call made through the hook", async () => {
     await runBeforeToolCallHook({ toolName: "exec", params: { command: "whoami" }, ctx });
-    const [entry] = await tailLedger();
+    const [entry] = await tailLedger(TEST_GROUP);
     expect(entry?.decision).toBe("deny");
     expect(entry?.resource).toBe("whoami");
     expect(entry?.agentId).toBe("agent-a");
@@ -97,7 +104,7 @@ describe("the policy gate is reached through the host's tool hook", () => {
 
   it("records an ungoverned tool reached through the hook", async () => {
     await runBeforeToolCallHook({ toolName: "image_generate", params: { prompt: "x" }, ctx });
-    const [entry] = await tailLedger();
+    const [entry] = await tailLedger(TEST_GROUP);
     expect(entry?.decision).toBe("ungoverned");
   });
 });

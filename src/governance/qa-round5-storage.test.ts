@@ -4,7 +4,7 @@
 // gone wrong — a deleted archive, a corrupted document, two requests arriving
 // in the same millisecond. They are the cases nobody exercises by hand, which
 // is exactly why they are worth automating.
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -15,9 +15,11 @@ import {
   verifyLedgerChain,
 } from "./audit-ledger.js";
 import { isShippedRule } from "./baseline-policy.js";
+import { ledgerFilePath, policyFilePath } from "./paths.js";
 import { addRule, loadPolicy, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument, type PolicyDocument } from "./policy-types.js";
 import { resolveRuleTtl, validateRulePattern, MAX_RULE_TTL_MINUTES } from "./rule-validation.js";
+import { seedNamedGroup } from "./test-group.js";
 import { createUser, DuplicateRootError, listUsers, MissingGroupError } from "./user-store.js";
 
 /**
@@ -37,6 +39,7 @@ let dir: string;
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-qa5s-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  await seedNamedGroup(TEST_GROUP, ["a"]);
   resetLedgerCursorForTests();
 });
 
@@ -62,30 +65,58 @@ describe("ledger rotation never destroys an existing archive", () => {
     // active file straight over the surviving .3 — audit history destroyed as a
     // side effect of normal logging, which is precisely what an attacker
     // covering their tracks would want.
-    await appendLedgerEntry(entry("live"));
-    const base = join(dir, "audit-ledger.jsonl");
+    await appendLedgerEntry(TEST_GROUP, entry("live"));
+    const base = ledgerFilePath(TEST_GROUP);
     await writeFile(`${base}.1`, "");
     await writeFile(`${base}.3`, "irreplaceable-history\n");
 
-    const { LEDGER_ROTATE_BYTES } = await import("./audit-ledger.js");
-    const chunk = "x".repeat(4000);
-    const needed = Math.ceil(LEDGER_ROTATE_BYTES / 4100) + 1;
-    for (let index = 0; index < needed; index += 1) {
-      await appendLedgerEntry(entry(`${index}-${chunk}`));
+    // Rotation is driven by a lowered threshold rather than by writing the real
+    // 8 MB (T30, 2026-08-26). This used to be ~2,000 locked appends inside a
+    // 120-second budget, which made the result depend on machine load; the
+    // sibling test in `complete-record.test.ts` had the same shape and timed
+    // out. The index-selection property under test is unaffected by how the
+    // rotation was triggered.
+    const { setLedgerRotateBytesForTests } = await import("./audit-ledger.js");
+    setLedgerRotateBytesForTests(2048);
+    try {
+      const chunk = "x".repeat(400);
+      for (let index = 0; index < 12; index += 1) {
+        await appendLedgerEntry(TEST_GROUP, entry(`${index}-${chunk}`));
+      }
+    } finally {
+      setLedgerRotateBytesForTests(undefined);
     }
 
+    // **Assert the rotation actually happened, not only that .3 survived.**
+    //
+    // Without this the test passes vacuously when rotation never runs: no
+    // rotation, no overwrite, green. Confirmed by mutation on 2026-08-26 —
+    // disabling `rotateIfNeeded` left this test passing while its sibling in
+    // `complete-record.test.ts` failed. **A test that also passes with the
+    // feature under test switched off is not testing the feature.** The
+    // weakness predates T30 and was only affordable to fix once T30 made
+    // triggering a rotation cheap; reaching the real 8 MB threshold twice in
+    // one test would not have been.
+    //
+    // `.4` specifically: the highest surviving archive is `.3`, so a correct
+    // rotation picks 4. A count-based index would have picked 3 and destroyed
+    // the history the next line checks for.
+    expect(
+      await stat(`${base}.4`).catch(() => undefined),
+      "expected the rotation to have created a new archive at .4",
+    ).toBeDefined();
     expect(await readFile(`${base}.3`, "utf8")).toBe("irreplaceable-history\n");
-  }, 120_000);
+  });
 
   it("ignores the lock file when enumerating segments", async () => {
     // `audit-ledger.jsonl.lock` shares the archive prefix. Reading it as a
     // segment would inject a parse failure into chain verification.
-    await appendLedgerEntry(entry("one"));
+    await appendLedgerEntry(TEST_GROUP, entry("one"));
     await writeFile(join(dir, "audit-ledger.jsonl.lock"), "");
-    const result = await verifyLedgerChain();
+    const result = await verifyLedgerChain(TEST_GROUP);
     expect(result.ok).toBe(true);
     expect(result.entriesChecked).toBe(1);
-    expect(await tailLedger()).toHaveLength(1);
+    expect(await tailLedger(TEST_GROUP)).toHaveLength(1);
   });
 });
 
@@ -95,10 +126,10 @@ describe("a corrupted policy document degrades to default-deny, not to a crash",
     // which treats it as a block — so one malformed field silently disables the
     // agent entirely, with an error that points at the wrong place.
     await writeFile(
-      join(dir, "policy.json"),
+      policyFilePath(TEST_GROUP),
       JSON.stringify({ version: 1, mode: "enforce", rules: "not-an-array" }),
     );
-    const doc = await loadPolicy();
+    const doc = await loadPolicy(TEST_GROUP);
     // Filtered to operator rules: an installation now ships with core and
     // baseline rules, which are reasserted on every load by design.
     expect(doc.rules.filter((rule) => !isShippedRule(rule))).toEqual([]);
@@ -107,7 +138,7 @@ describe("a corrupted policy document degrades to default-deny, not to a crash",
 
   it("drops individual malformed rules but keeps the good ones", async () => {
     await writeFile(
-      join(dir, "policy.json"),
+      policyFilePath(TEST_GROUP),
       JSON.stringify({
         ...defaultPolicyDocument(),
         rules: [
@@ -117,25 +148,25 @@ describe("a corrupted policy document degrades to default-deny, not to a crash",
         ],
       }),
     );
-    const doc = await loadPolicy();
+    const doc = await loadPolicy(TEST_GROUP);
     expect(doc.rules.filter((rule) => !isShippedRule(rule)).map((rule) => rule.id)).toEqual(["ok"]);
   });
 
   it("falls back on an unrecognised mode rather than trusting it", async () => {
     // An unknown mode must not be treated as "off".
     await writeFile(
-      join(dir, "policy.json"),
+      policyFilePath(TEST_GROUP),
       JSON.stringify({ ...defaultPolicyDocument(), mode: "disabled" }),
     );
-    expect((await loadPolicy()).mode).toBe(defaultPolicyDocument().mode);
+    expect((await loadPolicy(TEST_GROUP)).mode).toBe(defaultPolicyDocument().mode);
   });
 
   it("replaces a non-object agentAsk instead of throwing on Object.entries", async () => {
     await writeFile(
-      join(dir, "policy.json"),
+      policyFilePath(TEST_GROUP),
       JSON.stringify({ ...defaultPolicyDocument(), agentAsk: [] as unknown }),
     );
-    expect(Object.entries((await loadPolicy()).agentAsk)).toEqual([]);
+    expect(Object.entries((await loadPolicy(TEST_GROUP)).agentAsk)).toEqual([]);
   });
 });
 
@@ -173,11 +204,17 @@ describe("rule validation is the same wherever a rule is authored", () => {
 
 describe("a rule keeps its generated id", () => {
   it("does not let an explicit undefined id erase it", async () => {
-    await savePolicy(defaultPolicyDocument() as PolicyDocument);
-    const rule = await addRule({ id: undefined, resourceKind: "command", pattern: "^ls$" });
+    await savePolicy(TEST_GROUP, defaultPolicyDocument() as PolicyDocument);
+    const rule = await addRule(TEST_GROUP, {
+      id: undefined,
+      resourceKind: "command",
+      pattern: "^ls$",
+    });
     expect(typeof rule.id).toBe("string");
     expect(rule.id).not.toBe("");
-    const operatorRules = (await loadPolicy()).rules.filter((entry) => !isShippedRule(entry));
+    const operatorRules = (await loadPolicy(TEST_GROUP)).rules.filter(
+      (entry) => !isShippedRule(entry),
+    );
     expect(operatorRules[0]?.id).toBe(rule.id);
   });
 });

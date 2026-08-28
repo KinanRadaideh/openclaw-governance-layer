@@ -27,16 +27,23 @@ import {
   setCoreRuleEnabled,
 } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
+import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
 let workspace: string;
 
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-core-toggle-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  TEST_GROUP = await seedGroupWithAgents(["a1"]);
   resetLedgerKeyCacheForTests();
   workspace = await mkdtemp(join(tmpdir(), "governance-core-ws-"));
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
 });
 
 afterEach(async () => {
@@ -92,22 +99,22 @@ describe("the five that are Root's to decide", () => {
       ),
     ).toBe("block");
 
-    await setCoreRuleEnabled(sudo.id, false, "rootie");
+    await setCoreRuleEnabled(TEST_GROUP, sudo.id, false, "rootie");
 
     // After: the denial is gone, so the call falls through to the ordinary
     // default-deny path — which still refuses it, because no rule allows it.
     // That is the point worth seeing: disabling a *denial* does not grant
     // anything, it only stops the denial from overriding a later allowance.
-    expect((await loadPolicy()).rules.some((rule) => rule.id === sudo.id)).toBe(false);
+    expect((await loadPolicy(TEST_GROUP)).rules.some((rule) => rule.id === sudo.id)).toBe(false);
 
-    await setCoreRuleEnabled(sudo.id, true, "rootie");
-    expect((await loadPolicy()).rules.some((rule) => rule.id === sudo.id)).toBe(true);
+    await setCoreRuleEnabled(TEST_GROUP, sudo.id, true, "rootie");
+    expect((await loadPolicy(TEST_GROUP)).rules.some((rule) => rule.id === sudo.id)).toBe(true);
   });
 
   it("lets an operator rule take effect once the core denial is off", async () => {
     const sudo = idFor("privilege-escalation");
     const { addRule } = await import("./policy-store.js");
-    await addRule({ resourceKind: "command", pattern: "^sudo ls$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^sudo ls$" });
 
     // A core denial is consulted before allow rules, so the allowance is inert
     // while it stands. This is the whole reason an operator might need the
@@ -118,7 +125,7 @@ describe("the five that are Root's to decide", () => {
       ),
     ).toBe("block");
 
-    await setCoreRuleEnabled(sudo.id, false, "rootie");
+    await setCoreRuleEnabled(TEST_GROUP, sudo.id, false, "rootie");
     expect(
       verdict(
         await evaluateGovernancePolicy({ toolName: "exec", params: { command: "sudo ls" } }, ctx()),
@@ -128,29 +135,29 @@ describe("the five that are Root's to decide", () => {
 
   it("keeps the rule declared, so nothing is lost by switching it off", async () => {
     const creds = idFor("credential-files");
-    await setCoreRuleEnabled(creds.id, false, "rootie");
+    await setCoreRuleEnabled(TEST_GROUP, creds.id, false, "rootie");
 
     // Still in source, still rebuilt on every load, still one setting from
     // returning. The reassertion guarantee is unchanged; what the document
     // carries is a decision, not an edit.
     expect(coreRules().some((rule) => seedRuleId(rule) === creds.id)).toBe(true);
-    await setCoreRuleEnabled(creds.id, true, "rootie");
-    expect((await loadPolicy()).rules.some((rule) => rule.id === creds.id)).toBe(true);
+    await setCoreRuleEnabled(TEST_GROUP, creds.id, true, "rootie");
+    expect((await loadPolicy(TEST_GROUP)).rules.some((rule) => rule.id === creds.id)).toBe(true);
   });
 });
 
 describe("the three that protect the layer itself", () => {
   it("refuses to disable the governance-state denial", async () => {
     const state = idFor("governance-layer-s-own-policy");
-    await expect(setCoreRuleEnabled(state.id, false, "rootie")).rejects.toBeInstanceOf(
+    await expect(setCoreRuleEnabled(TEST_GROUP, state.id, false, "rootie")).rejects.toBeInstanceOf(
       SelfProtectingCoreRuleError,
     );
-    expect((await loadPolicy()).rules.some((rule) => rule.id === state.id)).toBe(true);
+    expect((await loadPolicy(TEST_GROUP)).rules.some((rule) => rule.id === state.id)).toBe(true);
   });
 
   it("refuses to disable the governance command line", async () => {
     const cli = idFor("governance-command-line");
-    await expect(setCoreRuleEnabled(cli.id, false, "rootie")).rejects.toBeInstanceOf(
+    await expect(setCoreRuleEnabled(TEST_GROUP, cli.id, false, "rootie")).rejects.toBeInstanceOf(
       SelfProtectingCoreRuleError,
     );
   });
@@ -160,11 +167,11 @@ describe("the three that protect the layer itself", () => {
     // load path must not trust `disabledCoreRules` any more than it trusts a
     // stored rule claiming `tier: "core"`.
     const cli = idFor("governance-command-line");
-    const raw = JSON.parse(await readFile(policyFilePath(), "utf8"));
+    const raw = JSON.parse(await readFile(policyFilePath(TEST_GROUP), "utf8"));
     raw.disabledCoreRules = [cli.id];
-    await writeFile(policyFilePath(), JSON.stringify(raw));
+    await writeFile(policyFilePath(TEST_GROUP), JSON.stringify(raw));
 
-    const loaded = await loadPolicy();
+    const loaded = await loadPolicy(TEST_GROUP);
     expect(loaded.rules.some((rule) => rule.id === cli.id)).toBe(true);
     // And it still blocks, which is the property that matters rather than the
     // rule merely being present in a list.
@@ -179,18 +186,18 @@ describe("the three that protect the layer itself", () => {
   });
 
   it("refuses a rule id that is not a core rule at all", async () => {
-    await expect(setCoreRuleEnabled("not-a-real-rule", false, "rootie")).rejects.toBeInstanceOf(
-      NotACoreRuleError,
-    );
+    await expect(
+      setCoreRuleEnabled(TEST_GROUP, "not-a-real-rule", false, "rootie"),
+    ).rejects.toBeInstanceOf(NotACoreRuleError);
   });
 });
 
 describe("a lowered floor cannot hide", () => {
   it("records the change as its own action, naming the rule", async () => {
     const sudo = idFor("privilege-escalation");
-    await setCoreRuleEnabled(sudo.id, false, "rootie");
+    await setCoreRuleEnabled(TEST_GROUP, sudo.id, false, "rootie");
 
-    const entries = await tailLedger(50);
+    const entries = await tailLedger(TEST_GROUP, 50);
     const entry = entries.find((e) => e.toolName === "governance.policy.core-rule");
     expect(entry?.actor).toBe("rootie");
     expect(entry?.ruleId).toBe(sudo.id);
@@ -202,10 +209,10 @@ describe("a lowered floor cannot hide", () => {
 
   it("records a re-enable distinguishably from a disable", async () => {
     const sudo = idFor("privilege-escalation");
-    await setCoreRuleEnabled(sudo.id, false, "rootie");
-    await setCoreRuleEnabled(sudo.id, true, "rootie");
+    await setCoreRuleEnabled(TEST_GROUP, sudo.id, false, "rootie");
+    await setCoreRuleEnabled(TEST_GROUP, sudo.id, true, "rootie");
 
-    const entries = (await tailLedger(50)).filter(
+    const entries = (await tailLedger(TEST_GROUP, 50)).filter(
       (e) => e.toolName === "governance.policy.core-rule",
     );
     expect(entries).toHaveLength(2);
@@ -226,12 +233,12 @@ describe("a lowered floor cannot hide", () => {
       gatewayFindings: [],
     };
 
-    const before = await readDeploymentStatus(environment);
+    const before = await readDeploymentStatus(TEST_GROUP, environment);
     expect(before.checks.find((c) => c.id === "deployment.core_rules_intact")?.status).toBe("pass");
 
-    await setCoreRuleEnabled(idFor("privilege-escalation").id, false, "rootie");
+    await setCoreRuleEnabled(TEST_GROUP, idFor("privilege-escalation").id, false, "rootie");
 
-    const after = await readDeploymentStatus(environment);
+    const after = await readDeploymentStatus(TEST_GROUP, environment);
     const check = after.checks.find((c) => c.id === "deployment.core_rules_intact");
     // `fail`, not `warn`. Chapter 4 quotes this report as evidence, and an
     // installation that looked clean while a shipped denial was switched off

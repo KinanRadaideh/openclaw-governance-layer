@@ -4,6 +4,7 @@
  * Harnesses use this to dispatch after-tool-call and before-message-write hooks
  * while isolating hook failures from the runtime path.
  */
+import { auditSearchReach } from "../../governance/search-audit.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import { consumeAdjustedParamsForToolCall } from "../agent-tools.before-tool-call.js";
@@ -32,6 +33,20 @@ export async function runAgentHarnessAfterToolCallHook(params: {
       ? (adjustedArgs as Record<string, unknown>)
       : params.startArgs;
   const eventArgs = structuredClone(resolvedArgs);
+  // T7 (audit half) — record when a search reached a path a denial names.
+  //
+  // Above the `hasHooks` return on purpose. Governance is built into the core
+  // so it cannot be switched off by configuration, and that return fires
+  // whenever no plugin has registered `after_tool_call` — which is the normal
+  // case. An audit trail that only runs when a plugin happens to be loaded is
+  // exactly the property this layer exists not to have.
+  await auditSearchReach({
+    toolName: params.toolName,
+    toolParams: resolvedArgs,
+    result: params.result,
+    ...(params.agentId ? { agentId: params.agentId } : {}),
+    ...(params.sessionKey ? { sessionKey: params.sessionKey } : {}),
+  });
   const hookRunner = getGlobalHookRunner();
   if (!hookRunner?.hasHooks("after_tool_call")) {
     return;

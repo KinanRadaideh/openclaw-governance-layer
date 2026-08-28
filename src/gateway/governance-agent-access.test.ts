@@ -23,6 +23,7 @@ import { savePolicy } from "../governance/policy-store.js";
 import { defaultPolicyDocument } from "../governance/policy-types.js";
 import type { GovernanceRole } from "../governance/roles.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
+import { seedNamedGroup } from "../governance/test-group.js";
 import { createUser } from "../governance/user-store.js";
 import { handleGovernanceApiRequest } from "./governance-dashboard-api.js";
 
@@ -34,8 +35,9 @@ let dir: string;
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-agent-access-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  await seedNamedGroup(TEST_GROUP, []);
   resetLedgerKeyCacheForTests();
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce" });
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce" });
 });
 
 afterEach(async () => {
@@ -59,6 +61,7 @@ function session(
     createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
     assignedAgents,
+    groupId: TEST_GROUP,
   };
 }
 

@@ -30,6 +30,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetLedgerKeyCacheForTests } from "./ledger-key.js";
 import { savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
+import { seedGroupWithAgents } from "./test-group.js";
 import {
   authenticate,
   createUser,
@@ -46,11 +47,17 @@ import {
 const PASSWORD = "correct-horse-battery";
 let dir: string;
 
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-groups-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  TEST_GROUP = await seedGroupWithAgents([]);
   resetLedgerKeyCacheForTests();
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce" });
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce" });
 });
 
 afterEach(async () => {

@@ -32,17 +32,27 @@ import { savePolicy } from "../governance/policy-store.js";
 import { defaultPolicyDocument } from "../governance/policy-types.js";
 import type { GovernanceRole } from "../governance/roles.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
+import { seedGroupWithAgents } from "../governance/test-group.js";
 import { createUser, listUsers, newGroupId } from "../governance/user-store.js";
 import { handleGovernanceApiRequest } from "./governance-dashboard-api.js";
 
 const PASSWORD = "correct-horse-battery";
 let dir: string;
 
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-agent-registry-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  // Empty: this suite registers its own agents into its own organisations, so
+  // pre-registering ids here would make its "unregistered" and "another group's"
+  // cases assert against agents that already exist somewhere else (M5).
+  TEST_GROUP = await seedGroupWithAgents([]);
   resetLedgerKeyCacheForTests();
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce" });
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce" });
 });
 
 afterEach(async () => {
@@ -85,6 +95,7 @@ function sessionFor(
     createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
     assignedAgents,
+    groupId: TEST_GROUP,
     ...(account.groupId ? { groupId: account.groupId } : {}),
   };
 }
@@ -143,8 +154,10 @@ describe("listing agents", () => {
       "alpha-admin",
     );
     // An agent that exists only because a rule names it — the pre-registry
-    // world, which must keep working.
-    await savePolicy({
+    // world. The **listing** still surfaces it, marked unregistered, so an
+    // operator can see what needs registering; what changed at M5 is that such
+    // an agent can no longer act or be assigned, not that it becomes invisible.
+    await savePolicy(org.groupId, {
       ...defaultPolicyDocument(),
       mode: "enforce",
       agentMode: { "agent-legacy": "monitor" },
@@ -342,17 +355,30 @@ describe("assignment through the route an Administrator actually uses", () => {
     expect(stored?.assignedAgents).toEqual([]);
   });
 
-  it("still accepts an id that predates the registry", async () => {
-    // Every existing installation's agents are unregistered. Refusing them here
-    // would break assignment on every deployment that upgrades into M4, and buy
-    // nothing: an agent nobody has claimed cannot be stolen from an owner who
-    // does not exist.
+  it("refuses an id that is not registered, over HTTP too — M5", async () => {
+    /**
+     * **This expected 200 until M5.** Its comment read: every existing
+     * installation's agents are unregistered, refusing them would break
+     * assignment on every deployment that upgrades into M4, and buy nothing,
+     * because "an agent nobody has claimed cannot be stolen from an owner who
+     * does not exist".
+     *
+     * Both halves stopped being true at once. There are no installations to
+     * break — M5 was built before any deployment existed — and the second half
+     * was never quite the point: the cost was not theft, it was that the
+     * ownership rule could be **sidestepped by not registering**. Mandatory
+     * registration removes the sidestep, and an unregistered agent can no longer
+     * act at all, so handing one out would give somebody a thing that does
+     * nothing while the gap still looked open on the surface an operator reads.
+     */
     const org = await organisation("alpha");
     const reply = await call("POST", "users/agents", sessionFor(org.admin), {
       userId: org.user.id,
       agentIds: ["agent-legacy"],
     });
-    expect(reply.status).toBe(200);
+    // 409, the same status an agent belonging to another Administrator gets:
+    // both are "this assignment conflicts with what the registry says".
+    expect(reply.status).toBe(409);
   });
 
   it("still reports an account in another group as absent", async () => {

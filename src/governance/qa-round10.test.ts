@@ -12,12 +12,19 @@ import { evaluateGovernancePolicy } from "./policy-engine.js";
 import { loadPolicy, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument, type PolicyRule } from "./policy-types.js";
 import { detectRuleConflicts } from "./rule-conflicts.js";
+import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
+
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
 
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-qa10-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  TEST_GROUP = await seedGroupWithAgents(["agent-a", "agent-b"]);
 });
 
 afterEach(async () => {
@@ -44,8 +51,8 @@ function verdict(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>)
 
 /** Replaces the whole ruleset, keeping enforcement strict, for a focused test. */
 async function withRules(rules: PolicyRule[]): Promise<void> {
-  const doc = await loadPolicy();
-  await savePolicy({ ...doc, mode: "enforce", ask: "off", rules });
+  const doc = await loadPolicy(TEST_GROUP);
+  await savePolicy(TEST_GROUP, { ...doc, mode: "enforce", ask: "off", rules });
 }
 
 function rule(overrides: Partial<PolicyRule> & Pick<PolicyRule, "pattern">): PolicyRule {
@@ -235,8 +242,8 @@ describe("escalation is never offered for something a deny already refuses", () 
   it("blocks outright rather than asking a human", async () => {
     // Offering "allow once" for a core-denied action would let a single click
     // override a restriction the tier exists to make unoverridable.
-    const doc = await loadPolicy();
-    await savePolicy({
+    const doc = await loadPolicy(TEST_GROUP);
+    await savePolicy(TEST_GROUP, {
       ...doc,
       mode: "enforce",
       // `on-miss` would normally escalate an unmatched action.

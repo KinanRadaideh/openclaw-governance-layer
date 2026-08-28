@@ -135,13 +135,13 @@ export type StoredAttachment = {
 
 type IndexFile = { version: 1; attachments: StoredAttachment[] };
 
-function indexPath(): string {
-  return join(attachmentsDir(), "index.json");
+function indexPath(groupId: string): string {
+  return join(attachmentsDir(groupId), "index.json");
 }
 
-async function readIndex(): Promise<IndexFile> {
+async function readIndex(groupId: string): Promise<IndexFile> {
   try {
-    const parsed = JSON.parse(await readFile(indexPath(), "utf8")) as IndexFile;
+    const parsed = JSON.parse(await readFile(indexPath(groupId), "utf8")) as IndexFile;
     return Array.isArray(parsed?.attachments) ? parsed : { version: 1, attachments: [] };
   } catch {
     return { version: 1, attachments: [] };
@@ -237,17 +237,20 @@ async function readCapped(source: AsyncIterable<Uint8Array> | Uint8Array): Promi
  * deduplication trick: an investigator can see that the file sent on Tuesday is
  * byte-identical to the one sent on Monday.
  */
-export async function storeAttachment(input: {
-  content: AsyncIterable<Uint8Array> | Uint8Array;
-  declaredName: string;
-  storedBy: string;
-  agentId: string;
-}): Promise<StoredAttachment> {
+export async function storeAttachment(
+  groupId: string,
+  input: {
+    content: AsyncIterable<Uint8Array> | Uint8Array;
+    declaredName: string;
+    storedBy: string;
+    agentId: string;
+  },
+): Promise<StoredAttachment> {
   const bytes = await readCapped(input.content);
   const sha256 = createHash("sha256").update(bytes).digest("hex");
 
-  await mkdir(attachmentsDir(), { recursive: true, mode: 0o700 });
-  const index = await readIndex();
+  await mkdir(attachmentsDir(groupId), { recursive: true, mode: 0o700 });
+  const index = await readIndex(groupId);
 
   // **Folded, because `storedBy` is an identity key** (QA round seventeen,
   // finding 114). `account-name.ts` states the rule its own header was written
@@ -281,12 +284,12 @@ export async function storeAttachment(input: {
   // Named by hash. The uploader's string never becomes a path component, so
   // traversal, alternate data streams and collisions onto governance state are
   // not defended against — they are unreachable.
-  await writeFile(join(attachmentsDir(), sha256), bytes, { mode: 0o600 });
+  await writeFile(join(attachmentsDir(groupId), sha256), bytes, { mode: 0o600 });
   const next: IndexFile = {
     version: 1,
     attachments: [...index.attachments.filter((entry) => entry.sha256 !== sha256), record],
   };
-  await writeFile(indexPath(), JSON.stringify(next), { mode: 0o600 });
+  await writeFile(indexPath(groupId), JSON.stringify(next), { mode: 0o600 });
   return record;
 }
 
@@ -304,19 +307,22 @@ export async function storeAttachment(input: {
  * fails still handed the file over, and the record of that is not conditional
  * on the agent's reply.
  */
-export async function markAttachmentUsed(sha256: string): Promise<void> {
-  const index = await readIndex();
+export async function markAttachmentUsed(groupId: string, sha256: string): Promise<void> {
+  const index = await readIndex(groupId);
   const entry = index.attachments.find((held) => held.sha256 === sha256);
   if (!entry || entry.usedAt) {
     return;
   }
   const next: IndexFile = {
     version: 1,
+    // A new record for the entry being touched, so the index read from disk is
+    // not mutated before the write that replaces it succeeds.
+    // oxlint-disable-next-line no-map-spread
     attachments: index.attachments.map((held) =>
       held.sha256 === sha256 ? { ...held, usedAt: new Date().toISOString() } : held,
     ),
   };
-  await writeFile(indexPath(), JSON.stringify(next), { mode: 0o600 });
+  await writeFile(indexPath(groupId), JSON.stringify(next), { mode: 0o600 });
 }
 
 /** Why a release was refused, so a caller can say something true about it. */
@@ -342,10 +348,11 @@ export type AttachmentReleaseResult = "released" | "not-found" | "already-sent";
  * hold — the same reasoning the login response uses about account existence.
  */
 export async function releaseAttachment(
+  groupId: string,
   sha256: string,
   storedBy: string,
 ): Promise<AttachmentReleaseResult> {
-  const index = await readIndex();
+  const index = await readIndex(groupId);
   const entry = index.attachments.find((held) => held.sha256 === sha256);
   if (!entry || canonicalAccountName(entry.storedBy) !== canonicalAccountName(storedBy)) {
     return "not-found";
@@ -361,19 +368,20 @@ export async function releaseAttachment(
   // at a file that is gone, which reads as corruption; this order can leave a
   // file nothing references, which is the orphan `sweepOrphans` already counts
   // and `governance deployment` already reports.
-  await writeFile(indexPath(), JSON.stringify(next), { mode: 0o600 });
-  await rm(join(attachmentsDir(), sha256), { force: true });
+  await writeFile(indexPath(groupId), JSON.stringify(next), { mode: 0o600 });
+  await rm(join(attachmentsDir(groupId), sha256), { force: true });
   return "released";
 }
 
-export async function listAttachments(): Promise<StoredAttachment[]> {
-  return (await readIndex()).attachments;
+export async function listAttachments(groupId: string): Promise<StoredAttachment[]> {
+  return (await readIndex(groupId)).attachments;
 }
 
 export async function readAttachmentMetadata(
+  groupId: string,
   sha256: string,
 ): Promise<StoredAttachment | undefined> {
-  return (await readIndex()).attachments.find((entry) => entry.sha256 === sha256);
+  return (await readIndex(groupId)).attachments.find((entry) => entry.sha256 === sha256);
 }
 
 export type AttachmentStoreStats = {
@@ -391,11 +399,11 @@ export type AttachmentStoreStats = {
  * restored from a backup older than the files beside it. Either way the store
  * is holding bytes nothing references, and an operator should be told.
  */
-export async function attachmentStoreStats(): Promise<AttachmentStoreStats> {
-  const index = await readIndex();
+export async function attachmentStoreStats(groupId: string): Promise<AttachmentStoreStats> {
+  const index = await readIndex(groupId);
   let names: string[];
   try {
-    names = await readdir(attachmentsDir());
+    names = await readdir(attachmentsDir(groupId));
   } catch {
     return { count: 0, totalBytes: 0, orphanCount: 0 };
   }
@@ -417,15 +425,18 @@ export async function attachmentStoreStats(): Promise<AttachmentStoreStats> {
  * entry naming that evidence remained, leaving a trail that points at files
  * that are not there.
  */
-export async function sweepOrphans(referenced: ReadonlySet<string>): Promise<number> {
-  const index = await readIndex();
+export async function sweepOrphans(
+  groupId: string,
+  referenced: ReadonlySet<string>,
+): Promise<number> {
+  const index = await readIndex(groupId);
   const keep = index.attachments.filter((entry) => referenced.has(entry.sha256));
   const drop = index.attachments.filter((entry) => !referenced.has(entry.sha256));
   for (const entry of drop) {
-    await rm(join(attachmentsDir(), entry.sha256), { force: true });
+    await rm(join(attachmentsDir(groupId), entry.sha256), { force: true });
   }
   if (drop.length > 0) {
-    await writeFile(indexPath(), JSON.stringify({ version: 1, attachments: keep }), {
+    await writeFile(indexPath(groupId), JSON.stringify({ version: 1, attachments: keep }), {
       mode: 0o600,
     });
   }
@@ -433,9 +444,9 @@ export async function sweepOrphans(referenced: ReadonlySet<string>): Promise<num
 }
 
 /** True when the store directory exists — used by the deployment report. */
-export async function attachmentStoreExists(): Promise<boolean> {
+export async function attachmentStoreExists(groupId: string): Promise<boolean> {
   try {
-    return (await stat(attachmentsDir())).isDirectory();
+    return (await stat(attachmentsDir(groupId))).isDirectory();
   } catch {
     return false;
   }

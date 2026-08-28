@@ -18,6 +18,7 @@ import {
 } from "../auto-reply/heartbeat-tool-response.js";
 import { type AgentPlanStep, normalizeAgentPlanSteps } from "../channels/streaming.js";
 import { parseSessionThreadInfoFast } from "../config/sessions/thread-info.js";
+import { auditSearchReach } from "../governance/search-audit.js";
 import type {
   AgentCommandOutputEventData,
   AgentItemEventData,
@@ -1887,6 +1888,18 @@ export async function handleToolExecutionEnd(
   });
   await Promise.resolve(ctx.params.onToolStreamBoundary?.()).catch((error: unknown) => {
     ctx.log.debug(`embedded run tool stream boundary callback failed: ${String(error)}`);
+  });
+
+  // T7 (audit half) — record when a search reached a path a denial names.
+  // Direct call, above the `hasHooks` check below, for the reason given in
+  // src/governance/search-audit.ts: governance is core, not a plugin, so it
+  // must not depend on a plugin having registered this hook.
+  await auditSearchReach({
+    toolName,
+    toolParams: startArgs,
+    result: sanitizedResult,
+    ...(ctx.params.agentId ? { agentId: ctx.params.agentId } : {}),
+    ...(ctx.params.sessionKey ? { sessionKey: ctx.params.sessionKey } : {}),
   });
 
   // Run after_tool_call plugin hook (fire-and-forget)

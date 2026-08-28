@@ -26,6 +26,7 @@ import { resetLedgerCursorForTests } from "./audit-ledger.js";
 import { evaluateGovernancePolicy } from "./policy-engine.js";
 import { loadPolicy, savePolicy, setUserAskMode } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
+import { seedNamedGroup } from "./test-group.js";
 import { createUser, setUserAssignedAgents } from "./user-store.js";
 
 /**
@@ -45,8 +46,9 @@ let dir: string;
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-userask-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  await seedNamedGroup(TEST_GROUP, ["agent-a", "agent-b"]);
   resetLedgerCursorForTests();
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "on-miss" });
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce", ask: "on-miss" });
 });
 
 afterEach(async () => {
@@ -116,17 +118,17 @@ describe("userAsk is one key space", () => {
     // so the control silently did nothing. Root types `MALEK`; the account is
     // stored as `Malek`.
     await accountFor("Malek", "agent-a");
-    await setUserAskMode("MALEK", "off", "root");
+    await setUserAskMode(TEST_GROUP, "MALEK", "off", "root");
     const decision = await evaluateGovernancePolicy(MISS, { agentId: "agent-a" });
     expect(decision && "block" in decision).toBe(true);
   });
 
   it("stores the canonical key, so clearing it under any spelling works", async () => {
     await accountFor("Malek", "agent-a");
-    await setUserAskMode("Malek", "off", "root");
-    expect(Object.keys((await loadPolicy()).userAsk)).toEqual(["malek"]);
-    await setUserAskMode("  malek  ", undefined, "root");
-    expect((await loadPolicy()).userAsk).toEqual({});
+    await setUserAskMode(TEST_GROUP, "Malek", "off", "root");
+    expect(Object.keys((await loadPolicy(TEST_GROUP)).userAsk)).toEqual(["malek"]);
+    await setUserAskMode(TEST_GROUP, "  malek  ", undefined, "root");
+    expect((await loadPolicy(TEST_GROUP)).userAsk).toEqual({});
   });
 
   it("rejects a name that folds onto a prototype key", () => {
@@ -143,7 +145,7 @@ describe("userAsk is one key space", () => {
 describe("a governance prompt resolves the axis for the account that asked", () => {
   it("applies the asking account's own setting", async () => {
     await accountFor("malek", "agent-a");
-    await setUserAskMode("malek", "off", "root");
+    await setUserAskMode(TEST_GROUP, "malek", "off", "root");
     const decision = await evaluateGovernancePolicy(MISS, {
       sessionKey: governanceSessionKey("agent-a", "malek"),
     });
@@ -157,7 +159,7 @@ describe("a governance prompt resolves the axis for the account that asked", () 
     // restriction has nothing to say about it.
     await accountFor("kinan", "agent-a");
     await accountFor("malek", "agent-a");
-    await setUserAskMode("malek", "off", "root");
+    await setUserAskMode(TEST_GROUP, "malek", "off", "root");
 
     const malek = await evaluateGovernancePolicy(MISS, {
       sessionKey: governanceSessionKey("agent-a", "malek"),
@@ -176,7 +178,7 @@ describe("a governance prompt resolves the axis for the account that asked", () 
     // the approximation is the right answer.
     await accountFor("kinan", "agent-a");
     await accountFor("malek", "agent-a");
-    await setUserAskMode("malek", "off", "root");
+    await setUserAskMode(TEST_GROUP, "malek", "off", "root");
     const decision = await evaluateGovernancePolicy(MISS, {
       sessionKey: "agent:agent-a:discord:channel-1",
     });
@@ -190,7 +192,7 @@ describe("a governance prompt resolves the axis for the account that asked", () 
     // abandoned rather than trusted, or the axis becomes a way to choose whose
     // restriction applies.
     await accountFor("malek", "agent-b");
-    await setUserAskMode("malek", "off", "root");
+    await setUserAskMode(TEST_GROUP, "malek", "off", "root");
     const decision = await evaluateGovernancePolicy(MISS, {
       agentId: "agent-b",
       sessionKey: governanceSessionKey("agent-a", "kinan"),
@@ -203,9 +205,9 @@ describe("a governance prompt resolves the axis for the account that asked", () 
     // the two axes still combine as the stricter of the pair, so making the
     // user axis exact cannot loosen a restriction placed on the agent.
     await accountFor("kinan", "agent-a");
-    await setUserAskMode("kinan", "on-miss", "root");
-    await savePolicy({
-      ...(await loadPolicy()),
+    await setUserAskMode(TEST_GROUP, "kinan", "on-miss", "root");
+    await savePolicy(TEST_GROUP, {
+      ...(await loadPolicy(TEST_GROUP)),
       agentAsk: { "agent-a": "off" },
     });
     const decision = await evaluateGovernancePolicy(MISS, {

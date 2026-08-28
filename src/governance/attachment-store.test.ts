@@ -34,16 +34,23 @@ import { attachmentsDir } from "./paths.js";
 import { evaluateGovernancePolicy } from "./policy-engine.js";
 import { savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
+import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
 let workspace: string;
 
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-attachments-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  TEST_GROUP = await seedGroupWithAgents(["agent-a"]);
   resetLedgerKeyCacheForTests();
   workspace = await mkdtemp(join(tmpdir(), "governance-attach-ws-"));
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
 });
 
 afterEach(async () => {
@@ -56,7 +63,7 @@ afterEach(async () => {
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
 
 function store(overrides: Partial<Parameters<typeof storeAttachment>[0]> = {}) {
-  return storeAttachment({
+  return storeAttachment(TEST_GROUP, {
     content: PNG,
     declaredName: "screenshot.png",
     storedBy: "alice",
@@ -71,14 +78,14 @@ describe("requirement #8: the content never reaches the ledger", () => {
     const record = await store({ content: secret, declaredName: "notes.txt" });
 
     const { recordAdminAction, ADMIN_ACTIONS } = await import("./admin-audit.js");
-    await recordAdminAction({
+    await recordAdminAction(TEST_GROUP, {
       actor: { name: "alice", role: "user" },
       action: ADMIN_ACTIONS.agentPrompt,
       agentId: "agent-a",
       target: `prompt: look at this | attachments: ${record.declaredName} (${record.mimeType}, ${record.bytes} bytes, sha256:${record.sha256})`,
     });
 
-    const entries = await tailLedger(10);
+    const entries = await tailLedger(TEST_GROUP, 10);
     const serialised = JSON.stringify(entries);
     // The proof: the ledger names the file and cannot reproduce it.
     expect(serialised).toContain(record.sha256);
@@ -87,7 +94,7 @@ describe("requirement #8: the content never reaches the ledger", () => {
 
   it("keeps the bytes retrievable from the store, so the trail is provable", async () => {
     const record = await store();
-    const onDisk = await readFile(join(attachmentsDir(), record.sha256));
+    const onDisk = await readFile(join(attachmentsDir(TEST_GROUP), record.sha256));
     // An investigator holding the file can show it is the file that was sent;
     // one without it learns type, size, sender, agent and time. That is how
     // evidence handling usually works.
@@ -98,7 +105,7 @@ describe("requirement #8: the content never reaches the ledger", () => {
 describe("the agent cannot read the store", () => {
   it("is refused by the self-protecting core denial", async () => {
     const record = await store();
-    const target = join(attachmentsDir(), record.sha256);
+    const target = join(attachmentsDir(TEST_GROUP), record.sha256);
 
     const decision = await evaluateGovernancePolicy(
       { toolName: "read", params: { path: target } },
@@ -113,7 +120,10 @@ describe("the agent cannot read the store", () => {
 
   it("is refused to a command naming it too, not only to file tools", async () => {
     const decision = await evaluateGovernancePolicy(
-      { toolName: "exec", params: { command: `cat ${join(attachmentsDir(), "anything")}` } },
+      {
+        toolName: "exec",
+        params: { command: `cat ${join(attachmentsDir(TEST_GROUP), "anything")}` },
+      },
       { agentId: "agent-a", sessionKey: "agent:agent-a:main", cwd: workspace },
     );
     expect(decision && "block" in decision).toBe(true);
@@ -121,7 +131,7 @@ describe("the agent cannot read the store", () => {
 
   it("stores files privately", async () => {
     const record = await store();
-    const info = await stat(join(attachmentsDir(), record.sha256));
+    const info = await stat(join(attachmentsDir(TEST_GROUP), record.sha256));
     if (process.platform !== "win32") {
       expect(info.mode & 0o077).toBe(0);
     }
@@ -133,7 +143,7 @@ describe("the hostile-input list", () => {
   it("never lets the declared filename become a path component", async () => {
     const record = await store({ declaredName: "../../.ssh/authorized_keys" });
 
-    const names = await readdir(attachmentsDir());
+    const names = await readdir(attachmentsDir(TEST_GROUP));
     // Named by hash. Traversal is not defended against here — it is
     // unreachable, because the uploader's string never reaches the filesystem.
     expect(names).toContain(record.sha256);
@@ -204,7 +214,7 @@ describe("evidence and record stay in step", () => {
     const second = await store({ declaredName: "same-picture-again.png" });
 
     expect(second.sha256).toBe(first.sha256);
-    expect(await listAttachments()).toHaveLength(1);
+    expect(await listAttachments(TEST_GROUP)).toHaveLength(1);
     // Content addressing is not a deduplication trick here: it lets an
     // investigator see that Tuesday's file is byte-identical to Monday's.
   });
@@ -216,10 +226,10 @@ describe("evidence and record stay in step", () => {
       declaredName: "drop.txt",
     });
 
-    const removed = await sweepOrphans(new Set([kept.sha256]));
+    const removed = await sweepOrphans(TEST_GROUP, new Set([kept.sha256]));
 
     expect(removed).toBe(1);
-    const names = await readdir(attachmentsDir());
+    const names = await readdir(attachmentsDir(TEST_GROUP));
     expect(names).toContain(kept.sha256);
     expect(names).not.toContain(dropped.sha256);
   });
@@ -227,15 +237,15 @@ describe("evidence and record stay in step", () => {
   it("counts unreferenced files on disk so the deployment report can say so", async () => {
     await store();
     const { writeFile } = await import("node:fs/promises");
-    await writeFile(join(attachmentsDir(), "deadbeef".repeat(8)), "orphan");
+    await writeFile(join(attachmentsDir(TEST_GROUP), "deadbeef".repeat(8)), "orphan");
 
-    const stats = await attachmentStoreStats();
+    const stats = await attachmentStoreStats(TEST_GROUP);
     expect(stats.count).toBe(1);
     expect(stats.orphanCount).toBe(1);
   });
 
   it("reports an empty store without inventing one", async () => {
-    const stats = await attachmentStoreStats();
+    const stats = await attachmentStoreStats(TEST_GROUP);
     expect(stats).toEqual({ count: 0, totalBytes: 0, orphanCount: 0 });
   });
 });

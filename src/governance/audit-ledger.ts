@@ -27,12 +27,13 @@ import { createHash, createHmac } from "node:crypto";
 // two files plus a secret. Genuinely closing it means holding the key or the
 // checkpoint off the machine — deployment rather than code, and still recorded
 // as future work.
-import { appendFile, mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { appendFile, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { redactToolPayloadText } from "../logging/redact.js";
+import { MAX_INTENT_LENGTH } from "./agent-intent.js";
 import { withFileLock } from "./file-lock.js";
 import { loadLedgerKey, readLedgerKeyIfPresent } from "./ledger-key.js";
-import { governanceHomeDir, ledgerCheckpointFilePath, ledgerFilePath } from "./paths.js";
+import { ensureGroupDir, groupDir, ledgerCheckpointFilePath, ledgerFilePath } from "./paths.js";
 import type { GovernanceRole } from "./roles.js";
 
 /**
@@ -69,6 +70,24 @@ export type LedgerEntry = {
    * Absent on agent entries — see `canonicalPayload` for why absence rather
    * than an explicit `"agent"` value.
    */
+  /**
+   * What the model said it was doing on the turn that produced this call.
+   *
+   * §1.6's "Granular Event Tracking" asks the log to capture the **raw LLM
+   * intent** alongside the payload and the decision. It is the only field here
+   * that comes from the *model* rather than from the runtime, and the only one
+   * that lets the trail be read as "the agent said it was doing X, and then did
+   * Y" — the comparison an investigator actually wants, and one no other field
+   * supports.
+   *
+   * Absent whenever nothing was captured: a turn with no narration, a harness
+   * that reports none, a restart between the model speaking and the tool
+   * running, or any call not made by a model at all (the CLI, a test, an
+   * administrative action). **Its absence is normal and is never an error** —
+   * nothing is gated on it, and the entry means exactly what it meant before
+   * this field existed. See `agent-intent.ts`.
+   */
+  intent?: string;
   entryKind?: "admin";
   /**
    * The named account responsible for an administrative action, or `"cli"` for
@@ -124,6 +143,18 @@ const GENESIS_HASH = "0".repeat(64);
  * cannot reintroduce the hole by forgetting to clamp.
  */
 export const MAX_LEDGER_RESOURCE_LENGTH = 4096;
+
+/**
+ * Bounds model narration before it enters the chain.
+ *
+ * Separate from `clampResource` and tighter: `MAX_INTENT_LENGTH` is the limit
+ * `agent-intent.ts` already applies at capture, and applying it again here means
+ * a caller that assembles an intent some other way cannot widen the field by
+ * going round that module.
+ */
+function clampIntent(intent: string): string {
+  return intent.length <= MAX_INTENT_LENGTH ? intent : `${intent.slice(0, MAX_INTENT_LENGTH - 1)}…`;
+}
 
 function clampResource(resource: string): string {
   if (resource.length <= MAX_LEDGER_RESOURCE_LENGTH) {
@@ -191,10 +222,28 @@ function canonicalPayload(e: Omit<LedgerEntry, "hash">): string {
   // kind of unexamined premise this project keeps finding on the wrong side of
   // a defect. The `role:` prefix removes the question instead of answering it.
   const withRole = e.actorRole === undefined ? withAdmin : [...withAdmin, `role:${e.actorRole}`];
+  // `intent` joins the same way and for the same two reasons: **by presence**,
+  // so every chain written before the field existed hashes the array it hashed
+  // then and still verifies byte-identically; and **tagged**, so an intent of
+  // the literal string `"keyed"` cannot be read as the marker that follows it.
+  //
+  // **The tag is defensive, not load-bearing today, and finding 132 is that the
+  // first version of this comment said otherwise.** It claimed the collision was
+  // "reachable by an agent". It is not: `appendLedgerEntry` writes
+  // `keyed: true` on every entry, so the colliding pair — an intent of `"keyed"`
+  // on an *unkeyed* entry versus no intent on a keyed one — cannot be produced.
+  // Mutation testing caught it: removing the tag left all seventeen intent tests
+  // passing, because the property the test named was never reachable to break.
+  //
+  // Kept tagged anyway, on `role:`'s stated reasoning — *remove the question
+  // instead of answering it* — because "no unkeyed entry can be written" is
+  // exactly the kind of premise this project keeps finding on the wrong side of
+  // a defect, and a future unkeyed path would make the collision live.
+  const withIntent = e.intent === undefined ? withRole : [...withRole, `intent:${e.intent}`];
   // `keyed` joins the covered fields for the same reason `actor` did: a flag
   // that selects how an entry is verified must itself be verified, or stripping
   // it becomes a way to downgrade an entry to the weaker scheme.
-  return JSON.stringify(e.keyed ? [...withRole, "keyed"] : withRole);
+  return JSON.stringify(e.keyed ? [...withIntent, "keyed"] : withIntent);
 }
 
 /**
@@ -219,7 +268,7 @@ type LedgerRecord =
   | { ok: true; entry: LedgerEntry }
   | { ok: false; lineNumber: number; reason: string };
 
-async function readLedgerRecords(path: string = ledgerFilePath()): Promise<LedgerRecord[]> {
+async function readLedgerRecords(path: string): Promise<LedgerRecord[]> {
   let raw: string;
   try {
     raw = await readFile(path, "utf8");
@@ -267,11 +316,24 @@ async function readLedgerRecords(path: string = ledgerFilePath()): Promise<Ledge
  * cache honest — another process appending changes the size, so a stale cursor
  * is detected and discarded instead of emitting a duplicate sequence number.
  */
-let cachedHead: { seq: number; hash: string; fileSize: number } | undefined;
+/**
+ * The chain head, **per group** (M5).
+ *
+ * This was a single module-level value, which was correct while there was one
+ * chain. With a chain per group a shared cache would hand group B the head of
+ * group A's ledger — and because the head is what the next entry's `prevHash`
+ * points at, that is not a stale read but a **forged link**: B's chain would
+ * claim continuity with an entry that is not in it, and verification would
+ * fail for a reason no operator could explain.
+ *
+ * Keyed by group id, therefore, and every read and write of it goes through
+ * the group the append is for.
+ */
+const cachedHeads = new Map<string, { seq: number; hash: string; fileSize: number }>();
 
-async function activeFileSize(): Promise<number> {
+async function activeFileSize(groupId: string): Promise<number> {
   try {
-    return (await stat(ledgerFilePath())).size;
+    return (await stat(ledgerFilePath(groupId))).size;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
       return 0;
@@ -286,14 +348,51 @@ async function activeFileSize(): Promise<number> {
  */
 export const LEDGER_ROTATE_BYTES = 8 * 1024 * 1024;
 
-function archivePath(index: number): string {
-  return `${ledgerFilePath()}.${index}`;
+/**
+ * Test-only override for the rotation threshold (T30).
+ *
+ * **Why this exists, since a security constant should not be adjustable.** The
+ * two tests that cover rotation used to reach the real 8 MB threshold by
+ * writing it — roughly 2,000 and 4,000 ledger appends, each taking a file lock
+ * and extending the hash chain. Both carried a 120-second budget and the larger
+ * one **timed out on a loaded machine**, which made a suite result depend on
+ * what else the machine was doing. A test that reports differently depending on
+ * load is not reporting on the code.
+ *
+ * The property those tests exist to check is that *the chain continues across a
+ * rotation*, and that property has nothing to do with eight megabytes. Driving
+ * rotation with a small threshold checks it in a dozen entries, deterministically.
+ * The production default is asserted separately, so lowering it here cannot hide
+ * a change to the real one.
+ *
+ * Not reachable from configuration, a policy file, or the network: it is an
+ * exported function a test calls, in the same shape as
+ * `resetLedgerCursorForTests` below and for the same reason.
+ */
+let rotateBytesOverride: number | undefined;
+
+/** Test-only: drive rotation without writing the full threshold. */
+export function setLedgerRotateBytesForTests(bytes: number | undefined): void {
+  rotateBytesOverride = bytes;
+}
+
+function rotateThresholdBytes(): number {
+  return rotateBytesOverride ?? LEDGER_ROTATE_BYTES;
+}
+
+function archivePath(groupId: string, index: number): string {
+  return `${ledgerFilePath(groupId)}.${index}`;
 }
 
 /** Archived segments with their numeric index, oldest first. */
-async function listArchiveSegments(): Promise<Array<{ path: string; index: number }>> {
-  const active = ledgerFilePath();
-  const dir = governanceHomeDir();
+async function listArchiveSegments(
+  groupId: string,
+): Promise<Array<{ path: string; index: number }>> {
+  const active = ledgerFilePath(groupId);
+  // The group's own directory, not the installation root: after M5 the segments
+  // sit beside the group's active ledger, and scanning the root would find
+  // nothing here and every other group's archives at the old location.
+  const dir = groupDir(groupId);
   const base = active.slice(dir.length + 1);
   let names: string[];
   try {
@@ -308,19 +407,19 @@ async function listArchiveSegments(): Promise<Array<{ path: string; index: numbe
       // Excludes `.lock` and any other non-numeric sibling, which would otherwise
       // be read as if it were a ledger segment.
       .filter((item) => Number.isInteger(item.index) && item.index > 0)
-      .sort((a, b) => a.index - b.index)
+      .toSorted((a, b) => a.index - b.index)
       .map((item) => ({ path: join(dir, item.name), index: item.index }))
   );
 }
 
 /** Archived segments, oldest first. */
-async function listArchives(): Promise<string[]> {
-  return (await listArchiveSegments()).map((segment) => segment.path);
+async function listArchives(groupId: string): Promise<string[]> {
+  return (await listArchiveSegments(groupId)).map((segment) => segment.path);
 }
 
 /** Chain head carried in from the newest archive, for a freshly rotated file. */
-async function readCarriedHead(): Promise<{ seq: number; hash: string }> {
-  const newest = (await listArchives()).at(-1);
+async function readCarriedHead(groupId: string): Promise<{ seq: number; hash: string }> {
+  const newest = (await listArchives(groupId)).at(-1);
   if (!newest) {
     return { seq: 0, hash: GENESIS_HASH };
   }
@@ -334,22 +433,23 @@ async function readCarriedHead(): Promise<{ seq: number; hash: string }> {
   return { seq: 0, hash: GENESIS_HASH };
 }
 
-async function readChainHead(): Promise<{ seq: number; hash: string }> {
-  const size = await activeFileSize();
-  if (cachedHead && cachedHead.fileSize === size) {
-    return { seq: cachedHead.seq, hash: cachedHead.hash };
+async function readChainHead(groupId: string): Promise<{ seq: number; hash: string }> {
+  const size = await activeFileSize(groupId);
+  const cached = cachedHeads.get(groupId);
+  if (cached && cached.fileSize === size) {
+    return { seq: cached.seq, hash: cached.hash };
   }
-  const records = await readLedgerRecords();
+  const records = await readLedgerRecords(ledgerFilePath(groupId));
   for (let index = records.length - 1; index >= 0; index -= 1) {
     const record = records[index];
     if (record?.ok) {
-      cachedHead = { seq: record.entry.seq, hash: record.entry.hash, fileSize: size };
+      cachedHeads.set(groupId, { seq: record.entry.seq, hash: record.entry.hash, fileSize: size });
       return { seq: record.entry.seq, hash: record.entry.hash };
     }
   }
   // An empty active file after rotation still continues the archived chain.
-  const carried = await readCarriedHead();
-  cachedHead = { ...carried, fileSize: size };
+  const carried = await readCarriedHead(groupId);
+  cachedHeads.set(groupId, { ...carried, fileSize: size });
   return carried;
 }
 
@@ -358,8 +458,8 @@ async function readChainHead(): Promise<{ seq: number; hash: string }> {
  * pointing at the archived tail, so the chain stays continuous and verifiable
  * across segments rather than restarting at genesis.
  */
-async function rotateIfNeeded(): Promise<void> {
-  if ((await activeFileSize()) < LEDGER_ROTATE_BYTES) {
+async function rotateIfNeeded(groupId: string): Promise<void> {
+  if ((await activeFileSize(groupId)) < rotateThresholdBytes()) {
     return;
   }
   // Highest existing index plus one, never the *count* plus one. If any archive
@@ -367,15 +467,52 @@ async function rotateIfNeeded(): Promise<void> {
   // trying to cover their tracks — a count-based index renames the active file
   // over a surviving archive and destroys real audit history, silently, as a
   // side effect of ordinary logging.
-  const segments = await listArchiveSegments();
+  const segments = await listArchiveSegments(groupId);
   const nextIndex = (segments.at(-1)?.index ?? 0) + 1;
-  await rename(ledgerFilePath(), archivePath(nextIndex));
-  cachedHead = undefined;
+  await rename(ledgerFilePath(groupId), archivePath(groupId, nextIndex));
+  cachedHeads.delete(groupId);
+}
+
+/**
+ * Whether **this group** has a checkpoint recorded.
+ *
+ * The deployment report used to ask whether the checkpoint *file* existed,
+ * which was the same question while there was one chain. With one file holding
+ * a head per group it is not: the file exists as soon as any organisation has
+ * written, so a group with no checkpoint of its own would be reported as
+ * protected by a truncation defence it does not have — a green check for
+ * something absent, which is the worst kind of check.
+ */
+export async function hasCheckpointForGroup(groupId: string): Promise<boolean> {
+  return (await readCheckpointFile())[groupId] !== undefined;
+}
+
+/**
+ * Test-only: forgets one group's checkpoint.
+ *
+ * A fixture that clears a group's ledger must clear its checkpoint too, or it
+ * leaves the exact signal truncation produces — a chain ending earlier than the
+ * record of how far it got — and every verification in that suite fails for a
+ * reason the suite created.
+ */
+export async function clearCheckpointForTests(groupId: string): Promise<void> {
+  try {
+    await withFileLock(ledgerCheckpointFilePath(), async () => {
+      const file = await readCheckpointFile();
+      delete file[groupId];
+      await writeFile(ledgerCheckpointFilePath(), JSON.stringify(file), {
+        encoding: "utf8",
+        mode: 0o600,
+      });
+    });
+  } catch {
+    // Nothing to clear is the common case on a fresh directory.
+  }
 }
 
 /** Test-only: drops the cached head so a suite can simulate a separate process. */
 export function resetLedgerCursorForTests(): void {
-  cachedHead = undefined;
+  cachedHeads.clear();
 }
 
 export type AppendLedgerEntryInput = {
@@ -392,14 +529,25 @@ export type AppendLedgerEntryInput = {
   actor?: string;
   /** Set only by `recordAdminAction` (admin-audit.ts). */
   actorRole?: GovernanceRole;
+  /**
+   * What the model said it was doing, for agent entries (§1.6).
+   *
+   * Never set by an administrative caller: an administrator's reason for an
+   * action is not an LLM intent, and putting one in this field would make the
+   * trail unable to tell a model's stated purpose from a person's.
+   */
+  intent?: string;
 };
 
-export async function appendLedgerEntry(input: AppendLedgerEntryInput): Promise<LedgerEntry> {
-  await mkdir(governanceHomeDir(), { recursive: true, mode: 0o700 });
+export async function appendLedgerEntry(
+  groupId: string,
+  input: AppendLedgerEntryInput,
+): Promise<LedgerEntry> {
+  await ensureGroupDir(groupId);
   const key = await loadLedgerKey();
   // The lock covers read-head + append as one unit, across processes.
-  return withFileLock(ledgerFilePath(), async () => {
-    const prior = await readChainHead();
+  return withFileLock(ledgerFilePath(groupId), async () => {
+    const prior = await readChainHead(groupId);
     const withoutHash: Omit<LedgerEntry, "hash"> = {
       seq: prior.seq + 1,
       timestamp: new Date().toISOString(),
@@ -422,32 +570,42 @@ export async function appendLedgerEntry(input: AppendLedgerEntryInput): Promise<
       // `actorRole: undefined` would put the key on the object, and
       // `canonicalPayload` keys the hashed shape on whether the field is there.
       ...(input.actorRole ? { actorRole: input.actorRole } : {}),
+      // Conditional for the same reason, and redacted and clamped like the
+      // resource beside it: this is model-authored text, and model narration
+      // quotes whatever the model was working with.
+      ...(input.intent ? { intent: clampIntent(redactToolPayloadText(input.intent)) } : {}),
       // Everything written from now on is keyed.
       keyed: true as const,
     };
     const entry: LedgerEntry = { ...withoutHash, hash: hashEntry(withoutHash, key) };
     // JSON.stringify escapes newlines, so one entry is always exactly one line.
-    await appendFile(ledgerFilePath(), `${JSON.stringify(entry)}\n`, { mode: 0o600 });
-    cachedHead = { seq: entry.seq, hash: entry.hash, fileSize: await activeFileSize() };
+    await appendFile(ledgerFilePath(groupId), `${JSON.stringify(entry)}\n`, { mode: 0o600 });
+    cachedHeads.set(groupId, {
+      seq: entry.seq,
+      hash: entry.hash,
+      fileSize: await activeFileSize(groupId),
+    });
     // Written after the entry, never before: a checkpoint ahead of the ledger is
     // the signal for truncation, so it must only ever describe an entry that
     // genuinely reached the file. A crash between the two leaves the checkpoint
     // one behind, which reports nothing — the safe direction to fail.
-    await writeCheckpoint(entry);
-    await rotateIfNeeded();
+    await writeCheckpoint(groupId, entry);
+    await rotateIfNeeded(groupId);
     return entry;
   });
 }
 
-export async function tailLedger(limit = 100): Promise<LedgerEntry[]> {
-  const entries = (await readLedgerRecords()).flatMap((r) => (r.ok ? [r.entry] : []));
+export async function tailLedger(groupId: string, limit = 100): Promise<LedgerEntry[]> {
+  const entries = (await readLedgerRecords(ledgerFilePath(groupId))).flatMap((r) =>
+    r.ok ? [r.entry] : [],
+  );
   if (entries.length >= limit) {
     return entries.slice(-limit);
   }
   // Reach into archives so a rotation does not make recent history disappear
   // from the operator's view the instant a segment rolls over.
   const older: LedgerEntry[] = [];
-  for (const archive of (await listArchives()).reverse()) {
+  for (const archive of (await listArchives(groupId)).toReversed()) {
     older.unshift(...(await readLedgerRecords(archive)).flatMap((r) => (r.ok ? [r.entry] : [])));
     if (older.length + entries.length >= limit) {
       break;
@@ -482,16 +640,49 @@ type LedgerCheckpoint = { seq: number; hash: string; updatedAt: string };
  * A genuinely strong anchor means copying this value off the machine, which is
  * deployment rather than code and stays recorded as future work.
  */
-async function writeCheckpoint(entry: LedgerEntry): Promise<void> {
+/**
+ * The whole checkpoint file: one head per group (M5).
+ *
+ * **One file rather than one per group, and that is deliberate.** The security
+ * claim this file exists to support says *"a **separate** checkpoint file"* —
+ * separate from the ledger, which is the property that makes truncation
+ * detectable. Keeping one shared file preserves that sentence and adds a little:
+ * erasing a group's tail convincingly now means editing a file that lives
+ * **outside that group's directory**, so the two coordinated edits the original
+ * design demanded are now in two different places in the tree.
+ */
+type LedgerCheckpointFile = Record<string, LedgerCheckpoint>;
+
+async function readCheckpointFile(): Promise<LedgerCheckpointFile> {
+  try {
+    const parsed = JSON.parse(await readFile(ledgerCheckpointFilePath(), "utf8")) as unknown;
+    return parsed && typeof parsed === "object" ? (parsed as LedgerCheckpointFile) : {};
+  } catch {
+    return {};
+  }
+}
+
+async function writeCheckpoint(groupId: string, entry: LedgerEntry): Promise<void> {
   const checkpoint: LedgerCheckpoint = {
     seq: entry.seq,
     hash: entry.hash,
     updatedAt: new Date().toISOString(),
   };
   try {
-    await writeFile(ledgerCheckpointFilePath(), JSON.stringify(checkpoint), {
-      encoding: "utf8",
-      mode: 0o600,
+    // **Locked, because the file is now shared and the append lock is not.**
+    // Each append holds a lock on *its own group's* ledger, so two groups can
+    // append at the same instant — and a naive read-modify-write here would let
+    // one group's checkpoint overwrite the other's, silently disarming
+    // truncation detection for whichever lost. The lock is innermost and always
+    // on this one path, so it cannot participate in a cycle with the ledger
+    // lock already held.
+    await withFileLock(ledgerCheckpointFilePath(), async () => {
+      const file = await readCheckpointFile();
+      file[groupId] = checkpoint;
+      await writeFile(ledgerCheckpointFilePath(), JSON.stringify(file), {
+        encoding: "utf8",
+        mode: 0o600,
+      });
     });
   } catch {
     // A checkpoint that cannot be written must never fail the append it
@@ -500,24 +691,18 @@ async function writeCheckpoint(entry: LedgerEntry): Promise<void> {
   }
 }
 
-async function readCheckpoint(): Promise<LedgerCheckpoint | undefined> {
-  try {
-    const parsed = JSON.parse(await readFile(ledgerCheckpointFilePath(), "utf8")) as
-      | LedgerCheckpoint
-      | undefined;
-    return typeof parsed?.seq === "number" && typeof parsed?.hash === "string" ? parsed : undefined;
-  } catch {
-    return undefined;
-  }
+async function readCheckpoint(groupId: string): Promise<LedgerCheckpoint | undefined> {
+  const parsed = (await readCheckpointFile())[groupId];
+  return typeof parsed?.seq === "number" && typeof parsed?.hash === "string" ? parsed : undefined;
 }
 
 /** Recomputes the chain from genesis and reports the first entry that doesn't match. */
-export async function verifyLedgerChain(): Promise<LedgerVerification> {
+export async function verifyLedgerChain(groupId: string): Promise<LedgerVerification> {
   // Archives first, then the active file. The chain is continuous across
   // rotation, so verifying only the live segment would miss tampering in
   // history — exactly where an attacker would prefer to work.
   const records: LedgerRecord[] = [];
-  for (const segment of [...(await listArchives()), ledgerFilePath()]) {
+  for (const segment of [...(await listArchives(groupId)), ledgerFilePath(groupId)]) {
     records.push(...(await readLedgerRecords(segment)));
   }
   // Read, never create. `loadLedgerKey` here meant that verifying a legacy
@@ -618,7 +803,7 @@ export async function verifyLedgerChain(): Promise<LedgerVerification> {
   // The chain itself is intact. Now ask the independent record whether it is
   // *complete*: a prefix of a valid chain is still a valid chain, so everything
   // above passes just as happily on a file whose newest entries were deleted.
-  const checkpoint = await readCheckpoint();
+  const checkpoint = await readCheckpoint(groupId);
   // ---------------------------------------------------------------------
   // A *missing* checkpoint (QA round 13, finding 76).
   //

@@ -20,6 +20,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetLoginThrottle } from "../governance/login-throttle.js";
 import { savePolicy } from "../governance/policy-store.js";
 import { defaultPolicyDocument } from "../governance/policy-types.js";
+import { seedGroupWithAgents } from "../governance/test-group.js";
 import { handleGovernanceAuthRequest } from "./governance-dashboard-auth.js";
 
 let dir: string;
@@ -27,10 +28,16 @@ let dir: string;
 const ROOT_PASSWORD = "correct-horse-battery-staple";
 const USER_PASSWORD = "another-long-enough-secret";
 
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-lifecycle-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
-  await savePolicy(defaultPolicyDocument());
+  TEST_GROUP = await seedGroupWithAgents([]);
+  await savePolicy(TEST_GROUP, defaultPolicyDocument());
   resetLoginThrottle();
 });
 

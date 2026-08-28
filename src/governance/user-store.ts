@@ -12,6 +12,7 @@ import { canonicalAccountName } from "./account-name.js";
 import { ADMIN_ACTIONS, recordAdminAction, type AuditActorInput } from "./admin-audit.js";
 import { withFileLock } from "./file-lock.js";
 import { hashPassword, needsRehash, verifyPassword } from "./password.js";
+import { INSTALLATION_LEDGER_GROUP } from "./paths.js";
 import { governanceHomeDir, usersFilePath } from "./paths.js";
 import type { GovernanceRole } from "./roles.js";
 
@@ -136,6 +137,10 @@ async function readUsersFile(): Promise<UsersFile> {
   // rather than letting `undefined` reach a `.includes()` in a permission check.
   return {
     ...existing,
+    // A new record per user on purpose: this normalizes a document other
+    // callers have already read, and mutating in place would change objects
+    // they still hold.
+    // oxlint-disable-next-line no-map-spread
     users: existing.users.map((user) => ({
       ...user,
       assignedAgents: normalizeAgentIds(user.assignedAgents),
@@ -227,7 +232,7 @@ export async function deleteUnmigratedAccounts(actor: AuditActorInput): Promise<
     return orphans.map((u) => ({ id: u.id, username: u.username, role: u.role }));
   });
   for (const orphan of removed) {
-    await recordAdminAction({
+    await recordAdminAction(INSTALLATION_LEDGER_GROUP, {
       actor,
       action: ADMIN_ACTIONS.userDelete,
       target: `account ${orphan.username} (role ${orphan.role}) deleted: predates groups (M3 migration)`,
@@ -372,7 +377,7 @@ export async function createUser(
     await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });
     return toRecord(user);
   });
-  await recordAdminAction({
+  await recordAdminAction(created.groupId ?? INSTALLATION_LEDGER_GROUP, {
     actor,
     action: ADMIN_ACTIONS.userCreate,
     // The role is the security-relevant part of creating an account, so it is
@@ -468,11 +473,16 @@ function wouldStrandWithoutRoot(
   // statement about one organisation, and emptying *its* account list is a
   // teardown of that group rather than of the installation.
   const subject = users.find((u) => u.id === userId);
-  users = subject ? users.filter((u) => u.groupId === subject.groupId) : users;
-  if (!users.some((u) => u.id === userId)) {
+  // A named local rather than reassigning the parameter. The parameter is
+  // `readonly` and every line below reads it, so rebinding it mid-function
+  // meant the same identifier denoted the whole installation above this point
+  // and one group below it — in a guard whose entire job is to keep those two
+  // scopes distinct.
+  const scoped = subject ? users.filter((u) => u.groupId === subject.groupId) : users;
+  if (!scoped.some((u) => u.id === userId)) {
     return false;
   }
-  const remaining = users.filter((u) => !(u.id === userId && nextRole === "deleted"));
+  const remaining = scoped.filter((u) => !(u.id === userId && nextRole === "deleted"));
   if (remaining.length === 0) {
     return false;
   }
@@ -552,12 +562,12 @@ export async function setUserRole(
     const previous = user.role;
     user.role = role;
     await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });
-    return { username: user.username, previous };
+    return { username: user.username, previous, groupId: user.groupId };
   });
   if (!changed) {
     return false;
   }
-  await recordAdminAction({
+  await recordAdminAction(changed.groupId ?? INSTALLATION_LEDGER_GROUP, {
     actor,
     action: ADMIN_ACTIONS.userRoleChange,
     // Both roles, because a privilege escalation is only visible as a
@@ -603,12 +613,18 @@ export async function setUserPolicyAuthoring(
     const previous = accountMayAuthorPolicy(user);
     user.canAuthorPolicy = allowed;
     await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });
-    return { username: user.username, role: user.role, previous, next: allowed };
+    return {
+      username: user.username,
+      role: user.role,
+      previous,
+      next: allowed,
+      groupId: user.groupId,
+    };
   });
   if (!changed) {
     return false;
   }
-  await recordAdminAction({
+  await recordAdminAction(changed.groupId ?? INSTALLATION_LEDGER_GROUP, {
     actor,
     action: ADMIN_ACTIONS.userPolicyAuthoringChange,
     subjectId: userId,
@@ -641,12 +657,12 @@ export async function setUserAssignedAgents(
     const previous = user.assignedAgents;
     user.assignedAgents = normalizeAgentIds(agentIds);
     await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });
-    return { username: user.username, previous, next: user.assignedAgents };
+    return { username: user.username, previous, next: user.assignedAgents, groupId: user.groupId };
   });
   if (!changed) {
     return false;
   }
-  await recordAdminAction({
+  await recordAdminAction(changed.groupId ?? INSTALLATION_LEDGER_GROUP, {
     actor,
     action: ADMIN_ACTIONS.userAgentsChange,
     target:
@@ -670,12 +686,12 @@ export async function deleteUser(userId: string, actor: AuditActorInput): Promis
     }
     file.users = file.users.filter((u) => u.id !== userId);
     await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });
-    return { username: user.username, role: user.role };
+    return { username: user.username, role: user.role, groupId: user.groupId };
   });
   if (!deleted) {
     return false;
   }
-  await recordAdminAction({
+  await recordAdminAction(deleted.groupId ?? INSTALLATION_LEDGER_GROUP, {
     actor,
     action: ADMIN_ACTIONS.userDelete,
     // Name and role are captured here because the account record is gone: after
@@ -811,17 +827,17 @@ export async function setUserPassword(
     }
     user.passwordHash = hashed;
     await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });
-    return user.username;
+    return { username: user.username, groupId: user.groupId };
   });
   if (!changed) {
     return false;
   }
-  await recordAdminAction({
+  await recordAdminAction(changed.groupId ?? INSTALLATION_LEDGER_GROUP, {
     actor,
     action: ADMIN_ACTIONS.userPasswordReset,
     // The password itself is never recorded, obviously — only that it was
     // replaced, by whom, and for whom.
-    target: `password reset for account ${changed}`,
+    target: `password reset for account ${changed.username}`,
     subjectId: userId,
   });
   return true;

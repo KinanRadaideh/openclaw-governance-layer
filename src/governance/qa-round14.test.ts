@@ -33,14 +33,21 @@ import { closeOpenClawAgentDatabases } from "../state/openclaw-agent-db.js";
 import { closeOpenClawStateDatabaseForTest } from "../state/openclaw-state-db.js";
 import { evaluateGovernancePolicy } from "./policy-engine.js";
 import { loadPolicy, savePolicy } from "./policy-store.js";
+import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
 let workspace: string;
 let previousStateDir: string | undefined;
 
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-qa14-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  TEST_GROUP = await seedGroupWithAgents(["agent-a", "agent-b", "agent-c", "root-agent"]);
   workspace = await mkdtemp(join(tmpdir(), "governance-qa14-ws-"));
   // T6 reads the session store to resolve lineage, so the suite gets its own.
   previousStateDir = process.env.OPENCLAW_STATE_DIR;
@@ -85,14 +92,14 @@ function verdict(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>)
 }
 
 async function enforceStrictly(): Promise<void> {
-  const doc = await loadPolicy();
-  await savePolicy({ ...doc, mode: "enforce", ask: "off" });
+  const doc = await loadPolicy(TEST_GROUP);
+  await savePolicy(TEST_GROUP, { ...doc, mode: "enforce", ask: "off" });
 }
 
 /** Adds one allow rule, scoped as given. */
 async function allow(pattern: string, agentId?: string): Promise<void> {
-  const doc = await loadPolicy();
-  await savePolicy({
+  const doc = await loadPolicy(TEST_GROUP);
+  await savePolicy(TEST_GROUP, {
     ...doc,
     mode: "enforce",
     ask: "off",
@@ -207,8 +214,13 @@ describe("qa round 14 — spawning into another identity is its own permission (
 
 describe("qa round 14 — what a spawned child inherits", () => {
   it("binds a same-agent child to the parent's rules and lockdown", async () => {
-    const doc = await loadPolicy();
-    await savePolicy({ ...doc, mode: "enforce", ask: "off", lockedAgents: ["agent-a"] });
+    const doc = await loadPolicy(TEST_GROUP);
+    await savePolicy(TEST_GROUP, {
+      ...doc,
+      mode: "enforce",
+      ask: "off",
+      lockedAgents: ["agent-a"],
+    });
     const childKey = mintSpawnSessionKey({ targetAgentId: "agent-a", backend: "subagent" });
     const decision = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "ls" } },
@@ -238,8 +250,13 @@ describe("qa round 14 — what a spawned child inherits", () => {
    * limitation rather than merely writing it down.
    */
   it("binds a cross-agent child to its parent's lockdown (T6)", async () => {
-    const doc = await loadPolicy();
-    await savePolicy({ ...doc, mode: "enforce", ask: "off", lockedAgents: ["agent-a"] });
+    const doc = await loadPolicy(TEST_GROUP);
+    await savePolicy(TEST_GROUP, {
+      ...doc,
+      mode: "enforce",
+      ask: "off",
+      lockedAgents: ["agent-a"],
+    });
     await allow("^ls$", "agent-b");
     const childKey = mintSpawnSessionKey({ targetAgentId: "agent-b", backend: "subagent" });
     await recordSession("agent:agent-a:main");
@@ -257,8 +274,13 @@ describe("qa round 14 — what a spawned child inherits", () => {
   it("leaves an unrelated agent's session running during that lockdown", async () => {
     // The half that makes the rule above defensible. Failing closed at an
     // incident is only acceptable while it stays narrow.
-    const doc = await loadPolicy();
-    await savePolicy({ ...doc, mode: "enforce", ask: "off", lockedAgents: ["agent-a"] });
+    const doc = await loadPolicy(TEST_GROUP);
+    await savePolicy(TEST_GROUP, {
+      ...doc,
+      mode: "enforce",
+      ask: "off",
+      lockedAgents: ["agent-a"],
+    });
     await allow("^ls$", "agent-c");
     await recordSession("agent:agent-c:solo");
     const decision = await evaluateGovernancePolicy(
@@ -273,8 +295,13 @@ describe("qa round 14 — what a spawned child inherits", () => {
     // children that already exist rather than about new ones: lockdown is
     // checked before the registry lookup, so a locked agent cannot start
     // anything, under any identity.
-    const doc = await loadPolicy();
-    await savePolicy({ ...doc, mode: "enforce", ask: "off", lockedAgents: ["agent-a"] });
+    const doc = await loadPolicy(TEST_GROUP);
+    await savePolicy(TEST_GROUP, {
+      ...doc,
+      mode: "enforce",
+      ask: "off",
+      lockedAgents: ["agent-a"],
+    });
     const decision = await evaluateGovernancePolicy(
       { toolName: "sessions_spawn", params: { action: "spawn", agentId: "agent-b" } },
       { agentId: "agent-a", sessionKey: "agent:agent-a:main", cwd: workspace },
@@ -406,11 +433,13 @@ describe("qa round 14 — clash detection is atomic with the write", () => {
       agentId: "agent-a",
     };
     const [first, second] = await Promise.all([
-      addRuleChecked({ ...candidate }, "kinan"),
-      addRuleChecked({ ...candidate }, "malek"),
+      addRuleChecked(TEST_GROUP, { ...candidate }, "kinan"),
+      addRuleChecked(TEST_GROUP, { ...candidate }, "malek"),
     ]);
     // Both writes land — the design reports clashes rather than refusing them.
-    const stored = (await loadPolicy()).rules.filter((rule) => rule.pattern === "^npm test$");
+    const stored = (await loadPolicy(TEST_GROUP)).rules.filter(
+      (rule) => rule.pattern === "^npm test$",
+    );
     expect(stored).toHaveLength(2);
     // Exactly one of them was told, and it is the one that wrote second.
     const warned = [first, second].filter((result) => result.conflicts.length > 0);
@@ -421,6 +450,7 @@ describe("qa round 14 — clash detection is atomic with the write", () => {
     const { addRuleChecked } = await import("./policy-store.js");
     await enforceStrictly();
     const result = await addRuleChecked(
+      TEST_GROUP,
       { resourceKind: "command", pattern: "^something-nobody-else-wrote$", agentId: "agent-a" },
       "kinan",
     );

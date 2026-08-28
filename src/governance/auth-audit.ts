@@ -25,6 +25,7 @@
 
 import { canonicalAccountName } from "./account-name.js";
 import { ADMIN_ACTIONS, recordAdminAction, UNAUTHENTICATED_ACTOR } from "./admin-audit.js";
+import { INSTALLATION_LEDGER_GROUP } from "./paths.js";
 import type { GovernanceRole } from "./roles.js";
 
 /**
@@ -173,9 +174,21 @@ async function writeAuthEntry(input: {
   target: string;
   subjectId?: string;
   outcome: "allow" | "deny";
+  /**
+   * Whose trail this belongs in (M5).
+   *
+   * **Optional on purpose, and the absent case is the interesting one.** A
+   * successful sign-in knows the account, so it knows the organisation. A
+   * *failed* one often does not: the username may belong to nobody, which is
+   * exactly the shape of a credential-stuffing attempt. Those entries go to the
+   * installation-scope trail rather than being dropped or guessed into a group,
+   * because an attacker must not get to choose which organisation's audit log
+   * records the attack on it.
+   */
+  groupId?: string;
 }): Promise<void> {
   try {
-    await recordAdminAction({
+    await recordAdminAction(input.groupId ?? INSTALLATION_LEDGER_GROUP, {
       actor: input.actor,
       action: input.action,
       target: input.target,
@@ -223,6 +236,16 @@ export async function auditLoginSuccess(user: {
   id: string;
   username: string;
   role: GovernanceRole;
+  /**
+   * The account's organisation (M5).
+   *
+   * A *successful* sign-in knows exactly whose it is, so the entry belongs in
+   * that organisation's trail rather than the installation's — a Root reviewing
+   * who signed in should see their own people. Optional only because an account
+   * predating groups has none; those fall back to the installation trail, which
+   * is where an account belonging to no organisation honestly belongs.
+   */
+  groupId?: string;
 }): Promise<void> {
   await flushSuppressedFailures();
   await writeAuthEntry({
@@ -233,6 +256,7 @@ export async function auditLoginSuccess(user: {
     action: ADMIN_ACTIONS.authLogin,
     target: `signed in as ${user.role}`,
     subjectId: user.id,
+    ...(user.groupId ? { groupId: user.groupId } : {}),
     outcome: "allow",
   });
 }
@@ -334,13 +358,19 @@ export async function auditLoginLockout(
  * happen without a request, and pinning that limitation is better than
  * implying every session end is visible.
  */
-export async function auditLogout(session: { userId: string; username: string }): Promise<void> {
+export async function auditLogout(session: {
+  userId: string;
+  username: string;
+  /** As `auditLoginSuccess`: a sign-out knows whose session it ended. */
+  groupId?: string;
+}): Promise<void> {
   await writeAuthEntry({
     actor: session.username,
     action: ADMIN_ACTIONS.authLogout,
     target: "signed out",
     subjectId: session.userId,
     outcome: "allow",
+    ...(session.groupId ? { groupId: session.groupId } : {}),
   });
 }
 

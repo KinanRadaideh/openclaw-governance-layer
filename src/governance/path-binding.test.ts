@@ -21,14 +21,21 @@ import { resolveGovernedPath } from "./path-normalize.js";
 import { evaluateGovernancePolicy } from "./policy-engine.js";
 import { addRule, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
+import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
 let workspace: string;
 let outside: string;
 
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-binding-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = join(dir, "gov");
+  TEST_GROUP = await seedGroupWithAgents(["agent-a"]);
   resetLedgerKeyCacheForTests();
   workspace = join(dir, "workspace");
   outside = join(dir, "outside");
@@ -36,7 +43,7 @@ beforeEach(async () => {
   await mkdir(outside, { recursive: true });
   await writeFile(join(workspace, "safe", "notes.txt"), "harmless\n");
   await writeFile(join(outside, "notes.txt"), "SECRET\n");
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce" });
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce" });
 });
 
 afterEach(async () => {
@@ -75,7 +82,7 @@ describe("T23 — the gate binds the call to the path it judged", () => {
     // calls it was never meant to touch, and the parameters stop being
     // byte-identical for every consumer below the gate: skill-workshop
     // approval, voice confirmation, trusted tool policies, plugin hooks.
-    await addRule({ resourceKind: "path", pattern: "^safe/.*$", access: "read" });
+    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^safe/.*$", access: "read" });
     const decision = await evaluateGovernancePolicy(
       { toolName: "read", params: { path: "safe/notes.txt" } },
       ctx(),
@@ -88,7 +95,7 @@ describe("T23 — the gate binds the call to the path it judged", () => {
     // A blocked call is not going to be made, so binding it would be noise —
     // and a `params` field on a veto invites a reader to think the veto is
     // conditional.
-    await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
+    await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
     const linkPath = join(workspace, "escape");
     if (!(await link(outside, linkPath))) {
       return;
@@ -108,7 +115,7 @@ describe("T23 — the gate binds the call to the path it judged", () => {
     }
     // Allow the *resolved* location, so the call is permitted and we are
     // testing the binding rather than the verdict.
-    await addRule({ resourceKind: "path", pattern: "^safe/.*$", access: "read" });
+    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^safe/.*$", access: "read" });
     const decision = await evaluateGovernancePolicy(
       { toolName: "read", params: { path: "via-link/notes.txt" } },
       ctx(),
@@ -124,7 +131,7 @@ describe("T23 — the gate binds the call to the path it judged", () => {
     if (!(await link(join(workspace, "safe"), linkPath))) {
       return;
     }
-    await addRule({ resourceKind: "path", pattern: "^safe/.*$", access: "write" });
+    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^safe/.*$", access: "write" });
     const decision = await evaluateGovernancePolicy(
       { toolName: "edit", params: { file_path: "via-link-2/notes.txt" } },
       ctx(),
@@ -140,7 +147,7 @@ describe("T23 — the gate binds the call to the path it judged", () => {
     // `derivedPaths` is host-derived and already absolute; there is no
     // parameter to rebind, and inventing one would write a field the tool does
     // not read.
-    await addRule({ resourceKind: "path", pattern: "^safe/.*$", access: "write" });
+    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^safe/.*$", access: "write" });
     const decision = await evaluateGovernancePolicy(
       {
         toolName: "apply_patch",
@@ -159,7 +166,7 @@ describe("T23 — the gate binds the call to the path it judged", () => {
     if (!(await link(join(workspace, "safe"), linkPath))) {
       return;
     }
-    await savePolicy({ ...defaultPolicyDocument(), mode: "monitor" });
+    await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "monitor" });
     const decision = await evaluateGovernancePolicy(
       { toolName: "read", params: { path: "via-link-3/notes.txt" } },
       ctx(),
@@ -178,7 +185,7 @@ describe("T23 — the gate binds the call to the path it judged", () => {
     if (!(await link(join(workspace, "safe"), linkPath))) {
       return;
     }
-    await addRule({ resourceKind: "path", pattern: "^safe/.*$", access: "read" });
+    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^safe/.*$", access: "read" });
     const decision = await evaluateGovernancePolicy(
       { toolName: "read", params: { path: "via-link-4/notes.txt" } },
       ctx(),
@@ -201,7 +208,7 @@ describe("T23 — the gate binds the call to the path it judged", () => {
     if (!(await link(join(workspace, "safe"), linkPath))) {
       return;
     }
-    await addRule({ resourceKind: "path", pattern: "^safe/.*$", access: "read" });
+    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^safe/.*$", access: "read" });
     const decision = await evaluateGovernancePolicy(
       { toolName: "read", params: { path: "via-link-5/notes.txt" } },
       ctx(),

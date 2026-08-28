@@ -455,6 +455,38 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
           `,
         })
       : nothing,
+    // **Two things an operator has to know to read this list correctly, said
+    // on the page rather than in a tooltip.**
+    //
+    // Both were already true and neither was visible. Precedence lived in the
+    // `title=` attribute of the effect dropdown in the form below — hover-only,
+    // absent on touch, and gone entirely once you are reading rules rather than
+    // writing one. The search limitation was in the backlog and the report and
+    // nowhere a person using the page could see it.
+    //
+    // They are here, above the rules, because that is where the reader is when
+    // the question arises: *what does this set of rules actually do?* Putting
+    // them beside the form would answer it only for whoever is authoring, and
+    // the person who needs the search caveat most is the one reading back a
+    // grant somebody else wrote.
+    //
+    // The second is a disclosed limitation rather than a warning about a
+    // mistake, and it is worded as one. An interface that lets somebody express
+    // "this folder, except that subfolder" while a search walks straight
+    // through the exception is making a promise the gate does not keep — the
+    // failure this project has recorded four times in code (findings 112, 113,
+    // 120, T28) and would here be making to a person, in words they chose. It
+    // stays visible until T7's prevention half closes it, and then it goes.
+    renderSettingsRow({
+      title: t("governance.policy.evaluationTitle"),
+      description: t("governance.policy.evaluationHint"),
+      control: nothing,
+    }),
+    renderSettingsRow({
+      title: t("governance.policy.searchCaveatTitle"),
+      description: t("governance.policy.searchCaveatHint"),
+      control: nothing,
+    }),
     // The filter (Q-89). Rendered above the list rather than beside the
     // heading so it reads as belonging to the rows beneath it.
     policy.rules.length > 0 ? renderRuleFilter(policy.rules, props) : nothing,

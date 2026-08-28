@@ -22,6 +22,16 @@ import type { OpenClawConfig } from "../config/types.js";
 import { readDeploymentStatus } from "../governance/deployment-status.js";
 import { resolveDeploymentEnvironmentInput } from "./governance-deployment-input.js";
 
+/**
+ * The organisation this report is about (M5).
+ *
+ * A fixed name rather than a seeded organisation: this suite exercises the
+ * deployment *checks* — bind address, tunnel, origin wildcard — none of which
+ * depend on an agent existing. `loadPolicy` creates the group's directory on
+ * demand, so naming one is all the report needs.
+ */
+const TEST_GROUP = "group-deployment-input";
+
 function configWith(gateway: Record<string, unknown>): OpenClawConfig {
   return { gateway } as unknown as OpenClawConfig;
 }
@@ -29,7 +39,7 @@ function configWith(gateway: Record<string, unknown>): OpenClawConfig {
 async function statusFor(gateway: Record<string, unknown>, env: NodeJS.ProcessEnv = {}) {
   const cfg = configWith(gateway);
   const input = resolveDeploymentEnvironmentInput({ cfg, sourceConfig: cfg, env });
-  return readDeploymentStatus(input, {
+  return readDeploymentStatus(TEST_GROUP, input, {
     env,
     platform: "linux",
     totalMemoryBytes: 16 * 1000 ** 3,

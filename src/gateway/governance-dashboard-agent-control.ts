@@ -28,6 +28,7 @@ import {
 } from "../governance/permissions.js";
 import type { GovernanceRole } from "../governance/roles.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
+import { requireGroup } from "./governance-dashboard-group.js";
 import {
   MAX_JSON_BODY_BYTES,
   readJsonBodyOrError,
@@ -168,6 +169,10 @@ export async function handleGovernanceAgentControlRoutes(
     if (!requireRole(res, session, "user")) {
       return true;
     }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
     const agentId = new URL(req.url ?? "/", "http://localhost").searchParams.get("agentId")?.trim();
     if (!agentId) {
       sendInvalidRequest(res, "agentId is required");
@@ -189,7 +194,7 @@ export async function handleGovernanceAgentControlRoutes(
       // Read back under the caller's own name: a conversation belongs to the
       // account that had it, so an Administrator viewing an agent sees their
       // own thread with it and not a User's.
-      turns: await readConversation(agentId, session.username),
+      turns: await readConversation(groupId, agentId, session.username),
     });
     return true;
   }
@@ -217,6 +222,10 @@ export async function handleGovernanceAgentControlRoutes(
   // by the HTTP layer before this code ever saw it.
   if (route === "agent/attachment" && req.method === "POST") {
     if (!requireRole(res, session, "user")) {
+      return true;
+    }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
       return true;
     }
     const agentIdHeader = req.headers["x-agent-id"];
@@ -285,7 +294,7 @@ export async function handleGovernanceAgentControlRoutes(
     const { storeAttachment, AttachmentQuotaExceededError, AttachmentTooLargeError } =
       await import("../governance/attachment-store.js");
     try {
-      const stored = await storeAttachment({
+      const stored = await storeAttachment(groupId, {
         content: req,
         declaredName,
         storedBy: session.username,
@@ -321,6 +330,10 @@ export async function handleGovernanceAgentControlRoutes(
     if (!requireRole(res, session, "user")) {
       return true;
     }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
     const body = await readJsonBodyOrError(req, res, MAX_JSON_BODY_BYTES);
     if (body === undefined) {
       return true;
@@ -331,7 +344,7 @@ export async function handleGovernanceAgentControlRoutes(
       return true;
     }
     const { releaseAttachment } = await import("../governance/attachment-store.js");
-    const outcome = await releaseAttachment(sha256, session.username);
+    const outcome = await releaseAttachment(groupId, sha256, session.username);
     if (outcome === "not-found") {
       // Also the answer for somebody else's attachment, so the reply says
       // nothing about what other accounts hold.
@@ -353,6 +366,10 @@ export async function handleGovernanceAgentControlRoutes(
 
   if (route === "agent/prompt" && req.method === "POST") {
     if (!requireRole(res, session, "user")) {
+      return true;
+    }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
       return true;
     }
     // A prompt is prose, so it needs a larger ceiling than the 8 KB every other
@@ -424,7 +441,7 @@ export async function handleGovernanceAgentControlRoutes(
           sendInvalidRequest(res, "each attachment must be a SHA-256 hex string");
           return true;
         }
-        const stored = await readAttachmentMetadata(ref);
+        const stored = await readAttachmentMetadata(groupId, ref);
         // One message for "no such attachment" and for "not yours", so the
         // response does not distinguish them. Telling them apart is exactly
         // the oracle the ownership check exists to close.
@@ -444,7 +461,7 @@ export async function handleGovernanceAgentControlRoutes(
         // handed the file over, and from this point a ledger entry names it,
         // so it is no longer the uploader's to discard (finding 113).
         const { markAttachmentUsed } = await import("../governance/attachment-store.js");
-        await markAttachmentUsed(stored.sha256);
+        await markAttachmentUsed(groupId, stored.sha256);
       }
     }
 
@@ -466,7 +483,7 @@ export async function handleGovernanceAgentControlRoutes(
       (req.headers.accept ?? "").includes("text/event-stream");
 
     if (!wantsStream) {
-      const outcome = await promptAgent({
+      const outcome = await promptAgent(groupId, {
         agentId: agentId.trim(),
         username: session.username,
         message,
@@ -511,7 +528,7 @@ export async function handleGovernanceAgentControlRoutes(
     res.on("close", onClose);
 
     try {
-      const outcome = await promptAgent({
+      const outcome = await promptAgent(groupId, {
         agentId: agentId.trim(),
         username: session.username,
         message,
@@ -549,6 +566,10 @@ export async function handleGovernanceAgentControlRoutes(
   // which is how an emergency stop stops being believed.
   if (route === "agent/cancel" && req.method === "POST") {
     if (!requireRole(res, session, "user")) {
+      return true;
+    }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
       return true;
     }
     const body = await readJsonObjectBodyOrError(req, res);
@@ -590,7 +611,7 @@ export async function handleGovernanceAgentControlRoutes(
       return true;
     }
     const { recordAdminAction, ADMIN_ACTIONS } = await import("../governance/admin-audit.js");
-    await recordAdminAction({
+    await recordAdminAction(groupId, {
       actor: auditActor(session),
       action: ADMIN_ACTIONS.agentPromptCancel,
       agentId: outcome.agentId,
@@ -605,6 +626,10 @@ export async function handleGovernanceAgentControlRoutes(
   // cancel control for a prompt whose original tab is gone.
   if (route === "agent/runs" && req.method === "GET") {
     if (!requireRole(res, session, "user")) {
+      return true;
+    }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
       return true;
     }
     const { listPromptRuns } = await import("../governance/prompt-runs.js");
@@ -635,6 +660,10 @@ export async function handleGovernanceAgentControlRoutes(
     if (!requireRole(res, session, "user")) {
       return true;
     }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
     const body = await readJsonObjectBodyOrError(req, res);
     if (body === undefined) {
       return true;
@@ -651,11 +680,11 @@ export async function handleGovernanceAgentControlRoutes(
       return true;
     }
     if (locked === false) {
-      await releaseAgentLockdown(agentId, auditActor(session));
+      await releaseAgentLockdown(groupId, agentId, auditActor(session));
       sendJson(res, 200, { ok: true });
       return true;
     }
-    const outcome = await lockDownAgent(agentId, auditActor(session));
+    const outcome = await lockDownAgent(groupId, agentId, auditActor(session));
     // Return the measurement so the dashboard can show what actually happened
     // and requirement #7's latency bound is observable, not just asserted.
     sendJson(res, 200, {

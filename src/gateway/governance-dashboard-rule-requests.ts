@@ -39,6 +39,7 @@ import {
 } from "../governance/rule-requests.js";
 import { validateRulePattern } from "../governance/rule-validation.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
+import { requireGroup } from "./governance-dashboard-group.js";
 import { sendInvalidRequest, sendJson } from "./http-common.js";
 
 function isResourceKind(value: unknown): value is ResourceKind {
@@ -82,11 +83,15 @@ export async function handleGovernanceRuleRequestRoutes(
     if (!requireRole(res, session, "viewer")) {
       return true;
     }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
     const requestActor = toActor(session);
     sendJson(
       res,
       200,
-      (await listRuleRequests()).filter(
+      (await listRuleRequests(groupId)).filter(
         (request) => request.agentId === undefined || canViewAgent(requestActor, request.agentId),
       ),
     );
@@ -97,6 +102,10 @@ export async function handleGovernanceRuleRequestRoutes(
   // User from Viewer: a User can ask for access, but cannot grant it.
   if (route === "rule-requests" && req.method === "POST") {
     if (!requireRole(res, session, "user")) {
+      return true;
+    }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
       return true;
     }
     const body = await readJsonObjectBodyOrError(req, res);
@@ -164,7 +173,7 @@ export async function handleGovernanceRuleRequestRoutes(
         sendJson(
           res,
           200,
-          await submitRuleRequest({
+          await submitRuleRequest(groupId, {
             kind: "agent-setting",
             agentId: settingAgentId,
             setting: settingRaw,
@@ -196,7 +205,7 @@ export async function handleGovernanceRuleRequestRoutes(
       sendJson(
         res,
         200,
-        await submitRuleRequest({
+        await submitRuleRequest(groupId, {
           resourceKind,
           pattern: validatedPattern.pattern,
           reason: reason.slice(0, 500),
@@ -218,6 +227,10 @@ export async function handleGovernanceRuleRequestRoutes(
     if (!requireRole(res, session, "administrator")) {
       return true;
     }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
     const body = await readJsonObjectBodyOrError(req, res);
     if (body === undefined) {
       return true;
@@ -227,7 +240,7 @@ export async function handleGovernanceRuleRequestRoutes(
       sendInvalidRequest(res, "id and approve are required");
       return true;
     }
-    const pending = await findPendingRuleRequest(id);
+    const pending = await findPendingRuleRequest(groupId, id);
     if (!pending) {
       sendJson(res, 404, {
         error: { message: "no such pending request", type: "not_found" },
@@ -240,7 +253,7 @@ export async function handleGovernanceRuleRequestRoutes(
     // installation ended up with a duplicate permission, an orphaned rule
     // nothing referenced, and a `200` telling the loser their approval had
     // worked. Claiming first makes the decision the single point of contention.
-    const decided = await decideRuleRequest({ id, approve, decidedBy: session.username });
+    const decided = await decideRuleRequest(groupId, { id, approve, decidedBy: session.username });
     if (!decided) {
       sendJson(res, 409, {
         error: {
@@ -262,12 +275,22 @@ export async function handleGovernanceRuleRequestRoutes(
       // submit entry.
       try {
         if (decided.setting === "ask") {
-          await setAgentAskMode(decided.agentId!, decided.value as never, auditActor(session));
+          await setAgentAskMode(
+            groupId,
+            decided.agentId!,
+            decided.value as never,
+            auditActor(session),
+          );
         } else {
-          await setAgentMode(decided.agentId!, decided.value as never, auditActor(session));
+          await setAgentMode(
+            groupId,
+            decided.agentId!,
+            decided.value as never,
+            auditActor(session),
+          );
         }
       } catch (err) {
-        await reopenRuleRequest(id);
+        await reopenRuleRequest(groupId, id);
         sendInvalidRequest(res, err instanceof Error ? err.message : "could not apply the setting");
         return true;
       }
@@ -280,6 +303,7 @@ export async function handleGovernanceRuleRequestRoutes(
         // approving client's payload, so an administrator cannot be tricked
         // into granting something broader than what was reviewed.
         const rule = await addRule(
+          groupId,
           {
             resourceKind: decided.resourceKind!,
             pattern: decided.pattern!,
@@ -292,14 +316,14 @@ export async function handleGovernanceRuleRequestRoutes(
           },
           auditActor(session),
         );
-        await attachCreatedRule(id, rule.id);
+        await attachCreatedRule(groupId, id, rule.id);
         decided.createdRuleId = rule.id;
       } catch (err) {
         // The decision is claimed but the permission does not exist. Putting the
         // request back is the only state that stays true: otherwise the
         // requester is told yes, still cannot act, and no administrator sees it
         // in the queue any more.
-        await reopenRuleRequest(id);
+        await reopenRuleRequest(groupId, id);
         if (err instanceof TooManyRulesError) {
           sendJson(res, 409, { error: { message: err.message, type: "too_many_rules" } });
           return true;

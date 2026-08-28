@@ -3,13 +3,12 @@
 // project moved from a plugin to a direct fork (this file now uses core's
 // own JSON helpers, ../infra/json-files.js, instead of the plugin SDK facade
 // that wrapped them).
-import { mkdir } from "node:fs/promises";
 import { readJsonIfExists, writeJsonAtomic } from "../infra/json-files.js";
 import { canonicalAccountName } from "./account-name.js";
 import { ADMIN_ACTIONS, recordAdminAction, type AuditActorInput } from "./admin-audit.js";
 import { BASELINE_RULES, coreRules, seedRuleId, type SeedRule } from "./baseline-policy.js";
 import { withFileLock } from "./file-lock.js";
-import { governanceHomeDir, isUnconfiguredTestRun, policyFilePath } from "./paths.js";
+import { ensureGroupDir, isUnconfiguredTestRun, policyFilePath } from "./paths.js";
 import {
   defaultPolicyDocument,
   isAskMode,
@@ -21,8 +20,16 @@ import {
 } from "./policy-types.js";
 import { detectRuleConflicts, type RuleConflict } from "./rule-conflicts.js";
 
-async function ensureHomeDir(): Promise<void> {
-  await mkdir(governanceHomeDir(), { recursive: true, mode: 0o700 });
+/**
+ * The installation root **and** this group's directory (M5).
+ *
+ * Every read and write below is now inside one group, so the directory that has
+ * to exist is the group's rather than the root. `ensureGroupDir` validates the
+ * id on the way through — see `paths.ts`, where a group id becomes a path
+ * segment and therefore has to be checked like one.
+ */
+async function ensureGroup(groupId: string): Promise<void> {
+  await ensureGroupDir(groupId);
 }
 
 /**
@@ -40,9 +47,9 @@ function coerce<T>(value: unknown, isValid: (candidate: unknown) => boolean, fal
   return isValid(value) ? (value as T) : fallback;
 }
 
-export async function loadPolicy(): Promise<PolicyDocument> {
-  await ensureHomeDir();
-  const existing = await readJsonIfExists<PolicyDocument>(policyFilePath());
+export async function loadPolicy(groupId: string): Promise<PolicyDocument> {
+  await ensureGroup(groupId);
+  const existing = await readJsonIfExists<PolicyDocument>(policyFilePath(groupId));
   const defaults = defaultPolicyDocument();
   if (!existing || typeof existing !== "object") {
     // A fresh installation: ship the baseline allowances alongside the core
@@ -224,6 +231,7 @@ export class NotACoreRuleError extends Error {
  * from any surface.
  */
 export async function setCoreRuleEnabled(
+  groupId: string,
   ruleId: string,
   enabled: boolean,
   actor: AuditActorInput,
@@ -240,7 +248,7 @@ export async function setCoreRuleEnabled(
   if (declared.selfProtecting && !enabled) {
     throw new SelfProtectingCoreRuleError(ruleId);
   }
-  const updated = await updatePolicy((doc) => {
+  const updated = await updatePolicy(groupId, (doc) => {
     const current = new Set(doc.disabledCoreRules ?? []);
     if (enabled) {
       current.delete(ruleId);
@@ -249,7 +257,7 @@ export async function setCoreRuleEnabled(
     }
     doc.disabledCoreRules = [...current].toSorted();
   });
-  await recordAdminAction({
+  await recordAdminAction(groupId, {
     actor,
     action: ADMIN_ACTIONS.coreRuleToggle,
     subjectId: ruleId,
@@ -262,9 +270,9 @@ export async function setCoreRuleEnabled(
   return updated;
 }
 
-export async function savePolicy(doc: PolicyDocument): Promise<void> {
-  await ensureHomeDir();
-  await writeJsonAtomic(policyFilePath(), doc, { mode: 0o600 });
+export async function savePolicy(groupId: string, doc: PolicyDocument): Promise<void> {
+  await ensureGroup(groupId);
+  await writeJsonAtomic(policyFilePath(groupId), doc, { mode: 0o600 });
 }
 
 /**
@@ -274,13 +282,18 @@ export async function savePolicy(doc: PolicyDocument): Promise<void> {
  * CLI vanishing because the Gateway wrote a stale copy back).
  */
 export async function updatePolicy(
+  groupId: string,
   mutate: (doc: PolicyDocument) => PolicyDocument | void,
 ): Promise<PolicyDocument> {
-  await ensureHomeDir();
-  return withFileLock(policyFilePath(), async () => {
-    const current = await loadPolicy();
+  await ensureGroup(groupId);
+  // The lock is now **per group**, which is a quiet improvement rather than
+  // only a consequence. One installation-wide lock meant two organisations
+  // editing unrelated rulebooks serialised against each other; a lock on the
+  // file actually being written is both correct and less contended.
+  return withFileLock(policyFilePath(groupId), async () => {
+    const current = await loadPolicy(groupId);
     const next = mutate(current) ?? current;
-    await savePolicy(next);
+    await savePolicy(groupId, next);
     return next;
   });
 }
@@ -289,9 +302,9 @@ export async function updatePolicy(
  * Prunes long-expired rules. Called when rules are added so the document does
  * not accumulate dead entries indefinitely, without needing a background job.
  */
-export async function pruneExpiredPolicyRules(): Promise<number> {
+export async function pruneExpiredPolicyRules(groupId: string): Promise<number> {
   let removed = 0;
-  await updatePolicy((doc) => {
+  await updatePolicy(groupId, (doc) => {
     const before = doc.rules.length;
     doc.rules = pruneExpiredRules(doc.rules, Date.now());
     removed = before - doc.rules.length;
@@ -365,6 +378,7 @@ export type AddRuleResult = { rule: PolicyRule; conflicts: RuleConflict[] };
  * request, and an escalation grant), and delegates here.
  */
 export async function addRuleChecked(
+  groupId: string,
   rule: Omit<PolicyRule, "id" | "createdAt"> & { id?: string },
   actor: AuditActorInput,
 ): Promise<AddRuleResult> {
@@ -390,7 +404,7 @@ export async function addRuleChecked(
   };
   let overflowed = false;
   let detected: RuleConflict[] = [];
-  await updatePolicy((doc) => {
+  await updatePolicy(groupId, (doc) => {
     // Opportunistic cleanup: piggy-backing on a write the operator already
     // triggered avoids a scheduler, and keeps the document from growing
     // without bound as short-lived grants come and go.
@@ -425,7 +439,7 @@ export async function addRuleChecked(
   if (overflowed) {
     throw new TooManyRulesError();
   }
-  await recordAdminAction({
+  await recordAdminAction(groupId, {
     actor,
     action: ADMIN_ACTIONS.ruleAdd,
     target: describeRule(full),
@@ -437,10 +451,11 @@ export async function addRuleChecked(
 
 /** Adds a rule, discarding the clash report. See `addRuleChecked`. */
 export async function addRule(
+  groupId: string,
   rule: Omit<PolicyRule, "id" | "createdAt"> & { id?: string },
   actor: AuditActorInput,
 ): Promise<PolicyRule> {
-  return (await addRuleChecked(rule, actor)).rule;
+  return (await addRuleChecked(groupId, rule, actor)).rule;
 }
 
 /**
@@ -462,10 +477,14 @@ export class ImmutableRuleError extends Error {
   }
 }
 
-export async function removeRule(ruleId: string, actor: AuditActorInput): Promise<boolean> {
+export async function removeRule(
+  groupId: string,
+  ruleId: string,
+  actor: AuditActorInput,
+): Promise<boolean> {
   let removed: PolicyRule | undefined;
   let blockedCore = false;
-  await updatePolicy((doc) => {
+  await updatePolicy(groupId, (doc) => {
     const target = doc.rules.find((r) => r.id === ruleId);
     if (target?.tier === "core") {
       blockedCore = true;
@@ -483,7 +502,7 @@ export async function removeRule(ruleId: string, actor: AuditActorInput): Promis
     // entries of their choosing.
     return false;
   }
-  await recordAdminAction({
+  await recordAdminAction(groupId, {
     actor,
     action: ADMIN_ACTIONS.ruleRemove,
     // The removed rule is described in full: after deletion the ledger is the
@@ -495,13 +514,17 @@ export async function removeRule(ruleId: string, actor: AuditActorInput): Promis
   return true;
 }
 
-export async function setMode(mode: PolicyDocument["mode"], actor: AuditActorInput): Promise<void> {
+export async function setMode(
+  groupId: string,
+  mode: PolicyDocument["mode"],
+  actor: AuditActorInput,
+): Promise<void> {
   let previous: PolicyDocument["mode"] | undefined;
-  await updatePolicy((doc) => {
+  await updatePolicy(groupId, (doc) => {
     previous = doc.mode;
     doc.mode = mode;
   });
-  await recordAdminAction({
+  await recordAdminAction(groupId, {
     actor,
     action: ADMIN_ACTIONS.modeChange,
     target: `posture ${previous} -> ${mode}`,
@@ -517,15 +540,16 @@ export async function setMode(mode: PolicyDocument["mode"], actor: AuditActorInp
  * without an actor, and it is now confined to internal use and tests.
  */
 export async function setAskMode(
+  groupId: string,
   ask: PolicyDocument["ask"],
   actor: AuditActorInput,
 ): Promise<void> {
   let previous: PolicyDocument["ask"] | undefined;
-  await updatePolicy((doc) => {
+  await updatePolicy(groupId, (doc) => {
     previous = doc.ask;
     doc.ask = ask;
   });
-  await recordAdminAction({
+  await recordAdminAction(groupId, {
     actor,
     action: ADMIN_ACTIONS.askChange,
     target: `ask on unlisted action ${previous} -> ${ask}`,
@@ -533,13 +557,17 @@ export async function setAskMode(
 }
 
 /** Sets how long an escalation waits for a human before it is denied. */
-export async function setHitlTimeout(seconds: number, actor: AuditActorInput): Promise<void> {
+export async function setHitlTimeout(
+  groupId: string,
+  seconds: number,
+  actor: AuditActorInput,
+): Promise<void> {
   let previous: number | undefined;
-  await updatePolicy((doc) => {
+  await updatePolicy(groupId, (doc) => {
     previous = doc.hitlTimeoutSeconds;
     doc.hitlTimeoutSeconds = seconds;
   });
-  await recordAdminAction({
+  await recordAdminAction(groupId, {
     actor,
     action: ADMIN_ACTIONS.hitlTimeoutChange,
     target: `escalation window ${previous}s -> ${seconds}s`,
@@ -553,18 +581,19 @@ export async function setHitlTimeout(seconds: number, actor: AuditActorInput): P
  * should follow for agents that never opted out.
  */
 export async function setAgentAskMode(
+  groupId: string,
   agentId: string,
   ask: PolicyDocument["ask"] | undefined,
   actor: AuditActorInput,
 ): Promise<void> {
-  await updatePolicy((doc) => {
+  await updatePolicy(groupId, (doc) => {
     if (ask === undefined) {
       delete doc.agentAsk[agentId];
       return;
     }
     doc.agentAsk[agentId] = ask;
   });
-  await recordAdminAction({
+  await recordAdminAction(groupId, {
     actor,
     action: ADMIN_ACTIONS.agentAskChange,
     agentId,
@@ -584,6 +613,7 @@ export async function setAgentAskMode(
  * agent setting and the installation default.
  */
 export async function setUserAskMode(
+  groupId: string,
   username: string,
   ask: PolicyDocument["ask"] | undefined,
   actor: AuditActorInput,
@@ -598,14 +628,14 @@ export async function setUserAskMode(
   // account (A1), and fixed first, because an exact axis built on a key space
   // that does not match is exact about the wrong thing.
   const key = canonicalAccountName(username);
-  await updatePolicy((doc) => {
+  await updatePolicy(groupId, (doc) => {
     if (ask === undefined) {
       delete doc.userAsk[key];
       return;
     }
     doc.userAsk[key] = ask;
   });
-  await recordAdminAction({
+  await recordAdminAction(groupId, {
     actor,
     action: ADMIN_ACTIONS.userAskChange,
     subjectId: username,
@@ -625,12 +655,13 @@ export async function setUserAskMode(
  * an Administrator for any agent — so no new permission concept is needed.
  */
 export async function setAgentMode(
+  groupId: string,
   agentId: string,
   mode: GovernanceMode | undefined,
   actor: AuditActorInput,
 ): Promise<void> {
   let previous: GovernanceMode | undefined;
-  await updatePolicy((doc) => {
+  await updatePolicy(groupId, (doc) => {
     previous = doc.agentMode[agentId];
     if (mode === undefined) {
       delete doc.agentMode[agentId];
@@ -638,7 +669,7 @@ export async function setAgentMode(
     }
     doc.agentMode[agentId] = mode;
   });
-  await recordAdminAction({
+  await recordAdminAction(groupId, {
     actor,
     action: ADMIN_ACTIONS.agentModeChange,
     agentId,
@@ -650,20 +681,20 @@ export async function setAgentMode(
 }
 
 /** Test-only accessor so a suite can inspect the document on disk. */
-export function policyFilePathForTests(): string {
-  return policyFilePath();
+export function policyFilePathForTests(groupId: string): string {
+  return policyFilePath(groupId);
 }
 
-export async function lockAgent(agentId: string): Promise<void> {
-  await updatePolicy((doc) => {
+export async function lockAgent(groupId: string, agentId: string): Promise<void> {
+  await updatePolicy(groupId, (doc) => {
     if (!doc.lockedAgents.includes(agentId)) {
       doc.lockedAgents.push(agentId);
     }
   });
 }
 
-export async function unlockAgent(agentId: string): Promise<void> {
-  await updatePolicy((doc) => {
+export async function unlockAgent(groupId: string, agentId: string): Promise<void> {
+  await updatePolicy(groupId, (doc) => {
     doc.lockedAgents = doc.lockedAgents.filter((id) => id !== agentId);
   });
 }

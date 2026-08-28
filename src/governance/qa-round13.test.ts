@@ -22,18 +22,26 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { INSTALLATION_LEDGER_GROUP } from "./paths.js";
 import { matchesPattern } from "./pattern-match.js";
 import { evaluateGovernancePolicy } from "./policy-engine.js";
 import { loadPolicy, savePolicy } from "./policy-store.js";
 import { resolveGovernedTool } from "./resource-extraction.js";
 import { validateRulePattern } from "./rule-validation.js";
+import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
 let workspace: string;
 
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-qa13-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  TEST_GROUP = await seedGroupWithAgents(["agent-a"]);
   workspace = await mkdtemp(join(tmpdir(), "governance-qa13-ws-"));
 });
 
@@ -65,8 +73,8 @@ function verdict(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>)
 
 /** Refuse rather than escalate, keeping the shipped rules. */
 async function enforceStrictly(): Promise<void> {
-  const doc = await loadPolicy();
-  await savePolicy({ ...doc, mode: "enforce", ask: "off" });
+  const doc = await loadPolicy(TEST_GROUP);
+  await savePolicy(TEST_GROUP, { ...doc, mode: "enforce", ask: "off" });
 }
 
 /**
@@ -81,8 +89,8 @@ async function enforceStrictly(): Promise<void> {
  * is why the newline case below installs a rule that genuinely matches.
  */
 async function onlyDenialsCanRefuse(kind: "command" | "path" | "network"): Promise<void> {
-  const doc = await loadPolicy();
-  await savePolicy({
+  const doc = await loadPolicy(TEST_GROUP);
+  await savePolicy(TEST_GROUP, {
     ...doc,
     mode: "enforce",
     ask: "off",
@@ -188,8 +196,8 @@ describe("qa round 13 — control surfaces are governed (findings 71–73)", () 
   it("lets an operator grant one surface without granting the rest", async () => {
     // The resource shape has to be writable as a rule, or governing the surface
     // just breaks it. `<tool>:<action>` is what makes a targeted grant possible.
-    const doc = await loadPolicy();
-    await savePolicy({
+    const doc = await loadPolicy(TEST_GROUP);
+    await savePolicy(TEST_GROUP, {
       ...doc,
       mode: "enforce",
       ask: "off",
@@ -232,8 +240,8 @@ describe("qa round 13 — a hand-edited policy cannot switch the gate off (findi
    * remove the protections; you switched off the agent they applied to.
    */
   it("ignores a stored per-agent `off` and keeps the kill switch binding", async () => {
-    const doc = await loadPolicy();
-    await savePolicy({
+    const doc = await loadPolicy(TEST_GROUP);
+    await savePolicy(TEST_GROUP, {
       ...doc,
       mode: "enforce",
       ask: "off",
@@ -247,13 +255,16 @@ describe("qa round 13 — a hand-edited policy cannot switch the gate off (findi
     expect(verdict(decision)).toBe("block");
     // Dropped rather than coerced upward: an absent override means "follow the
     // installation default", which is the documented meaning of having none.
-    expect((await loadPolicy()).agentMode["agent-a"]).toBeUndefined();
+    expect((await loadPolicy(TEST_GROUP)).agentMode["agent-a"]).toBeUndefined();
   });
 
   it("still honours the two postures the route does accept", async () => {
-    const doc = await loadPolicy();
-    await savePolicy({ ...doc, agentMode: { "agent-a": "monitor", "agent-b": "enforce" } });
-    const reloaded = await loadPolicy();
+    const doc = await loadPolicy(TEST_GROUP);
+    await savePolicy(TEST_GROUP, {
+      ...doc,
+      agentMode: { "agent-a": "monitor", "agent-b": "enforce" },
+    });
+    const reloaded = await loadPolicy(TEST_GROUP);
     expect(reloaded.agentMode["agent-a"]).toBe("monitor");
     expect(reloaded.agentMode["agent-b"]).toBe("enforce");
   });
@@ -462,7 +473,7 @@ describe("qa round 13 — a refusal records every resource it refused", () => {
       ctx(),
     );
     expect(verdict(decision)).toBe("block");
-    const refused = (await tailLedger(50))
+    const refused = (await tailLedger(TEST_GROUP, 50))
       .filter((entry) => entry.entryKind !== "admin" && entry.decision === "deny")
       .map((entry) => entry.resource);
     expect(refused).toEqual([".env", "id_rsa", "certs/server.pem"]);
@@ -471,8 +482,8 @@ describe("qa round 13 — a refusal records every resource it refused", () => {
 
 describe("qa round 13 — the kill switch holds on every path (finding 81)", () => {
   it("refuses a call that carries no agent id while a lockdown is in force", async () => {
-    const doc = await loadPolicy();
-    await savePolicy({ ...doc, mode: "enforce", lockedAgents: ["agent-a"] });
+    const doc = await loadPolicy(TEST_GROUP);
+    await savePolicy(TEST_GROUP, { ...doc, mode: "enforce", lockedAgents: ["agent-a"] });
     const decision = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "ls" } },
       { cwd: workspace },
@@ -483,8 +494,8 @@ describe("qa round 13 — the kill switch holds on every path (finding 81)", () 
   it("still refuses when only the session key identifies the locked agent", async () => {
     // The B6 fallback, re-asserted alongside its residue so the two cannot
     // drift apart again.
-    const doc = await loadPolicy();
-    await savePolicy({ ...doc, mode: "enforce", lockedAgents: ["agent-a"] });
+    const doc = await loadPolicy(TEST_GROUP);
+    await savePolicy(TEST_GROUP, { ...doc, mode: "enforce", lockedAgents: ["agent-a"] });
     const decision = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "ls" } },
       { sessionKey: "agent:agent-a:main", cwd: workspace },
@@ -492,34 +503,62 @@ describe("qa round 13 — the kill switch holds on every path (finding 81)", () 
     expect(verdict(decision)).toBe("block");
   });
 
-  it("changes nothing when no agent is locked", async () => {
-    // The over-blocking is bounded to an active incident. With an empty
-    // lockdown list an unattributable call is evaluated exactly as before.
-    const doc = await loadPolicy();
-    await savePolicy({ ...doc, mode: "enforce", ask: "off", lockedAgents: [] });
+  it("refuses an unattributable call even with nothing locked — widened by M5", async () => {
+    /**
+     * **This asserted `allow` until M5, and the change is a consequence of
+     * per-group storage rather than a new policy.**
+     *
+     * Finding 81 refused an unattributable call *during an incident*, and the
+     * comment here said the over-blocking was "bounded to an active incident:
+     * with an empty lockdown list an unattributable call is evaluated exactly
+     * as before". That was right while one policy document governed the whole
+     * installation — there was always a rulebook to evaluate against.
+     *
+     * There no longer is. A call the gate cannot attribute belongs to no
+     * organisation, so there is no document to judge it by, and inventing one
+     * would mean choosing an organisation's rules for a caller that named none.
+     * The honest answer is refusal, and it is now unconditional.
+     *
+     * Worth stating in the report as a **widening that was not designed**: M5
+     * set out to separate storage and, in doing so, turned an incident-only
+     * refusal into a permanent one. The bound the original comment relied on
+     * was the shared document, not the lockdown list.
+     */
+    const doc = await loadPolicy(TEST_GROUP);
+    await savePolicy(TEST_GROUP, { ...doc, mode: "enforce", ask: "off", lockedAgents: [] });
     const decision = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "ls" } },
       { cwd: workspace },
     );
-    expect(verdict(decision)).toBe("allow");
+    expect(verdict(decision)).toBe("block");
   });
 
   it("records the two cases under different rule ids", async () => {
     // An auditor has to be able to count "we stopped the agent you named"
     // separately from "we stopped a call we could not attribute".
     const { tailLedger } = await import("./audit-ledger.js");
-    const doc = await loadPolicy();
-    await savePolicy({ ...doc, mode: "enforce", lockedAgents: ["agent-a"] });
+    const doc = await loadPolicy(TEST_GROUP);
+    await savePolicy(TEST_GROUP, { ...doc, mode: "enforce", lockedAgents: ["agent-a"] });
     await evaluateGovernancePolicy({ toolName: "exec", params: { command: "ls" } }, ctx());
     await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "ls" } },
       { cwd: workspace },
     );
-    const ruleIds = (await tailLedger(20))
+    // **The two cases are now in two different ledgers, which separates them
+    // more sharply than two ids in one ever did (M5).** The named agent belongs
+    // to an organisation, so its refusal is in that organisation's trail. The
+    // unattributable call belongs to none, so its refusal is installation-wide
+    // under `agent-not-registered` — and `kill-switch-unattributable` was
+    // deleted as unreachable, because reaching the lockdown check now requires a
+    // resolved group and a group is resolved from the agent id.
+    const ruleIds = (await tailLedger(TEST_GROUP, 20))
       .filter((entry) => entry.entryKind !== "admin")
       .map((entry) => entry.ruleId);
+    const installationIds = (await tailLedger(INSTALLATION_LEDGER_GROUP, 20))
+      .filter((entry) => entry.entryKind !== "admin")
+      .map((entry) => entry.ruleId);
+    expect(installationIds).toContain("agent-not-registered");
     expect(ruleIds).toContain("kill-switch");
-    expect(ruleIds).toContain("kill-switch-unattributable");
   });
 });
 

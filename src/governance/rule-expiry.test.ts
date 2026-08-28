@@ -25,14 +25,21 @@ import {
   ruleTimeRemainingMs,
   type PolicyRule,
 } from "./policy-types.js";
+import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
 const NOW = 1_800_000_000_000;
 
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-expiry-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
+  TEST_GROUP = await seedGroupWithAgents(["a"]);
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
 });
 
 afterEach(async () => {
@@ -81,7 +88,7 @@ describe("time-limited rules", () => {
     // whatever expiry did — it has to exercise a grant that is genuinely the
     // only thing permitting the action.
     const pattern = "^deploy-service$";
-    await addRule({
+    await addRule(TEST_GROUP, {
       resourceKind: "command",
       pattern,
       expiresAt: new Date(Date.now() + 60_000).toISOString(),
@@ -94,7 +101,7 @@ describe("time-limited rules", () => {
 
     // Move the rule's expiry into the past rather than waiting. Located by
     // pattern, not by index: index 0 is a shipped core rule now.
-    await updatePolicy((doc) => {
+    await updatePolicy(TEST_GROUP, (doc) => {
       const target = doc.rules.find((rule) => rule.pattern === pattern);
       if (target) {
         target.expiresAt = new Date(Date.now() - 1000).toISOString();
@@ -144,7 +151,7 @@ describe("retention of lapsed rules", () => {
   });
 
   it("prunes as a side effect of adding a rule, with no scheduler", async () => {
-    await updatePolicy((doc) => {
+    await updatePolicy(TEST_GROUP, (doc) => {
       doc.rules = [
         rule({
           id: "ancient",
@@ -152,14 +159,14 @@ describe("retention of lapsed rules", () => {
         }),
       ];
     });
-    await addRule({ resourceKind: "command", pattern: "^new$" });
-    const ids = (await loadPolicy()).rules.map((r) => r.id);
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^new$" });
+    const ids = (await loadPolicy(TEST_GROUP)).rules.map((r) => r.id);
     expect(ids).not.toContain("ancient");
     expect(ids.some((id) => id.startsWith("command-"))).toBe(true);
   });
 
   it("can be pruned explicitly and reports how many went", async () => {
-    await updatePolicy((doc) => {
+    await updatePolicy(TEST_GROUP, (doc) => {
       doc.rules = [
         rule({
           id: "a",
@@ -172,8 +179,8 @@ describe("retention of lapsed rules", () => {
         rule({ id: "keep" }),
       ];
     });
-    expect(await pruneExpiredPolicyRules()).toBe(2);
-    const operatorIds = (await loadPolicy()).rules
+    expect(await pruneExpiredPolicyRules(TEST_GROUP)).toBe(2);
+    const operatorIds = (await loadPolicy(TEST_GROUP)).rules
       .filter((entry) => !isShippedRule(entry))
       .map((r) => r.id);
     expect(operatorIds).toEqual(["keep"]);
@@ -189,9 +196,9 @@ describe("the ruleset is bounded", () => {
       pattern: `^cmd-${index}$`,
       createdAt: new Date().toISOString(),
     }));
-    await savePolicy(doc);
+    await savePolicy(TEST_GROUP, doc);
     await expect(
-      addRule({ resourceKind: "command", pattern: "^one-more$" }, "kinan"),
+      addRule(TEST_GROUP, { resourceKind: "command", pattern: "^one-more$" }, "kinan"),
     ).rejects.toBeInstanceOf(TooManyRulesError);
   });
 
@@ -207,9 +214,9 @@ describe("the ruleset is bounded", () => {
       createdAt: longAgo,
       expiresAt: longAgo,
     }));
-    await savePolicy(doc);
+    await savePolicy(TEST_GROUP, doc);
     await expect(
-      addRule({ resourceKind: "command", pattern: "^one-more$" }, "kinan"),
+      addRule(TEST_GROUP, { resourceKind: "command", pattern: "^one-more$" }, "kinan"),
     ).resolves.toMatchObject({ pattern: "^one-more$" });
   });
 });

@@ -22,22 +22,30 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { clearAgentTerminator, registerAgentTerminator } from "../governance/agent-terminator.js";
 import { tailLedger } from "../governance/audit-ledger.js";
 import { resetLedgerKeyCacheForTests } from "../governance/ledger-key.js";
+import { INSTALLATION_LEDGER_GROUP } from "../governance/paths.js";
 import { evaluateGovernancePolicy } from "../governance/policy-engine.js";
 import { addRule, loadPolicy, savePolicy } from "../governance/policy-store.js";
 import { defaultPolicyDocument } from "../governance/policy-types.js";
 import type { GovernanceRole } from "../governance/roles.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
+import { seedGroupWithAgents } from "../governance/test-group.js";
 import { handleGovernanceApiRequest } from "./governance-dashboard-api.js";
 
 let dir: string;
 let workspace: string;
 
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-kill-e2e-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  TEST_GROUP = await seedGroupWithAgents(["a1", "a2"]);
   resetLedgerKeyCacheForTests();
   workspace = await mkdtemp(join(tmpdir(), "governance-kill-ws-"));
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
 });
 
 afterEach(async () => {
@@ -57,6 +65,7 @@ function session(role: GovernanceRole, assignedAgents: string[] = []): Governanc
     createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
     assignedAgents,
+    groupId: TEST_GROUP,
   };
 }
 
@@ -132,7 +141,7 @@ function verdict(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>)
 
 describe("the emergency stop, end to end", () => {
   it("an allowed action becomes a blocked one, and the agent stays blocked", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
     // Before: the agent may run the allowlisted command.
     expect(
       verdict(
@@ -161,7 +170,7 @@ describe("the emergency stop, end to end", () => {
   });
 
   it("stops only the named agent", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
     await post("kill", session("administrator"), { agentId: "a1" });
 
     expect(
@@ -218,7 +227,7 @@ describe("the emergency stop, end to end", () => {
   it("records who pressed it, in the tamper-evident chain", async () => {
     await post("kill", session("root"), { agentId: "a1" });
 
-    const entries = await tailLedger(50);
+    const entries = await tailLedger(TEST_GROUP, 50);
     const lock = entries.find((e) => e.toolName === "governance.agent.lock");
     // "Who stopped this agent" is the first question after an incident, and it
     // has to be in the actor field rather than buried in a string.
@@ -228,7 +237,7 @@ describe("the emergency stop, end to end", () => {
   });
 
   it("is reversible, and the release is recorded too", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
     await post("kill", session("administrator"), { agentId: "a1" });
     const release = await post("kill", session("administrator"), { agentId: "a1", locked: false });
 
@@ -238,7 +247,7 @@ describe("the emergency stop, end to end", () => {
         await evaluateGovernancePolicy({ toolName: "exec", params: { command: "ls" } }, ctx("a1")),
       ),
     ).toBe("allow");
-    const entries = await tailLedger(50);
+    const entries = await tailLedger(TEST_GROUP, 50);
     expect(entries.some((e) => e.toolName === "governance.agent.release")).toBe(true);
   });
 });
@@ -247,13 +256,13 @@ describe("who may press it", () => {
   it("lets a User stop an agent assigned to them", async () => {
     const stop = await post("kill", session("user", ["a1"]), { agentId: "a1" });
     expect(stop.status).toBe(200);
-    expect((await loadPolicy()).lockedAgents).toContain("a1");
+    expect((await loadPolicy(TEST_GROUP)).lockedAgents).toContain("a1");
   });
 
   it("refuses a User another team's agent", async () => {
     const stop = await post("kill", session("user", ["a1"]), { agentId: "a2" });
     expect(stop.status).toBe(403);
-    expect((await loadPolicy()).lockedAgents).not.toContain("a2");
+    expect((await loadPolicy(TEST_GROUP)).lockedAgents).not.toContain("a2");
   });
 
   it("refuses a Viewer even for an agent they can see", async () => {
@@ -261,7 +270,7 @@ describe("who may press it", () => {
     // agent is authority, and Viewer is defined as strictly read-only.
     const stop = await post("kill", session("viewer", ["a1"]), { agentId: "a1" });
     expect(stop.status).toBe(403);
-    expect((await loadPolicy()).lockedAgents).not.toContain("a1");
+    expect((await loadPolicy(TEST_GROUP)).lockedAgents).not.toContain("a1");
   });
 
   it("refuses an unauthenticated caller", async () => {
@@ -276,13 +285,13 @@ describe("round thirteen's three silent failures stay closed", () => {
     // person deciding during an incident that this agent stops now. Monitor is
     // opt-in and off by default, but an operator who switched one agent to
     // observe has not thereby said the emergency stop should stop working.
-    await savePolicy({
+    await savePolicy(TEST_GROUP, {
       ...defaultPolicyDocument(),
       mode: "enforce",
       ask: "off",
       agentMode: { a1: "monitor" },
     });
-    await addRule({ resourceKind: "command", pattern: "^ls$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
     await post("kill", session("administrator"), { agentId: "a1" });
 
     expect(
@@ -296,13 +305,13 @@ describe("round thirteen's three silent failures stay closed", () => {
     // `off` means the gate is not running, so a lockdown could not be enforced
     // — which made it a way to opt out of the emergency stop by editing a JSON
     // file. Dropped on load.
-    await savePolicy({
+    await savePolicy(TEST_GROUP, {
       ...defaultPolicyDocument(),
       mode: "enforce",
       ask: "off",
       agentMode: { a1: "off" },
     });
-    await addRule({ resourceKind: "command", pattern: "^ls$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
     await post("kill", session("administrator"), { agentId: "a1" });
 
     expect(
@@ -313,7 +322,7 @@ describe("round thirteen's three silent failures stay closed", () => {
   });
 
   it("refuses an unattributable call while any agent is locked", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
     await post("kill", session("administrator"), { agentId: "a1" });
 
     // Neither agentId nor a parseable session key. With a lockdown in force
@@ -328,8 +337,12 @@ describe("round thirteen's three silent failures stay closed", () => {
       ),
     ).toBe("block");
 
-    const entries = await tailLedger(50);
-    expect(entries.some((e) => e.ruleId === "kill-switch-unattributable")).toBe(true);
+    // Installation-wide, and under a different id, since M5. A call carrying no
+    // agent id belongs to no organisation, so there is no organisation's ledger
+    // to write it to — and `kill-switch-unattributable` was deleted as
+    // unreachable once reaching the lockdown check required a resolved group.
+    const entries = await tailLedger(INSTALLATION_LEDGER_GROUP, 50);
+    expect(entries.some((e) => e.ruleId === "agent-not-registered")).toBe(true);
   });
 
   it("rejects a call carrying no agentId rather than pretending to stop something", async () => {

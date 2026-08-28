@@ -23,16 +23,23 @@ import {
 } from "./policy-projection.js";
 import { addRule, loadPolicy, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument, type PolicyDocument, type PolicyRule } from "./policy-types.js";
+import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
 let workspace: string;
 
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-projection-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  TEST_GROUP = await seedGroupWithAgents(["agent-a", "agent-b", "from-rule"]);
   resetLedgerKeyCacheForTests();
   workspace = await mkdtemp(join(tmpdir(), "governance-projection-ws-"));
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
 });
 
 afterEach(async () => {
@@ -191,8 +198,8 @@ describe("the view agrees with the gate", () => {
   }
 
   it("an agent-scoped allowance appears for its agent and authorizes only that agent", async () => {
-    await addRule({ resourceKind: "command", pattern: "^whoami$", agentId: "agent-a" });
-    const policy = await loadPolicy();
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^whoami$", agentId: "agent-a" });
+    const policy = await loadPolicy(TEST_GROUP);
 
     // The projection says the rule binds agent-a and not agent-b...
     expect(rulesForAgent(policy, "agent-a").some((e) => e.rule.pattern === "^whoami$")).toBe(true);
@@ -219,8 +226,8 @@ describe("the view agrees with the gate", () => {
   });
 
   it("a global allowance appears for every agent and authorizes every agent", async () => {
-    await addRule({ resourceKind: "command", pattern: "^hostname$" });
-    const policy = await loadPolicy();
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^hostname$" });
+    const policy = await loadPolicy(TEST_GROUP);
 
     for (const agentId of ["agent-a", "agent-b"]) {
       expect(rulesForAgent(policy, agentId).some((e) => e.rule.pattern === "^hostname$")).toBe(
@@ -238,8 +245,8 @@ describe("the view agrees with the gate", () => {
   });
 
   it("every rule the projection omits is one the gate does not consult", async () => {
-    await addRule({ resourceKind: "command", pattern: "^only-b$", agentId: "agent-b" });
-    const policy = await loadPolicy();
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^only-b$", agentId: "agent-b" });
+    const policy = await loadPolicy(TEST_GROUP);
 
     const visibleToA = new Set(rulesForAgent(policy, "agent-a").map((e) => e.rule.id));
     const omitted = policy.rules.filter((r) => !visibleToA.has(r.id));

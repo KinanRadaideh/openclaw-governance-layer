@@ -121,7 +121,12 @@ export class GovernanceLockLostError extends Error {
 }
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  // Block body, not a concise one: a concise arrow returns the Timeout handle
+  // out of the Promise executor, whose return value is discarded. Harmless and
+  // still wrong to write, because it reads as if the handle were being kept.
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 /** Randomized, bounded exponential backoff for attempt `n` (0-based). */
@@ -314,7 +319,11 @@ export async function withFileLock<T>(
         throw err;
       }
       if (Date.now() > deadline) {
-        throw new Error(`Timed out waiting for governance lock: ${lockPath}`);
+        // `cause` carries the contention error that actually ended the wait.
+        // Without it the timeout reports only that a deadline passed, and the
+        // EBUSY/EEXIST underneath — the thing that says *why* the lock could
+        // not be taken — is dropped on the one path an operator investigates.
+        throw new Error(`Timed out waiting for governance lock: ${lockPath}`, { cause: err });
       }
       await reapStaleLock(lockPath);
       await sleep(retryDelayMs(attempt));

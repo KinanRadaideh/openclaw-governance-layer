@@ -48,16 +48,26 @@ import { tailLedger } from "./audit-ledger.js";
 import { resetLedgerKeyCacheForTests } from "./ledger-key.js";
 import { savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
+import { seedGroupWithAgents } from "./test-group.js";
 import { createUser, listUsers, newGroupId } from "./user-store.js";
 
 const PASSWORD = "correct-horse-battery";
 let dir: string;
 
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-agents-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  TEST_GROUP = await seedGroupWithAgents([]);
+  // Deliberately empty. This suite creates its own organisations and registers
+  // into them, so pre-registering ids here would make "unregistered" tests
+  // assert against an agent that exists in some other group (M5).
   resetLedgerKeyCacheForTests();
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce" });
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce" });
 });
 
 afterEach(async () => {
@@ -281,17 +291,33 @@ describe("assignment is constrained to the account's own Administrator's agents"
     ).rejects.toThrow("is not yours to assign");
   });
 
-  it("allows an agent that predates the registry, which is the honest hole", async () => {
-    // Stated as a property rather than left implicit. An unregistered id is
-    // assignable, so the constraint can be sidestepped by not registering —
-    // which makes the registry a statement of ownership rather than a gate on
-    // it. Closing that needs registration to be mandatory, which needs M6's
-    // provisioning to exist first. A test says so out loud so the limit is not
-    // later read as tighter than it is.
+  it("refuses an agent that is not registered — the hole M5 closed", async () => {
+    /**
+     * **This test asserted the opposite until 2026-08-26, and the comment it
+     * carried is why it is worth reading now.**
+     *
+     * It used to say: an unregistered id is assignable, so the ownership
+     * constraint can be sidestepped by not registering — which makes the
+     * registry a statement of ownership rather than a gate on it — and closing
+     * that "needs registration to be mandatory, which needs M6's provisioning
+     * to exist first".
+     *
+     * The first half was right and the second was wrong in a specific,
+     * instructive way. It read *registering* an agent (recording it here) and
+     * *provisioning* one (creating it in the host's own config) as a single
+     * act. They are not: registration has been available on all three surfaces
+     * since M4 shipped. So mandatory registration never needed M6, and M5 took
+     * it — the gate refuses an agent it has no record of, and this refuses
+     * handing one out.
+     *
+     * The same shape as the three "blocked on the host" claims: a sentence that
+     * was true about one thing, written in words that read as true about
+     * another, and expensive precisely because nobody re-checked it.
+     */
     const org = await organisation("alpha");
-    expect(
-      await assignAgentsToAccount(await accountById(org.user.id), ["agent-legacy"], "alpha-admin"),
-    ).toBe(true);
+    await expect(
+      assignAgentsToAccount(await accountById(org.user.id), ["agent-legacy"], "alpha-admin"),
+    ).rejects.toThrow(/not in the agent registry/);
   });
 
   it("says nothing about an empty assignment", async () => {
@@ -385,7 +411,7 @@ describe("the registry writes to the same audit chain as everything else", () =>
       { id: "agent-a", displayName: "A", groupId: org.groupId, adminId: org.admin.id },
       "alpha-admin",
     );
-    const entries = await tailLedger(50);
+    const entries = await tailLedger(org.groupId, 50);
     const entry = entries.find((e) => e.toolName === ADMIN_ACTIONS.agentRegister);
     expect(entry?.resource).toContain("agent-a");
     expect(entry?.resource).toContain(org.admin.id);
@@ -398,7 +424,9 @@ describe("the registry writes to the same audit chain as everything else", () =>
       "alpha-admin",
     );
     await setAgentOwner("agent-a", org.other.id, org.groupId, "alpha-root");
-    const entry = (await tailLedger(50)).find((e) => e.toolName === ADMIN_ACTIONS.agentOwnerChange);
+    const entry = (await tailLedger(org.groupId, 50)).find(
+      (e) => e.toolName === ADMIN_ACTIONS.agentOwnerChange,
+    );
     expect(entry?.resource).toContain(org.admin.id);
     expect(entry?.resource).toContain(org.other.id);
   });
@@ -413,7 +441,9 @@ describe("the registry writes to the same audit chain as everything else", () =>
       "alpha-admin",
     );
     await unregisterAgent("agent-a", org.groupId, "alpha-admin");
-    const entry = (await tailLedger(50)).find((e) => e.toolName === ADMIN_ACTIONS.agentUnregister);
+    const entry = (await tailLedger(org.groupId, 50)).find(
+      (e) => e.toolName === ADMIN_ACTIONS.agentUnregister,
+    );
     expect(entry?.resource).toContain("Doomed");
     expect(entry?.resource).toContain(org.admin.id);
   });

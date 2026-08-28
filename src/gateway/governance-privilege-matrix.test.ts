@@ -21,14 +21,23 @@ import { savePolicy } from "../governance/policy-store.js";
 import { defaultPolicyDocument } from "../governance/policy-types.js";
 import { GOVERNANCE_ROLES, type GovernanceRole } from "../governance/roles.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
+import { seedGroupWithOwner } from "../governance/test-group.js";
 import { handleGovernanceApiRequest } from "./governance-dashboard-api.js";
 
 let dir: string;
 
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
+/** The Administrator who owns this suite's agents, so the session can *be* the owner. */
+let TEST_ADMIN: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-matrix-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
-  await savePolicy(defaultPolicyDocument());
+  ({ groupId: TEST_GROUP, adminId: TEST_ADMIN } = await seedGroupWithOwner(["agent-a", "agent-b"]));
+  await savePolicy(TEST_GROUP, defaultPolicyDocument());
 });
 
 afterEach(async () => {
@@ -39,7 +48,9 @@ afterEach(async () => {
 function session(role: GovernanceRole): GovernanceSession {
   return {
     token: `token-${role}`,
-    userId: `id-${role}`,
+    // The Administrator tier must *be* the owner: the agent routes check
+    // ownership as well as tier, and this suite is about the tier floor alone.
+    userId: role === "administrator" || role === "root" ? TEST_ADMIN : `id-${role}`,
     username: role,
     role,
     createdAt: new Date().toISOString(),
@@ -47,6 +58,7 @@ function session(role: GovernanceRole): GovernanceSession {
     // Broad assignment, so a refusal is never merely a scope miss — this suite
     // is about the tier check alone.
     assignedAgents: ["agent-a", "agent-b"],
+    groupId: TEST_GROUP,
   };
 }
 
@@ -211,6 +223,22 @@ const ROUTES: RouteCase[] = [
     route: "agents/unregister",
     floor: "administrator",
     body: { agentId: "agent-a" },
+  },
+  // Provisioning and deletion (M6). Same floor as the rest of the registry —
+  // agent management is the Administrator tier — but these two are the only
+  // routes in this table that *write to the host*, so the floor being right
+  // matters more here than anywhere else on the surface.
+  {
+    method: "POST",
+    route: "agents/provision",
+    floor: "administrator",
+    body: { displayName: "A" },
+  },
+  {
+    method: "POST",
+    route: "agents/deprovision",
+    floor: "administrator",
+    body: { agentId: "agent-a", deleteFromHost: false },
   },
   { method: "POST", route: "policy/hitl-timeout", floor: "root", body: { seconds: 60 } },
   // Root, not viewer like its neighbour `system`: this route reports the bind

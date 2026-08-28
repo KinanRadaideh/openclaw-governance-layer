@@ -18,6 +18,7 @@ import { ledgerFilePath } from "./paths.js";
 import { addRule, removeRule, savePolicy, setAskMode, setMode } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
 import { decideRuleRequest, submitRuleRequest } from "./rule-requests.js";
+import { seedNamedGroup } from "./test-group.js";
 import { createUser, deleteUser, setUserAssignedAgents, setUserRole } from "./user-store.js";
 
 /**
@@ -37,6 +38,7 @@ let dir: string;
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-admin-audit-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  await seedNamedGroup(TEST_GROUP, ["agent-a"]);
   // The ledger key is cached per process, so a key created by an earlier test
   // in this worker survives into the next test's fresh directory. That leak was
   // always here and was invisible until verification began asking whether the
@@ -45,7 +47,7 @@ beforeEach(async () => {
   // correctly, that its installation was keyed. `ledger-integrity.test.ts` has
   // reset it from the start; this file had not.
   resetLedgerKeyCacheForTests();
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce" });
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce" });
 });
 
 afterEach(async () => {
@@ -55,7 +57,7 @@ afterEach(async () => {
 });
 
 async function adminEntries(): Promise<LedgerEntry[]> {
-  return (await tailLedger(500)).filter((entry) => entry.entryKind === "admin");
+  return (await tailLedger(TEST_GROUP, 500)).filter((entry) => entry.entryKind === "admin");
 }
 
 async function entryFor(action: string): Promise<LedgerEntry | undefined> {
@@ -64,7 +66,7 @@ async function entryFor(action: string): Promise<LedgerEntry | undefined> {
 
 describe("policy changes are attributable", () => {
   it("records who added a rule, and what the rule actually grants", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls$" }, "kinan");
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "kinan");
     const entry = await entryFor(ADMIN_ACTIONS.ruleAdd);
     expect(entry?.actor).toBe("kinan");
     // Scope and lifetime, not just the pattern: the same pattern is a very
@@ -77,10 +79,11 @@ describe("policy changes are attributable", () => {
 
   it("describes a removed rule in full, because nothing else still holds it", async () => {
     const rule = await addRule(
+      TEST_GROUP,
       { resourceKind: "path", pattern: "^src/.*$", agentId: "agent-a" },
       "kinan",
     );
-    await removeRule(rule.id, "malek");
+    await removeRule(TEST_GROUP, rule.id, "malek");
     const entry = await entryFor(ADMIN_ACTIONS.ruleRemove);
     expect(entry?.actor).toBe("malek");
     expect(entry?.resource).toContain("^src/.*$");
@@ -88,22 +91,22 @@ describe("policy changes are attributable", () => {
   });
 
   it("does not record a removal that removed nothing", async () => {
-    expect(await removeRule("no-such-rule", "mallory")).toBe(false);
+    expect(await removeRule(TEST_GROUP, "no-such-rule", "mallory")).toBe(false);
     // Otherwise anyone who can reach the endpoint could pad the ledger with
     // entries of their choosing without changing any state.
     expect(await entryFor(ADMIN_ACTIONS.ruleRemove)).toBeUndefined();
   });
 
   it("records a posture change as a transition, not just a destination", async () => {
-    await setMode("off", "kinan");
+    await setMode(TEST_GROUP, "off", "kinan");
     const entry = await entryFor(ADMIN_ACTIONS.modeChange);
     expect(entry?.actor).toBe("kinan");
     expect(entry?.resource).toContain("enforce -> off");
   });
 
   it("records switching the gate off — the change an attacker would most want unlogged", async () => {
-    await setMode("off", "mallory");
-    await setAskMode("off", "mallory");
+    await setMode(TEST_GROUP, "off", "mallory");
+    await setAskMode(TEST_GROUP, "off", "mallory");
     const actions = (await adminEntries()).map((entry) => entry.toolName);
     expect(actions).toContain(ADMIN_ACTIONS.modeChange);
     expect(actions).toContain(ADMIN_ACTIONS.askChange);
@@ -111,12 +114,16 @@ describe("policy changes are attributable", () => {
 
   it("scopes an agent-specific change to that agent, so its assigned User can see it", async () => {
     // projectLedgerForActor filters by agent, so this field decides visibility.
-    await addRule({ resourceKind: "command", pattern: "^ls$", agentId: "agent-a" }, "kinan");
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "command", pattern: "^ls$", agentId: "agent-a" },
+      "kinan",
+    );
     expect((await entryFor(ADMIN_ACTIONS.ruleAdd))?.agentId).toBe("agent-a");
   });
 
   it("marks an installation-wide change as belonging to no single agent", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls$" }, "kinan");
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "kinan");
     expect((await entryFor(ADMIN_ACTIONS.ruleAdd))?.agentId).toBe("-");
   });
 });
@@ -239,13 +246,13 @@ describe("account changes are attributable", () => {
 describe("approvals are attributable", () => {
   it("records an approval as one person granting another's request", async () => {
     // The most literal reading of "administrative approvals" in requirement #5.
-    const request = await submitRuleRequest({
+    const request = await submitRuleRequest(TEST_GROUP, {
       resourceKind: "command",
       pattern: "^git status$",
       reason: "needed for the build check",
       requestedBy: "malek",
     });
-    await decideRuleRequest({ id: request.id, approve: true, decidedBy: "kinan" });
+    await decideRuleRequest(TEST_GROUP, { id: request.id, approve: true, decidedBy: "kinan" });
     const entry = await entryFor(ADMIN_ACTIONS.ruleRequestDecide);
     expect(entry?.actor).toBe("kinan");
     expect(entry?.decision).toBe("allow");
@@ -254,13 +261,13 @@ describe("approvals are attributable", () => {
   });
 
   it("records a refusal as distinctly as a grant", async () => {
-    const request = await submitRuleRequest({
+    const request = await submitRuleRequest(TEST_GROUP, {
       resourceKind: "command",
       pattern: "^curl .*$",
       reason: "please",
       requestedBy: "malek",
     });
-    await decideRuleRequest({ id: request.id, approve: false, decidedBy: "kinan" });
+    await decideRuleRequest(TEST_GROUP, { id: request.id, approve: false, decidedBy: "kinan" });
     expect((await entryFor(ADMIN_ACTIONS.ruleRequestDecide))?.decision).toBe("deny");
   });
 });
@@ -302,14 +309,14 @@ describe("tamper-evidence survives the added fields", () => {
   it("still verifies a ledger written before administrative fields existed", async () => {
     // The format change must not make existing history look tampered with. A
     // log whose own migration invalidates its past is not a tamper-evident log.
-    await writeFile(ledgerFilePath(), legacyLine(), { mode: 0o600 });
-    expect(await verifyLedgerChain()).toEqual({ ok: true, entriesChecked: 1 });
+    await writeFile(ledgerFilePath(TEST_GROUP), legacyLine(), { mode: 0o600 });
+    expect(await verifyLedgerChain(TEST_GROUP)).toEqual({ ok: true, entriesChecked: 1 });
   });
 
   it("continues an old chain with new administrative entries", async () => {
-    await writeFile(ledgerFilePath(), legacyLine(), { mode: 0o600 });
-    await setMode("off", "kinan");
-    const result = await verifyLedgerChain();
+    await writeFile(ledgerFilePath(TEST_GROUP), legacyLine(), { mode: 0o600 });
+    await setMode(TEST_GROUP, "off", "kinan");
+    const result = await verifyLedgerChain(TEST_GROUP);
     expect(result.ok).toBe(true);
     expect(result.entriesChecked).toBe(2);
   });
@@ -318,8 +325,10 @@ describe("tamper-evidence survives the added fields", () => {
     // The attack the presence-based payload shape has to stop: back-dating an
     // attribution onto history. Adding the field switches the entry to the
     // longer hashed form, so the stored hash no longer matches.
-    await writeFile(ledgerFilePath(), legacyLine({ actor: "someone-else" }), { mode: 0o600 });
-    const result = await verifyLedgerChain();
+    await writeFile(ledgerFilePath(TEST_GROUP), legacyLine({ actor: "someone-else" }), {
+      mode: 0o600,
+    });
+    const result = await verifyLedgerChain(TEST_GROUP);
     expect(result.ok).toBe(false);
     expect(result.reason).toContain("hash");
   });
@@ -327,33 +336,37 @@ describe("tamper-evidence survives the added fields", () => {
   it("detects an actor stripped from an administrative entry", async () => {
     // The mirror image: covering your tracks by deleting the field that names
     // you, leaving the action recorded but unattributed.
-    await addRule({ resourceKind: "command", pattern: "^ls$" }, "mallory");
-    const raw = await readFile(ledgerFilePath(), "utf8");
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "mallory");
+    const raw = await readFile(ledgerFilePath(TEST_GROUP), "utf8");
     const line = raw.trim().split("\n").at(-1);
     const parsed = JSON.parse(line ?? "{}") as LedgerEntry & { actor?: string };
     delete parsed.actor;
-    await writeFile(ledgerFilePath(), `${JSON.stringify(parsed)}\n`, { mode: 0o600 });
-    expect((await verifyLedgerChain()).ok).toBe(false);
+    await writeFile(ledgerFilePath(TEST_GROUP), `${JSON.stringify(parsed)}\n`, { mode: 0o600 });
+    expect((await verifyLedgerChain(TEST_GROUP)).ok).toBe(false);
   });
 
   it("detects an actor's name being changed to somebody else's", async () => {
-    await addRule({ resourceKind: "command", pattern: "^ls$" }, "mallory");
-    const raw = await readFile(ledgerFilePath(), "utf8");
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "mallory");
+    const raw = await readFile(ledgerFilePath(TEST_GROUP), "utf8");
     const parsed = JSON.parse(raw.trim().split("\n").at(-1) ?? "{}") as LedgerEntry;
-    await writeFile(ledgerFilePath(), `${JSON.stringify({ ...parsed, actor: "kinan" })}\n`, {
-      mode: 0o600,
-    });
-    expect((await verifyLedgerChain()).ok).toBe(false);
+    await writeFile(
+      ledgerFilePath(TEST_GROUP),
+      `${JSON.stringify({ ...parsed, actor: "kinan" })}\n`,
+      {
+        mode: 0o600,
+      },
+    );
+    expect((await verifyLedgerChain(TEST_GROUP)).ok).toBe(false);
   });
 
   it("keeps one chain for agent and administrative activity, in order", async () => {
     // Interleaving is the point of a single chain: "the rule was widened, then
     // the agent used it" is only legible when both appear in one sequence.
-    await addRule({ resourceKind: "command", pattern: "^ls$" }, "kinan");
-    await appendFile(ledgerFilePath(), "", "utf8");
-    await setAskMode("off", "kinan");
-    const entries = await tailLedger();
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "kinan");
+    await appendFile(ledgerFilePath(TEST_GROUP), "", "utf8");
+    await setAskMode(TEST_GROUP, "off", "kinan");
+    const entries = await tailLedger(TEST_GROUP);
     expect(entries.map((entry) => entry.seq)).toEqual([1, 2]);
-    expect((await verifyLedgerChain()).ok).toBe(true);
+    expect((await verifyLedgerChain(TEST_GROUP)).ok).toBe(true);
   });
 });

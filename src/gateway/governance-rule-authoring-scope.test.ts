@@ -26,15 +26,22 @@ import { loadPolicy, savePolicy } from "../governance/policy-store.js";
 import { defaultPolicyDocument } from "../governance/policy-types.js";
 import type { GovernanceRole } from "../governance/roles.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
+import { seedGroupWithAgents } from "../governance/test-group.js";
 import { handleGovernanceApiRequest } from "./governance-dashboard-api.js";
 
 let dir: string;
 
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-authoring-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  TEST_GROUP = await seedGroupWithAgents(["any-agent", "mine", "someone-elses-agent", "theirs"]);
   resetLedgerKeyCacheForTests();
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
 });
 
 afterEach(async () => {
@@ -52,6 +59,7 @@ function session(role: GovernanceRole, assignedAgents: string[] = []): Governanc
     createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
     assignedAgents,
+    groupId: TEST_GROUP,
   };
 }
 
@@ -116,7 +124,7 @@ describe("Administrator and Root may add and change policy", () => {
     it(`${role} may create a global rule`, async () => {
       const res = await send("POST", "policy/rules", session(role), aRule());
       expect(res.status).toBe(200);
-      const policy = await loadPolicy();
+      const policy = await loadPolicy(TEST_GROUP);
       const created = policy.rules.find((r) => r.pattern === "^echo hi$");
       expect(created).toBeDefined();
       // No agent id means it binds every agent, which is what makes it a
@@ -134,9 +142,9 @@ describe("Administrator and Root may add and change policy", () => {
         aRule({ agentId: "someone-elses-agent", pattern: "^echo scoped$" }),
       );
       expect(res.status).toBe(200);
-      expect((await loadPolicy()).rules.some((r) => r.agentId === "someone-elses-agent")).toBe(
-        true,
-      );
+      expect(
+        (await loadPolicy(TEST_GROUP)).rules.some((r) => r.agentId === "someone-elses-agent"),
+      ).toBe(true);
     });
 
     it(`${role} may forbid as well as allow`, async () => {
@@ -147,15 +155,15 @@ describe("Administrator and Root may add and change policy", () => {
         aRule({ effect: "deny", pattern: "^rm -rf /$" }),
       );
       expect(res.status).toBe(200);
-      expect((await loadPolicy()).rules.some((r) => r.effect === "deny")).toBe(true);
+      expect((await loadPolicy(TEST_GROUP)).rules.some((r) => r.effect === "deny")).toBe(true);
     });
 
     it(`${role} may remove a rule`, async () => {
       await send("POST", "policy/rules", session(role), aRule());
-      const created = (await loadPolicy()).rules.find((r) => r.pattern === "^echo hi$");
+      const created = (await loadPolicy(TEST_GROUP)).rules.find((r) => r.pattern === "^echo hi$");
       const res = await send("POST", "policy/rules/remove", session(role), { id: created!.id });
       expect(res.status).toBe(200);
-      expect((await loadPolicy()).rules.some((r) => r.id === created!.id)).toBe(false);
+      expect((await loadPolicy(TEST_GROUP)).rules.some((r) => r.id === created!.id)).toBe(false);
     });
 
     it(`${role} may set a per-agent escalation and posture directly (T4)`, async () => {
@@ -188,7 +196,7 @@ describe("Administrator and Root may add and change policy", () => {
       expect((await send("POST", "policy/ask", session(role), { ask: "on-miss" })).status).toBe(
         200,
       );
-      const policy = await loadPolicy();
+      const policy = await loadPolicy(TEST_GROUP);
       expect(policy.mode).toBe("monitor");
       expect(policy.ask).toBe("on-miss");
     });
@@ -205,7 +213,7 @@ describe("a User may author policy for their own assigned agents", () => {
     );
 
     expect(res.status).toBe(200);
-    const created = (await loadPolicy()).rules.find((r) => r.pattern === "^echo hi$");
+    const created = (await loadPolicy(TEST_GROUP)).rules.find((r) => r.pattern === "^echo hi$");
     expect(created?.agentId).toBe("mine");
     // Recorded against the person, not the tier — the trail has to answer who
     // widened the rules, and "a user did" is not an answer.
@@ -221,18 +229,18 @@ describe("a User may author policy for their own assigned agents", () => {
     );
     expect(res.status).toBe(200);
     expect(
-      (await loadPolicy()).rules.some((r) => r.effect === "deny" && r.agentId === "mine"),
+      (await loadPolicy(TEST_GROUP)).rules.some((r) => r.effect === "deny" && r.agentId === "mine"),
     ).toBe(true);
   });
 
   it("may remove a rule they wrote for their own agent", async () => {
     await send("POST", "policy/rules", session("user", ["mine"]), aRule({ agentId: "mine" }));
-    const created = (await loadPolicy()).rules.find((r) => r.agentId === "mine");
+    const created = (await loadPolicy(TEST_GROUP)).rules.find((r) => r.agentId === "mine");
     const res = await send("POST", "policy/rules/remove", session("user", ["mine"]), {
       id: created!.id,
     });
     expect(res.status).toBe(200);
-    expect((await loadPolicy()).rules.some((r) => r.id === created!.id)).toBe(false);
+    expect((await loadPolicy(TEST_GROUP)).rules.some((r) => r.id === created!.id)).toBe(false);
   });
 
   it("may NOT set their own agent's escalation or posture directly (T4)", async () => {
@@ -291,7 +299,7 @@ describe("a User may author policy for their own assigned agents", () => {
     // A global rule is managing everyone's agents, which is above this tier no
     // matter how much of the installation this account happens to hold.
     expect(res.status).toBe(403);
-    expect((await loadPolicy()).rules.some((r) => r.pattern === "^echo hi$")).toBe(false);
+    expect((await loadPolicy(TEST_GROUP)).rules.some((r) => r.pattern === "^echo hi$")).toBe(false);
     // The refusal says what to do instead, rather than only that it was refused.
     expect(String(res.body?.error?.message)).toContain("agentId");
   });
@@ -304,14 +312,14 @@ describe("a User may author policy for their own assigned agents", () => {
       aRule({ agentId: "theirs" }),
     );
     expect(res.status).toBe(403);
-    expect((await loadPolicy()).rules.some((r) => r.agentId === "theirs")).toBe(false);
+    expect((await loadPolicy(TEST_GROUP)).rules.some((r) => r.agentId === "theirs")).toBe(false);
   });
 
   it("may NOT change the installation posture", async () => {
     expect(
       (await send("POST", "policy/mode", session("user", ["mine"]), { mode: "off" })).status,
     ).toBe(403);
-    expect((await loadPolicy()).mode).toBe("enforce");
+    expect((await loadPolicy(TEST_GROUP)).mode).toBe("enforce");
   });
 });
 
@@ -335,23 +343,23 @@ describe("a Viewer writes nothing, at either scope", () => {
     expect(res.status).toBe(403);
     // Not "no rules at all" — an installation ships with a tiered baseline
     // (§G), so the assertion is that *this* rule was not written.
-    expect((await loadPolicy()).rules.some((r) => r.pattern === "^echo hi$")).toBe(false);
+    expect((await loadPolicy(TEST_GROUP)).rules.some((r) => r.pattern === "^echo hi$")).toBe(false);
   });
 
   it("may not remove a rule", async () => {
     await send("POST", "policy/rules", session("administrator"), aRule());
-    const created = (await loadPolicy()).rules.find((r) => r.pattern === "^echo hi$");
+    const created = (await loadPolicy(TEST_GROUP)).rules.find((r) => r.pattern === "^echo hi$");
     const res = await send("POST", "policy/rules/remove", session("viewer", ["mine"]), {
       id: created!.id,
     });
     expect(res.status).toBe(403);
-    expect((await loadPolicy()).rules.some((r) => r.id === created!.id)).toBe(true);
+    expect((await loadPolicy(TEST_GROUP)).rules.some((r) => r.id === created!.id)).toBe(true);
   });
 });
 
 describe("core rules are immutable at every tier, Root included", () => {
   it("refuses to remove a shipped core denial", async () => {
-    const core = (await loadPolicy()).rules.find((r) => r.tier === "core");
+    const core = (await loadPolicy(TEST_GROUP)).rules.find((r) => r.tier === "core");
     expect(core).toBeDefined();
 
     const res = await send("POST", "policy/rules/remove", session("root"), { id: core!.id });
@@ -360,7 +368,7 @@ describe("core rules are immutable at every tier, Root included", () => {
     // quietly remove the floor. A Root who could delete core rules would make
     // the immutable tier a naming convention.
     expect(res.status).not.toBe(200);
-    expect((await loadPolicy()).rules.some((r) => r.id === core!.id)).toBe(true);
+    expect((await loadPolicy(TEST_GROUP)).rules.some((r) => r.id === core!.id)).toBe(true);
   });
 });
 
@@ -373,12 +381,12 @@ describe("Root decides whether a User may write policy at all", () => {
     const res = await send("POST", "policy/rules", withheld(["mine"]), aRule({ agentId: "mine" }));
 
     expect(res.status).toBe(403);
-    expect((await loadPolicy()).rules.some((r) => r.pattern === "^echo hi$")).toBe(false);
+    expect((await loadPolicy(TEST_GROUP)).rules.some((r) => r.pattern === "^echo hi$")).toBe(false);
   });
 
   it("a withheld User cannot remove a rule, or set their agent's posture", async () => {
     await send("POST", "policy/rules", session("administrator"), aRule({ agentId: "mine" }));
-    const created = (await loadPolicy()).rules.find((r) => r.agentId === "mine");
+    const created = (await loadPolicy(TEST_GROUP)).rules.find((r) => r.agentId === "mine");
 
     expect(
       (await send("POST", "policy/rules/remove", withheld(["mine"]), { id: created!.id })).status,
@@ -391,7 +399,7 @@ describe("Root decides whether a User may write policy at all", () => {
         })
       ).status,
     ).toBe(403);
-    expect((await loadPolicy()).rules.some((r) => r.id === created!.id)).toBe(true);
+    expect((await loadPolicy(TEST_GROUP)).rules.some((r) => r.id === created!.id)).toBe(true);
   });
 
   it("a withheld User keeps every read the tier has", async () => {
@@ -412,7 +420,7 @@ describe("Root decides whether a User may write policy at all", () => {
     // second would be a safety regression dressed as a permission.
     const stop = await send("POST", "kill", withheld(["mine"]), { agentId: "mine" });
     expect(stop.status).toBe(200);
-    expect((await loadPolicy()).lockedAgents).toContain("mine");
+    expect((await loadPolicy(TEST_GROUP)).lockedAgents).toContain("mine");
   });
 
   it("a withheld User can still submit a rule request for an Administrator to grant", async () => {
@@ -484,7 +492,7 @@ describe("the request path actually closes the loop (T4)", () => {
       reason: "this agent touches production",
     });
     expect(submitted.status).toBe(200);
-    expect((await loadPolicy()).agentAsk.mine).toBeUndefined();
+    expect((await loadPolicy(TEST_GROUP)).agentAsk.mine).toBeUndefined();
 
     const decided = await send("POST", "rule-requests/decide", session("administrator"), {
       id: submitted.body.id,
@@ -494,7 +502,7 @@ describe("the request path actually closes the loop (T4)", () => {
 
     // The setting is now in force, applied from the *stored* request rather
     // than from the approving client's payload.
-    expect((await loadPolicy()).agentAsk.mine).toBe("on-miss");
+    expect((await loadPolicy(TEST_GROUP)).agentAsk.mine).toBe("on-miss");
   });
 
   it("a rejected request changes nothing", async () => {
@@ -509,7 +517,7 @@ describe("the request path actually closes the loop (T4)", () => {
       approve: false,
     });
 
-    expect((await loadPolicy()).agentMode.mine).toBeUndefined();
+    expect((await loadPolicy(TEST_GROUP)).agentMode.mine).toBeUndefined();
   });
 
   it("records the approver as the actor, not the requester", async () => {
@@ -528,7 +536,7 @@ describe("the request path actually closes the loop (T4)", () => {
     });
 
     const { tailLedger } = await import("../governance/audit-ledger.js");
-    const applied = (await tailLedger(50)).find(
+    const applied = (await tailLedger(TEST_GROUP, 50)).find(
       (entry) => entry.toolName === "governance.policy.agent-ask",
     );
     expect(applied?.actor).toBe("administrator");

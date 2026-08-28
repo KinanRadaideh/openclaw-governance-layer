@@ -29,6 +29,11 @@ export function validateRulePattern(pattern: unknown): PatternValidation {
   try {
     // Reject an unparseable rule at author time rather than silently never
     // matching at enforcement time (pattern-match.ts fails closed).
+    //
+    // Constructing *is* the check: the throw is the result, and the compiled
+    // expression is deliberately unused. Assigning it to satisfy the lint rule
+    // would add a dead binding that reads as an oversight.
+    // oxlint-disable-next-line no-new
     new RegExp(pattern);
   } catch {
     return { ok: false, error: "pattern is not a valid regular expression" };
@@ -65,7 +70,8 @@ function isFullyAnchored(pattern: string): boolean {
  * spellings. Extracted to a named constant so the check and the warning text
  * cannot drift apart, and so it reads as a rule rather than as punctuation.
  */
-const ONLY_WILDCARDS_BETWEEN_ANCHORS = /^\^[.*+()\\sSwWdD\[\]{}|?]*\$$/;
+// `[` needs no escape inside a character class; `\]` still does.
+const ONLY_WILDCARDS_BETWEEN_ANCHORS = /^\^[.*+()\\sSwWdD[\]{}|?]*\$$/;
 
 /**
  * What the rule being written will do, for warnings that must describe it.

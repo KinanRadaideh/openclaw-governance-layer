@@ -72,6 +72,11 @@ export function listActiveSessions(params: {
   }
   const sessions = registeredSupplier()
     .filter((session) => canViewAgent(params.actor, session.agentId))
+    // A new object per session on purpose. These rows are borrowed from the
+    // supplier's live registry; mutating them in place would write
+    // `lockedDown` into the runtime's own state as a side effect of rendering
+    // a read-only view.
+    // oxlint-disable-next-line no-map-spread
     .map((session) => ({
       ...session,
       runningForSeconds: Math.max(0, Math.round((nowMs - session.startedAtMs) / 1000)),
@@ -79,6 +84,6 @@ export function listActiveSessions(params: {
     }))
     // Longest-running first: a run that has been going unusually long is the
     // one an operator most likely wants to look at.
-    .sort((a, b) => b.runningForSeconds - a.runningForSeconds);
+    .toSorted((a, b) => b.runningForSeconds - a.runningForSeconds);
   return { supported: true, sessions, sampledAt };
 }

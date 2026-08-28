@@ -26,7 +26,7 @@
 //      would be indistinguishable from a broken gate.
 //   3. The walk costs nothing when nothing is locked, terminates on a cycle,
 //      and stops at a bounded depth.
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -97,6 +97,23 @@ describe("the walk is bounded and cheap", () => {
   });
 });
 
+/**
+ * Makes the session store genuinely unreadable, the way a disk does.
+ *
+ * Closes the handles, removes the state directory and puts a *file* at its
+ * path, so every later attempt to open a store beneath it fails at the
+ * filesystem rather than being politely reported as empty. This is the exact
+ * shape finding 120 was measured with, and the reason it is here rather than a
+ * mock: the finding was that the real accessor does not throw where the code
+ * assumed it would, so a stubbed one would have proved nothing.
+ */
+async function breakSessionStore(): Promise<void> {
+  closeOpenClawAgentDatabases();
+  closeOpenClawStateDatabaseForTest();
+  await rm(dir, { recursive: true, force: true });
+  await writeFile(dir, "the state directory is now a file", "utf8");
+}
+
 /** Records a session and, optionally, the session that spawned it. */
 async function record(sessionKey: string, spawnedBy?: string): Promise<void> {
   await replaceSessionEntry({ sessionKey }, {
@@ -153,5 +170,93 @@ describe("a lockdown reaches what the locked agent started", () => {
     await record("agent:agent-b:one", "agent:agent-c:two");
     await record("agent:agent-c:two", "agent:agent-b:one");
     expect(findLockedAncestor("agent:agent-b:one", ["agent-a"])).toBeUndefined();
+  });
+});
+
+/**
+ * **Finding 120 — the fail-closed branch could not fire. Closed 2026-08-26.**
+ *
+ * `lineageUnknown` exists so a call whose lineage cannot be read during an
+ * incident is treated as *unproven* rather than *clear*, the same choice
+ * finding 81 made for a call carrying no agent id. It never returned `true`.
+ *
+ * The cause was one interface below. It probed with `get`, which answers
+ * `undefined` **both** for a row that is absent and for a store that is gone —
+ * measured with the state directory replaced by a file, where `get` returns
+ * `undefined` rather than throwing. The two cases the design depends on
+ * separating gave the same answer, so the branch was dead and a lockdown whose
+ * lineage records were lost degraded to fail-*open*, silently.
+ *
+ * **Found by mutation, not by a failing test.** Disabling the branch left all
+ * 867 governance tests passing. A security property nothing depends on is a
+ * property nothing is holding.
+ *
+ * **The fix is a better question, not a stricter policy.** A *scoped listing*
+ * separates what a keyed probe cannot: an empty array for an agent with no
+ * sessions, a throw for a store that will not open. That mattered, because the
+ * obvious fix — treat any missing row as unknown — closes the gap and costs
+ * narrowness, failing six tests that assert an unrelated agent keeps working
+ * during someone else's lockdown. Narrowness is what makes failing closed
+ * defensible, so a fix that spent it would have been the wrong trade.
+ *
+ * The tests below therefore assert **both** halves. Losing either one puts the
+ * finding back: lose the first and the gap reopens, lose the second and the
+ * kill switch becomes a blunt instrument during every incident.
+ */
+describe("finding 120 — lineage that cannot be read is refused, not waved through", () => {
+  it("reports unreadable when the store cannot be opened", async () => {
+    await record("agent:agent-a:main");
+    await record("agent:agent-b:child", "agent:agent-a:main");
+    expect(lineageUnknown("agent:agent-b:child", ["agent-a"])).toBe(false);
+    await breakSessionStore();
+    // The probe that used to answer "readable, nothing to see here".
+    expect(lineageUnknown("agent:agent-b:child", ["agent-a"])).toBe(true);
+  });
+
+  it("stops reporting a locked ancestor once the store is unreadable", async () => {
+    // The half that makes the one above necessary. The walk cannot find the
+    // parent any more either, so without `lineageUnknown` the call would look
+    // exactly like an unrelated session and be allowed.
+    await record("agent:agent-a:main");
+    await record("agent:agent-b:child", "agent:agent-a:main");
+    expect(findLockedAncestor("agent:agent-b:child", ["agent-a"])).toMatchObject({
+      agentId: "agent-a",
+    });
+    await breakSessionStore();
+    expect(findLockedAncestor("agent:agent-b:child", ["agent-a"])).toBeUndefined();
+  });
+
+  it("still calls a genuinely unrecorded session clear, not unknown", async () => {
+    // **The narrowness half.** A row absent from a store that answers is a
+    // session with no recorded parent, which proves nothing sinister. Reporting
+    // it as unknown would refuse unrelated agents throughout every incident and
+    // make the kill switch indistinguishable from a broken gate.
+    await record("agent:agent-a:main");
+    expect(lineageUnknown("agent:agent-b:orphan", ["agent-a"])).toBe(false);
+    expect(findLockedAncestor("agent:agent-b:orphan", ["agent-a"])).toBeUndefined();
+  });
+
+  it("does no work and reports nothing when no agent is locked", async () => {
+    // The walk is only consulted during an incident, so a store that cannot be
+    // read is only ever a problem during one.
+    await record("agent:agent-b:child", "agent:agent-a:main");
+    await breakSessionStore();
+    expect(lineageUnknown("agent:agent-b:child", [])).toBe(false);
+  });
+
+  it("reports unreadable rather than clear when a mid-chain store is gone", async () => {
+    // Sessions are stored per agent, so a chain across three agents crosses
+    // three stores. Checking only the first would let one unreadable store in
+    // the middle truncate the walk into a confident "clear" — the same defect,
+    // moved two hops up.
+    await record("agent:agent-a:main");
+    await record("agent:agent-b:mid", "agent:agent-a:main");
+    await record("agent:agent-c:leaf", "agent:agent-b:mid");
+    expect(findLockedAncestor("agent:agent-c:leaf", ["agent-a"])).toMatchObject({
+      agentId: "agent-a",
+      depth: 2,
+    });
+    await breakSessionStore();
+    expect(lineageUnknown("agent:agent-c:leaf", ["agent-a"])).toBe(true);
   });
 });

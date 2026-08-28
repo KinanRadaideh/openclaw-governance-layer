@@ -15,6 +15,7 @@
 // own them.
 import type { Command } from "commander";
 import { listActiveSessions } from "../../governance/active-sessions.js";
+import { deprovisionAgent, provisionAgent } from "../../governance/agent-provisioning.js";
 import {
   findAgent,
   listAgentsWithFallback,
@@ -85,7 +86,12 @@ export function registerGovernanceAgentCommands(governance: Command): void {
         if (!identity) {
           return;
         }
-        const doc = await loadPolicy();
+        const identityGroup = identity.groupId?.trim();
+        if (!identityGroup) {
+          defaultRuntime.log("Your account does not belong to an organisation.");
+          return;
+        }
+        const doc = await loadPolicy(identityGroup);
         const live = listActiveSessions({
           actor: toCliActor(identity),
           lockedAgents: doc.lockedAgents,
@@ -217,6 +223,117 @@ export function registerGovernanceAgentCommands(governance: Command): void {
         defaultRuntime.log(
           `unregistered ${agent.id}; it is governed exactly as before and now owned by nobody`,
         );
+      });
+    });
+
+  agents
+    .command("provision <displayName>")
+    .description("Create a real OpenClaw agent and record it here, as one act")
+    .option("--id <agentId>", "Use this id instead of deriving one from the name")
+    .option("--owner <accountId>", "Own it as another Administrator. Root only")
+    .option("--workspace <path>", "Where the agent works")
+    .option("--model <model>", "Which model it runs")
+    .action(
+      async (
+        displayName: string,
+        options: { id?: string; owner?: string; workspace?: string; model?: string },
+      ) => {
+        await runCommandWithRuntime(defaultRuntime, async () => {
+          const identity = await requireCliIdentity(defaultRuntime, "provision agents", (a) =>
+            canAssignAgents(a),
+          );
+          if (!identity) {
+            return;
+          }
+          if (options.owner && options.owner !== identity.userId && identity.role !== "root") {
+            defaultRuntime.log("Only Root may provision an agent to another Administrator.");
+            return;
+          }
+          if (!identity.groupId) {
+            defaultRuntime.log("Your session predates groups. Sign in again.");
+            return;
+          }
+          const result = await provisionAgent(
+            {
+              displayName,
+              ...(options.id ? { agentId: options.id } : {}),
+              groupId: identity.groupId,
+              adminId: options.owner || identity.userId,
+              ...(options.workspace ? { workspace: options.workspace } : {}),
+              ...(options.model ? { model: options.model } : {}),
+            },
+            toCliAuditActor(identity),
+            // No `hostSeesAgent`: this process is not the running gateway, so
+            // there is nothing here that could observe the agent appear. The
+            // result reports `confirmChecked: false` and the message below says
+            // so rather than claiming a confirmation that was never made. The
+            // dashboard, which *is* in the gateway, does confirm.
+          );
+          if (!result.ok) {
+            // Every field, because a failure an operator cannot act on is the
+            // defect class this project is named for. `stage` says how far it
+            // got, `rolledBack` says what is left behind, `remedy` says what to
+            // do next.
+            defaultRuntime.log(`could not create the agent (${result.stage}): ${result.message}`);
+            defaultRuntime.log(`  what to do: ${result.remedy}`);
+            if (result.rolledBack === "reverted") {
+              defaultRuntime.log("  nothing was left behind.");
+            }
+            if (result.rolledBack === "failed") {
+              defaultRuntime.log(
+                `  WARNING: undoing the half-made agent also failed: ${result.rollbackMessage ?? "unknown"}`,
+              );
+            }
+            return;
+          }
+          defaultRuntime.log(
+            `created ${result.agentId} ("${result.displayName}") in ${result.workspace}, owned by ${result.agent.adminId}`,
+          );
+          defaultRuntime.log(
+            "  not confirmed from here: this command is not the running gateway, so it cannot watch the agent appear.",
+          );
+        });
+      },
+    );
+
+  agents
+    .command("delete <agentId>")
+    .description("Remove the record AND delete the agent from OpenClaw. Irreversible")
+    .option("--yes", "Skip the confirmation prompt")
+    .action(async (agentId: string, options: { yes?: boolean }) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        const identity = await requireOwnedAgent(agentId, "delete agents");
+        if (!identity) {
+          return;
+        }
+        // The command line's version of the dashboard's two-step confirmation.
+        // An irreversible act reached by typing one word is one an operator can
+        // perform by autocomplete, so the destructive path asks unless it was
+        // told explicitly not to.
+        if (!options.yes) {
+          defaultRuntime.log(
+            `This deletes agent "${agentId}" from OpenClaw entirely, not just from governance.`,
+          );
+          defaultRuntime.log(
+            `Its workspace and transcripts go with it, and this cannot be undone.`,
+          );
+          defaultRuntime.log(
+            `Re-run with --yes to proceed, or use "governance agents unregister ${agentId}" to remove only the governance record.`,
+          );
+          return;
+        }
+        const result = await deprovisionAgent(
+          { agentId, groupId: identity.groupId ?? "", deleteFromHost: true },
+          toCliAuditActor(identity),
+        );
+        if (!result.ok) {
+          defaultRuntime.log(`could not delete the agent (${result.stage}): ${result.message}`);
+          // No rollback line here, unlike `provision`: removal deletes from the
+          // host first, so a failure at either step leaves nothing half-done.
+          defaultRuntime.log(`  what to do: ${result.remedy}`);
+          return;
+        }
+        defaultRuntime.log(`deleted ${result.agentId} ("${result.displayName}") from OpenClaw`);
       });
     });
 }

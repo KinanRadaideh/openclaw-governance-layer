@@ -12,6 +12,7 @@ import { lockDownAgent } from "./kill-switch.js";
 import { evaluateGovernancePolicy, recordLoopDetectorBlock } from "./policy-engine.js";
 import { savePolicy, setUserAskMode } from "./policy-store.js";
 import { defaultPolicyDocument, resolveAskMode } from "./policy-types.js";
+import { seedNamedGroup } from "./test-group.js";
 import { createUser, setUserAssignedAgents } from "./user-store.js";
 
 /**
@@ -31,7 +32,8 @@ let dir: string;
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-qa9-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
+  await seedNamedGroup(TEST_GROUP, ["agent-a", "agent-b"]);
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
 });
 
 afterEach(async () => {
@@ -53,7 +55,7 @@ describe("A3: the kill switch reports stopping, not just asking", () => {
       },
       (runIds) => runIds.filter((runId) => active.has(runId)),
     );
-    const result = await lockDownAgent("agent-a", "kinan");
+    const result = await lockDownAgent(TEST_GROUP, "agent-a", "kinan");
     expect(result.termination.stoppedConfirmed).toBe(true);
     expect(result.termination.stillRunningRunIds).toBeUndefined();
     // Both numbers are reported, and the confirmed time is the larger one —
@@ -70,7 +72,7 @@ describe("A3: the kill switch reports stopping, not just asking", () => {
       () => ({ abortedRunIds: ["run-stuck"] }),
       (runIds) => runIds.filter((runId) => active.has(runId)),
     );
-    const result = await lockDownAgent("agent-a", "kinan");
+    const result = await lockDownAgent(TEST_GROUP, "agent-a", "kinan");
     expect(result.termination.stoppedConfirmed).toBe(false);
     expect(result.termination.stillRunningRunIds).toEqual(["run-stuck"]);
   });
@@ -78,14 +80,14 @@ describe("A3: the kill switch reports stopping, not just asking", () => {
   it("says so plainly when nothing could observe the outcome", async () => {
     // A terminator with no probe: the signal was sent and nobody watched.
     registerAgentTerminator(() => ({ abortedRunIds: ["run-1"] }));
-    const result = await lockDownAgent("agent-a", "kinan");
+    const result = await lockDownAgent(TEST_GROUP, "agent-a", "kinan");
     expect(result.termination.stoppedConfirmed).toBe(false);
     expect(result.termination.stillRunningRunIds).toBeUndefined();
   });
 
   it("counts nothing-in-flight as confirmed", async () => {
     registerAgentTerminator(() => ({ abortedRunIds: [] }));
-    const result = await lockDownAgent("agent-a", "kinan");
+    const result = await lockDownAgent(TEST_GROUP, "agent-a", "kinan");
     expect(result.termination.stoppedConfirmed).toBe(true);
   });
 
@@ -100,8 +102,10 @@ describe("A3: the kill switch reports stopping, not just asking", () => {
       },
       (runIds) => runIds.filter((runId) => active.has(runId)),
     );
-    await lockDownAgent("agent-a", "kinan");
-    const entry = (await tailLedger()).find((e) => e.toolName === "governance.agent.lock");
+    await lockDownAgent(TEST_GROUP, "agent-a", "kinan");
+    const entry = (await tailLedger(TEST_GROUP)).find(
+      (e) => e.toolName === "governance.agent.lock",
+    );
     expect(entry?.resource).toContain("signalled in");
     expect(entry?.resource).toContain("confirmed stopped in");
   });
@@ -112,8 +116,10 @@ describe("A3: the kill switch reports stopping, not just asking", () => {
       () => ({ abortedRunIds: ["run-stuck"] }),
       (runIds) => runIds.filter((runId) => active.has(runId)),
     );
-    await lockDownAgent("agent-a", "kinan");
-    const entry = (await tailLedger()).find((e) => e.toolName === "governance.agent.lock");
+    await lockDownAgent(TEST_GROUP, "agent-a", "kinan");
+    const entry = (await tailLedger(TEST_GROUP)).find(
+      (e) => e.toolName === "governance.agent.lock",
+    );
     expect(entry?.resource).toContain("NOT confirmed");
   });
 });
@@ -157,7 +163,7 @@ describe("A4: the escalation toggle has a per-user axis", () => {
   });
 
   it("applies the user setting to that user's agent, end to end", async () => {
-    await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "on-miss" });
+    await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce", ask: "on-miss" });
     const user = await createUser(
       {
         username: "malek",
@@ -176,7 +182,7 @@ describe("A4: the escalation toggle has a per-user axis", () => {
     expect(before && "requireApproval" in before).toBe(true);
 
     // Root tightens this person specifically: their agent now denies outright.
-    await setUserAskMode("malek", "off", "root");
+    await setUserAskMode(TEST_GROUP, "malek", "off", "root");
     const after = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "rm -rf /" } },
       { agentId: "agent-a" },
@@ -185,7 +191,7 @@ describe("A4: the escalation toggle has a per-user axis", () => {
   });
 
   it("does not affect an agent the user was not assigned", async () => {
-    await savePolicy({ ...defaultPolicyDocument(), mode: "enforce", ask: "on-miss" });
+    await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce", ask: "on-miss" });
     const user = await createUser(
       {
         username: "malek",
@@ -196,7 +202,7 @@ describe("A4: the escalation toggle has a per-user axis", () => {
       "root",
     );
     await setUserAssignedAgents(user.id, ["agent-a"], "root");
-    await setUserAskMode("malek", "off", "root");
+    await setUserAskMode(TEST_GROUP, "malek", "off", "root");
     const other = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "rm -rf /" } },
       { agentId: "agent-b" },
@@ -205,8 +211,10 @@ describe("A4: the escalation toggle has a per-user axis", () => {
   });
 
   it("records the per-user change in the audit trail", async () => {
-    await setUserAskMode("malek", "off", "root-user");
-    const entry = (await tailLedger()).find((e) => e.toolName === "governance.policy.user-ask");
+    await setUserAskMode(TEST_GROUP, "malek", "off", "root-user");
+    const entry = (await tailLedger(TEST_GROUP)).find(
+      (e) => e.toolName === "governance.policy.user-ask",
+    );
     expect(entry?.actor).toBe("root-user");
     expect(entry?.resource).toContain("malek");
   });
@@ -221,7 +229,7 @@ describe("loop-detector blocks reach the ledger", () => {
       sessionKey: "agent:agent-a:main",
       reason: "repeated identical call",
     });
-    const entry = (await tailLedger()).at(-1);
+    const entry = (await tailLedger(TEST_GROUP)).at(-1);
     expect(entry?.decision).toBe("deny");
     // Attributed to the host control, not presented as a policy verdict — no
     // rule was consulted, so claiming one would misattribute the decision.
@@ -230,14 +238,14 @@ describe("loop-detector blocks reach the ledger", () => {
   });
 
   it("stays silent when the gate is switched off", async () => {
-    await savePolicy({ ...defaultPolicyDocument(), mode: "off" });
+    await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "off" });
     await recordLoopDetectorBlock({
       toolName: "exec",
       params: { command: "ls" },
       agentId: "agent-a",
       reason: "repeated",
     });
-    expect((await tailLedger()).filter((e) => e.entryKind !== "admin")).toHaveLength(0);
+    expect((await tailLedger(TEST_GROUP)).filter((e) => e.entryKind !== "admin")).toHaveLength(0);
   });
 
   it("redacts a secret in the refused payload", async () => {
@@ -247,6 +255,6 @@ describe("loop-detector blocks reach the ledger", () => {
       agentId: "agent-a",
       reason: "repeated",
     });
-    expect((await tailLedger()).at(-1)?.resource).not.toContain("sk-ant-api03-LEAKED");
+    expect((await tailLedger(TEST_GROUP)).at(-1)?.resource).not.toContain("sk-ant-api03-LEAKED");
   });
 });

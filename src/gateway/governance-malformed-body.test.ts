@@ -18,14 +18,21 @@ import { savePolicy } from "../governance/policy-store.js";
 import { defaultPolicyDocument } from "../governance/policy-types.js";
 import type { GovernanceRole } from "../governance/roles.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
+import { seedGroupWithAgents } from "../governance/test-group.js";
 import { handleGovernanceApiRequest } from "./governance-dashboard-api.js";
 
 let dir: string;
 
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-body-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
-  await savePolicy(defaultPolicyDocument());
+  TEST_GROUP = await seedGroupWithAgents([]);
+  await savePolicy(TEST_GROUP, defaultPolicyDocument());
 });
 
 afterEach(async () => {
@@ -42,6 +49,7 @@ function session(role: GovernanceRole, assignedAgents: string[] = []): Governanc
     createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
     assignedAgents,
+    groupId: TEST_GROUP,
   };
 }
 
@@ -97,6 +105,8 @@ const MUTATING_ROUTES: Array<[string, GovernanceRole]> = [
   ["agents/rename", "administrator"],
   ["agents/owner", "administrator"],
   ["agents/unregister", "administrator"],
+  ["agents/provision", "administrator"],
+  ["agents/deprovision", "administrator"],
   ["users/delete", "root"],
   ["kill", "user"],
 ];

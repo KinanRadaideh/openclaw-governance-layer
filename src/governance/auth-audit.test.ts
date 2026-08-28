@@ -27,18 +27,26 @@ import {
 } from "./auth-audit.js";
 import { resetLedgerKeyCacheForTests } from "./ledger-key.js";
 import { recordLoginFailure, resetLoginThrottle } from "./login-throttle.js";
+import { INSTALLATION_LEDGER_GROUP } from "./paths.js";
 import { savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
+import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
+
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
 
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-auth-audit-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  TEST_GROUP = await seedGroupWithAgents([]);
   resetLedgerKeyCacheForTests();
   resetAuthAuditForTests();
   resetLoginThrottle();
-  await savePolicy({ ...defaultPolicyDocument(), mode: "enforce" });
+  await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce" });
 });
 
 afterEach(async () => {
@@ -50,7 +58,17 @@ afterEach(async () => {
 });
 
 async function authEntries(): Promise<LedgerEntry[]> {
-  return (await tailLedger(2000)).filter((entry) => entry.entryKind === "admin");
+  // **The installation trail, not a group's (M5).**
+  //
+  // A failed sign-in often names an account that belongs to nobody — that is
+  // what a credential-stuffing attempt looks like — so those entries go to the
+  // installation-scope trail rather than being guessed into a group. An attacker
+  // must not get to choose which organisation's log records the attack on it.
+  // Successful sign-ins carry the account's group when the caller supplies one;
+  // this suite does not, so everything it writes lands here.
+  return (await tailLedger(INSTALLATION_LEDGER_GROUP, 2000)).filter(
+    (entry) => entry.entryKind === "admin",
+  );
 }
 
 async function entriesFor(action: string): Promise<LedgerEntry[]> {
@@ -285,7 +303,7 @@ describe("the hash chain still verifies with authentication entries in it", () =
     await auditLoginSuccess(user);
     await auditLogout({ userId: "u-1", username: "Alice" });
 
-    const verification = await verifyLedgerChain();
+    const verification = await verifyLedgerChain(TEST_GROUP);
     expect(verification.ok).toBe(true);
     expect(await authEntries()).toHaveLength(4);
   });

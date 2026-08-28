@@ -11,11 +11,10 @@
 // action was denied had no in-product way to ask for access — the "silent
 // failure with no path forward" that the design doctrine treats as the worst
 // outcome.
-import { mkdir } from "node:fs/promises";
 import { readJsonIfExists, writeJsonAtomic } from "../infra/json-files.js";
 import { ADMIN_ACTIONS, recordAdminAction } from "./admin-audit.js";
 import { withFileLock } from "./file-lock.js";
-import { governanceHomeDir, ruleRequestsFilePath } from "./paths.js";
+import { ruleRequestsFilePath, ensureGroupDir } from "./paths.js";
 import type { ResourceKind } from "./policy-types.js";
 
 export type RuleRequestStatus = "pending" | "approved" | "rejected";
@@ -97,17 +96,25 @@ function pruneDecided(requests: RuleRequest[]): RuleRequest[] {
   return [...pending, ...(keepDecided === 0 ? [] : decided.slice(-keepDecided))];
 }
 
-async function ensureHomeDir(): Promise<void> {
-  await mkdir(governanceHomeDir(), { recursive: true, mode: 0o700 });
+async function ensureHomeDir(groupId: string): Promise<void> {
+  // The **group's** directory, not just the installation root (M5).
+  //
+  // Every file this module touches now lives under `groups/<groupId>/`, and
+  // `withFileLock` creates its lock beside the file it guards — so a first write
+  // for a brand-new organisation failed with ENOENT on the *lock*, before the
+  // write it was protecting was ever attempted. A fresh group is the one state
+  // every installation passes through exactly once, which is precisely the kind
+  // of path that is easy to leave untested.
+  await ensureGroupDir(groupId);
 }
 
-async function readFileOrEmpty(): Promise<RuleRequestsFile> {
-  const existing = await readJsonIfExists<RuleRequestsFile>(ruleRequestsFilePath());
+async function readFileOrEmpty(groupId: string): Promise<RuleRequestsFile> {
+  const existing = await readJsonIfExists<RuleRequestsFile>(ruleRequestsFilePath(groupId));
   return existing ?? { version: 1, requests: [] };
 }
 
-export async function listRuleRequests(): Promise<RuleRequest[]> {
-  return (await readFileOrEmpty()).requests;
+export async function listRuleRequests(groupId: string): Promise<RuleRequest[]> {
+  return (await readFileOrEmpty(groupId)).requests;
 }
 
 export type SubmitRuleRequestInput =
@@ -144,10 +151,13 @@ export function describeRequest(request: RuleRequest): string {
   return `requested ${request.resourceKind} ${request.pattern}: ${request.reason}`;
 }
 
-export async function submitRuleRequest(input: SubmitRuleRequestInput): Promise<RuleRequest> {
-  await ensureHomeDir();
-  const created = await withFileLock(ruleRequestsFilePath(), async () => {
-    const file = await readFileOrEmpty();
+export async function submitRuleRequest(
+  groupId: string,
+  input: SubmitRuleRequestInput,
+): Promise<RuleRequest> {
+  await ensureHomeDir(groupId);
+  const created = await withFileLock(ruleRequestsFilePath(groupId), async () => {
+    const file = await readFileOrEmpty(groupId);
     const pending = file.requests.filter(
       (request) => request.status === "pending" && request.requestedBy === input.requestedBy,
     ).length;
@@ -179,10 +189,10 @@ export async function submitRuleRequest(input: SubmitRuleRequestInput): Promise<
       status: "pending",
     };
     file.requests = pruneDecided([...file.requests, request]);
-    await writeJsonAtomic(ruleRequestsFilePath(), file, { mode: 0o600 });
+    await writeJsonAtomic(ruleRequestsFilePath(groupId), file, { mode: 0o600 });
     return request;
   });
-  await recordAdminAction({
+  await recordAdminAction(groupId, {
     actor: created.requestedBy,
     action: ADMIN_ACTIONS.ruleRequestSubmit,
     target: describeRequest(created),
@@ -197,15 +207,18 @@ export async function submitRuleRequest(input: SubmitRuleRequestInput): Promise<
  * undefined when the id is unknown or the request was already decided —
  * decisions are single-shot so a stale dashboard cannot double-apply one.
  */
-export async function decideRuleRequest(params: {
-  id: string;
-  approve: boolean;
-  decidedBy: string;
-  createdRuleId?: string;
-}): Promise<RuleRequest | undefined> {
-  await ensureHomeDir();
-  const decided = await withFileLock(ruleRequestsFilePath(), async () => {
-    const file = await readFileOrEmpty();
+export async function decideRuleRequest(
+  groupId: string,
+  params: {
+    id: string;
+    approve: boolean;
+    decidedBy: string;
+    createdRuleId?: string;
+  },
+): Promise<RuleRequest | undefined> {
+  await ensureHomeDir(groupId);
+  const decided = await withFileLock(ruleRequestsFilePath(groupId), async () => {
+    const file = await readFileOrEmpty(groupId);
     const request = file.requests.find((candidate) => candidate.id === params.id);
     if (!request || request.status !== "pending") {
       return undefined;
@@ -216,7 +229,7 @@ export async function decideRuleRequest(params: {
     if (params.createdRuleId) {
       request.createdRuleId = params.createdRuleId;
     }
-    await writeJsonAtomic(ruleRequestsFilePath(), file, { mode: 0o600 });
+    await writeJsonAtomic(ruleRequestsFilePath(groupId), file, { mode: 0o600 });
     return request;
   });
   if (!decided) {
@@ -224,7 +237,7 @@ export async function decideRuleRequest(params: {
   }
   // This is the "administrative approval" of design requirement #5 in its most
   // literal form: one person asked for a permission and another granted it.
-  await recordAdminAction({
+  await recordAdminAction(groupId, {
     actor: params.decidedBy,
     action: ADMIN_ACTIONS.ruleRequestDecide,
     outcome: params.approve ? "allow" : "deny",
@@ -245,15 +258,19 @@ export async function decideRuleRequest(params: {
  * does not exist yet at claim time. Safe to do afterwards: the request is
  * already claimed, so no other administrator can be acting on it.
  */
-export async function attachCreatedRule(id: string, createdRuleId: string): Promise<void> {
-  await withFileLock(ruleRequestsFilePath(), async () => {
-    const file = await readFileOrEmpty();
+export async function attachCreatedRule(
+  groupId: string,
+  id: string,
+  createdRuleId: string,
+): Promise<void> {
+  await withFileLock(ruleRequestsFilePath(groupId), async () => {
+    const file = await readFileOrEmpty(groupId);
     const request = file.requests.find((candidate) => candidate.id === id);
     if (!request) {
       return;
     }
     request.createdRuleId = createdRuleId;
-    await writeJsonAtomic(ruleRequestsFilePath(), file, { mode: 0o600 });
+    await writeJsonAtomic(ruleRequestsFilePath(groupId), file, { mode: 0o600 });
   });
 }
 
@@ -266,9 +283,9 @@ export async function attachCreatedRule(id: string, createdRuleId: string): Prom
  * and no administrator sees it in the queue any more. Reverting keeps the
  * stored state matching what actually happened.
  */
-export async function reopenRuleRequest(id: string): Promise<void> {
-  await withFileLock(ruleRequestsFilePath(), async () => {
-    const file = await readFileOrEmpty();
+export async function reopenRuleRequest(groupId: string, id: string): Promise<void> {
+  await withFileLock(ruleRequestsFilePath(groupId), async () => {
+    const file = await readFileOrEmpty(groupId);
     const request = file.requests.find((candidate) => candidate.id === id);
     if (!request) {
       return;
@@ -277,13 +294,16 @@ export async function reopenRuleRequest(id: string): Promise<void> {
     delete request.decidedBy;
     delete request.decidedAt;
     delete request.createdRuleId;
-    await writeJsonAtomic(ruleRequestsFilePath(), file, { mode: 0o600 });
+    await writeJsonAtomic(ruleRequestsFilePath(groupId), file, { mode: 0o600 });
   });
 }
 
 /** Reads one pending request without deciding it, for validation before granting. */
-export async function findPendingRuleRequest(id: string): Promise<RuleRequest | undefined> {
-  const file = await readFileOrEmpty();
+export async function findPendingRuleRequest(
+  groupId: string,
+  id: string,
+): Promise<RuleRequest | undefined> {
+  const file = await readFileOrEmpty(groupId);
   const request = file.requests.find((candidate) => candidate.id === id);
   return request?.status === "pending" ? request : undefined;
 }

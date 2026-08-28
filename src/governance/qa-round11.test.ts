@@ -21,13 +21,20 @@ import { evaluateGovernancePolicy } from "./policy-engine.js";
 import { addRule, loadPolicy, savePolicy } from "./policy-store.js";
 import { resolveGovernedTool } from "./resource-extraction.js";
 import { detectRuleConflicts } from "./rule-conflicts.js";
+import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
 let workspace: string;
 
+/** The organisation this suite's agents belong to (M5). Per-group storage means
+ * every call names a group, and mandatory registration means the gate refuses an
+ * agent it has no record of, so the fixture creates a real one. */
+let TEST_GROUP: string;
+
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-qa11-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  TEST_GROUP = await seedGroupWithAgents(["agent-a"]);
   workspace = await mkdtemp(join(tmpdir(), "governance-qa11-ws-"));
 });
 
@@ -56,8 +63,8 @@ function verdict(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>)
 
 /** Switches the installation to refuse rather than escalate, keeping shipped rules. */
 async function enforceStrictly(): Promise<void> {
-  const doc = await loadPolicy();
-  await savePolicy({ ...doc, mode: "enforce", ask: "off" });
+  const doc = await loadPolicy(TEST_GROUP);
+  await savePolicy(TEST_GROUP, { ...doc, mode: "enforce", ask: "off" });
 }
 
 /**
@@ -77,13 +84,31 @@ async function enforceStrictly(): Promise<void> {
  */
 const DELIBERATELY_UNGOVERNED: ReadonlyMap<string, string> = new Map([
   // ---- Outbound messaging -------------------------------------------------
-  // The policy language has three resource kinds and none of them describes
-  // "put this text somewhere a person will read it". Refusing `message` by
-  // default would stop the agent replying to the person who asked it something,
-  // so the fork would be broken over chat. Closing this needs a fourth kind
-  // that separates "reply where you were spoken to" from "send elsewhere" — a
-  // design change, tracked in REMAINING-WORK.md and PERMISSION-SPEC.md §12.
-  ["message", "outbound messaging: needs a fourth resource kind (documented)"],
+  // **Settled 2026-08-26 (T8): the integration is the permission.**
+  //
+  // Connecting an agent to a Discord server or a Telegram chat is an operator
+  // deciding that the agent should speak there. A gate that then refused would
+  // be overriding the grant it was handed, and refusing by default would stop
+  // the agent answering the person who addressed it — the reply *is* the
+  // product on a chat deployment.
+  //
+  // This was carried for months as "needs a fourth resource kind", which read
+  // as pending work. The specification settles it the other way:
+  // `Grad_Proj___Current.pdf` §1.3 requirement 3 names the resources the
+  // default-deny model governs — "file system paths, process execution, and
+  // network communication" — and requirement 4 repeats the same three as the
+  // fine-grained axes. Those are exactly the three `ResourceKind` values that
+  // exist. A fourth is **beyond** the specification, not missing from it. The
+  // one place the spec mentions chat platforms (§2.1.1.3) casts Telegram and
+  // Slack as the *interface users interact through*, the safer alternative to
+  // exposing a port — the front door the architecture recommends, not an
+  // egress to gate.
+  //
+  // Not ungoverned in the sense of unseen: every send is written to the ledger
+  // as `ungoverned` with its destination, redacted, and attributed to the
+  // agent. Requirement 5's "record 100% of agent actions" holds for these
+  // calls. `qa-round12.test.ts` pins that, destination included.
+  ["message", "outbound messaging: the integration is the permission (T8, settled)"],
   ["conversations_send", "outbound messaging: as `message`"],
   ["conversations_turn", "outbound messaging: as `message`"],
   ["sessions_send", "outbound messaging: as `message`"],
@@ -249,6 +274,7 @@ describe("qa round 11 — the search tools were never governed", () => {
   it("counts a search tool as a read, so a read-only narrowed denial still binds", async () => {
     await enforceStrictly();
     await addRule(
+      TEST_GROUP,
       {
         resourceKind: "path",
         effect: "deny",
@@ -335,6 +361,7 @@ describe("qa round 11 — one host, several spellings", () => {
   it("leaves an ordinary hostname alone", async () => {
     await enforceStrictly();
     await addRule(
+      TEST_GROUP,
       { resourceKind: "network", pattern: "^api\\.example\\.com$", description: "api" },
       "kinan",
     );
@@ -348,7 +375,7 @@ describe("qa round 11 — one host, several spellings", () => {
 
 describe("qa round 11 — a rule that can never take effect", () => {
   it("warns when an existing denial already overrides the rule being written", async () => {
-    const policy = await loadPolicy();
+    const policy = await loadPolicy(TEST_GROUP);
     const conflicts = detectRuleConflicts(policy.rules, {
       resourceKind: "path",
       pattern: "^\\.env$",
@@ -357,7 +384,7 @@ describe("qa round 11 — a rule that can never take effect", () => {
   });
 
   it("says nothing when no denial covers the rule", async () => {
-    const policy = await loadPolicy();
+    const policy = await loadPolicy(TEST_GROUP);
     const conflicts = detectRuleConflicts(policy.rules, {
       resourceKind: "path",
       pattern: "^src/app\\.ts$",
