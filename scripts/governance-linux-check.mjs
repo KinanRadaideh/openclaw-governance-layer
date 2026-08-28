@@ -1,10 +1,30 @@
 #!/usr/bin/env node
 // Linux platform verification for the governance layer (design requirement #9).
 //
-// Runs the platform-sensitive parts of the governance layer on Linux without
-// needing a full monorepo install: the modules exercised here import only Node
-// built-ins, and Node 22 strips TypeScript types natively, so this runs with
-// nothing but `node`.
+// Runs the platform-sensitive parts of the governance layer on Linux.
+//
+// **Run it with `tsx`, not bare `node`:**
+//
+//     pnpm exec tsx scripts/governance-linux-check.mjs
+//
+// The paragraph that used to sit here said this needed "nothing but `node`",
+// because "the modules exercised here import only Node built-ins". Both halves
+// were wrong, and **the file had therefore never run once** between being
+// written on 2026-08-11 and 2026-08-28 (finding 137) — while
+// `CHAPTER3-MATERIAL.md` §4.x.9 recorded "Dedicated platform harness
+// (14 checks) — All passed" as evidence for design requirement #9.
+//
+// Three separate things stop bare `node`, and each one only appears after the
+// last is fixed, which is why the claim survived: `permissions.ts` imports
+// `./roles.js`, the TypeScript convention for a sibling `.ts` that Node does
+// not rewrite; the graph reaches `@openclaw/acp-core`, a workspace package pnpm
+// does not hoist to the root `node_modules`; and `src/config/env-substitution.ts`
+// uses a constructor parameter property, which Node's strip-only mode cannot
+// transform at all. `tsx` — already a devDependency — handles all three.
+//
+// So it needs `pnpm install` first. It does not need `pnpm build`, and it is
+// still a practical smoke test for a candidate deployment target;
+// `scripts/vps-install.sh` runs it as the last step of the install.
 //
 // Why these specific checks: every cross-platform defect found so far has been
 // in exactly this surface — POSIX vs. Windows file semantics (the `EPERM`
@@ -12,7 +32,7 @@
 // Windows but actually enforced on Linux. Requirement #9 specifies a Linux
 // VPS, so these behaviours need proving on Linux rather than assuming.
 //
-// Usage:  node scripts/governance-linux-check.mjs
+// Usage:  pnpm exec tsx scripts/governance-linux-check.mjs
 
 import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -124,7 +144,19 @@ await check("governance directory is created 0700 (owner only)", async () => {
 });
 
 await check("a written state file is 0600 (owner read/write only)", async () => {
-  const file = ledgerFilePath();
+  // **The group id is required, and its absence here was finding 138.** M5 made
+  // storage per-group on 2026-08-26, so `ledgerFilePath` took a `groupId` — and
+  // this call kept passing nothing, resolving to the literal string
+  // "undefined", which the path guard refuses outright. The call had been stale
+  // for two days and nobody knew, because finding 137 meant this file could not
+  // run at all. A check that never runs does not merely fail to catch things:
+  // it also stops telling you when it has itself gone out of date.
+  //
+  // Any conforming id serves. The property under test is the file mode on
+  // Linux, not group semantics.
+  const file = ledgerFilePath("linux-check");
+  const { mkdir: makeDir } = await import("node:fs/promises");
+  await makeDir(join(file, ".."), { recursive: true, mode: 0o700 });
   await writeFile(file, "{}\n", { mode: 0o600 });
   const info = await stat(file);
   const mode = info.mode & 0o777;

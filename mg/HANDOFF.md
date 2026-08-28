@@ -5,10 +5,13 @@ point for whoever picks this project up next, whether that is a teammate, a
 supervisor, or the same person after a break. Everything else in `mg/` is detail
 beneath this.
 
-> **If you read three things:** §1 for the state, §6 for what is left, and the
-> `git push` in §8 — **33 commits** exist only on this machine (re-measured
-> 2026-08-28 with `git log --oneline personal/governance-layer..HEAD | wc -l`;
-> re-measure rather than trust it, see §1).
+> **If you read three things:** §1 for the state, §6 for what is left, and §7's
+> caveats. **The push is done as of 2026-08-28** — the private remote moved from
+> the 2026-08-21 tip `e5a7876431b` to `2916aebb206`, carrying 35 commits, and
+> for the first time in a week the work exists somewhere other than this machine
+> and OneDrive. Re-measure with
+> `git log --oneline personal/governance-layer..HEAD | wc -l` rather than
+> trusting this sentence; it is the number this file has got wrong most often.
 >
 > **The working tree is clean as of 2026-08-27**, and that is new. For most of
 > August it was not: M5, M6, T7's audit half, T29, T30, finding 120's fix and QA
@@ -37,8 +40,8 @@ typechecks are clean, and OpenClaw's own test
 suite is **fully green for the first time**: the 18 pre-existing Windows
 failures used as this project's baseline were fixed on 2026-08-25 (T25), along
 with nine more in `host-hooks.contract.test.ts`. **The M-series is complete**
-(M1–M6, finished 2026-08-27), so no substantial engineering is left. Twenty-two
-QA rounds and the build itself have found **136 defects, all fixed — zero open.** The count moved from 120 to 121 when T29's numbering audit (2026-08-26) found **two different defects both numbered 104**; to 127 on 2026-08-27 when M5's four and M6's two were numbered **122–127**, having been fixed and written up in all three registers but never entered on the numbered list; to **130** the same day when **QA round nineteen** audited the M-series as one system and found **128–130**; and to **131** when **QA round twenty** read the rest of the window's work against the nine design requirements and found `search-audit.ts` writing grep's matched file content — secrets included — into the tamper-evident ledger, a direct breach of requirement 8; and to **134** when **round twenty-one** built §1.6's missing "raw LLM intent" field and audited it, finding three defects in one day's work (**132–134**); and to **136** on 2026-08-28 when **round twenty-two** re-measured the previous day's documentation against the code and found **135–136** — `entryKind`'s JSDoc orphaned by the insertion of the intent field, and **T16 regressed in the very commit whose documentation declared it closed** (`governance-page.ts` back to 703 lines against a 700-line limit, while §4 read "`max-lines` reports zero errors repo-wide"). **Standing rule from 2026-08-27: every defect gets a number when it is found.** Finding 120 was found and
+(M1–M6, finished 2026-08-27), so no substantial engineering is left. Twenty-three
+QA rounds and the build itself have found **138 defects, all fixed — zero open.** The count moved from 120 to 121 when T29's numbering audit (2026-08-26) found **two different defects both numbered 104**; to 127 on 2026-08-27 when M5's four and M6's two were numbered **122–127**, having been fixed and written up in all three registers but never entered on the numbered list; to **130** the same day when **QA round nineteen** audited the M-series as one system and found **128–130**; and to **131** when **QA round twenty** read the rest of the window's work against the nine design requirements and found `search-audit.ts` writing grep's matched file content — secrets included — into the tamper-evident ledger, a direct breach of requirement 8; and to **134** when **round twenty-one** built §1.6's missing "raw LLM intent" field and audited it, finding three defects in one day's work (**132–134**); and to **136** on 2026-08-28 when **round twenty-two** re-measured the previous day's documentation against the code and found **135–136** — `entryKind`'s JSDoc orphaned by the insertion of the intent field, and **T16 regressed in the very commit whose documentation declared it closed** (`governance-page.ts` back to 703 lines against a 700-line limit, while §4 read "`max-lines` reports zero errors repo-wide"). **Standing rule from 2026-08-27: every defect gets a number when it is found.** Finding 120 was found and
 closed on 2026-08-26: T6's fail-closed branch could not fire, so a lockdown
 whose lineage records were unreadable degraded to fail-_open_. It was closed by
 probing the store with a scoped listing rather than a keyed read — which
@@ -145,8 +148,8 @@ the model's narration verbatim**, and an exported function nothing called.
 
 **And it is all committed.** For most of August this file warned about an
 uncommitted tree; it reached 113 entries before it landed in two commits on
-2026-08-27. The tree is clean. **33 commits have never been pushed**, and that is
-now the only thing standing between this work and its only off-machine copy.
+2026-08-27. The tree is clean. **The 35 commits were pushed on 2026-08-28**, so
+the fortnight of work that existed only here is now on the private remote too.
 
 ### 2026-08-27 — M6, and the M-series is finished
 
@@ -456,15 +459,15 @@ backlog.**
 
 **Two things need doing before anything else:**
 
-| #   | Action                                                                                                                                                                                                                                                                           | Effort   |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| 1   | **Push to the private remote.** **33 commits** exist only on this machine and in OneDrive — re-measured 2026-08-27 with `git log --oneline personal/governance-layer..HEAD \| wc -l`. Every later commit, this file's own edits included, adds one: re-measure rather than quote | 1 min    |
-| 2   | **Run it once with a real agent** and record what happens (T2)                                                                                                                                                                                                                   | 2–4 days |
+| #   | Action                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Effort   |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| 1   | ~~**Push to the private remote.**~~ **DONE 2026-08-28** - the remote moved `e5a7876431b` to `2916aebb206`. Struck through rather than deleted because this file carried the warning for a fortnight and that is part of the record. What it said: 35 commits existed only on this machine and in OneDrive — re-measured 2026-08-27 with `git log --oneline personal/governance-layer..HEAD \| wc -l`. Every later commit, this file's own edits included, adds one: re-measure rather than quote | 1 min    |
+| 2   | **Run it once with a real agent** and record what happens (T2)                                                                                                                                                                                                                                                                                                                                                                                                                                   | 2–4 days |
 
-> **Do not confuse the two counts.** `main..HEAD` is **45** and
-> `personal/governance-layer..HEAD` is **30** (2026-08-26); the first is how
-> far the branch has diverged from upstream, the second is what is actually
-> unpushed. This
+> **Do not confuse the two counts.** `main..HEAD` is **50** and
+> `personal/governance-layer..HEAD` is **0** (2026-08-28, after the push); the
+> first is how far the branch has diverged from upstream, the second is what is
+> actually unpushed. This
 > document has quoted the wrong one before. `origin` is upstream
 > `openclaw/openclaw` and **this branch must never be pushed there**.
 
@@ -476,7 +479,7 @@ remote. The push was **verified by cloning it back from GitHub**: same tip
 (`f4b7325241a`), same tree (`3debbb521…`), the governance work all present.
 The work now exists in three places rather than one.
 
-> ### ⚠ The tree is clean, and 33 commits have never left this machine
+> ### ~~⚠ The tree is clean, and 33 commits have never left this machine~~ — **pushed 2026-08-28**
 >
 > Everything since 2026-08-21 is committed — the sixteenth QA pass, T9, T24,
 > T26, T4, T27, T5, T14, T15, T23, rounds seventeen and eighteen, M1–M4, T25,
@@ -1436,7 +1439,7 @@ does not carry an uncommitted tree.
 rounds nineteen to twenty-one. What is left is the push, and it is the whole of
 this step now.
 
-**33 commits have never left this machine** (re-measure with
+**All commits are pushed as of 2026-08-28** (re-measure with
 `git log --oneline personal/governance-layer..HEAD | wc -l`; the remote is at the
 2026-08-21 tip `e5a7876431b`):
 
@@ -1649,7 +1652,7 @@ Stated here so they are not discovered late.
 
 **Push to the private remote, then run it once with a real agent (T2).**
 
-The push takes a minute and is not optional. **33 commits** have never
+The push was done on 2026-08-28 and took under a minute. **35 commits** had never
 left this machine (2026-08-26) — the sixteenth QA pass, T9, T24, T26, T4, T27,
 T5, T14, T15, T23, QA rounds seventeen and eighteen, M1–M4, T25, T28, and T16
 and T6 in full — so a fortnight of work exists here and in OneDrive only. F1,

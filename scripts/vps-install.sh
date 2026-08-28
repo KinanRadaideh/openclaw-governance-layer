@@ -172,22 +172,54 @@ step "Platform checks"
 # The governance layer's own Linux probe: file locks, 0700/0600 permissions
 # which are advisory on Windows and actually enforced here, POSIX paths,
 # scrypt, the role ladder, Viewer masking.
-node scripts/governance-linux-check.mjs
+#
+# Run through tsx rather than bare node. The probe's own header used to claim it
+# needed "nothing but node"; it never did, and so it had never run once between
+# 2026-08-11 and 2026-08-28 (finding 137) while being cited as evidence for
+# design requirement #9. tsx is already a devDependency and handles the three
+# separate things that stop plain node.
+$PNPM exec tsx scripts/governance-linux-check.mjs
 
 # --------------------------------------------------------------------------
 step "Command"
 
+# A symlink into /usr/local/bin, in preference to `pnpm link --global`.
+#
+# `pnpm link --global` puts the command in a per-user directory and then needs
+# that directory on PATH, which means editing a shell profile — and **systemd
+# does not read shell profiles**. The unit in deploy/ would still not find
+# `openclaw`, so the link would look like success and solve nothing for the
+# deployment that matters. /usr/local/bin is always on PATH, for every user and
+# for services. Observed on Ubuntu 24.04, 2026-08-28:
+#
+#     [ERROR] The configured global bin directory
+#             "/root/.local/share/pnpm/bin" is not in PATH
+link_into() {
+  local bindir="$1" sudo_prefix="${2:-}"
+  $sudo_prefix ln -sf "$REPO_ROOT/openclaw.mjs" "$bindir/openclaw" 2>/dev/null || return 1
+  [ -x "$bindir/openclaw" ] || $sudo_prefix chmod +x "$REPO_ROOT/openclaw.mjs" 2>/dev/null
+  return 0
+}
+
 if [ "$LINK_GLOBAL" -eq 1 ]; then
-  if $PNPM link --global >/dev/null 2>&1; then
-    if command -v openclaw >/dev/null 2>&1; then
-      ok "openclaw -> $(command -v openclaw)"
-    else
-      warn "linked, but openclaw is not on PATH — add pnpm's global bin dir:"
-      printf '        export PATH="$(%s config get global-bin-dir):$PATH"\n' "$PNPM"
-    fi
+  LINKED=""
+  if [ -w /usr/local/bin ] && link_into /usr/local/bin; then
+    LINKED=/usr/local/bin/openclaw
+  elif command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null && link_into /usr/local/bin sudo; then
+    LINKED=/usr/local/bin/openclaw
+  elif $PNPM link --global >/dev/null 2>&1; then
+    LINKED="$(command -v openclaw 2>/dev/null || true)"
+  fi
+
+  if [ -n "$LINKED" ] && command -v openclaw >/dev/null 2>&1; then
+    ok "openclaw -> $(command -v openclaw)"
+  elif [ -n "$LINKED" ]; then
+    warn "linked at $LINKED but it is not on PATH in this shell; open a new one"
   else
-    warn "pnpm link --global failed; use ./openclaw.mjs directly, or symlink it:"
+    warn "could not put openclaw on PATH automatically. Either of these works:"
     printf '        sudo ln -sf %s/openclaw.mjs /usr/local/bin/openclaw\n' "$REPO_ROOT"
+    printf '        %s setup   %s# then re-run this script%s\n' "$PNPM" "$DIM" "$RESET"
+    printf '      Until then, run %s./openclaw.mjs%s from %s.\n' "$BOLD" "$RESET" "$REPO_ROOT"
   fi
 else
   ok "skipped global link (--no-link); run ./openclaw.mjs from $REPO_ROOT"

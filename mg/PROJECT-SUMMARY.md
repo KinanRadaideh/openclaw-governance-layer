@@ -378,7 +378,7 @@ Chapter 3 will need them.
 
 ## 5. Quality assurance history
 
-Twenty-two rounds plus the M-series build, **136 defects found, all fixed, none open** — finding 120 (2026-08-26) was found by mutation-testing T6 and closed the same day; the count became 121 when T29's numbering audit found two defects sharing the number 104, **127 on 2026-08-27** when M5's four and M6's two were numbered 122–127, **130** when QA round nineteen audited the M-series as one system (128–130), **131** when QA round twenty read the remaining work against the nine design requirements and found a requirement-8 breach in the search audit, **134** when round twenty-one built the missing "raw LLM intent" field and found three defects in it (132–134), and **136** on 2026-08-28 when round twenty-two audited that documentation pass against the code (135–136): a JSDoc comment orphaned from `entryKind` by the new field, and T16 regressed in the same commit whose documentation asserted it closed.
+Twenty-three rounds plus the M-series build, **138 defects found, all fixed, none open** — finding 120 (2026-08-26) was found by mutation-testing T6 and closed the same day; the count became 121 when T29's numbering audit found two defects sharing the number 104, **127 on 2026-08-27** when M5's four and M6's two were numbered 122–127, **130** when QA round nineteen audited the M-series as one system (128–130), **131** when QA round twenty read the remaining work against the nine design requirements and found a requirement-8 breach in the search audit, **134** when round twenty-one built the missing "raw LLM intent" field and found three defects in it (132–134), and **136** on 2026-08-28 when round twenty-two audited that documentation pass against the code (135–136): a JSDoc comment orphaned from `entryKind` by the new field, and T16 regressed in the same commit whose documentation asserted it closed.
 
 > **Numbered 2026-08-27, and the delay is the lesson.** For one day these six
 > were fixed, written up in all three registers, and **absent from the numbered
@@ -572,7 +572,7 @@ conclusion.
   on both halves). M5, M6, T7's audit half, T29, T30, finding 120's fix and QA
   rounds nineteen to twenty-one landed on 2026-08-27 in two commits, `76a0a51`
   (code) and `add4f9c` (documentation). **The push is outstanding**: the private
-  remote is still at the 2026-08-21 tip, so **33 commits** exist only on this
+  remote was at the 2026-08-21 tip until 2026-08-28, when **35 commits** were pushed (`e5a7876431b` to `2916aebb206`). Until that moment they existed only on this
   machine and in OneDrive. `origin` points at upstream OpenClaw, so this branch
   must never be pushed there, and it has not been. The branch lives at
   `github.com/KinanRadaideh/openclaw-governance-layer` (private, remote

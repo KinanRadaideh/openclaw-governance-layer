@@ -670,6 +670,36 @@ in code, `policy-engine.ts` recording unjudgeable calls as `ungoverned` rather
 than dropping them; and `agent-intent.ts` capturing by direct call rather than a
 registered hook, as B1 requires.
 
+### QA round twenty-three — the Linux install, and a harness that never ran (2026-08-28)
+
+Not a review — a **build**. T33 put the fork on Linux from source for the first
+time, and building something is the most reliable way this project has found of
+discovering what was never true about it. **Two findings, 137–138, both fixed.**
+
+| #       | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | State |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| **137** | **`scripts/governance-linux-check.mjs` had never run — not once — between being written on 2026-08-11 and 2026-08-28.** Its header claimed it needed "nothing but `node`" because "the modules exercised here import only Node built-ins". Three separate things stop bare `node`, each visible only once the previous is fixed: `permissions.ts` imports `./roles.js` (the TS convention for a sibling `.ts`, which Node does not rewrite); the graph reaches `@openclaw/acp-core`, a workspace package pnpm does not hoist to the root `node_modules`; and `src/config/env-substitution.ts` uses a constructor parameter property, which Node's strip-only mode cannot transform. **`CHAPTER3-MATERIAL.md` §4.x.9 recorded it as "14 checks — All passed" and cited it as evidence for design requirement #9.** Fixed by running it under `tsx`, already a devDependency | fixed |
+| **138** | **Found only because 137 was fixed.** With the harness finally running, the `0600` file-mode check failed at once: it called `ledgerFilePath()` with no argument, and **M5 had made `groupId` mandatory two days earlier**. The call resolved to the literal string `"undefined"`, which the path guard refuses. It had been stale since 2026-08-26 and nothing said so                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | fixed |
+
+**138 is the more useful of the two, and it is the reason 137 matters beyond its
+own row.** A check that never runs does not merely fail to catch regressions —
+**it stops reporting when it has itself gone out of date**, and it does so while
+continuing to look like coverage. The harness sat in the repository for
+seventeen days as a green row in the requirement-conformance table, and in that
+time the codebase moved underneath it twice.
+
+**Now genuinely 14/14 on Ubuntu 24.04**, and `scripts/vps-install.sh` runs it as
+the final step of every install, so the claim is re-earned per deployment rather
+than asserted once.
+
+**This is the fifth instance of the project's central pattern** — after the T25
+harness baseline, T19's "re-measured every row", T29's duplicate 104, and
+finding 136's same-commit contradiction. The shape is constant: _a statement
+that was true of one narrow thing, or true once, written in words that read as a
+general and continuing claim, and never re-executed._ Chapter 4 should present
+these five together; they are the same defect wearing five costumes, and the
+project's own review history is the evidence.
+
 ### Decided but not built — flag-style password masking (2026-08-27)
 
 Round twenty found that the ledger's redactor misses passwords passed as command
@@ -769,13 +799,20 @@ lacks. It produces a runtime stage carrying `dist`, `node_modules` and
 
 **The subtasks.**
 
-| #   | What                                                                                                                                                                                   | Effort   |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| a   | **Decide the delivery route** — Docker (`COPY . .` already forks correctly) or a bare source build. Kinan's call; costs differ                                                         | decision |
-| b   | `start-governance.sh` — the launcher's bash equivalent, plus a **systemd unit**, which is the shape a server actually needs                                                            | 1 h      |
-| c   | **Replace `scripts/linux-setup.sh`.** It is a WSL dev helper wearing a deployment name: hardcoded mount path, `--ignore-scripts`, no build                                             | 2 h      |
-| d   | **Run the from-source path end to end on Linux once** — `pnpm install`, `pnpm build`, `pnpm ui:build`, start the gateway, load the dashboard. This is the step that has never happened | ½ day    |
-| e   | Correct every document that says Linux is "tested" without saying what was tested                                                                                                      | 1 h      |
+**Kinan's decision, 2026-08-28: a bare source build.** Docker was offered and
+declined for a stated reason — the VPS should **look like a normal OpenClaw
+install**, which matters for the report: a reader comparing the deployment to
+upstream's documentation should recognise it. The cost is accepted — Node, pnpm
+and the build all have to work on the host rather than inside an image.
+
+| #   | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Effort   | State |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ----- |
+| a   | ~~**Decide the delivery route.**~~ **Bare source build**, decided 2026-08-28. Docker was the alternative and was declined on purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | decision | done  |
+| b   | ~~The launcher's bash equivalent, plus a systemd unit.~~ **DONE 2026-08-28** — `scripts/start-governance.sh` and `deploy/openclaw-governance.service`. The launcher deliberately does **not** open a browser: a VPS has no display and the Gateway binds loopback, so it prints the `ssh -L` command instead                                                                                                                                                                                                                                                                                                                                       | 1 h      | done  |
+| c   | ~~**Replace `scripts/linux-setup.sh`.**~~ **DONE 2026-08-28.** Renamed to `wsl-dev-setup.sh` (with `wsl-dev-sync.sh` and `wsl-dev-test.sh`), and its header now states the three reasons it was never a deployment path. Superseded by `scripts/vps-install.sh`                                                                                                                                                                                                                                                                                                                                                                                    | 2 h      | done  |
+| d   | ~~**Run the from-source path end to end on Linux once.**~~ **DONE 2026-08-28**, Ubuntu 24.04.4 LTS / Node v22.23.2, from a tree with no `node_modules` and no `dist`: `pnpm install` (1,397 packages), `pnpm build` (`dist/entry.js`), `pnpm ui:build` (`dist/control-ui`), platform probe **14/14**, installer exit **0**, and `openclaw` on PATH answering `OpenClaw 2026.8.1` and `openclaw governance --help`. **The 8 GB check correctly warned at 7 GB rather than refusing.** Two findings came out of it — 137 and 138. **Still needs a real host: the dashboard through an SSH tunnel, and the systemd unit across a reboot. That is T3** | ½ day    | done  |
+| e   | ~~Correct every document claiming Linux is "tested" without saying what was tested.~~ **DONE 2026-08-28** — `CHAPTER3-MATERIAL.md` §3.1 row 9, §3.3, and the file inventory                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | 1 h      | done  |
+| f   | **Deploy-key access for the private repository.** Documented in `LINUX-INSTALL.md` §1 and **yours to execute**: the key is generated on the VPS and registered on GitHub, and neither step is mine to take                                                                                                                                                                                                                                                                                                                                                                                                                                         | 15 min   | yours |
 
 **Two risks worth expecting on the first Linux build**, both from this project's
 own history: the upstream bug in `UPSTREAM-BUG-REPORT.md` is a POSIX-vs-Windows

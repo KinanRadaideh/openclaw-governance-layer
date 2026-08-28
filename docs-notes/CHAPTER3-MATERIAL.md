@@ -6680,20 +6680,54 @@ Environment: Ubuntu 24.04 under WSL2, Node v22.23.2, native dependency install
 (the Windows `node_modules` contains platform-specific binaries and cannot be
 reused).
 
-| Check                                                   | Result                                                                                                                        |
-| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Full governance suite (`vitest`, 213 tests at the time) | **All passed**                                                                                                                |
-| Dedicated platform harness (14 checks)                  | **All passed**                                                                                                                |
-| Directory mode `0700`, file mode `0600`                 | **Enforced** — advisory on Windows, real here; first proof that governance state is not world-readable on the target platform |
-| Cross-process file lock under 25-way concurrency        | Mutual exclusion held; no stale lock left behind                                                                              |
-| POSIX path handling                                     | Correct                                                                                                                       |
-| scrypt hashing, salting                                 | Correct                                                                                                                       |
-| Load average                                            | Reported as supported (Windows correctly reports it as unsupported)                                                           |
+| Check                                                   | Result                                                                                                                                                                                                                                               |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Full governance suite (`vitest`, 213 tests at the time) | **All passed**                                                                                                                                                                                                                                       |
+| Dedicated platform harness (14 checks)                  | **All passed — but only since 2026-08-28.** This row was **false when written and for seventeen days after** (findings 137 and 138): the harness could not run at all, and separately had gone stale. Now genuinely 14/14 — see the correction below |
+| Directory mode `0700`, file mode `0600`                 | **Enforced** — advisory on Windows, real here; first proof that governance state is not world-readable on the target platform                                                                                                                        |
+| Cross-process file lock under 25-way concurrency        | Mutual exclusion held; no stale lock left behind                                                                                                                                                                                                     |
+| POSIX path handling                                     | Correct                                                                                                                                                                                                                                              |
+| scrypt hashing, salting                                 | Correct                                                                                                                                                                                                                                              |
+| Load average                                            | Reported as supported (Windows correctly reports it as unsupported)                                                                                                                                                                                  |
 
-The harness (`scripts/governance-linux-check.mjs`) runs on plain `node` with no
-dependency install, because the platform-sensitive modules import only Node
-built-ins and Node 22 strips TypeScript types natively. That makes it a
-practical smoke test for any future deployment target.
+> **Correction, 2026-08-28 — and this one is Chapter 4 material in its own
+> right.** The paragraph that stood here said the harness "runs on plain `node`
+> with no dependency install, because the platform-sensitive modules import only
+> Node built-ins and Node 22 strips TypeScript types natively". **Every clause of
+> that was wrong, and the file had therefore never executed once** between being
+> written on 2026-08-11 and 2026-08-28 — while this very table recorded it as
+> "14 checks, all passed" and cited it as evidence for design requirement #9.
+>
+> **Finding 137.** Three independent things stop bare `node`, and each only
+> becomes visible once the previous is fixed, which is how the claim survived so
+> long unexamined:
+>
+> 1. `permissions.ts` imports `./roles.js` — the TypeScript convention for a
+>    sibling `.ts`. Node strips types but does **not** rewrite specifiers, so it
+>    looked for a `roles.js` that has never existed.
+> 2. The graph reaches `@openclaw/acp-core`, a **workspace** package pnpm does
+>    not hoist into the root `node_modules`. The bundler resolves it; `node`
+>    cannot see it.
+> 3. `src/config/env-substitution.ts` uses a constructor **parameter property**,
+>    which Node's strip-only mode cannot transform at any resolution setting.
+>
+> **Finding 138, which only existed because of 137.** With the harness running,
+> one check failed immediately: the `0600` file-mode check called
+> `ledgerFilePath()` with no argument, and **M5 had made `groupId` mandatory two
+> days earlier**. The call had rotted and nothing said so — _a check that never
+> runs does not merely fail to catch regressions, it also stops reporting when it
+> has itself gone out of date._
+>
+> **Fixed by running it under `tsx`**, already a devDependency, which handles all
+> three. It now genuinely reports **14/14 on Ubuntu 24.04**, and
+> `scripts/vps-install.sh` runs it as the last step of every install, so the
+> claim is re-earned on each deployment rather than asserted once.
+
+The harness (`scripts/governance-linux-check.mjs`) needs `pnpm install` and is
+invoked as `pnpm exec tsx scripts/governance-linux-check.mjs`. It does **not**
+need `pnpm build`, so it remains a practical smoke test for a candidate
+deployment target — the property the original claim was reaching for, now stated
+in terms that are true.
 
 **Observation worth reporting:** the retention-pruning tests took ~46 s each on
 Linux versus a fraction of that on Windows, because every rule-request write

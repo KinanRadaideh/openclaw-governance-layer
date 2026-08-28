@@ -102,12 +102,33 @@ The installer is idempotent, so after a `git pull` just run it again. Options:
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `--with-node` | Install Node 22 via nvm rather than telling you to. Off by default: fetching and running a runtime installer should be your decision |
 | `--skip-ui`   | Skip the Control UI build. The dashboard will not be served — headless/CLI-only hosts                                                |
-| `--no-link`   | Do not `pnpm link --global`; run `./openclaw.mjs` from the repository instead                                                        |
+| `--no-link`   | Do not put `openclaw` on PATH; run `./openclaw.mjs` from the repository instead                                                      |
 
-It finishes by running `scripts/governance-linux-check.mjs`, which is the
-governance layer's own platform probe: file locks, `0700`/`0600` permissions
-(advisory on Windows, **enforced** here), POSIX path production, scrypt, the
-role ladder, Viewer masking, load average.
+It finishes by running the governance layer's own platform probe —
+`pnpm exec tsx scripts/governance-linux-check.mjs` — which covers file locks,
+`0700`/`0600` permissions (advisory on Windows, **enforced** here), POSIX path
+production, scrypt, the role ladder, Viewer masking and load average.
+**14 checks, and the install fails if any of them do.**
+
+> The probe is run through `tsx`, not bare `node`, and that is a correction
+> rather than a preference. Its own header claimed for seventeen days that it
+> needed "nothing but `node`" — it never did, so **it had never run once**
+> (finding 137), while being cited in the report as evidence for requirement #9.
+> When it finally ran, it immediately failed a check that had gone stale two
+> days earlier (finding 138). Both are fixed; the story is in
+> `CHAPTER3-MATERIAL.md` §4.x.9.
+
+---
+
+> **How `openclaw` gets onto PATH, and why not the obvious way.** The installer
+> symlinks `openclaw.mjs` into `/usr/local/bin` in preference to
+> `pnpm link --global`. pnpm's global bin lives in a per-user directory that has
+> to be added to a shell profile — and **systemd does not read shell profiles**,
+> so the unit in `deploy/` would still not find the command. The link would look
+> like success while solving nothing for the deployment that actually matters.
+> `/usr/local/bin` is on PATH for every user and for services. Observed on
+> Ubuntu 24.04: `[ERROR] The configured global bin directory
+"/root/.local/share/pnpm/bin" is not in PATH`.
 
 ---
 
@@ -210,6 +231,29 @@ history: the upstream bug in `UPSTREAM-BUG-REPORT.md` is a POSIX-vs-Windows
 filesystem-semantics difference, and defect 6 was path separators. Cross-platform
 assumptions here have not held automatically before, which is why
 `governance-linux-check.mjs` runs as part of the install rather than on request.
+
+---
+
+## What has actually been verified
+
+**On Ubuntu 24.04.4 LTS, Node v22.23.2, 2026-08-28**, from a clean tree with no
+`node_modules` and no `dist`:
+
+| Step                                      | Result                                                                                                                              |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install` (workspace, 1397 packages) | **ok**                                                                                                                              |
+| `pnpm build`                              | **ok** — `dist/entry.js` produced                                                                                                   |
+| `pnpm ui:build`                           | **ok** — `dist/control-ui` produced                                                                                                 |
+| Platform probe                            | **14 / 14 passed**                                                                                                                  |
+| `openclaw --version`                      | **OpenClaw 2026.8.1**                                                                                                               |
+| `openclaw governance --help`              | Lists `agent`, `agents`, `audit`, `deployment`, `groups`, `kill`, `login`, `logout`, `pending` — the layer is present and answering |
+| The 8 GB check                            | Correctly **warned** at 7 GB rather than refusing                                                                                   |
+
+**Not yet verified, and both need a real host — that is T3:** the dashboard
+loaded through an SSH tunnel, and the systemd unit surviving a reboot. The tree
+was also taken from a local mirror of the pushed commit rather than cloned over
+the network, so the GitHub hop itself — ordinary `git` over SSH — is the one
+step in this runbook not exercised end to end.
 
 ---
 
