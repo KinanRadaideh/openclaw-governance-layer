@@ -6,20 +6,17 @@ supervisor, or the same person after a break. Everything else in `mg/` is detail
 beneath this.
 
 > **If you read three things:** §1 for the state, §6 for what is left, and the
-> `git push` in §8 — **30 commits** exist only on this machine (re-measured
+> `git push` in §8 — **32 commits** exist only on this machine (re-measured
 > 2026-08-27 with `git log --oneline personal/governance-layer..HEAD | wc -l`;
 > re-measure rather than trust it, see §1).
 >
-> **And the worse half, as of 2026-08-27: the working tree is not committed at
-> all.** `git status --porcelain` reports **111 entries**, of which **nine are
-> new files** — `search-audit.ts`, `search-audit.test.ts`, `agent-group.ts`,
-> `test-group.ts`, `governance-dashboard-group.ts` (T7 and M5), and
-> `agent-provisioning.ts`, `agent-provisioning.test.ts`,
-> `agent-registry-panels.ts`, `agent-registry-panel.test.ts` (M6). Everything
-> from T7's audit half, T29, T30, finding 120's fix, **all of M5 and all of M6**
-> exists only as uncommitted changes on this disk, and an untracked file does
-> not survive a careless `git checkout .`. Commit before pushing; the push alone
-> saves none of it.
+> **The working tree is clean as of 2026-08-27**, and that is new. For most of
+> August it was not: M5, M6, T7's audit half, T29, T30, finding 120's fix and QA
+> rounds nineteen to twenty-one all sat uncommitted at once — 113 entries, eleven
+> of them untracked files that a careless `git checkout .` would have destroyed.
+> They are now in two commits, `76a0a51` (code) and `add4f9c` (documentation).
+> **What is left is the push**, and nothing else stands between this work and
+> the only off-machine copy.
 
 ---
 
@@ -32,14 +29,15 @@ tests pass across 107 files** (1,467 distinct across 81 — see §4), both
 typechecks are clean, and OpenClaw's own test
 suite is **fully green for the first time**: the 18 pre-existing Windows
 failures used as this project's baseline were fixed on 2026-08-25 (T25), along
-with nine more in `host-hooks.contract.test.ts`. Eighteen
+with nine more in `host-hooks.contract.test.ts`. **The M-series is complete**
+(M1–M6, finished 2026-08-27), so no substantial engineering is left. Twenty-one
 QA rounds and the build itself have found **134 defects, all fixed — zero open.** The count moved from 120 to 121 when T29's numbering audit (2026-08-26) found **two different defects both numbered 104**; to 127 on 2026-08-27 when M5's four and M6's two were numbered **122–127**, having been fixed and written up in all three registers but never entered on the numbered list; to **130** the same day when **QA round nineteen** audited the M-series as one system and found **128–130**; and to **131** when **QA round twenty** read the rest of the window's work against the nine design requirements and found `search-audit.ts` writing grep's matched file content — secrets included — into the tamper-evident ledger, a direct breach of requirement 8; and to **134** when **round twenty-one** built §1.6's missing "raw LLM intent" field and audited it, finding three defects in one day's work (**132–134**). **Standing rule from 2026-08-27: every defect gets a number when it is found.** Finding 120 was found and
 closed on 2026-08-26: T6's fail-closed branch could not fire, so a lockdown
 whose lineage records were unreadable degraded to fail-_open_. It was closed by
 probing the store with a scoped listing rather than a keyed read — which
 distinguishes "no such session" from "no readable store", the two cases the old
 probe conflated — **without costing the narrowness** that makes failing closed
-defensible. **There is no known security gap**, and as of 2026-08-26
+defensible. **There is no known security gap**, and as of 2026-08-27
 **no known-failing test anywhere** — the
 project's own suite, OpenClaw's harness, and the plugin contract suite are all
 green, and every source file is inside the line limit inherited from upstream.
@@ -47,7 +45,10 @@ green, and every source file is inside the line limit inherited from upstream.
 What has _not_ happened is a single end-to-end run with a real language model
 driving a real tool call — so every claim rests on tests, not on observation.
 That gap is **T2** (formerly A9), and it is still the most valuable remaining
-item by a wide margin.
+item by a wide margin. It grew one more consumer on 2026-08-27: the **raw LLM
+intent** field records what the model said it was doing, and while every piece of
+it is unit-tested, the one thing only a live run can confirm is that the capture
+fires before the tool calls of the same turn.
 
 **There are two backlogs now.** `REMAINING-WORK.md` §"The numbered backlog"
 holds **T1–T32**, the original project, and supersedes every older list.
@@ -63,6 +64,39 @@ the 26th, and T29 and T30 closed the same day). **T8 is closed** — 2026-08-26,
 by decision — so any older sentence listing it as outstanding is stale. The old letters
 (A-, B-, F-, R5, G) survive only as a `Ref` column pointing at their historical
 write-ups; nothing is orphaned.
+
+### 2026-08-27 — three QA rounds, the intent field, and the first commit in a fortnight
+
+**Read this before §6.** Four things happened, and the last one changes how the
+rest of this file should be read.
+
+**QA round nineteen — the M-series audited as one system.** Three findings.
+**128** is the one to know: the registry stored the agent id _as typed_ while the
+gate looked it up _canonicalised_, so an agent registered as `Scout` appeared
+owned and governed in the panel and was **refused on every tool call**, with
+nothing anywhere explaining why. The same gap made the duplicate check bypassable
+by case, so installation-wide agent-id uniqueness — kept deliberately in M5
+because session keys are global — **did not actually hold**. Two organisations
+could each hold a record of one real agent, and the one whose spelling was
+canonical won the gate while the other wrote rules into a document nothing read.
+**Not one of the 2,247 tests then existing failed when it was fixed.**
+
+**QA round twenty — the rest of the window, read against the requirements.** The
+nine requirements were extracted from `Grad_Proj___Current.pdf` verbatim rather
+than quoted from memory. **131**: `search-audit.ts` wrote grep's matched file
+_content_ — credentials included — into the tamper-evident ledger. A direct
+breach of requirement 8, in the one file the layer protects and never deletes.
+
+**Round twenty-one — §1.6's missing sixth log field.** "Granular Event Tracking"
+lists six things the log should capture and the layer recorded five. The **raw
+LLM intent** is now the sixth. Auditing it immediately found three more defects
+(**132–134**) — a comment claiming an unreachable threat, a **Viewer able to read
+the model's narration verbatim**, and an exported function nothing called.
+
+**And it is all committed.** For most of August this file warned about an
+uncommitted tree; it reached 113 entries before it landed in two commits on
+2026-08-27. The tree is clean. **32 commits have never been pushed**, and that is
+now the only thing standing between this work and its only off-machine copy.
 
 ### 2026-08-27 — M6, and the M-series is finished
 
@@ -374,7 +408,7 @@ backlog.**
 
 | #   | Action                                                                                                                                                                                                                                                                           | Effort   |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| 1   | **Push to the private remote.** **30 commits** exist only on this machine and in OneDrive — re-measured 2026-08-26 with `git log --oneline personal/governance-layer..HEAD \| wc -l`. Every later commit, this file's own edits included, adds one: re-measure rather than quote | 1 min    |
+| 1   | **Push to the private remote.** **32 commits** exist only on this machine and in OneDrive — re-measured 2026-08-27 with `git log --oneline personal/governance-layer..HEAD \| wc -l`. Every later commit, this file's own edits included, adds one: re-measure rather than quote | 1 min    |
 | 2   | **Run it once with a real agent** and record what happens (T2)                                                                                                                                                                                                                   | 2–4 days |
 
 > **Do not confuse the two counts.** `main..HEAD` is **45** and
@@ -392,7 +426,7 @@ remote. The push was **verified by cloning it back from GitHub**: same tip
 (`f4b7325241a`), same tree (`3debbb521…`), the governance work all present.
 The work now exists in three places rather than one.
 
-> ### ⚠ The tree is clean, and 30 commits have never left this machine
+> ### ⚠ The tree is clean, and 32 commits have never left this machine
 >
 > Everything since 2026-08-21 is committed — the sixteenth QA pass, T9, T24,
 > T26, T4, T27, T5, T14, T15, T23, rounds seventeen and eighteen, M1–M4, T25,
@@ -487,8 +521,8 @@ A finding that appears in only the middle column is not finished.
 
 ## 3. Where the code is, right now
 
-**Branch `governance-layer`, 45 commits ahead of `main`, and the working tree is
-NOT clean.** Re-check both with
+**Branch `governance-layer`, 47 commits ahead of `main`, and the working tree is
+clean as of 2026-08-27.** Re-check both with
 `git rev-list --count main..HEAD` and `git status --porcelain | wc -l` rather
 than trusting these numbers — they move with every commit, and a hard-coded
 count in a handoff is the same class of
@@ -496,16 +530,16 @@ defect as the stale inventory T19 carried. (This paragraph said "clean, 22
 commits ahead" until 2026-08-27, when both halves were measured and both were
 wrong.)
 
-> **Measured 2026-08-27: 111 uncommitted entries.** 102 modified files and nine
-> untracked ones. That is every change since commit `48fa83c` — T7's audit half
-> (`search-audit.ts`, `search-audit.test.ts`), T29, T30, finding 120's fix,
-> **all of M5** (`agent-group.ts`, `test-group.ts`,
-> `governance-dashboard-group.ts`, and the per-group migration across ~95 files)
-> and **all of M6** (`agent-provisioning.ts` and its tests, the registry panel
-> and its tests, plus the routes, CLI and i18n they need).
-> Several documents in `mg/` describe that work as done and one described it as
-> committed. It is done; it is not committed. **Commit first, then push** — §6's
-> "push to the private remote" does not save an uncommitted tree. The commits of 2026-08-21 carry the
+> **Committed 2026-08-27, and the history of that is worth keeping.** For most of
+> August this paragraph described an uncommitted tree that kept growing: it
+> reached **113 entries**, eleven of them untracked files, holding T7's audit
+> half, T29, T30, finding 120's fix, **all of M5**, **all of M6** and QA rounds
+> nineteen to twenty-one. Several documents in `mg/` described that work as done
+> and one described it as committed; it was done, and it was not committed.
+>
+> It is now, in two commits — `76a0a51` for the code and `add4f9c` for the
+> documentation, split rather than landed as one 12,500-line change. **The push
+> is still outstanding**, which is the whole of what §6 step 1 now means. The commits of 2026-08-21 carry the
 > governance core, the dashboard, the documentation, the lockfile and the handoff
 > update, and the branch exists on this machine, in OneDrive, and at
 > `github.com/KinanRadaideh/openclaw-governance-layer` (private, remote
@@ -517,17 +551,17 @@ T4, T27, T5, T14, T15, the T16 split, and the documentation. Commits have
 continued since (T16's dashboard split, T6, and their write-ups, through
 `48fa83c` on 2026-08-26). **The private
 remote has not received any of them**; it is still at the 2026-08-21 tip
-(`e5a7876431b`), so **30 commits** — not seven — plus the entire uncommitted
-tree above exist on this machine and in OneDrive only. That is a larger
-version of the same risk F1 closed, and it has grown every day it was left.
+(`e5a7876431b`), so **32 commits** — not seven — exist on this machine and in
+OneDrive only. That is a larger version of the same risk F1 closed. It grew every
+day it was left; committing stopped it growing, and only the push closes it.
 
 **GitHub Actions are disabled on the private remote** (T21), because the fork
 carries 82 upstream workflow files and fifteen of them are scheduled. Anything
 that re-enables Actions there starts the meter again.
 
-The files that were uncommitted on 2026-08-21, and are now in those commits —
-**except `search-audit.ts` and `search-audit.test.ts`, which were written later
-(T7, 2026-08-26) and are still uncommitted as of 2026-08-27**:
+The files that were uncommitted on 2026-08-21, and are now in those commits.
+`search-audit.ts` and `search-audit.test.ts` were written later (T7, 2026-08-26)
+and landed in `76a0a51` on 2026-08-27, along with everything else listed in §5:
 
 ```
 src/governance/agent-runner.ts                    the seam the host registers a runner into
@@ -1301,20 +1335,46 @@ of them.
 
 Of the eight left, four are yours (**T2, T3, T17, T18**), one is deprioritised
 (**T1**), one is a decision (**T7** prevention), one is mechanical (**T31**), and
-one waits on M (**T32**). Sorted below by who has to move first.
+one waits on T7's decision (**T32** — the M-series it also waited on is finished).
+Sorted below by who has to move first.
+
+> **Five items are outstanding that have never had a T-number**, added on
+> 2026-08-27 and listed here so the backlog's arithmetic is not the only place
+> they exist. Three need nothing from you:
+>
+> - **Flag-style password masking**, long forms only — your decision of
+>   2026-08-27, taken and not yet built. `--password=`, `--http-password=`,
+>   `--token=` and URL credentials. A bare `-p` is deliberately excluded: it
+>   means "make parent directories" to `mkdir` and "publish a port" to `docker`,
+>   and masking those would make the ledger say something other than what ran
+> - **The pre-M3 route audit**, which `REMAINING-WORK.md` records as unfinished:
+>   _every route written before groups existed still deserves the question "does
+>   this cross a group?"_. Finding 119 was one consequence; nobody has checked
+>   for others
+> - **A sanitiser guard.** Finding 133 happened because the Viewer mask is a
+>   hand-maintained list and a new ledger field did not inherit it. A test that
+>   fails when a field is added without being classified would stop the next one
+>
+> And two are decisions:
+>
+> - **Entropy analysis.** §2.1.5.2 prescribes "regex **and entropy analysis**";
+>   only regex exists. Worth knowing before deciding: it would not have caught
+>   finding 131, and it cannot catch a memorable password, which is low-entropy
+>   by nature. Build it, or record it as a deliberate divergence
+> - **Surfacing the intent field.** It is recorded and returned by the API; no
+>   dashboard column reads it. Recording was the scope you set
 
 ### Do this before anything else
 
 **Commit, then push to the private remote.** Both halves, in that order — a push
 does not carry an uncommitted tree.
 
-**111 files are uncommitted** (measured 2026-08-27 with
-`git status --porcelain | wc -l`): T7's audit half, T29, T30, finding 120's fix
-and **the whole of M5 and M6**, none of it in a commit. **Nine of those files are
-new and untracked**, so a careless `git checkout .` would destroy them
-outright.
+**The commit half is done as of 2026-08-27.** The tree is clean;
+`76a0a51` holds the code and `add4f9c` the documentation for M5, M6 and QA
+rounds nineteen to twenty-one. What is left is the push, and it is the whole of
+this step now.
 
-**30 commits have never left this machine** (re-measure with
+**32 commits have never left this machine** (re-measure with
 `git log --oneline personal/governance-layer..HEAD | wc -l`; the remote is at the
 2026-08-21 tip `e5a7876431b`):
 
@@ -1526,7 +1586,7 @@ Stated here so they are not discovered late.
 
 **Push to the private remote, then run it once with a real agent (T2).**
 
-The push takes a minute and is not optional. **30 commits** have never
+The push takes a minute and is not optional. **32 commits** have never
 left this machine (2026-08-26) — the sixteenth QA pass, T9, T24, T26, T4, T27,
 T5, T14, T15, T23, QA rounds seventeen and eighteen, M1–M4, T25, T28, and T16
 and T6 in full — so a fortnight of work exists here and in OneDrive only. F1,

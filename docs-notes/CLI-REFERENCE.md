@@ -406,6 +406,12 @@ M4, and would buy nothing: an agent nobody has claimed cannot be stolen from an
 owner who does not exist. Closing it needs registration to be mandatory, which
 needs M6's provisioning first.
 
+**Closed 2026-08-27 (M5).** Registration is mandatory: an unregistered agent is
+refused at the gate and at assignment, so there is no unowned agent left to
+assign. It did not need M6 — the claim rested on reading _registering_ an agent
+and _provisioning_ one as one act, and registration had been on every surface
+since the registry shipped.
+
 ---
 
 ## 3. Policy commands
@@ -877,15 +883,40 @@ the audit section, which needs no `jq`.
 
 Each entry:
 
-| Field                                  | Meaning                                               |
-| -------------------------------------- | ----------------------------------------------------- |
-| `seq`                                  | Strictly increasing. A gap is tampering evidence      |
-| `timestamp`                            | ISO 8601, when the decision was made                  |
-| `agentId`, `sessionKey`                | Which agent and session acted                         |
-| `toolName`, `resourceKind`, `resource` | What was attempted (secrets already redacted)         |
-| `ruleId`                               | Which rule decided, or `default-deny` / `kill-switch` |
-| `decision`                             | `allow`, `deny`, or `ask`                             |
-| `prevHash`, `hash`                     | The chain link and this entry's own SHA-256           |
+| Field                                  | Meaning                                                                                           |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `seq`                                  | Strictly increasing. A gap is tampering evidence                                                  |
+| `timestamp`                            | ISO 8601, when the decision was made                                                              |
+| `agentId`, `sessionKey`                | Which agent and session acted                                                                     |
+| `toolName`, `resourceKind`, `resource` | What was attempted (secrets already redacted)                                                     |
+| `ruleId`                               | Which rule decided, or `default-deny` / `kill-switch`                                             |
+| `decision`                             | `allow`, `deny`, or `ask`                                                                         |
+| `intent`                               | **What the model said it was doing** on the turn that produced the call. Often absent — see below |
+| `prevHash`, `hash`                     | The chain link and this entry's own SHA-256                                                       |
+
+**`intent` is the field to read when you want to know _why_** (§1.6's "raw LLM
+intent", added 2026-08-27). Everything else in the entry says what happened; this
+one says what the agent claimed it was up to, in its own words — so the trail can
+be read as _"it said it was checking the config, and then it opened something
+else"_. Nothing else in the entry supports that comparison.
+
+**It is absent more often than not, and that is normal**, never an error:
+
+- a turn where the model narrated nothing;
+- a harness that reports no assistant text;
+- a restart between the model speaking and the tool running;
+- any call not made by a model at all — this command line, a test, an
+  administrative action.
+
+Nothing is gated on it. It is redacted and clamped to 500 characters like any
+other recorded text, and a **Viewer** sees it masked, because narration names the
+files it is about to touch and quotes what it has already read.
+
+To read what the agent said alongside what it did:
+
+```bash
+openclaw governance audit tail --limit 100 | jq -r '.[] | select(.intent) | "\(.decision) \(.resource) \(.intent)"'
+```
 
 _Internally:_ reads the JSONL file and returns the last N well-formed entries.
 Malformed lines are skipped here (they are reported by `verify`, whose job it

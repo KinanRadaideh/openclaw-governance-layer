@@ -168,6 +168,21 @@ fields **plus the previous entry's hash**, so editing or deleting any historical
 record breaks every hash after it. `verifyLedgerChain()` recomputes the chain and
 reports the first broken entry and why.
 
+**What one entry records.** The sequence number and timestamp, the agent and its
+session key, the tool and the resource it named, the rule that decided and the
+decision itself, the previous hash and this one — and, since 2026-08-27, **the
+`intent`: what the model said it was doing on the turn that produced the call**
+(§1.6's "raw LLM intent", `agent-intent.ts`). Administrative entries add
+`entryKind`, `actor` and `actorRole` instead.
+
+`intent` is **absent whenever nothing was captured**, which is normal rather than
+an error: a turn with no narration, a harness that reports none, a restart
+between the model speaking and the tool running, or any call not made by a model
+at all — the command line, a test, an administrative action. Nothing is gated on
+it. It is redacted and clamped like any other recorded text, and it is **masked
+for the Viewer tier**, because model narration names the files it is about to
+touch and quotes what it has already read.
+
 Two properties beyond plain chaining:
 
 - **Keyed.** Hashes are HMAC-SHA256 under a per-installation secret
@@ -2042,6 +2057,16 @@ first: there is no honest way to require a record for agents the layer cannot
 yet create. A test asserts the hole out loud (`agent-registry.test.ts`, "allows
 an agent that predates the registry, which is the honest hole") so it is not
 later read as tighter than it is.
+
+> **Closed 2026-08-27 (M5), and the table above is history.** Registration is
+> mandatory: the middle row now reads **refused**, at the gate and at assignment
+> alike, and the test that asserted the hole asserts its closure with the old
+> comment preserved above it. The paragraph's reasoning — "there is no honest way
+> to require a record for agents the layer cannot yet create" — was the
+> misreading: _registering_ an agent and _provisioning_ one are two acts, and
+> registration had been available on every surface since the registry shipped.
+> Kept rather than rewritten, because this is the fourth instance of the pattern
+> the project keeps recording.
 
 #### Where the check lives, and why not in `user-store.ts`
 

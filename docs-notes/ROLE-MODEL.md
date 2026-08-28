@@ -57,8 +57,15 @@ agent-touching operation.
 > Administrator.** A registered agent names exactly one owning Administrator, and
 > a User or Viewer may only be assigned agents owned by the Administrator
 > answerable for them. An agent that predates the registry is owned by nobody and
-> is still freely assignable — a deliberate limit, kept until M6 can make
-> registration mandatory.
+> is still freely assignable — a deliberate limit, kept until registration could
+> be made mandatory.
+>
+> **Closed 2026-08-27 (M5), and not by M6 as this note expected.** Registration
+> is now mandatory: an agent with no registry record is refused at the gate _and_
+> at assignment, so there is no unowned agent left to assign. The row said it
+> needed provisioning to exist first, on a reading that treated _registering_ an
+> agent and _provisioning_ one as one act. They are not — registration had been
+> available on every surface since the registry shipped.
 >
 > Two invariants join the model: every account belongs to exactly one group, and
 > **every User and Viewer has one Administrator answerable for it**. Root cannot
@@ -272,6 +279,17 @@ not**: a Viewer learns that an action happened, when, by which agent, through
 which tool, and how it was decided — but not the literal command, path or host,
 which can itself disclose workspace detail. That is the paper's "sanitized
 audit logs" made concrete, and it is what distinguishes Viewer from User.
+
+**And, since 2026-08-27, the `intent` too** — what the model said it was doing on
+the turn that produced the call (§1.6's "raw LLM intent"). It is masked for the
+same reason and more strongly: narration does not merely _contain_ a path, it
+explains what the agent was looking for and quotes what it already found.
+
+That it needed adding is finding 133, and the lesson generalises past this field:
+**a new column in a record does not inherit the record's protections.** The mask
+is a hand-maintained list, and every field added to `LedgerEntry` is a judgement
+somebody has to make explicitly — which the note under `isPromptEntry` had
+already said, a month earlier, about a different field.
 
 ---
 
@@ -538,28 +556,28 @@ this Administrator owns (M4) · ✘ = refused
 > Root manages the people who own agents — without that, an agent whose owner
 > leaves the organisation could never be re-homed.
 
-| Capability                           |       Viewer       |  User  | Administrator | Root |
-| ------------------------------------ | :----------------: | :----: | :-----------: | :--: |
-| View policy rules                    |       scoped       | scoped |       ✔       |  ✔   |
-| View audit ledger                    | scoped, **masked** | scoped |       ✔       |  ✔   |
-| Verify chain integrity               |         ✔          |   ✔    |       ✔       |  ✔   |
-| View system resource states          |         ✔          |   ✔    |       ✔       |  ✔   |
-| View rule-request queue              |         ✔          |   ✔    |       ✔       |  ✔   |
-| Submit a rule request                |         ✘          |   ✔    |       ✔       |  ✔   |
-| Create/remove agent-scoped rules     |         ✘          | scoped |       ✔       |  ✔   |
-| Lock / release an agent              |         ✘          | scoped |       ✔       |  ✔   |
-| Create/remove **global** rules       |         ✘          |   ✘    |       ✔       |  ✔   |
-| Change posture / ask mode            |         ✘          |   ✘    |       ✔       |  ✔   |
-| Approve/reject rule requests         |         ✘          |   ✘    |       ✔       |  ✔   |
-| Assign agents to accounts            |         ✘          |   ✘    |       ✔       |  ✔   |
-| View the agent registry              |       scoped       | scoped |       ✔       |  ✔   |
-| Register an agent (owned by you)     |         ✘          |   ✘    |       ✔       |  ✔   |
-| Rename / re-own / unregister         |         ✘          |   ✘    |   **owned**   |  ✔   |
-| Register an agent to somebody else   |         ✘          |   ✘    |       ✘       |  ✔   |
-| **Provision** an agent (create it)   |         ✘          |   ✘    |       ✔       |  ✔   |
-| **Delete** an agent from the host    |         ✘          |   ✘    |   **owned**   |  ✔   |
-| Create/delete accounts, change roles |         ✘          |   ✘    |       ✘       |  ✔   |
-| View deployment / network posture    |         ✘          |   ✘    |       ✘       |  ✔   |
+| Capability                           |                   Viewer                   |  User  | Administrator | Root |
+| ------------------------------------ | :----------------------------------------: | :----: | :-----------: | :--: |
+| View policy rules                    |                   scoped                   | scoped |       ✔       |  ✔   |
+| View audit ledger                    | scoped, **masked** (resource _and_ intent) | scoped |       ✔       |  ✔   |
+| Verify chain integrity               |                     ✔                      |   ✔    |       ✔       |  ✔   |
+| View system resource states          |                     ✔                      |   ✔    |       ✔       |  ✔   |
+| View rule-request queue              |                     ✔                      |   ✔    |       ✔       |  ✔   |
+| Submit a rule request                |                     ✘                      |   ✔    |       ✔       |  ✔   |
+| Create/remove agent-scoped rules     |                     ✘                      | scoped |       ✔       |  ✔   |
+| Lock / release an agent              |                     ✘                      | scoped |       ✔       |  ✔   |
+| Create/remove **global** rules       |                     ✘                      |   ✘    |       ✔       |  ✔   |
+| Change posture / ask mode            |                     ✘                      |   ✘    |       ✔       |  ✔   |
+| Approve/reject rule requests         |                     ✘                      |   ✘    |       ✔       |  ✔   |
+| Assign agents to accounts            |                     ✘                      |   ✘    |       ✔       |  ✔   |
+| View the agent registry              |                   scoped                   | scoped |       ✔       |  ✔   |
+| Register an agent (owned by you)     |                     ✘                      |   ✘    |       ✔       |  ✔   |
+| Rename / re-own / unregister         |                     ✘                      |   ✘    |   **owned**   |  ✔   |
+| Register an agent to somebody else   |                     ✘                      |   ✘    |       ✘       |  ✔   |
+| **Provision** an agent (create it)   |                     ✘                      |   ✘    |       ✔       |  ✔   |
+| **Delete** an agent from the host    |                     ✘                      |   ✘    |   **owned**   |  ✔   |
+| Create/delete accounts, change roles |                     ✘                      |   ✘    |       ✘       |  ✔   |
+| View deployment / network posture    |                     ✘                      |   ✘    |       ✘       |  ✔   |
 
 > **The last two rows are the only capabilities in this document that change
 > OpenClaw itself** (M6, 2026-08-27). Everything above them decides what an agent

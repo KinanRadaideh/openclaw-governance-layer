@@ -427,6 +427,13 @@ Properties that follow, and are individually tested:
   least one ledger entry. `ungoverned` is distinct from `allow`: it denotes an
   action the policy layer could not evaluate, which is what makes coverage gaps
   discoverable.
+- **Intent is recorded, never consulted.** Each entry may carry an `intent` —
+  what the model said it was doing on the turn that produced the call (§1.6's
+  "raw LLM intent"). It is **not an input to any step above**: no rule matches on
+  it, no verdict depends on it, and an absent intent changes nothing. It is
+  evidence attached to a decision, not part of making one — which is the only
+  safe way to put model-authored text next to an authorisation, since the model
+  is the party the gate exists to constrain.
 - **All resources evaluated.** Step 13 completes for every `Rᵢ` before a
   verdict is returned. Returning early would leave later resources of a
   multi-path operation unrecorded.
@@ -542,6 +549,11 @@ that guessed would produce false positives and be ignored.
 > unregistered" is a real gap and is stated rather than hidden: an agent that
 > predates the registry has no owner, so the rule cannot bite on it. Closing
 > that needs registration to be mandatory, which needs M6.
+>
+> **Closed 2026-08-27 (M5), not M6.** Registration is mandatory: an unregistered
+> agent is refused at the gate and at assignment, so the "or unregistered" gap is
+> gone. The dependency on M6 was a misreading — _registering_ an agent and
+> _provisioning_ one are two acts, and the first had always been available.
 
 Four checks are applied independently: **group**, tier, scope, and — for the
 agent registry only — **ownership**. Group is checked first and is absolute — an account can only ever act on accounts in its
