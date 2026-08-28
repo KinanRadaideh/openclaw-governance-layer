@@ -13,8 +13,10 @@ Nothing here is speculative — every item was found by one of those two reviews
 up cold; `mg/PROJECT-SUMMARY.md` — what the project is and what has been built.
 
 **The authoritative outstanding list is §"The numbered backlog" immediately
-below — twenty-eight tasks, T1–T28, current as of 2026-08-25**, with a
-§"Who can do what" triage in front of it. The older §"What is actually left" is
+below — thirty-two tasks, T1–T32, of which 24 are done and 8 open, current as of
+2026-08-27**, with a
+§"Who can do what" triage in front of it. **A second backlog, §"The M-series"
+(M1–M6), holds the multi-tenancy feature: five done, M6 left.** The older §"What is actually left" is
 kept unedited beneath them as of 2026-08-19.
 Everything else is history kept for the report: each item records what was
 wrong, why it mattered, and how it was fixed, because that narrative is
@@ -38,47 +40,63 @@ remains in `Kimi_QA_1.md` §7 and `docs-notes/QA-IN-PLAIN-TERMS.md` §3.
 
 ---
 
-## The numbered backlog — current as of 2026-08-25
+## The numbered backlog — current as of 2026-08-27
 
 **This is the authoritative outstanding list.** It supersedes §"What is actually
 left" further down, which was accurate on 2026-08-19 and is kept unedited
 because the report's Chapter 4 argument is partly about how a confident summary
 survives twelve reviews and does not survive the thirteenth.
 
-Twenty-eight tasks, numbered **T1–T28**, grouped by what blocks them rather than
-by severity. (T26 and T27 were added on 2026-08-24 for work that shipped on the
+**Thirty-two tasks, numbered T1–T32**, grouped by what blocks them rather than
+by severity. (The paragraphs immediately below were written when the list was
+T1–T28 and are kept as history; the authoritative count is the
+"24 done, 8 open" table further down, re-verified 2026-08-27.) (T26 and T27 were added on 2026-08-24 for work that shipped on the
 22nd and was never entered here — see Group K. **T28 was added on 2026-08-25**:
 pre-existing unreachable code in `policy-engine.ts`, found while linting the T16
 split, recorded rather than fixed on sight because the right fix depended on why
 it was unreachable, and closed the same day once that was established.)
 
-**Nineteen are done:** T9, T10, T11 (2026-08-21); T12, T15, T21, T24, T26, T27
+**Nineteen were done when this paragraph was written (2026-08-25):** T9, T10, T11 (2026-08-21); T12, T15, T21, T24, T26, T27
 (2026-08-22); T4, T5, T14, T20, T22, T23 (2026-08-24); T25, T28 (2026-08-25);
 T19 (2026-08-22, **corrected and genuinely re-measured 2026-08-24** — see its
-row).
+row). **Five more closed on 2026-08-26** — T6, T7's audit half, T8, T29 and T30
+— giving the **24 done** in the table below.
 **One is drafted but unread:** T13 — the answer exists; you still have to be able
 to give it. Counted as outstanding here because the remaining work is yours.
-**One is partly done:** T16 — and it moved a long way on 2026-08-25.
-`governance-dashboard-api.ts` is **under the limit for the first time** (1,219
-code lines → **613**), split five ways, and `register.governance.ts` followed it
-(848 → **459**). **One file remains over:** `governance-page.ts` (2,412), a
-single Lit component with no seam named for it. **T14 closed 2026-08-24** — all three surfaces.
-**One is deprioritised:** T1 — not being done.
-**Six remain:** T2, T3, T7 (audit half), T8, T17, T18 — plus **T13**, which is
-drafted and waiting to be read. **T6 and T16 both closed on 2026-08-25**, and
-T6's closure matters beyond itself: it was filed as blocked on OpenClaw and was
-not, because this is a fork. **T7 was re-examined on the same reasoning and the
-hook it wanted turns out to exist** — it still cannot prevent the read, only
-record it, so the row now splits into an audit half that is doable here and a
-prevention half that needs a decision. **T8 deserves the same question and has
-not had it.**
+**One is deprioritised:** T1 — not being done. **T13** is drafted and waiting to
+be read.
+
+**Current as of 2026-08-26: 24 done, 8 open** across T1–T32 — the list grew by
+four (T29–T32) after two investigations and a request. What is open:
+
+| Open    | Who has to move                                                                                             |
+| ------- | ----------------------------------------------------------------------------------------------------------- |
+| **T2**  | You — one real agent driving one real tool call. Still the highest-value item left                          |
+| **T3**  | You — a Linux host that does not exist yet. The only unmet design requirement                               |
+| **T17** | You — a judgement about how the report should look                                                          |
+| **T18** | You — it is your report                                                                                     |
+| **T7**  | A decision (prevention half). The audit half shipped 2026-08-26                                             |
+| **T31** | Claude — 16 lint errors across **14** test files, mechanical (re-counted 2026-08-27; the row said 13 files) |
+| **T32** | Waits on M, and on T7 prevention                                                                            |
+| **T1**  | Deprioritised, not being done                                                                               |
+
+**"Blocked on the host" was recorded three times and was true zero times, and
+all three are now resolved.** T6 closed 2026-08-25 without touching upstream —
+the data was already on the session entry, and only the hook payload lacked it.
+T7's hook turned out to exist and always have; it still cannot prevent the read,
+only record it, so the row split into an audit half (**shipped 2026-08-26**) and
+a prevention half that needs a decision. T8 was the last, and it closed on
+2026-08-26 for a different reason than the other two: not because the fork could
+reach further than the note claimed, but because **the specification never asked
+for it**.
 
 **A second backlog exists as of 2026-08-24: the M-series.** A multi-tenancy
-request, split into six subtasks. **M1, M2, M3 and M4 are done; M5 and M6 are
-not started.** It has its own section below — see §"The M-series" — because it
+request, split into six subtasks. **All six are done as of 2026-08-27.** It has its own section below — see §"The M-series" — because it
 is a feature added on top of the project rather than an item within it.
 **M4 was the unlock**: there is now a first-class agent record, so M6 has
-somewhere to write who owns a provisioned agent.
+somewhere to write who owns a provisioned agent. **M5 then closed M4's ownership
+hole on its own**, by making registration mandatory — which M6 was supposed to
+be needed for.
 
 **T23 closed 2026-08-24** — the last backlog item that changed the security
 story rather than the write-up.
@@ -122,33 +140,43 @@ and what it waits on.
 
 #### 1. Claude can finish alone, today
 
-| #           | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Depends on |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| ~~**T16**~~ | ~~**Lint debt: files over the 700-line limit.**~~ **DONE, 2026-08-25.** `governance-page.ts` 2,412 → **696**, split into eight modules whose panels match the route modules serving them; every file in the project is now within the limit. **The limit itself is worth knowing before reading this row:** it is upstream OpenClaw's (`.oxlintrc.json`), **not one of the nine requirements**, and **nothing in this fork enforces it** — the pre-commit hook only formats, and Actions are off (T21). Upstream exempts two of its own files, so exempting this one was a real option and was considered. It was split anyway because the seam bought a reviewability property the line count only pointed at. **24 characterization tests were written first**, against the component as it was, because only two of nine sections had coverage — and they caught a real defect within the hour: handing panels a pre-built API client moved its construction from click-time to render-time and the page threw before drawing. §3.5.37 | Nothing    | done |
+| #                       | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Depends on |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| ~~**T7** (audit half)~~ | ~~**Record when a search reaches a denied path.**~~ **DONE, 2026-08-26.** `search-audit.ts` writes every path a completed `grep`/`find`/`ls` returned that a live denial covers, under `search-reached-denied` with decision `ungoverned` — not `deny`, because the call was allowed and happened, and a ledger claiming otherwise would overstate what the gate did. A **direct call** from both after-tool-call sites rather than a plugin hook: both gate the hook on `hasHooks`, so a plugin-registered audit would not run with no plugin loaded, and governance is core precisely so it cannot be switched off by configuration. Under-reports by construction (rendered output, no `cwd` at either site) and says so. 11 tests. §3.5.41                                                                                                                                                                                                                                                                                            | Nothing    | done |
+| ~~**T16**~~             | ~~**Lint debt: files over the 700-line limit.**~~ **DONE, 2026-08-25.** `governance-page.ts` 2,412 → **696**, split into eight modules whose panels match the route modules serving them; every file in the project is now within the limit. **The limit itself is worth knowing before reading this row:** it is upstream OpenClaw's (`.oxlintrc.json`), **not one of the nine requirements**, and **nothing in this fork enforces it** — the pre-commit hook only formats, and Actions are off (T21). Upstream exempts two of its own files, so exempting this one was a real option and was considered. It was split anyway because the seam bought a reviewability property the line count only pointed at. **24 characterization tests were written first**, against the component as it was, because only two of nine sections had coverage — and they caught a real defect within the hour: handing panels a pre-built API client moved its construction from click-time to render-time and the page threw before drawing. §3.5.37 | Nothing    | done |
 
-**This is the only item in that category**, which is itself the useful fact: the
-engineering the layer needed is done, and what remains is either yours or
-upstream's.
+**T16 closed on 2026-08-25**, and the paragraph that used to sit here proposing
+how to cut its last file is gone with it: the cut was made by _panel_ (policy,
+ledger, accounts, agent control, sessions), the seam it predicted.
 
-T16's last file is genuinely harder than the six already split. It is a single
-Lit component, and neither of the seams that worked elsewhere — one
-authorization rule, or one subject — has been named for it. The likely cut is by
-_panel_ (policy, ledger, accounts, agent control), which is a rendering
-boundary rather than a policy one, so it needs proposing before it needs doing.
+**T7's audit half closed on 2026-08-26**, and it arrived by correction rather
+than by anything upstream moving: `after_tool_call` existed and always had, so
+recording that a search reached a denied path needed nothing from OpenClaw.
+Only _prevention_ needs a decision, and it still does.
+
+**That emptied this category on 2026-08-26, and it did not stay empty.** **T31**
+— 16 oxlint errors, all in `.test.ts` files across **14** files — is Claude's
+alone and needs no decision. **Finding 120** was the exception recorded here as
+"a gap in T6 whose _fix_ is a decision"; it turned out to need no decision at all
+(the premise both options rested on was false — see decision A, struck through
+below) and was **fixed on 2026-08-26**.
 
 #### 2. Needs a decision from you, then Claude can build it
 
-| #       | What                                      | The decision                                                                                                                 |
-| ------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| **M5**  | Per-group storage isolation               | Six decisions, listed in §"Open before M5 or M6 starts". **Decision 1 gates the other five**                                 |
-| **M6**  | The Administrator panel, and provisioning | Five decisions, same section. One of them (is registration mandatory?) also gates M5's first                                 |
-| **T17** | Redraw the Mermaid diagrams               | Whether Claude drafts them for you to approve, or you draw them. The candidates are already marked in `CHAPTER3-MATERIAL.md` |
+| #          | What                                                                                                                                                                                                                                      | The decision                                                                                                                 |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| ~~**M5**~~ | ~~Per-group storage isolation~~ **All six decisions taken 2026-08-26** — see §"M5's six decisions, as answered" below                                                                                                                     |
+| ~~**M6**~~ | ~~The Administrator panel, and provisioning~~ **DONE 2026-08-27.** Four decisions taken by Kinan; the fifth (does the host need a reload?) was answered by the host's own `config-reload-plan.ts` — the **fifth** instance of the pattern |
+| **T17**    | Redraw the Mermaid diagrams                                                                                                                                                                                                               | Whether Claude drafts them for you to approve, or you draw them. The candidates are already marked in `CHAPTER3-MATERIAL.md` |
 
-M5 and M6 are the only substantial engineering left in the project, and neither
-should start before its decisions are settled: several change the shape of the
-work rather than a detail inside it, and **M5's decision 1 and M6's decision 3
-are the same question asked from two directions** — what happens to an agent
-that is not in the registry.
+~~**M6 is the only substantial engineering left in the project**~~ — **M6 closed
+2026-08-27, and with it the whole M-series.** All six subtasks are done. Its five
+recorded decisions resolved as: four taken by Kinan (rollback, the two-step
+removal, following an include pointer, and waiting for confirmation), and the
+fifth — "does the host need a reload?" — **answered by the host's own code**,
+which hot-reloads `agents.entries` and always did. **No substantial engineering
+is left in the project.** What remains is T2, T3, T17, T18, T31, T32 and a
+decision on T7 prevention.
 
 #### 3. Only you can do these
 
@@ -173,11 +201,11 @@ category 1 and 2 is worth less than it.
 
 #### 4. Blocked on OpenClaw itself, not on anyone here
 
-| #          | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | What upstream would have to provide                       |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------- |
-| ~~**T6**~~ | ~~**A lockdown does not reach a cross-agent child already running.**~~ **DONE, 2026-08-25 — and it was never blocked on the host.** The row said it needed `spawnedBy` through `HookContext`, which is true of the _hook_ and was read as true of the _project_. **This is a fork:** the host already writes `spawnedBy` onto the session entry, so the gate reads the session store instead of waiting for a payload field. `session-lineage.ts` walks the chain and refuses a call descending from a locked agent, naming the nearest cause. Costs nothing when nothing is locked, bounded at depth 16 with a cycle guard, and **fails closed when lineage cannot be read during an incident** (finding 81's reasoning). Four ledger ids now separate the cases. The round-14 test that pinned the limitation was written to fail when closed — it did, which is the best argument this project has for pinning a limitation rather than only writing it down. §3.5.38 | done                                                      | done        |
-| **T7**     | **Search tools are governed at their root only.** `grep`/`find`/`ls` recurse, so a search rooted at the workspace still reads files a denial names. **Row corrected 2026-08-25: `after_tool_call` already exists** (`hook-types.ts:1327`, fired from both paths) — so the stated blocker is gone, and it still does not close the gap. The hook runs _after_ the tool, returns `Promise<void>`, and is fire-and-forget on the embedded path, so it can **record** that a search reached a denied path but cannot prevent it. **The item splits: audit is closable here with no upstream change; prevention is not, by this route.** Prevention needs either the tool to accept an exclusion set (a real host change) or the gate to narrow the search root before the call using T23's parameter rewriting (reachable here, and a security control silently altering what an operator asked for — a decision, not plumbing). §3.5.39                                     | Nothing (audit) / decision (prevention)                   | 1 day audit |
-| **T8**     | Outbound messages are ungoverned                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | A fourth resource kind, separable from the `message` tool |
+| #          | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | What upstream would have to provide     |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| ~~**T6**~~ | ~~**A lockdown does not reach a cross-agent child already running.**~~ **DONE, 2026-08-25 — and it was never blocked on the host.** The row said it needed `spawnedBy` through `HookContext`, which is true of the _hook_ and was read as true of the _project_. **This is a fork:** the host already writes `spawnedBy` onto the session entry, so the gate reads the session store instead of waiting for a payload field. `session-lineage.ts` walks the chain and refuses a call descending from a locked agent, naming the nearest cause. Costs nothing when nothing is locked, bounded at depth 16 with a cycle guard, and **fails closed when lineage cannot be read during an incident** (finding 81's reasoning). That last property was **not** true when T6 shipped: finding 120 (2026-08-26) found the guard could never fire, because the keyed store probe answered `undefined` for an absent entry and an unreadable store alike. Fixed the same day with a scoped listing, which tells the two apart — so the gap closed **without** costing narrowness, and readability is now checked at every hop, since a chain across three agents crosses three stores. Four ledger ids now separate the cases. The round-14 test that pinned the limitation was written to fail when closed — it did, which is the best argument this project has for pinning a limitation rather than only writing it down. §3.5.38 | done                                    | done        |
+| **T7**     | **Search tools are governed at their root only.** `grep`/`find`/`ls` recurse, so a search rooted at the workspace still reads files a denial names. **Row corrected 2026-08-25: `after_tool_call` already exists** (`hook-types.ts:1327`, fired from both paths) — so the stated blocker is gone, and it still does not close the gap. The hook runs _after_ the tool, returns `Promise<void>`, and is fire-and-forget on the embedded path, so it can **record** that a search reached a denied path but cannot prevent it. **The item splits: audit is closable here with no upstream change; prevention is not, by this route.** Prevention needs either the tool to accept an exclusion set (a real host change) or the gate to narrow the search root before the call using T23's parameter rewriting (reachable here, and a security control silently altering what an operator asked for — a decision, not plumbing). §3.5.39                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Nothing (audit) / decision (prevention) | 1 day audit |
+| ~~**T8**~~ | ~~**Outbound messages are ungoverned.**~~ **DONE — closed by decision, 2026-08-26.** Not blocked on the host (the resource-kind enumeration is `policy-types.ts:17`, this fork's own file), and **not a gap in the specification**: §1.3 requirement 3 names the resources the default-deny model governs — "file system paths, process execution, and network communication" — and requirement 4 repeats the same three as the fine-grained axes. Those are exactly the three kinds that exist; a fourth is _beyond_ spec. §2.1.1.3, the only mention of chat platforms, casts Telegram/Slack as the **interface users interact through**, the recommended alternative to exposing a port. **Operative rule: connecting an agent to a channel is itself the permission** — an operator who attached it meant it to speak there, and refusing would override the grant. What the layer guarantees instead is the record: every send is written to the ledger as `ungoverned`, redacted, attributed, **and carrying its destination**, pinned by `qa-round12.test.ts`. `DELIBERATELY_UNGOVERNED`, `PERMISSION-SPEC.md` §12.7 and `CHAT-DEPLOYMENTS.md` all restated from pending to settled. §3.5.45                                                                                                                                                                                                                         | Nothing                                 | done        |
 
 **That check was run on 2026-08-25 for two of the three, and both moved.**
 
@@ -187,9 +215,13 @@ category 1 and 2 is worth less than it.
   still cannot prevent the read — it runs after the tool and returns `void` —
   so the item splits into an audit half (doable here) and a prevention half
   (needs a design decision).
-- **T8 has not been re-examined.** On the record above, its "needs a fourth
-  resource kind" should be treated as an unverified claim rather than a fact
-  until somebody checks it.
+- **T8 was re-examined on 2026-08-26 and closed**, and it broke the pattern the
+  other two set. T6 and T7 were mis-filed because a fork can reach further than
+  the note claimed. T8 was mis-filed for a different reason: **the specification
+  never asked for it.** §1.3 requirements 3 and 4 name exactly the three
+  resource categories that exist, twice, and messaging is not among them. Closed
+  by decision — connecting an agent to a channel is itself the permission — with
+  every send still recorded, destination included.
 
 > **The pattern is the finding.** "Blocked on the host" was recorded three times
 > and audited zero times, and it is a claim with a date on it. In a fork it is
@@ -204,13 +236,16 @@ cites, and both defects it describes were fixed locally by T25 on 2026-08-25.
 
 #### The dependency graph, in one paragraph
 
-Nothing blocks **T16**. Nothing blocks **T2** except your time, and it blocks
+**T16 is closed** (2026-08-25). Nothing blocks **T2** except your time, and it blocks
 nothing in turn — but it changes how Chapter 4 reads, so **T18 wants it done
 first**. **T3** is independent of everything except a machine. **M5 and M6** are
 blocked on their own decisions and on each other's first question; M6 was
-blocked on M4 and no longer is. **T6, T7 and T8** are blocked on upstream and
-may already be unblocked without anyone noticing. **T17** feeds T18. **T13** is
-a read, and is only urgent as the defence approaches.
+blocked on M4 and no longer is. **T6 is closed** (2026-08-25, with no upstream
+change) and **T7 has split** — its audit half needs nothing from upstream, its
+prevention half needs a decision. **T8 alone** still carries an unaudited
+"blocked on upstream" claim, and on this record it may already be unblocked
+without anyone noticing. **T17** feeds T18. **T13** is a read, and is only
+urgent as the defence approaches.
 
 ---
 
@@ -271,10 +306,10 @@ each is pinned by a test asserting present behaviour rather than left silent.
 
 | #           | Task                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Ref                                     | Blocked     | Effort |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- | ----------- | ------ |
-| ~~**T6**~~  | ~~**A lockdown does not reach a cross-agent child already running.**~~ **DONE, 2026-08-25 — and it was never blocked on the host.** The row said it needed `spawnedBy` through `HookContext`, which is true of the _hook_ and was read as true of the _project_. **This is a fork:** the host already writes `spawnedBy` onto the session entry, so the gate reads the session store instead of waiting for a payload field. `session-lineage.ts` walks the chain and refuses a call descending from a locked agent, naming the nearest cause. Costs nothing when nothing is locked, bounded at depth 16 with a cycle guard, and **fails closed when lineage cannot be read during an incident** (finding 81's reasoning). Four ledger ids now separate the cases. The round-14 test that pinned the limitation was written to fail when closed — it did, which is the best argument this project has for pinning a limitation rather than only writing it down. §3.5.38                                                                                                                                                                                                                                                                                                                                                                                                                                                      | done                                    | done        |
+| ~~**T6**~~  | ~~**A lockdown does not reach a cross-agent child already running.**~~ **DONE, 2026-08-25 — and it was never blocked on the host.** The row said it needed `spawnedBy` through `HookContext`, which is true of the _hook_ and was read as true of the _project_. **This is a fork:** the host already writes `spawnedBy` onto the session entry, so the gate reads the session store instead of waiting for a payload field. `session-lineage.ts` walks the chain and refuses a call descending from a locked agent, naming the nearest cause. Costs nothing when nothing is locked, bounded at depth 16 with a cycle guard, and **fails closed when lineage cannot be read during an incident** (finding 81's reasoning). That last property was **not** true when T6 shipped: finding 120 (2026-08-26) found the guard could never fire, because the keyed store probe answered `undefined` for an absent entry and an unreadable store alike. Fixed the same day with a scoped listing, which tells the two apart — so the gap closed **without** costing narrowness, and readability is now checked at every hop, since a chain across three agents crosses three stores. Four ledger ids now separate the cases. The round-14 test that pinned the limitation was written to fail when closed — it did, which is the best argument this project has for pinning a limitation rather than only writing it down. §3.5.38   | done                                    | done        |
 | **T7**      | **Search tools are governed at their root only.** `grep`/`find`/`ls` recurse, so a search rooted at the workspace still reads files a denial names. **Row corrected 2026-08-25: `after_tool_call` already exists** (`hook-types.ts:1327`, fired from both paths) — so the stated blocker is gone, and it still does not close the gap. The hook runs _after_ the tool, returns `Promise<void>`, and is fire-and-forget on the embedded path, so it can **record** that a search reached a denied path but cannot prevent it. **The item splits: audit is closable here with no upstream change; prevention is not, by this route.** Prevention needs either the tool to accept an exclusion set (a real host change) or the gate to narrow the search root before the call using T23's parameter rewriting (reachable here, and a security control silently altering what an operator asked for — a decision, not plumbing). §3.5.39                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Nothing (audit) / decision (prevention) | 1 day audit |
 | ~~**T23**~~ | ~~**Bind the decision to the resolved path.**~~ **DONE, 2026-08-24.** The gate already computed the canonical absolute path in order to decide; it now returns it in the hook result's `params`, which the host applies, so the tool opens the file that was judged. **The second resolution is removed rather than raced** — a re-check inside the gate was rejected as theatre, since two resolutions microseconds apart agree during an attack. Narrow by design: it fires only when canonicalization actually redirected the call, so nearly every call stays byte-identical; never for non-`path` tools; never for `apply_patch`, whose paths arrive as host-derived `derivedPaths` rather than as a parameter; never on a block. **Two hazards a probe caught before the code was written:** on Windows `realpath` normalises separators _and_ case, so `SAFE/NOTES.TXT` comes back `safe/notes.txt` with no link involved — comparing naively would have fired on ordinary calls. Case is ignored on Windows because case cannot be swapped underneath the gate; a link's target is data, and data changes. **The consequence worth knowing:** allowing no longer always means returning `undefined`, and fifteen copies of a test helper read absence as "allow". All fifteen now ask the question directly. 8 tests in `path-binding.test.ts`, including the swap replayed end to end. §3.5.29; plain language §5.22 | Nothing                                 | done        |
-| **T8**      | **Outbound messages are ungoverned.** On a chat deployment an agent can repeat a permitted file's contents into a Discord channel. Cannot be closed by a registry entry — refusing `message` would stop the agent replying — so it needs a fourth resource kind separating a reply from a send elsewhere. Recorded as `ungoverned` meanwhile                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | —                                       | Host        | —      |
+| ~~**T8**~~  | ~~**Outbound messages are ungoverned.**~~ **DONE — closed by decision, 2026-08-26.** Not blocked on the host (the resource-kind enumeration is `policy-types.ts:17`, this fork's own file), and **not a gap in the specification**: §1.3 requirement 3 names the resources the default-deny model governs — "file system paths, process execution, and network communication" — and requirement 4 repeats the same three as the fine-grained axes. Those are exactly the three kinds that exist; a fourth is _beyond_ spec. §2.1.1.3, the only mention of chat platforms, casts Telegram/Slack as the **interface users interact through**, the recommended alternative to exposing a port. **Operative rule: connecting an agent to a channel is itself the permission** — an operator who attached it meant it to speak there, and refusing would override the grant. What the layer guarantees instead is the record: every send is written to the ledger as `ungoverned`, redacted, attributed, **and carrying its destination**, pinned by `qa-round12.test.ts`. `DELIBERATELY_UNGOVERNED`, `PERMISSION-SPEC.md` §12.7 and `CHAT-DEPLOYMENTS.md` all restated from pending to settled. §3.5.45                                                                                                                                                                                                                           | Nothing                                 | done        |
 
 ### Group D — observations that never became numbered findings
 
@@ -402,7 +437,18 @@ will recur on any new remote, so the check belongs in the deployment
 instructions rather than in somebody's memory — see T3, which will push this
 tree to a VPS.
 
-## The M-series — making the layer multi-tenant
+## The M-series — making the layer multi-tenant — **COMPLETE 2026-08-27**
+
+> **⏭ When M is done, T32 is waiting on it.** **T8 is closed** — settled
+> 2026-08-26, not deferred: connecting an agent to a channel is itself the
+> permission, `Grad_Proj___Current.pdf` §1.3 names three resource categories and
+> messaging is not one, and every send is recorded with its destination.
+>
+> **T32** is the remainder of **T7**, not of T8. It lands in whichever policy
+> surface M6 produces, and must not ship before **T7 prevention** — the
+> exception would otherwise be a promise the gate does not keep for searches.
+> The engine half already works and the page now explains it; what is deferred
+> is one authoring affordance and one enforcement fix.
 
 **A second, parallel backlog, added 2026-08-24.** The T-numbers above are the
 original project: build the governance layer and defend it. The M-numbers are
@@ -444,23 +490,272 @@ reasoning, not just the outcome.
 
 ### The subtasks
 
-| #          | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | State           | Effort   |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | -------- |
-| ~~**M1**~~ | ~~**Drive the T14 dashboard upload in a real browser.**~~ **DONE 2026-08-24.** Independent of tenancy; the gap T14 left. Found finding 118 — the Attach control could not be reached by keyboard. §4.x.30                                                                                                                                                                                                                                                                                                                             | done            | done     |
-| ~~**M2**~~ | ~~**Expose "who can reach this agent".**~~ **DONE 2026-08-24.** `findUsersForAgent` had existed since assignment was built and nothing called it. Scoped by `canViewAgent`; "nobody" rendered in words. Later found to leak across groups — finding 119. §3.5.30                                                                                                                                                                                                                                                                      | done            | done     |
-| ~~**M3**~~ | ~~**The group, as a data model.**~~ **DONE 2026-08-24.** `groupId` and `managedBy` on the account record; the Root cap and lockout guard scoped to the group; managed-tier rule enforced in the store; signup creates a group; unmigrated accounts cannot sign in. §3.5.31                                                                                                                                                                                                                                                            | done            | done     |
-| ~~**M4**~~ | ~~**The agent registry.**~~ **DONE 2026-08-24.** `agents.json` holds id, display name, `groupId` and one owning `adminId`; `knownAgentIds` is now the fallback rather than the source of truth; assignment refuses an agent owned by a different Administrator. An **unregistered** id is still assignable and that hole is deliberate and tested — closing it needs registration to be mandatory, which needs M6. Split the routes and the CLI into their own files, leaving both oversized files smaller than before (T16). §3.5.33 | done            | done     |
-| **M5**     | **Storage isolation.** Per-group policy document, audit chain, ledger key and checkpoint. Touches `paths.ts`, `policy-store.ts`, `audit-ledger.ts`, `ledger-key.ts`, `kill-switch.ts` and every route. **The existing chain must keep verifying byte-identically** — follow the presence-based migration `actorRole` used in T5                                                                                                                                                                                                       | **not started** | 4–6 days |
-| **M6**     | **The Administrator panel, and provisioning.** The panel over M4's registry, plus creating an agent for real by writing `agents.entries` in the host config. `src/config/agent-roster-provenance.ts` is the seam, and it already handles include-owned rosters that a naive write would corrupt                                                                                                                                                                                                                                       | **not started** | 3–5 days |
+| #          | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | State | Effort |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ------ |
+| ~~**M1**~~ | ~~**Drive the T14 dashboard upload in a real browser.**~~ **DONE 2026-08-24.** Independent of tenancy; the gap T14 left. Found finding 118 — the Attach control could not be reached by keyboard. §4.x.30                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | done  | done   |
+| ~~**M2**~~ | ~~**Expose "who can reach this agent".**~~ **DONE 2026-08-24.** `findUsersForAgent` had existed since assignment was built and nothing called it. Scoped by `canViewAgent`; "nobody" rendered in words. Later found to leak across groups — finding 119. §3.5.30                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | done  | done   |
+| ~~**M3**~~ | ~~**The group, as a data model.**~~ **DONE 2026-08-24.** `groupId` and `managedBy` on the account record; the Root cap and lockout guard scoped to the group; managed-tier rule enforced in the store; signup creates a group; unmigrated accounts cannot sign in. §3.5.31                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | done  | done   |
+| ~~**M4**~~ | ~~**The agent registry.**~~ **DONE 2026-08-24.** `agents.json` holds id, display name, `groupId` and one owning `adminId`; `knownAgentIds` is now the fallback rather than the source of truth; assignment refuses an agent owned by a different Administrator. ~~An **unregistered** id is still assignable and that hole is deliberate and tested — closing it needs registration to be mandatory, which needs M6.~~ **The hole closed in M5, not M6** (2026-08-26/27): registration is mandatory at the gate and at assignment. Split the routes and the CLI into their own files, leaving both oversized files smaller than before (T16). §3.5.33                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | done  | done   |
+| ~~**M5**~~ | ~~**Storage isolation.**~~ **DONE, 2026-08-26/27.** (This row read "CODE COMPLETE; test migration finishing" until 2026-08-27; the migration finished the same session and the row had not moved with it.) Per-group `policy.json`, `audit-ledger.jsonl`, `rule-requests.json`, `pending-decisions.json`, `conversations.json` and `attachments/` under `groups/<groupId>/`; `users.json`, `agents.json`, the ledger key and the checkpoint stay installation-wide. **The tamper-evidence claim survived verbatim** — one key, one checkpoint file keyed by group — which was the binding constraint, since multi-tenancy is not in the spec and requirement #6 is. New: `agent-group.ts` (cached agent→group for the gate), `governance-dashboard-group.ts` (`requireGroup`: session, never request), `test-group.ts`, and an **installation-scope ledger** for events belonging to no organisation. Mandatory registration enforced at the gate _and_ at assignment. Both typechecks clean; **2,171 tests across 102 files all pass** — the same total as before M5, so the migration cost no coverage. Host baseline 263/0. Four defects surfaced and fixed during the migration, and two dead branches removed (`kill-switch-unattributable`, and `assertAssignable`'s `if (!agent) continue;` — the ownership hole M4 documented). §3.5.47–50 | done  | done   |
+| ~~**M6**~~ | ~~**The Administrator panel, and provisioning.**~~ **DONE 2026-08-27.** `agent-provisioning.ts` creates an agent on the host and registers it here as **one act or none**, with the fallible write first so the probable failure has nothing to undo. New: `agents/provision` and `agents/deprovision` routes, `governance agents provision` and `governance agents delete` commands, and `agent-registry-panels.ts` — **the dashboard surface M4's registry never had**, which is the fourth complete-but-unreachable route this project has found. Two new ledger actions, recorded _before_ the attempt so a refused provision still leaves a trail. **It writes no config itself**: `createAgent` and `deleteAgentConfigEntry` already validate, lock, and write through a top-level `$include`. §3.5.51–56                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | done  | done   |
 
-### Open before M5 or M6 starts — eleven decisions
+### Two investigations, added and closed 2026-08-26 at Kinan's request
 
-Recorded 2026-08-25, after M4. **None of these is a detail inside the work;
+Neither was a feature. Both were "go and check what we have been assuming",
+which on this project has a track record: it produced the three host-blocked
+corrections, T25's misattributed baseline, and finding 120. **Both found real
+defects**, and both are closed — T29's numbering half, with its
+register-coverage half still open and recorded as such.
+
+| #           | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Who    | Effort         |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ | -------------- |
+| ~~**T29**~~ | ~~**Audit the finding numbering itself.**~~ **DONE (numbering half), 2026-08-26.** Extracted every numbered row rather than reading the totals. **The count was wrong: 121 defects, not 120.** Two unrelated findings — the sixteenth QA pass's `file-lock.ts` stale reclaim and "Root can change its own password" — were both numbered **104** on 2026-08-21 in separate exercises, and the collision had already propagated into `HANDOFF.md` and `REMAINING-WORK.md`. Renumbered the second to 121 (the QA pass declares "findings 104-107" and 105-107 follow it). Numbers 1-121 now appear exactly once with no gaps. Finding 84's duplicate row is a legitimate cross-reference; the 1/2/6 duplicates are T25's failure-breakdown table, not findings. **The register-coverage half is still open** — `QA-IN-PLAIN-TERMS.md` deliberately uses no finding numbers, so coverage there is topical and needs reading rather than counting. §3.5.43       | Claude | numbering done |
+| ~~**T30**~~ | ~~**Explain the errors that appear during test runs.**~~ **DONE, 2026-08-26.** The "18 failed / 174 passed" host baseline is stale text — T25 fixed it and the measurement is 263 passed / 0 failed. The live failure was **both** rotation tests reaching the real 8 MB threshold by writing it (~2,000 and ~4,000 locked appends inside a 120-second budget); `complete-record.test.ts` timed out reproducibly. Both now drive rotation through a test-only threshold seam: 12 entries each, **5.7 s for both files**, no load sensitivity, and the shipped 8 MB constant asserted separately so the cheaper test cannot hide a change to it. **A second, older defect fell out:** mutation-checking showed `qa-round5-storage.test.ts` **passing with rotation disabled** — it asserted an archive was not overwritten, and with no rotation nothing is. It now asserts the rotation happened first. §4's caveat is deleted rather than extended. §3.5.44 | Claude | done           |
+
+**Why T30 matters beyond tidiness.** §4 tells the next person "if this fails,
+re-run it on a quiet machine before believing it". That instruction is only safe
+while the list of tests it applies to is complete, and it currently names one of
+at least two. **A caveat that covers some of the cases teaches a reader to
+dismiss the ones it does not cover** — which is the same shape as round five's
+check/claim line and round sixteen's lesson about limits.
+
+---
+
+### QA round nineteen — the M-series audited as one system (2026-08-27)
+
+Requested by Kinan after M6 closed: number the defects the build had produced,
+then QA the whole M feature including edge cases. **Three findings, 128–130, all
+fixed.** Full detail in `GOVERNANCE.md` §"Round nineteen"; report material in
+`CHAPTER3-MATERIAL.md` §3.5.57; plain language in `QA-IN-PLAIN-TERMS.md` §5.52.
+
+| #       | What                                                                                                                                                                                                                                                                                                                                                      | State |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| **128** | The registry stored the agent id **as typed**; the gate looked it up **canonicalised**. `Scout` registered, showed as owned and governed, and was refused on every tool call — and the duplicate check was bypassable by case, so **installation-wide agent-id uniqueness did not hold** and two organisations could each hold a record of one real agent | fixed |
+| **129** | **Introduced by 128's fix.** `normalizeAgentId` returns `main` for input with no usable characters, so registering `"###"` silently claimed the installation's default agent. The guard against it could never fire                                                                                                                                       | fixed |
+| **130** | Provisioning's preflight claimed in a comment to hold every knowable refusal; the owner check was missing, so an ineligible owner built a real agent and then deleted it                                                                                                                                                                                  | fixed |
+
+**The defect ledger now stands at 130 found, 130 fixed, none open.** The six from
+the M5 and M6 builds were numbered 122–127 in the same pass — they had been fixed
+and documented but never entered, which is T29's drift arriving as an omission
+rather than a collision. **Standing rule: a defect gets a number when it is
+found.**
+
+---
+
+### QA round twenty — the rest of the window, against the requirements (2026-08-27)
+
+Requested by Kinan straight after round nineteen: QA everything built since the
+last review **except** the M-series, and check it against the requirements in
+`Grad_Proj___Current.pdf`. Scope: T6 and finding 120's fix, T7's audit half, T28,
+T30's rotation seam, T16's two splits. Full detail in `GOVERNANCE.md` §"Round
+twenty"; report material in `CHAPTER3-MATERIAL.md` §3.5.58; plain language in
+`QA-IN-PLAIN-TERMS.md` §5.53.
+
+| #       | What                                                                                                                                                                                                                                                                                                                                                                       | State |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| **131** | `search-audit.ts` treated a whole result line as a filename when grep omitted the `path:line:` prefix — which for a single-file grep is the file's **content**. Under any broad denial, that content (credentials included) was written into the tamper-evident ledger. **Direct breach of requirement 8**, in the file three core denials protect and which never deletes | fixed |
+
+**Requirement conformance was checked rather than assumed**, and the nine
+requirements were extracted from the PDF verbatim rather than quoted from memory.
+Requirement 7's one-second bound is asserted in three places including
+end-to-end; requirement 4's time limits now bind the audit as well as the gate;
+requirement 5's "record 100%" is served by recording a reach as `ungoverned`
+rather than inflating the count of things the gate stopped.
+
+**The defect ledger stands at 131 found, 131 fixed, none open.**
+
+**T32 note.** Round twenty narrowed `search-audit.ts` so grep content can never
+be recorded. That does not change T32's dependency on **T7 prevention**, which is
+still a decision (§"Three decisions that are not M5 or M6", B).
+
+---
+
+### QA round twenty-one — the raw LLM intent field (2026-08-27)
+
+Round twenty recorded §1.6's "raw LLM intent" as the one Granular Event Tracking
+field the log did not capture. Kinan asked for it to be built and tested, with
+the differences documented. **Built, tested, and audited — three findings,
+132–134, all fixed.** Detail in `GOVERNANCE.md` §"Round twenty-one"; report
+material in `CHAPTER3-MATERIAL.md` §3.5.59; plain language in
+`QA-IN-PLAIN-TERMS.md` §5.54.
+
+| #       | What                                                                                                                                                                                                                                    | State |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| **132** | The intent tag's comment and test claimed it closed a hash collision "reachable by an agent". Not reachable — every entry is keyed. **Mutation testing found it**: removing the tag broke nothing. Tag kept as defence, claim corrected | fixed |
+| **133** | `sanitizeLedgerEntry` masks `resource` only, so the new field reached a **Viewer** verbatim — and narration discloses more than a path                                                                                                  | fixed |
+| **134** | `forgetAgentIntent` exported and never called; the size cap already did the work. Finding 113's family                                                                                                                                  | fixed |
+
+**Two things still open on this feature, both stated rather than hidden:**
+
+- **The end-to-end ordering is reasoned, not observed.** That `llm_output` fires
+  before the same turn's tool calls needs **T2** — a real model driving a real
+  call. Every piece is unit-tested; the seam is not. The failure mode is safe:
+  the field is populated or absent, never wrong.
+- **The dashboard does not surface it.** Recording was the requested scope. The
+  field is in the ledger and in the API response; no UI column reads it yet.
+
+### Decided but not built — flag-style password masking (2026-08-27)
+
+Round twenty found that the ledger's redactor misses passwords passed as command
+flags (`mysql -phunter2`), because they look like ordinary words and only their
+_position_ marks them as secret. Kinan's decision, taken 2026-08-27:
+
+> **Long forms only.** Mask `--password=`, `--http-password=`, `--token=` and
+> `user:pass` inside a URL — spellings that mean one thing in every program, so
+> nothing is masked wrongly and the record stays faithful. **Do not** treat a
+> bare `-p` as a password: it means "make parent directories" to `mkdir`,
+> "publish a port" to `docker` and "preserve permissions" to `tar`, and masking
+> those would make the audit log say something other than what ran.
+
+Not implemented — Kinan scoped this round to the intent field alone. The short
+`mysql -p` form stays a **stated limitation**, and it is worth noting that
+§2.1.5.2's suggested entropy analysis would not catch it either: a memorable
+password is low-entropy by nature.
+
+---
+
+### T32 — folder grants with exceptions: the rest of T7 (depends on the M-series)
+
+Requested 2026-08-26: in the same place an operator sees and changes an agent's
+policies, let an Administrator (or a User, for their own agent) **grant a folder
+and then except specific subfolders or files**. Three surfaces as always —
+dashboard, CLI, HTTP — with the dashboard home being whichever policy surface
+M lands on.
+
+> **This belongs to T7, not T8.** It was raised in the same message as T8 and
+> filed against it; the two are unrelated — T8 is outbound messages, this is file
+> paths. **T8 is closed** (settled by decision, above). What this item continues
+> is T7: a recursive search reading beneath a granted folder is precisely the
+> thing an exception is supposed to stop, and precisely the thing that still
+> happens.
+
+**Most of it is already settled, and only the remainder is deferred.** Taking the
+request apart:
+
+| Part                                                           | State                                                                                                                                                        |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A grant on a folder covers everything beneath it               | **Already true.** A `path` rule is a pattern; `^/work(/\|$)` binds the subtree                                                                               |
+| Exceptions for specific subfolders or files                    | **Already true in the engine.** Deny is evaluated before allow, across every tier — verified by driving the gate                                             |
+| The precedence being _visible_ to whoever writes it            | **Done 2026-08-26.** Was a hover-only tooltip on one dropdown; now a persistent notice above the rule list, on the page, for Users as well as Administrators |
+| Authoring it as one thing rather than two hand-written regexes | **Open — this is T32.** Deferred to after M, because M6 decides which policy surface it lands in                                                             |
+| A search honouring the exception                               | **Open — this is T7 prevention (decision B).** The reason T32 cannot ship first                                                                              |
+
+| #       | What                                                                                                                                                                                                                                                                   | Depends on                       | Effort |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- | ------ |
+| **T32** | **Author a folder grant with exceptions as one thing.** An authoring affordance over behaviour the engine already has, plus the enforcement that makes the affordance honest. Lands in the agent-policy view (T26's bidirectional policy) and M6's Administrator panel | **M5/M6**, and **T7 prevention** | 2–3 d  |
+
+**The engine already does this. Verified, not assumed** — an allow rule on a
+folder plus a deny rule on a subfolder gives exactly the asked-for behaviour,
+because denials are evaluated before allowances and across every tier:
+
+```
+1. read an allowed file in the granted folder  => ALLOW
+2. read the excepted file directly             => BLOCK
+3. grep rooted at the granted folder           => ALLOW   <-- reads the exception
+```
+
+So T32 is **two things, and only the first is UX**:
+
+1. **The authoring affordance.** Today an operator has to write two regexes and
+   know that deny beats allow. Nothing in the interface says so. Expressing it
+   as "grant this folder, except these" is the whole feature at the surface.
+2. **The enforcement the affordance promises.** Line 3 above is the problem. A
+   grant that says "except `secrets/`" will be read as "the agent cannot read
+   `secrets/`", and a recursive search still can — that is **T7**, unchanged.
+
+> **T32 must not ship before T7's prevention half.** An interface that lets
+> someone write an exception the gate does not keep is worse than no interface:
+> the operator believes a restriction is in force, and the audit trail shows a
+> grant they think is narrower than it is. This is the same defect class as an
+> unreachable guard (findings 112, 113, 120, T28) — a control that advertises a
+> property the code does not deliver — except here the promise would be made to
+> a person, in a form they chose, which makes it harder to discover.
+>
+> T7 prevention is decision B. **T32 turns decision B from a nice-to-have into a
+> prerequisite**, and that is the strongest argument yet for taking it: the
+> exclusion set an exception list produces is exactly what the search root needs
+> in order to be narrowed.
+
+**So the honest scope of what is deferred is narrow**: not "folder grants with
+exceptions", which the engine already does and the interface now explains, but
+**one authoring affordance and one enforcement fix**. Everything else on the
+original request is in place today.
+
+---
+
+### T31 — the lint debt that was miscounted, added 2026-08-26
+
+| #       | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Who    | Effort |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------ |
+| **T31** | **16 lint errors remain, all in `.test.ts` files** across **14** files — thirteen under `src/governance/` and one under `src/gateway/` (`governance-agent-access.test.ts`); re-counted 2026-08-27, the row said "13 files, all in `src/governance/`" and was wrong on both halves in the same small way it was raised to correct. Shadowed names, `filter(...)[0]` where `find` is meant, an unused import, implicit coercion. Mechanical, low risk, and worth doing only because the count is now honest. **How it was found is the point:** `HANDOFF.md` §4 said governance was lint-clean "except four pre-existing errors in `file-lock.ts` and `audit-ledger.ts`". Running the command it documents found **24 errors across 18 files** — the row named two of them, and the four it described were real, so nothing about it looked wrong | Claude | 1–2 h  |
+
+**Third instance of one shape in a single session**, after T30's caveat naming
+one of two identical rotation tests and T29's finding count taken from a total
+rather than from the rows. Each was an accurate statement about part of a set,
+written in a form a reader takes for a statement about the set. **A partial
+caveat is worse than none: it tells the reader the area has been surveyed.**
+
+---
+
+### Three decisions that are not M5 or M6
+
+Added 2026-08-26. None blocks the M-series; each decides what an existing
+control promises, so each belongs to Kinan rather than to whoever writes the
+code.
+
+| #     | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ~~A~~ | ~~**Finding 120 — what does a kill switch promise when it cannot read lineage?**~~ **RESOLVED 2026-08-26 — no decision needed after all.** Both options on the table traded something real: strict cost narrowness, visible left the gap open. Neither was necessary, because the choice rested on a false premise — that the store could not tell the two cases apart. It can: a **scoped listing** returns an empty array for an agent with no sessions and throws for a store that will not open, where the keyed read returned `undefined` for both. The gap closes with narrowness intact. Recorded here rather than deleted, because "the decision dissolved once somebody checked the premise" is the same lesson as the three host-blocked claims. §3.5.40 |
+| B     | **T7 prevention — may a security control silently narrow what an operator asked for?** Stopping a recursive search reading a denied file needs either the tools to accept an exclusion set (a real host change) or the gate to rewrite the search root before the call (reachable here, using T23's machinery). The second changes a request without saying so. §3.5.41                                                                                                                                                                                                                                                                                                                                                                                            |
+| C     | **T8 — what does a fresh installation do about outbound messages?** Nothing upstream is missing (§3.5.42). Default-deny stops a chat agent replying to the person addressing it; a permissive baseline gives the policy language the axis — "this agent may not message anywhere but its origin" becomes writable — with default behaviour unchanged. The second is almost certainly right and is still a choice about what ships                                                                                                                                                                                                                                                                                                                                  |
+
+---
+
+### M5's six decisions, as answered (2026-08-26)
+
+All six taken. The rule that decided most of them came from the specification
+rather than from taste, and is worth stating first because M6 inherits it:
+
+> **Multi-tenancy is not in the specification** — 44 pages searched, no
+> requirement mentions tenants, organisations or groups. **Tamper-evident
+> logging is** (#6), as is recording 100% of actions (#5). Where group isolation
+> and a numbered requirement pull against each other, **the requirement wins.**
+
+| #   | Question                                             | Answer, and why                                                                                                                                                                                                                                                                                                                         |
+| --- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Which policy document governs an unregistered agent? | **None — it is refused.** Kinan's decision. The alternative (a shared fallback) is the hole every unregistered agent fits through. Enforced at the gate _and_, as it turned out, at assignment                                                                                                                                          |
+| 2   | Does agent-id uniqueness move per-group?             | **No, stays installation-wide.** Session keys are `agent:<id>:…` and are global; two groups sharing an id would collide in the session store, T6's lineage walk and the kill switch. Per-group ids would mean namespacing the id everywhere including the host. The one-bit leak ("that id is taken") is cheaper and already documented |
+| 3   | Where do the founding group's files live?            | **Uniform `groups/<groupId>/`, no special case.** The special case existed only to keep an existing chain verifying byte-identically; **there are no existing installations**, so the simpler layout wins and nothing is grandfathered                                                                                                  |
+| 4   | Core rules global or per-group?                      | **Global**, reasserted from source on every load exactly as before. They protect the governance directory, which is _shared_; per-group copies would let one group's Root move another's floor, and T24 says nobody may move those three. Requirement #3's floor is installation-wide by nature                                         |
+| 5   | How is the ledger security claim restated?           | **It is not restated — it is preserved.** Per-group ledger _files_, one installation-wide key, one checkpoint file keyed by group. Both sentences stay literally true, and it improves slightly: erasing a group's tail now means editing a file outside that group's directory                                                         |
+| 6   | What may the hot path cost?                          | **One cached lookup, no second file read.** The registry is held in memory, keyed by the file it was read from, and dropped on every write. Mandatory registration helps here — the lookup always resolves, so there is no fallback branch on the gate's hot path                                                                       |
+
+**Why sharing the key isolates nothing away.** Group isolation is a statement
+about what an _account_ can reach, and no account has ever been able to read the
+key: accounts act through the layer's API, never the filesystem, and the file
+sits behind two immutable core denials. Every group has exactly the access it had
+before M5, which is none.
+
+**M6 decision 3 is answered by the same choice.** "Does registration become
+mandatory?" — yes, as of M5. What M6 still decides is the other four.
+
+---
+
+### Open before M5 or M6 started — eleven decisions, **all now answered**
+
+> **Historical. All eleven are answered and both subtasks have shipped.**
+> Recorded 2026-08-25 after M4, when all eleven were open. M5's six were taken on
+> 2026-08-26 (§"M5's six decisions, as answered"); **M6's five were resolved on
+> 2026-08-27** — four taken by Kinan and one answered by the host's own code. The
+> questions are kept because the _reasoning_ is Chapter 3 material; nothing below
+> is outstanding. See §3.5.51–56 for how each was decided and why.
+
+**None of these is a detail inside the work;
 several change its shape**, so they are worth settling before code rather than
 during it. The four decisions taken before M1 are in the table above; these are
 the ones M4 either raised or deliberately deferred.
 
-#### M5 — per-group storage isolation
+#### M5 — per-group storage isolation — **all six answered, see above**
 
 | #   | Decision                                                                                                                                                                                                                                                                    |
 | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -475,15 +770,15 @@ the ones M4 either raised or deliberately deferred.
 differently depending on it, and it cannot be answered without also answering
 M6 #3.
 
-#### M6 — the Administrator panel, and provisioning
+#### M6 — the Administrator panel, and provisioning — **all five resolved 2026-08-27**
 
-| #   | Decision                                                                                                                                                                                                                                  |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **Does unregistering an agent delete it from the host?** M4 deliberately made unregister remove only the governance record. Provisioning makes the opposite plausible; the two must not disagree silently                                 |
-| 2   | **What the panel does with an include-owned roster.** `src/config/agent-roster-provenance.ts` already detects a roster owned by an included config file that a naive write would corrupt. Refuse, warn, or write elsewhere                |
-| 3   | **Does registration become mandatory?** The decision M4 explicitly deferred here, and the only thing that closes its stated hole: an unregistered agent is owned by nobody and is still freely assignable                                 |
-| 4   | **Does a provisioned agent exist immediately, or does the host need a reload?** An agent created in the panel that does not then appear is this project's worst bug class — an action ending in no visible outcome and no recorded reason |
-| 5   | **How Chapter 4 states the change of kind.** M6 is the first time this layer _mutates_ the host it governs rather than observing and gating it. Stated deliberately, not left for a reader to discover                                    |
+| #     | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ~~1~~ | ~~**Does unregistering an agent delete it from the host?**~~ **ANSWERED — no, and a second named action does.** Kinan's decision: the remove control opens a chooser with two labelled outcomes and their consequences, then confirms the irreversible one in words. `unregister` keeps M4's meaning byte for byte, because changing what an existing action does to an operator who relies on it is worse than adding a second action         |
+| ~~2~~ | ~~**What the panel does with an include-owned roster.**~~ **ANSWERED — follow the pointer where the host can, refuse and name the file where it cannot.** The host already writes through a _top-level_ `$include`, so the fallback boundary is its capability boundary rather than one this project invented, and it matches what upstream `setup.ts` does                                                                                    |
+| ~~3~~ | ~~**Does registration become mandatory?**~~ **ANSWERED — yes, in M5 (2026-08-26).** The decision M4 explicitly deferred to M6, and the only thing that closes its stated hole. It did not need M6 at all: the row rested on reading _registering_ an agent and _provisioning_ one as one act, and they are not. Enforced at the gate and at assignment                                                                                         |
+| ~~4~~ | ~~**Does a provisioned agent exist immediately, or does the host need a reload?**~~ **ANSWERED BY THE HOST — no reload.** `config-reload-plan.ts` classifies `agents.entries` as `kind: "hot"` and the gateway watches the file. **Fifth instance of the pattern.** The narrower real decision — what to show during the reload gap — was taken: **wait and confirm**, polling the _running_ host rather than re-reading the file just written |
+| ~~5~~ | ~~**How Chapter 4 states the change of kind.**~~ **WRITTEN — §3.5.51**, with the reversal of trust direction stated plainly and the three mitigations named as pre-existing rather than new                                                                                                                                                                                                                                                    |
 
 ---
 
@@ -522,10 +817,13 @@ M6 #3.
 - ~~**Agents are not group-owned until M4**~~ — **closed 2026-08-24.** A
   registered agent belongs to one group and one Administrator, and registering an
   id another group holds is refused. **The residue is real and is kept
-  deliberately:** an agent that predates the registry is owned by nobody and is
+  deliberately:~~ an agent that predates the registry is owned by nobody and is
   still freely assignable, so the ownership rule can be sidestepped by not
   registering. Closing that needs registration to be mandatory, which needs M6's
-  provisioning. Finding 119 was one consequence of the older gap; there may be
+  provisioning.~~ **Closed by M5, 2026-08-26/27.** Registration is mandatory at
+  the gate _and_ at assignment, and it needed nothing from M6 — the sentence
+  above read _registering_ an agent and _provisioning_ one as one act, and they
+  are not. Finding 119 was one consequence of the older gap; there may be
   others in routes written before groups existed, and **every pre-M3 route still
   deserves the question "does this cross a group?"**
 
@@ -536,31 +834,40 @@ M6 #3.
 Not a schedule — an argument about sequence, replacing the older one at the end
 of this file.
 
-**0. Push to the private remote.** Not a numbered task, and ahead of every one
-of them. The tree was committed on 2026-08-24 in seven commits, so the "56 files
-in one place" risk is closed — but `git push personal governance-layer` has not
-been run, and the remote is still at the 2026-08-21 tip. F1 closed this risk
-once already; half of it has re-opened.
+**0. Commit, then push to the private remote.** Not a numbered task, and ahead of
+every one of them. This step used to read "the tree was committed on 2026-08-24
+in seven commits, so the '56 files in one place' risk is closed". **Measured
+2026-08-27, it is not closed: 104 entries are uncommitted** — 99 modified and
+five untracked — covering T7's audit half, T29, T30, finding 120's fix and the
+whole of M5. On top of that, `git push personal governance-layer` has never been
+run: **30 commits** sit unpushed and the remote is still at the 2026-08-21 tip.
+F1 closed this risk once already; **both halves have re-opened**, and the
+untracked five would not survive a careless `git checkout .`.
 
 1. **T2** — the single highest-value item left. It converts the whole project
    from _tested_ to _demonstrated_, and everything in Chapter 4 reads
    differently once it is done. Kinan has said this comes after the remaining
    fixable work.
-2. **T23** — the real remaining security fix, and the one that turns a
-   documented limitation into a closed one. Needs its own session: it modifies
-   the host's shared tool-call chain.
+2. ~~**T23**~~ — **done 2026-08-22.** The gate resolves the agent's path once
+   and hands that resolved path onward, so the documented limitation is a closed
+   one.
 3. ~~**T25**~~ — **done 2026-08-25.** Chapter 4 no longer has to explain a
    baseline of known-failing tests: there is not one.
-4. **T14 and T16** — finish what is half-built, in that order. T14 is one
-   surface short of the project's own three-surface rule; T16 leaves two files
-   over the line limit.
+4. ~~**T14 and T16**~~ — **both done** (T14 on 2026-08-22, T16 on 2026-08-25).
+   T14 reached all three surfaces; T16 closed with every source file inside the
+   inherited line limit, by splitting rather than by suppression.
 5. **T3** — the only unmet requirement, and the only one needing a machine that
    does not exist yet.
 6. **T17, T18** — the write-up, which is where the remaining calendar time
    actually goes. Kinan has said explicitly that this comes last.
-7. **T6, T7, T8** — host-blocked, so they are written up as limits rather than
-   scheduled as work, unless upstream moves.
-8. **T13, T20** — a read and a five-minute fix, whenever.
+7. ~~**T7 (audit half) and T8**~~ — **both resolved 2026-08-26.** T6 is closed
+   and needed no upstream change; **T7's audit half shipped** and only its
+   prevention half is open, as a decision (B); and **T8's "host-blocked" label
+   was audited and the item closed by decision** — the specification names three
+   resource categories and messaging is not one. The instruction here to treat
+   it as an unverified claim was followed, and it was indeed not true.
+8. **T13** — a read, whenever. (**T20** was the five-minute fix that used to
+   share this line; it was done on 2026-08-24.)
 
 **T1 is not being done** (deprioritised 2026-08-24) and **T21/T22 are closed** —
 both were on this list as jumping the queue, and both took the two minutes they
@@ -1158,7 +1465,7 @@ the mistake is made rather than in documentation nobody rereads. **[verified]**
 Checked because they were claimed everywhere and tested nowhere.
 `core-invariants.test.ts`, 15 assertions.
 
-- **104 — Root could not change its own password on any surface.** The route
+- **121 (was 104 — see T29) — Root could not change its own password on any surface.** The route
   (`POST users/password`) was correct and complete; nothing called it — not the
   dashboard client, not the page, not the CLI. So the account governing every
   other one had a password fixed at the moment it was first typed, on a screen

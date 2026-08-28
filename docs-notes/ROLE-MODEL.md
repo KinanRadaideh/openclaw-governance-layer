@@ -556,8 +556,24 @@ this Administrator owns (M4) · ✘ = refused
 | Register an agent (owned by you)     |         ✘          |   ✘    |       ✔       |  ✔   |
 | Rename / re-own / unregister         |         ✘          |   ✘    |   **owned**   |  ✔   |
 | Register an agent to somebody else   |         ✘          |   ✘    |       ✘       |  ✔   |
+| **Provision** an agent (create it)   |         ✘          |   ✘    |       ✔       |  ✔   |
+| **Delete** an agent from the host    |         ✘          |   ✘    |   **owned**   |  ✔   |
 | Create/delete accounts, change roles |         ✘          |   ✘    |       ✘       |  ✔   |
 | View deployment / network posture    |         ✘          |   ✘    |       ✘       |  ✔   |
+
+> **The last two rows are the only capabilities in this document that change
+> OpenClaw itself** (M6, 2026-08-27). Everything above them decides what an agent
+> may do, or who may see and change those decisions; provisioning and deletion
+> create and destroy the agents. The tier is the same as the rest of the registry
+> — agent management is the Administrator tier, and an Administrator administers
+> the agents they own — but the _consequence_ of the tier is larger here than
+> anywhere else in the table, and Chapter 4 says so rather than leaving a reader
+> to infer it from a row that looks like its neighbours.
+>
+> **Deletion is deliberately not the same act as unregistration.** Unregistering
+> removes the governance record and leaves the agent running, exactly as it has
+> since M4. Deleting removes it from the host. Both surfaces make the caller
+> choose between the two by name and then confirm the irreversible one in words.
 
 ---
 

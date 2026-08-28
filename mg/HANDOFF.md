@@ -1,27 +1,46 @@
 # Handoff — read this first
 
-**Written 2026-08-19, current as of 2026-08-24 (evening).** The single entry
+**Written 2026-08-19, current as of 2026-08-27.** The single entry
 point for whoever picks this project up next, whether that is a teammate, a
 supervisor, or the same person after a break. Everything else in `mg/` is detail
 beneath this.
 
 > **If you read three things:** §1 for the state, §6 for what is left, and the
-> `git push` in §8 — eighteen commits exist only on this machine.
+> `git push` in §8 — **30 commits** exist only on this machine (re-measured
+> 2026-08-27 with `git log --oneline personal/governance-layer..HEAD | wc -l`;
+> re-measure rather than trust it, see §1).
+>
+> **And the worse half, as of 2026-08-27: the working tree is not committed at
+> all.** `git status --porcelain` reports **111 entries**, of which **nine are
+> new files** — `search-audit.ts`, `search-audit.test.ts`, `agent-group.ts`,
+> `test-group.ts`, `governance-dashboard-group.ts` (T7 and M5), and
+> `agent-provisioning.ts`, `agent-provisioning.test.ts`,
+> `agent-registry-panels.ts`, `agent-registry-panel.test.ts` (M6). Everything
+> from T7's audit half, T29, T30, finding 120's fix, **all of M5 and all of M6**
+> exists only as uncommitted changes on this disk, and an untracked file does
+> not survive a careless `git checkout .`. Commit before pushing; the push alone
+> saves none of it.
 
 ---
 
 ## 1. The one-paragraph state of things
 
-**Current as of 2026-08-25.** The governance layer is **built and verified, and
+**Current as of 2026-08-27.** The governance layer is **built and verified, and
 still not demonstrated.** Eight of the nine design requirements are fully met;
-the ninth (Linux deployment) is tested but never deployed. **2,151 automated
-tests pass across 101 files** (1,343 distinct across 75 — see §4), both
+the ninth (Linux deployment) is tested but never deployed. **2,311 automated
+tests pass across 107 files** (1,467 distinct across 81 — see §4), both
 typechecks are clean, and OpenClaw's own test
 suite is **fully green for the first time**: the 18 pre-existing Windows
 failures used as this project's baseline were fixed on 2026-08-25 (T25), along
 with nine more in `host-hooks.contract.test.ts`. Eighteen
-QA rounds have found 119 defects, all fixed; **there is no known
-security hole**, and as of 2026-08-25 **no known-failing test anywhere** — the
+QA rounds and the build itself have found **134 defects, all fixed — zero open.** The count moved from 120 to 121 when T29's numbering audit (2026-08-26) found **two different defects both numbered 104**; to 127 on 2026-08-27 when M5's four and M6's two were numbered **122–127**, having been fixed and written up in all three registers but never entered on the numbered list; to **130** the same day when **QA round nineteen** audited the M-series as one system and found **128–130**; and to **131** when **QA round twenty** read the rest of the window's work against the nine design requirements and found `search-audit.ts` writing grep's matched file content — secrets included — into the tamper-evident ledger, a direct breach of requirement 8; and to **134** when **round twenty-one** built §1.6's missing "raw LLM intent" field and audited it, finding three defects in one day's work (**132–134**). **Standing rule from 2026-08-27: every defect gets a number when it is found.** Finding 120 was found and
+closed on 2026-08-26: T6's fail-closed branch could not fire, so a lockdown
+whose lineage records were unreadable degraded to fail-_open_. It was closed by
+probing the store with a scoped listing rather than a keyed read — which
+distinguishes "no such session" from "no readable store", the two cases the old
+probe conflated — **without costing the narrowness** that makes failing closed
+defensible. **There is no known security gap**, and as of 2026-08-26
+**no known-failing test anywhere** — the
 project's own suite, OpenClaw's harness, and the plugin contract suite are all
 green, and every source file is inside the line limit inherited from upstream.
 
@@ -31,16 +50,160 @@ That gap is **T2** (formerly A9), and it is still the most valuable remaining
 item by a wide margin.
 
 **There are two backlogs now.** `REMAINING-WORK.md` §"The numbered backlog"
-holds **T1–T28**, the original project, and supersedes every older list.
+holds **T1–T32**, the original project, and supersedes every older list.
 §"The M-series" holds **M1–M6**, a multi-tenancy feature requested on
-2026-08-24 and added on top — **four done, two not started**; M4 gave the layer a
-first-class agent record, which is what M6 was blocked on. **Twenty-one of twenty-eight T-items are done** — one of those (T13) is
-drafted and still waiting to be read, and T1 is deprioritised, so **six are
-genuinely outstanding: T2, T3, T7, T8, T17, T18**
+2026-08-24 and added on top — **all six are done as of 2026-08-27**. M4 gave the layer a
+first-class agent record, which M6 was said to be blocked on; in the event M5
+unblocked it by making registration mandatory, and M6 closed two days later. **Twenty-four of thirty-two T-items are done** — one of those (T13) is
+drafted and still waiting to be read, and T1 is deprioritised, so **seven are
+genuinely outstanding: T2, T3, T7 (prevention half), T17, T18, T31, T32**
 (T26 and T27 were added 2026-08-24 for work that shipped on the 22nd and had
-never been entered; T28 was added and closed on the 25th). The old letters
+never been entered; T28 was added and closed on the 25th; T29–T32 were added on
+the 26th, and T29 and T30 closed the same day). **T8 is closed** — 2026-08-26,
+by decision — so any older sentence listing it as outstanding is stale. The old letters
 (A-, B-, F-, R5, G) survive only as a `Ref` column pointing at their historical
 write-ups; nothing is orphaned.
+
+### 2026-08-27 — M6, and the M-series is finished
+
+**The layer now creates the agents it governs.** That is the headline and it is
+also a change of kind: every mechanism before this one observed OpenClaw and
+gated it, and this one writes to it. Chapter 4 has to say so rather than let a
+reader discover it — a compromised layer could previously only refuse things,
+which is fail-closed; one that can write the agent roster can create an agent,
+and an agent runs commands.
+
+**Four decisions taken by Kinan, and a fifth answered by the host.**
+
+| Decision                                         | Outcome                                                                                                      |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| Two writes are needed; what if the second fails? | **All or nothing**, loud and specific, with every knowable refusal moved in front of the first write         |
+| Does removing an agent delete it?                | **Two named options**, each explaining its consequence, then a confirmation stating irreversibility in words |
+| What about an agent list in an included file?    | **Follow the pointer where the host can, refuse and name the file where it cannot**                          |
+| What shows between saving and existing?          | **Wait and confirm it appeared** — polling the running host, not the file just written                       |
+
+The fifth — _"does a provisioned agent exist immediately, or does the host need a
+reload?"_ — needed no decision. `config-reload-plan.ts` classifies
+`agents.entries` as `kind: "hot"` and the gateway watches the file. **Fifth
+instance of the pattern**, after the three "blocked on the host" claims and M4's
+ownership hole closing in M5.
+
+**And a sixth: provisioning was never a thing to build.** The row said "by
+writing `agents.entries` in the host config". `createAgent` and
+`deleteAgentConfigEntry` already validate ids, honour the deletion journal,
+create workspaces and identity files, take the config mutation lock, and **write
+through a top-level `$include` into the file that actually owns the roster**. So
+`agent-provisioning.ts` composes them and writes no configuration itself; what it
+adds is the transaction.
+
+**Two things worth taking to the defence.**
+
+_Do the fallible write first._ The host write is large, schema-checked,
+lock-contended and hand-edited by the operator; the registry write is a small
+file this layer owns. Putting the risky one first converts most failures from
+"roll back" into "nothing happened". And the gap between them is fail-closed for
+free, because M5 made an unregistered agent refused — a default-deny decision
+paying for itself somewhere nobody was looking when it was taken.
+
+_The registry had no screen._ M4 shipped five routes, four API-client methods and
+a command line, and **nothing in the dashboard ever called them**. Fourth
+complete-but-unreachable route in this project, after R5's authoring controls,
+round eleven's monitor toggle, and finding 121. Stated as a rule: **a capability
+is finished when somebody can click it, not when the route returns 200.**
+
+Full write-up in `GOVERNANCE.md` §"M6"; report material in
+`CHAPTER3-MATERIAL.md` §3.5.51–56, including a Mermaid figure of the whole
+M-series; plain language in `QA-IN-PLAIN-TERMS.md` §5.45–50.
+
+### 2026-08-27 — M5, per-group storage
+
+**The layer now holds several organisations, each with its own rulebook and its
+own audit chain, and the project's strongest security claim survived it word for
+word.** That was the constraint, and meeting it decided the design.
+
+**The rule that settled the hard questions.** Multi-tenancy is **not in the
+specification** — all 44 pages of `Grad_Proj___Current.pdf` searched, no
+requirement mentions tenants, organisations or groups. Tamper-evident logging
+_is_ requirement #6. So: **where group isolation and a numbered requirement pull
+against each other, the requirement wins.** Splitting the ledger invites
+splitting its key, which would turn one secret into N and force the claim to be
+restated weaker. Instead: per-group ledger **files**, one installation-wide key,
+one checkpoint file keyed by group. Both sentences of the claim stay literally
+true, and erasing one group's tail now means editing a file **outside that
+group's directory**.
+
+**Mandatory registration, and what it turned out to close.** An agent with no
+registry record is refused by the gate — Kinan's decision. Building it showed the
+assignment check had the _same_ hole (`if (!agent) continue;`) and that closing
+it never needed M6: the row said it did, on a reading that treated _registering_
+an agent and _provisioning_ one as one act. They are not. **Fourth instance of
+the pattern**, after the three "blocked on the host" claims.
+
+**M5 is done.** **2,171 tests across 102 files, all passing** — the same total
+as before M5, so the migration cost no coverage — both typechecks clean, host
+baseline 263/0, every non-test governance file lint-clean, `max-lines` zero
+repo-wide. Full write-up in `GOVERNANCE.md`; report material in
+`CHAPTER3-MATERIAL.md` §3.5.47–50; plain language in `QA-IN-PLAIN-TERMS.md`
+§5.42–44.
+
+**Four defects the migration surfaced, all fixed**, and each is in the report:
+a cache keyed by a value that could change underneath it; a test fixture that
+manufactured the exact truncation the ledger exists to detect; a fresh group that
+could not take a file lock; and a deployment check that asked whether the
+checkpoint _file_ existed when it should have asked whether _this group_ had one
+— a green tick for a defence that was not there.
+
+**Two dead branches removed.** `kill-switch-unattributable` became unreachable —
+reaching the lockdown check now needs a resolved group, and a group is resolved
+from the agent id — so it went, on T28's precedent. And `assertAssignable`'s
+`if (!agent) continue;` was the ownership hole M4 documented; it now refuses.
+
+### 2026-08-26 — verifying a closed item, and the last blocked claim
+
+Three things, and the first is the one to read.
+
+**T6 was verified rather than trusted, and it had a hole.** Its lineage walk is
+sound — disabling it fails four tests including the round-fourteen pin. But
+disabling its _fail-closed_ half left **all 867 governance tests passing**, and
+reading the code with that in hand showed why: `lineageUnknown` reports "cannot
+read" only when the store probe throws, and the storage layer answers
+`undefined` for an absent entry **and** for an unreadable store alike. Measured
+end to end: lock an agent, and a cross-agent child of it is refused; make the
+session store unreadable and the same call was **allowed**, with nothing
+recorded. That is **finding 120**, and it is **fixed**.
+
+The fix is the part worth keeping. The obvious one — treat any missing record as
+unknown — closes the gap and costs narrowness, failing six tests that assert an
+unrelated agent keeps working during someone else's lockdown. What closed it was
+a **better question rather than a stricter policy**: a scoped listing separates
+"this agent has no sessions" (empty array) from "this store will not open"
+(throws), where the keyed read returned `undefined` for both. Readability is now
+checked at every hop, since a chain across three agents crosses three stores.
+
+**T7's audit half is built.** `search-audit.ts` records every path a completed
+`grep`/`find`/`ls` returned that a live denial covers, under
+`search-reached-denied` with decision `ungoverned`. It is a direct call from
+both after-tool-call sites rather than a plugin hook, because both sites skip
+the hook when no plugin registered one and governance must not depend on a
+plugin being loaded. Prevention stays open and stays a decision.
+
+**T8 was audited and is not host-blocked either.** The resource-kind enumeration
+is this fork's own file; the message's destination is already in the parameters
+the gate receives; the conversation's origin is on the session entry. Nothing is
+missing upstream. What is left is a decision about the shipped default.
+
+> **"Blocked on the host" is now three for three: recorded three times, audited
+> three times, true zero times.** Each was a claim about one interface — a hook
+> payload, a hook's return type, a resource enumeration — written in words that
+> read as a claim about what the project could reach. In a fork those are never
+> the same statement.
+
+**Method point worth taking to the defence.** Two findings this project holds
+were produced by deliberately breaking working code to see whether anything
+objected — finding 120's guard and T28's exhaustiveness set. Neither would have
+come from writing more tests, because both areas already had passing ones.
+**Coverage answers "is this line executed". Mutation answers "does anything
+depend on what it does" — and only the second is a claim about protection.**
 
 ### 2026-08-25 — the session that emptied the "blocked" column
 
@@ -73,8 +236,14 @@ Read this before `REMAINING-WORK.md`, because it changes how that file's
   has**. It still cannot close the gap, because it runs after the tool and
   returns `void` — so T7 now splits into an _audit_ half (doable here) and a
   _prevention_ half (needs a decision).
-- **T8** has **not** been re-examined. On this record its "needs a fourth
-  resource kind" should be read as an unverified claim.
+- **T8 was re-examined on 2026-08-26 and closed**, and it broke the pattern of
+  the other two. T6 and T7 were mis-filed because the fork could reach further
+  than the note claimed. T8 was mis-filed because **the specification never
+  asked for it**: §1.3 requirement 3 names the resources the default-deny model
+  governs — "file system paths, process execution, and network communication" —
+  and requirement 4 repeats the same three. A fourth kind is _beyond_ spec, not
+  missing from it. Closed by decision: connecting an agent to a channel is
+  itself the permission.
 
 > In a fork, _"the host does not report X"_ is a statement about **one
 > interface**, not about what is reachable — and it is a claim with a date on
@@ -102,10 +271,12 @@ but the evaluation order that moving changes, which it does not.**
 
 #### Where things stand
 
-Six T-items genuinely outstanding (**T2, T3, T7, T8, T17, T18**), plus T13 to
-read and T1 deprioritised. **M5 and M6 are the only substantial engineering
-left, and both are blocked on decisions rather than effort** — eleven of them,
-listed in `REMAINING-WORK.md` §"Open before M5 or M6 starts".
+**Written 2026-08-25 and superseded three times since.** As of 2026-08-27 the
+outstanding T-items are **T2, T3, T7 (prevention), T17, T18, T31, T32**, plus
+T13 to read and T1 deprioritised — T8 closed on the 26th. **No substantial
+engineering is left**: M5 landed on the 26th/27th and **M6 closed on the 27th**,
+completing the M-series. All eleven decisions listed in
+`REMAINING-WORK.md` §"Open before M5 or M6 starts" are answered.
 
 **T2 remains the single highest-value item on the project** and has since
 2026-08-19. Everything above is worth less than one real agent driving one real
@@ -179,16 +350,37 @@ backlog.**
   M4 gave the layer an agent **record**, which M6 was blocked on. See §6 and
   `REMAINING-WORK.md` §"The M-series".
 
+> ### ⏭ When M is finished, come back to T32
+>
+> **T8 is closed** (2026-08-26, by decision): connecting an agent to a channel is
+> itself the permission, the specification names three resource categories and
+> messaging is not one, and every send is recorded with its destination. Nothing
+> is pending on it.
+>
+> **T32 is the one that waits**, and it will not resurface on its own. Written
+> here rather than only in the backlog because this is the file the next session
+> opens.
+>
+> - **T32 — authoring a folder grant with its exceptions as one thing.** It is
+>   the remainder of **T7**, not T8. The engine already honours "grant a folder,
+>   forbid a subfolder", and the page now says so out loud. What is left is the
+>   authoring affordance — which needs M6 to decide which policy surface it lands
+>   in — and **T7 prevention**, without which a recursive search still walks
+>   through the exception. **Do not build the interface before the enforcement:**
+>   the caveat now shown on the policy page is the honest stopgap, and the test
+>   that pins it is written to fail when T7 closes.
+
 **Two things need doing before anything else:**
 
-| #   | Action                                                                                                                                                                      | Effort   |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| 1   | **Push to the private remote.** **29 commits** exist only on this machine and in OneDrive — re-measured 2026-08-25 with `git log --oneline personal/governance-layer..HEAD` | 1 min    |
-| 2   | **Run it once with a real agent** and record what happens (T2)                                                                                                              | 2–4 days |
+| #   | Action                                                                                                                                                                                                                                                                           | Effort   |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| 1   | **Push to the private remote.** **30 commits** exist only on this machine and in OneDrive — re-measured 2026-08-26 with `git log --oneline personal/governance-layer..HEAD \| wc -l`. Every later commit, this file's own edits included, adds one: re-measure rather than quote | 1 min    |
+| 2   | **Run it once with a real agent** and record what happens (T2)                                                                                                                                                                                                                   | 2–4 days |
 
-> **Do not confuse the two counts.** `main..HEAD` is **44** and
-> `personal/governance-layer..HEAD` is **29**; the first is how far the branch
-> has diverged from upstream, the second is what is actually unpushed. This
+> **Do not confuse the two counts.** `main..HEAD` is **45** and
+> `personal/governance-layer..HEAD` is **30** (2026-08-26); the first is how
+> far the branch has diverged from upstream, the second is what is actually
+> unpushed. This
 > document has quoted the wrong one before. `origin` is upstream
 > `openclaw/openclaw` and **this branch must never be pushed there**.
 
@@ -200,11 +392,11 @@ remote. The push was **verified by cloning it back from GitHub**: same tip
 (`f4b7325241a`), same tree (`3debbb521…`), the governance work all present.
 The work now exists in three places rather than one.
 
-> ### ⚠ The tree is clean, and 29 commits have never left this machine
+> ### ⚠ The tree is clean, and 30 commits have never left this machine
 >
 > Everything since 2026-08-21 is committed — the sixteenth QA pass, T9, T24,
 > T26, T4, T27, T5, T14, T15, T23, rounds seventeen and eighteen, M1–M4, T25,
-> T28, and T16 and T6 in full — in twenty-nine commits grouped by workstream.
+> T28, and T16 and T6 in full — in thirty commits grouped by workstream.
 >
 > **None of them has been pushed.** The private remote is still at the
 > 2026-08-21 tip, so a fortnight's work exists on this machine and in OneDrive
@@ -219,15 +411,15 @@ The work now exists in three places rather than one.
 
 ## 2. Read these, in this order
 
-| File                              | What it gives you                                                                                                                                                      |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mg/HANDOFF.md`                   | This file. State, next actions, how to verify                                                                                                                          |
-| `mg/PROJECT-SUMMARY.md`           | What the project _is_ — problem, design, where every file lives                                                                                                        |
-| `mg/REMAINING-WORK.md`            | **Two backlogs.** §"The numbered backlog" (T1–T28) is the project; §"The M-series" (M1–M6) is the multi-tenancy feature added on top. Everything below them is history |
-| `mg/SESSION-LOG-2026-08.md`       | Narrative of how the work was done and why decisions went the way they did                                                                                             |
-| `GOVERNANCE.md`                   | Operator overview + the full engineering defect table for all eighteen rounds                                                                                          |
-| `docs-notes/CHAPTER3-MATERIAL.md` | **Report source material**, keyed to section numbers. Start here for Ch. 3–4                                                                                           |
-| `docs-notes/QA-IN-PLAIN-TERMS.md` | The same findings in ordinary language — good for the defence, and for §4                                                                                              |
+| File                              | What it gives you                                                                                                                                                                    |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `mg/HANDOFF.md`                   | This file. State, next actions, how to verify                                                                                                                                        |
+| `mg/PROJECT-SUMMARY.md`           | What the project _is_ — problem, design, where every file lives                                                                                                                      |
+| `mg/REMAINING-WORK.md`            | **Two backlogs.** §"The numbered backlog" (T1–T32) is the project; §"The M-series" (M1–M6, **complete**) is the multi-tenancy feature added on top. Everything below them is history |
+| `mg/SESSION-LOG-2026-08.md`       | Narrative of how the work was done and why decisions went the way they did                                                                                                           |
+| `GOVERNANCE.md`                   | Operator overview + the full engineering defect table, findings 1–130 across nineteen rounds and the M-series build                                                                  |
+| `docs-notes/CHAPTER3-MATERIAL.md` | **Report source material**, keyed to section numbers. Start here for Ch. 3–4                                                                                                         |
+| `docs-notes/QA-IN-PLAIN-TERMS.md` | The same findings in ordinary language — good for the defence, and for §4                                                                                                            |
 
 Operator-facing docs (`WRITING-PERMISSIONS.md`, `CLI-REFERENCE.md`,
 `PERMISSION-SPEC.md`, `ROLE-MODEL.md`, `BASELINE-RULES.md`,
@@ -295,27 +487,47 @@ A finding that appears in only the middle column is not finished.
 
 ## 3. Where the code is, right now
 
-**Branch `governance-layer`, clean, 22 commits ahead of `main`.** Re-check with
-`git rev-list --count main..HEAD` rather than trusting that number — it moves
-with every commit, and a hard-coded count in a handoff is the same class of
-defect as the stale inventory T19 carried. The commits of 2026-08-21 carry the
-governance core, the dashboard, the documentation, the lockfile and the handoff
-update, and the branch exists on this machine, in OneDrive, and at
-`github.com/KinanRadaideh/openclaw-governance-layer` (private, remote
-`personal`). `origin` still points at upstream OpenClaw and must never receive
-this branch.
+**Branch `governance-layer`, 45 commits ahead of `main`, and the working tree is
+NOT clean.** Re-check both with
+`git rev-list --count main..HEAD` and `git status --porcelain | wc -l` rather
+than trusting these numbers — they move with every commit, and a hard-coded
+count in a handoff is the same class of
+defect as the stale inventory T19 carried. (This paragraph said "clean, 22
+commits ahead" until 2026-08-27, when both halves were measured and both were
+wrong.)
+
+> **Measured 2026-08-27: 111 uncommitted entries.** 102 modified files and nine
+> untracked ones. That is every change since commit `48fa83c` — T7's audit half
+> (`search-audit.ts`, `search-audit.test.ts`), T29, T30, finding 120's fix,
+> **all of M5** (`agent-group.ts`, `test-group.ts`,
+> `governance-dashboard-group.ts`, and the per-group migration across ~95 files)
+> and **all of M6** (`agent-provisioning.ts` and its tests, the registry panel
+> and its tests, plus the routes, CLI and i18n they need).
+> Several documents in `mg/` describe that work as done and one described it as
+> committed. It is done; it is not committed. **Commit first, then push** — §6's
+> "push to the private remote" does not save an uncommitted tree. The commits of 2026-08-21 carry the
+> governance core, the dashboard, the documentation, the lockfile and the handoff
+> update, and the branch exists on this machine, in OneDrive, and at
+> `github.com/KinanRadaideh/openclaw-governance-layer` (private, remote
+> `personal`). `origin` still points at upstream OpenClaw and must never receive
+> this branch.
 
 **Committed 2026-08-24 in seven commits** — the sixteenth QA pass, T9, T24, T26,
-T4, T27, T5, T14, T15, the T16 split, and the documentation. **The private
-remote has not received them**; it is still at the 2026-08-21 tip, so the newest
-week of work exists on this machine and in OneDrive only. That is a smaller
-version of the same risk F1 closed.
+T4, T27, T5, T14, T15, the T16 split, and the documentation. Commits have
+continued since (T16's dashboard split, T6, and their write-ups, through
+`48fa83c` on 2026-08-26). **The private
+remote has not received any of them**; it is still at the 2026-08-21 tip
+(`e5a7876431b`), so **30 commits** — not seven — plus the entire uncommitted
+tree above exist on this machine and in OneDrive only. That is a larger
+version of the same risk F1 closed, and it has grown every day it was left.
 
 **GitHub Actions are disabled on the private remote** (T21), because the fork
 carries 82 upstream workflow files and fifteen of them are scheduled. Anything
 that re-enables Actions there starts the meter again.
 
-The files that were uncommitted on 2026-08-21, and are now in those commits:
+The files that were uncommitted on 2026-08-21, and are now in those commits —
+**except `search-audit.ts` and `search-audit.test.ts`, which were written later
+(T7, 2026-08-26) and are still uncommitted as of 2026-08-27**:
 
 ```
 src/governance/agent-runner.ts                    the seam the host registers a runner into
@@ -327,6 +539,8 @@ src/governance/qa-round11.test.ts                 coverage, canonicalisation, re
 src/governance/qa-round12.test.ts                 chat deployments, and A1 attacked
 src/governance/qa-round13.test.ts                 the adversarial round — findings 70–93
 src/governance/qa-round14.test.ts                 spawned agents, prompt privacy, clash race
+src/governance/search-audit.ts                    T7 audit half — what a recursive search reached
+src/governance/search-audit.test.ts               11 tests; one of them is a record of a test that cannot exist
 src/governance/native-relay-requirement.ts        B1 — governance as its own relay signal
 src/governance/qa-round15.test.ts                 B1 — relay required, every tool, fail-closed, agreement
 src/governance/account-name.ts                    the one definition of "which account is this?"
@@ -345,13 +559,17 @@ docs-notes/qa-round13-probes/                     reproductions for round 13, ke
 ```
 
 `origin` points at **`github.com/openclaw/openclaw`** — upstream. This branch
-must **never** be pushed there. A private remote is still needed; until then the
-only copies are this disk and `OneDrive/GradProj-Backups/2026-08-13/` (which
-predates all of the above).
+must **never** be pushed there. The private remote is **`personal`**
+(`github.com/KinanRadaideh/openclaw-governance-layer`), added and verified on
+2026-08-21 when F1 closed — so this is a **commit and** a push, not a setup task. It still sits at
+the 2026-08-21 tip (`e5a7876431b`), so the only copies of everything since are
+this disk and `OneDrive/GradProj-Backups/2026-08-13/` (which predates all of the
+above).
 
 `Documentation/` is untracked on purpose: 163 MB that byte-for-byte mirrors a
-OneDrive folder. Worth a `.gitignore` entry so it stops appearing in
-`git status`.
+OneDrive folder. **It already has a `.gitignore` entry** (`.gitignore:235`), so
+it does not appear in `git status`; this note used to propose adding one, and
+that is done.
 
 ---
 
@@ -365,21 +583,28 @@ node node_modules/vitest/vitest.mjs run src/agents/harness/native-hook-relay.tes
 node node_modules/oxlint/bin/oxlint --config .oxlintrc.json src ui/src
 ```
 
-Expected, measured **2026-08-25**:
+Expected, and **every row below re-measured on 2026-08-27** (the table said
+"measured 2026-08-25", which predated M5):
 
-| Command                  | Expected                                                                                                                                             |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Governance suite         | **2,151 passed across 101 files**                                                                                                                    |
-| `tsgo:core`              | clean                                                                                                                                                |
-| `tsgo:ui`                | clean                                                                                                                                                |
-| Host suites (both)       | **263 passed, 0 failed**                                                                                                                             |
-| oxlint over `src ui/src` | clean under `src/governance/` and `ui/src/pages/governance/`; four pre-existing errors remain in `src/governance/file-lock.ts` and `audit-ledger.ts` |
+| Command                  | Expected                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Governance suite         | **2,311 passed across 107 files** — measured 2026-08-27 after QA rounds nineteen to twenty-one. Was 2,292/106, 2,283/105, 2,247/104 after M6                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `tsgo:core`              | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `tsgo:ui`                | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Host suites (both)       | **263 passed, 0 failed** — re-run 2026-08-27, exact match. **263 = 192 (`native-hook-relay.test.ts`) + 71 (`host-hooks.contract.test.ts`)**; older notes below quote the 192 alone and are not contradicting this row                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| oxlint over `src ui/src` | **Every non-test file under `src/governance/` and `ui/src/pages/governance/` is clean as of 2026-08-26.** The row here used to say "clean, except four pre-existing errors in `file-lock.ts` and `audit-ledger.ts`" and **that was false** — there were 24, across 18 files; the row named two of them. Twelve were fixed (the four documented ones plus eight more in `agent-terminator.ts`, `user-store.ts`, `rule-validation.ts`, `active-sessions.ts` and `attachment-store.ts`), three of those as `oxlint-disable-next-line` with a stated reason where the rule's suggested fix would have been _wrong_ — `no-map-spread` recommends in-place mutation, and all three sites copy on purpose so a caller's object is not changed underneath them. **16 errors remain and all of them are in `.test.ts` files** across **14** files, not 13 — re-counted 2026-08-27 with `oxlint … | grep ': error' | sed 's/:.*//' | sort -u | wc -l`(shadowed names,`filter(...)[0]`, an unused import, `sort()`over`toSorted()`, a `return` in a Promise executor, a dangling underscore); tracked as **T31**. **`max-lines` reports zero errors repo-wide**, so T16 is still closed |
 
-**All five re-run and green on 2026-08-25**, after T16 and T6. The suite figure
-has moved nine times across two days — 1,794/87, 1,802/88, 1,877/91, 1,901/94,
-1,902/94, 1,926/95, 2,108/99, 2,116/99, 2,151/101 — **which is exactly why the
+**All five re-run and green on 2026-08-27**, after M5. The suite figure
+has moved **sixteen** times across three days — 1,794/87, 1,802/88, 1,877/91, 1,901/94,
+1,902/94, 1,926/95, 2,108/99, 2,116/99, 2,151/101, 2,165/102, 2,168/102, 2,171/102, 2,247/104, 2,283/105, 2,292/106, 2,311/107 — **which is exactly why the
 command matters more than the number**, and why every row above names the
-command that produced it.
+command that produced it. (The sentence said "nine times" while listing twelve
+values; corrected 2026-08-27 by counting the list rather than trusting the
+word.) **M5 moved no figure at all** — 2,171/102 before and after — because the
+per-group migration rewrote existing tests rather than adding any. **M6 moved it
+by 76**, of which only 22 are its two new test files: the other 54 came from
+entering two routes in the privilege matrix and the malformed-body table, which
+is exactly what those two tables exist to make cheap.
 
 > **Two things changed on 2026-08-25 that make older notes misleading.**
 >
@@ -391,17 +616,27 @@ command that produced it.
 > The **oxlint line-limit check now passes** for every governance file, T16
 > having closed. If it fails, something new is over — not the old debt.
 
-> One test (`qa-round5-storage.test.ts`, ledger rotation) has a 120-second
-> budget and writes enough entries to rotate the ledger. It times out when the
-> machine is busy — a build and another suite running alongside it were enough.
-> That is load, not a regression; re-run it on a quiet machine before believing
-> a failure there.
+> **That caveat is gone as of 2026-08-26 (T30), and its removal is the point.**
+> It used to say `qa-round5-storage.test.ts` has a 120-second budget, writes
+> enough entries to rotate the ledger, times out on a busy machine, and should
+> be re-run before a failure there is believed. All true — and it named **one of
+> two identical tests**. `complete-record.test.ts` had the same shape and was
+> the one actually timing out, with no warning attached to it at all.
+>
+> Both now drive rotation through a lowered threshold instead of writing 8 MB:
+> twelve entries each, 5.7 seconds for both files, no load sensitivity. **A
+> failure in either is now a regression and should be believed.** A caveat
+> covering some of the cases teaches a reader to dismiss the ones it does not,
+> which is why this was fixed rather than extended to cover the second file.
 
-> **The 101 is file _runs_, not files, and 2,151 is test _executions_.**
+> **The 107 is file _runs_, not files, and 2,311 is test _executions_.**
 > Thirteen governance test files live under `src/gateway/` and run under three
-> Vitest projects, so each is executed three times: 58 + 4 + (13 × 3) = 101.
-> **Distinct totals: 1,343 tests across 75 files.** Quote 2,151/101 if you also
-> state the command; quote 1,343/75 if you are describing how much test code
+> Vitest projects, so each is executed three times: 63 + 5 + (13 × 3) = 107.
+> **Distinct totals: 1,467 tests across 81 files**, measured 2026-08-27 by
+> running the gateway glob alone (1,266 executions over 39 runs = 422 distinct)
+> and subtracting rather than by dividing the total, which would have been wrong.
+> Quote 2,311/107 if you also
+> state the command; quote 1,467/81 if you are describing how much test code
 > exists. This is the same trap as the 18-versus-9 harness baseline recorded
 > below — and it went unnoticed here for as long as the number had been quoted.
 >
@@ -433,6 +668,17 @@ command that produced it.
 >
 > Expect **71 passed**. A failure in either file is now a real regression rather
 > than the weather.
+
+> **All five were re-measured on 2026-08-27, twice — before M6 and after it.**
+> Before: 2,171/102 governance, both typechecks clean, 263/0 host, all matching
+> the recorded figures exactly; the only discrepancy in the whole document was
+> oxlint's **file** count, 14 rather than the recorded 13 (the error count, 16,
+> was right). After M6 and rounds nineteen to twenty-one: **2,311/107**, typechecks clean, host still **263/0**,
+> oxlint unchanged at 16 errors across 14 files — all pre-existing T31 debt, none
+> in the new code — and `max-lines` **zero repo-wide**.
+>
+> One number in this table has never been wrong when checked, and one has been
+> wrong twice. That is the argument for the command sitting beside every figure.
 
 There is a fifth check worth running on any machine you deploy to, and it is new:
 
@@ -547,12 +793,14 @@ Four things from M4 worth carrying into the report:
   data — what decides each is what the absence would **cost**. Applying M3's
   answer out of habit (the pattern had worked five times) would have broken
   every installation that upgrades.
-- **A hole left open on purpose, and tested as such.** An unregistered agent id
+- ~~**A hole left open on purpose, and tested as such.** An unregistered agent id
   is still assignable, so the ownership rule can be sidestepped by not
   registering. Refusing it would break every existing deployment and protect an
   owner who does not exist. Closing it needs registration to be mandatory, which
-  needs M6. A test is named for the hole so nobody later reads the rule as
-  stronger than it is.
+  needs M6.~~ **Closed by M5 (2026-08-26/27), and it never needed M6** — the
+  claim rested on treating _registering_ and _provisioning_ as one act. The test
+  named for the hole now asserts its closure, with the old comment kept above
+  it.
 - **Repair at the producer.** Transferring or unregistering an agent releases it
   from every account that no longer qualifies, and mirrors that into live
   sessions — because otherwise the account file would assert something the
@@ -765,7 +1013,8 @@ Newest. Three guarantees the installation makes, all claimed in prose, none
 asserted as a property — and one not true on any surface an operator can reach.
 Now `core-invariants.test.ts` (15 assertions).
 
-- **Root could not change its own password (#104).** The route existed and was
+- **Root could not change its own password (#121, numbered #104 until T29 found
+  the collision on 2026-08-26).** The route existed and was
   correct; **nothing called it** — not the dashboard client, not the page, not
   the CLI. The account governing every other one had a password fixed at the
   moment it was first typed, on a screen whose bootstrap step cannot be redone.
@@ -1031,26 +1280,54 @@ backwards when the language stops being allow-only. Report material:
 
 **Two lists, and they are different kinds of thing.**
 
-| List                                                     | What it is                                                    | State            |
-| -------------------------------------------------------- | ------------------------------------------------------------- | ---------------- |
-| `REMAINING-WORK.md` §"The numbered backlog" — **T1–T28** | The original project: build the layer, verify it, defend it   | 18 done, 10 left |
-| `REMAINING-WORK.md` §"The M-series" — **M1–M6**          | A multi-tenancy feature requested 2026-08-24 and added on top | 4 done, 2 left   |
+| List                                                     | What it is                                                    | State                 |
+| -------------------------------------------------------- | ------------------------------------------------------------- | --------------------- |
+| `REMAINING-WORK.md` §"The numbered backlog" — **T1–T32** | The original project: build the layer, verify it, defend it   | 24 done, 8 left       |
+| `REMAINING-WORK.md` §"The M-series" — **M1–M6**          | A multi-tenancy feature requested 2026-08-24 and added on top | **COMPLETE** (6 of 6) |
+
+_(Verified 2026-08-27. Several older paragraphs in this file said "four done,
+two not started" and one M-series row said M5 was not started; all were written
+before M5 landed and have been corrected.)_
 
 Quote the task numbers; the old letters (A-, B-, F-, R5, G) survive only as a
 `Ref` column pointing at their historical write-ups.
 
-Of the ten T-items left, three (T6, T7, T8) are **host-blocked** and are
-paragraphs in Chapter 4 rather than work. Sorted below by who has to move first.
+**Every "blocked on the host" claim has now been audited, and none was true.**
+T6 closed 2026-08-25 without touching upstream. T7 split — its audit half shipped
+2026-08-26, its prevention half is a decision rather than a blocker. T8 closed
+2026-08-26 by decision, and measured against the specification rather than
+against the code: §1.3 names three resource categories and messaging is not one
+of them.
+
+Of the eight left, four are yours (**T2, T3, T17, T18**), one is deprioritised
+(**T1**), one is a decision (**T7** prevention), one is mechanical (**T31**), and
+one waits on M (**T32**). Sorted below by who has to move first.
 
 ### Do this before anything else
 
-**Push to the private remote.** Eighteen commits have never left this machine:
+**Commit, then push to the private remote.** Both halves, in that order — a push
+does not carry an uncommitted tree.
+
+**111 files are uncommitted** (measured 2026-08-27 with
+`git status --porcelain | wc -l`): T7's audit half, T29, T30, finding 120's fix
+and **the whole of M5 and M6**, none of it in a commit. **Nine of those files are
+new and untracked**, so a careless `git checkout .` would destroy them
+outright.
+
+**30 commits have never left this machine** (re-measure with
+`git log --oneline personal/governance-layer..HEAD | wc -l`; the remote is at the
+2026-08-21 tip `e5a7876431b`):
+
+```bash
+git status --porcelain
+```
 
 ```bash
 git push personal governance-layer
 ```
 
-The work is here and in OneDrive; the remote is a fortnight behind. It is the
+The work is here and in OneDrive; the remote is nearly a week behind **and the
+newest work is in neither**. It is the
 cheapest risk reduction on this entire document and it is the same failure mode
 F1 closed once already.
 
@@ -1073,7 +1350,7 @@ F1 closed once already.
 | ~~**T16**~~ | ~~Finish the file split.~~ **DONE 2026-08-25.** `governance-page.ts` 2,412 → **696**, split into eight modules whose panels match the route modules serving them; every file in the project is now inside the limit. **The limit is upstream OpenClaw's, is not one of the nine requirements, and nothing in this fork enforces it** — worth knowing before treating the work as compliance. 24 characterization tests were written first, and caught a real defect within the hour | done     |
 | **T17**     | **Redraw the Mermaid diagrams** in the report's style. Candidates already marked "Figure candidate" throughout `CHAPTER3-MATERIAL.md`                                                                                                                                                                                                                                                                                                                                               | 2–3 days |
 
-### The M-series — the multi-tenancy feature, four of six done
+### The M-series — the multi-tenancy feature, **complete**
 
 A separate backlog, added 2026-08-24. Full write-up in `REMAINING-WORK.md`
 §"The M-series"; the design reasoning is `CHAPTER3-MATERIAL.md` §3.5.30–§3.5.33.
@@ -1084,41 +1361,54 @@ creates their group's Admin/User/Viewer accounts, and each Administrator sees a
 panel of the agents in their ecosystem — who can reach each one, what binds it,
 and controls to create, edit and assign.
 
-| #          | What                                                                                                                                                                                                                                                                                       | State           | Effort   |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------- | -------- |
-| ~~**M1**~~ | ~~Drive the dashboard upload in a real browser.~~ **DONE.** Found finding 118                                                                                                                                                                                                              | done            | done     |
-| ~~**M2**~~ | ~~"Who can reach this agent", including "nobody".~~ **DONE.** Later found to leak across groups — finding 119                                                                                                                                                                              | done            | done     |
-| ~~**M3**~~ | ~~The group as a data model.~~ **DONE.** `groupId` + `managedBy`; Root cap scoped to the group; signup creates a group; unmigrated accounts cannot sign in                                                                                                                                 | done            | done     |
-| ~~**M4**~~ | ~~The agent registry.~~ **DONE.** A record per agent (id, name, `groupId`, one owning `adminId`); `knownAgentIds` demoted to the fallback; assignment refuses another Administrator's agent. **An unregistered id is still assignable — a deliberate, tested hole that needs M6 to close** | done            | done     |
-| **M5**     | **Storage isolation** — per-group policy document, audit chain, ledger key and checkpoint. The largest and riskiest. The existing chain must keep verifying byte-identically                                                                                                               | **not started** | 4–6 days |
-| **M6**     | **The Administrator panel, and provisioning** a real OpenClaw agent by writing `agents.entries` in the host config                                                                                                                                                                         | **not started** | 3–5 days |
+| #          | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | State | Effort |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ------ |
+| ~~**M1**~~ | ~~Drive the dashboard upload in a real browser.~~ **DONE.** Found finding 118                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | done  | done   |
+| ~~**M2**~~ | ~~"Who can reach this agent", including "nobody".~~ **DONE.** Later found to leak across groups — finding 119                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | done  | done   |
+| ~~**M3**~~ | ~~The group as a data model.~~ **DONE.** `groupId` + `managedBy`; Root cap scoped to the group; signup creates a group; unmigrated accounts cannot sign in                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | done  | done   |
+| ~~**M4**~~ | ~~The agent registry.~~ **DONE.** A record per agent (id, name, `groupId`, one owning `adminId`); `knownAgentIds` demoted to the fallback; assignment refuses another Administrator's agent. ~~**An unregistered id is still assignable — a deliberate, tested hole that needs M6 to close**~~ — **closed by M5, not M6**: registration became mandatory at the gate and at assignment, and the row's claim that it needed provisioning rested on reading _registering_ and _provisioning_ as one act                                                                                                                                                                                             | done  | done   |
+| ~~**M5**~~ | ~~**Storage isolation** — per-group policy document, audit chain, ledger key and checkpoint.~~ **DONE 2026-08-26/27.** Per-group `policy.json`, `audit-ledger.jsonl`, `rule-requests.json`, `pending-decisions.json`, `conversations.json` and `attachments/` under `groups/<groupId>/`; `users.json`, `agents.json`, **one installation-wide ledger key and one checkpoint file keyed by group**, so the tamper-evidence claim survived word for word rather than being restated. Registration is now **mandatory** at the gate _and_ at assignment, which closed M4's documented ownership hole without needing M6. Four defects surfaced and were fixed; two dead branches removed. §3.5.47–50 | done  | done   |
+| ~~**M6**~~ | ~~**The Administrator panel, and provisioning**~~ **DONE 2026-08-27.** Creating an agent is now one act or none — host roster plus registry, fallible write first, rolled back loudly on failure. Added the dashboard surface M4's registry never had. **Writes no config itself**: it composes `createAgent` and `deleteAgentConfigEntry`, which already validate, lock and write through a top-level `$include`. §3.5.51–56                                                                                                                                                                                                                                                                     | done  | done   |
 
-> **Before starting either M5 or M6, read `REMAINING-WORK.md` §"Open before M5
-> or M6 starts".** Eleven decisions are recorded there, and several change the
-> shape of the work rather than a detail inside it. **M5's first question and
-> M6's third are the same question from two directions** — what happens to an
-> agent that is not in the registry — so neither can be answered alone.
+> **Before starting M6, read `REMAINING-WORK.md` §"Open before M5
+> or M6 starts".** Eleven decisions were recorded there; **M5's six were taken on
+> 2026-08-26** and are written up in §"M5's six decisions, as answered", so
+> **five remain and all five are M6's**. **M6's third — is registration
+> mandatory? — is already answered: yes, by M5**, which also means M4's
+> ownership hole is closed and M6 no longer inherits it.
 
-**Three risks worth knowing before picking this up.** M5 changes the project's
-strongest security claim — per-group ledgers mean per-group keys, so the "delete
-both the key and the checkpoint" limit becomes a per-group question and has to
-be restated rather than inherited. M6 is the first time this layer would
+**Three risks worth knowing before picking this up.** The first of them did not
+materialise: M5 was **expected** to change the project's strongest security
+claim — per-group ledgers meaning per-group keys, so that "delete both the key
+and the checkpoint" became a per-group question — and the design deliberately
+avoided it. Per-group ledger _files_, **one** installation-wide key, **one**
+checkpoint file keyed by group: both sentences of the claim stay literally true.
+Kept here because the reasoning is Chapter 4 material, not because the risk is
+open. M6 is the first time this layer would
 **mutate** the host rather than observe and gate it, which is a new trust
 direction Chapter 4 must state. And **open signup is already live**: M3 made
 creating a Root create a group, and the endpoint is ungated — defensible only
 because the Gateway is loopback-only behind a tunnel.
 
-### Nothing to do — these are limits, not tasks
+### Nothing to do — these were called limits, and two of them were not
 
-All three need OpenClaw itself to report something it does not. Each is pinned
-by a test asserting present behaviour and written up as a stated limitation;
-your part is a paragraph each in Chapter 4.
+> **This list was wrong and is kept with its correction, because the correction
+> is the finding.** It said all three "need OpenClaw itself to report something
+> it does not". None of them did. Each was a true statement about **one
+> interface** written in words that read as a claim about the whole project. See
+> §1's 2026-08-25 and 2026-08-26 entries.
 
-- **T6** — a lockdown does not reach a cross-agent child already running (needs
-  `spawnedBy` in `HookContext`)
-- **T7** — search tools governed at their root only; `grep`/`find`/`ls` recurse
-  (needs `after_tool_call`)
-- **T8** — outbound messages ungoverned (needs a fourth resource kind)
+- ~~**T6**~~ — a lockdown not reaching a cross-agent child already running.
+  **Closed 2026-08-25** without touching upstream: the host already writes
+  `spawnedBy` onto the session entry, and the gate can read the session store.
+  Verified by mutation testing on the 26th, which found finding 120 in the fix
+- ~~**T7**~~ — search tools governed at their root only; `grep`/`find`/`ls`
+  recurse. `after_tool_call` **already existed**. The **audit half shipped
+  2026-08-26** (`search-audit.ts`); only the _prevention_ half is open, and it
+  is a decision (§"Three decisions that are not M5 or M6", B), not a host limit
+- ~~**T8**~~ — **closed 2026-08-26 by decision**, not by a host change: the
+  spec names three resource categories and messaging is not one, and connecting
+  an agent to a channel is itself the permission. Recorded, not gated
 
 ### Not doing
 
@@ -1168,12 +1458,17 @@ Stated here so they are not discovered late.
    the dashboard" already means "anyone who can reach the host". **A deployment
    that exposes the port directly turns this into self-service Root**, and needs
    something in front of it deciding who may ask. Say this before a panel asks.
-3. **The isolation between groups is enforced by the layer, not by storage.**
-   Until M5, one policy document and one audit chain serve every group. Finding
-   119 is the shape of what that costs: a route written before groups existed
-   answered across all of them, and no test could have caught it because there
-   was no second group to leak to. **Every route written before M3 deserves the
-   question "does this cross a group?"** — that audit is not finished.
+3. ~~**The isolation between groups is enforced by the layer, not by storage.**~~
+   **Changed by M5 (2026-08-26/27), and the residue is still real.** Each group
+   now has its own `policy.json`, audit ledger, rule requests, pending decisions,
+   conversations and attachments under `groups/<groupId>/`; the ledger key and
+   the checkpoint stay installation-wide on purpose. Finding
+   119 is the shape of what the old arrangement cost: a route written before
+   groups existed answered across all of them, and no test could have caught it
+   because there was no second group to leak to. **Every route written before M3
+   still deserves the question "does this cross a group?"** — M5 made the
+   _storage_ answer that question, not every route. **That audit is not
+   finished.**
 4. **The audit ledger's anchors are on the same host it protects.** Hash
    chaining plus an HMAC key plus a checkpoint file mean editing history
    requires the secret. Round 13 showed the honest limit is narrower than that
@@ -1231,11 +1526,12 @@ Stated here so they are not discovered late.
 
 **Push to the private remote, then run it once with a real agent (T2).**
 
-The push takes a minute and is not optional. **Eighteen commits** have never
-left this machine — the sixteenth QA pass, T9, T24, T26, T4, T27, T5, T14, T15,
-T16's split, T23, QA rounds seventeen and eighteen, and M1–M3 — so a fortnight
-of work exists here and in OneDrive only. F1, the item that used to occupy
-this slot and the only one whose failure mode was losing everything, was closed
+The push takes a minute and is not optional. **30 commits** have never
+left this machine (2026-08-26) — the sixteenth QA pass, T9, T24, T26, T4, T27,
+T5, T14, T15, T23, QA rounds seventeen and eighteen, M1–M4, T25, T28, and T16
+and T6 in full — so a fortnight of work exists here and in OneDrive only. F1,
+the item that used to occupy this slot and the only one whose failure mode was
+losing everything, was closed
 by committing, backing up, pushing and verifying by cloning back. Three of those
 four have now been done twice; the third has not.
 

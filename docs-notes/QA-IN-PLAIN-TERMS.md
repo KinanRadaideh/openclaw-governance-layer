@@ -7,6 +7,25 @@ ordinary language — what broke, why it mattered, and what was done about it.
 It focuses on **round six**, the multi-agent audit, because that round found the
 most and taught the most. Rounds one to five are summarised at the end.
 
+> **How to navigate this file — added 2026-08-27.** Sections are in the order
+> they were **written**, not in numeric order, because each new pass appended to
+> the end. Three consequences, all of them things a reader hits rather than an
+> author notices:
+>
+> - **§6 ("Rounds one to five, in one line each") sits in the middle**, between
+>   §5.7 and §5.8 — not at the end, despite the sentence above saying "at the
+>   end".
+> - **§7 ("The single lesson") also sits in the middle**, after §5.33. It is the
+>   document's conclusion and roughly eleven sections precede it in the file
+>   while eleven more follow it.
+> - **§5.8 and §5.9 are swapped**, and the 5.x numbers do not climb monotonically
+>   through the file.
+>
+> The **numbers are stable and are cited by number** from `HANDOFF.md` and
+> `REMAINING-WORK.md`, so they have deliberately not been renumbered. Use the
+> numbers, not the position. The newest material is §5.42–5.44 (M5), at the end
+> of the file.
+
 ---
 
 ## 1. How round six was run
@@ -3101,3 +3120,1038 @@ That is the finding, and it is better than "we found ninety-three bugs":
 
 This belongs in Chapter 4 as a genuine finding of the project, not a confession.
 It is the kind of thing that is obvious once stated and almost never done.
+
+## 5.34 Checking a finished job, and finding the alarm was not wired up
+
+The emergency stop had been extended so that stopping an agent also stops the
+work it started. That was finished, tested and written up. This was a check of
+it rather than new work.
+
+The main part held up. There is a way to prove a test is doing its job: break
+the thing it is supposed to be watching and see whether it complains. Breaking
+the chain-following code made four tests fail immediately, which is what you
+want.
+
+The same trick on the _other_ half gave a much worse answer. That half is
+supposed to handle the case where the records needed to trace an agent's family
+tree cannot be read at all — during an emergency, "I cannot tell" should mean
+"stop", not "carry on". Switching that behaviour off broke **nothing**. All 867
+tests still passed.
+
+The reason turned out to be underneath. The code decides "I cannot read the
+records" by waiting for the storage system to report an error. The storage
+system does not report one. If the records are missing, it says "nothing there".
+If the entire filing cabinet has been thrown in a skip, it also says "nothing
+there". The code was listening for a noise that never happens.
+
+So the effect, tested properly: stop an agent, and a job it started is correctly
+refused. Damage the records and try the same job again — it goes through, and
+nothing anywhere notes that the safety net was missing.
+
+Two honest qualifications. As shipped, an agent cannot cause this: it is not
+allowed to write anywhere by default, and the records in question sit outside
+the folder it is specifically forbidden from touching. It needs someone to have
+written an unusually broad permission, or an ordinary computer problem — a
+corrupted file, a cleanup that stopped halfway, a failing disk.
+
+It is the fourth time this project has found the same shape of bug: code that
+looks right, reads right, and never actually runs. The difference matters, and
+it is the sentence worth remembering:
+
+> The first three were **safety nets nobody needed** — harmless precisely
+> because nothing ever reached them. This one is a safety net that **is**
+> needed, and it is not there.
+
+**It has been fixed, and the way it was fixed is the useful part.**
+
+The obvious fix was the bad one. "During an emergency, refuse anything we cannot
+trace" does close the hole — and it also stops perfectly innocent agents that
+simply have no records on file. Being _narrow_ is exactly what makes an
+emergency stop trustworthy instead of a panic button, so that fix would have
+swapped one good property for another and looked like an improvement.
+
+The real fix was to ask a better question instead of applying a stricter rule.
+The old code asked the filing system "do you have this specific file?", and
+"no" came back for both _there is no such file_ and _the cabinet is gone_. The
+new code asks a different question — "list this agent's files" — and the two
+cases finally look different: an empty list when there genuinely are none, and
+an outright error when the cabinet cannot be opened. So the hole closes and
+nothing innocent gets caught. The slower question is only asked when the quick
+one already came back empty, so normal work is unaffected.
+
+Two problems were fixed rather than one. Records are kept per agent, so tracing
+a family tree across three agents means opening three cabinets. The check is now
+done at every step. Checking only the first would have left a missing cabinet in
+the _middle_ quietly ending the trace with a confident "nothing to see here" —
+the same bug, two steps further along.
+
+And it was checked the same way it was found: deliberately breaking the new
+safety net now makes two tests fail. Breaking the old one made none fail at all.
+That is the difference between a safety net that is written down and one that is
+actually holding something.
+
+## 5.35 Searching now leaves a trace when it goes somewhere it should not
+
+A known weakness: when the agent searches for something, the system checks
+_where the search starts_ and then lets it run. Searches go downwards through
+folders, so a search that starts somewhere allowed can still end up reading
+files that are explicitly forbidden. The check happens at the front door and the
+search goes in through the whole house.
+
+That has now been half-fixed, and it is worth being precise about which half.
+
+**What is fixed:** every forbidden file a search actually turned up is now
+written into the permanent record. Someone can now ask "did any search reach
+something it shouldn't have?" and get an answer. Before, that question had no
+answer at all — which is worse than a bad answer, because there was nothing to
+look at.
+
+**What is not fixed:** the search still reads the file. This records; it does
+not prevent.
+
+Three small decisions inside it are worth mentioning, because each time the
+tempting option would have looked better and been dishonest:
+
+- The record says **"this happened without being checked"**, not "this was
+  blocked". It was not blocked. Writing it down as a block would let the system
+  take credit for a protection it did not provide.
+- It runs as part of the system itself rather than as an optional add-on.
+  Routing it through the add-on system would have been less work and would have
+  meant the record only gets kept when an add-on happens to be switched on.
+- It deliberately **under-reports**. It reads back the search's printed output,
+  so if that output was cut short, some files are missed. It can fail to record
+  something that happened; it cannot invent something that did not. For a
+  record-keeper that never blocks anything, that is the safe direction to be
+  wrong in.
+
+Actually stopping the read is still open, and it is a real question rather than
+a missing part: the only way to do it from here is to quietly narrow the
+agent's search before running it — which means a safety system changing what was
+asked for without saying so. That deserves a decision, not a shrug.
+
+## 5.36 Three times "we're blocked", three times we were not
+
+The project's to-do list had three items marked "we cannot fix this — it needs a
+change to the original software this is built on". All three have now been
+checked. **All three were wrong.**
+
+| Item | What we told ourselves                            | What was actually true                                     |
+| ---- | ------------------------------------------------- | ---------------------------------------------------------- |
+| T6   | "The system doesn't tell us who started this job" | It does. Just not in the one message we were looking at    |
+| T7   | "We need a hook that runs after a tool finishes"  | That hook has always existed. It just cannot stop anything |
+| T8   | "We need a fourth category of thing to control"   | Categories are defined in _our own_ file. We can add one   |
+
+The last of the three was checked this session. Controlling outgoing messages
+supposedly needed something the original software did not offer. In fact the
+message's destination is already handed to us, where the conversation came from
+is already recorded, and the list of categories is a line in a file this project
+owns outright. Nothing was missing. What is actually left is a **decision**:
+switching this on carelessly would stop the agent replying to the person talking
+to it, so somebody has to choose what the sensible default is.
+
+The pattern is the finding, and it is the most transferable thing in this
+project:
+
+> Every one of the three was a true statement about **one specific doorway** —
+> written down in words that sounded like a statement about the whole building.
+
+This is a modified copy of the original software. When you own the copy, "that
+door is locked" is not the same as "there is no way in", and the difference is
+easy to lose the moment you write the note down. Each of these was re-read many
+times without being re-checked. Reading a note is not the same as testing
+whether it is still true — and the one that sat there longest was fixed in a
+single day once somebody finally asked.
+
+## 5.37 Counting our own bug list, and finding we had miscounted
+
+The project says how many defects it found and fixed. That number goes in the
+report, so somebody can check it — which is a good reason to check it first.
+
+It was wrong by one. Two completely different problems, both written up on the
+same day by two different pieces of work, had both been labelled number 104: one
+about file locking, one about the top-level administrator being unable to change
+their own password. So the list looked like 120 problems and was actually 121.
+
+Fixing it was easy — one of them was renumbered. The interesting part is how it
+lasted.
+
+**The wrong number had already spread to two other documents.** Nobody copied a
+mistake from anyone. Each document had taken the number from another document
+rather than from the actual list, so a single clash quietly turned into
+something that looked perfectly consistent everywhere you checked.
+
+**And eighteen rounds of review had read these tables without catching it.**
+Every reviewer read them. None counted them, because the total was written at
+the top, and reading a total is much less effort than recounting a list.
+
+That is the same lesson this project has now run into several times — _reading
+something again is not the same as checking it_ — except this time it had
+attached itself to our own record of that very lesson. Which is either
+embarrassing or the best possible evidence that the lesson is real, depending on
+how you present it.
+
+One thing was cleared up rather than fixed. This plain-language document never
+uses the finding numbers at all, on purpose: a number means nothing to the
+person this is written for. So "is every finding covered in all three documents"
+cannot be answered by matching numbers here — it needs actually reading, and
+that part has not been done yet.
+
+## 5.38 A test that took two minutes, and one that proved nothing
+
+The system keeps a tamper-proof log. When that log file gets big, it is filed
+away and a fresh one started — and the important thing is that the tamper-proof
+seal carries across the join, so nobody can slip anything in at the boundary.
+
+Two tests checked this. Both did it by **actually filling the log up** — writing
+eight megabytes, a few thousand entries, each one locking a file and adding a
+link to the chain. They were given two minutes to finish. One of them regularly
+ran out of time on a busy laptop.
+
+That is worth being blunt about: a test that passes or fails depending on how
+busy the computer is has stopped telling you anything about the code.
+
+The fix was to notice that "does the seal survive the join?" has nothing to do
+with eight megabytes. Turn the threshold down for the test and the same question
+gets answered with a dozen entries in under a second. The one thing the slow
+version was checking by accident — that the real limit is eight megabytes — is
+now checked directly on its own line, so making the test faster cannot hide a
+change to the real setting.
+
+**Then the second problem showed up, and it was the worse one.** With the tests
+now fast enough to experiment with, both were checked the proper way: switch off
+the filing-away feature completely and see whether the tests notice. One did.
+The other passed happily.
+
+That test was checking that filing away a new log does not destroy an older
+archived one. With the feature switched off, no new log gets filed, so nothing
+gets destroyed, so the test is satisfied. **It would have passed even if the
+thing it was testing had never happened.** It now checks that the filing
+actually took place first.
+
+The two problems turned out to be one problem, and the conclusion is the
+opposite of what you would expect:
+
+> **Making the test cheaper is what made it honest.** The usual argument for a
+> slow, realistic test is that it is closer to the real thing. Here, the price
+> of realism was that nobody could afford to check enough — and what slipped
+> through was a test that passed with the feature turned off.
+
+One more thing was cleaned up. The handover notes already warned that _one_ of
+these tests times out on a busy machine, and to re-run it before believing a
+failure. True, helpful — and it named one of the two. Anyone who hit the other
+one got no warning at all, and anyone who had taken the warning to heart might
+have shrugged off a real problem. **A warning that covers some of the cases
+quietly teaches people to ignore the ones it misses.** Both tests are reliable
+now, so the warning has been deleted rather than extended.
+
+## 5.39 Two more, found by watching a test run instead of skimming it
+
+Neither of these was on any list. Both turned up because someone actually read
+the output of a full test run.
+
+**The dashboard was announcing itself twice.** Web pages let you register a new
+kind of element under a name. Doing it twice with the same name is an error. The
+dashboard's main file registered itself without first checking whether it had
+already been registered — so when two test files that both use it happened to
+run in the same slot, the second one **failed to even load**. On its own it
+passed perfectly.
+
+The revealing part: every other component in this codebase — all 121 of them —
+checks first. This one file did not, and it is one of the few we wrote
+ourselves rather than inherited. A convention that everything else follows is
+evidence, not decoration, and the odd one out was ours.
+
+**Four long-standing code-quality warnings were cleared.** They had been sitting
+in the notes as known, accepted debt for several sessions. Three were tidiness.
+The fourth was not.
+
+When the system cannot get exclusive access to a file, it eventually gives up
+and reports "timed out waiting for the lock". It was throwing away the _original_
+error underneath — the one that says whether the file was busy, or already
+existed, or something else. So on the single occasion anyone goes looking, the
+message told you a deadline had passed and silently discarded the reason why.
+It now carries the original error along with it.
+
+Worth noting because of how it was classified: this had been filed as a code
+style warning. It was actually about whether you can diagnose a problem at three
+in the morning.
+
+## 5.40 Should we police what the agent says? The spec says no
+
+The agent can send messages out — to Discord, Telegram, wherever it is connected.
+Nothing checks those. In principle an agent allowed to read a file could simply
+retype that file into a public channel.
+
+Before building anything, we checked the project specification, and it settles
+the question.
+
+The spec lists **three** kinds of thing the permission system is supposed to
+control: **files, commands, and network connections**. Messaging is not one of
+them, and the list appears twice, worded the same way both times. So governing
+outbound messages would be building something the project was never asked for.
+
+The one place the spec mentions Telegram or Slack, it describes them as the
+_way people talk to the agent_ — the safer alternative to putting the thing on
+the open internet. They are the front door the design recommends, not a leak it
+warns about.
+
+There is one requirement that sounds related and is not: sensitive data must
+never be written into log files in plain text. That is about the logs, and it is
+already handled — everything written to the audit log goes through a redaction
+step that cannot be switched off.
+
+Worth knowing: **outbound messages are already recorded.** They are not blocked,
+but every send is written to the audit log with its destination. So the "record
+everything the agent does" requirement is already met for them. What does not
+exist is a way to _refuse_ one — which is the part nobody asked for.
+
+**The decision: connecting the agent to an app is the permission.** If you
+plugged it into that Discord server, you meant for it to talk there. Doing the
+integration is the act of granting; a system that then refused would be
+overruling the person who set it up.
+
+This is now **closed rather than parked**. Closing it took one real change, and
+it was not to the enforcement. The behaviour was already there and already had a
+test — but that test checked _who_ sent a message and _that_ it was recorded,
+and never checked that the record says _where it went_. The whole argument for
+not blocking these is that you can look afterwards and see where things were
+sent. That was an assumption, not a tested fact, so it is now tested.
+
+Everything else was wording. Three separate documents described this as a
+limitation waiting on a future design change, which reads as a job nobody has
+got round to. It is not that; it is a boundary. **"We did not get to this" and
+"we considered this and decided against it" look identical in a backlog and
+sound completely different when somebody asks.**
+
+## 5.41 "Give it this folder, but not that subfolder"
+
+A request: when someone grants an agent access to a folder, they should be able
+to carve out exceptions — this folder yes, but not that subfolder, not that file.
+
+**The system can already do this**, which we checked rather than assumed. Grant
+the folder, forbid the subfolder, and forbidding wins. Reading an ordinary file
+in the folder works; reading the excepted file is refused.
+
+So the feature is mostly about the _interface_. Right now doing this means
+writing two rules by hand, in a pattern language, and knowing that "forbid"
+always beats "allow" — which is true, and which nothing on the screen tells you.
+
+**But there is a catch, and it is the important part.** If the agent _searches_
+the granted folder instead of opening a file directly, the search still reads the
+excepted subfolder. That is a known hole, separately tracked, and it means:
+
+> Building the "except this subfolder" button **before** fixing the search hole
+> would be worse than not building it. Someone would set an exception, be told it
+> was set, and it would not hold. They would have written the restriction
+> themselves, in their own words, and been given a false assurance in return.
+
+That is the same mistake this project keeps finding — something that claims a
+protection it does not provide — except aimed at a person rather than buried in
+code, which makes it far harder to notice.
+
+So the order matters: fix the search hole first, then build the button. There is
+a silver lining: the list of exceptions someone writes is _exactly_ the
+information the search fix needs in order to work. The two jobs fit together.
+
+## 5.42 Giving each organisation its own filing cabinet
+
+Until now the system kept **one** rulebook, **one** logbook and **one** list of
+people, for everybody. We had already said that each account and each agent
+belongs to a particular organisation — but the files underneath were shared, so
+keeping organisations apart depended on every single piece of code remembering
+to ask "and is this one _yours_?" before showing anything.
+
+We already know what that costs. One earlier bug did exactly this: a screen
+asking "who can use this agent?" searched _everybody on the whole system_, so a
+manager in one organisation was shown the names of people in another. The code
+was not sloppy — it was written when there was only one organisation, and quietly
+became a leak when that stopped being true.
+
+**Remembering to filter is a rule. Separate files are a wall.** This work builds
+the wall.
+
+### The awkward part, and what settled it
+
+Before designing anything we checked the project specification. Multi-tenancy —
+several organisations on one system — **is not in it**. It is a feature we chose
+to add. But _tamper-proof logging_ is requirement number six, and that is not
+optional.
+
+So we get a rule instead of an argument: **when keeping organisations apart
+clashes with something the specification demands, the specification wins.**
+
+That immediately answered the hardest question. Splitting the logbook per
+organisation naturally suggests splitting its security key too — and our
+strongest security claim is that the log is sealed with **one** key for the whole
+installation, so rewriting history needs the actual secret, not just knowing how
+the seal works. Splitting the key would turn one secret into many and force us to
+water that claim down. The requirement says no.
+
+### How we squared it
+
+Separate logbooks, **shared key**, and one shared "how far did each logbook get"
+note.
+
+Sharing the key gives nothing away, because **no account can read it in the first
+place** — people use the system through its screens and commands, never by
+opening files, and the key sits in a folder the agent is permanently forbidden
+from touching. Every organisation has exactly the access it had before: none.
+
+And it quietly improves things. To convincingly delete the recent end of one
+organisation's log, you now have to also edit a file that lives _outside that
+organisation's folder_ — so the two edits the design always required are now in
+two different places rather than side by side.
+
+### The bug we avoided by thinking about it
+
+The system remembers "where did the log get up to" so it can chain the next entry
+onto the last. That memory was a single value, which was fine with one log. Left
+shared, the next entry for organisation B would have chained itself onto
+**organisation A's** last entry — not merely out of date, but claiming to follow
+something that isn't in its own logbook. It would have shown up much later as a
+"this log has been tampered with" alarm that nobody could explain. It is now
+remembered per organisation.
+
+## 5.43 Four problems that only showed up once we built it
+
+The plan for separating each organisation's files was sound. Building it turned
+up four things the plan could not have told us, and they are more interesting
+than the plan.
+
+### We used the compiler to take a census
+
+Every function that now needs to know _which organisation_ was made to demand
+it, rather than accepting a polite default. That meant the code would not build
+until every single place that reads or writes a file had answered the question
+"whose is this?" — seventy-eight of them. A default would have compiled
+everywhere, quietly written to a shared file wherever someone forgot, and failed
+in the direction of leaking. **Refusing to build is a much better way to find
+seventy-eight decisions than reading the code hoping to spot them.**
+
+### Some things belong to nobody, and we nearly had nowhere to put them
+
+If an agent isn't registered, the system now refuses it — but we also promise to
+record _everything_ an agent does. You cannot file that refusal in the agent's
+organisation's records, because not having one is the whole reason it was
+refused. Without a shared "belongs to no one" record, the single event that says
+_an unregistered agent just tried to do something_ would be the one event
+missing from the log.
+
+The same place turned out to be right for failed logins, where the username
+might belong to nobody at all. That matters more than it sounds: **an attacker
+must not get to pick which organisation's log records the attack on it.**
+
+### A memory shortcut that remembered the wrong building
+
+To avoid re-reading the agent list on every single action, the system keeps it in
+memory and throws it away whenever it changes. Correct — except the _location_ of
+that list can change too, and under the test runner it changes constantly. A test
+would pass on its own and fail when run with the others, because it had inherited
+the previous test's agent list. The fix was to remember _where_ the list came
+from, so looking somewhere new automatically counts as not knowing.
+
+### Our test setup accidentally performed the attack
+
+This one is almost funny. Test setup registers a few agents, which correctly gets
+written into the tamper-proof log — so the setup cleared the log to give each test
+a clean slate. But it left the _separate note_ recording how long the log was —
+and that note is deliberately kept somewhere else, precisely so that deleting the
+log cannot erase the evidence that it was deleted.
+
+So the tamper-detection did exactly its job and reported tampering, across a
+dozen test files. **Our own test setup had performed the attack the design exists
+to catch.** A satisfying way to confirm it works, and a reminder that test
+support code is part of the security system whether you meant it to be or not.
+
+### And a hole closed by asking a question for the fourth time
+
+The agent list had a known gap, written down honestly: an unregistered agent
+could still be handed to someone, so the ownership rule could be dodged by simply
+never registering — and closing it "needs the agent-creation feature built
+first."
+
+That turned out to rest on treating two different things as one: _recording_ an
+agent in governance, and _creating_ one in the underlying software. Recording has
+been possible from every screen and command for weeks. So the gap closed now.
+
+That is the **fourth** time on this project that a note saying "we can't fix this
+yet" turned out to be a true sentence about one thing, written in words that
+sounded like a statement about something else. It is becoming the single most
+reliable place to look for progress.
+
+## 5.44 Three checks that had stopped meaning anything
+
+Finishing the separation work removed two pieces of code from the safety gate and
+fixed one status light. All three had the same problem: they were written when
+something else was true.
+
+**A refusal that could no longer happen.** There was a rule saying: while an
+agent is stopped, also refuse anything the system cannot trace back to an agent —
+because an emergency stop that works on some routes and not others is not an
+emergency stop. Good rule. But the check now sits _after_ the system works out
+which organisation the caller belongs to, and it works that out _from_ the
+identity — so the "no identity" case can never reach it. The refusal still
+happens, earlier and for a broader reason. The dead check was deleted.
+
+Something else changed quietly along with it. That refusal used to apply **only
+during an emergency**. Now it applies always — because with a separate rulebook
+per organisation, there is no longer a shared rulebook to judge an anonymous
+caller by. Nobody decided to make it stricter; it became stricter because the
+thing it depended on moved.
+
+**A rule that skipped exactly what it was meant to catch.** The check stopping
+you from handing out someone else's agent quietly ignored any agent it had no
+record of — which meant the whole rule could be dodged by not registering. This
+was written down honestly, along with "we can't fix this until the agent-creation
+feature exists". It turned out we could: _recording_ an agent and _creating_ one
+are different things, and recording has worked from every screen for weeks.
+
+**A green tick for a protection that wasn't there.** The health report checked
+"does the tamper-detection file exist?" — correct when there was one log. Now
+that one file holds an entry per organisation, it exists the moment _anybody_
+writes, so an organisation with no protection at all was shown a green tick. It
+now checks whether _your_ organisation has an entry.
+
+That last one is worth dwelling on: **a check that reports green for something
+missing is worse than having no check**, because it also stops the reader going
+to look for themselves.
+
+## 5.45 The system starts making agents, not just watching them
+
+Everything this project has built so far does one of two things: it watches what
+an agent does, or it stops it. It has never _changed_ the machine it sits on.
+
+This piece does. An administrator can now type a name into the dashboard and get
+a real, working agent — created inside OpenClaw, and governed from the moment it
+exists.
+
+**That is a bigger change than it sounds, and it is worth being honest about
+it.** Up to now, if somebody broke into the governance system, the worst they
+could do was be obstructive: block things that should have been allowed. Annoying,
+but nothing gets destroyed, and the safe direction is the one it fails in. Now
+that the system can create agents, somebody who broke into it could create one —
+and an agent is a thing that runs commands on a real computer. The danger is
+genuinely larger, and the report says so out loud rather than hoping nobody
+notices.
+
+Nothing new was invented to contain it. The protections are the ones that were
+already there: only administrators can do it, they can only do it inside their
+own organisation, and **every attempt is written into the tamper-proof log
+before it is attempted** — including the ones that fail. That last detail matters
+more than it looks. If you only record successes, you can never answer the
+question "who kept trying to create agents and being refused?", and that is
+exactly the pattern somebody investigating a break-in is hunting for.
+
+## 5.46 Two things had to happen, and either could fail
+
+Creating a governed agent means writing in two places: OpenClaw's own settings,
+so the agent exists, and our records, so it is allowed to do anything. Either
+write can fail.
+
+If the first works and the second doesn't, you would be left with an agent that
+exists but is frozen out — present on the machine, refused every time it tries to
+do anything, and confusing to everyone.
+
+**The decision was: both or neither.** If anything fails, put everything back the
+way it was and say clearly what went wrong, how far it got, and what to do next.
+
+Three things about how that was built are worth reading, because each one is a
+small idea that turned out to apply well beyond this feature.
+
+**Do the risky thing first.** The two writes are not equally likely to fail. The
+OpenClaw settings file is large, the operator edits it by hand, other parts of the
+program write to it, and it is checked against a strict format. Our own record is
+a small file that only we write. So the risky write goes first — because if it is
+going to fail, it is much better for it to fail while there is still nothing to
+undo.
+
+**The gap in the middle turned out to be safe already.** Between the two writes
+there is a moment where the agent exists but is not yet recorded. Ordinarily that
+would be the dangerous moment. It isn't, because of a decision made weeks earlier
+for a completely different reason: we had already decided that an agent with no
+record is **refused**. So during that gap the agent can do nothing at all. A
+safety rule chosen for one purpose paid for itself somewhere nobody was looking.
+
+**Undoing a record is not always possible.** Our log is designed so that nothing
+can ever be deleted from it — that is the whole point of it. So if we had written
+our record first and then had to undo it, the log would permanently contain
+"agent created" followed by "agent removed" for an agent that never existed. That
+is a _true_ record of something that did not happen, which is worse than no
+record. The order of the two writes is therefore forced by the log's design, not
+just by which one is likelier to break.
+
+**And one refusal makes all of it safe.** There are two different things you
+might mean by "add an agent": _"this agent already exists, start governing it"_
+and _"make me a new agent"_. They are different, and the system keeps them
+separate. If you ask it to create an agent that already exists, it refuses and
+tells you to use the other option. That sounds like tidiness. It isn't — it is
+what makes undoing safe. Because creating only ever _creates_, undoing only ever
+deletes something we just made. If creating could quietly adopt an agent that was
+already there, then a failure later would delete somebody else's working agent.
+
+## 5.47 Building it found that most of the work was already done
+
+The plan said: _"create the agent by writing it into OpenClaw's settings file."_
+
+Doing exactly that would have been wrong in four separate ways — and OpenClaw
+already handles all four itself. It already checks whether the name is valid,
+whether it is reserved, whether it clashes with an existing agent. It already
+creates the agent's folder and its identity file. It already stops two parts of
+the program writing to the settings at the same time. And it already handles the
+awkward case described below.
+
+So the new code doesn't write any settings at all. It calls the routines OpenClaw
+already has, and adds the one thing OpenClaw doesn't do: making both writes
+succeed or neither.
+
+**This is the sixth time this has happened on this project**, and at six it stops
+being a coincidence and becomes a finding. Six times, a note in the backlog said
+some work was blocked or still had to be built, and six times the thing was
+already there. Every time, the cause was the same: somebody wrote down a true
+sentence about one small part of the system, and later readers understood it as a
+statement about the whole project. The sentence was cheap to re-read and
+expensive to re-check, so it got re-read instead.
+
+### The awkward case, and why it mattered
+
+Some people split OpenClaw's settings across several files. Instead of listing
+their agents in the main file, they put a pointer in it saying _"my agents are
+listed over there"_.
+
+If we had added our new agent to the main file, we would have **replaced that
+pointer**. Their real list would still be sitting on the disk, and OpenClaw would
+simply stop reading it. Every agent they had would vanish, replaced by the single
+one we just made. Nothing would look broken. No error would appear. The file would
+still be perfectly valid.
+
+For a project whose entire argument is _"this protects the system it runs on"_,
+that is about the worst bug available.
+
+The instruction was: handle it properly if you can, and refuse safely if you
+can't. It turned out OpenClaw can already follow that pointer and write to the
+right file in the common case — so we use that. In the one uncommon arrangement
+it cannot handle, we refuse and tell the operator exactly which file owns their
+list. **The line between "handle it" and "refuse" is OpenClaw's own line, not one
+we drew** — which also means we behave the same way OpenClaw itself does in that
+situation, instead of disagreeing with it.
+
+## 5.48 "Saved" and "it exists" are not the same thing
+
+One of the open questions was whether a newly created agent appears straight
+away, or whether OpenClaw needs restarting. The answer was in OpenClaw's own
+code, and had been all along: it notices the change by itself, within a moment.
+No restart.
+
+But "within a moment" is not "instantly", and that gap turned out to matter.
+
+If the dashboard says **"created!"** the instant it has finished saving, then the
+green tick means _the file was written_. The person reading it thinks it means
+_the agent is there_. Usually those are the same. When they aren't, the operator
+is looking at a success message for something that didn't happen.
+
+This project has done that exactly once before — a status screen that reported a
+safety feature was working by checking whether a file existed, when it should have
+checked whether _that organisation_ had an entry in it. It showed a green tick for
+a protection that wasn't there. We treat that as the worst kind of bug we make,
+because a wrong reassurance is worse than no reassurance: it also stops the reader
+going to look for themselves.
+
+So the tick now waits. The dashboard saves, then watches until the agent actually
+turns up, and only then reports success. If it doesn't turn up within a few
+seconds, it says so plainly instead of claiming otherwise.
+
+One detail is the whole idea in miniature: the dashboard checks with the
+**running program**, not by re-reading the file it just wrote. Re-reading its own
+file would have confirmed only that its own save worked — which was never in
+doubt. **A check whose answer is guaranteed by the thing it is checking is not a
+check.**
+
+## 5.49 A screen for something that already worked
+
+There is one more thing worth recording, and it is slightly embarrassing.
+
+The ability to list, rename, hand over and remove agents was built earlier. The
+server side worked. The dashboard's own code for talking to the server worked.
+Both had tests. And **there was no screen**. An administrator could not see the
+agents in their own organisation without reading the raw log or opening a
+terminal.
+
+This is the fourth time on this project that something was fully built and
+completely unreachable. It happened with the rule-writing controls, with a
+per-agent setting, and with the password change for the owner account — where the
+one account that governs all the others had a password that could not be changed
+after the moment it was first typed.
+
+The lesson has been written down so it stops recurring:
+
+> **A feature is finished when somebody can click it — not when the server
+> returns "OK".**
+
+### Removing an agent now asks what you mean
+
+"Remove" used to mean one thing: stop governing this agent, leave it running.
+Now that the system can also delete agents outright, one button doing both would
+be dangerous — somebody who had safely used "remove" many times would suddenly
+destroy a working agent with the same click.
+
+So clicking remove now opens two clearly labelled choices, each explaining what it
+does and what it costs:
+
+- **Remove from governance** — stops governing it; the agent and its files stay.
+  Reversible.
+- **Delete the agent** — removes it from OpenClaw entirely, including its folder
+  and its history. Cannot be undone.
+
+Whichever you pick, a second confirmation appears and says in words whether the
+action can be undone. Not a red button — a sentence. A colour is not an
+explanation, and the person reading it is about to destroy somebody's work.
+
+## 5.50 A button that looked perfect and did nothing
+
+One bug found while building this is worth recording, because of how it hid.
+
+The dashboard builds one shared bundle of information and hands it to several
+panels. Each panel can put a "the operator typed something" handler into that
+bundle. Two panels used **the same name** for that handler — and when both went
+into the same bundle, one quietly replaced the other.
+
+The result: the Remove button appeared, looked right, was in the right place,
+and **did nothing at all when clicked**. No error message. Nothing in the logs.
+The click was being handed to the wrong panel's handler, which updated something
+nobody was looking at.
+
+Two things about this are worth keeping.
+
+**The automatic checks could not catch it.** The tool that checks the code for
+mistakes was perfectly happy, because both handlers had the same _shape_ — both
+were "a function that receives an update". They just meant different things. The
+shapes agreed and the meanings did not, and only a test that actually clicked the
+button noticed.
+
+**It had been safe for two months.** The shared name only becomes a problem when
+a second panel uses it. Right up until that moment, nothing was wrong and nothing
+looked risky. That is the general form and it is the same shape as several
+earlier findings in this document: **a thing that works fine with one user is not
+therefore safe — it is untested for the case that matters.**
+
+## 5.51 "Undo" that could not undo everything
+
+Deleting an agent was first built in what looked like the careful order: remove
+our record first, then ask OpenClaw to delete the agent — and if OpenClaw
+refused, put our record back.
+
+That "put it back" does not work, and finding out why was the useful part.
+
+Removing our record does more than delete a line. It also **takes the agent away
+from everybody who had been given access to it**, which is correct on its own
+terms: an agent nobody owns is an agent nobody should be handed. But putting the
+record back only puts the _record_ back. The people who had been given access do
+not get it back.
+
+So if OpenClaw had refused the deletion, the operator would have been told
+"nothing changed" — while several people had quietly lost access to an agent they
+use. An action that ends in an invisible side effect is the exact thing this
+project treats as its worst kind of bug, and this one was about to be introduced
+by the code meant to prevent a different version of it.
+
+The fix was not to handle the case better. It was to **ask OpenClaw to delete
+first**. Then, if OpenClaw refuses, genuinely nothing has happened — there is
+nothing to undo, so there is nothing to get wrong.
+
+The lesson generalises past this one button:
+
+> **"Reversible" is a claim about what something actually does, not about what
+> its name suggests.** "Unregister" sounds like the exact opposite of "register".
+> It isn't — one of them has a side effect the other cannot put back.
+
+## 5.52 The nineteenth review: an agent that looked governed and was not
+
+The first eighteen reviews looked at the system as one organisation with one
+operator. This one looked at the part added on top — several organisations, each
+with its own agents, rules and records — and asked one question:
+
+> Can one organisation reach or interfere with another, and does an agent that
+> _looks_ governed actually get governed?
+
+Three problems, all fixed. The first is the most serious thing found in a while.
+
+### The name you type and the name the system uses were not the same
+
+Every agent has an id. OpenClaw tidies ids up automatically: it lowercases them,
+replaces spaces and punctuation with hyphens, and cuts them at 64 characters. So
+if you tell OpenClaw about an agent called `Scout`, OpenClaw thinks of it as
+`scout`.
+
+Our records did not do that tidying. They stored exactly what was typed.
+
+The result: register an agent as **`Scout`**, and the dashboard shows it as
+registered, owned by you, with your rules applying to it. The security check —
+which asks OpenClaw's tidied name, `scout` — finds no record at all. And "no
+record" means **refuse**. So the agent is blocked from doing anything, forever,
+while every screen tells its owner it is set up correctly.
+
+Nothing errors. Nothing is logged as wrong. The agent simply does nothing, and
+there is no way to find out why from any screen.
+
+The same thing happened to any name with a space in it, and to any name longer
+than 64 characters.
+
+### And two organisations could end up sharing one agent
+
+This is the part with a security consequence.
+
+Agent names have to be unique across the whole installation — not just within
+one organisation — and that was a deliberate decision, because the system uses
+the agent's name internally to keep track of what each agent is doing. Two
+organisations using the same name would tangle those records together.
+
+The check for "is this name already taken?" compared the typed spellings. So
+`Scout` and `scout` looked like two different names, and both were accepted.
+
+Now two organisations each have a record for what is really **one agent**. The
+one whose spelling happens to match OpenClaw's wins: its rules apply. The other
+organisation's administrator sees the agent in their list, can hand it to their
+staff, and can write rules for it — **and none of those rules ever take effect.**
+They are writing policy into a document nothing reads, with no sign that anything
+is wrong.
+
+The fix is to store the tidied name, and to compare tidied names when checking
+for duplicates. The name the operator typed is still kept and still shown; it is
+just no longer used as the key.
+
+**We had already solved this exact problem once.** There is a file in this
+project whose entire job is "which account is this?", written after a bug where
+an account's _display_ spelling was used as a key. Eight parts of the system use
+it. The agent registry was written later and did not. A codebase that has solved
+a problem once will solve it again only where somebody remembers to ask.
+
+### Fixing that broke something else, which is a pattern by now
+
+OpenClaw's tidying function has a quirk: if you give it something with no usable
+characters at all — `###`, or `--`, or just spaces — it does not fail. It returns
+`main`, the name of the default agent every installation has.
+
+That was harmless while we stored what was typed. The moment we started storing
+the tidied version, registering an agent called `###` **silently claimed the
+installation's main agent** — ownership, staff access, and that organisation's
+rules now governing it. Nobody asked for that, and nobody would see it: the list
+would just show a row called `main`.
+
+There was supposed to be a guard against this. It checked whether the tidied name
+came out empty — which it never does, because it comes out as `main` instead. The
+guard could not fire.
+
+Now an unusable name is refused and says so. Deliberately typing `main` still
+works, because claiming the default agent is exactly what somebody moving an
+existing installation into this system needs to do first.
+
+**This is the third time a fix has introduced its own bug** — and each time it
+was caught. The lesson is stated plainly in the report: _a fix does not get
+looked at as hard as the thing it fixes_, because by the time you write it you
+have already decided you understand the problem.
+
+### A comment that described a promise the code did not keep
+
+Creating an agent does two things: makes it in OpenClaw, and records it here. The
+decision was that both happen or neither. To make failures rare, everything that
+_can_ be checked first is checked first — and there is a comment in the code
+saying exactly that.
+
+One check was missing from it: whether the person you named as the agent's owner
+is actually allowed to own it. That was only discovered afterwards, by which
+point a real agent had been created — with its own folder and files — and then
+had to be deleted again.
+
+Nothing was left broken; the undo worked. But it was an avoidable change to
+somebody's machine, and it happened because a comment claimed a property the code
+did not have. **A comment cannot be run**, which is why that is worse than a
+wrong test.
+
+### What the review confirmed was working
+
+Most of it, and several things that had only ever been _argued_ rather than
+checked:
+
+- One organisation cannot see, rename, delete, assign or take ownership of
+  another's agents.
+- Asking about somebody else's agent gets "no such agent" rather than "not
+  allowed" — so the system cannot be used to find out which agent names exist
+  elsewhere.
+- An unregistered agent really is refused, and stops being refused the instant it
+  is registered, with no stale answer left in memory.
+- **Each organisation genuinely has its own files on disk** — its own rulebook,
+  its own tamper-proof record — and each record verifies on its own, including
+  when two organisations are writing at the same time. This is the central claim
+  of that piece of work and it had only been written down, never tested.
+
+## 5.53 The twentieth review: the log was recording the secrets it found
+
+The nineteenth review covered the multi-organisation feature. This one covered
+everything else built in the same stretch, and read it against **the nine
+requirements in the project specification** rather than against what the code
+said about itself.
+
+One problem, and it broke a requirement outright.
+
+### What happened
+
+The system can record when an agent's search reached a file it was not supposed
+to read. Search tools print results as `filename:linenumber: the matching text`,
+and the code pulled the filename off the front of each line.
+
+When `grep` searches a **single** file it does not repeat the filename — there is
+only one, and you already know it. So its output is just `12: the matching text`.
+
+The code did not handle that. When it could not find a filename at the front of
+the line, it fell back to treating **the entire line as a filename** — text
+included.
+
+So an agent that ran a search for the word `password` produced entries like this
+in the permanent, tamper-proof record:
+
+```
+13:password=hunter2
+12:AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMIK7...
+```
+
+**The system was writing the secrets it found into the one file it protects hardest
+and never deletes.** Requirement 8 of the specification says, in plain words,
+that the system shall prevent secrets or credentials from being written into log
+files. This did the opposite, in the most durable place available.
+
+### Why nobody noticed
+
+There was a comment in the code explaining why this was safe. It said that a line
+which is not a filename will simply not match any of the rules, so nothing gets
+recorded.
+
+That is true — as long as no rule is broad. But the most ordinary rule an
+administrator writes is a broad one: _this agent may not read anything outside
+its own folder_. Against a rule like that, almost every line matches. The
+comment was correct about a situation nobody actually configures.
+
+This is the same shape as one of the project's most-quoted earlier findings: **a
+check that quietly assumes something about what it is comparing against, where
+the assumption is never written down and never tested.**
+
+### The fix, and why it costs nothing
+
+For `grep`, a line now has to carry a filename at the front or it is ignored
+entirely. Content can no longer be mistaken for a filename.
+
+Nothing is lost, and the reason is worth stating: this record exists to catch a
+search that **spread out** from a folder into files nobody approved. A search of
+one named file has not spread anywhere — the system already checked that exact
+file when it was asked for. So the lines being dropped were never the ones this
+feature was watching for.
+
+While fixing it, a second gap turned up next door: `grep` also prints the lines
+_around_ a match, in a slightly different format the code did not recognise.
+Those were either leaking content too (before the fix) or being thrown away
+(after it). They now yield their filename and nothing else.
+
+### The thing worth telling an examiner
+
+The record already runs everything through a redactor — a filter that strips out
+secrets before they are written. **And these secrets went straight through it.**
+
+That is not a fault in the redactor. It is built to catch secrets the system
+already knows about, and patterns that look like keys and tokens. Arbitrary text
+out of somebody's file is not something it can be expected to recognise, and no
+version of it could be.
+
+The honest statement is:
+
+> The system meets that requirement by **not putting file contents into the log**
+> — not by cleaning them up afterwards. A redactor is a second line of defence.
+> Treating it as the first is exactly how content ends up in front of it.
+
+### A mistake I made while testing this
+
+Worth recording because it is a lesson this project has already learned twice,
+turning up in my own work.
+
+Deliberately breaking the code showed that one rule was untested: the system is
+supposed to ignore rules that have **expired**, and nothing was checking that. I
+wrote the missing test using an expired rule about a file called `key.pem` — and
+the test failed, which looked like the expiry check being broken.
+
+It was not. `.pem` files are covered by one of the system's **built-in**
+protections, which never expire. The entry in the record had come from that, not
+from my expired rule. My test was measuring the floor underneath it.
+
+**A test about one rule has to use something no other rule covers, or it is not
+testing what it says it is.**
+
+### What was checked and found working
+
+- The requirement that an agent can be stopped **within one second** is not just
+  measured, it is asserted — in three places, including a full end-to-end test.
+- The safety check added last week, after an earlier review found it could never
+  fire, is now genuinely held: breaking it on purpose fails two tests.
+- The test-only shortcut that makes the record-rotation tests fast **cannot
+  weaken the real setting**, and the real setting is checked separately.
+- Splitting the command-line tool into smaller files did not lose any permission
+  checks. Two commands deliberately have none, and both only touch accounts that
+  are already unable to sign in — which is the situation those commands exist to
+  clean up.
+
+## 5.54 Recording _why_ the agent did something, not just what
+
+The specification asks the log to record six things about every action. Five were
+already there: when it happened, which agent, what it tried to do, what the rules
+decided, and who approved it if a person was asked. The sixth was missing — **the
+agent's own explanation of what it was trying to do**.
+
+That is now recorded. When the model produces a turn, whatever it said about its
+reasoning is captured and attached to the tool calls that turn produces. The log
+can now be read as _"the agent said it was checking the config file, and then it
+opened the config file"_ — or, more usefully, _"the agent said it was checking the
+config file, and then it opened something else entirely."_ No other field lets
+you make that comparison.
+
+### Three things went wrong while building it
+
+All three were caught the same day, and all three are in the report, because the
+ratio is the interesting part: adding one field to a tamper-proof record touches
+verification, privacy, permissions and memory, and the first attempt got three of
+those four wrong.
+
+**A comment that described a danger that could not happen.** The record's
+fingerprint has to be computed carefully so two different entries can never
+produce the same one. I wrote a note claiming the design closed a specific hole
+an agent could exploit. Deliberately breaking that protection and re-running the
+tests showed everything still passed — because the hole was not reachable in the
+first place. The protection stays (it is cheap, and the assumption keeping it
+unnecessary is only an assumption), but the note now says what is true.
+
+**The read-only role could see the agent's narration.** Viewers are deliberately
+shown less: they can see that an action happened and how it was judged, but not
+the exact file or command, because those reveal things about the system they are
+not entitled to. The new field went straight past that filter — and narration
+reveals _more_ than a filename, because the model tends to explain what it is
+looking for and what it already found. Now masked.
+
+The lesson is worth stating plainly: **adding a new field to a record does not
+automatically give it the record's protections.** The filter is a fixed list, and
+somebody has to remember to add to it. There is even a comment elsewhere in that
+same file saying exactly this, written a month earlier about a different field.
+It was written down and still not followed.
+
+**A function nobody called.** I wrote a tidy-up routine to forget an agent's
+intent when its session ended, exported it, and never called it — the limit on
+how much is remembered already handles that. This is the fourth time this project
+has found a fully written, exported, unreachable function. It was deleted rather
+than given something to do, with a note explaining why there is deliberately
+nothing there.
+
+### One honest limit
+
+The end-to-end path — the model speaks, then its tool calls run — has not been
+watched with a real language model behind it, because that still has not happened
+anywhere in this project. The pieces are tested individually and the ordering is
+what the code's structure implies, but it is reasoned rather than observed.
+
+The good news is the failure mode is safe: on a real run the field is either
+filled in or missing. It cannot be _wrong_, because an intent is only ever
+attached to the session that produced it.

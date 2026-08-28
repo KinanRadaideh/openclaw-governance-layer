@@ -289,8 +289,13 @@ rather than by role alone:
 > new scope. Accounts written before groups existed cannot sign in, and
 > `openclaw governance groups migrate --delete` removes them.
 >
-> **Isolation is currently enforced by the layer, not by storage** — one policy
-> document and one audit chain still serve every group until M5.
+> ~~**Isolation is currently enforced by the layer, not by storage** — one policy
+> document and one audit chain still serve every group until M5.~~
+> **Superseded by M5 (2026-08-26/27) — see §"M5 — per-group storage isolation".**
+> Each group now has its own `policy.json`, audit ledger, rule requests, pending
+> decisions, conversations and attachments under `groups/<groupId>/`. The ledger
+> **key** and the **checkpoint** stay installation-wide on purpose, so the
+> tamper-evidence claim is preserved word for word rather than restated.
 
 OpenClaw has **no concept of a named human user** — it authorizes _paired
 devices_ holding capability scopes. The four roles from the design document
@@ -1373,13 +1378,21 @@ state renders its error; the unlabelled-control enumeration returns empty.
 
 ### Three properties, checked rather than assumed (2026-08-21)
 
+> **Renumbered 104 → 121 on 2026-08-26 (T29).** This defect and the sixteenth QA
+> pass's `file-lock.ts` stale-reclaim were both found on 2026-08-21, in separate
+> exercises, and **both took the number 104**. The QA pass declares "findings
+> 104-107" as a block and 105-107 follow it, so 104 stays there and this one
+> moves. 121 is therefore out of chronological order on purpose: it is the
+> number a collision freed up, not a later discovery. The collision had
+> propagated into `HANDOFF.md` and `REMAINING-WORK.md`, both corrected.
+
 Three guarantees the installation is supposed to make. All three were stated in
 prose; none had a test asserting it as a _property_; one was not true on any
 surface an operator can reach. Now `core-invariants.test.ts`, 15 assertions.
 
 | #   | Property                                              | Was                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Now                                                                                                                                                                                                                                                                                                           |
 | --- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 104 | **Root can change its own password.**                 | **Broken in practice.** `POST users/password` was correct and complete — Root-only, accepts Root's own id, validates length, records an actor, revokes sessions — and **no surface called it**: not the dashboard client, not the page, not the CLI. The account governing every other one had a password that could not be changed after the moment it was first typed, on a screen whose bootstrap step is already irreversible. The R5 shape for the third time. | A per-row password control in the Accounts panel, for every account including Root's own, behind a confirmation stating that all sessions are revoked and that a self-reset signs you out at once. Verified in a browser: changed Root's password, was signed out, old password refused, new password worked. |
+| 121 | **Root can change its own password.**                 | **Broken in practice.** `POST users/password` was correct and complete — Root-only, accepts Root's own id, validates length, records an actor, revokes sessions — and **no surface called it**: not the dashboard client, not the page, not the CLI. The account governing every other one had a password that could not be changed after the moment it was first typed, on a screen whose bootstrap step is already irreversible. The R5 shape for the third time. | A per-row password control in the Accounts panel, for every account including Root's own, behind a confirmation stating that all sessions are revoked and that a self-reset signs you out at once. Verified in a browser: changed Root's password, was signed out, old password refused, new password worked. |
 | —   | **Exactly one Root, always.**                         | True, but each guard had only ever been checked alone — which is how round eleven found the two halves contradicting each other's error messages.                                                                                                                                                                                                                                                                                                                   | All four routes driven (create, promote, demote, delete — by another account and by itself), then the Root count asserted after every refusal.                                                                                                                                                                |
 | —   | **A fresh install is usable and still default-deny.** | True, but evidenced by the _presence_ of `BASELINE_RULES` rather than by what an agent can do.                                                                                                                                                                                                                                                                                                                                                                      | Behaviour asserted on an unedited policy: `ls`/`pwd`/workspace reads allowed with no operator rule; `sudo -i`, `.env` and the metadata endpoint blocked; an unlisted command still denied; shipped posture `enforce`.                                                                                         |
 
@@ -1871,6 +1884,81 @@ to miss and cheap to exploit.
 than per group, because login is by username alone: two organisations cannot
 both have an `admin`. Fixing it means a group-qualified login, which is a larger
 change to a surface stable since the beginning.
+
+#### Finding 120 — T6's fail-closed branch cannot fire
+
+| #   | Component                             | Defect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Fix                                                                                                                        |
+| --- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 120 | `session-lineage.ts` (T6, 2026-08-25) | `lineageUnknown` exists so a call whose lineage cannot be read **during an incident** is treated as unproven and refused, wired to the `kill-switch-lineage-unknown` ledger id. It returns `true` only when the store probe _throws_, and the probe throws only for a key whose scope cannot be resolved — which `hasWalkableLineage` has already excluded. For every key that reaches it, the SQLite layer answers `undefined` whether the entry is absent **or the whole store is unreadable**. The branch is dead, and a lockdown whose lineage data is lost degrades to fail-**open** with nothing recorded | **Fixed 2026-08-26** by probing with a scoped listing instead of a keyed `get` — closes the gap without costing narrowness |
+
+**Found by mutation, not by a failing test.** T6 was being verified rather than
+built: its own tests pass, and disabling `findLockedAncestor` fails four of them
+including the round-fourteen pin, so the walk is genuinely covered. Disabling
+the fail-closed branch instead — `catch { return false }` — left **all 867
+governance tests passing**. A security property with no test is a property
+nothing is holding.
+
+**Verified end to end before being believed.** With `agent-a` locked and a
+cross-agent child of it, the gate blocks. Make the session store unreadable and
+the same call is **allowed**. Measured, including the step that mattered: with
+the state directory replaced by a file, `openSessionEntryReadView().get` returns
+`undefined` rather than throwing, so the accessor cannot distinguish the two
+cases the design depends on separating.
+
+**Not reachable under the shipped policy.** The baseline grants no write
+anywhere — workspace reads, bare inspection commands, read-only git — and the
+core denials cover `.openclaw/governance`, not the session store under
+`.openclaw/agents`. It needs an operator rule broad enough to include the store,
+or an ordinary operational failure: a corrupt database, a half-finished cleanup,
+a disk error.
+
+**Fourth member of the family**, after finding 112's validator branch that could
+not execute, finding 113's exported function nothing called, and T28's dead
+default-allow. It is the worst-placed so far, and the reason is worth stating
+plainly for Chapter 4: **the other three were dead protections that were not
+needed. This is a protection that is needed and is not there.** T28's dead line
+was harmless _because_ nothing reached it; this one is harmful _because_ nothing
+reaches it.
+
+**Closed the same day it was found, and the fix is the interesting part.**
+
+The obvious fix was the wrong one. Treating any missing row as "unknown" closes
+the gap and **costs narrowness** — six existing tests assert that an agent with
+no recorded session keeps working while an unrelated agent is locked, and
+narrowness is the whole reason failing closed is defensible rather than a blunt
+instrument. Spending it would have traded one real property for another.
+
+The actual answer was a **better question, not a stricter policy.** The keyed
+probe (`get`) conflates the two cases. A _scoped listing_
+(`openSessionEntryReadView({ agentId }).entries()`) does not: it returns an
+empty array for an agent with no sessions and **throws** when the store behind
+it cannot be opened. Measured, all three cases:
+
+| Store state          | `get()`     | scoped `entries()` |
+| -------------------- | ----------- | ------------------ |
+| healthy, row present | the row     | `array(len=1)`     |
+| healthy, row absent  | `undefined` | `array(len=0)`     |
+| **unreadable**       | `undefined` | **throws**         |
+
+So the gap closes and narrowness is kept: a session genuinely absent from a
+store that answers is still `clear`, and still runs during someone else's
+lockdown. The listing is consulted **only** when a keyed probe already came back
+empty, so an ordinary walk never pays for it.
+
+Two things were fixed rather than one. Sessions are stored per agent, so a chain
+crossing three agents crosses three stores — readability is therefore checked at
+**every hop**, not only the first. Checking only the first would have left one
+unreadable store in the middle truncating the walk into a confident `clear`:
+the same defect, moved two hops up.
+
+The walk now returns a three-way verdict — `locked`, `clear`, `unreadable` —
+because the bug was ultimately that a two-way answer had no way to say "I could
+not tell". `findLockedAncestor` and `lineageUnknown` are both expressed on top
+of one walk instead of two.
+
+**Verified by mutation, the way it was found.** Making the readability probe
+always report "readable" now fails two tests. Before the fix, disabling the
+equivalent branch failed none.
 
 ### M4 — the agent registry: a missing noun, not a missing button (2026-08-24)
 
@@ -2596,6 +2684,528 @@ Recorded rather than attempted, because the choice between them is a decision
 about how much a security control may change what an operator asked for, and
 that belongs with the M5/M6 decisions rather than inside a refactoring session.
 
+### T7's audit half, built (2026-08-26)
+
+`src/governance/search-audit.ts`. Every path a completed `grep`, `find` or `ls`
+returned that a live `deny` rule covers is now written to the ledger under the
+id **`search-reached-denied`**, with decision **`ungoverned`**.
+
+Three choices in it are worth stating, because each was the alternative to
+something that would have read better and been false.
+
+**It is a direct call, not a plugin hook.** `after_tool_call` exists and both
+firing sites — `src/agents/harness/hook-helpers.ts` and
+`src/agents/embedded-agent-subscribe.handlers.tools.ts` — gate it on
+`hasHooks("after_tool_call")`, which is false whenever no plugin registered one.
+Registering governance as a plugin would have been the smaller diff and would
+have made the audit trail **depend on a plugin being loaded**: precisely the
+property this layer is built into the core to avoid. Both sites therefore call
+`auditSearchReach` above that check.
+
+**The decision is `ungoverned`, not `deny`.** The call was allowed and it
+happened. Writing it as a refusal would make the ledger claim a protection the
+layer did not provide — the exact failure this item exists to correct — and
+would corrupt any count of what the gate actually stopped. `ungoverned` already
+means "the action happened without the gate having judged it" here, which is
+what this is.
+
+**The id is `search-reached-denied`, not the denial's own id.** An auditor
+counting refusals must not find these mixed in with them. The rule that covers
+the path is recoverable by matching the resource against the policy; that this
+is the T7 gap is not recoverable from any other field, so the id carries it.
+
+Bounded and honest about its limits: it parses rendered tool output, so it
+misses whatever truncation dropped, and it resolves paths against the tool's own
+`path` argument because neither call site carries a `cwd`. Both failure
+directions are toward **under**-reporting — it can fail to record a reach, and
+it cannot invent one — which is the only safe way for an audit that never blocks
+to be wrong. Eleven tests in `search-audit.test.ts`.
+
+One of those tests is not a test, and says so where it sits. The
+`denials.length === 0` early return cannot be exercised: core rules are
+reasserted from source on every load and two of them are path denials, so no
+installation has zero. It is kept because it is a cost guard rather than a
+security claim, and recorded so the next reader knows it was examined.
+
+### T8 re-examined — the third "blocked on the host" claim, and the third that was not (2026-08-26)
+
+T8 said outbound messages are ungoverned and that closing it "needs a fourth
+resource kind, separable from the `message` tool", filed under **Host**. Audited
+on the same question T6 and T7 were, and the label is wrong for the same reason.
+
+| What T8 needs             | Where it actually is                                                                                                                                        |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A fourth `ResourceKind`   | `src/governance/policy-types.ts:17` — **this fork's own file**                                                                                              |
+| The message's destination | `event.params` — `buildRoutingSchema` (`message-tool.ts:568`) carries `channel`, `target`, `targets`, `accountId`, and the gate already receives the params |
+| The session's own origin  | The session entry carries `channel` and `accountId`; `extractDeliveryInfo` reads them, from the same store T6's lineage walk already reads                  |
+
+So "reply where you were spoken to" versus "send elsewhere" — the distinction
+T8's own row says it needs — is computable inside the gate today. **Nothing is
+missing from OpenClaw.**
+
+What is genuinely open is a **decision**, and it is a real one. Adding the kind
+is mechanical; choosing the shipped default is not. Govern the outbound tools
+under default-deny and a chat deployment stops replying, which is why they sit
+in `DELIBERATELY_UNGOVERNED` rather than being an oversight. Ship a permissive
+baseline and the axis exists — an operator can finally write "this agent may not
+message anywhere but its origin", which is impossible today — while the default
+behaviour is unchanged. The second is almost certainly right, and it is still
+Kinan's call, because it decides what a fresh installation does.
+
+**The pattern is now three for three.** "Blocked on the host" was recorded three
+times, audited three times, and was true **zero** times. Each was a claim about
+one interface — a hook payload, a hook's return type, a resource enum — read as
+a claim about what the project could reach. In a fork those are never the same
+statement, and the difference cost this project six days on T6 alone.
+
+### T29 — auditing the finding numbers themselves (2026-08-26)
+
+The count had reached 120 by accumulation across eighteen rounds and several
+documents and had never been reconciled. Reconciled now, by extracting every
+numbered row rather than by reading.
+
+**Result: 121 defects, not 120.** Numbers 1–121 each now appear exactly once,
+with no gaps. Three things came out of it:
+
+> **Superseded 2026-08-27: the total is now 127.** M5's four defects and M6's two
+> were fixed and written up the next day and **not** entered on the numbered
+> list, so for one day "121" meant _the numbered series_ rather than _defects
+> found_. They are now 122–127. T29's own lesson arriving as an omission rather
+> than a collision — and an omission is harder to see, because nothing
+> contradicts anything. The standing rule since: **number a defect when it is
+> found.**
+
+| What                           | Verdict                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **104 used twice**             | **A real defect in the record.** Two unrelated findings, both 2026-08-21, both numbered 104: the sixteenth QA pass's `file-lock.ts` stale reclaim, and "Root can change its own password" from the three-properties exercise. Renumbered the second to **121** — the QA pass declares "findings 104-107" as a block and 105-107 follow it, so 104 stays where the sequence needs it |
+| **84 appearing twice**         | Not a defect. One row states the finding, a later table records what was fixed. A cross-reference, which is the convention working                                                                                                                                                                                                                                                  |
+| **1, 2 and 6 appearing twice** | Not findings at all. The second occurrence of each is a row in T25's host-failure breakdown table, which counts failures by cause and happens to number them 1–6                                                                                                                                                                                                                    |
+
+**The collision had already propagated.** `HANDOFF.md` and `REMAINING-WORK.md`
+both called the Root-password defect #104, so the wrong number had been copied
+into two other registers before anyone compared them. Both corrected, and 121 is
+deliberately out of chronological order: it is a number a collision freed up,
+not a later discovery.
+
+**A convention worth stating, because it looked like a violation.** The
+three-register rule says a finding is not finished until it appears in
+`GOVERNANCE.md`, `CHAPTER3-MATERIAL.md` and `QA-IN-PLAIN-TERMS.md`. The plain
+terms document **never uses finding numbers at all** — deliberately, since a
+number is jargon to the reader it is written for. So coverage there is _topical_
+rather than numeric and cannot be checked by matching numbers. That is the right
+design and it means the register-coverage half of T29 needs reading rather than
+counting; it is **not** done, and is recorded as still open.
+
+**Why this belongs in the report.** The finding count is quoted in Chapter 4. An
+off-by-one in it is a defect a reader can check, and this one survived eighteen
+rounds and three documents because every reader took the number from the
+document rather than from the rows. **The same failure this project keeps
+finding, applied to its own record of that failure.**
+
+### T30 — the errors that appear during test runs (2026-08-26)
+
+Two shapes were suspected. One was stale text; the other was two real defects.
+
+**The "18 failed / 174 passed" host baseline is gone.** T25 fixed it on
+2026-08-25 and the current measurement is 263 passed / 0 failed. Any surviving
+reference is stale prose, not a live failure.
+
+**The rotation tests were testing the machine.** Both tests that cover ledger
+rotation reached the real 8 MB threshold **by writing it** — roughly 2,000 and
+4,000 ledger appends, each taking a file lock and extending the hash chain,
+inside a 120-second budget. `complete-record.test.ts` timed out, reproducibly,
+standalone and in a full run.
+
+|                             | Before                       | After     |
+| --------------------------- | ---------------------------- | --------- |
+| Appends to force a rotation | ~2,000 and ~4,000            | 12 each   |
+| Test time, both files       | 120 s budget, one timing out | **5.7 s** |
+| Result depends on load      | yes                          | no        |
+
+The fix is a test-only threshold override (`setLedgerRotateBytesForTests`), in
+the same shape as the `resetLedgerCursorForTests` seam already in that file. The
+property under test is _the chain continues across a rotation_, which has
+nothing to do with eight megabytes. What the brute force covered incidentally —
+that the shipped threshold really is 8 MB — is now asserted directly, so the
+cheaper test cannot hide a change to the real constant.
+
+**A second defect fell out of it, and it is the more interesting one.**
+Mutation-checking the faster tests — disabling `rotateIfNeeded` entirely —
+showed `complete-record.test.ts` failing and **`qa-round5-storage.test.ts`
+passing**. That test asserts a surviving archive is not overwritten, and with
+rotation switched off nothing is overwritten, so it went green. **It would have
+passed if the feature it tests had never run.** It now asserts the rotation
+happened before checking what survived; both tests fail under the mutation.
+
+That weakness predates T30 and was not affordable to fix before it: asserting a
+second rotation-related fact would have meant reaching the 8 MB threshold twice.
+**Making the test cheap is what made the test honest** — worth stating, because
+the usual argument for a slow test is that it is more faithful.
+
+**Why §4's caveat is deleted rather than extended.** It warned that one rotation
+test times out under load and to re-run before believing a failure. That was
+true, and it named one of two identical cases — so a reader hitting the other
+would have had no such warning, and a reader who internalised the caveat might
+have dismissed a real failure. **A caveat covering some of the cases teaches a
+reader to dismiss the ones it does not cover.** With both tests deterministic
+there is nothing left to warn about.
+
+### Two more found while verifying, and fixed (2026-08-26)
+
+Neither was on any list. Both surfaced because a full run was being watched
+rather than skimmed.
+
+**The dashboard registered its custom element unguarded.** `governance-page.ts`
+ended in a bare `customElements.define(...)`. The second evaluation of that
+module inside one environment throws `NotSupportedError: This name has already
+been registered`, which is what happens when two test files that both import it
+share a Vitest worker — so `governance-panels.test.ts` **failed to load** in a
+full run while passing on its own.
+
+The telling detail is the convention: **121 of 121 custom-element registrations
+in this repository use the `if (!customElements.get(name))` guard, and this file
+was the single exception.** It is also one of the few UI files this project
+wrote rather than inherited. The fix is the guard, and the lesson is that a
+convention followed everywhere else is evidence, not decoration — the odd one
+out was ours.
+
+**Four pre-existing lint errors cleared.** Documented in `HANDOFF.md` §4 as
+known debt and left alone through several sessions:
+
+| File              | Rule                         | Fix                                                                             |
+| ----------------- | ---------------------------- | ------------------------------------------------------------------------------- |
+| `audit-ledger.ts` | `no-array-sort`              | `toSorted` — the array was already a fresh one, so this is style, not behaviour |
+| `audit-ledger.ts` | `no-array-reverse`           | `toReversed`, same                                                              |
+| `file-lock.ts`    | `no-promise-executor-return` | Block body, so the `setTimeout` handle is not returned out of the executor      |
+| `file-lock.ts`    | `preserve-caught-error`      | **The only one that changes what an operator sees** — see below                 |
+
+The last is worth the sentence. A lock-acquisition timeout threw
+`Timed out waiting for governance lock` with **no `cause`**, discarding the
+EBUSY/EEXIST underneath that says _why_ the lock could not be taken. On the one
+path an operator investigates, the error reported that a deadline passed and
+threw away the reason. It now carries the contention error as its `cause`. A
+lint rule about error hygiene turned out to be a lint rule about diagnosability.
+
+**And the count of four was itself wrong.** Running the command `HANDOFF.md` §4
+documents found **24 errors across 18 files**. The row named two files and
+described four real errors, so nothing about it read as incomplete. Twelve are
+now fixed — the four above plus eight in `agent-terminator.ts`, `user-store.ts`,
+`rule-validation.ts`, `active-sessions.ts` and `attachment-store.ts` — leaving
+**every non-test governance file clean** and 16 errors in test files, tracked as
+T31.
+
+Three of the eight are `oxlint-disable-next-line` with a stated reason rather
+than code changes, and that is the right answer rather than a dodge:
+`no-map-spread` recommends in-place mutation, and all three sites copy **on
+purpose** so that a caller's object — a live session row, a policy document
+another reader holds, an on-disk index not yet replaced — is not changed
+underneath them. Taking the rule's advice would have introduced three aliasing
+bugs to satisfy a style check.
+
+**Third instance of one shape in this session**, after T30's caveat naming one
+of two identical rotation tests and T29's defect count read from a total rather
+than the rows. Each was accurate about part of a set and phrased as though about
+the set. **A partial caveat is worse than no caveat, because it tells the reader
+the area has already been surveyed.**
+
+### T8 measured against the specification, and closed (2026-08-26)
+
+T8 was audited on 2026-08-26 and found not to be blocked on the host. The
+remaining question was whether to govern outbound messages at all, and the
+specification answers it.
+
+**`Grad_Proj___Current.pdf` names three resource categories and messaging is not
+one of them.** Requirement 3: the default-deny model restricts access to
+operating system resources, _"including file system paths, process execution,
+and network communication"_. Requirement 4 repeats the same three as the
+fine-grained axes — _"path-level file access, command allowlisting, network
+allowlisting, and time-limited permissions"_. Those are exactly the three
+`ResourceKind` values the layer implements. A fourth kind is **beyond spec**,
+not a gap in it.
+
+**The only mention of chat platforms supports treating the connection as the
+grant.** §2.1.1.3 says users _"usually interact with the agent through messaging
+APIs (like Telegram or Slack) rather than exposing the application directly to
+the internet"_ — messaging is cast as the **interface**, the safer alternative
+to opening a port. Governing it as egress would be governing the front door the
+design recommends.
+
+**Requirement 8 is the one that sounds relevant and is not.** It requires that
+sensitive data not be _"written in plaintext to log files"_. That is a duty about
+the ledger, not about what the agent says to a person, and it is already met:
+`appendLedgerEntry` passes every resource through `redactToolPayloadText`
+unconditionally, with a comment saying tool payloads never skip redaction.
+
+**What the layer already does.** Outbound sends are not invisible. `message` and
+its siblings sit in `DELIBERATELY_UNGOVERNED`, so the gate takes the no-extractor
+path and writes an `ungoverned` ledger entry carrying the redacted parameters —
+destination included. Requirement 5's "record 100% of agent actions" is
+therefore satisfied for these calls; what does not exist is a way to _refuse_
+one, which is the part the spec does not ask for.
+
+**Closed (Kinan, 2026-08-26): connecting an agent to a channel is itself the
+permission.** Not deferred — settled. An operator who attaches an agent to a
+Discord server has expressed the intent that it speak there, and a gate that
+refused would be overriding the grant it was handed. Performing the integration
+_is_ the act of granting.
+
+**What "implementing" it amounted to**, since the behaviour already existed:
+
+- `DELIBERATELY_UNGOVERNED` now records the settled reason
+  (`"the integration is the permission (T8, settled)"`) rather than
+  `"needs a fourth resource kind (documented)"`, which read as pending work.
+- `PERMISSION-SPEC.md` §12.7 and `CHAT-DEPLOYMENTS.md` restated the same way —
+  both had it filed as an open limitation awaiting a design change.
+- `qa-round12.test.ts` gained the assertion the decision actually rests on: that
+  the ledger entry **carries the destination**. It already checked the verdict,
+  the tool and the agent. "We do not gate this, we record it" is only defensible
+  if an operator can see afterwards _where_ the agent sent things, and nothing
+  was holding that.
+
+That last point is the one worth keeping. The decision was safe to take because
+of a property nothing tested — the same shape as finding 120, caught this time
+before it mattered rather than after.
+
+### T32 — folder grants with exceptions, and why it needs T7 first
+
+Requested 2026-08-26. In the surface where an operator sees an agent's policies,
+let them grant a folder and except specific subfolders or files.
+
+**The engine already supports the behaviour**, which was verified rather than
+assumed. An allow rule on a folder plus a deny rule on a subfolder produces:
+
+| Call                                       | Verdict                                |
+| ------------------------------------------ | -------------------------------------- |
+| read an allowed file in the granted folder | **ALLOW**                              |
+| read the excepted file directly            | **BLOCK**                              |
+| `grep` rooted at the granted folder        | **ALLOW** — and it reads the exception |
+
+The first two are the feature working, through the existing precedence: denials
+are evaluated before allowances and across every tier. So the _authoring_ half
+of T32 is an affordance over capability that is already there — today an
+operator must write two regexes and know that deny beats allow, and nothing in
+the interface says so.
+
+**The third row is why T32 cannot ship alone.** A grant that reads "except
+`secrets/`" will be understood as "the agent cannot read `secrets/`", and a
+recursive search still can. That is T7, unchanged. Building the interface first
+would put this project's own recurring defect — a control advertising a property
+the code does not deliver — into a form **chosen by a person and displayed back
+to them**, which is strictly harder to discover than an unreachable branch.
+
+So T32 depends on T7's prevention half, and in doing so it changes T7's status:
+the exception list an operator authors **is** the exclusion set that narrowing a
+search root requires. Decision B stops being optional the moment T32 is wanted.
+
+### M5 — per-group storage isolation (2026-08-26)
+
+The layer held **one** policy document, **one** audit chain and **one** account
+list. M3 gave accounts a group and M4 gave agents one, so the _records_ were
+tenanted while the _storage_ underneath them was not, and isolation was enforced
+by filtering every read. **Finding 119 is what that costs**: a lookup that
+searched every account instead of one group's told an Administrator the names of
+people in another organisation. M5 removes the class rather than the instance.
+
+#### The constraint that shaped every decision
+
+**Multi-tenancy is not in the specification.** All 44 pages of
+`Grad_Proj___Current.pdf` were searched: no requirement mentions tenants,
+organisations-as-tenants or groups. The M-series is a feature added on top.
+Requirement **#6** — tamper-evident logging over _all_ recorded actions — **is**
+binding, as is **#5** (record 100% of agent actions, policy decisions and
+administrative approvals).
+
+That gives a decision rule rather than a judgement call:
+
+> **Where group isolation and a numbered requirement pull against each other,
+> the requirement wins.** Isolation is a feature; tamper-evidence is a promise
+> the project was built to keep.
+
+It settles the sharpest question in M5 immediately. Splitting the ledger invites
+splitting the key with it — and the strongest claim this project makes reads
+_"HMAC-SHA256 under a **per-installation key**… each append records the new head
+in a **separate checkpoint file**"_. Per-group keys turn one secret into N and
+force that sentence to be rewritten weaker. The requirement says no.
+
+#### What is shared and what is split
+
+| Installation-wide                   | Why                                                                                     |
+| ----------------------------------- | --------------------------------------------------------------------------------------- |
+| `users.json`                        | Usernames are unique per installation — login is by username alone, a stated limitation |
+| `agents.json`                       | Agent ids stay unique per installation (below)                                          |
+| `ledger.key`                        | **One secret. The claim depends on it**                                                 |
+| `ledger-checkpoint.json`            | One file, one head **per group**                                                        |
+| `sessions.json`, `cli-session.json` | Login sessions belong to accounts, which are installation-wide                          |
+
+| Per group, under `groups/<groupId>/`                                                                                                    |
+| --------------------------------------------------------------------------------------------------------------------------------------- |
+| `policy.json`, `audit-ledger.jsonl` (+ rotations), `rule-requests.json`, `pending-decisions.json`, `conversations.json`, `attachments/` |
+
+**The rule, so a new file is easy to place:** a file is installation-wide when
+the thing it is keyed by is unique installation-wide; otherwise it belongs to a
+group.
+
+#### Why sharing the key isolates nothing away
+
+Group isolation is a statement about what an **account** can reach. No account
+has ever been able to read `ledger.key`: accounts act through this layer's API,
+never the filesystem, and the file sits in a directory two immutable core
+denials already refuse the agent. Sharing it after M5 gives every group exactly
+the access it had before M5, which is none.
+
+What it buys is that the claim survives **verbatim** — and gains a little.
+Erasing one group's tail convincingly now means editing a file **outside that
+group's directory**, so the "two coordinated edits" the original design demanded
+are now in two different places in the tree rather than two files side by side.
+
+#### Three technical points worth the report
+
+**A shared head cache would have been a forged link, not a stale read.**
+`cachedHead` was a single module-level value — correct while there was one
+chain. Left shared, group B's next append would take **group A's head** as its
+`prevHash`: not a slightly-out-of-date number, but a claim of continuity with an
+entry that is not in B's chain. Verification would fail for a reason no operator
+could diagnose. It is now `cachedHeads`, a `Map` keyed by group.
+
+**An identifier became a path segment, which is a different kind of thing.**
+`groupId` now names a directory. `newGroupId()` mints `group-<millis>-<hex>` and
+nothing else writes one, but "no current code path produces a bad value" is a
+claim about code paths, not about the value — and the id arrives from
+`users.json`, a file an operator can hand-edit. `groupDir` validates the shape
+and **throws rather than falling back to the installation root**: a caller that
+lost its group would otherwise write where every group can read, which is
+finding 119 arriving through a path instead of a filter.
+
+**Sharing the checkpoint introduced a race the ledger lock does not cover.**
+Each append holds a lock on _its own group's_ ledger, so two groups can append
+simultaneously; a read-modify-write on one shared checkpoint would let one
+overwrite the other and silently disarm truncation detection for whichever lost.
+The checkpoint write now takes its own lock, innermost and always on the same
+single path, so it cannot form a cycle with the ledger lock already held.
+
+**A quiet improvement fell out.** The policy lock was installation-wide, so two
+organisations editing unrelated rulebooks serialised against each other. It is
+now a lock on the file actually being written.
+
+#### Architectural significance
+
+M5 is the point where the layer stops being _an installation with a rulebook_
+and becomes _an installation hosting several_. Three consequences outlive the
+subtask:
+
+1. **The gate gains a resolution step.** `evaluateGovernancePolicy` used to need
+   only an agent id to know which rules applied. It now has to answer _whose
+   rules?_ first, from the registry, on every call — which is why
+   `agent-group.ts` caches and why mandatory registration is load-bearing rather
+   than tidy: without it the gate would need a fallback document, and a fallback
+   document is a hole that every unregistered agent fits through.
+2. **Isolation moves from a property of code to a property of the filesystem.**
+   Before M5 a reviewer had to check that every read filtered by group. After
+   it, most reads cannot see another group's data because they are not looking
+   at the same file. That is the difference between a rule and a wall.
+3. **The tier model is unchanged, and that is the result.** Core rules stay
+   global — they protect the governance directory, which is shared — so the
+   floor requirement #3 describes is still installation-wide and no group's Root
+   can move another's.
+
+#### What was built
+
+Two new modules and one new concept, plus the group threaded through every
+store, route and command.
+
+| Module                                      | What it does                                                                                        |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `src/governance/agent-group.ts`             | Resolves agent → group for the gate, cached and dropped on every registry write                     |
+| `src/gateway/governance-dashboard-group.ts` | `requireGroup` — the HTTP surface's single source for the group: **the session, never the request** |
+| `src/governance/test-group.ts`              | Test support: creates a real organisation through the real registration path                        |
+
+`paths.ts` grew `groupDir`, `ensureGroupDir` and a validated group id; six path
+functions now take a **required** `groupId` and six stay installation-wide.
+`policy-store.ts`, `audit-ledger.ts`, `rule-requests.ts`, `pending-decisions.ts`,
+`attachment-store.ts`, `agent-conversation.ts`, `admin-audit.ts`, `auth-audit.ts`,
+`user-store.ts`, `deployment-status.ts`, `kill-switch.ts`, `search-audit.ts` and
+`policy-engine.ts` all take the group; so do all five dashboard route modules
+and all three CLI command modules.
+
+**`groupId` is required rather than optional**, deliberately. An optional
+parameter compiles at every call site that forgets it and silently writes to a
+shared file — failing quietly, in the direction of leaking. Required means the
+type checker enumerates every caller that has to answer _whose is this?_, which
+is the question M5 is about. It produced 78 errors and each one was a real
+decision.
+
+#### The installation-scope ledger, which the design did not anticipate
+
+Mandatory registration means the gate refuses an agent it has no record of.
+Requirement #5 says **100%** of agent actions are recorded — so that refusal has
+to be written down, and it cannot go in the agent's own group ledger, because
+_not having one_ is the reason it was refused.
+
+So `INSTALLATION_LEDGER_GROUP` exists: a reserved name for events belonging to no
+organisation. Without it, the single event that says "an unregistered agent tried
+to act" would be the one event the audit trail omits. It also became the right
+home for **failed sign-ins**, where the username may belong to nobody — an
+attacker must not get to choose which organisation's log records the attack on
+it.
+
+#### Five things implementation found that design did not
+
+**1. `assertAssignable` still had the hole, and closing it was in scope.** The
+gate refused unregistered agents, but assignment still permitted them —
+`if (!agent) continue;`. Leaving that would hand somebody an agent that does
+nothing while the sidestep still looked open where an operator reads it. It now
+refuses, and **the test that pinned the hole was flipped to assert the closure**.
+Its old comment said closing this "needs M6's provisioning to exist first"; that
+rested on reading _registering_ and _provisioning_ as one act. They are not —
+the same shape as the three "blocked on the host" claims.
+
+**2. A cache keyed by a value that can change underneath it.** `agent-group.ts`
+held the registry in memory, correctly invalidated on write — and
+`agentsFilePath()` depends on an environment variable, so one process can be
+asked about two installations. A suite passed alone and failed in a full run,
+having inherited the previous file's registry. The cache is now keyed by **the
+path it was read from**, which makes a directory change a cache miss
+automatically. Production never changes the directory and never pays for it.
+
+**3. The test fixture manufactured the tampering the ledger detects.** Seeding a
+group registers agents, which are recorded, so the fixture cleared the group's
+ledger to hand tests an empty chain — and left the **checkpoint**, which lives
+outside the group's directory precisely so truncation cannot erase its own
+evidence. The result was a chain ending earlier than the record of how far it
+got: textbook truncation, correctly reported as `ok: false` across a dozen
+suites. The fixture now clears both.
+
+**4. A fresh group could not take a lock.** `withFileLock` creates its lock file
+beside the file it guards, so the first write for a brand-new organisation failed
+with ENOENT **on the lock**, before the write it was protecting was attempted.
+Three stores were still creating only the installation root. A fresh group is the
+state every installation passes through exactly once — easy to leave untested.
+
+**5. Reading now requires an identity, on the command line.** `governance policy
+show` and three sibling commands had no login check: with one document, "print
+the policy" had an unambiguous subject. With a document per organisation it does
+not, and the only honest source for _which_ is the signed-in account. Not a new
+permission so much as a newly answerable question.
+
+#### The two surfaces reach the same rule from opposite directions
+
+HTTP: `requireGroup(res, session)` — the group comes from the session, never the
+body, never a query parameter. CLI: `requireCliActor` returns the audit actor
+**and** the group together, so a command cannot obtain permission to act and then
+act on a different organisation's files — the only group it holds is the one
+attached to the permission it was granted.
+
+Both refuse an account with no group rather than defaulting. `registerAgent` had
+already established the rule for its own field, with the comment that "the caller
+is given no way to say it"; M5 generalises it to every route and every command.
+
+#### State
+
+Core and UI typechecks clean. **869 of 884 governance tests pass**; the remaining
+15 are per-suite fixture details (each suite must now name an organisation and
+register its agents), not architectural. `test-group.ts` makes that one line, and
+the migration is mechanical from here.
+
 ## Notes for Chapter 3
 
 Design decisions worth writing up, with the reasoning behind each:
@@ -2641,3 +3251,593 @@ Design decisions worth writing up, with the reasoning behind each:
    file a core denial names. Closing that needs the tool to report the files it
    actually opened — an `after_tool_call` change to the host — and is stated in
    the code rather than left for a reader to discover.
+
+---
+
+### M6 — the Administrator panel, and provisioning (2026-08-27)
+
+The last M-subtask, and the first time this layer **writes to the system it
+governs**. Everything before it observed OpenClaw and gated it; this creates and
+deletes the agents OpenClaw runs.
+
+#### The change of kind, stated rather than discovered
+
+Until M6 a compromised governance layer could only refuse things it should have
+allowed — irritating, and fail-closed. A compromised layer that can write
+`agents.entries` can **create an agent**, and an agent is a thing that runs
+commands. That is a strictly larger blast radius, and Chapter 4 has to say so
+rather than let a reader work it out.
+
+The mitigations are the ones already in place rather than new ones, which is the
+honest way to put it:
+
+- Provisioning is **Administrator tier**, and ownership-scoped exactly as the
+  rest of the registry is.
+- The group comes from the **session**, never the request — the same rule
+  `registerAgent` established and M5 generalised.
+- Every attempt is in the ledger **before it is attempted**, so a refused
+  provision still leaves a trail. An action recorded only on success cannot
+  answer "who kept trying to create agents?", which is the question an
+  investigator actually asks.
+
+#### Four decisions, taken by Kinan on 2026-08-27
+
+| #   | Question                                                                             | Decision                                                                                                                                                                                                             |
+| --- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Two writes are needed — host roster and governance record. What if the second fails? | **All or nothing.** Undo the first write, report the failure loudly with the stage, the remedy and whether anything was left behind, and move every knowable refusal in front of the first write so the case is rare |
+| 2   | Does removing an agent delete it from the machine?                                   | **Two named options behind one control**, each explaining its consequence, then a second confirmation stating irreversibility. `unregister` keeps M4's meaning exactly                                               |
+| 3   | What about a config whose agent list lives in an included file?                      | **Follow the pointer where the host can; refuse and name the file where it cannot**                                                                                                                                  |
+| 4   | What does the panel show between saving and the agent existing?                      | **Wait and confirm it appeared**, with a timeout and an honest message if it does not                                                                                                                                |
+
+#### Decision 4 was already answered by the host, and that is the fifth instance
+
+The row asked "does a provisioned agent exist immediately, or does the host need
+a reload?" It needs no reload: `src/gateway/config-reload-plan.ts` classifies
+`agents.entries` as `kind: "hot"` and the gateway runs a file watcher over the
+config. The question had been open since 2026-08-25 and was answered by eleven
+lines of the host's own code.
+
+**What survives the correction is narrower and is a real choice.** Hot-reload is
+asynchronous and debounced, so between _saved_ and _exists_ there is a gap.
+Reporting success at the start of that gap makes the green tick mean "the file
+was written" while the operator reads it as "the agent is there". M5 already
+shipped one green tick for a defence that was not present, and this project
+treats that as its worst class of defect — so the tick waits for the fact it
+claims, and the confirmation asks the **running host** rather than re-reading the
+file this call just wrote.
+
+> Re-reading the file would confirm only that our own write landed, which was
+> never in doubt. A check whose answer is guaranteed by the thing it is checking
+> is not a check.
+
+#### The sixth instance: provisioning was never a thing to build
+
+M6 was recorded as "provision a real OpenClaw agent by **writing
+`agents.entries`** in the host config". Read as an instruction that says: open
+the file, add a key, write it back. Doing that would have been wrong four ways,
+and the host already solves all four.
+
+| What the naive write would have missed                                                                                 | Where the host already does it                                            |
+| ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Id validation, reserved ids, duplicate ids, the deletion journal                                                       | `createAgent`, `src/agents/agent-create.ts`                               |
+| Workspace, agent directory, identity file, bindings                                                                    | same                                                                      |
+| Interleaving with another config writer — including the MCP writer, which mutates a different section of the same file | `withConfigMutationExclusive` + a base-hash check, `src/config/mutate.ts` |
+| An agent list that lives behind a `$include`                                                                           | `tryWriteSingleTopLevelIncludeMutation`, same file                        |
+
+So `agent-provisioning.ts` **composes** rather than writes. It is the sixth time
+in this project that a recorded task turned out to be already reachable — after
+the three "blocked on the host" claims, M4's ownership hole closing in M5, and
+decision 4 above. The shape is identical every time: _a sentence describing one
+interface, read as a claim about what the project can do._
+
+#### Decision 3 resolved itself against the host's own capability boundary
+
+Kinan's instruction was "try to follow the pointer; fall back to refusing if that
+cannot be done while keeping everything working". That maps exactly onto a seam
+the host already draws:
+
+| The operator's config                       | What happens                                                                                                 |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `{"agents": {"$include": "./agents.json"}}` | The host writes **into their file**, with its own hash check, refusing a target outside the config directory |
+| `{"agents": {"entries": {"$include": …}}}`  | `getSingleTopLevelIncludeTarget` does not handle a nested include, so we **refuse and name the owning file** |
+
+The fallback boundary is therefore the host's own capability boundary rather than
+a line this project invented — and upstream's `setup.ts` declines in exactly the
+same case (`configIncludeOwnsAgentRoster`), so the behaviour agrees with the
+host instead of contradicting it.
+
+**On MCP.** MCP servers live at `mcp.servers` and the roster at `agents.entries`
+— different sections, no overlap, and both writers take the same mutation lock
+and base-hash check. One real constraint falls out of the write-through
+machinery: it engages only when **exactly one top-level key changed**, so
+provisioning must never batch another section into its write. That is now a
+stated design rule rather than an accident.
+
+#### The order of the two writes is a decision
+
+The host write happens **first**, and the argument generalises beyond this file:
+
+> **Do the fallible write first, so the probable failure happens while there is
+> still nothing to undo.**
+
+The host write touches a large file the operator also edits, can be refused by
+include ownership, validates against a schema, and competes for a lock. The
+governance write is a small keyed JSON file under a lock this layer owns.
+
+The intermediate state is safe in the other direction too. Between the two
+writes the agent exists on the host with **no registry record** — and M5 made an
+unregistered agent refused at the gate. So the window this transaction opens is
+fail-closed _by a decision taken for an unrelated reason_, which is worth stating
+as an argument for mandatory registration rather than a coincidence.
+
+Reversing the order has a second cost that only appears on rollback:
+`registerAgent` writes to the tamper-evident ledger, and the ledger never
+deletes. Rolling a registration back would leave a permanent register/unregister
+pair for an agent that never existed — **a true record of a thing that did not
+happen**, which is worse than no record.
+
+#### Why provisioning refuses an id the host already has
+
+`register` claims an existing id; `provision` brings an agent into being. The
+distinction is the one that closed M4's ownership hole in M5, and here it is
+load-bearing for a second reason: **because provisioning only ever creates,
+undoing it only ever deletes something this call brought into existence.** A
+provision that quietly adopted an existing agent would, on a later failure,
+delete an agent somebody else was using. The refusal is what makes the rollback
+safe, and a test asserts both the refusal and that nothing was deleted.
+
+#### The panel, and the fourth route with no surface
+
+M4 built the registry, its routes and its command line, and added
+`registerAgent`, `renameAgent`, `setAgentOwner` and `unregisterAgent` to the
+dashboard's API client. **Nothing ever called them.** An Administrator could not
+see the agents in their own organisation without reading the ledger or opening a
+terminal.
+
+That is the fourth complete, tested, unreachable route in this project — after
+R5's authoring controls, round eleven's per-agent monitor toggle, and finding
+121, where Root's password could be changed by a route no screen called. Stated
+as a rule:
+
+> **A capability is finished when something an operator can click uses it, not
+> when the route returns 200.**
+
+The removal control implements decision 2 as an inline chooser rather than a
+modal: a modal would have to trap focus, restore it on close and be keyboard
+reachable — the three things finding 118 showed this codebase gets wrong when it
+invents a control instead of using one that already works. An expanded row is two
+ordinary buttons in the document, and the tab order handles it for free.
+
+#### A second defect found by building it: a rollback that lost assignments
+
+Deletion was first written the other way round — drop the governance record, then
+ask the host to delete, and put the record back if the host refuses. It reads as
+the safer order, because the reversible step goes first.
+
+It is not reversible. `unregisterAgent` does more than delete a row: it
+**revokes the agent from every account holding it** (`revokeHoldersOutsideOwner`),
+on the sound principle that an agent nobody owns is an agent nobody may be given.
+Re-registering restores the row and **not** the assignments. A refused host
+deletion would therefore have left every User who had that agent silently without
+it — an action ending in an invisible side effect, which is the class this
+project treats as its worst.
+
+Reversing the order removes the failure entirely rather than handling it: if the
+host refuses, nothing has happened at all. The test that covers it asserts the
+**assignment** survives, not merely the record, because the record surviving was
+never the part at risk.
+
+> **"Reversible" is a claim about an operation, and it has to be checked against
+> what the operation actually does rather than what its name suggests.**
+> `unregister` sounds like the inverse of `register`. It is not: one of them has
+> a side effect the other cannot restore.
+
+#### A defect found by building it: a generic key in a merged bundle
+
+The page assembles **one** props object for all of its agent panels and spreads
+it into each. The registry panel's controller contributes `drafts` and
+`onDraft`. The conversation panel already contributed an `onDraft` of its own.
+
+Spread order decided which one survived, and the wrong one did. The symptom:
+**the Remove button rendered perfectly and did nothing when clicked.** No error,
+no warning, nothing in the console — the click ran the conversation panel's
+draft handler, which set a field nobody was reading.
+
+It was caught by the panel tests written alongside the panel, not by the type
+checker, and the reason it slipped past the type checker is worth stating: both
+handlers satisfy `(patch: Partial<T>) => void` for their own `T`, and an
+intersection type is happy for one to shadow the other. **The types agreed; the
+behaviours did not.**
+
+The fix is a rule as much as a change: the controller's slice is spread **last**
+at the call site, and its doc comment says why. The page's bundle keeps the keys
+it genuinely owns, and the split — _data the server sent_ versus _what the
+operator has half-typed_ — is now stated in a type name
+(`AgentRegistryPageProps`) rather than implied.
+
+> **A generic key in a merged object is a collision waiting for a second user.**
+> `onDraft` had exactly one user for two months, which is precisely how long the
+> hazard was invisible.
+
+#### Two new ledger actions, and why not one
+
+`governance.agent.provision` and `governance.agent.deprovision` join
+`agentRegister`/`agentUnregister` rather than replacing them. They are the only
+pair in the vocabulary that records **the layer mutating the system it governs**;
+every other entry describes a decision _about_ OpenClaw. Collapsing provision
+into register would make the ledger unable to answer "where did this agent come
+from?", which is the first question asked about an agent that did something bad.
+
+#### State
+
+**2,247 governance tests across 104 files, all passing** (1,403 distinct across
+78); host baseline unchanged at 263 passed / 0 failed, which is the number worth
+noting: M6 writes to OpenClaw's own configuration and breaks none of OpenClaw's
+own tests. Both typechecks clean. `agent-provisioning.test.ts` adds **13 tests** covering
+the transaction, the rollback and the rollback that itself fails, the
+register/provision refusal, the confirmation timeout, the honest
+"nobody was watching" result the command line produces, and — the one that
+matters most — that a refused deletion leaves the **assignments** intact, not
+merely the record. `agent-registry-panel.test.ts` adds **9** over the panel,
+checking the removal chooser for its _wording_ rather than its existence, since a
+chooser that appears without distinguishing its two options is the confusion it
+was added to prevent.
+
+Every non-test governance file is lint-clean and `max-lines` is **zero
+repo-wide** — the page crossed the inherited 700-line limit when this panel was
+wired, and was brought back under it by moving the panel's own draft state into a
+Lit reactive controller. Splitting rather than suppressing, on T16's precedent.
+
+---
+
+### Findings 122–127 — the M5 and M6 defects, numbered (2026-08-27)
+
+**Why these were unnumbered for a day, and why that mattered.** T29 audited the
+finding numbering on 2026-08-26 and found the count wrong — 121, not 120, because
+two defects had both been given 104. The very next two subtasks then produced six
+more defects, all fixed and all written up in three registers, and **none of them
+was given a number**. Every "121 defects" in the documents quietly became a count
+of _the numbered series_ rather than of defects found.
+
+That is the same drift T29 existed to catch, arriving from the opposite
+direction: not a collision this time but an omission, and an omission is harder
+to see because nothing contradicts anything. Numbering them closes it, and the
+standing rule from 2026-08-27 is that **every defect gets a number when it is
+found**, not when somebody later audits the list.
+
+**All six were already fixed when they were numbered.** Numbering was the
+outstanding work, not repair.
+
+| #   | Component                                                          | Defect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Fix                                                                                                                                                                                                                                                                                                         |
+| --- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 122 | `agent-group.ts` (M5)                                              | The agent→group cache the gate consults on **every governed tool call** was invalidated on every registry write, which is correct — but the file it caches is chosen by `OPENCLAW_GOVERNANCE_DIR`, so one process can be asked about two installations. Under the test runner that happens constantly: a suite passed alone and failed in a full run, having inherited the previous directory's registry. An invalidation strategy is only as good as the assumption that the identity of the cached thing is fixed                                                                                                                                         | Key the cache by **the path it was read from**, so a directory change is a cache miss automatically. Production never changes directory, so it never pays for it                                                                                                                                            |
+| 123 | `test-group.ts` (M5)                                               | Seeding a test organisation registers agents, registrations are recorded, so the fixture cleared the group's ledger to hand each suite an empty one — and left the **checkpoint**, which lives outside the group directory precisely so that deleting the log cannot erase the evidence of its length. The result was a chain ending earlier than the record of its length: the definition of truncation, correctly reported as tamper-detection failure across a dozen suites. **The fixture had built the exact attack the design defends against**                                                                                                       | Reset the checkpoint with the ledger. Recorded rather than quietly fixed because it is the clearest evidence in the project that the tamper detection works — and a caution that **test support code participates in the security model whether or not it was written to**                                  |
+| 124 | `policy-store.ts`, `rule-requests.ts`, `pending-decisions.ts` (M5) | Locking a file creates a lock beside it, so the **first write for a brand-new organisation** failed on the _lock_ rather than on the write it was protecting: three stores created the installation's root directory and not the group's. A fresh group is the state every installation passes through exactly once and never again                                                                                                                                                                                                                                                                                                                         | Create the group directory before taking the lock, in all three stores. The general form: **a path taken once per installation is the easiest kind to leave untested**, because every test fixture and every developer machine is already past it                                                           |
+| 125 | `deployment-status.ts` (M5)                                        | The deployment report asked whether the ledger **checkpoint file existed**. After M5 the checkpoint is keyed by group, so the file exists as soon as _any_ group has one — and a group with no checkpoint of its own was reported as protected. **A green tick for a defence that was not there**, which is worse than no check: it also stops the reader going to look                                                                                                                                                                                                                                                                                     | Ask whether **this group** has a checkpoint entry. The project's worst class of defect and the second instance of it, after round eleven's guard that compared against the wrong list                                                                                                                       |
+| 126 | `governance-page.ts` / `agent-registry-panels.ts` (M6)             | The page merges **one** props bundle for all of its agent panels. The conversation panel contributed an `onDraft`; the registry panel's controller contributed another. Spread order decided which survived and the wrong one did, so **the Remove button rendered perfectly and did nothing when clicked** — no error, no console warning, no request. The click ran a different panel's draft handler, which set a field nobody read. **Invisible to the type checker**: both handlers satisfy `(patch: Partial<T>) => void` for their own `T`, and an intersection type is content for one to shadow the other. The types agreed; the behaviours did not | Spread the controller's slice **last** at the call site, with the reason in its doc comment, and name the page's half of the props (`AgentRegistryPageProps`) so the boundary is stated rather than implied by line order. Caught by a panel test that clicked the button and read the words that came back |
+| 127 | `agent-provisioning.ts` (M6)                                       | Deletion was first written in the order that _looks_ safest — drop the governance record, then ask the host to delete, and restore the record if the host refuses. The restore cannot restore: `unregisterAgent` also **revokes the agent from every account holding it**, and re-registering brings back the row and not the assignments. A refused deletion would have told the operator "nothing changed" while several Users silently lost access to an agent they use. **Caught before it shipped**, by asking what "reversible" actually meant                                                                                                        | Delete from the host **first**. If the host refuses, nothing has happened at all, so there is nothing to undo and nothing to get wrong. `DeprovisionResult` now carries no `rolledBack` field, which states the property in the type rather than asserting it in a comment                                  |
+
+**Two of these are the same lesson from opposite ends.** 125 is a check that
+reported a defence present when it was absent; 126 is a control that reported
+itself present — rendered, styled, in the right place — while doing nothing. Both
+are _false positives about the existence of a mechanism_, and both were found by
+exercising the thing rather than by reading it.
+
+**And 127 is worth taking to the defence for a reason unrelated to agents.**
+`unregister` sounds like the exact inverse of `register`. It is not: one of them
+has a side effect the other cannot put back. **"Reversible" is a claim about what
+an operation does, not about what its name suggests** — and an "undo" path is
+exactly where that claim goes unexamined, because writing one feels like the
+careful choice.
+
+---
+
+## Round nineteen — the M-series audited as one system (2026-08-27)
+
+The first eighteen rounds reviewed the single-tenant layer. This one reviews the
+feature added on top of it — groups (M3), the registry (M4), per-group storage
+(M5) and provisioning (M6) — asked as **one** question rather than four:
+
+> Can one organisation reach, affect or be confused with another, and does an
+> agent that _looks_ governed actually get governed?
+
+Run in the order rounds 13 and 14 established: requirements first, system
+attacked second, source read third. **Three findings, 128–130, all fixed.**
+
+### Finding 128 — the id the registry stores is not the id the gate looks up
+
+| #   | Component                              | Defect                                                                                                                                                                                                                                                                                                                                                                    | Fix                                                                                                                                                                                                                                                                                                 |
+| --- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 128 | `agent-registry.ts` / `agent-group.ts` | `registerAgent` stored `input.id.trim()`. The gate resolves a group with `resolveAgentGroup(agentId)`, and the agent id it is handed has been through the host's `normalizeAgentId` — lowercased, non-`[a-z0-9_-]` replaced with `-`, truncated to 64. **Those are the same string only when the operator happens to type the canonical form.** Four symptoms, all silent | Canonicalise at the registry boundary — store `normalizeAgentId(id)`, and look up the canonical form in `findAgent`, `renameAgent`, `setAgentOwner`, `unregisterAgent` and `assertAssignable`. `agent-group.ts` keys its cache canonically too, so a registry written before the fix still resolves |
+
+**The four symptoms, measured:**
+
+```
+registered "Scout"      → resolveAgentGroup("scout")    = undefined
+registered "my agent"   → resolveAgentGroup("my-agent") = undefined
+registered 80×"a"       → resolveAgentGroup(64×"a")     = undefined
+registered "Scout", then "scout" → ACCEPTED
+```
+
+The first three are the same defect wearing different clothes: **an agent shown
+in the panel as registered, owned and governed, refused on every tool call it
+makes, with nothing anywhere explaining why.** The operator's only evidence is
+that the agent does nothing.
+
+The fourth is the security half, and it is the one worth taking to the defence.
+Agent-id uniqueness is **installation-wide on purpose** — M5's decision 2 kept it
+that way over per-group ids because session keys are `agent:<id>:…` and global,
+so two groups sharing an id would collide in the session store, in T6's lineage
+walk and in the kill switch. Case made `DuplicateAgentError` bypassable, so that
+uniqueness **did not hold**. Two organisations could each register "their" record
+of one real agent; the one whose spelling happened to be canonical wins the gate,
+while the other's Administrator owns a record, assigns it to their Users, and
+writes rules into a document the gate never consults. **Policy that is a no-op
+and looks exactly like policy that works.**
+
+> **This is finding 114 one file over.** 114 was "used the _display_ spelling of
+> an account as the quota key, then as the ownership key", and `account-name.ts`
+> exists specifically to prevent it and says so in its header. Eight modules fold
+> through it; that one did not. The registry already carried a `displayName` for
+> what the operator typed, so the id could have been canonical from the start at
+> no cost. **A codebase that has already solved a problem once will solve it
+> again only where somebody remembers to ask.**
+
+### Finding 129 — introduced by the fix for 128
+
+| #   | Component                                    | Defect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Fix                                                                                                                                                                                                                                                                                                                                                      |
+| --- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 129 | `agent-registry.ts`, `agent-provisioning.ts` | `normalizeAgentId` is a **coercion, not a validator**: when nothing survives its character filter it returns the host's default id, `main`. So `"###"`, `"✓✓"`, `"--"` and `"   "` all canonicalise to `main`. Once 128 made the registry _store_ the canonical form, registering an agent called `"###"` **silently claimed the installation's default agent** — ownership, assignment, and that group's rulebook governing it — for an operator who typed punctuation. In `provisionAgent` the guard meant to catch this read `if (!agentId)` and **could never fire**, so the ledger recorded a provisioning attempt for `main` on behalf of somebody who had asked for neither | Refuse an id with no canonical form of its own. `main` typed **deliberately** is still registrable, because an installation's default agent is exactly the one an operator migrating into the registry needs to claim first; only the accidental route is closed. Provisioning refuses `main` outright, since it _creates_ and the host reserves that id |
+
+**The shape is findings 116 and 117 again: _a fix is not audited as hard as the
+thing it fixes._** Before 128 the registry stored `"###"` verbatim — ungoverned,
+but nobody else's. The repair is what turned it into a claim on the default
+agent. It was caught by asking what the coercion does **at its edges** rather
+than in the middle, which is the only place a coercion is ever interesting.
+
+### Finding 130 — a knowable refusal left behind the fallible write
+
+| #   | Component               | Defect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Fix                                                                                                                          |
+| --- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| 130 | `agent-provisioning.ts` | Provisioning's preflight carried a comment stating that **every knowable refusal is moved in front of the first write**, which is the property Kinan's rollback decision rests on. The owner check was not in it. Naming an ineligible owner — an Administrator in another organisation, a Viewer, an account that does not exist — was therefore discovered by `registerAgent` _after_ `createAgent` had built a real agent with a workspace, an identity file and a roster entry, which was then deleted again. A ledger entry, a host mutation and its reversal, for a condition readable from the account file | `assertAgentOwnerEligible` exported from the registry and called in the preflight. Nothing is built and nothing is torn down |
+
+**The code documented a property it did not have**, which is the same defect
+class as round eleven's guard that named the wrong source of truth and M5's
+deployment check that reported a defence present. Here the false claim was in a
+comment rather than in an assertion, which is worse: nothing runs it.
+
+### T29's numbering check, re-run
+
+Extracting every numbered table row rather than trusting the totals, exactly as
+T29 did on 2026-08-26:
+
+```
+rows found: 138   distinct: 130   max: 130
+missing 1-130: none
+above 130: none
+duplicates: 1×3, 2×3, 3×2, 4×2, 6×2, 84×2
+```
+
+**Numbers 1–130 each appear at least once, with no gaps and nothing above the
+total.** Every duplicate is a non-finding row in a numbered table — T25's
+failure-breakdown table (1, 2, 6), M6's four-decision table (3, 4) and finding
+84's legitimate cross-reference — which is the same catalogue T29 established.
+The check is recorded here rather than merely run, because the whole point of
+T29 was that a total nobody re-derives is a total nobody is checking.
+
+### What passed, and is now pinned
+
+Twenty-nine tests in `qa-round19.test.ts` plus seven in
+`agent-provisioning.test.ts`. Several assert properties the M-series argued for
+in prose and had never checked:
+
+- **The boundary between two organisations** — one group's agents are not listed
+  to another; another group's agent is reported _absent_ rather than _forbidden_
+  (so the registry is not an enumeration oracle); assignment and ownership
+  transfer both refuse across it.
+- **Mandatory registration** — an unregistered or unregistered-again agent
+  resolves to no group, and the cache drops on the write itself rather than
+  needing a caller to remember.
+- **Per-group storage, checked on disk** — separate directories, separate policy
+  documents, separate ledger files, and **each chain verifying independently on
+  one installation-wide key**, including when writes to the two interleave. This
+  is M5's central claim and it had been asserted only in prose.
+- **The trail lands in the right ledger** — a registration appears in the agent's
+  own group and not in the other's.
+- **Unregistration releases the accounts holding the agent** — the property
+  finding 127 turned on.
+
+---
+
+## Round twenty — the rest of the window, read against the requirements (2026-08-27)
+
+Round nineteen audited the M-series. This one covers **everything else built
+since round eighteen**: T6 and finding 120's fix, T7's audit half, T28, T30's
+rotation seam, and T16's two splits — read against the nine design requirements
+in `Grad_Proj___Current.pdf` §1.3 rather than against the code's own account of
+itself.
+
+**One finding, 131, and it is a requirement breach.**
+
+### Finding 131 — grep's file content written into the ledger
+
+| #   | Component                          | Defect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Fix                                                                                                                                                                                                                                                               |
+| --- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 131 | `search-audit.ts` (T7, 2026-08-26) | `candidatePaths` fell back to **the whole line** whenever grep's `path:line:` prefix was absent. `grep` searching a single file omits the filename, so its lines are `<lineno>: <matched text>` — the file's **content**. That content was resolved as a path and, under any broad denial, appended to the tamper-evident ledger as a governed resource. **A grep for `password` recorded the passwords it found.** Direct breach of **requirement 8**: "shall prevent sensitive data (such as secrets or credentials) from being written in plaintext to log files" | For `grep`, a line must carry a `path:line:` **or** `path-line-` prefix (the second is how the tool renders context lines, and was unrecognised); content is never a candidate. `find` and `ls` keep the bare-line reading, since they emit paths by construction |
+
+**Reproduced before it was fixed**, with a broad operator denial and realistic
+grep output:
+
+```
+search-reached-denied | 12:AWS_SECRET_ACCESS_KEY=wJalrX…EKEY
+search-reached-denied | 13:password=hunter2
+```
+
+**The sentence that made it invisible is the finding.** The function's own doc
+comment asserted the safety property:
+
+> "a line that is not a path is simply one that will normalize to something no
+> denial matches"
+
+That is true only while no denial is broad — and a denial written to confine an
+agent to its workspace matches nearly everything under it. **The code documented
+a property that held only under an assumption the code did not state**, which is
+round eleven's guard in a different costume: a claim about what something
+compares against, believed because it was written down.
+
+**Why the fix costs nothing T7 exists to catch.** The gap T7 records is a
+_recursive_ search reaching below a root the gate already judged. A grep over a
+single named file is not recursive; the gate judged that exact path on the way
+in. Requiring the prefix removes content and keeps every reach worth recording —
+verified by the tool's own source, which always renders
+`${relativePath}:${lineNumber}: ${text}` and has no files-only mode.
+
+### The ledger's redactor is defence in depth, not the barrier
+
+`appendLedgerEntry` passes every resource through `redactToolPayloadText` before
+writing it, and **the secrets above went through it unredacted**. That is not a
+defect in the redactor: it targets _registered_ secret values and recognised
+token shapes, which is the right contract for tool payloads. Arbitrary file
+content is not in its remit and could not be.
+
+> **Requirement 8 is met by not writing content into the log, not by redacting
+> what is written.** A pattern-based redactor is a second line; treating it as
+> the first is how content ends up in front of it. Worth stating in Chapter 4,
+> because "we redact the ledger" is the answer a reader expects and it is the
+> weaker half of the truth.
+
+### A test of my own that measured the baseline
+
+Recorded because it is the same mistake this project has documented twice.
+
+Mutation testing showed search-audit's **expiry filter** was unasserted:
+deleting `!isRuleExpired(...)` left all eleven of its tests passing. Writing the
+missing assertion, the first version used an expired denial on
+`secrets/key.pem` — and saw the reach recorded anyway, which looked like the
+filter failing.
+
+It was not. **`.pem` is covered by a shipped core denial**, which never expires,
+so the entry came from the floor rather than from the expired rule. A test about
+one rule has to use a resource no other rule matches, or it is measuring the
+baseline. Round five's lesson, arriving in my own test rather than in the code.
+
+The expiry filter is correct, and is now asserted in both directions —
+**requirement 4**'s "time-limited permissions" applies to the audit as well as to
+the gate.
+
+### What was checked and holds
+
+- **Requirement 7's one-second bound is asserted**, in three places including an
+  end-to-end test through the HTTP surface — not merely measured and reported.
+- **Finding 120's fail-closed probe is held by two tests**: mutating
+  `storeReadableFor` to always report readable fails both. The guard that had
+  nothing holding it in August now has something.
+- **Search-audit's agent scoping is held**: mutating it away fails a test.
+- **T30's rotation seam cannot weaken the shipped threshold.** It is an
+  in-process test-only function, unreachable from configuration, a policy
+  document or the network, and `LEDGER_ROTATE_BYTES` is asserted separately so
+  lowering the override cannot hide a change to the real constant.
+- **T16's CLI split kept its authorization gates.** Every leaf command that acts
+  on governed state resolves an identity first. Two do not, deliberately and with
+  the reason in the source: `groups unmigrated` and `groups migrate --delete`
+  operate only on accounts that **predate groups and therefore cannot sign in**,
+  on an installation where there may be nobody left who can — which is the state
+  the command exists to repair. Bounded, documented, and a no-op on any current
+  installation.
+- **Requirement 5's "record 100%"** is served rather than inflated: a search that
+  reached a denied path is recorded as `ungoverned` — the ledger's existing word
+  for an action that happened without the gate judging it — rather than as a
+  `deny`, which would pad the count of things the gate stopped with things it
+  did not.
+
+---
+
+## Round twenty-one — the intent field, and three defects in it (2026-08-27)
+
+§1.6 "Granular Event Tracking" lists six things the log should capture. Five were
+recorded from the start; the sixth — **the raw LLM intent** — was not, and round
+twenty recorded that as a conformance gap. This round built it and then audited
+what it had built.
+
+**Three findings, 132–134, all in code written the same day.** That ratio is the
+point: a field added to a hash chain touches verification, redaction, tiering and
+memory bounds, and the first version got three of those wrong.
+
+### What was built
+
+| Piece                 | What it does                                                                                                                                 |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent-intent.ts`     | Captures the assistant's words at `llm_output` and holds them per session until a tool call reads them                                       |
+| `LedgerEntry.intent?` | The recorded field, joining the canonical payload **by presence** and **tagged**                                                             |
+| Capture site          | A **direct call** in `attempt-result.ts`, outside the `hasHooks("llm_output")` guard — B1's rule, and the same wiring `search-audit.ts` uses |
+
+**What "raw LLM intent" means here**: the assistant's own words on the turn that
+produced the call — its reasoning blocks where the provider emits them, its
+visible narration otherwise. Not a re-derivation and not a second question put to
+the model. That makes the trail readable as _"the agent said it was doing X, and
+then did Y"_, which is the comparison no other field supports.
+
+### Finding 132 — a comment claiming a threat that was not reachable
+
+| #   | Component         | Defect                                                                                                                                                                                                                                                                                                                                                                                                        | Fix                                                                                                                                                                                                                    |
+| --- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 132 | `audit-ledger.ts` | The intent tag's comment claimed it closed a hash collision "reachable by an agent" — an intent of the literal `"keyed"` colliding with the marker after it. **It is not reachable**: `appendLedgerEntry` writes `keyed: true` on every entry, so the colliding pair cannot be produced. The test asserting it was equally hollow — **mutation testing removed the tag and all seventeen tests still passed** | Comment and test corrected to say what is true. The tag **stays**, on `role:`'s stated reasoning — remove the question rather than answer it — because "no unkeyed entry can be written" is a premise, not a guarantee |
+
+Same class as finding 130: **a comment describing a property the code did not
+have**, one week later, in code written by the same hand that had just recorded 130. The difference is that this one was caught by mutation rather than by
+reading, which is the only method that catches a test agreeing with a wrong
+belief.
+
+### Finding 133 — a Viewer could read the model's narration
+
+| #   | Component        | Defect                                                                                                                                                                                                                                                                                                                                                       | Fix                                                                                                                                       |
+| --- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| 133 | `ledger-view.ts` | `sanitizeLedgerEntry` masks `resource` and nothing else, so the new `intent` field reached a **Viewer** verbatim. The Viewer tier exists precisely because the literal command, path and host "can itself disclose sensitive workspace detail" — and narration discloses _more_: it names the files it is about to touch and quotes what it has already read | Mask `intent` too, with its own placeholder, and only when the field is present so masking never invents an intent the model never stated |
+
+> **A field added to a record does not inherit the record's protections.** The
+> sanitiser is a fixed list, and every new field is a decision somebody has to
+> make explicitly — which `isPromptEntry` says in its own comment two functions
+> below, about a judgement made for a different field a month earlier. The rule
+> was written down and still not applied.
+
+### Finding 134 — an exported function nothing called
+
+| #   | Component         | Defect                                                                                                                     | Fix                                                                                                                                         |
+| --- | ----------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| 134 | `agent-intent.ts` | `forgetAgentIntent` was written, exported and never called. The size cap already bounds the store, so it had nothing to do | Deleted, on T28's precedent, with a note saying why there is no session-end hook — so the next reader does not add one to give it a purpose |
+
+Finding 113's shape (`sweepOrphans` exported and never called), and the fourth
+member of that family. Deleting rather than wiring: an unused function invites a
+caller, and the caller would be doing work the cap already does.
+
+### What is verified, and what is not
+
+**Verified by test**: capture, extraction from reasoning blocks and from visible
+text, defensive reading of unfamiliar harness shapes, whitespace collapsing and
+truncation marking, per-session isolation, replacement each turn, clearing on a
+silent turn, redaction _before_ storage, the memory bound, the ledger field,
+redaction and clamping at the ledger boundary, absence of the key when there is
+no intent, Viewer masking, and — the one that matters most — **a chain mixing
+entries with and without an intent verifying end to end**, plus detection of an
+intent edited after the fact.
+
+**Not verified, and it needs T2**: that `llm_output` fires before the tool calls
+of the same turn execute. The ordering is what the runner's structure implies —
+the dispatch sits in `attempt-result.ts`, and an attempt's tool calls follow its
+result — but no language model has driven a tool call through this layer
+(§7 caveat 1), so the end-to-end path is reasoned rather than observed. **On a
+real run the field is either populated or absent; it cannot be wrong**, because
+an intent is only ever read for the session that produced it.
+
+### Divergence from the specification, stated
+
+§1.6 imagines the log capturing the intent inline with everything else. It does,
+with two differences worth naming in Chapter 4:
+
+- **The store is in memory and lossy by design.** A restart between the model
+  speaking and the tool running loses the intent, and the call is recorded
+  without one. Nothing is gated on it, so this costs a field on an entry rather
+  than a decision.
+- **It is capped at 500 characters.** The conversation store already holds the
+  full text; duplicating it into the hash chain would make the chain a second
+  copy of everything the agent ever said.

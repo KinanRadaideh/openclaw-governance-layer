@@ -125,13 +125,24 @@ kinds — command, path, network — and none of them describes "post this text 
 a Discord channel". An agent that legitimately reads a permitted file can repeat
 its contents into chat, and no rule is consulted.
 
-This is deliberate rather than an oversight, and the reason is worth stating:
-**the reply is the product.** Refusing `message` by default would stop the agent
+This is deliberate rather than an oversight, and as of 2026-08-26 it is
+**settled rather than pending** (T8). Two reasons, and the second is the one
+that closes it.
+
+**The reply is the product.** Refusing `message` by default would stop the agent
 answering the person who asked it something, so the fork would be broken over
-chat. Closing it properly needs a fourth resource kind that can distinguish
-"reply where you were spoken to" from "message somewhere else" — a design change
-rather than a registry entry, and recorded as future work in
-`mg/REMAINING-WORK.md`.
+chat.
+
+**And connecting the agent is itself the permission.** Attaching an agent to a
+Discord server or a Telegram chat is an operator deciding it should speak there.
+A gate that then refused would be overriding the grant it was handed. The
+specification agrees: §1.3 names three resource categories and messaging is not
+one of them, while the one place it mentions chat platforms (§2.1.1.3) casts
+them as the _interface users interact through_ — the recommended alternative to
+exposing a port, not an egress to police.
+
+So this is no longer listed as future work. It was carried as "needs a fourth
+resource kind" for months, which read as a gap; it is a boundary.
 
 What holds today is that the attempt is **recorded as `ungoverned`** and
 attributed to the agent, which is the same property that made the round-eleven

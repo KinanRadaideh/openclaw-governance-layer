@@ -682,6 +682,52 @@ openclaw governance policy add-rule \
   --description "weather API" --ttl-minutes 120 --agent agent-a
 ```
 
+## 11b. Where the data lives (M5)
+
+Since 2026-08-26 the layer holds several organisations at once, and the
+separation is a property of the filesystem rather than of every query.
+
+```
+<governance home>/
+  users.json              installation-wide  (usernames are unique per installation)
+  agents.json             installation-wide  (agent ids are unique per installation)
+  ledger.key              installation-wide  ← one secret; the integrity claim rests on it
+  ledger-checkpoint.json  installation-wide  ← one file, one head per group
+  sessions.json           installation-wide  (login sessions belong to accounts)
+  groups/<groupId>/
+    policy.json
+    audit-ledger.jsonl (+ rotations)
+    rule-requests.json
+    pending-decisions.json
+    conversations.json
+    attachments/
+```
+
+**The rule for placing a new file:** installation-wide when the thing it is keyed
+by is unique installation-wide; otherwise it belongs to a group.
+
+**Which group a request acts in has exactly two sources**, and neither is
+anything the caller supplies:
+
+- A **session** — HTTP (`requireGroup`) and the CLI (`requireCliActor`, which
+  returns the audit actor and the group together, so permission and scope cannot
+  be held apart).
+- The **agent registry** — for the gate, which has an agent id and no session.
+  An agent with no record is **refused**: registration is mandatory, and that is
+  what removes the fallback document an unregistered agent would otherwise slip
+  through.
+
+**Core rules stay global.** They protect the governance directory itself, which
+is shared, so requirement #3's floor is installation-wide and no group's Root can
+move another's.
+
+**The integrity claim is unchanged**, deliberately. The HMAC key is one per
+installation and the checkpoint is one file, so _"recomputing the chain requires
+the secret"_ is still true of the whole installation. Sharing them isolates
+nothing away: no account has ever been able to read either — accounts act through
+this layer's API, never the filesystem, and both sit behind two immutable core
+denials.
+
 ## 12. Known limitations
 
 1. **No subsumption analysis.** Overlapping-but-unequal patterns are not
@@ -756,13 +802,30 @@ openclaw governance policy add-rule \
    incident somebody declared, and an operator who has pressed the emergency
    stop is asking for that error rather than the opposite one. With no agent
    locked, nothing changes.
-7. **Outbound messages are not a resource kind.** `command`, `path` and
-   `network` do not describe "post this text into a chat channel", so the
-   `message` tool is recorded as `ungoverned` and passes. On a chat deployment
-   that is an exfiltration path the language cannot express. It is left open
-   deliberately: refusing `message` by default would stop the agent replying at
-   all, so closing it requires a fourth kind that distinguishes a reply to the
-   originating conversation from a send elsewhere.
+7. **Outbound messages are not a resource kind, by design — settled, not
+   open (T8, 2026-08-26).** `command`, `path` and `network` do not describe
+   "post this text into a chat channel", so the `message` tool is recorded as
+   `ungoverned` and passes. This was previously listed here as a limitation
+   awaiting a fourth resource kind. It is not awaiting one.
+
+   The specification names the resources the model governs — §1.3 requirement 3,
+   "file system paths, process execution, and network communication", repeated
+   as requirement 4's fine-grained axes. Those are exactly the three kinds that
+   exist; a fourth is beyond the specification rather than missing from it. The
+   only mention of chat platforms (§2.1.1.3) presents Telegram and Slack as the
+   _interface users interact through_, the recommended alternative to exposing a
+   port.
+
+   **The operative rule: connecting an agent to a channel is the permission.**
+   An operator who attaches an agent to a Discord server has expressed the
+   intent that it speak there; refusing would override the grant, and refusing
+   by default would stop the agent answering the person who addressed it.
+
+   What the layer guarantees instead is the record: every send is written to the
+   ledger as `ungoverned`, redacted, attributed to the agent, **and carrying its
+   destination** — pinned by `qa-round12.test.ts`, destination included, so
+   "we do not gate this, we record it" is a tested claim rather than a phrase.
+
 8. **Search tools are governed at their root only.** `grep`, `find` and `ls`
    recurse, and only the path they are pointed at is derived. A search rooted at
    the workspace therefore still reads files a denial names. Closing this needs
