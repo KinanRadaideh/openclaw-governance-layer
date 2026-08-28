@@ -102,7 +102,7 @@ describe("time-limited rules", () => {
     // Move the rule's expiry into the past rather than waiting. Located by
     // pattern, not by index: index 0 is a shipped core rule now.
     await updatePolicy(TEST_GROUP, (doc) => {
-      const target = doc.rules.find((rule) => rule.pattern === pattern);
+      const target = doc.rules.find((candidate) => candidate.pattern === pattern);
       if (target) {
         target.expiresAt = new Date(Date.now() - 1000).toISOString();
       }

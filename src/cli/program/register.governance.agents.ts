@@ -18,6 +18,7 @@ import { listActiveSessions } from "../../governance/active-sessions.js";
 import { deprovisionAgent, provisionAgent } from "../../governance/agent-provisioning.js";
 import {
   findAgent,
+  listAgents,
   listAgentsWithFallback,
   registerAgent,
   renameAgent,
@@ -95,6 +96,7 @@ export function registerGovernanceAgentCommands(governance: Command): void {
         const live = listActiveSessions({
           actor: toCliActor(identity),
           lockedAgents: doc.lockedAgents,
+          groupAgentIds: (await listAgents(identityGroup)).map((agent) => agent.id),
         });
         const entries = await listAgentsWithFallback(
           identity.groupId,

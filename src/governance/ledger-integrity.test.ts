@@ -121,7 +121,7 @@ async function readEntries(): Promise<LedgerEntry[]> {
     .map((line) => JSON.parse(line) as LedgerEntry);
 }
 
-async function writeEntries_(entries: LedgerEntry[]): Promise<void> {
+async function writeGivenEntries(entries: LedgerEntry[]): Promise<void> {
   await writeFile(
     ledgerFilePath(TEST_GROUP),
     `${entries.map((e) => JSON.stringify(e)).join("\n")}\n`,
@@ -176,7 +176,7 @@ describe("the chain is keyed (B3)", () => {
         .digest("hex");
       prevHash = entry.hash;
     }
-    await writeEntries_(entries);
+    await writeGivenEntries(entries);
     const result = await verifyLedgerChain(TEST_GROUP);
     expect(result.ok).toBe(false);
     expect(result.brokenAtSeq).toBe(2);
@@ -189,7 +189,7 @@ describe("the chain is keyed (B3)", () => {
     const entries = await readEntries();
     const victim = entries[2] as LedgerEntry & { keyed?: true };
     delete victim.keyed;
-    await writeEntries_(entries);
+    await writeGivenEntries(entries);
     const result = await verifyLedgerChain(TEST_GROUP);
     expect(result.ok).toBe(false);
   });
@@ -219,7 +219,7 @@ describe("truncation is detected (B4)", () => {
     const entries = await readEntries();
     // Cut the newest two. Every surviving entry still chains perfectly — this
     // is precisely why the chain alone cannot see it.
-    await writeEntries_(entries.slice(0, 4));
+    await writeGivenEntries(entries.slice(0, 4));
     resetLedgerCursorForTests();
     const result = await verifyLedgerChain(TEST_GROUP);
     expect(result.ok).toBe(false);
@@ -229,7 +229,7 @@ describe("truncation is detected (B4)", () => {
   it("uses singular wording when exactly one entry was removed", async () => {
     await writeEntries(3);
     const entries = await readEntries();
-    await writeEntries_(entries.slice(0, 2));
+    await writeGivenEntries(entries.slice(0, 2));
     resetLedgerCursorForTests();
     expect((await verifyLedgerChain(TEST_GROUP)).reason).toContain("1 entry was removed");
   });
@@ -246,7 +246,7 @@ describe("truncation is detected (B4)", () => {
     const entries = await readEntries();
     const last = entries[2] as LedgerEntry;
     last.resource = "rewritten";
-    await writeEntries_(entries);
+    await writeGivenEntries(entries);
     resetLedgerCursorForTests();
     expect((await verifyLedgerChain(TEST_GROUP)).ok).toBe(false);
   });
@@ -352,7 +352,7 @@ describe("reordering", () => {
     }
     entries[1] = second;
     entries[2] = first;
-    await writeEntries_(entries);
+    await writeGivenEntries(entries);
     const result = await verifyLedgerChain(TEST_GROUP);
     expect(result.ok).toBe(false);
     // Caught on the sequence number, which is the earliest signal: the swapped
@@ -365,7 +365,7 @@ describe("reordering", () => {
     const entries = await readEntries();
     const moved = entries.splice(1, 2);
     entries.push(...moved);
-    await writeEntries_(entries);
+    await writeGivenEntries(entries);
     expect((await verifyLedgerChain(TEST_GROUP)).ok).toBe(false);
   });
 
@@ -385,7 +385,7 @@ describe("reordering", () => {
       resource: "cmd-rewritten",
       hash: "f".repeat(64),
     };
-    await writeEntries_(entries);
+    await writeGivenEntries(entries);
     const result = await verifyLedgerChain(TEST_GROUP);
     expect(result.ok).toBe(false);
     expect(result.brokenAtSeq).toBe(2);

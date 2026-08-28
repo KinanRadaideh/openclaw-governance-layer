@@ -28,7 +28,7 @@ describe("system status snapshot", () => {
     // side channel for information they are not entitled to.
     const serialized = JSON.stringify(readSystemStatus());
     expect(serialized).not.toMatch(/[A-Za-z]:\\\\|\/home\/|\/Users\//);
-    expect(Object.keys(readSystemStatus()).sort()).toEqual([
+    expect(Object.keys(readSystemStatus()).toSorted()).toEqual([
       "cpuCount",
       "freeMemoryBytes",
       "loadAverage",

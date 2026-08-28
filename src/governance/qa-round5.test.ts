@@ -216,7 +216,9 @@ describe("the file lock does not confuse a failing critical section for contenti
     await Promise.all([
       withFileLock(path, async () => {
         order.push("a-start");
-        await new Promise((resolve) => setTimeout(resolve, 30));
+        await new Promise((resolve) => {
+          setTimeout(resolve, 30);
+        });
         order.push("a-end");
       }),
       withFileLock(path, async () => {

@@ -25,6 +25,7 @@
 // verb that suggests otherwise.
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { listActiveSessions } from "../governance/active-sessions.js";
+import { listAgents } from "../governance/agent-registry.js";
 import { tailLedger, verifyLedgerChain } from "../governance/audit-ledger.js";
 import { projectLedgerForActor } from "../governance/ledger-view.js";
 import { listPendingDecisions } from "../governance/pending-decisions.js";
@@ -152,7 +153,14 @@ export async function handleGovernanceOversightRoutes(
     sendJson(
       res,
       200,
-      listActiveSessions({ actor: toActor(session), lockedAgents: policy.lockedAgents }),
+      listActiveSessions({
+        actor: toActor(session),
+        lockedAgents: policy.lockedAgents,
+        // Finding 139: the run registry behind this is installation-wide, so
+        // without the group's roster an Administrator saw every organisation's
+        // live sessions on the panel meant to catch a runaway agent.
+        groupAgentIds: (await listAgents(groupId)).map((agent) => agent.id),
+      }),
     );
     return true;
   }

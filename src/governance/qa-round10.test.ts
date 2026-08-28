@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { evaluateGovernancePolicy } from "./policy-engine.js";
 import { loadPolicy, savePolicy } from "./policy-store.js";
-import { defaultPolicyDocument, type PolicyRule } from "./policy-types.js";
+import type { PolicyRule } from "./policy-types.js";
 import { detectRuleConflicts } from "./rule-conflicts.js";
 import { seedGroupWithAgents } from "./test-group.js";
 

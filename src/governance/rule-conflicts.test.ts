@@ -48,7 +48,7 @@ describe("the dangerous case: a temporary grant that is already permanent", () =
 describe("earlier rules take precedence", () => {
   it("lists the oldest conflicting rule first", () => {
     const older = existing({ id: "older", createdAt: new Date(NOW - 20 * HOUR).toISOString() });
-    const newer = existing({ id: "newer", createdAt: new Date(NOW - 1 * HOUR).toISOString() });
+    const newer = existing({ id: "newer", createdAt: new Date(NOW - HOUR).toISOString() });
     const conflicts = detectRuleConflicts([newer, older], candidate(), NOW);
     expect(conflicts[0]?.existingRuleId).toBe("older");
   });

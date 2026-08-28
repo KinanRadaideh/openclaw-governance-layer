@@ -302,14 +302,14 @@ describe("A7 — file permissions, tested without depending on the host's", () =
    * modes (full coverage, identical on both platforms), and one **dispatch**
    * test on the real filesystem asserts only which branch was taken.
    */
-  const stat = (mode: number) => async () => ({ exists: true, mode });
+  const statResult = (mode: number) => async () => ({ exists: true, mode });
 
   it.each([
     [0o40700, "pass"],
     [0o40750, "fail"],
     [0o40777, "fail"],
   ])("reads directory mode %s as %s", async (mode, expected) => {
-    const status = await statusOf({}, { platform: "linux", statPath: stat(mode) });
+    const status = await statusOf({}, { platform: "linux", statPath: statResult(mode) });
     expect(checkFor(status, "deployment.governance_dir_permissions").status).toBe(expected);
   });
 
@@ -318,12 +318,12 @@ describe("A7 — file permissions, tested without depending on the host's", () =
     [0o100644, "fail"],
     [0o100660, "fail"],
   ])("reads file mode %s as %s", async (mode, expected) => {
-    const status = await statusOf({}, { platform: "linux", statPath: stat(mode) });
+    const status = await statusOf({}, { platform: "linux", statPath: statResult(mode) });
     expect(checkFor(status, "deployment.governance_files_permissions").status).toBe(expected);
   });
 
   it("names the offending file by basename only, never its full path", async () => {
-    const status = await statusOf({}, { platform: "linux", statPath: stat(0o100644) });
+    const status = await statusOf({}, { platform: "linux", statPath: statResult(0o100644) });
     const check = checkFor(status, "deployment.governance_files_permissions");
     expect(check.detail).not.toContain(dir);
   });

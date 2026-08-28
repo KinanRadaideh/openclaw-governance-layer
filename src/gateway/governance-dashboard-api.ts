@@ -9,6 +9,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { canonicalAccountName, isSafeAccountKey } from "../governance/account-name.js";
 import { listActiveSessions } from "../governance/active-sessions.js";
+import { listAgents } from "../governance/agent-registry.js";
 import { decidePendingDecision, listPendingDecisions } from "../governance/pending-decisions.js";
 import {
   canManageAccounts,
@@ -329,7 +330,11 @@ export async function handleGovernanceApiRequest(
     // operator should be told a global rule binds. `listActiveSessions` already
     // scopes its own result to the actor, so this adds no ids the caller could
     // not otherwise see.
-    const live = listActiveSessions({ actor, lockedAgents: policy.lockedAgents });
+    const live = listActiveSessions({
+      actor,
+      lockedAgents: policy.lockedAgents,
+      groupAgentIds: (await listAgents(groupId)).map((agent) => agent.id),
+    });
     const targets = agentsForRule(
       rule,
       knownAgentIds(

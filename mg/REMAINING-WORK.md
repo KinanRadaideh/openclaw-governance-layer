@@ -66,20 +66,20 @@ to give it. Counted as outstanding here because the remaining work is yours.
 **One is deprioritised:** T1 — not being done. **T13** is drafted and waiting to
 be read.
 
-**Current as of 2026-08-28: 24 done, 9 open** across T1–T33 (T33 added 2026-08-28) — the list grew by
+**Current as of 2026-08-28: 26 done, 7 open** across T1–T33 (T31 and T33 closed 2026-08-28) — the list grew by
 four (T29–T32) after two investigations and a request. What is open:
 
-| Open    | Who has to move                                                                                                                                                                                                  |
-| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **T2**  | You — one real agent driving one real tool call. Still the highest-value item left                                                                                                                               |
-| **T3**  | You — a Linux host that does not exist yet. The only unmet design requirement                                                                                                                                    |
-| **T17** | You — a judgement about how the report should look                                                                                                                                                               |
-| **T18** | You — it is your report                                                                                                                                                                                          |
-| **T7**  | A decision (prevention half). The audit half shipped 2026-08-26                                                                                                                                                  |
-| **T31** | Claude — 16 lint errors across **14** test files, mechanical (re-counted 2026-08-27; the row said 13 files)                                                                                                      |
-| **T32** | Waits on M, and on T7 prevention                                                                                                                                                                                 |
-| **T1**  | Deprioritised, not being done                                                                                                                                                                                    |
-| **T33** | Claude, after one decision from you — **make the fork build and start on Linux at all.** Added 2026-08-28; a **prerequisite to T3**, because nothing has ever been built or run on Linux, only unit-tested there |
+| Open        | Who has to move                                                                                                                                                                                                  |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **T2**      | You — one real agent driving one real tool call. Still the highest-value item left                                                                                                                               |
+| **T3**      | You — a Linux host that does not exist yet. The only unmet design requirement                                                                                                                                    |
+| **T17**     | You — a judgement about how the report should look                                                                                                                                                               |
+| **T18**     | You — it is your report                                                                                                                                                                                          |
+| **T7**      | A decision (prevention half). The audit half shipped 2026-08-26                                                                                                                                                  |
+| ~~**T31**~~ | ~~Claude — 16 lint errors across 14 test files, mechanical.~~ **DONE 2026-08-28** — all 16 fixed, and `git-hooks/pre-commit` now lints staged files, so the count cannot drift back unnoticed                    |
+| **T32**     | Waits on M, and on T7 prevention                                                                                                                                                                                 |
+| **T1**      | Deprioritised, not being done                                                                                                                                                                                    |
+| **T33**     | Claude, after one decision from you — **make the fork build and start on Linux at all.** Added 2026-08-28; a **prerequisite to T3**, because nothing has ever been built or run on Linux, only unit-tested there |
 
 **"Blocked on the host" was recorded three times and was true zero times, and
 all three are now resolved.** T6 closed 2026-08-25 without touching upstream —
@@ -176,7 +176,7 @@ recorded decisions resolved as: four taken by Kinan (rollback, the two-step
 removal, following an include pointer, and waiting for confirmation), and the
 fifth — "does the host need a reload?" — **answered by the host's own code**,
 which hot-reloads `agents.entries` and always did. **No substantial engineering
-is left in the project.** What remains is T2, T3, T17, T18, T31, T32 and a
+is left in the project.** What remains is T2, T3, T17, T18, T32 and a
 decision on T7 prevention.
 
 #### 3. Only you can do these
@@ -700,6 +700,52 @@ general and continuing claim, and never re-executed._ Chapter 4 should present
 these five together; they are the same defect wearing five costumes, and the
 project's own review history is the evidence.
 
+### QA round twenty-four — the pre-M3 route audit, finally done (2026-08-28)
+
+`HANDOFF.md` §7 caveat 3 had recorded this as unfinished since M5: _"every route
+written before M3 still deserves the question 'does this cross a group?' — M5
+made the **storage** answer that question, not every route. That audit is not
+finished."_ It is now. **One finding, 139, and it is a real cross-group leak.**
+
+**Method, because it is reusable.** Rather than reading routes one by one, the
+audit extracted every function the nine `governance-*` route modules import from
+`src/governance/` — 82 of them — and mechanically listed the ones whose
+signature takes **no `groupId`**. Most were legitimately group-free: pure
+predicates, validators, projections over already-scoped data, and the
+installation-wide session/account stores. That left a short list to read, and
+one of them was the defect.
+
+| #       | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | State |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| **139** | **`listActiveSessions` was never scoped by group.** Its supplier is the Gateway's own run registry — **installation-wide**, every run on the host of every organisation. The only filter was `canViewAgent`, and `hasUnlimitedAgentScope` makes that unconditionally true for an Administrator or Root. **So an Administrator of one group saw the run ids, agent ids, session keys and start times of every other group's live sessions** — on the panel whose stated purpose is catching a runaway agent. **Five call sites shared the defect**: the `sessions` route, the agents list, the rule-target lookup, and two CLI commands | fixed |
+
+**Why it survived M5.** M5 made _storage_ per-group, and that silently fixed
+most of this class: a route reading `loadPolicy(groupId)` or
+`listPendingDecisions(groupId)` cannot see another group's file. Live sessions
+are the exception, because they are **not stored** — they are read from the
+running Gateway, which has no notion of groups. **Per-group storage protected
+everything at rest and nothing in flight**, and nothing in the design said so.
+
+**How it was fixed, and the choice worth recording.** `groupAgentIds` is a
+**required** parameter, not an optional one. Optional would have fixed the site
+being looked at and left the other four compiling silently — which is how the
+defect reached five places to begin with. Required means the type checker asks
+the question at every call site, now and at the next one; it named all five
+immediately. Unregistered agents are excluded rather than shown, matching the
+supplier's existing fail-closed rule for a run with no agent id: M5 made
+registration mandatory at the gate, so an agent that is running has a record,
+and one without a record cannot be attributed to any organisation.
+
+**Verified by mutation**, as this project now does for anything guard-shaped:
+deleting the one filter line fails exactly three of the four new tests. One of
+those serialises the whole view and asserts the other group's run id and agent
+id appear nowhere in it — a filter that dropped the row but left an identifier
+in a summary field would pass a length check and still disclose which agents a
+competitor runs.
+
+**The audit is now closed**, and `HANDOFF.md` §7 caveat 3 should stop saying it
+is outstanding.
+
 ### Decided but not built — flag-style password masking (2026-08-27)
 
 Round twenty found that the ledger's redactor misses passwords passed as command
@@ -748,6 +794,45 @@ password is low-entropy by nature.
 > throughout; everything inferred from it about the long forms was not.
 
 ---
+
+### Lane A, 2026-08-28 — the lint gate, the panel, and the route audit
+
+Three items from the "mine alone" list, done in the order they gate each other.
+
+**1. The lint gate now exists, and T31 is closed to make it trustworthy.**
+Finding 136's mechanical cause was that `max-lines` ran only when somebody typed
+the command. **A correction to what was recorded on 2026-08-28 that morning:**
+`.git/hooks/` is empty, but that proves nothing — **`core.hooksPath` points at
+`git-hooks/`**, so the repo's own hook _is_ installed and _does_ run. It simply
+ran `oxfmt` and nothing else, and formatting is not linting. The earlier note
+read as "no hook is installed", which was the wrong diagnosis of a real problem.
+
+`filter-staged-files.mjs` has had a **`lint` mode since it was written**, waiting
+for a caller that never arrived — the same shape as finding 137's harness.
+`git-hooks/pre-commit` now calls it and fails the commit on any error.
+
+**T31 was closed first, deliberately.** A gate over a knowingly-dirty tree is one
+people learn to bypass, and 16 pre-existing errors would have made `--no-verify`
+routine within a day. All 16 fixed: shadowed names, `filter()[0]`, an unused
+import, `sort()` over `toSorted()`, two `return`s in Promise executors, a
+dangling underscore. Two were more than cosmetic — `.filter(...).at(-1)` became
+**`findLast`**, not `find`, because `.at(-1)` meant the _last_ match; and one
+`no-map-spread` is disabled with a written reason, matching the three production
+sites that already do, because the rule's suggested in-place fix would mutate a
+document the caller still owns.
+
+**Proven, not assumed:** an unused import was planted in a panel and staged. The
+commit was rejected. That check is the whole point — a gate nobody tested is
+exactly what finding 137 was.
+
+**2. `governance-page.ts` has real headroom again.** 697 of 700 was not a margin.
+`isSessionLost`, `canAdminister` and `canManageAnyAgent` moved to a new
+`ui/src/pages/governance/identity.ts` — pure functions of an identity or an
+error, which is what T16's split said belongs beside the page rather than in it,
+and the shape `rule-filter.ts` and `ledger-filter.ts` already had. **688 lines,
+twelve of headroom.**
+
+**3. The pre-M3 route audit** — its own round, twenty-four, below.
 
 ### T33 — make the fork installable and startable on Linux (2026-08-28)
 

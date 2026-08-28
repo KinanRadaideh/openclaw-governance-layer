@@ -59,3 +59,37 @@ fi
 if [ "${#restage_files[@]}" -gt 0 ]; then
   git add -- "${restage_files[@]}"
 fi
+
+# --- Lint the staged files -------------------------------------------------
+#
+# Added 2026-08-28 for finding 136, in which `governance-page.ts` crossed the
+# 700-line limit and the documentation asserted "max-lines reports zero errors
+# repo-wide" **in the same commit**. Nothing was watching, so the claim and its
+# violation shipped together and survived a documentation sweep the next day.
+#
+# Two things were true and are worth separating, because the first sounds worse
+# than it was:
+#
+#   - `.git/hooks/` is empty, but that proves nothing: `core.hooksPath` points
+#     here, so this file is the hook and it does run.
+#   - It ran `oxfmt` and nothing else. Formatting is not linting, and
+#     `max-lines` is a lint rule. `filter-staged-files.mjs` has had a `lint`
+#     mode since it was written, waiting for a caller that never arrived.
+#
+# Staged files only, so the cost is proportional to the change rather than to
+# the repository. `max-lines` is per-file, which is exactly the granularity a
+# staged-file check gives you: the file that grew is the file being committed.
+lint_files=()
+while IFS= read -r -d '' file; do
+  lint_files+=("$file")
+done < <(node "$FILTER_FILES" lint -- "${restage_files[@]}")
+
+if [ "${#lint_files[@]}" -gt 0 ]; then
+  if ! "$RUN_NODE_TOOL" oxlint --config "$ROOT_DIR/.oxlintrc.json" "${lint_files[@]}"; then
+    echo >&2
+    echo "pre-commit: oxlint rejected the staged files above." >&2
+    echo "  Fix them, or commit with --no-verify only if you have a reason you" >&2
+    echo "  would be willing to write down." >&2
+    exit 1
+  fi
+fi

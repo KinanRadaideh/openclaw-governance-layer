@@ -40,6 +40,7 @@ import {
   type GovernanceTranscript,
   type GovernanceUserRecord,
 } from "./api.ts";
+import { canAdminister, canManageAnyAgent, isSessionLost } from "./identity.ts";
 import type { LedgerFilter } from "./ledger-filter.ts";
 import { MIN_PASSWORD_LENGTH } from "./panels/account-panels.ts";
 import {
@@ -325,8 +326,8 @@ class GovernancePage extends OpenClawLightDomElement {
       refresh: () => this.refreshData(),
       policy: this.policy,
       identity: this.identity,
-      canAdminister: this.canAdminister(),
-      canManageAnyAgent: this.canManageAnyAgent(),
+      canAdminister: canAdminister(this.identity),
+      canManageAnyAgent: canManageAnyAgent(this.identity),
       pendingDecisions: this.pendingDecisions,
       conversationAgentId: this.conversationAgentId,
       transcript: this.transcript,
@@ -360,8 +361,8 @@ class GovernancePage extends OpenClawLightDomElement {
       policy: this.policy,
       identity: this.identity,
       busy: this.busy,
-      canAdminister: this.canAdminister(),
-      canManageAnyAgent: this.canManageAnyAgent(),
+      canAdminister: canAdminister(this.identity),
+      canManageAnyAgent: canManageAnyAgent(this.identity),
       knownAgentIds: knownAgentIds(this.agentSources()),
       agentLabel: (agentId) => agentLabel(this.agents, agentId),
       agentPolicyView: this.agentPolicyView,
@@ -416,15 +417,6 @@ class GovernancePage extends OpenClawLightDomElement {
     };
   }
 
-  /**
-   * True when the failure means the session is gone rather than the request
-   * being wrong. Anything the operator is shown after this point would be
-   * historical, so it must not keep being presented as current.
-   */
-  private isSessionLost(err: unknown): boolean {
-    return err instanceof GovernanceApiError && err.status === 401;
-  }
-
   private async refreshData(): Promise<void> {
     const api = this.api();
     // `allSettled`, not `all`. Eight requests load this page, and with `all` a
@@ -439,7 +431,7 @@ class GovernancePage extends OpenClawLightDomElement {
       api.activeSessions(),
       // Viewers may not read the stack; asking would 403 and spoil an
       // otherwise successful refresh.
-      this.canManageAnyAgent() ? api.listPendingDecisions() : Promise.resolve([]),
+      canManageAnyAgent(this.identity) ? api.listPendingDecisions() : Promise.resolve([]),
       // Only Root may list accounts; requesting as a lower tier would 403 and
       // surface a confusing error on an otherwise successful refresh.
       this.identity?.role === "root" ? api.listUsers() : Promise.resolve([]),
@@ -456,9 +448,7 @@ class GovernancePage extends OpenClawLightDomElement {
     // A 401 anywhere means the login is gone, and that *does* end the session —
     // the distinction being drawn is between "this panel failed" and "you are
     // no longer signed in".
-    if (
-      results.some((result) => result.status === "rejected" && this.isSessionLost(result.reason))
-    ) {
+    if (results.some((result) => result.status === "rejected" && isSessionLost(result.reason))) {
       this.markSessionExpired();
       return;
     }
@@ -560,7 +550,7 @@ class GovernancePage extends OpenClawLightDomElement {
         return;
       }
       void this.refreshData().catch((err) => {
-        if (this.isSessionLost(err)) {
+        if (isSessionLost(err)) {
           this.markSessionExpired();
         }
         // Any other failure is left to the next tick: a transient network blip
@@ -588,7 +578,7 @@ class GovernancePage extends OpenClawLightDomElement {
       await action();
       await this.refreshData();
     } catch (err) {
-      if (this.isSessionLost(err)) {
+      if (isSessionLost(err)) {
         this.markSessionExpired();
         return;
       }
@@ -643,15 +633,6 @@ class GovernancePage extends OpenClawLightDomElement {
       this.sessionExpired = false;
       this.startAutoRefresh();
     });
-  }
-
-  private canAdminister(): boolean {
-    return this.identity?.role === "administrator" || this.identity?.role === "root";
-  }
-
-  /** User and above may manage the agents assigned to them. */
-  private canManageAnyAgent(): boolean {
-    return this.canAdminister() || this.identity?.role === "user";
   }
 
   private async loadAgentPolicy(agentId: string): Promise<void> {
@@ -950,8 +931,8 @@ class GovernancePage extends OpenClawLightDomElement {
           identity: this.identity,
           ruleRequests: this.ruleRequests,
           busy: this.busy,
-          canAdminister: this.canAdminister(),
-          canManageAnyAgent: this.canManageAnyAgent(),
+          canAdminister: canAdminister(this.identity),
+          canManageAnyAgent: canManageAnyAgent(this.identity),
           drafts: {
             requestKind: this.requestKind,
             requestPattern: this.requestPattern,

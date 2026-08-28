@@ -304,8 +304,8 @@ describe("session tokens", () => {
     const path = join(dir, "sessions.json");
     const file = JSON.parse(await readFile(path, "utf8"));
     file.sessions[0].expiresAt = new Date(Date.now() - 1000).toISOString();
-    const { writeFile } = await import("node:fs/promises");
-    await writeFile(path, JSON.stringify(file));
+    const { writeFile: writeSessionFile } = await import("node:fs/promises");
+    await writeSessionFile(path, JSON.stringify(file));
     expect(await verifySession(session.token)).toBeUndefined();
   });
 });

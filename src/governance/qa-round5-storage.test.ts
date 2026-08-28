@@ -212,10 +212,10 @@ describe("a rule keeps its generated id", () => {
     });
     expect(typeof rule.id).toBe("string");
     expect(rule.id).not.toBe("");
-    const operatorRules = (await loadPolicy(TEST_GROUP)).rules.filter(
-      (entry) => !isShippedRule(entry),
+    const firstOperatorRule = (await loadPolicy(TEST_GROUP)).rules.find(
+      (candidate) => !isShippedRule(candidate),
     );
-    expect(operatorRules[0]?.id).toBe(rule.id);
+    expect(firstOperatorRule?.id).toBe(rule.id);
   });
 });
 

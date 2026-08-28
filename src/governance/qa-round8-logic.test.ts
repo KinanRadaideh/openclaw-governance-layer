@@ -147,6 +147,11 @@ describe("requirement 4: time-limited permissions actually lapse", () => {
     const doc = await loadPolicy(TEST_GROUP);
     await savePolicy(TEST_GROUP, {
       ...doc,
+      // The spread is the point: the document loaded above must not be mutated
+      // underneath the caller, and this rule's suggested in-place fix would do
+      // exactly that. Same reasoning as the three production sites that carry
+      // this disable — active-sessions.ts, attachment-store.ts, user-store.ts.
+      // oxlint-disable-next-line no-map-spread
       rules: doc.rules.map((rule) =>
         rule.pattern === pattern
           ? { ...rule, expiresAt: new Date(Date.now() - 1_000).toISOString() }
@@ -252,9 +257,7 @@ describe("posture semantics", () => {
     expect(
       verdict(await evaluateGovernancePolicy({ toolName: "exec", params: { command: "rm" } }, ctx)),
     ).toBe("allow");
-    const last = (await tailLedger(TEST_GROUP))
-      .filter((entry) => entry.entryKind !== "admin")
-      .at(-1);
+    const last = (await tailLedger(TEST_GROUP)).findLast((entry) => entry.entryKind !== "admin");
     // The recorded decision is what the policy concluded, not what happened.
     expect(last?.decision).toBe("deny");
   });

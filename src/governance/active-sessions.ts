@@ -55,14 +55,40 @@ export type ActiveAgentSessionView = ActiveAgentSession & {
 /**
  * Returns the running sessions this actor is entitled to see.
  *
- * Scoped exactly like every other agent-bearing view: an Administrator sees
- * every session, a User or Viewer sees only their assigned agents. Without
- * this a Viewer scoped to one agent could enumerate every other agent in the
- * installation simply by watching what is running.
+ * **Two independent filters, and for a long time only one of them existed.**
+ *
+ *  1. **Group** — `groupAgentIds` names the agents registered to the caller's
+ *     organisation. Anything else is invisible, whatever the caller's tier.
+ *  2. **Agent scope** — within that group, an Administrator sees every session
+ *     and a User or Viewer sees only their assigned agents. Without this a
+ *     Viewer scoped to one agent could enumerate the rest by watching what runs.
+ *
+ * **Finding 139 (2026-08-28) is the absence of the first**, found by the
+ * pre-M3 route audit that `HANDOFF.md` §7 had been recording as unfinished.
+ * The supplier is the Gateway's own run registry, which is **installation-wide**
+ * — every run on the host, of every organisation. The only filter was
+ * `canViewAgent`, and `hasUnlimitedAgentScope` makes that unconditionally true
+ * for an Administrator or Root. So an Administrator of one group saw the run
+ * ids, agent ids, session keys and start times of **every other group's live
+ * sessions**, on the panel whose whole purpose is watching for a runaway agent.
+ * Finding 119's shape exactly, one route over.
+ *
+ * `groupAgentIds` is **required rather than optional on purpose.** Five call
+ * sites shared this defect; making it optional would have fixed the one that
+ * was looked at and left the others compiling silently. A required parameter
+ * makes the type checker ask the question at every site, now and later.
+ *
+ * **Unregistered agents are excluded, which is a deliberate fail-closed
+ * choice.** M5 made registration mandatory at the gate, so an agent running
+ * tool calls has a record; one without a record cannot be attributed to an
+ * organisation, and showing it to an arbitrary group would be a guess. This
+ * matches the supplier's own rule for a run with no agent id at all.
  */
 export function listActiveSessions(params: {
   actor: GovernanceActor;
   lockedAgents: readonly string[];
+  /** Agents registered to the caller's group. Sessions outside it are never shown. */
+  groupAgentIds: readonly string[];
   nowMs?: number;
 }): ActiveSessionsView {
   const nowMs = params.nowMs ?? Date.now();
@@ -70,7 +96,9 @@ export function listActiveSessions(params: {
   if (!registeredSupplier) {
     return { supported: false, sessions: [], sampledAt };
   }
+  const inGroup = new Set(params.groupAgentIds);
   const sessions = registeredSupplier()
+    .filter((session) => inGroup.has(session.agentId))
     .filter((session) => canViewAgent(params.actor, session.agentId))
     // A new object per session on purpose. These rows are borrowed from the
     // supplier's live registry; mutating them in place would write

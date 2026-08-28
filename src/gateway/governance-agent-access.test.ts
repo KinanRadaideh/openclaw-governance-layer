@@ -150,7 +150,7 @@ describe("who can reach an agent", () => {
     await assignedAccount("watcher", "viewer", ["agent-a"]);
     const reply = await accessFor(session("administrator", "amina"), "agent-a");
     expect(reply.status).toBe(200);
-    expect([...reply.body.assignedTo].sort()).toEqual(["malek", "watcher"]);
+    expect(reply.body.assignedTo.toSorted()).toEqual(["malek", "watcher"]);
   });
 
   it("answers with an empty list rather than an error when nobody holds it", async () => {

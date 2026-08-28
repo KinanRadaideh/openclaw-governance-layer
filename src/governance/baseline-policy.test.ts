@@ -365,9 +365,7 @@ describe("monitor is opt-in, per agent, and never lifts a core denial", () => {
     await setAgentMode(TEST_GROUP, "agent-a", "monitor", "kinan");
     await evaluateGovernancePolicy({ toolName: "exec", params: { command: "npm publish" } }, ctx());
     const { tailLedger } = await import("./audit-ledger.js");
-    const last = (await tailLedger(TEST_GROUP))
-      .filter((entry) => entry.entryKind !== "admin")
-      .at(-1);
+    const last = (await tailLedger(TEST_GROUP)).findLast((entry) => entry.entryKind !== "admin");
     expect(last?.decision).toBe("deny");
     expect(last?.resource).toBe("npm publish");
   });

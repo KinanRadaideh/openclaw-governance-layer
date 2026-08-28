@@ -21,6 +21,7 @@ import {
   AgentOwnerError,
   DuplicateAgentError,
   findAgent,
+  listAgents,
   listAgentsWithFallback,
   MAX_AGENT_DISPLAY_NAME_LENGTH,
   MAX_AGENT_ID_LENGTH,
@@ -130,7 +131,11 @@ export async function handleGovernanceAgentRoutes(
     }
     const actor = toActor(session);
     const policy = await loadPolicy(groupId);
-    const live = listActiveSessions({ actor, lockedAgents: policy.lockedAgents });
+    const live = listActiveSessions({
+      actor,
+      lockedAgents: policy.lockedAgents,
+      groupAgentIds: (await listAgents(groupId)).map((agent) => agent.id),
+    });
     const entries = await listAgentsWithFallback(
       session.groupId,
       knownAgentIds(

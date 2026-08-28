@@ -176,7 +176,9 @@ describe("requirement #7 — termination latency", () => {
     // A terminator that takes real time must be reflected in the measurement,
     // otherwise the number proves nothing.
     registerAgentTerminator(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 120));
+      await new Promise((resolve) => {
+        setTimeout(resolve, 120);
+      });
       return { abortedRunIds: ["slow"] };
     });
     const outcome = await terminateAgentRuns("agent-a");

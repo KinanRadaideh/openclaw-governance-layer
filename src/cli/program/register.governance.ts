@@ -2,6 +2,7 @@
 // tamper-evident audit ledger, and trigger the kill switch from the terminal.
 import type { Command } from "commander";
 import { listActiveSessions } from "../../governance/active-sessions.js";
+import { listAgents } from "../../governance/agent-registry.js";
 import { tailLedger, verifyLedgerChain } from "../../governance/audit-ledger.js";
 import { auditLoginSuccess, auditLogout } from "../../governance/auth-audit.js";
 import {
@@ -493,6 +494,7 @@ export function registerGovernanceCommands(program: Command): void {
         const view = listActiveSessions({
           actor: toCliActor(viewer),
           lockedAgents: sessionsPolicy.lockedAgents,
+          groupAgentIds: (await listAgents(viewerGroup)).map((record) => record.id),
         });
         if (!view.supported) {
           defaultRuntime.log(
