@@ -3590,6 +3590,17 @@ export const en: TranslationMap = {
       globalScope: "all agents",
       agentOverride: "Agent override",
       agentOverrideHint: "This agent ignores the installation default above.",
+      hitlTimeout: "Approval timeout",
+      hitlTimeoutHint:
+        "How long an escalation waits for a human before it times out. Between 5 seconds and 24 hours. Root only.",
+      hitlTimeoutSave: "Set timeout",
+      userAsk: "Account override",
+      userAskHint:
+        "Override the approval setting above for one account. Root only. Clear returns the account to the default.",
+      userAskAccount: "Account name",
+      userAskClear: "Clear override",
+      userOverride: "Account override",
+      userOverrideHint: "This account ignores the installation default above.",
       clearOverride: "Use default",
       agentPosture: "Agent posture",
       agentPostureOff:

@@ -34,14 +34,14 @@ beneath this.
 
 **Current as of 2026-08-27.** The governance layer is **built and verified, and
 still not demonstrated.** Eight of the nine design requirements are fully met;
-the ninth (Linux deployment) is tested but never deployed. **2,315 automated
-tests pass across 107 files** (1,467 distinct across 81 — see §4), both
+the ninth (Linux deployment) is tested but never deployed. **2,322 automated
+tests pass across 108 files** (1,467 distinct across 81 — see §4), both
 typechecks are clean, and OpenClaw's own test
 suite is **fully green for the first time**: the 18 pre-existing Windows
 failures used as this project's baseline were fixed on 2026-08-25 (T25), along
 with nine more in `host-hooks.contract.test.ts`. **The M-series is complete**
-(M1–M6, finished 2026-08-27), so no substantial engineering is left. Twenty-four
-QA rounds and the build itself have found **139 defects, all fixed — zero open.** The count moved from 120 to 121 when T29's numbering audit (2026-08-26) found **two different defects both numbered 104**; to 127 on 2026-08-27 when M5's four and M6's two were numbered **122–127**, having been fixed and written up in all three registers but never entered on the numbered list; to **130** the same day when **QA round nineteen** audited the M-series as one system and found **128–130**; and to **131** when **QA round twenty** read the rest of the window's work against the nine design requirements and found `search-audit.ts` writing grep's matched file content — secrets included — into the tamper-evident ledger, a direct breach of requirement 8; and to **134** when **round twenty-one** built §1.6's missing "raw LLM intent" field and audited it, finding three defects in one day's work (**132–134**); and to **136** on 2026-08-28 when **round twenty-two** re-measured the previous day's documentation against the code and found **135–136** — `entryKind`'s JSDoc orphaned by the insertion of the intent field, and **T16 regressed in the very commit whose documentation declared it closed** (`governance-page.ts` back to 703 lines against a 700-line limit, while §4 read "`max-lines` reports zero errors repo-wide"). **Standing rule from 2026-08-27: every defect gets a number when it is found.** Finding 120 was found and
+(M1–M6, finished 2026-08-27), so no substantial engineering is left. Twenty-five
+QA rounds and the build itself have found **140 defects, all fixed — zero open.** The count moved from 120 to 121 when T29's numbering audit (2026-08-26) found **two different defects both numbered 104**; to 127 on 2026-08-27 when M5's four and M6's two were numbered **122–127**, having been fixed and written up in all three registers but never entered on the numbered list; to **130** the same day when **QA round nineteen** audited the M-series as one system and found **128–130**; and to **131** when **QA round twenty** read the rest of the window's work against the nine design requirements and found `search-audit.ts` writing grep's matched file content — secrets included — into the tamper-evident ledger, a direct breach of requirement 8; and to **134** when **round twenty-one** built §1.6's missing "raw LLM intent" field and audited it, finding three defects in one day's work (**132–134**); and to **136** on 2026-08-28 when **round twenty-two** re-measured the previous day's documentation against the code and found **135–136** — `entryKind`'s JSDoc orphaned by the insertion of the intent field, and **T16 regressed in the very commit whose documentation declared it closed** (`governance-page.ts` back to 703 lines against a 700-line limit, while §4 read "`max-lines` reports zero errors repo-wide"). **Standing rule from 2026-08-27: every defect gets a number when it is found.** Finding 120 was found and
 closed on 2026-08-26: T6's fail-closed branch could not fire, so a lockdown
 whose lineage records were unreadable degraded to fail-_open_. It was closed by
 probing the store with a scoped listing rather than a keyed read — which
@@ -74,6 +74,46 @@ the 26th, and T29 and T30 closed the same day). **T8 is closed** — 2026-08-26,
 by decision — so any older sentence listing it as outstanding is stale. The old letters
 (A-, B-, F-, R5, G) survive only as a `Ref` column pointing at their historical
 write-ups; nothing is orphaned.
+
+### 2026-08-28 — Lane A, and every feature reachable from the dashboard
+
+**Read this with §6.** Four items, and one of them changes a requirement claim.
+
+**Finding 140 — two policy settings the dashboard could not reach.**
+`policy/hitl-timeout` (how long an escalation waits for a human — §1.6's HITL)
+and `policy/user-ask` (the per-account override of the ask axis) were **Root-only
+settings that worked perfectly and had no control anywhere but the CLI**. The
+dashboard's own policy type also **omitted `userAsk` entirely**, so an override
+set from the command line was invisible there even to read. Found by differencing
+the 41 routes the server serves against the routes the dashboard's typed client
+calls. **This is requirement 2's real test** — the eleventh QA pass already
+established that a policy tier settable only from code does not satisfy
+"configure customized privilege policies", and this was the same gap twice more.
+Both now have Root-only controls, with tests.
+
+**T31 closed and a lint gate added.** A correction to this file's own entry from
+earlier the same day: `.git/hooks/` being empty proved nothing —
+**`core.hooksPath` points at `git-hooks/`**, so the hook was installed and did
+run; it ran `oxfmt` and never linted. All 16 lint errors fixed _first_, because a
+gate over a knowingly-dirty tree is one people learn to bypass. **oxlint is now
+zero errors repo-wide**, and the gate was proven by planting an error and
+watching the commit be rejected.
+
+**Finding 139 — the pre-M3 route audit, closed.** `listActiveSessions` was never
+group-scoped across five call sites, and its supplier is the Gateway's
+**installation-wide** run registry, so an Administrator of one group saw every
+other group's live sessions. **Why it survived M5 is the line for Chapter 4:
+per-group storage protected everything at rest and nothing in flight.**
+
+**A sanitiser guard, and it was inert on the first attempt.** Adding a field to
+`LedgerEntry` now fails `pnpm tsgo:core` until somebody classifies it for the
+Viewer tier. The first version lived in a test file — and **`tsconfig.core.json`
+excludes test files**, so it was typechecked by nothing. It would have been
+findings 136, 137 and 133 combined in a brand-new artifact. Caught by planting a
+field and noticing the typecheck stayed green.
+
+**`docs-notes/T2-LIVE-RUN.md`** now exists so the live run is a 30–45 minute
+exercise rather than a day of deciding what to do.
 
 ### 2026-08-28 — T33: the fork installs on Linux, the normal way
 
@@ -740,7 +780,7 @@ Expected, and **every row below re-measured on 2026-08-27** (the table said
 
 | Command                  | Expected                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Governance suite         | **2,315 passed across 107 files** — measured 2026-08-28 after QA round twenty-four added four regression tests for finding 139. Was 2,311/107. Was 2,292/106, 2,283/105, 2,247/104 after M6                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Governance suite         | **2,322 passed across 108 files** — measured 2026-08-28 after rounds twenty-four and twenty-five, the sanitiser guard and the dashboard controls. Was 2,315/107, and 2,311/107 before that. Was 2,292/106, 2,283/105, 2,247/104 after M6                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `tsgo:core`              | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `tsgo:ui`                | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | Host suites (both)       | **263 passed, 0 failed** — re-run 2026-08-27, exact match. **263 = 192 (`native-hook-relay.test.ts`) + 71 (`host-hooks.contract.test.ts`)**; older notes below quote the 192 alone and are not contradicting this row                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |

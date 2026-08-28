@@ -168,6 +168,9 @@ class GovernancePage extends OpenClawLightDomElement {
   /** The Administrator a new User or Viewer will answer to (M3). */
   @state() private newUserManagedBy = "";
   @state() private newRuleAgentId = "";
+  /** Root-only policy settings that had no dashboard control until finding 140. */
+  @state() private hitlTimeoutDraft = "";
+  @state() private userAskUsername = "";
   /** Agent the per-agent posture control is about to act on. */
   @state() private postureAgentId = "";
   /** Agent currently open in the conversation panel, and its state. */
@@ -380,6 +383,8 @@ class GovernancePage extends OpenClawLightDomElement {
         newRuleAgentId: this.newRuleAgentId,
         postureAgentId: this.postureAgentId,
         agentPolicyAgentId: this.agentPolicyAgentId,
+        hitlTimeoutDraft: this.hitlTimeoutDraft,
+        userAskUsername: this.userAskUsername,
         ruleFilter: this.ruleFilter,
       },
       onDraft: (patch) => Object.assign(this, patch),

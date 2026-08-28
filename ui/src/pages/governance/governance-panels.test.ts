@@ -400,3 +400,45 @@ describe("the timed-out escalations panel", () => {
     expect(text()).not.toContain("rm -rf build");
   });
 });
+
+describe("the Root-only policy settings (finding 140)", () => {
+  // Both of these have been accepted by the server, written to the policy
+  // document and recorded in the audit ledger since they were built. Neither
+  // was reachable from any surface but the command line, which is the same gap
+  // the eleventh QA pass found in the per-agent monitor toggle: requirement 2
+  // asks for a dashboard that lets administrators *configure* policy, and a
+  // setting only the CLI can reach does not satisfy it.
+
+  const policy = {
+    version: 1 as const,
+    mode: "enforce" as const,
+    ask: "on-miss" as const,
+    agentAsk: {},
+    agentMode: {},
+    userAsk: { malek: "off" as const },
+    hitlTimeoutSeconds: 300,
+    rules: [],
+    lockedAgents: [],
+  };
+
+  it("offers the approval timeout and the account override to Root", async () => {
+    await mount({ identity: identity("root"), policy });
+    expect(text()).toContain("Approval timeout");
+    expect(text()).toContain("Account override");
+  });
+
+  it("shows an existing account override, which the type used to omit", async () => {
+    // `userAsk` was missing from the dashboard's own PolicyDocument type, so an
+    // override set from the CLI was invisible here even as a read-only fact.
+    await mount({ identity: identity("root"), policy });
+    expect(text()).toContain("malek");
+  });
+
+  it("withholds both from an Administrator, matching what the server enforces", async () => {
+    // Hiding is a courtesy; the server refuses either route for a non-Root
+    // caller regardless. Asserted so the panel and the route cannot drift into
+    // disagreeing about who may set these.
+    await mount({ identity: identity("administrator"), policy });
+    expect(text()).not.toContain("Approval timeout");
+  });
+});

@@ -112,6 +112,9 @@ export type PolicyDrafts = {
   newRuleAgentId: string;
   postureAgentId: string;
   agentPolicyAgentId: string;
+  /** Root-only settings, reachable from the dashboard only since finding 140. */
+  hitlTimeoutDraft: string;
+  userAskUsername: string;
   ruleFilter: RuleFilter;
 };
 
@@ -308,6 +311,9 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
   // Posture and global rules are Administrator-level; agent-scoped rule
   // editing reaches down to the User tier.
   const canEditGlobal = props.canAdminister && !props.busy;
+  // Both settings below are Root-only server-side; hiding them for lower tiers
+  // is a courtesy, never the control. See the note above the rows themselves.
+  const isRoot = props.identity?.role === "root";
   const canEditRules = props.canManageAnyAgent && !props.busy;
   return renderSettingsSection({ title: t("governance.policy.title") }, [
     renderSettingsRow({
@@ -365,6 +371,99 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
           props.run(() => props.api().setAsk(ask as GovernancePolicyDocument["ask"])),
       }),
     }),
+    // --- Two Root-only settings that the server has always accepted and no
+    // surface ever offered (finding 140, 2026-08-28). Requirement 2 asks for a
+    // dashboard that lets administrators *configure* policy; a setting
+    // reachable only from the command line does not satisfy that. Same argument
+    // the eleventh QA pass made about the per-agent monitor toggle.
+    isRoot
+      ? renderSettingsRow({
+          title: t("governance.policy.hitlTimeout"),
+          description: t("governance.policy.hitlTimeoutHint"),
+          stacked: true,
+          control: html`
+            <div class="settings-row__control" style="gap:0.5rem">
+              <input
+                class="input"
+                type="number"
+                min="5"
+                max="86400"
+                aria-label=${t("governance.policy.hitlTimeout")}
+                .value=${props.drafts.hitlTimeoutDraft || String(policy.hitlTimeoutSeconds)}
+                ?disabled=${props.busy}
+                @input=${(event: Event) => {
+                  props.onDraft({ hitlTimeoutDraft: (event.target as HTMLInputElement).value });
+                }}
+              />
+              <button
+                class="btn"
+                ?disabled=${props.busy || !props.drafts.hitlTimeoutDraft.trim()}
+                @click=${() => {
+                  const seconds = Number(props.drafts.hitlTimeoutDraft);
+                  if (!Number.isFinite(seconds)) {
+                    return;
+                  }
+                  props.run(async () => {
+                    await props.api().setHitlTimeout(Math.round(seconds));
+                    props.onDraft({ hitlTimeoutDraft: "" });
+                  });
+                }}
+              >
+                ${t("governance.policy.hitlTimeoutSave")}
+              </button>
+            </div>
+          `,
+        })
+      : nothing,
+    isRoot
+      ? renderSettingsRow({
+          title: t("governance.policy.userAsk"),
+          description: t("governance.policy.userAskHint"),
+          stacked: true,
+          control: html`
+            <div class="settings-row__control" style="gap:0.5rem">
+              <input
+                class="input"
+                type="text"
+                aria-label=${t("governance.policy.userAskAccount")}
+                placeholder=${t("governance.policy.userAskAccount")}
+                .value=${props.drafts.userAskUsername}
+                ?disabled=${props.busy}
+                @input=${(event: Event) => {
+                  props.onDraft({ userAskUsername: (event.target as HTMLInputElement).value });
+                }}
+              />
+              ${(["on-miss", "off", null] as const).map(
+                (ask) => html`<button
+                  class="btn"
+                  ?disabled=${props.busy || !props.drafts.userAskUsername.trim()}
+                  @click=${() => {
+                    props.run(async () => {
+                      await props.api().setUserAsk(props.drafts.userAskUsername.trim(), ask);
+                      props.onDraft({ userAskUsername: "" });
+                    });
+                  }}
+                >
+                  ${ask === null
+                    ? t("governance.policy.userAskClear")
+                    : ask === "off"
+                      ? t("governance.policy.askOff")
+                      : t("governance.policy.askOnMiss")}
+                </button>`,
+              )}
+            </div>
+          `,
+        })
+      : nothing,
+    ...Object.entries(policy.userAsk ?? {}).map(([username, ask]) =>
+      renderSettingsRow({
+        title: `${t("governance.policy.userOverride")}: ${username}`,
+        description: t("governance.policy.userOverrideHint"),
+        control: renderSettingsValue(
+          ask === "off" ? t("governance.policy.askOff") : t("governance.policy.askOnMiss"),
+        ),
+      }),
+    ),
     ...Object.entries(policy.agentAsk ?? {}).map(([agentId, ask]) =>
       renderSettingsRow({
         title: `${t("governance.policy.agentOverride")}: ${agentId}`,

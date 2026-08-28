@@ -79,6 +79,15 @@ export type GovernancePolicyDocument = {
   /** Per-agent overrides of `ask`; absent key means the agent uses the default. */
   agentAsk: Record<string, "off" | "on-miss">;
   /**
+   * Per-**account** overrides of `ask`, keyed by canonical account name.
+   *
+   * **The server has always sent this and this type never declared it**
+   * (finding 140), so the dashboard could not display per-user overrides, let
+   * alone set one. Keyed canonically because folding lowercases: a check on the
+   * raw name would pass `__PROTO__` and store `__proto__`.
+   */
+  userAsk: Record<string, "off" | "on-miss">;
+  /**
    * Per-agent posture overrides; absent key means the agent follows `mode`.
    *
    * `off` can appear here on an installation whose `policy.json` was hand
@@ -495,6 +504,37 @@ export class GovernanceApi {
     return this.request<GovernancePolicyDocument>("policy/mode", {
       method: "POST",
       body: { mode },
+    });
+  }
+
+  /**
+   * How long an escalation waits for a human before it times out (§1.6's HITL).
+   *
+   * Root only, 5-86400 seconds. **Reachable from the dashboard only since
+   * 2026-08-28 (finding 140)** — the route, the store write and the audit entry
+   * all existed from the start, and no surface called them. Requirement 2 asks
+   * for a dashboard that lets administrators *configure* policy; a setting
+   * reachable only from the command line does not satisfy that, which is the
+   * same argument the eleventh QA pass made about the per-agent monitor toggle.
+   */
+  setHitlTimeout(seconds: number): Promise<GovernancePolicyDocument> {
+    return this.request<GovernancePolicyDocument>("policy/hitl-timeout", {
+      method: "POST",
+      body: { seconds },
+    });
+  }
+
+  /**
+   * Overrides the ask axis for one account, or clears the override with `null`.
+   *
+   * Root only. The server checks the **canonical** account name, because
+   * folding lowercases and `__PROTO__` would otherwise pass a check on the raw
+   * input and arrive as `__proto__`.
+   */
+  setUserAsk(username: string, ask: "off" | "on-miss" | null): Promise<GovernancePolicyDocument> {
+    return this.request<GovernancePolicyDocument>("policy/user-ask", {
+      method: "POST",
+      body: { username, ask },
     });
   }
 

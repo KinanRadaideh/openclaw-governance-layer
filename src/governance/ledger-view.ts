@@ -35,37 +35,90 @@ import {
 /** Placeholder shown in place of a resource an actor may not read in full. */
 export const REDACTED_RESOURCE = "[redacted for viewer role]";
 
-/**
- * Masks the resource detail while leaving the sequence and hash fields intact,
- * so a sanitized reader can still see the shape of the chain — that entries are
- * consecutive and each points at its predecessor.
- *
- * They cannot *recompute* the hashes: the hash covers the resource, and the
- * resource is what has been replaced. Chain verification for a Viewer is
- * therefore server-side, via `POST /control-ui/governance/ledger/verify`, which
- * reads the unmasked file and returns only a verdict. That is oversight without
- * disclosure — a Viewer learns whether the log was tampered with, without being
- * given the contents needed to check it themselves.
- */
-export function sanitizeLedgerEntry(entry: LedgerEntry): LedgerEntry {
-  return {
-    ...entry,
-    resource: REDACTED_RESOURCE,
-    // **`intent` is masked for the same reason `resource` is, and finding 133
-    // is that the first version of the field forgot it.** A Viewer is masked
-    // from the literal command, path and host because those disclose workspace
-    // detail. Model narration discloses *more*: it names the files it is about
-    // to touch, describes the project, and quotes what it has already read. A
-    // field added to the ledger after this function was written does not
-    // inherit its protection — it has to be added here, and "which entries
-    // carry private text" is a judgement every new field has to make
-    // explicitly, exactly as `isPromptEntry` says below.
-    ...(entry.intent === undefined ? {} : { intent: REDACTED_INTENT }),
-  };
-}
-
 /** Placeholder for model narration a Viewer may not read (finding 133). */
 export const REDACTED_INTENT = "[intent visible to users and administrators]";
+
+/** What a sanitized (Viewer-tier) reader may see of one ledger field. */
+type Disclosure = "masked" | "visible";
+
+/**
+ * Every ledger field, and whether a Viewer may read it.
+ *
+ * **This table is the guard finding 133 needed, and it lives here rather than
+ * in a test on purpose.** `tsconfig.core.json` excludes test files, so the
+ * same table written in a test file would be typechecked by nothing — vitest
+ * strips types without checking them. A guard that looks like it works and does
+ * not is this project's most-repeated defect; putting the table in the module
+ * the type checker actually reads is what stops this one joining the list.
+ *
+ * Because it is `Record<keyof Required<LedgerEntry>, …>`, **adding a field to
+ * `LedgerEntry` fails `pnpm tsgo:core` until somebody classifies it** — and
+ * `Required` strips optionality deliberately, since `intent` was optional and
+ * optional is exactly how it slipped past.
+ *
+ * And because `sanitizeLedgerEntry` is *driven* by this table rather than
+ * merely accompanied by it, the classification cannot drift away from the
+ * behaviour. Finding 133 was a rule written correctly in prose two functions
+ * below the code that broke it; prose does not fail a build.
+ */
+const VIEWER_DISCLOSURE: Record<keyof Required<LedgerEntry>, Disclosure> = {
+  seq: "visible",
+  timestamp: "visible",
+  agentId: "visible",
+  sessionKey: "visible",
+  toolName: "visible",
+  resourceKind: "visible",
+  // The literal command, path or host: workspace detail a Viewer is not
+  // entitled to.
+  resource: "masked",
+  ruleId: "visible",
+  decision: "visible",
+  // The chain fields stay visible so a Viewer can see entries are consecutive
+  // and each points at its predecessor. They still cannot *recompute* them:
+  // the hash covers the resource, and the resource is what was replaced.
+  prevHash: "visible",
+  hash: "visible",
+  // Model narration, which discloses strictly more than `resource` — it names
+  // files it is about to touch, describes the project, and quotes what it has
+  // already read (finding 133).
+  intent: "masked",
+  entryKind: "visible",
+  actor: "visible",
+  actorRole: "visible",
+  keyed: "visible",
+};
+
+/** The placeholder shown in place of each masked field. */
+const MASKS: Record<string, string> = {
+  resource: REDACTED_RESOURCE,
+  intent: REDACTED_INTENT,
+};
+
+/**
+ * Masks the fields `VIEWER_DISCLOSURE` marks, leaving the rest intact.
+ *
+ * Absent fields stay absent: an entry with no `intent` must not gain a
+ * placeholder implying the model said something. That case is the common one —
+ * most entries carry no intent — so it must not be the path that only works by
+ * accident.
+ *
+ * Chain verification for a Viewer is therefore server-side, via
+ * `POST /control-ui/governance/ledger/verify`, which reads the unmasked file
+ * and returns only a verdict. That is oversight without disclosure.
+ */
+export function sanitizeLedgerEntry(entry: LedgerEntry): LedgerEntry {
+  const sanitized = { ...entry };
+  for (const [field, disclosure] of Object.entries(VIEWER_DISCLOSURE)) {
+    if (disclosure !== "masked" || !(field in sanitized)) {
+      continue;
+    }
+    const mask = MASKS[field];
+    if (mask !== undefined) {
+      (sanitized as Record<string, unknown>)[field] = mask;
+    }
+  }
+  return sanitized;
+}
 
 /** Placeholder for a prompt body belonging to a different account. */
 export const REDACTED_PROMPT = "[prompt text visible to its author and to administrators]";

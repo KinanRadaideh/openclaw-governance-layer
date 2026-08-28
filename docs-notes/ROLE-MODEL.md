@@ -560,6 +560,8 @@ this Administrator owns (M4) · ✘ = refused
 | ------------------------------------ | :----------------------------------------: | :----: | :-----------: | :--: |
 | View policy rules                    |                   scoped                   | scoped |       ✔       |  ✔   |
 | View audit ledger                    | scoped, **masked** (resource _and_ intent) | scoped |       ✔       |  ✔   |
+| Set the approval timeout (§1.6 HITL) |                     —                      |   —    |       —       |  ✔   |
+| Override the ask axis for an account |                     —                      |   —    |       —       |  ✔   |
 | Verify chain integrity               |                     ✔                      |   ✔    |       ✔       |  ✔   |
 | View system resource states          |                     ✔                      |   ✔    |       ✔       |  ✔   |
 | View rule-request queue              |                     ✔                      |   ✔    |       ✔       |  ✔   |
@@ -644,3 +646,17 @@ this Administrator owns (M4) · ✘ = refused
 >   inside their remit, which is §1.6's real-time control applied to a single
 >   run. Neither is lockdown: cancelling withdraws one request, lockdown stops
 >   the agent entirely and has to be released by hand.
+
+## Two Root-only settings, and where they can be reached (finding 140)
+
+`policy/hitl-timeout` and `policy/user-ask` are **Root only**, enforced by the
+route rather than by the panel — hiding a control is a courtesy, never the
+control itself.
+
+Both were reachable **only from the command line until 2026-08-28**, although
+each had worked end to end server-side since it was built, audit entry included.
+That is the same defect the eleventh QA pass found in the per-agent monitor
+toggle, and the same rule applies: **design requirement 2 asks for a dashboard
+that lets administrators configure privilege policies, so a setting only the CLI
+can reach does not satisfy it.** A capability has to be reachable by the person
+the requirement names, not merely present in the system.

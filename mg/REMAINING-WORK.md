@@ -746,6 +746,69 @@ competitor runs.
 **The audit is now closed**, and `HANDOFF.md` §7 caveat 3 should stop saying it
 is outstanding.
 
+### QA round twenty-five — is every feature reachable from the dashboard? (2026-08-28)
+
+Kinan's instruction: **"make sure all features are accessible through the
+dashboard."** This is requirement 2's actual test — it asks for a dashboard that
+lets administrators _configure_ privilege policies, and the eleventh QA pass
+already established the principle: **a policy tier settable only from code does
+not satisfy "configure policies".** **One finding, 140.**
+
+**Method.** Extract the routes the server serves (41, from the `route === "…"`
+dispatch in the nine `governance-*` modules) and the routes the dashboard's own
+typed client calls, then difference the two sets. Four apparent gaps were
+false — they use query strings and the first pattern missed them. Two were real.
+
+| #       | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | State |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----- |
+| **140** | **Two Root-only policy settings that the dashboard could not reach.** `policy/hitl-timeout` — how long an escalation waits for a human before it times out, which is §1.6's HITL mechanism — and `policy/user-ask`, the per-account override of the ask axis. Both routes, both store writes and both audit entries **existed and worked from the start**; no surface but the CLI ever called them. Worse for `user-ask`: **the dashboard's own `GovernancePolicyDocument` type omitted the `userAsk` field entirely**, so an override set from the command line was invisible in the dashboard even as a read-only fact | fixed |
+
+**Fixed** with two client methods, two Root-only controls in the policy panel, a
+read-only list of existing account overrides, the missing type field, and three
+panel tests (Root sees both; an existing override is displayed; an Administrator
+sees neither, matching what the server enforces).
+
+**What the same sweep found to be fine**, recorded so the round is not read as
+finding only faults: `agents/access`, `agent/transcript`, `policy/by-agent` and
+`policy/rule-agents` are all reached, via query strings. And three CLI-only
+capabilities are **correctly** CLI-only — `governance groups`, `migrate` and
+`unmigrated`. A dashboard "list all groups" view would itself be a cross-group
+disclosure, which is the defect finding 139 had just been fixed for; the other
+two are one-time maintenance.
+
+### Lane A items 4 and 5 (2026-08-28)
+
+**The sanitiser guard, and a lesson from getting it wrong first.** Finding 133
+happened because the Viewer mask is a hand-maintained list that a new field does
+not join automatically. The guard is a
+`Record<keyof Required<LedgerEntry>, Disclosure>` table, so **adding a field to
+`LedgerEntry` fails `pnpm tsgo:core` until it is classified** — verified by
+planting one and reading the error, which names the missing field.
+
+**The first version of this guard was inert, and finding that out is the point.**
+It was written in a `.test.ts` file — and **`tsconfig.core.json` excludes test
+files**, so the table was typechecked by nothing; vitest strips types without
+checking them. It would have looked like a guard and caught nothing: findings
+136, 137 and 133 in one new artifact. It was caught by planting a field and
+noticing the typecheck stayed green.
+
+So the table now lives in `ledger-view.ts`, where the project's real typecheck
+reads it — and `sanitizeLedgerEntry` is **driven by** the table rather than
+merely accompanied by it, so the classification cannot drift from the behaviour.
+The test file keeps a deliberately _independent_ hand-written copy of what should
+be masked; importing the module's table would make the tests agree by
+construction and assert nothing about whether the classification is correct.
+
+**The T2 preparation kit** is `docs-notes/T2-LIVE-RUN.md`. T2 is the highest-value
+item on the project and was also the least specified, so this removes everything
+from it except the part only Kinan can do: the scenario and why that one (a
+**core** credential denial, which Root cannot switch off, so the refusal is not
+an artifact of a policy written for the demo), the exact commands, the
+**contrast prompt** that makes a single refusal into evidence, a capture
+checklist, what a _failed_ run means and why it is still publishable, and the
+`jq` recipe for §5 — the `llm_output` ordering question that no further testing
+can close.
+
 ### Decided but not built — flag-style password masking (2026-08-27)
 
 Round twenty found that the ledger's redactor misses passwords passed as command
