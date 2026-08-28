@@ -94,16 +94,18 @@ Capture as you go. Reconstructing this afterwards means another model turn.
 - [ ] **Screen recording** of both prompts and both replies.
 - [ ] **The ledger, before and after:**
       `openclaw governance audit tail --limit 20`
-- [ ] **The denial entry in full**, which is the single most quotable artifact
-      this project will produce:
-      `bash
-    openclaw governance audit tail --limit 20 | jq '.[] | select(.decision=="deny")'
-    `
-- [ ] **The intent field beside the decision** — §1.6's sixth log field, and the
-      comparison no other field supports:
-      `bash
-    openclaw governance audit tail --limit 20 | jq -r '.[] | select(.intent) | "\(.decision) \(.resource) :: \(.intent)"'
-    `
+- [ ] **The denial entry in full**, and **the intent field beside the decision**
+      — §1.6's sixth log field, and the comparison no other field supports.
+      These are the two most quotable artifacts this project will produce:
+
+```bash
+openclaw governance audit tail --limit 20 | jq '.[] | select(.decision=="deny")'
+```
+
+```bash
+openclaw governance audit tail --limit 20 | jq -r '.[] | select(.intent) | "\(.decision) \(.resource) :: \(.intent)"'
+```
+
 - [ ] **The dashboard**, through the tunnel, showing the same entries: the
       ledger panel, and the live-session panel while a prompt is in flight.
 - [ ] **A Viewer's view of the same entry**, if you have a Viewer account. The
