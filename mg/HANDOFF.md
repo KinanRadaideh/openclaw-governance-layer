@@ -30,18 +30,48 @@ beneath this.
 
 ---
 
+## 0. How Kinan wants to be talked to
+
+**Standing instruction, 2026-08-28: reply in plain language.** Not simplified
+content — the same findings, the same precision about what was measured — but
+written the way you would explain it to a capable colleague who does not have
+this codebase in their head. Prefer "the emergency stop could reach another
+organisation's agent" over "cross-tenant authorisation bypass in the lockdown
+route".
+
+This applies to **chat replies**. It does **not** change the register of the
+repository's own documents: `GOVERNANCE.md`, `CHAPTER3-MATERIAL.md` and this file
+stay technical, because they are read by people working in the code.
+`QA-IN-PLAIN-TERMS.md` was already written to the plain-language standard and is
+the model to follow.
+
+**Two settled decisions worth reading before you re-open either.**
+
+- **Entropy analysis will not be built.** Decided 2026-08-28. §2.1.5.2 prescribes
+  "regex **and** entropy analysis"; only regex exists, and that is now a
+  **recorded deliberate divergence rather than an open item**. Do not raise it
+  again.
+- **The line between what may diverge and what may not.** §1.6's preliminary
+  design and Chapter 2's background are a sketch made before the host was read
+  closely — **the implementation is allowed to differ from them.** §1.3's nine
+  design requirements are **not**: they come from the supervisor and the project
+  is held to them. When something is described as a "divergence", check which of
+  the two it is before accepting it.
+
+---
+
 ## 1. The one-paragraph state of things
 
 **Current as of 2026-08-27.** The governance layer is **built and verified, and
 still not demonstrated.** Eight of the nine design requirements are fully met;
-the ninth (Linux deployment) is tested but never deployed. **2,327 automated
-tests pass across 108 files** (1,467 distinct across 81 — see §4), both
+the ninth (Linux deployment) is tested but never deployed. **2,339 automated
+tests pass across 111 files** (1,467 distinct across 81 — see §4), both
 typechecks are clean, and OpenClaw's own test
 suite is **fully green for the first time**: the 18 pre-existing Windows
 failures used as this project's baseline were fixed on 2026-08-25 (T25), along
 with nine more in `host-hooks.contract.test.ts`. **The M-series is complete**
-(M1–M6, finished 2026-08-27), so no substantial engineering is left. Twenty-six
-QA rounds and the build itself have found **143 defects, all fixed — zero open.** The count moved from 120 to 121 when T29's numbering audit (2026-08-26) found **two different defects both numbered 104**; to 127 on 2026-08-27 when M5's four and M6's two were numbered **122–127**, having been fixed and written up in all three registers but never entered on the numbered list; to **130** the same day when **QA round nineteen** audited the M-series as one system and found **128–130**; and to **131** when **QA round twenty** read the rest of the window's work against the nine design requirements and found `search-audit.ts` writing grep's matched file content — secrets included — into the tamper-evident ledger, a direct breach of requirement 8; and to **134** when **round twenty-one** built §1.6's missing "raw LLM intent" field and audited it, finding three defects in one day's work (**132–134**); and to **136** on 2026-08-28 when **round twenty-two** re-measured the previous day's documentation against the code and found **135–136** — `entryKind`'s JSDoc orphaned by the insertion of the intent field, and **T16 regressed in the very commit whose documentation declared it closed** (`governance-page.ts` back to 703 lines against a 700-line limit, while §4 read "`max-lines` reports zero errors repo-wide"). **Standing rule from 2026-08-27: every defect gets a number when it is found.** Finding 120 was found and
+(M1–M6, finished 2026-08-27), so no substantial engineering is left. Twenty-seven
+QA rounds and the build itself have found **144 defects, all fixed — zero open.** The count moved from 120 to 121 when T29's numbering audit (2026-08-26) found **two different defects both numbered 104**; to 127 on 2026-08-27 when M5's four and M6's two were numbered **122–127**, having been fixed and written up in all three registers but never entered on the numbered list; to **130** the same day when **QA round nineteen** audited the M-series as one system and found **128–130**; and to **131** when **QA round twenty** read the rest of the window's work against the nine design requirements and found `search-audit.ts` writing grep's matched file content — secrets included — into the tamper-evident ledger, a direct breach of requirement 8; and to **134** when **round twenty-one** built §1.6's missing "raw LLM intent" field and audited it, finding three defects in one day's work (**132–134**); and to **136** on 2026-08-28 when **round twenty-two** re-measured the previous day's documentation against the code and found **135–136** — `entryKind`'s JSDoc orphaned by the insertion of the intent field, and **T16 regressed in the very commit whose documentation declared it closed** (`governance-page.ts` back to 703 lines against a 700-line limit, while §4 read "`max-lines` reports zero errors repo-wide"). **Standing rule from 2026-08-27: every defect gets a number when it is found.** Finding 120 was found and
 closed on 2026-08-26: T6's fail-closed branch could not fire, so a lockdown
 whose lineage records were unreadable degraded to fail-_open_. It was closed by
 probing the store with a scoped listing rather than a keyed read — which
@@ -74,6 +104,30 @@ the 26th, and T29 and T30 closed the same day). **T8 is closed** — 2026-08-26,
 by decision — so any older sentence listing it as outstanding is stale. The old letters
 (A-, B-, F-, R5, G) survive only as a `Ref` column pointing at their historical
 write-ups; nothing is orphaned.
+
+### 2026-08-28 — the multi-tenancy re-audit: the emergency stop crossed organisations
+
+**Finding 144, and it is the most serious of the day.** The emergency stop takes
+an agent id from the request, checks that the caller is senior enough, and then
+terminates that agent's running work from a list the **machine** keeps — not the
+organisation. Seniority says nothing about which organisation you belong to, so
+**an administrator of one organisation could stop another organisation's work by
+naming its agent.**
+
+Finding 139 was this same root cause in its read-only form (seeing other
+organisations' activity). This is the destructive one, and it was one route away.
+
+**Why the M-series review in round nineteen missed it.** That round audited the
+multi-tenancy work as built — registry, groups, storage, provisioning — all of
+which concern data at rest, which M5 had just made per-organisation. **The kill
+switch is not M-series code.** It predates groups, was never touched by them, and
+so never appeared in a review of them. _A feature is not audited by reviewing the
+features built around it._
+
+Fixed as a class: `requireAgentInGroup` now sits beside `requireGroup` and guards
+all four routes that take an agent id from the request. The refusal is
+deliberately identical to "no such agent", so it cannot be used to discover other
+organisations' agent names.
 
 ### 2026-08-28 — Lane A finished, and a sweep that audited the day's own work
 
@@ -816,7 +870,7 @@ Expected, and **every row below re-measured on 2026-08-27** (the table said
 
 | Command                  | Expected                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Governance suite         | **2,327 passed across 108 files** — measured 2026-08-28 after round twenty-six. Was 2,322/108, 2,315/107, and 2,311/107 before that. Was 2,292/106, 2,283/105, 2,247/104 after M6                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Governance suite         | **2,339 passed across 111 files** — measured 2026-08-28 after round twenty-seven. Was 2,327/108, 2,322/108, 2,315/107 and 2,311/107 before that. Was 2,292/106, 2,283/105, 2,247/104 after M6                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `tsgo:core`              | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `tsgo:ui`                | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | Host suites (both)       | **263 passed, 0 failed** — re-run 2026-08-27, exact match. **263 = 192 (`native-hook-relay.test.ts`) + 71 (`host-hooks.contract.test.ts`)**; older notes below quote the 192 alone and are not contradicting this row                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
@@ -1563,10 +1617,14 @@ Sorted below by who has to move first.
 >
 > And two are decisions:
 >
-> - **Entropy analysis.** §2.1.5.2 prescribes "regex **and entropy analysis**";
->   only regex exists. Worth knowing before deciding: it would not have caught
->   finding 131, and it cannot catch a memorable password, which is low-entropy
->   by nature. Build it, or record it as a deliberate divergence
+> - ~~**Entropy analysis.**~~ **SETTLED 2026-08-28 — not being built, and this
+>   is no longer a decision.** §2.1.5.2 prescribes "regex **and** entropy
+>   analysis" and only regex exists. That is a **deliberate divergence from
+>   Chapter 2's background**, which is allowed; §1.3's requirements are what bind
+>   the project, and requirement 8 is about the _outcome_ — no plaintext secrets
+>   in the log — not about the technique. Supporting reasons, for the write-up:
+>   it would not have caught finding 131, and it cannot catch a memorable
+>   password, which is low-entropy by definition. Do not re-open it
 > - **Surfacing the intent field.** It is recorded and returned by the API; no
 >   dashboard column reads it. Recording was the scope you set
 

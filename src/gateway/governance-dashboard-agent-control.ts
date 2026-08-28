@@ -28,7 +28,7 @@ import {
 } from "../governance/permissions.js";
 import type { GovernanceRole } from "../governance/roles.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
-import { requireGroup } from "./governance-dashboard-group.js";
+import { requireAgentInGroup, requireGroup } from "./governance-dashboard-group.js";
 import {
   MAX_JSON_BODY_BYTES,
   readJsonBodyOrError,
@@ -184,6 +184,9 @@ export async function handleGovernanceAgentControlRoutes(
       });
       return true;
     }
+    if (!(await requireAgentInGroup(res, groupId, agentId))) {
+      return true;
+    }
     const { readConversation } = await import("../governance/agent-conversation.js");
     const { hasAgentRunner } = await import("../governance/agent-runner.js");
     sendJson(res, 200, {
@@ -255,6 +258,9 @@ export async function handleGovernanceAgentControlRoutes(
       sendJson(res, 403, {
         error: { message: `You do not manage agent "${agentId}"`, type: "forbidden" },
       });
+      return true;
+    }
+    if (!(await requireAgentInGroup(res, groupId, agentId))) {
       return true;
     }
     // **Validated before decoding, because decoding cannot fail** (QA round
@@ -396,6 +402,9 @@ export async function handleGovernanceAgentControlRoutes(
       sendJson(res, 403, {
         error: { message: `You do not manage agent "${agentId.trim()}"`, type: "forbidden" },
       });
+      return true;
+    }
+    if (!(await requireAgentInGroup(res, groupId, agentId.trim()))) {
       return true;
     }
     // ---------------------------------------------------------------------
@@ -677,6 +686,9 @@ export async function handleGovernanceAgentControlRoutes(
       sendJson(res, 403, {
         error: { message: `You do not manage agent "${agentId}"`, type: "forbidden" },
       });
+      return true;
+    }
+    if (!(await requireAgentInGroup(res, groupId, agentId))) {
       return true;
     }
     if (locked === false) {

@@ -897,6 +897,83 @@ twelve of headroom.**
 
 **3. The pre-M3 route audit** — its own round, twenty-four, below.
 
+### QA round twenty-seven — the M-series re-audited, and everything built since round eighteen (2026-08-28)
+
+Kinan asked for two things: another pass over the multi-tenancy work, and a pass
+over everything built since the review that preceded the first M-focused one.
+**One finding, 144, and it is the most serious of the day.**
+
+**144 — an administrator of one organisation could stop another organisation's
+running work.** The emergency stop takes an agent id from the request, checks
+`canManageAgent`, and calls `terminateAgentRuns(agentId)`. That function takes
+**no group**, and the terminator behind it matches on agent id alone across the
+Gateway's **installation-wide** run registry. `canManageAgent` is unconditionally
+true for an Administrator, because unlimited agent scope is a statement about
+_rank_ and says nothing about _tenancy_.
+
+So: name another organisation's agent, and its work stops. **A cross-tenant
+denial of service, delivered through the control whose entire purpose is stopping
+things.** Finding 139 was the same root cause in its read-only form; this is the
+destructive one, and it was sitting one route away.
+
+**Why the M-series review in round nineteen did not find it.** That round audited
+the M-series _as built_ — registry, groups, storage, provisioning — and every one
+of those is about state at rest, which M5 had just made per-group. The kill
+switch is not M-series code. It predates groups entirely, was never modified by
+them, and therefore never appeared in a review of them. **A feature is not
+audited by reviewing the features built around it.**
+
+| #       | What                                                                                                                                                                                                                                                                 | State |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| **144** | The emergency stop, the prompt route, the transcript read and the attachment route all took an agent id from the request and never asked which organisation owned it. The stop and the prompt **act on the running system**, which does not know organisations exist | fixed |
+
+**Fixed as a class, not an instance.** A new `requireAgentInGroup` sits beside
+`requireGroup` in `governance-dashboard-group.ts` and is applied at all four
+sites. It refuses an unregistered id as well, matching the rule M5 already set:
+registration is mandatory at the gate, so an agent that can run has a record, and
+an id without one belongs to no organisation.
+
+**The refusal is deliberately indistinguishable from "no such agent".** Otherwise
+it becomes a lookup service: an administrator could learn which agent names other
+organisations use by trying them. That is the reasoning the sign-in page already
+uses about account names, and one of the four tests asserts the two responses are
+byte-identical.
+
+**Verified by mutation**: neutering the check fails three of the four tests.
+
+**One detour worth recording, because it nearly produced the wrong conclusion.**
+The tests failed at first against a fix that was working. The harness read the
+status only from `writeHead`, and `sendJson` sets `statusCode` directly — so
+every refusal arrived looking like a 200, and the response body said "forbidden"
+while the status said success. **A test harness that cannot see a refusal will
+report a working control as broken, and on a worse day the reverse.**
+
+### Settled 2026-08-28 — entropy analysis will not be built
+
+Kinan's decision, and it closes the item rather than deferring it. §2.1.5.2
+prescribes masking by "regex **and** entropy analysis"; this project implements
+regex only.
+
+**This is a divergence from Chapter 2's background, and that is permitted.** The
+distinction he drew at the same time is the one to carry into the report: the
+implementation **may** differ from §1.6's preliminary design and Chapter 2's
+background, because both were written before the host system had been read
+closely. It **may not** differ from **§1.3's nine design requirements**, which
+come from the supervisor and are what the project is held to.
+
+Requirement 8 asks that sensitive data not be written in plaintext to the log.
+It specifies an **outcome**, not a technique — so regex-only masking satisfies it
+exactly as long as the outcome holds. Two supporting reasons for the write-up:
+entropy analysis would not have caught finding 131 (the search audit writing file
+_content_, which was fixed by not writing it at all), and it cannot catch a
+memorable password, which is low-entropy by definition.
+
+> **What this decision does _not_ settle.** `--http-password=` still reaches the
+> ledger in plaintext (round twenty-two's probe). That is **not** a background
+> divergence — it is a gap against **requirement 8 itself**, which binds. It
+> stays on the decision list, and Kinan's clarification about §1.3 makes it more
+> pressing rather than less.
+
 ### QA round twenty-six — the universal sweep, and it audited today's work first (2026-08-28)
 
 Kinan asked for a check across the whole project: bugs, features that work, and

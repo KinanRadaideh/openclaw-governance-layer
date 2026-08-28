@@ -4312,3 +4312,59 @@ fixed for.
 
 That sentence has now caught three separate features in this project, in three
 different reviews.
+
+## 5.59 The emergency stop reached into other organisations
+
+Each organisation on this system is meant to be sealed off from the others.
+Earlier work gave every organisation its own files — rules, logs, accounts — and
+that quietly solved most of the problem. §5.57 explained what it did **not**
+solve: anything acting on the running machine, which has no idea organisations
+exist.
+
+That section found the read-only half: one organisation could _see_ another's
+live work. This one is the destructive half, and it was sitting one screen away.
+
+**The emergency stop takes an agent's name, checks that you are senior enough,
+and then stops whatever that agent is running.** "Senior enough" is a statement
+about your rank, not about which organisation you are in — an administrator is
+senior enough for any agent anywhere. And the list of running work it consults
+belongs to the machine, not to any organisation.
+
+So an administrator of one organisation could stop another organisation's work by
+typing its agent's name. Through the one control whose entire purpose is
+stopping things.
+
+### Why the multi-tenancy review missed it
+
+That review looked at the multi-tenancy work itself — the organisation records,
+the separated files, the new screens. All of it concerns information that is
+**filed away**, which is exactly what the separation had just fixed.
+
+**The emergency stop is not part of that work.** It was built long before
+organisations existed, nothing about it changed when they arrived, and so it
+never came up in a review of them.
+
+> **A feature is not audited by reviewing the features built around it.**
+
+### The fix, and one deliberate piece of unhelpfulness
+
+Four screens take an agent's name from whoever is asking. All four now check that
+the agent belongs to your organisation, using one shared check rather than four
+copies of the same idea.
+
+The refusal is **deliberately identical** to the message you get for an agent
+that does not exist at all. Otherwise the difference between the two messages
+becomes a lookup service: try a name, and the wording tells you whether some
+other organisation is using it. That is the same reason a sign-in page will not
+tell you whether an account exists.
+
+### And a detour that nearly produced the wrong answer
+
+The first run of the new tests said the fix did not work. It did. The test's own
+scaffolding was reading the result in a way that missed every refusal — so a
+correctly refused request arrived looking like a success, with a response that
+said "forbidden" attached to a status that said "fine".
+
+Worth remembering in both directions: **scaffolding that cannot see a refusal
+will report a working control as broken, and on a worse day will report a broken
+one as working.**
