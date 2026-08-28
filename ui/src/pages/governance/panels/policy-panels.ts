@@ -48,6 +48,7 @@ import type {
   GovernanceRuleConflict,
   GovernanceRuleTargets,
   GovernanceRuleWarning,
+  GovernanceUserRecord,
 } from "../api.ts";
 import {
   EMPTY_RULE_FILTER,
@@ -59,6 +60,7 @@ import {
 import type { PanelEffects } from "./account-panels.ts";
 import { renderRuleTargets } from "./agent-policy-lookup.ts";
 import { formatDuration } from "./format.ts";
+import { renderRootPolicySettings } from "./policy-root-settings.ts";
 
 /**
  * Core rules Root may not switch off, matched by id fragment.
@@ -121,6 +123,11 @@ export type PolicyDrafts = {
 export type PolicyPanelProps = PanelEffects & {
   policy: GovernancePolicyDocument | null;
   identity: GovernanceIdentity | null;
+  /**
+   * The accounts in this group, used only to catch a typed account name that
+   * matches nobody (finding 143). Never an authorization input.
+   */
+  users: readonly GovernanceUserRecord[];
   busy: boolean;
   canAdminister: boolean;
   canManageAnyAgent: boolean;
@@ -371,99 +378,21 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
           props.run(() => props.api().setAsk(ask as GovernancePolicyDocument["ask"])),
       }),
     }),
-    // --- Two Root-only settings that the server has always accepted and no
-    // surface ever offered (finding 140, 2026-08-28). Requirement 2 asks for a
-    // dashboard that lets administrators *configure* policy; a setting
-    // reachable only from the command line does not satisfy that. Same argument
-    // the eleventh QA pass made about the per-agent monitor toggle.
-    isRoot
-      ? renderSettingsRow({
-          title: t("governance.policy.hitlTimeout"),
-          description: t("governance.policy.hitlTimeoutHint"),
-          stacked: true,
-          control: html`
-            <div class="settings-row__control" style="gap:0.5rem">
-              <input
-                class="input"
-                type="number"
-                min="5"
-                max="86400"
-                aria-label=${t("governance.policy.hitlTimeout")}
-                .value=${props.drafts.hitlTimeoutDraft || String(policy.hitlTimeoutSeconds)}
-                ?disabled=${props.busy}
-                @input=${(event: Event) => {
-                  props.onDraft({ hitlTimeoutDraft: (event.target as HTMLInputElement).value });
-                }}
-              />
-              <button
-                class="btn"
-                ?disabled=${props.busy || !props.drafts.hitlTimeoutDraft.trim()}
-                @click=${() => {
-                  const seconds = Number(props.drafts.hitlTimeoutDraft);
-                  if (!Number.isFinite(seconds)) {
-                    return;
-                  }
-                  props.run(async () => {
-                    await props.api().setHitlTimeout(Math.round(seconds));
-                    props.onDraft({ hitlTimeoutDraft: "" });
-                  });
-                }}
-              >
-                ${t("governance.policy.hitlTimeoutSave")}
-              </button>
-            </div>
-          `,
-        })
-      : nothing,
-    isRoot
-      ? renderSettingsRow({
-          title: t("governance.policy.userAsk"),
-          description: t("governance.policy.userAskHint"),
-          stacked: true,
-          control: html`
-            <div class="settings-row__control" style="gap:0.5rem">
-              <input
-                class="input"
-                type="text"
-                aria-label=${t("governance.policy.userAskAccount")}
-                placeholder=${t("governance.policy.userAskAccount")}
-                .value=${props.drafts.userAskUsername}
-                ?disabled=${props.busy}
-                @input=${(event: Event) => {
-                  props.onDraft({ userAskUsername: (event.target as HTMLInputElement).value });
-                }}
-              />
-              ${(["on-miss", "off", null] as const).map(
-                (ask) => html`<button
-                  class="btn"
-                  ?disabled=${props.busy || !props.drafts.userAskUsername.trim()}
-                  @click=${() => {
-                    props.run(async () => {
-                      await props.api().setUserAsk(props.drafts.userAskUsername.trim(), ask);
-                      props.onDraft({ userAskUsername: "" });
-                    });
-                  }}
-                >
-                  ${ask === null
-                    ? t("governance.policy.userAskClear")
-                    : ask === "off"
-                      ? t("governance.policy.askOff")
-                      : t("governance.policy.askOnMiss")}
-                </button>`,
-              )}
-            </div>
-          `,
-        })
-      : nothing,
-    ...Object.entries(policy.userAsk ?? {}).map(([username, ask]) =>
-      renderSettingsRow({
-        title: `${t("governance.policy.userOverride")}: ${username}`,
-        description: t("governance.policy.userOverrideHint"),
-        control: renderSettingsValue(
-          ask === "off" ? t("governance.policy.askOff") : t("governance.policy.askOnMiss"),
-        ),
-      }),
-    ),
+    // Root-only, installation-wide, and unreachable from any surface until
+    // finding 140. Split into its own module when adding them took this file
+    // over the 700-line limit — and the pre-commit gate refused the commit,
+    // which is that gate doing its job on the first change after it was built.
+    ...renderRootPolicySettings({
+      api: props.api,
+      run: props.run,
+      confirmThen: props.confirmThen,
+      policy,
+      isRoot,
+      busy: props.busy,
+      users: props.users,
+      drafts: props.drafts,
+      onDraft: props.onDraft,
+    }),
     ...Object.entries(policy.agentAsk ?? {}).map(([agentId, ask]) =>
       renderSettingsRow({
         title: `${t("governance.policy.agentOverride")}: ${agentId}`,

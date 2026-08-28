@@ -209,6 +209,27 @@ export type GovernanceLedgerEntry = {
   decision: "allow" | "deny" | "ask" | "ungoverned";
   prevHash: string;
   hash: string;
+  /**
+   * What the model said it was doing on the turn that produced this call.
+   *
+   * §1.6's sixth "Granular Event Tracking" field, and the only one that comes
+   * from the *model* rather than the runtime — so it is the only field that
+   * lets the trail be read as "the agent said it was doing X, and then did Y".
+   *
+   * **Absent far more often than present, and that is normal rather than an
+   * error**: a turn with no narration, a harness that reports none, a restart
+   * between the model speaking and the tool running, or any call not made by a
+   * model at all — the CLI, a test, an administrative action.
+   *
+   * A Viewer receives the placeholder rather than the text (finding 133):
+   * narration names files the agent is about to touch and quotes what it has
+   * already read, so it discloses strictly more than `resource` does.
+   *
+   * **Declared here only on 2026-08-28.** The server had recorded and returned
+   * it since round twenty-one; this type omitted it, so the dashboard could not
+   * render it even as a read-only fact — the same omission `userAsk` had.
+   */
+  intent?: string;
   /** Present only on administrative entries (policy and account changes). */
   entryKind?: "admin";
   /** Account responsible for an administrative action; `cli` for terminal changes. */

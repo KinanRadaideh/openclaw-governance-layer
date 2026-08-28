@@ -36,7 +36,7 @@ for arg in "$@"; do
     --skip-ui) SKIP_UI=1 ;;
     --no-link) LINK_GLOBAL=0 ;;
     -h|--help)
-      sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      sed -n '2,23p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *) echo "unknown option: $arg (try --help)" >&2; exit 2 ;;

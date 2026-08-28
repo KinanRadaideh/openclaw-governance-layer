@@ -79,6 +79,24 @@ function identity(role: GovernanceIdentity["role"]): GovernanceIdentity {
   return { username: role, role, assignedAgents: [] };
 }
 
+/**
+ * A complete account record.
+ *
+ * Written out in full rather than cast, because the first version of the
+ * finding-143 tests used `as never` on a partial object and the accounts panel
+ * threw on the missing `assignedAgents` — a fixture shortcut producing a
+ * failure that looked like a product bug.
+ */
+function userRecord(username: string, role: GovernanceIdentity["role"]): GovernanceUserRecord {
+  return {
+    id: `id-${username}`,
+    username,
+    role,
+    createdAt: "2026-08-28T10:00:00.000Z",
+    assignedAgents: [],
+  };
+}
+
 /** The page's rendered text, with runs of whitespace collapsed so assertions can be written as prose. */
 function text(): string {
   return (page.textContent ?? "").replace(/\s+/g, " ");
@@ -427,6 +445,28 @@ describe("the Root-only policy settings (finding 140)", () => {
     expect(text()).toContain("Account override");
   });
 
+  it("warns when an override names an account that does not exist", async () => {
+    // The server accepts any well-formed name on purpose, so an override can be
+    // placed before somebody is onboarded. The cost is that a typo is
+    // indistinguishable from success — a 200, an audit entry and a row that
+    // looks authoritative, while the account the operator meant is untouched.
+    await mount({
+      identity: identity("root"),
+      users: [userRecord("amina", "administrator")],
+      policy,
+    });
+    expect(text()).toContain("No account of this name exists in this group");
+  });
+
+  it("does not warn when the override names a real account", async () => {
+    await mount({
+      identity: identity("root"),
+      users: [userRecord("malek", "user")],
+      policy,
+    });
+    expect(text()).not.toContain("No account of this name exists in this group");
+  });
+
   it("shows an existing account override, which the type used to omit", async () => {
     // `userAsk` was missing from the dashboard's own PolicyDocument type, so an
     // override set from the CLI was invisible here even as a read-only fact.
@@ -440,5 +480,58 @@ describe("the Root-only policy settings (finding 140)", () => {
     // disagreeing about who may set these.
     await mount({ identity: identity("administrator"), policy });
     expect(text()).not.toContain("Approval timeout");
+  });
+});
+
+describe("the intent field in the ledger panel", () => {
+  // §1.6's sixth log field, recorded since round twenty-one and displayed
+  // nowhere until 2026-08-28. The dashboard's own ledger type omitted it, so
+  // the panel could not render it even as a read-only fact — the same omission
+  // `userAsk` had, found by the same sweep.
+
+  it("shows what the model said beside what it did", async () => {
+    // The comparison the field exists for: the agent said X, and then did Y.
+    // No other field in the entry supports it.
+    await mount({
+      identity: identity("administrator"),
+      ledger: [
+        ledgerEntry({
+          decision: "deny",
+          resource: "cat /home/kinan/.env",
+          intent: "I need the database password to finish the migration",
+        }),
+      ],
+    });
+    expect(text()).toContain("I need the database password to finish the migration");
+    expect(text()).toContain("cat /home/kinan/.env");
+  });
+
+  it("adds nothing to a row that carries no intent", async () => {
+    // Absence is the common case — a turn with no narration, a harness that
+    // reports none, or any call not made by a model at all. An empty "Agent
+    // said:" label would read as the model having said nothing, which is a
+    // different and untrue claim.
+    await mount({
+      identity: identity("administrator"),
+      ledger: [ledgerEntry({ decision: "allow", resource: "ls -la" })],
+    });
+    expect(text()).not.toContain("Agent said");
+  });
+
+  it("renders whatever the server sent, including a Viewer's placeholder", async () => {
+    // The panel must not decide who may read narration. The server masks it for
+    // the Viewer tier (finding 133) and the panel renders what arrives — so a
+    // Viewer sees the placeholder, and the masking cannot be undone by a client
+    // that forgets to apply it.
+    await mount({
+      identity: identity("viewer"),
+      ledger: [
+        ledgerEntry({
+          resource: "[redacted for viewer role]",
+          intent: "[intent visible to users and administrators]",
+        }),
+      ],
+    });
+    expect(text()).toContain("[intent visible to users and administrators]");
   });
 });

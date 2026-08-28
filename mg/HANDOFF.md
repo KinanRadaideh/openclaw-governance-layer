@@ -34,14 +34,14 @@ beneath this.
 
 **Current as of 2026-08-27.** The governance layer is **built and verified, and
 still not demonstrated.** Eight of the nine design requirements are fully met;
-the ninth (Linux deployment) is tested but never deployed. **2,322 automated
+the ninth (Linux deployment) is tested but never deployed. **2,327 automated
 tests pass across 108 files** (1,467 distinct across 81 — see §4), both
 typechecks are clean, and OpenClaw's own test
 suite is **fully green for the first time**: the 18 pre-existing Windows
 failures used as this project's baseline were fixed on 2026-08-25 (T25), along
 with nine more in `host-hooks.contract.test.ts`. **The M-series is complete**
-(M1–M6, finished 2026-08-27), so no substantial engineering is left. Twenty-five
-QA rounds and the build itself have found **140 defects, all fixed — zero open.** The count moved from 120 to 121 when T29's numbering audit (2026-08-26) found **two different defects both numbered 104**; to 127 on 2026-08-27 when M5's four and M6's two were numbered **122–127**, having been fixed and written up in all three registers but never entered on the numbered list; to **130** the same day when **QA round nineteen** audited the M-series as one system and found **128–130**; and to **131** when **QA round twenty** read the rest of the window's work against the nine design requirements and found `search-audit.ts` writing grep's matched file content — secrets included — into the tamper-evident ledger, a direct breach of requirement 8; and to **134** when **round twenty-one** built §1.6's missing "raw LLM intent" field and audited it, finding three defects in one day's work (**132–134**); and to **136** on 2026-08-28 when **round twenty-two** re-measured the previous day's documentation against the code and found **135–136** — `entryKind`'s JSDoc orphaned by the insertion of the intent field, and **T16 regressed in the very commit whose documentation declared it closed** (`governance-page.ts` back to 703 lines against a 700-line limit, while §4 read "`max-lines` reports zero errors repo-wide"). **Standing rule from 2026-08-27: every defect gets a number when it is found.** Finding 120 was found and
+(M1–M6, finished 2026-08-27), so no substantial engineering is left. Twenty-six
+QA rounds and the build itself have found **143 defects, all fixed — zero open.** The count moved from 120 to 121 when T29's numbering audit (2026-08-26) found **two different defects both numbered 104**; to 127 on 2026-08-27 when M5's four and M6's two were numbered **122–127**, having been fixed and written up in all three registers but never entered on the numbered list; to **130** the same day when **QA round nineteen** audited the M-series as one system and found **128–130**; and to **131** when **QA round twenty** read the rest of the window's work against the nine design requirements and found `search-audit.ts` writing grep's matched file content — secrets included — into the tamper-evident ledger, a direct breach of requirement 8; and to **134** when **round twenty-one** built §1.6's missing "raw LLM intent" field and audited it, finding three defects in one day's work (**132–134**); and to **136** on 2026-08-28 when **round twenty-two** re-measured the previous day's documentation against the code and found **135–136** — `entryKind`'s JSDoc orphaned by the insertion of the intent field, and **T16 regressed in the very commit whose documentation declared it closed** (`governance-page.ts` back to 703 lines against a 700-line limit, while §4 read "`max-lines` reports zero errors repo-wide"). **Standing rule from 2026-08-27: every defect gets a number when it is found.** Finding 120 was found and
 closed on 2026-08-26: T6's fail-closed branch could not fire, so a lockdown
 whose lineage records were unreadable degraded to fail-_open_. It was closed by
 probing the store with a scoped listing rather than a keyed read — which
@@ -74,6 +74,42 @@ the 26th, and T29 and T30 closed the same day). **T8 is closed** — 2026-08-26,
 by decision — so any older sentence listing it as outstanding is stale. The old letters
 (A-, B-, F-, R5, G) survive only as a `Ref` column pointing at their historical
 write-ups; nothing is orphaned.
+
+### 2026-08-28 — Lane A finished, and a sweep that audited the day's own work
+
+**Lane A is done, all eight items.** Between them they produced **four findings —
+137, 138, 139, 140 — and every one was a control that looked like it worked.**
+None came from adding a feature; all four from checking something the project
+already believed.
+
+**Then a universal QA sweep, which found three more (141–143) — all in code
+written the same day.** That is the round's first result rather than a
+coincidence: _a fix is not audited as hard as the thing it fixes_ held again, on
+a day that produced eight items of new work.
+
+- **141** — `start-governance.sh` read `--port` inside `for arg in "$@"` while
+  `shift` mutated the parameters underneath the loop's snapshot.
+  `--port 18789` worked **by luck**; `--background --port 18789` set the port to
+  the literal string `--port`. Reading the code would never have caught it.
+- **142** — both new scripts' `--help` printed `set -euo pipefail` as part of the
+  help text.
+- **143** — an approval override could be set for an **account that does not
+  exist**: a typo produced a 200, an audit entry and an authoritative-looking
+  row, while the intended account was untouched. Fixed by _warning_, not
+  refusing — pre-onboarding is a legitimate case and only the operator knows
+  which they meant.
+
+**Two corrections to this file's own entries from earlier the same day.** The
+dashboard round said both missing settings were "reachable only from the CLI";
+that is true of `hitl-timeout` but **`user-ask` had no operator surface at all**,
+so a §1.6 Root capability was reachable only by hand-crafting an HTTP request.
+And the lint entry's "`.git/hooks/` is empty" proved nothing — `core.hooksPath`
+points at `git-hooks/`.
+
+**The gate caught its first real regression.** Adding the two dashboard controls
+took `policy-panels.ts` to 702 lines against the 700 limit and the pre-commit
+lint refused the commit — the gate built that morning because finding 136 was
+this exact limit being crossed unnoticed.
 
 ### 2026-08-28 — Lane A, and every feature reachable from the dashboard
 
@@ -780,7 +816,7 @@ Expected, and **every row below re-measured on 2026-08-27** (the table said
 
 | Command                  | Expected                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Governance suite         | **2,322 passed across 108 files** — measured 2026-08-28 after rounds twenty-four and twenty-five, the sanitiser guard and the dashboard controls. Was 2,315/107, and 2,311/107 before that. Was 2,292/106, 2,283/105, 2,247/104 after M6                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Governance suite         | **2,327 passed across 108 files** — measured 2026-08-28 after round twenty-six. Was 2,322/108, 2,315/107, and 2,311/107 before that. Was 2,292/106, 2,283/105, 2,247/104 after M6                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `tsgo:core`              | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `tsgo:ui`                | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | Host suites (both)       | **263 passed, 0 failed** — re-run 2026-08-27, exact match. **263 = 192 (`native-hook-relay.test.ts`) + 71 (`host-hooks.contract.test.ts`)**; older notes below quote the 192 alone and are not contradicting this row                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |

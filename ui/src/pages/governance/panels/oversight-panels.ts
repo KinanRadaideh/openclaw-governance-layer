@@ -167,7 +167,20 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
         .map((entry) =>
           renderSettingsRow({
             title: html`<code>#${entry.seq} ${entry.toolName}</code> ${entry.resource}`,
-            description: describeLedgerEntry(entry, { by: t("governance.ledger.by") }),
+            // The intent rides *under* the description rather than inside it,
+            // and is omitted entirely when absent. Two reasons, both learned
+            // here: absence is the common case, so a row must not grow an empty
+            // "Intent:" label that reads as the model having said nothing when
+            // in fact nothing was captured; and this is model-authored text
+            // beside a decision the model is the subject of, so it should never
+            // be mistaken for something the layer concluded.
+            description: html`${describeLedgerEntry(entry, {
+              by: t("governance.ledger.by"),
+            })}${entry.intent
+              ? html`<span style="display:block;margin-top:0.25rem;opacity:0.85">
+                  <em>${t("governance.ledger.intent")}:</em> ${entry.intent}
+                </span>`
+              : nothing}`,
             control: renderSettingsStatus({
               kind:
                 entry.entryKind === "admin"

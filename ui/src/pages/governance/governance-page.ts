@@ -364,6 +364,7 @@ class GovernancePage extends OpenClawLightDomElement {
       policy: this.policy,
       identity: this.identity,
       busy: this.busy,
+      users: this.users,
       canAdminister: canAdminister(this.identity),
       canManageAnyAgent: canManageAnyAgent(this.identity),
       knownAgentIds: knownAgentIds(this.agentSources()),

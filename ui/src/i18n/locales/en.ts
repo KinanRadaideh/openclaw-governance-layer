@@ -3601,6 +3601,8 @@ export const en: TranslationMap = {
       userAskClear: "Clear override",
       userOverride: "Account override",
       userOverrideHint: "This account ignores the installation default above.",
+      userOverrideUnknown:
+        "No account of this name exists in this group — check the spelling, or this override will do nothing until somebody with that name is created.",
       clearOverride: "Use default",
       agentPosture: "Agent posture",
       agentPostureOff:
@@ -3668,6 +3670,7 @@ export const en: TranslationMap = {
     },
     ledger: {
       title: "Audit ledger",
+      intent: "Agent said",
       verify: "Verify chain integrity",
       integrity: "Chain integrity",
       intact: "Intact — entries verified",

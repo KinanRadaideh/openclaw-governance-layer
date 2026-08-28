@@ -4155,3 +4155,160 @@ what the code's structure implies, but it is reasoned rather than observed.
 The good news is the failure mode is safe: on a real run the field is either
 filled in or missing. It cannot be _wrong_, because an intent is only ever
 attached to the session that produced it.
+
+## 5.55 Checking our own paperwork against the code, and finding it wrong
+
+The day before, a long stretch of work was written up: what passed, what was
+counted, what was clean. This round did something the project had never done —
+it took each of those written claims and re-ran the command that was supposed to
+justify it.
+
+Most held exactly. Two did not, and one of them is embarrassing in a useful way.
+
+### A rule we said we were following, in the same change that broke it
+
+The project inherits a limit on how long any one file may be. One dashboard file
+had been split up specifically to get under it. A later change added a few lines
+back and pushed it **over** — and the write-up of that very change said, in as
+many words, that the limit was clean everywhere.
+
+Both sentences were committed together. Nobody ran the check. A tidy-up pass the
+next day repeated the claim without running it either.
+
+The fix is the interesting part. The limit could have been cleared by moving any
+four lines anywhere. What actually moved was the one piece of the file that had
+been in the wrong place since the original split — a small display helper sitting
+in a file that was supposed to hold no display code at all. **The thing that
+broke the limit pointed straight at the thing that had never belonged.**
+
+### Documentation that lost track of a field
+
+A new field was inserted into the record definition, and it landed _between_
+another field and the note describing it. The note ended up attached to nothing,
+and the field it described — the one distinguishing an administrator's action
+from an agent's — silently lost its explanation. In the file that defines what
+the tamper-proof record actually contains.
+
+### The part worth keeping
+
+Several smaller claims had simply gone stale: a count written down by the very
+change that made it wrong, a table saying one requirement was fully met while a
+page later in the same document said it was not, and a note calling a feature
+"still to do" three days after it was built.
+
+None of these were bugs in the system. All of them were things a reader would
+have believed. **The lesson the project keeps relearning is that a statement
+which was true once, written in words that sound permanent, is indistinguishable
+from a statement that is true now** — unless somebody re-runs the command.
+
+## 5.56 The check that had never once run
+
+Putting the system on a Linux server for the first time turned up something
+better than a deployment problem.
+
+There is a script whose whole job is to prove that the parts of the system which
+behave differently on Linux actually work there — file locking, file permissions,
+path handling. It is cited in the report as evidence for one of the nine design
+requirements, and recorded as "fourteen checks, all passed".
+
+**It had never run. Not once, in the seventeen days since it was written.**
+
+It died immediately on startup, every time, for three separate reasons stacked
+behind one another — each only visible once the one before it was fixed. Its own
+opening comment explained why it needed nothing but a plain runtime to work, and
+that explanation was wrong in every clause.
+
+### And then it found something the moment it could run
+
+With the script finally working, one of its fourteen checks failed straight away.
+Two days earlier, storage had been reorganised so that each organisation has its
+own area, and one call in this script still asked the old way. It had been broken
+since that change and nothing said so.
+
+That is the point, and it is worth stating carefully:
+
+> **A check that never runs does not merely fail to catch new problems. It also
+> stops telling you when it has itself gone out of date — while continuing to
+> look, on every page that mentions it, exactly like coverage.**
+
+This one sat in the project as a green row in a table of requirements while the
+code underneath it moved twice.
+
+## 5.57 Who can see what is running right now
+
+Each organisation using this system is supposed to be sealed off from the others.
+Earlier work moved every stored file — rules, logs, accounts — into a separate
+area per organisation, and that quietly solved most of the problem.
+
+**It did not solve the live view.** The panel showing which agents are working at
+this moment does not read a file. It asks the running system directly, and the
+running system does not know that organisations exist. The only filter applied
+was "is this person senior enough to see agent activity" — and an administrator
+is senior enough to see _any_ agent.
+
+So an administrator of one organisation could open that panel and see every other
+organisation's live work: which agents, running how long, under what identifiers.
+On the screen whose entire purpose is noticing an agent doing something it should
+not.
+
+Five separate places in the code asked the same question the same wrong way.
+
+### Why it hid for so long, in one sentence
+
+**Giving each organisation its own filing cabinet protected everything that was
+filed away, and nothing that was still in somebody's hands.** Nothing in the
+design said that, because nobody had drawn the distinction.
+
+### A choice worth explaining
+
+The fix could have been optional — a setting each of the five places might pass.
+It was made **required** instead, so the code will not compile until every place
+that asks this question says which organisation it is asking on behalf of. That
+turned a hunt into a list: the compiler named all five immediately. Optional
+would have fixed the one being looked at and left the other four silently wrong,
+which is exactly how it reached five places to begin with.
+
+## 5.58 Built, working, and reachable by nobody
+
+The specification asks for a dashboard where administrators configure the rules.
+An earlier review had already established what that sentence really demands: a
+setting you can only change by editing code or typing a command **does not
+count**, because the person the requirement names cannot reach it.
+
+This round asked that question of every feature at once — by listing everything
+the system can do over its web interface, listing everything the dashboard
+actually asks for, and comparing the two.
+
+Two settings had no way to reach them:
+
+- **How long the system waits for a human** before giving up on an approval
+  request and recording that nobody answered.
+- **Changing the approval behaviour for one specific person**, rather than for
+  everyone.
+
+Both worked perfectly. Both were written to the rules file, recorded in the audit
+log, and protected so that only the most senior role could change them. And
+neither had a single button anywhere.
+
+One was worse than merely missing: the dashboard's own description of what a
+rules file contains **left the setting out entirely**, so even an override set
+from the command line was invisible on screen. Not restricted — invisible.
+
+Both now have controls, and existing overrides are listed where you would look
+for them.
+
+### What the same sweep confirmed was fine
+
+Four features looked missing and were not; they were being reached in a way the
+first pass did not recognise. And three things are only available from the
+command line **on purpose** — including listing every organisation on the
+installation, which is precisely the cross-organisation leak §5.57 had just been
+fixed for.
+
+### The rule, stated once
+
+> **A capability has to be reachable by the person the requirement names. Being
+> present in the system is not the same as being available to them.**
+
+That sentence has now caught three separate features in this project, in three
+different reviews.

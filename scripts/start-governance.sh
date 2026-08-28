@@ -44,12 +44,35 @@ cd "$REPO_ROOT"
 # which is what `openclaw daemon` does. Override with --port or the env var.
 PORT="${OPENCLAW_GATEWAY_PORT:-18799}"
 BACKGROUND=0
-for arg in "$@"; do
-  case "$arg" in
+# A `while` loop over the positional parameters, not `for arg in "$@"`.
+#
+# **The `for` form was wrong and shipped that way (finding 141, 2026-08-28.)**
+# `for` iterates a snapshot taken before the loop body runs, while `shift`
+# mutates the positional parameters underneath it — so the two desynchronise the
+# moment any flag precedes an option that takes a value:
+#
+#     ./start-governance.sh --port 18789               -> PORT=18789   (by luck)
+#     ./start-governance.sh --background --port 18789  -> PORT=--port  (wrong)
+#
+# The first spelling happens to work, which is why reading the code was never
+# going to catch it. Running it with two flags does, immediately.
+while [ "$#" -gt 0 ]; do
+  case "$1" in
     --background|-b) BACKGROUND=1 ;;
-    --port) shift; PORT="${1:?--port needs a value}" ;;
-    -h|--help) sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --port)
+      shift
+      PORT="${1:?--port needs a value}"
+      ;;
+    -h|--help)
+      sed -n '2,33p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      exit 0
+      ;;
+    *)
+      echo "unknown option: $1 (try --help)" >&2
+      exit 2
+      ;;
   esac
+  shift
 done
 
 if [ -t 1 ]; then
