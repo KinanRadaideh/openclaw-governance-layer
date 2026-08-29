@@ -19,6 +19,14 @@ const CONFIG_ASSIGNMENT_SECRET_KEYS = String.raw`access[-_]?token|refresh[-_]?to
 const CONFIG_DIRECT_ASSIGNMENT_SECRET_KEYS = String.raw`access-token|refresh-token|id-token|auth-token|hook-token|api[-_]?(?:key|secret)|secret[-_]?key|key[-_]?material|passphrase`;
 const CONFIG_PREFIXED_PASSWORD_ASSIGNMENT_SECRET_KEYS = String.raw`password|passphrase|pass|passwd`;
 const CLI_SECRET_FLAG_KEYS = String.raw`${AWS_SECRET_ACCESS_KEY_FIELD_KEYS}|api[-_]?key|hook[-_]?token|access[-_]?token|refresh[-_]?token|id[-_]?token|token|secret|password|passwd|credential|private[-_]?key|client[-_]?secret|${PAYMENT_CREDENTIAL_QUERY_KEYS}`;
+// Component-prefixed flags (`--http-password=`, `--db-password=`, `--gateway-token=`).
+// The bare keys above are anchored to `--`, so a prefix defeated them entirely. This mirrors
+// CONFIG_PREFIXED_PASSWORD_ASSIGNMENT_SECRET_KEYS, which already does this for config
+// assignments, and STRUCTURED_SECRET_ENV_FIELD_RE, which already does it for env vars.
+// `pass` and `key` are deliberately excluded: `--first-pass=2` and `--sort-key=name` are
+// ordinary arguments, and masking them would make the log describe something other than
+// what ran. Suffixes stay unmatched, so `--password-file=/etc/pw` keeps showing the path.
+const CLI_PREFIXED_SECRET_FLAG_KEYS = String.raw`[a-z0-9][a-z0-9._-]{0,79}[-_](?:password|passphrase|passwd|token|secret)`;
 
 export const BODY_SECRET_KEYS = new Set([
   "access_token",
@@ -129,8 +137,8 @@ export const DEFAULT_REDACT_PATTERNS: readonly string[] = [
   String.raw`"(?:apiKey|api_key|apiToken|api_token|bearerToken|bearer_token|token|secret|password|passwd|${AWS_SECRET_ACCESS_KEY_FIELD_KEYS}|credential|authorization|accessToken|access_token|refreshToken|refresh_token|idToken|id_token|authToken|auth_token|clientSecret|client_secret|privateKey|private_key|secret_value|raw_secret|secret_input|key_material|${PAYMENT_CREDENTIAL_JSON_KEYS})"\s*:\s*"([^"]+)"`,
   String.raw`(^|[\s,{])["']?(?:api[-_]key|access[-_]token|refresh[-_]token|id[-_]token|authToken|auth[-_]token|clientSecret|client[-_]secret|appSecret|app[-_]secret|private[-_]key|credential|authorization|secret[-_]value|raw[-_]secret|secret[-_]input|key[-_]material)["']?\s*[:=]\s*(["'])([^"'\r\n]+)\2`,
   String.raw`(^|[\s,{])["']?(?:authorization|proxy-authorization|cookie|set-cookie|x-api-key|x-auth-token)["']?\s*[:=]\s*(["'])([^"'\r\n]+)\2`,
-  String.raw`--(?:${CLI_SECRET_FLAG_KEYS})=([^\s"']+)`,
-  String.raw`--(?:${CLI_SECRET_FLAG_KEYS})\s+(?!(?:or|and)\b(?=\s+--))(["']?)([^\s"']+)\1`,
+  String.raw`--(?:${CLI_SECRET_FLAG_KEYS}|${CLI_PREFIXED_SECRET_FLAG_KEYS})=([^\s"']+)`,
+  String.raw`--(?:${CLI_SECRET_FLAG_KEYS}|${CLI_PREFIXED_SECRET_FLAG_KEYS})\s+(?!(?:or|and)\b(?=\s+--))(["']?)([^\s"']+)\1`,
   AUTHORIZATION_BEARER_REDACT_PATTERN,
   AUTHORIZATION_BASIC_REDACT_PATTERN,
   AUTHORIZATION_BOT_REDACT_PATTERN,

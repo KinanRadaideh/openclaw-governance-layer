@@ -74,23 +74,36 @@ you actually want" is more use to him than doing it.
 
 **Current as of 2026-08-29.** The governance layer is **built and verified, and
 still not demonstrated.** Eight of the nine design requirements are fully met;
-the ninth (Linux deployment) is tested but never deployed. **2,346 automated
+the ninth (Linux deployment) is tested but never deployed. **2,348 automated
 tests pass across 112 files** (1,467 distinct across 81 — see §4), both
 typechecks are clean, and OpenClaw's own test
 suite is **fully green for the first time**: the 18 pre-existing Windows
 failures used as this project's baseline were fixed on 2026-08-25 (T25), along
 with nine more in `host-hooks.contract.test.ts`. **The M-series is complete**
 (M1–M6, finished 2026-08-27), so no substantial engineering is left. Twenty-eight
-QA rounds and the build itself have found **146 defects, all fixed — zero open.** The count moved from 120 to 121 when T29's numbering audit (2026-08-26) found **two different defects both numbered 104**; to 127 on 2026-08-27 when M5's four and M6's two were numbered **122–127**, having been fixed and written up in all three registers but never entered on the numbered list; to **130** the same day when **QA round nineteen** audited the M-series as one system and found **128–130**; and to **131** when **QA round twenty** read the rest of the window's work against the nine design requirements and found `search-audit.ts` writing grep's matched file content — secrets included — into the tamper-evident ledger, a direct breach of requirement 8; and to **134** when **round twenty-one** built §1.6's missing "raw LLM intent" field and audited it, finding three defects in one day's work (**132–134**); and to **136** on 2026-08-28 when **round twenty-two** re-measured the previous day's documentation against the code and found **135–136** — `entryKind`'s JSDoc orphaned by the insertion of the intent field, and **T16 regressed in the very commit whose documentation declared it closed** (`governance-page.ts` back to 703 lines against a 700-line limit, while §4 read "`max-lines` reports zero errors repo-wide"). **Standing rule from 2026-08-27: every defect gets a number when it is found.** Finding 120 was found and
+QA rounds and the build itself have found **148 defects, 147 fixed — one recorded rather than fixed, by decision (148).** The count reached **148** on 2026-08-29: **147** is the `--http-password` decision being taken and built, which found the gap was **every** component-prefixed credential flag (`--db-password=`, `--admin-password=`, `--gateway-token=`) and not the single key two write-ups had recorded; **148** is two tests that fail on Windows and always have, sitting outside the five commands §4 defines as verification, while §1 claimed "no known-failing test anywhere". The count moved from 120 to 121 when T29's numbering audit (2026-08-26) found **two different defects both numbered 104**; to 127 on 2026-08-27 when M5's four and M6's two were numbered **122–127**, having been fixed and written up in all three registers but never entered on the numbered list; to **130** the same day when **QA round nineteen** audited the M-series as one system and found **128–130**; and to **131** when **QA round twenty** read the rest of the window's work against the nine design requirements and found `search-audit.ts` writing grep's matched file content — secrets included — into the tamper-evident ledger, a direct breach of requirement 8; and to **134** when **round twenty-one** built §1.6's missing "raw LLM intent" field and audited it, finding three defects in one day's work (**132–134**); and to **136** on 2026-08-28 when **round twenty-two** re-measured the previous day's documentation against the code and found **135–136** — `entryKind`'s JSDoc orphaned by the insertion of the intent field, and **T16 regressed in the very commit whose documentation declared it closed** (`governance-page.ts` back to 703 lines against a 700-line limit, while §4 read "`max-lines` reports zero errors repo-wide"). **Standing rule from 2026-08-27: every defect gets a number when it is found.** Finding 120 was found and
 closed on 2026-08-26: T6's fail-closed branch could not fire, so a lockdown
 whose lineage records were unreadable degraded to fail-_open_. It was closed by
 probing the store with a scoped listing rather than a keyed read — which
 distinguishes "no such session" from "no readable store", the two cases the old
 probe conflated — **without costing the narrowness** that makes failing closed
-defensible. **There is no known security gap**, and as of 2026-08-27
-**no known-failing test anywhere** — the
-project's own suite, OpenClaw's harness, and the plugin contract suite are all
-green, and every source file is inside the line limit inherited from upstream.
+defensible. **There is no known security gap** — requirement 8's last known leak
+closed on 2026-08-29 as finding 147.
+
+**The sentence that stood here — "no known-failing test anywhere" — was false,
+and is finding 148.** What is true, and is all that was ever measured: **every
+suite in §4's five verification commands is green.** Two tests outside those
+commands fail on Windows and have for some time —
+`logger-redaction-behavior.test.ts` (a path-separator assertion) and
+`io.audit.test.ts` (a `0600` file-mode assertion). Both are POSIX-only
+assertions against correct platform-aware production code, the same class as
+eight of the nine T25 fixed; neither is a product defect. They are recorded
+rather than fixed, because fixing them edits two more upstream files for no
+governance benefit. **Read §4's scope before repeating any "everything passes"
+claim** — the five commands do not cover the repository, and reading them as if
+they did is exactly how this one survived.
+
+Every source file is inside the line limit inherited from upstream.
 
 What has _not_ happened is a single end-to-end run with a real language model
 driving a real tool call — so every claim rests on tests, not on observation.
@@ -114,6 +127,54 @@ the 26th, and T29 and T30 closed the same day). **T8 is closed** — 2026-08-26,
 by decision — so any older sentence listing it as outstanding is stale. The old letters
 (A-, B-, F-, R5, G) survive only as a `Ref` column pointing at their historical
 write-ups; nothing is orphaned.
+
+### 2026-08-29 (later) — the last requirement-8 leak, closed; and a claim that was never measured
+
+**Finding 147 — the `--http-password` decision, taken and built.** Kinan was
+given the three options and chose to fix **upstream's own pattern list** rather
+than add a second masker in fork code or record a stated limitation. Reasoning
+worth keeping: a fork-local masker would drift out of step with upstream's, and
+the leak is real in OpenClaw's ordinary logs too, so patching only the surface
+this project is graded on would be fixing the measurement rather than the
+problem.
+
+**Building it showed the gap was structural, not a missing key.** Two write-ups
+had described this as "one compound key — `http-password` — minutes, not hours".
+That came from a probe that tested exactly one prefixed spelling. Probing the
+real redactor against a spread found **every** component prefix defeated the
+masker: `--db-password=`, `--admin-password=`, `--gateway-password=`,
+`--http-token=`. The CLI-flag patterns anchor the key to `--`, so one component
+of prefix made the whole alternation unreachable.
+
+**The fix is upstream's own convention, applied where it was missing.** OpenClaw
+already prefix-matches this class in two other places —
+`CONFIG_PREFIXED_PASSWORD_ASSIGNMENT_SECRET_KEYS` for config assignments and
+`STRUCTURED_SECRET_ENV_FIELD_RE` for environment variables (`DB_PASSWORD` was
+always masked). Neither had ever been applied to command-line flags. Eight lines
+in `src/logging/redact-patterns.ts`, six of them comment; modified-upstream-file
+count 23 → 24. `pass` and `key` are deliberately excluded and suffixes are not
+matched, so `--first-pass=2`, `--sort-key=name` and `--password-file=/etc/pw.txt`
+stay readable — **over-masking costs requirement 5 to serve requirement 8**, and
+the ledger is worth less if it rewrites what ran. §3.5.60; plain language §5.62.
+
+**Finding 148 — "no known-failing test anywhere" was false.** Verifying 147 meant
+running suites outside §4's five commands, and two of them fail on Windows and
+have for some time: `logger-redaction-behavior.test.ts` (path separator) and
+`io.audit.test.ts` (a `0600` file-mode assertion). Both fail identically with
+147 stashed, so neither is new. Both are POSIX-only assertions against correct
+platform-aware code — the same class as eight of the nine T25 fixed, and not
+product defects.
+
+> **This is the fifth instance of the recurring pattern and the first of a new
+> kind.** The other four went stale because the thing they described changed
+> afterwards. This one was **never** accurate: nothing was measured wrongly, the
+> failing tests were simply never inside the scope of the measurement. A green
+> run of five commands was read as a green run of the repository. §4 now states
+> its own boundary.
+
+Recorded rather than fixed — repairing them edits two more upstream files for no
+governance benefit, and the honest resolution is that the claim now matches what
+was actually measured.
 
 ### 2026-08-29 — one agent, one organisation, and a request the code refused
 
@@ -921,7 +982,7 @@ Expected, and **every row below re-measured on 2026-08-27** (the table said
 
 | Command                  | Expected                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Governance suite         | **2,346 passed across 112 files** — measured 2026-08-29 after round twenty-eight and finding 146. Was 2,339/111, 2,327/108, 2,322/108, 2,315/107 and 2,311/107 before that. Was 2,292/106, 2,283/105, 2,247/104 after M6                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Governance suite         | **2,348 passed across 112 files** — measured 2026-08-29 after finding 147 added two ledger-masking tests (107 files + 2,256 from `src/governance/` and `src/gateway/governance-*`, plus 5 files + 92 from `ui/src/pages/governance/`). Was 2,346/112 after round twenty-eight and finding 146; 2,339/111, 2,327/108, 2,322/108, 2,315/107 and 2,311/107 before that. Was 2,292/106, 2,283/105, 2,247/104 after M6. **These five commands are not the repository.** Two tests outside them fail on Windows and always have — finding 148; do not read a green run here as a green run of everything                                                                                                                                                                                                                                                                                      |
 | `tsgo:core`              | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `tsgo:ui`                | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | Host suites (both)       | **263 passed, 0 failed** — re-run 2026-08-27, exact match. **263 = 192 (`native-hook-relay.test.ts`) + 71 (`host-hooks.contract.test.ts`)**; older notes below quote the 192 alone and are not contradicting this row                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
@@ -1717,16 +1778,29 @@ Sorted below by who has to move first.
 > (finding 139), the sanitiser guard was built, and the intent field reached the
 > dashboard.
 >
-> - **`--http-password=` still reaches the ledger in plaintext.** The one leak
->   the round-twenty-two probe found; every other spelling the decision named was
->   already masked by upstream's own redactor. **This is a gap against
->   requirement 8, which binds** — not a background divergence like entropy
->   analysis — so Kinan's clarification about §1.3 makes it more pressing rather
->   than less. The fix is one key in a list; the cost is that it edits
->   `src/logging/redact.ts`, which is upstream code, so the fork diff §3.5.2b
->   measures grows by it.
+> - ~~**`--http-password=` still reaches the ledger in plaintext.**~~ **DECIDED
+>   AND BUILT 2026-08-29 — finding 147.** Kinan chose the upstream fix over a
+>   fork-local one or a stated limitation. **The row below was wrong in the way
+>   this project keeps being wrong, and is kept for it:** it said "the fix is one
+>   key in a list", generalising from a probe that had tested exactly one
+>   spelling. Every component prefix defeated the masker — `--db-password=`,
+>   `--admin-password=`, `--gateway-password=`, `--http-token=` — and those are
+>   likelier in a real command than the one that was tested. It also named the
+>   wrong file: the flag patterns live in `redact-patterns.ts`, not `redact.ts`.
+>   Cost as built: **eight lines, six of them comment, one upstream file added to
+>   the modified list (23 → 24)**. §3.5.60.
+>   _Original row:_ "The one leak the round-twenty-two probe found; every other
+>   spelling the decision named was already masked by upstream's own redactor.
+>   **This is a gap against requirement 8, which binds** — not a background
+>   divergence like entropy analysis — so Kinan's clarification about §1.3 makes
+>   it more pressing rather than less. The fix is one key in a list; the cost is
+>   that it edits `src/logging/redact.ts`, which is upstream code, so the fork
+>   diff §3.5.2b measures grows by it."
 > - ~~**Entropy analysis.**~~ **SETTLED 2026-08-28 — not being built.** See §0.
 >   Do not re-open it.
+>
+> **Both are now closed, so this list is empty.** The open decisions are **T7
+> prevention** and **T32**, which waits on it.
 
 ### Do this before anything else
 
@@ -1771,9 +1845,10 @@ F1 closed once already.
 > is closed — the eight-item Lane A list finished on 2026-08-28, and T31, T29 and
 > T33 with it. What remains needs Kinan: a live model (T2), a server (T3), a
 > judgement about the report's look (T17), the writing itself (T18), thirty
-> minutes of reading (T13), and three decisions (`--http-password`, T7
-> prevention, and T32 which waits on T7). The rows below are kept as the record
-> of what was done.
+> minutes of reading (T13), and — **as of 2026-08-29 — two decisions, not
+> three**: T7 prevention, and T32 which waits on it. `--http-password` was
+> decided and built the same day (finding 147). The rows below are kept as the
+> record of what was done.
 
 | #           | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Effort   |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |

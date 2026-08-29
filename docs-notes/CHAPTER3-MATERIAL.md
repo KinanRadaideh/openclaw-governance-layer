@@ -7369,3 +7369,161 @@ The failure mode is safe and worth stating alongside the limit: on a live run th
 field is either populated or absent. It cannot be _wrong_, because an intent is
 only ever read for the session that produced it and is replaced on that session's
 next turn.
+
+---
+
+### 3.5.60 Masking credentials in the ledger, and the cost of touching upstream
+
+The ledger is the project's evidence. Requirement 8 says sensitive data must not
+be written to it in plaintext, and requirement 5 says every action must be
+recorded — **the two pull against each other**, because the most faithful record
+of a command is its exact text, and the exact text is where a password sits.
+This section is about where that line was drawn, and about the one place it had
+been drawn wrongly since the fork began.
+
+#### How the masking actually works
+
+The ledger does not mask anything itself. `appendLedgerEntry` calls
+`redactToolPayloadText` on the `resource` field — and, since round twenty-one, on
+`intent` — before the entry is hashed into the chain:
+
+```ts
+resource: clampResource(redactToolPayloadText(input.resource)),
+// …
+...(input.intent ? { intent: clampIntent(redactToolPayloadText(input.intent)) } : {}),
+```
+
+Two properties follow from that placement and both matter to the report.
+**Masking happens before hashing**, so the chain commits to the redacted text and
+there is no window in which a plaintext secret is covered by a valid signature.
+And **the call is unconditional** — the surrounding comment says tool payloads
+"never skip redaction, even if some caller wanted it off", because the host's
+logging configuration can disable redaction globally and the ledger must not
+inherit that choice.
+
+`redactToolPayloadText` is upstream's, and it is a list of regular expressions —
+`DEFAULT_REDACT_PATTERNS` — applied in order. Four families are relevant here:
+structured fields (JSON keys), environment variables, config assignments, and
+**command-line flags**.
+
+#### The gap: an anchor that made a whole list unreachable
+
+The two CLI-flag patterns were anchored directly to the flag introducer:
+
+```
+--(?:…|token|secret|password|passwd|…)=([^\s"']+)
+--(?:…|token|secret|password|passwd|…)\s+…
+```
+
+The key has to begin immediately after `--`. So `--password=` matched and
+`--http-password=` did not — the alternation never gets a chance to match
+`password`, because the text at that position is `http-password`. **One component
+of prefix disabled the entire list.** Not one key: `--db-password=`,
+`--admin-password=`, `--gateway-password=`, `--http-token=` and any other
+component-scoped credential flag went into the tamper-evident chain verbatim.
+
+Figure candidate — _the same secret, several spellings, two outcomes._ The
+asymmetry is the whole point and reads better as a table than as prose:
+
+| Flag                | Before     | After    |
+| ------------------- | ---------- | -------- |
+| `--password=`       | masked     | masked   |
+| `--client-secret=`  | masked     | masked   |
+| `--http-password=`  | **leaked** | masked   |
+| `--db-password=`    | **leaked** | masked   |
+| `--admin-password=` | **leaked** | masked   |
+| `--password-file=`  | readable   | readable |
+
+#### Why the fix is upstream's idea rather than the fork's
+
+The interesting part is that **OpenClaw had already solved this, twice, for other
+spellings of the same secret.** `redact-patterns.ts` defines
+`CONFIG_PREFIXED_PASSWORD_ASSIGNMENT_SECRET_KEYS` for config assignments, so
+`http_password: hunter2` in a config file is masked; and `redact.ts` defines
+`STRUCTURED_SECRET_ENV_FIELD_RE` as
+`(?:[A-Z0-9]+[_-])+(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD)`, so the environment
+variable `DB_PASSWORD` is masked. Both encode exactly the rule "a component
+prefix does not stop this being a password".
+
+Neither was ever applied to the flag patterns. The fix therefore adds one
+constant in the shape of the two that already exist:
+
+```ts
+const CLI_PREFIXED_SECRET_FLAG_KEYS = String.raw`[a-z0-9][a-z0-9._-]{0,79}[-_](?:password|passphrase|passwd|token|secret)`;
+```
+
+and references it from the two flag patterns, as an alternative to the bare list.
+Because both patterns still require the key to end at `=` or whitespace, adding
+an alternative cannot loosen what the existing keys match; it can only add cases
+that previously fell through.
+
+**This is worth stating plainly in the report:** the change is not a
+fork-specific patch layered on top of an upstream design, it is an upstream
+invariant reaching the one input class it had not reached. That distinction is
+what makes modifying inherited code defensible here.
+
+#### What was deliberately left unmasked, and why that is the security argument
+
+`pass` and `key` appear in upstream's config-assignment list. They are
+**excluded** here. `--first-pass=2`, `--sort-key=name` and `--partition-key=region`
+are ordinary arguments, and a masker that hid them would make the ledger say
+something other than what ran.
+
+The pattern also matches **prefixes only, never suffixes**, so
+`--password-file=/etc/pw.txt` keeps showing its path — a filename is not a
+credential, and hiding it would delete the very detail an investigator needs.
+
+> **The general principle, and it is requirement 5 defending itself against
+> requirement 8.** Over-masking is not a free safety margin. Every value replaced
+> by `***` is a fact the audit trail no longer holds, and an audit trail that
+> quietly rewrites commands is worth less than one that occasionally shows a
+> secret you can rotate. The masker's job is to be _precise_, not aggressive.
+
+This is the same reasoning that produced the 2026-08-27 decision to leave
+`mysql -phunter2` alone: a bare `-p` means "make parent directories" to `mkdir`,
+"publish a port" to `docker` and "preserve permissions" to `tar`. That short form
+remains a **stated limitation**, and §2.1.5.2's suggested entropy analysis would
+not have caught it either — a memorable password is low-entropy by definition.
+
+#### The cost, which is why this was a decision and not a task
+
+`redact-patterns.ts` is upstream code. Editing it grows the fork diff §3.5.2b
+measures: **eight lines added, six of them comment, and the count of modified
+upstream files goes from 23 to 24.**
+
+Three options were on the table and the trade is worth recording:
+
+| Option                                   | Reach                                      | Fork diff         |
+| ---------------------------------------- | ------------------------------------------ | ----------------- |
+| Fix upstream's pattern list **(chosen)** | All 59 files that log through the redactor | +1 file, +8 lines |
+| Fix inside `audit-ledger.ts` (fork code) | The ledger only                            | none              |
+| Record as a stated limitation            | none                                       | none              |
+
+The second was genuinely tempting — requirement 8 is about the ledger, and the
+fork diff is something the report has to defend. It was rejected for two reasons:
+it puts **two maskers in the system that can drift apart**, and the leak is real
+in OpenClaw's ordinary logs too, so fixing it only where this project is graded
+would be fixing the measurement rather than the problem.
+
+**This is also the first upstream file modified for a security guarantee rather
+than to wire the layer in.** Every other entry on that list of 24 exists because
+governance had to be _reachable_ — hook payloads, route registration, navigation,
+the control UI. This one exists because inherited code was wrong. Chapter 4
+should say so: "we found and fixed a real defect in the host" is a stronger
+contribution claim than the diff size is a weakness.
+
+#### Where the proof lives
+
+The regression tests were added to `src/governance/audit-ledger.test.ts` rather
+than to upstream's `redact.test.ts`. Two reasons: it holds the upstream diff to
+the pattern change alone, and it puts requirement 8's proof in the requirement's
+own suite, where §4.x.5's traceability table can cite it.
+
+There are two tests, and the second is the unusual one. The first asserts that
+five prefixed credential flags do not survive into the ledger file; reverting the
+pattern change fails it. The second asserts that `--password-file=`, `--sort-key=`
+and `--first-pass=` **do** survive verbatim — a test that the control does _not_
+fire. It passes with or without the fix, which by this project's own mutation
+standard makes it worthless as proof of the fix. It is not there for that. It is
+there so that a future widening of the pattern fails loudly instead of silently
+degrading the record.

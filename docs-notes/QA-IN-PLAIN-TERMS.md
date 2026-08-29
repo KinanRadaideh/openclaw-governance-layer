@@ -4469,3 +4469,120 @@ So the limit can now be turned down for tests, using the same mechanism the
 earlier fix used. Seventy-six seconds became seven, and the result no longer
 depends on what else the machine is doing. The real limit is checked on its own
 line, so turning it down for a test cannot hide somebody changing the real one.
+
+## 5.62 The password hider had a blind spot the width of one word
+
+The system keeps a permanent, tamper-proof record of everything an agent does,
+including the text of the commands it ran. That is the point of it. But it means
+that if a command has a password sitting in the middle of it, the password would
+be written into a record that is designed never to be edited afterwards.
+
+So before anything is written down, the text goes through a hider. It looks for
+words that mean "a secret comes next" — `password`, `token`, `api-key` — and
+replaces whatever follows with `***`.
+
+**It only recognised those words when they stood completely alone.**
+
+`--password=hunter2` was hidden. `--db-password=hunter2` was not, because
+"db-password" is not the word "password". One extra word at the front and the
+hider simply did not see it.
+
+### It was recorded as one missing word, and it was all of them
+
+An earlier check had spotted this, tried exactly one example — `--http-password`
+— and written it up as "one key to add, a couple of minutes of work".
+
+Nobody tried a second example. When we did, every single prefixed form leaked:
+`--db-password`, `--admin-password`, `--gateway-password`, `--http-token`. And
+those are the ones a real command is far more likely to contain than the one that
+happened to get tested.
+
+> **The estimate was worked out from one observation instead of measured against
+> the code.** This project has now done that five times, and this time it happened
+> in the write-up of the fix for the previous time.
+
+### Why it was a decision rather than just a fix
+
+The hider is not ours. It belongs to the original OpenClaw project we forked.
+Every line we change in inherited code makes our fork harder to keep in step with
+the original, and the report has to account for how much we changed.
+
+So there were three honest choices: fix the shared hider and accept a slightly
+bigger footprint, write our own second hider in our own code and leave theirs
+broken, or write the gap down as a known limitation and change nothing.
+
+Kinan chose to fix the shared one. A second hider of our own would eventually
+drift out of step with theirs, and the leak is real in the original project too —
+patching only the part we get marked on would be fixing the exam rather than the
+problem.
+
+### The fix turned out to be their idea, not ours
+
+Here is the part worth remembering. The original project **already** handles
+prefixes correctly in two other places — for settings files, and for environment
+variables. `DB_PASSWORD` as an environment variable was always hidden properly.
+
+They had simply never applied the same rule to command-line flags.
+
+So the change is eight lines, six of which are explanation, and it is not us
+bolting something onto their design. It is their own rule reaching the one place
+it had not reached.
+
+### What we chose _not_ to hide, on purpose
+
+It would have been easy to hide more and feel safer. We deliberately did not.
+
+`--sort-key=name` and `--first-pass=2` are ordinary instructions, not secrets.
+`--password-file=/etc/pw.txt` is a filename — knowing which file was read is
+exactly what an investigator needs, and the file's contents were never in the
+command anyway.
+
+> **Hiding too much is not free caution.** Every `***` is a fact the record no
+> longer contains. A log that quietly rewrites what happened is worth less than
+> one that occasionally shows a password you can go and change. The hider's job
+> is to be accurate, not aggressive.
+
+The same reasoning is why the short form `mysql -phunter2` is still not hidden —
+a lone `-p` means "create the folders" to one program and "keep the permissions"
+to another, so hiding it would make the record describe something that did not
+happen. That remains a stated limitation rather than a fix.
+
+### Proving it
+
+Two tests were added. The first checks five prefixed password flags never reach
+the record — remove the fix and it fails, which is what makes it worth having.
+
+The second checks the opposite: that the innocent lookalikes are still written
+down exactly as typed. That one passes whether the fix is there or not, so it
+proves nothing about this change. It is not meant to. It is a tripwire for the
+next person who widens the rule and accidentally starts erasing ordinary
+commands.
+
+## 5.63 Two tests were failing all along, and the notes said none were
+
+While checking the work above, two other tests were run that are **not part of
+the five commands the project uses to verify itself**. Both failed. Both also
+failed with the new change removed, so neither was caused by it — they have been
+failing for some time.
+
+Neither is a real fault in the system. One expects a file path to use forward
+slashes; Windows uses backslashes. The other expects a file to be locked down to
+owner-only permissions; Windows does not have that concept in the same form. The
+code is right on both counts and behaves correctly per platform — it is the tests
+that assume everyone is on Linux.
+
+**The problem is not the two tests. It is that the handover notes say "no
+known-failing test anywhere", and that sentence is not true.**
+
+It survived because verification is defined as five specific commands, and these
+two files are not in any of them. A clean run of those five was read as a clean
+run of everything.
+
+> That is a new version of an old mistake here. Usually a claim goes stale
+> because the thing it described changed afterwards. This one was never accurate,
+> because **the measurement never covered the thing the sentence was about.**
+
+They have been written down rather than fixed. Fixing them means editing two more
+of the original project's files for no gain to the governance layer. The honest
+resolution is that the notes now say what is actually true, and say plainly where
+the five commands stop looking.

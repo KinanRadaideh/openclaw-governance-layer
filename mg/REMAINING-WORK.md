@@ -809,7 +809,16 @@ checklist, what a _failed_ run means and why it is still publishable, and the
 `jq` recipe for §5 — the `llm_output` ordering question that no further testing
 can close.
 
-### Decided but not built — flag-style password masking (2026-08-27)
+### Decided but not built — flag-style password masking (2026-08-27) — **BUILT 2026-08-29**
+
+> **CLOSED. See §"Finding 147" below.** Kinan chose the upstream fix on
+> 2026-08-29 and it shipped the same day. **Everything below this line is the
+> record of how the item was understood before it was built, and two of its
+> conclusions were wrong** — the probe table underneath tested one prefixed
+> spelling and the prose generalised from it to "one compound key". In fact
+> _every_ prefix defeated the masker. Kept unedited, because a confident estimate
+> that survived two write-ups and did not survive contact with the code is
+> Chapter 4 material.
 
 Round twenty found that the ledger's redactor misses passwords passed as command
 flags (`mysql -phunter2`), because they look like ordinary words and only their
@@ -1015,6 +1024,120 @@ pruning with a cap of 12 instead of 500. **76 s → 7 s**, and no load
 sensitivity. The production default is asserted on its own line, so lowering the
 cap for a test cannot hide a change to the real one.
 
+### Finding 147 — every prefixed credential flag reached the ledger in plaintext (2026-08-29)
+
+**The `--http-password` item is closed, and it was never one key.** Kinan took the
+decision recorded in §"Decided but not built" — fix it in upstream's own pattern
+list rather than in fork code or as a stated limitation — and building it found
+the gap was **structurally wider than every previous write-up had recorded**.
+
+**What was wrong.** `DEFAULT_REDACT_PATTERNS` masks command-line credentials with
+two patterns anchored directly to `--`:
+
+```
+--(?:…|token|secret|password|passwd|…)=([^\s"']+)
+```
+
+Because the key must begin immediately after `--`, **any component prefix
+defeated the whole list.** Probed against the real redactor rather than read:
+
+| Flag                      | Before     | After    |
+| ------------------------- | ---------- | -------- |
+| `--password=`             | masked     | masked   |
+| `--token=`, `--api-key=`  | masked     | masked   |
+| `--client-secret=`        | masked     | masked   |
+| **`--http-password=`**    | **leaked** | masked   |
+| **`--db-password=`**      | **leaked** | masked   |
+| **`--admin-password=`**   | **leaked** | masked   |
+| **`--gateway-password=`** | **leaked** | masked   |
+| **`--http-token=`**       | **leaked** | masked   |
+| `--password-file=`        | readable   | readable |
+| `mysql -phunter2`         | leaks      | leaks    |
+
+**This is a requirement-8 breach, not a background divergence.** Requirement 8
+binds; the entropy-analysis question settled on 2026-08-28 did not. The ledger
+records the text of what an agent ran, so a leaked flag is written into the
+tamper-evident chain permanently — and, before finding 133's sanitiser work, was
+readable by a Viewer.
+
+**Every earlier estimate of this item was wrong in the same direction, and that
+is the finding worth keeping.** Round twenty-two's probe tested one spelling,
+`--http-password`, and every document since described the work as "one compound
+key — minutes, not hours". `--db-password=` and `--admin-password=` are far more
+likely to appear in a real command than the one that happened to be probed.
+**The conclusion was reasoned from a single observation instead of measured
+against the code** — the same shape as finding 120's dissolved decision, the
+three "blocked on the host" claims, and T31's miscount. It occurred here _in the
+write-up of the fix for the previous instance of itself_.
+
+**The fix is upstream's own convention, applied where it was missing.** Upstream
+already implements prefix-matching for this exact class, twice:
+`CONFIG_PREFIXED_PASSWORD_ASSIGNMENT_SECRET_KEYS` covers config assignments
+(`http_password: x`), and `STRUCTURED_SECRET_ENV_FIELD_RE` covers environment
+variables (`DB_PASSWORD`). **Neither had ever been applied to CLI flags.** So the
+change is not a fork-specific patch bolted onto upstream — it is OpenClaw's rule
+reaching the one spelling it had not reached. Design detail in
+`CHAPTER3-MATERIAL.md` §3.5.60.
+
+**Two words are deliberately excluded, and the omission is the security
+argument.** `pass` and `key` are _not_ in the prefixed set, because `--first-pass=2`
+and `--sort-key=name` are ordinary arguments. Suffixes are not matched either, so
+`--password-file=/etc/pw.txt` keeps showing its path. **A masker that hides
+non-secrets makes the ledger describe something other than what ran**, which
+damages requirement 5 (record every action) in order to serve requirement 8. Same
+principle as the 2026-08-27 `mysql -p` decision, which stands unchanged.
+
+**Cost, stated because the decision turned on it.** The change edits
+`src/logging/redact-patterns.ts` — upstream code — so the fork diff §3.5.2b
+measures grows by it: **eight added lines, six of them comment, and one upstream
+file added to the modified list (23 → 24).** It is also the first upstream file
+this project modifies for a **security guarantee** rather than to wire the layer
+in, which §3.5.60 argues is the more interesting fact about it.
+
+**Verified by mutation.** Two tests were added to `audit-ledger.test.ts` — the
+governance side, so requirement 8's proof lives with the requirement rather than
+growing the upstream diff further. Reverting the pattern change fails the
+positive test. The negative test (`--password-file`, `--sort-key`, `--first-pass`
+survive verbatim) passes either way by design: it guards future over-masking, not
+this fix.
+
+Full verification set re-run: **2,348 tests across 112 files** (the documented
+2,346 plus these two), both typechecks clean, host suites 263/0, lint clean on
+both changed files.
+
+### Finding 148 — two tests fail on Windows, and the documentation says none do (2026-08-29)
+
+Found while verifying 147, by running suites **outside the documented
+verification set**. Both fail identically with 147's change stashed, so neither is
+caused by it.
+
+| File                                | Assertion                          | Windows reality        |
+| ----------------------------------- | ---------------------------------- | ---------------------- |
+| `logger-redaction-behavior.test.ts` | tilde expands to `home/custom.log` | `home\custom.log`      |
+| `io.audit.test.ts`                  | audit file mode is `0600`          | `0666` — no POSIX mode |
+
+**Neither is a product defect.** Both are POSIX-only assertions in tests against
+correct platform-aware production code — **the same class as eight of the nine
+distinct failures T25 fixed on 2026-08-25**, and misdiagnosed then too.
+
+**The defect is the claim, not the code.** `HANDOFF.md` §1 states "no
+known-failing test anywhere" and §4's table records the suites as green. That
+sentence is false, and it survived because **the verification set is defined as
+five commands, and these two files are in none of them.** A green run of the
+documented set was read as a green run of the repository.
+
+This is the fifth instance of the project's recurring pattern and the first where
+the stale claim was produced by the _scope_ of the measurement rather than by its
+age: nothing was measured wrongly, the right thing was never in scope. The other
+four are T25's 18-versus-9 baseline, T19's "re-measured every row", T29's two
+findings numbered 104, and finding 136's compliance claim written in the commit
+that broke it.
+
+**Recorded, not fixed.** Fixing them means editing two upstream test files to be
+platform-aware, which grows the fork diff for no governance benefit. The honest
+resolution is that §1 and §4 now say what is actually true, and name the boundary
+of what the five commands cover.
+
 ### Settled 2026-08-28 — entropy analysis will not be built
 
 Kinan's decision, and it closes the item rather than deferring it. §2.1.5.2
@@ -1102,6 +1225,11 @@ feature, all four by checking something the project already believed.
 
 **What is left is no longer mine.** T2, T3, T17, T18 and T13 are Kinan's; T7
 prevention, T32, the entropy divergence and `--http-password` are decisions.
+
+> **Updated 2026-08-29.** Two of those four are now settled: the entropy
+> divergence on 2026-08-28 (not being built), and **`--http-password` on
+> 2026-08-29 — decided _and_ built, as finding 147.** The remaining decisions are
+> **T7 prevention** and **T32**, which waits on it.
 
 ### T33 — make the fork installable and startable on Linux (2026-08-28)
 

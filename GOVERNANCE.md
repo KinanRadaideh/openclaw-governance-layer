@@ -3866,3 +3866,43 @@ with two differences worth naming in Chapter 4:
 - **It is capped at 500 characters.** The conversation store already holds the
   full text; duplicating it into the hash chain would make the chain a second
   copy of everything the agent ever said.
+
+---
+
+## Where this register stops, and where the rest is (recorded 2026-08-29)
+
+**This document ends at round twenty-one and finding 134.** Rounds twenty-two
+through twenty-eight, and **findings 135–148, were never written into it.** They
+were written into `mg/REMAINING-WORK.md`, `mg/HANDOFF.md`,
+`docs-notes/QA-IN-PLAIN-TERMS.md` and `docs-notes/CHAPTER3-MATERIAL.md` instead.
+
+This is recorded rather than quietly backfilled, because several documents
+describe findings as being "written up in all three registers" and that phrase
+has not been true since 2026-08-27. Anyone auditing the QA history from this file
+alone will be **fourteen findings short** and will not be told so.
+
+| Findings    | Where the write-up actually is                                                                     |
+| ----------- | -------------------------------------------------------------------------------------------------- |
+| 1–134       | This document, by round                                                                            |
+| 135–136     | `REMAINING-WORK.md` §"QA round twenty-two"                                                         |
+| 137–140     | `REMAINING-WORK.md` §"Lane A is finished"                                                          |
+| 141–143     | `REMAINING-WORK.md` §"QA round twenty-six"                                                         |
+| 144–146     | `REMAINING-WORK.md`, and `HANDOFF.md` §1's 2026-08-29 entry                                        |
+| **147–148** | `REMAINING-WORK.md` §"Finding 147"/§"Finding 148"; design in §3.5.60; plain language in §5.62–5.63 |
+
+**Finding 147 in one paragraph**, because it is the one that changes a security
+claim: every component-prefixed credential flag — `--db-password=`,
+`--admin-password=`, `--gateway-password=`, `--http-token=` — reached the
+tamper-evident ledger in plaintext. The CLI-flag redaction patterns anchor the
+key immediately after `--`, so a single component of prefix made the entire key
+list unreachable. Two earlier write-ups recorded this as one missing key, having
+probed exactly one spelling. Closed 2026-08-29 by applying upstream's own
+prefix-matching convention — which already existed for config assignments and
+environment variables — to command-line flags. `pass` and `key` are excluded and
+suffixes unmatched, so ordinary arguments and `--password-file=` stay readable:
+over-masking spends requirement 5 to buy requirement 8.
+
+**Finding 148** is this same class of problem applied to the test suite: the
+handoff's "no known-failing test anywhere" was false, because two Windows-only
+test failures sit outside the five commands that define verification. Recorded,
+not fixed; neither is a product defect.

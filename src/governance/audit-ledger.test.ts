@@ -153,6 +153,40 @@ describe("audit ledger hash chain", () => {
     expect(raw).not.toContain("SECRETVALUE123456789");
   });
 
+  // Requirement 8: no sensitive data in plaintext. Component-prefixed password flags
+  // defeated the masker entirely — the key list was anchored to `--`, so `--password=`
+  // matched and `--db-password=` did not. Found 2026-08-29 by probing the redactor rather
+  // than reading it; the write-up had recorded it as one key (`--http-password`) when in
+  // fact every prefix leaked.
+  it("redacts component-prefixed credential flags before writing them", async () => {
+    const ledger = await freshLedgerModule();
+    const flags = [
+      "--http-password",
+      "--db-password",
+      "--admin-password",
+      "--gateway-token",
+      "--webhook-secret",
+    ];
+    for (const flag of flags) {
+      await ledger.appendLedgerEntry(TEST_GROUP, entryInput(`svc ${flag}=SECRETVALUE123456789`));
+    }
+    const raw = await readFile(ledgerFilePath(TEST_GROUP), "utf8");
+    expect(raw).not.toContain("SECRETVALUE123456789");
+  });
+
+  // The other half of the same guarantee: masking must not rewrite what actually ran.
+  // A suffix does not make a flag a secret, and `-p` means something different in mkdir,
+  // docker and tar (decision of 2026-08-27), so these have to survive verbatim.
+  it("leaves flags that merely resemble credential flags readable", async () => {
+    const ledger = await freshLedgerModule();
+    const resource = "svc --password-file=/etc/pw.txt --sort-key=name --first-pass=2";
+    await ledger.appendLedgerEntry(TEST_GROUP, entryInput(resource));
+    const raw = await readFile(ledgerFilePath(TEST_GROUP), "utf8");
+    expect(raw).toContain("--password-file=/etc/pw.txt");
+    expect(raw).toContain("--sort-key=name");
+    expect(raw).toContain("--first-pass=2");
+  });
+
   it("reports a corrupt (unparseable) ledger line instead of throwing", async () => {
     const ledger = await freshLedgerModule();
     await ledger.appendLedgerEntry(TEST_GROUP, entryInput("one"));

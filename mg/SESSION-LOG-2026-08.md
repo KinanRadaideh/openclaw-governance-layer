@@ -3026,3 +3026,95 @@ typechecks clean. Host baseline 263 passed / 0 failed. oxlint 16 errors across 1
 files, all pre-existing T31 debt; `max-lines` zero repo-wide.
 
 **146 defects found, 146 fixed, none open.**
+
+---
+
+## 34. The `--http-password` decision, taken and built (2026-08-29)
+
+Kinan asked for the first outstanding decision, explained plainly. The one
+offered was **`--http-password`**, on the grounds that it was the only remaining
+item that was a gap against a **binding** requirement rather than a preference:
+requirement 8 says sensitive data must not reach the log in plaintext, and the
+entropy-analysis question settled the day before was a background divergence,
+which is a different kind of thing.
+
+### The three options, and why the chosen one was not obvious
+
+| Option                        | Reach                           | Fork diff         |
+| ----------------------------- | ------------------------------- | ----------------- |
+| Fix upstream's pattern list   | All 59 files logging through it | +1 file, +8 lines |
+| Fix inside `audit-ledger.ts`  | The ledger only                 | none              |
+| Record as a stated limitation | none                            | none              |
+
+The middle option was found while reading rather than from the notes — the
+ledger calls `redactToolPayloadText` from fork-owned code, so a masker could have
+lived entirely on this side of the fork boundary and left §3.5.2b's diff
+untouched. It was genuinely tempting, since requirement 8 is about the ledger.
+
+**Kinan chose the upstream fix.** Two maskers in one system drift apart, and the
+leak is real in OpenClaw's ordinary logs too — patching only the surface being
+graded would have been fixing the measurement rather than the problem.
+
+### Finding 147, and it was not one key
+
+Every previous write-up called this "one compound key — minutes, not hours". That
+estimate came from round twenty-two's probe, which tested exactly **one** prefixed
+spelling. Probing the real redactor across a spread found that **every** component
+prefix defeated it:
+
+```
+LEAKS   --http-password=…    LEAKS   --admin-password=…
+LEAKS   --db-password=…      LEAKS   --gateway-password=…
+LEAKS   --http-token=…
+```
+
+The CLI-flag patterns anchor the key immediately after `--`, so `http-password`
+never reaches the `password` alternative. One component of prefix made the entire
+list unreachable — and `--db-password=` is far likelier in a real command than the
+spelling that happened to get probed.
+
+**Same failure mode as finding 120's dissolved decision, the three "blocked on
+the host" claims and T31's miscount: a conclusion reasoned from one observation
+instead of measured against the code.** This time it happened inside the write-up
+of the fix for the previous instance.
+
+### The fix was upstream's own idea
+
+OpenClaw already prefix-matches this exact class in two other places —
+`CONFIG_PREFIXED_PASSWORD_ASSIGNMENT_SECRET_KEYS` for config assignments, and
+`STRUCTURED_SECRET_ENV_FIELD_RE` for environment variables, which is why
+`DB_PASSWORD` was always masked. Nobody had ever applied the convention to
+command-line flags. So the change is one constant shaped like the two that
+already exist, referenced from the two flag patterns.
+
+`pass` and `key` were deliberately left out, and suffixes are not matched:
+`--first-pass=2`, `--sort-key=name` and `--password-file=/etc/pw.txt` all stay
+readable. **Over-masking spends requirement 5 to buy requirement 8**, and an
+audit trail that quietly rewrites commands is worth less than one that
+occasionally shows a secret that can be rotated.
+
+### Finding 148 — a claim that was never measured
+
+Verification meant running suites outside §4's five commands, and two failed:
+`logger-redaction-behavior.test.ts` (a path-separator assertion) and
+`io.audit.test.ts` (a `0600` file-mode assertion). Both failed identically with
+the change stashed. Both are POSIX-only assertions against correct
+platform-aware code — the class T25 already fixed nine of — and neither is a
+product defect.
+
+The defect is `HANDOFF.md` §1's sentence "no known-failing test anywhere". **The
+five verification commands are not the repository**, and a green run of them was
+being read as a green run of everything. Recorded rather than fixed; §1 and §4
+now state the boundary.
+
+### State
+
+**2,348 tests across 112 files, all passing** — the documented 2,346 plus the two
+ledger-masking tests added with 147. Both typechecks clean. Host baseline 263
+passed / 0 failed. Lint clean on both changed files.
+
+**148 defects found, 147 fixed, one recorded rather than fixed by decision.**
+
+**Verified by mutation**: reverting the pattern change fails the new positive
+test. The negative test passes either way by design — it is a tripwire against
+future over-masking, not proof of this fix.
