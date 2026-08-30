@@ -121,9 +121,17 @@ export function registerGovernanceAgentCommands(governance: Command): void {
           return;
         }
         for (const row of rows) {
+          // The engine **permission**, never an observation: this layer cannot
+          // see which runtime an agent actually runs on, only which it is
+          // allowed to. Shown here because `agents set-codex` changes it from
+          // this surface, and a setting you can change but not read back is one
+          // an operator has to take on trust — the dashboard shows it on every
+          // agent row for the same reason. Phrased as the dashboard phrases it,
+          // so the two surfaces cannot drift into describing one fact two ways.
+          const engine = row.codexAllowed ? "built-in or Codex" : "built-in only";
           defaultRuntime.log(
             row.registered
-              ? `  ${row.agentId}  "${row.displayName}"  owner ${row.adminId}`
+              ? `  ${row.agentId}  "${row.displayName}"  owner ${row.adminId}  engine: ${engine}`
               : `  ${row.agentId}  (not registered — predates the registry, owned by nobody)`,
           );
         }
@@ -225,6 +233,16 @@ export function registerGovernanceAgentCommands(governance: Command): void {
           );
           defaultRuntime.log("  Codex hook protocol has no field for substituting a tool result.");
           defaultRuntime.log("  Denials, the audit ledger and the kill switch still apply there.");
+          // Finding 154. The dashboard's confirmation has said this since the
+          // control shipped and the command line did not, so the same act
+          // explained itself on one surface and not the other — the asymmetry
+          // this project has found more often than any other kind of defect.
+          // Without it, an operator who permits an agent and then watches it be
+          // refused has no way to learn that a second switch exists.
+          defaultRuntime.log(
+            "  The agent still cannot use Codex unless Root has enabled the backend for this",
+          );
+          defaultRuntime.log('  installation ("governance backend set-codex on").');
           defaultRuntime.log(
             "  This decision has been recorded in the ledger against your account.",
           );

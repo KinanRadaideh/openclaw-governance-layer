@@ -140,6 +140,24 @@ export function canManageAccounts(actor: GovernanceActor): boolean {
 }
 
 /**
+ * True when this actor may change which agent backends this installation offers.
+ *
+ * Root, and the tier was argued rather than copied from a neighbour. A backend
+ * stance writes **OpenClaw's own configuration** (`plugins.entries.*`) rather
+ * than governance's, which §1.6 puts under Root's deployment configuration, and
+ * its blast radius reaches outside governance entirely — disabling Codex
+ * withdraws its model catalogue, media understanding and prompt overlays.
+ *
+ * Named separately from `canManageAccounts` despite testing the same tier: the
+ * two answer different questions, and a later decision to move one must not
+ * silently move the other. Compare `agent-registry.ts`'s `codexAllowed`, which
+ * is the Administrator's per-agent half of the same control.
+ */
+export function canManageBackends(actor: GovernanceActor): boolean {
+  return roleAtLeast(actor.role, "root");
+}
+
+/**
  * True when audit detail must be masked for this actor.
  *
  * Viewer is "strictly read-only" oversight in the design doc and reads

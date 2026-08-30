@@ -29,6 +29,7 @@ import { runCommandWithRuntime } from "../cli-utils.js";
 import { promptSecret, promptText } from "../prompt.js";
 import { requireCliActor } from "./governance-cli-gate.js";
 import { registerGovernanceAgentCommands } from "./register.governance.agents.js";
+import { registerGovernanceBackendCommands } from "./register.governance.backend.js";
 import { registerGovernancePolicyCommands } from "./register.governance.policy.js";
 
 export function registerGovernanceCommands(program: Command): void {
@@ -195,6 +196,11 @@ export function registerGovernanceCommands(program: Command): void {
   registerGovernancePolicyCommands(governance);
 
   registerGovernanceAgentCommands(governance);
+
+  // The Root half of the two-layer Codex control (§3.5.62). Its per-agent
+  // counterpart lives with the other agent commands above; this one is about
+  // the installation, and its own module for the same reason theirs is.
+  registerGovernanceBackendCommands(governance);
 
   // ---------------------------------------------------------------------
   const agent = governance.command("agent").description("Interact with a governed agent");
