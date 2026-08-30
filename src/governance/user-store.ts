@@ -337,6 +337,13 @@ export async function createUser(
     if (!input.groupId) {
       throw new MissingGroupError();
     }
+    // One organisation per installation. Placed here rather than in the signup
+    // route because the route is outside this lock, and two simultaneous signups
+    // would both read "no organisation yet" and both succeed — the same race the
+    // Root cap is guarded against three checks above.
+    if (wouldCreateSecondOrganisation(file.users, input.groupId)) {
+      throw new DuplicateOrganisationError();
+    }
     const needsManager = input.role === "user" || input.role === "viewer";
     if (needsManager) {
       if (!input.managedBy) {
@@ -423,6 +430,75 @@ export class DuplicateRootError extends Error {
     super("A Root account already exists; there can be only one");
     this.name = "DuplicateRootError";
   }
+}
+
+/** Raised when an account would start a second organisation on one installation. */
+export class DuplicateOrganisationError extends Error {
+  constructor() {
+    super(
+      "This installation already hosts an organisation; there can be only one. " +
+        "Deploy a second installation for a second organisation.",
+    );
+    this.name = "DuplicateOrganisationError";
+  }
+}
+
+/**
+ * Whether a second organisation may be created on this installation.
+ *
+ * **One organisation per installation is a product decision, not a security
+ * boundary**, and the distinction matters. It exists so that installation-wide
+ * controls have an unambiguous owner: the Codex backend toggle is a single
+ * switch for the whole machine, and under multi-tenancy an Administrator of one
+ * organisation could have thrown it for organisations they cannot see and are
+ * not answerable for. With one organisation per installation, the scope of the
+ * control and the scope of the authority are the same scope, and the question
+ * dissolves rather than needing arbitration between several Roots.
+ *
+ * It is *not* a defence against an attacker: anyone who can edit `users.json`
+ * can add a group by hand, exactly as they could add a Root. The boundary there
+ * is the filesystem's, as `cli-identity.ts` says of the command line.
+ *
+ * The deployment shape this assumes is the one §1.6 describes: one VPS runs the
+ * Gateway, and the organisation's people reach it from their own computers
+ * through an SSH tunnel. Root, Administrators, Users and Viewers are accounts on
+ * that one installation, each signing in from their own machine. Several
+ * organisations remain possible; they take an installation each.
+ */
+let multiOrganisationAllowed = false;
+
+/**
+ * Test-only override, in the shape `setLedgerRotateBytesForTests` established.
+ *
+ * The isolation suites exist to prove that one organisation cannot see another,
+ * which requires creating two. Not reachable from configuration, the CLI or the
+ * network: it is an exported function with no caller in shipped code, and
+ * `test-group.ts` — which is itself not a production seam — enables it for the
+ * suites that seed groups.
+ */
+export function setMultiOrganisationAllowedForTests(allowed: boolean): void {
+  multiOrganisationAllowed = allowed;
+}
+
+/**
+ * True when this account would start a **second** organisation.
+ *
+ * Checked inside the same lock as the write, for the reason `wouldCreateSecondRoot`
+ * gives: outside it, two simultaneous signups both read "no organisation yet",
+ * both pass, and both write.
+ *
+ * Accounts predating groups carry no `groupId` and are ignored deliberately. An
+ * installation holding only those has no organisation yet, so the first real one
+ * must still be creatable — that is the state `governance migrate` repairs.
+ */
+function wouldCreateSecondOrganisation(users: readonly GovernanceUser[], groupId: string): boolean {
+  if (multiOrganisationAllowed) {
+    return false;
+  }
+  const existing = new Set(
+    users.map((u) => u.groupId?.trim()).filter((id): id is string => Boolean(id)),
+  );
+  return existing.size > 0 && !existing.has(groupId);
 }
 
 /**

@@ -27,7 +27,18 @@ import { registerAgent } from "./agent-registry.js";
 import { clearCheckpointForTests, resetLedgerCursorForTests } from "./audit-ledger.js";
 import { resetLedgerKeyCacheForTests } from "./ledger-key.js";
 import { ensureGroupDir, ledgerFilePath, ledgerKeyFilePath } from "./paths.js";
-import { createUser, deleteUser, newGroupId } from "./user-store.js";
+import {
+  createUser,
+  deleteUser,
+  newGroupId,
+  setMultiOrganisationAllowedForTests,
+} from "./user-store.js";
+
+// One organisation per installation is enforced in `createUser`. The isolation
+// suites exist to prove that one organisation cannot see another, which takes
+// two of them, so this module — which shipped code never imports — lifts the cap
+// for anything seeding a group. The cap's own tests set it back explicitly.
+setMultiOrganisationAllowedForTests(true);
 
 /**
  * Creates an organisation with an Administrator and registers agents into it.
