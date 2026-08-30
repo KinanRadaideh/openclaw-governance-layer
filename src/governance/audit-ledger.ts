@@ -90,8 +90,15 @@ export type LedgerEntry = {
    */
   entryKind?: "admin";
   /**
-   * The named account responsible for an administrative action, or `"cli"` for
-   * a change made through the command line, which has no login by design.
+   * The named account responsible for an administrative action.
+   *
+   * **Command-line actions carry a real account too, since T5 (2026-08-24).**
+   * This comment read "or `"cli"` for a change made through the command line,
+   * which has no login by design" until 2026-08-30, which had been false for six
+   * days: `requireCliActor` resolves a signed-in session and `toCliAuditActor`
+   * records its username and tier. `CLI_ACTOR` survives only where no account
+   * *can* sign in — the repair command for accounts predating groups, and the
+   * bootstrap of the first account, which has `BOOTSTRAP_ACTOR` of its own.
    *
    * A real field rather than a value smuggled into `ruleId`, because "who did
    * this" is the question the administrative trail exists to answer, and an

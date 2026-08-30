@@ -607,12 +607,19 @@ export function registerGovernanceCommands(program: Command): void {
         if (!killActor) {
           return;
         }
+        // Finding 149 — both calls passed the literal `"cli"` and threw away the
+        // identity resolved two lines above, so the emergency stop was the one
+        // administrative action on this surface that could not say who took it.
+        // T5 made the command line attributable; this pair of call sites was
+        // missed, and `AuditActorInput`'s bare-string arm meant the wrong value
+        // still typechecked. `killActor` is `{ name, role, groupId }`, which
+        // `requireCliActor` builds to be assignable to `AuditActorInput`.
         if (options.release) {
-          await releaseAgentLockdown(killActor.groupId, agentId, "cli");
+          await releaseAgentLockdown(killActor.groupId, agentId, killActor);
           defaultRuntime.log(`governance lockdown released for agent "${agentId}"`);
           return;
         }
-        const outcome = await lockDownAgent(killActor.groupId, agentId, "cli");
+        const outcome = await lockDownAgent(killActor.groupId, agentId, killActor);
         defaultRuntime.log(
           `governance lockdown engaged for agent "${agentId}" in ${outcome.elapsedMs.toFixed(1)}ms`,
         );
