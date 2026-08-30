@@ -178,9 +178,12 @@ Tracked as Q-73b in `mg/REMAINING-WORK.md` §13c.
 | `governance agents register <agentId> <displayName> [--owner <accountId>]`                                                | **Administrator:** record an agent, owned by you. `--owner` is Root-only                                                                  |
 | `governance agents rename <agentId> <displayName>`                                                                        | Rename an agent you own. The id never changes                                                                                             |
 | `governance agents set-owner <agentId> <accountId>`                                                                       | Hand an agent to another Administrator, releasing its previous holders                                                                    |
+| `governance agents set-codex <agentId> <on\|off>`                                                                         | **Administrator:** permit or refuse this agent on the Codex backend, where a denied search's results cannot be withheld                   |
 | `governance agents unregister <agentId>`                                                                                  | Remove the record. The agent, its rules and its posture are untouched                                                                     |
 | `governance agents provision <displayName> [--id <agentId>] [--owner <accountId>] [--workspace <path>] [--model <model>]` | **Administrator:** create a real OpenClaw agent **and** record it, as one act or none (M6)                                                |
 | `governance agents delete <agentId> --yes`                                                                                | **Administrator:** remove the record **and** delete the agent from OpenClaw. Irreversible; refuses without `--yes`                        |
+| `governance backend status`                                                                                               | **Root:** whether this installation offers the Codex backend, and whether anybody chose it                                                |
+| `governance backend set-codex <on\|off>`                                                                                  | **Root:** offer or withdraw the Codex backend for the whole installation                                                                  |
 | `governance agent transcript <agentId>`                                                                                   | Print this machine's conversation with an agent                                                                                           |
 | `governance sessions`                                                                                                     | List currently-running agent sessions                                                                                                     |
 | `governance deployment`                                                                                                   | Verify the deployment and network posture                                                                                                 |
@@ -271,13 +274,21 @@ listed disappears.
 
 ```
 $ openclaw governance agents list
-  agent-support  "Support triage"  owner user-1755...
+  agent-support  "Support triage"  owner user-1755...  engine: built-in only
+  agent-research "Research"        owner user-1755...  engine: built-in or Codex
   agent-legacy   (not registered — predates the registry, owned by nobody)
 ```
 
 "No agents are visible to you" is printed in words rather than left as a blank,
 because an empty list and a failed request look identical when both render as
 nothing.
+
+**`engine:` is a permission, never an observation** (§3.5.62). The layer cannot
+see which runtime an agent is actually using; it can only say which it is
+allowed to use, and the wording says so. It appears here because `set-codex`
+changes it from this surface, and a setting an operator can change but not read
+back is one they have to take on trust. Unregistered rows carry no engine state,
+because the permission lives on the registry record they do not have.
 
 ### `governance agents register <agentId> <displayName>`
 
@@ -377,6 +388,36 @@ That second half is not tidying. Assignment is constrained to agents your own
 Administrator owns, so leaving the old holders in place would leave the account
 file stating something the registry contradicts: an invariant that holds at the
 moment it is written and rots afterwards.
+
+### `governance agents set-codex <agentId> <on|off>`
+
+**Administrator**, for an agent you own; Root inherits. Permits or refuses this
+agent on the Codex backend.
+
+```
+$ openclaw governance agents set-codex agent-research on
+agent-research may now run on the Codex backend.
+  On that backend a recursive search reaching a denied path is recorded but
+  NOT prevented: its results cannot be withheld from the model, because the
+  Codex hook protocol has no field for substituting a tool result.
+  Denials, the audit ledger and the kill switch still apply there.
+  This decision has been recorded in the ledger against your account.
+```
+
+**The warning prints on the permissive direction only**, matching the
+dashboard's asymmetry: permitting accepts a stated enforcement gap, while
+withdrawing is the safe direction and needs no caution. It prints _after_ the
+change rather than as a prompt, because this surface is scriptable and a prompt
+would either block automation or be answered blind.
+
+**This is one of two switches and it is not sufficient on its own.** An agent
+permitted here still cannot use a backend Root has not enabled with
+`governance backend set-codex on`. The two compose in series, so neither
+permission alone opens the gap. See §3.5.62 for why the tiers differ.
+
+Both directions are recorded, **including a restatement** — permitting an agent
+that is already permitted writes an `enabled -> enabled` entry, so the ledger can
+answer "who last confirmed this?" and not only "who changed it?".
 
 ### `governance agents unregister <agentId>`
 
@@ -728,6 +769,53 @@ the repair command for accounts predating groups, and the first-account
 bootstrap.
 
 **Exit codes:** `0` the run completed · `1` the run failed or was refused.
+
+### `governance backend status` and `governance backend set-codex <on|off>`
+
+**Root only, on both.** The machine-level half of the two-layer Codex control:
+whether this installation offers the backend at all. Its per-agent counterpart is
+`governance agents set-codex`, above.
+
+```
+$ openclaw governance backend status
+codex: disabled (nobody has decided; the safe default stands)
+
+$ openclaw governance backend set-codex on
+The Codex backend is now offered on this installation.
+  A recursive search reaching a denied path is recorded there but NOT prevented:
+  its results cannot be withheld from the model, because the Codex hook protocol
+  has no field for substituting a tool result.
+  No agent can use it until an Administrator permits that agent as well
+  ("governance agents set-codex <agentId> on").
+  This decision has been recorded in the ledger against your account.
+```
+
+**Why Root rather than Administrator**, which was the first answer and the wrong
+one: this writes `plugins.entries.codex.enabled` into **OpenClaw's own
+configuration** and refreshes the plugin registry, rather than changing
+governance's state in `policy.json` the way the posture does. Its blast radius
+reaches outside governance entirely — withdrawing the backend also withdraws the
+Codex-managed model catalogue, media understanding and prompt overlays, and
+leaves supervised chats locked until a restart. §1.6 gives Root the deployment
+configuration and the Administrator the agents' security boundaries; a plugin's
+enablement is the first. §3.5.62.
+
+**`status` distinguishes the default from a decision.** "Nobody has decided, so
+the safe answer stands" is a different fact from "an operator turned it off", and
+an operator auditing an installation needs to tell them apart. Absent an explicit
+entry the backend reports **disabled**, which is a governance stance rather than
+a reading of upstream's default: the layer declines to treat a backend it cannot
+fully enforce as available until somebody says so.
+
+`status` is Root-gated to match the `GET backend/codex` route rather than to
+protect the value, which is not a secret. The asymmetry recorded against
+`governance deployment` below — any signed-in tier may read what the dashboard
+shows only to Root — is real, and these commands decline to add a second
+instance of it.
+
+**Exit codes:** `0` the change was made or the state was printed · `1` the value
+was not `on` or `off`. A refusal on tier prints the reason and exits `0`, like
+every other gated command here.
 
 ### `governance agent transcript <agentId>`
 
@@ -1090,17 +1178,19 @@ node --import ./scripts/register-ts-resolver.mjs scripts/governance-linux-check.
 
 ## 10. Change log for this reference
 
-| Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 2026-08-25 | No command changed. The tree was split by subject to get under the project's 700-line limit (T16): `register.governance.ts` 848 → 459 code lines, with the whole `policy` group moving to `register.governance.policy.ts`. Recorded here because the file a reader is pointed at changed, and because the criterion narrowed — the route modules each state one _authorization_ rule, but the policy commands span Viewer to Root by design, so what makes that file coherent is its subject. Verified by `governance --help` and `governance policy --help` listing every subcommand, not only by the type checker.                                                                       |
-| 2026-08-24 | Added the `governance agents` command group (M4) — `list`, `register`, `rename`, `set-owner`, `unregister` — the command line's half of the agent registry, and §2c explaining it. The commands live in `src/cli/program/register.governance.agents.ts` rather than in `register.governance.ts`, which was already 163 lines past the project's own limit before M4 (T16); the identity gate both files need moved to `governance-cli-gate.ts`. The registry also changes a command that gained no flags: assigning an agent now refuses one belonging to a different Administrator, while an id that predates the registry is still accepted — the honest limit stated at the end of §2c. |
-| 2026-08-24 | Added `governance groups unmigrated` and `governance groups migrate --delete` (M3), and §2b on the group model the CLI now acts inside.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| 2026-08-21 | `agent prompt` gained `--stream`, and Ctrl-C now cancels the agent run rather than only the printout. Also records the three limits that now apply to every prompt on every surface — a five-minute timeout, two concurrent prompts per account and six per installation — and states why there is no `agent cancel` command: the in-flight table is per process, so such a command could only stop a run started in the same terminal, and one that appeared to reach the Gateway's runs would be claiming a power it does not have.                                                                                                                                                      |
-| 2026-08-20 | Added `governance deployment` (A7) — Root's deployment and network posture report, on the CLI as well as the dashboard. The CLI form is the one that matters on a new host: the dashboard is reachable only through an SSH tunnel by design, so the moment you most need to know whether the listener is exposed is _before_ that tunnel exists. `--json` for scripts, `--strict` to exit non-zero on a failure; exit 0 by default, because a command that fails on every workstation is one people learn to ignore.                                                                                                                                                                       |
-| 2026-08-20 | **Behaviour change, no new flags:** `add-rule` now detects clashes **inside the write lock**. Two administrators adding the same rule at the same instant previously both saw no clash and the loser was told nothing — the duplicate was harmless, the silence was not (QA round 14).                                                                                                                                                                                                                                                                                                                                                                                                     |
-| 2026-08-19 | **Behaviour change, no new flags:** a core denial now covers `governance <subcommand>`, so the _agent_ can no longer reach this CLI through a broad operator allow-rule such as `^(node\|npm\|npx\|pnpm) .*$`. Until QA round 13 (finding 73) `openclaw governance policy set-mode off` was a one-command bypass of the entire RBAC model. This stops the agent; it does nothing about a person with shell access, which remains A6 and is why a CLI login is still open work.                                                                                                                                                                                                             |
-| 2026-08-19 | `add-rule` gained `--effect allow\|deny` and `--access read\|write`. Both were enforced by the engine since the tier model landed and creatable from no interface, so an operator's own restriction meant hand-editing `policy.json` — the R5 pattern (a mechanism that works, no surface that reaches it). `--access` is **refused** on command and network rules rather than ignored, and the warnings now flip with the rule's direction: a catch-all denial is reported as disabling the agent, not as granting everything.                                                                                                                                                            |
-| 2026-08-17 | Added `agent prompt` and `agent transcript` — the User tier's own capability from §1.6 ("may strictly prompt the agents for task execution"), and the last of that tier's capabilities to exist. The run goes through OpenClaw's ordinary ingress, so the policy gate still sees every tool call; a locked-down agent refuses the prompt outright; conversations are kept per (agent, account). CLI prompts carry the existing `cli` attribution caveat.                                                                                                                                                                                                                                   |
-| 2026-08-16 | Added `policy set-agent-mode`, the per-agent posture control. Monitor mode had been demoted to a per-agent opt-in when the tier model landed, and nothing on any of the three surfaces could actually set it — the store function was reachable only from tests. The API route, this command, and the dashboard's **Observe one agent** control landed together, all three refusing `off` for the reason documented above. Also records that `add-rule` now distinguishes a clash caused by a deny rule from one caused by an earlier allowance, because the two mean opposite things.                                                                                                     |
-| 2026-08-11 | CLI parity closed. Added `policy set-agent-ask`, `policy set-hitl-timeout`, `sessions`, `pending list`, `pending decide`, and an `--agent` option on `add-rule`. `add-rule` now also rejects backtracking-prone patterns and reports conflicts with earlier rules. No known CLI gaps remain against the dashboard.                                                                                                                                                                                                                                                                                                                                                                         |
-| 2026-08-10 | First version. Documents `policy show/set-mode/set-ask/add-rule/remove-rule`, `audit tail/verify`, `kill [--release]`. Records that `kill` now measures and prints elapsed time and reports in-flight termination availability honestly, and that `--agent` scoping is dashboard-only so far.                                                                                                                                                                                                                                                                                                                                                                                              |
+| Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-08-31 | Added `governance backend status` and `governance backend set-codex <on\|off>` (Root), completing the third surface for the machine-level half of the two-layer Codex control — the dashboard panel and the `backend/codex` route shipped on 2026-08-30 and the CLI did not, leaving the switch reachable from two surfaces while its per-agent counterpart reached three. Documented `governance agents set-codex` at the same time, which had shipped on 2026-08-30 and was never entered here. `agents list` now prints each agent's `engine:` permission, because `set-codex` changes it from this surface and a setting an operator can change but cannot read back is one they have to take on trust. §3.5.62 |
+| 2026-08-30 | No command changed. **Two corrections**, both of the same shape: this document twice explained a real behaviour by an absent CLI login, which T5 added on 2026-08-24. `agent prompt` records the signed-in account, not `cli`; `deployment` requires a login, and the asymmetry it does have — any signed-in tier may read what the dashboard shows only to Root — is now stated as itself                                                                                                                                                                                                                                                                                                                          |
+| 2026-08-25 | No command changed. The tree was split by subject to get under the project's 700-line limit (T16): `register.governance.ts` 848 → 459 code lines, with the whole `policy` group moving to `register.governance.policy.ts`. Recorded here because the file a reader is pointed at changed, and because the criterion narrowed — the route modules each state one _authorization_ rule, but the policy commands span Viewer to Root by design, so what makes that file coherent is its subject. Verified by `governance --help` and `governance policy --help` listing every subcommand, not only by the type checker.                                                                                                |
+| 2026-08-24 | Added the `governance agents` command group (M4) — `list`, `register`, `rename`, `set-owner`, `unregister` — the command line's half of the agent registry, and §2c explaining it. The commands live in `src/cli/program/register.governance.agents.ts` rather than in `register.governance.ts`, which was already 163 lines past the project's own limit before M4 (T16); the identity gate both files need moved to `governance-cli-gate.ts`. The registry also changes a command that gained no flags: assigning an agent now refuses one belonging to a different Administrator, while an id that predates the registry is still accepted — the honest limit stated at the end of §2c.                          |
+| 2026-08-24 | Added `governance groups unmigrated` and `governance groups migrate --delete` (M3), and §2b on the group model the CLI now acts inside.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| 2026-08-21 | `agent prompt` gained `--stream`, and Ctrl-C now cancels the agent run rather than only the printout. Also records the three limits that now apply to every prompt on every surface — a five-minute timeout, two concurrent prompts per account and six per installation — and states why there is no `agent cancel` command: the in-flight table is per process, so such a command could only stop a run started in the same terminal, and one that appeared to reach the Gateway's runs would be claiming a power it does not have.                                                                                                                                                                               |
+| 2026-08-20 | Added `governance deployment` (A7) — Root's deployment and network posture report, on the CLI as well as the dashboard. The CLI form is the one that matters on a new host: the dashboard is reachable only through an SSH tunnel by design, so the moment you most need to know whether the listener is exposed is _before_ that tunnel exists. `--json` for scripts, `--strict` to exit non-zero on a failure; exit 0 by default, because a command that fails on every workstation is one people learn to ignore.                                                                                                                                                                                                |
+| 2026-08-20 | **Behaviour change, no new flags:** `add-rule` now detects clashes **inside the write lock**. Two administrators adding the same rule at the same instant previously both saw no clash and the loser was told nothing — the duplicate was harmless, the silence was not (QA round 14).                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 2026-08-19 | **Behaviour change, no new flags:** a core denial now covers `governance <subcommand>`, so the _agent_ can no longer reach this CLI through a broad operator allow-rule such as `^(node\|npm\|npx\|pnpm) .*$`. Until QA round 13 (finding 73) `openclaw governance policy set-mode off` was a one-command bypass of the entire RBAC model. This stops the agent; it does nothing about a person with shell access, which remains A6 and is why a CLI login is still open work.                                                                                                                                                                                                                                      |
+| 2026-08-19 | `add-rule` gained `--effect allow\|deny` and `--access read\|write`. Both were enforced by the engine since the tier model landed and creatable from no interface, so an operator's own restriction meant hand-editing `policy.json` — the R5 pattern (a mechanism that works, no surface that reaches it). `--access` is **refused** on command and network rules rather than ignored, and the warnings now flip with the rule's direction: a catch-all denial is reported as disabling the agent, not as granting everything.                                                                                                                                                                                     |
+| 2026-08-17 | Added `agent prompt` and `agent transcript` — the User tier's own capability from §1.6 ("may strictly prompt the agents for task execution"), and the last of that tier's capabilities to exist. The run goes through OpenClaw's ordinary ingress, so the policy gate still sees every tool call; a locked-down agent refuses the prompt outright; conversations are kept per (agent, account). CLI prompts carry the existing `cli` attribution caveat.                                                                                                                                                                                                                                                            |
+| 2026-08-16 | Added `policy set-agent-mode`, the per-agent posture control. Monitor mode had been demoted to a per-agent opt-in when the tier model landed, and nothing on any of the three surfaces could actually set it — the store function was reachable only from tests. The API route, this command, and the dashboard's **Observe one agent** control landed together, all three refusing `off` for the reason documented above. Also records that `add-rule` now distinguishes a clash caused by a deny rule from one caused by an earlier allowance, because the two mean opposite things.                                                                                                                              |
+| 2026-08-11 | CLI parity closed. Added `policy set-agent-ask`, `policy set-hitl-timeout`, `sessions`, `pending list`, `pending decide`, and an `--agent` option on `add-rule`. `add-rule` now also rejects backtracking-prone patterns and reports conflicts with earlier rules. No known CLI gaps remain against the dashboard.                                                                                                                                                                                                                                                                                                                                                                                                  |
+| 2026-08-10 | First version. Documents `policy show/set-mode/set-ask/add-rule/remove-rule`, `audit tail/verify`, `kill [--release]`. Records that `kill` now measures and prints elapsed time and reports in-flight termination availability honestly, and that `--agent` scoping is dashboard-only so far.                                                                                                                                                                                                                                                                                                                                                                                                                       |

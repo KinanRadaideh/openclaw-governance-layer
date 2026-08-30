@@ -4871,3 +4871,122 @@ Codex and recorded there instead, with each agent's engine permission visible in
 the agent list. The test was rewritten to check both halves, and carries a note
 explaining why the tripwire did not fire, so nobody trusts that device further
 than it goes.
+
+## 5.69 The stop button that filed its report under the wrong heading
+
+When you press the emergency stop on an agent, two things have to happen. The
+agent has to stop, and the logbook has to say that the stop is why it stopped.
+
+The first one always worked. The second one did not, for one particular kind of
+agent.
+
+We had just added a rule about which agents are allowed to run on a second
+engine — a different program we hand work to, where some of our protections
+cannot reach. The gate checks that rule. The problem was **when** it checked it:
+before it checked whether the agent had been stopped.
+
+So if you had pressed the stop button on an agent that also was not allowed on
+that engine, the agent was refused — and the logbook said _"this agent is not
+allowed on that engine"_. Which was true. It was just not the answer to the
+question you would be asking, which is _did my stop button work?_
+
+You would have to already suspect something was wrong to notice, because nothing
+looks broken. The agent stopped. The log has an entry. The entry is even true.
+
+We moved the check so the stop button answers first.
+
+**This is the third time we have found this same shape**, and it is worth saying
+why it keeps happening. All three times the stop button _worked_. All three times
+what was wrong was the **evidence it left behind**. A protection that you only
+consult afterwards fails silently, because nothing goes wrong at the moment it
+fails — it goes wrong later, when somebody asks, and by then the moment has
+passed.
+
+## 5.70 The search that stopped looking and did not say so
+
+Our search filter reads through what a search found and takes out anything your
+rules forbid. To keep it from doing unlimited work on a huge result, it only
+reads the first two thousand lines.
+
+That part was intended. What was not intended was what happened after line two
+thousand.
+
+If the filter found nothing to remove in those first two thousand lines, it
+concluded there was nothing to remove **at all** — and handed over the entire
+result, including the eighty thousand lines it had never looked at. A forbidden
+file appearing at line 2,001 went straight through.
+
+The mistake was one character of meaning in one function. The code asked for the
+first two thousand lines, and then treated "I did not find anything" and "I did
+not look" as the same answer.
+
+It has always been unlikely to happen — the search tools cut themselves off well
+before two thousand lines — but the direction of the failure was the wrong one.
+A limit that gives up and hands everything over is not a limit. The same file
+already says this in another place: _a filter that fails open defeats itself._
+
+Now, past the point where it stopped reading, it says so and holds the rest back:
+_"140 further results were not checked against the policy and were withheld.
+Narrow it and run it again."_ The agent is told, because the agent is the one who
+can narrow the search.
+
+## 5.71 A bug we reported and then withdrew
+
+While checking the search filter we thought we had found a second problem: if
+some other part of the system deliberately blanked out a result, our filter might
+put the contents back.
+
+That would have been bad in an unusually embarrassing way — the component whose
+whole job is removing things, un-removing something another component removed.
+
+**It was not real.** We tested it by breaking our own fix and running the tests
+again: if the fix mattered, something should have failed. Nothing did. So we went
+and read the actual data type, and found that a blanked-out result is an empty
+**list**, and the code was already treating an empty list correctly. The problem
+we described could not occur.
+
+We wrote it down anyway, because how we caught it is the useful part. A fix for a
+problem that does not exist looks exactly like a fix whose test does not work —
+in both cases, breaking the fix changes nothing. The only way to tell them apart
+is to go and look, and it would have been easy not to.
+
+## 5.72 The document that undersold the project
+
+The report has a table listing the nine things the project promised to do, with
+whether each was done. The table was right. The paragraph underneath it was six
+days out of date.
+
+It said three problems remained. Two of them had been solved — one on the 25th,
+one the day before.
+
+This is the kind of stale sentence nobody catches, because it fails in the
+flattering-to-check direction: it makes the project sound _worse_ than it is. A
+claim that oversells gets caught, because sooner or later somebody tests it. A
+claim that undersells just sits there being modest — until an examiner follows it
+up, finds the code doing more than the document admits, and reasonably wonders
+what else the author has not kept track of.
+
+We replaced the paragraph rather than adding a correction after it, and we have
+written down why: the same document had already collected four contradictory
+statements about something else in exactly that way, each one true when written
+and none of them removed.
+
+## 5.73 A rule we told ourselves we followed
+
+The project has a rule: anything you can do should be doable in all three
+places — the web page, the command line, and the programming interface. It is
+written in the code as a standard.
+
+We checked it for the first time. It is not true. Four things are missing from
+the command line: managing accounts, handling requests from users to change a
+rule, seeing who has access to an agent, and stopping a job that is currently
+running.
+
+**Some of those are probably fine.** Creating accounts from a terminal may be
+deliberately wrong, because anyone with a terminal on that machine could then
+create themselves an administrator. The point is not that all four must be
+built — it is that **not one of the four had a reason written down anywhere**, so
+the rule was stated as if it were universal and had never once been checked.
+
+That is the third time this project has found a rule it had asserted and never
+audited. It matters because a rule you believe stops you looking.

@@ -6811,12 +6811,47 @@ _Table candidate — Table 4.x: Validation of Design Requirements._
 | 8   | "shall prevent sensitive data (such as secrets or credentials) from being written in plaintext to log files"                                                                                                                                             | **Met.** Every recorded resource passes through the host's own `redactToolPayloadText` at the ledger boundary — enforced there rather than at each call site, so a future caller cannot reintroduce the hole by forgetting to redact. Reinforced by the core tier refusing credential files outright, so in the common case the secret is never read at all. Recorded values are also length-capped, because an uncapped agent-controlled string is a way to destroy the audit trail by filling the disk.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | 9   | "shall be deployable on a Linux-based operating system using open-source software components only"                                                                                                                                                       | **Partially met — the one requirement not fully demonstrated.** Open-source-only is met exactly: `git diff package.json` is empty, and the entire layer is built from Node built-ins plus packages OpenClaw already had. Linux is _tested_ — the full suite runs natively on Ubuntu 24.04 under WSL2, plus a dedicated platform harness — but has never been **deployed** to a VPS, and the launcher script is PowerShell-only. This is item A8 and it should be stated in these words rather than rounded up. A7 (§3.5.14) now supplies the verification step that deployment will need: `openclaw governance deployment` checks the Linux target, the memory floor, the loopback listener and the file permissions in one command, over a plain SSH session and before any tunnel exists.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
-**As of B1 (§4.x.21) the layer has no known security hole.** Three limits remain, each
-stated rather than closed and each needing something the host does not yet report:
-search tools are governed at the path they are rooted at and not at the files they
-go on to open; outbound chat messages have no resource kind describing them; and a
-lockdown does not reach a cross-agent child that was already running. They are
-limits of coverage, not defects in what is covered.
+**The layer has no known security hole.** ~~Three limits remain, each stated
+rather than closed and each needing something the host does not yet report:
+search tools are governed at the path they are rooted at and not at the files
+they go on to open; outbound chat messages have no resource kind describing them;
+and a lockdown does not reach a cross-agent child that was already running.~~
+
+> **Two of those three closed and this paragraph did not move — finding 159,
+> 2026-08-31.** It is the paragraph Chapter 4's validation argument is built
+> from, which makes it the worst place in the document set to carry a stale
+> sentence: it understates the project by naming limits that no longer exist, and
+> an examiner who checks one of them finds the code contradicting the claim.
+>
+> - **Lockdown reaching a running cross-agent child — closed 2026-08-25 (T6),
+>   six days before this was last read.** `session-lineage.ts` walks the spawn
+>   chain and refuses a call descending from a locked agent. It never needed
+>   anything from the host: the host already wrote `spawnedBy` onto the session
+>   entry, and only the _hook payload_ lacked it.
+> - **Search tools governed only at their root — closed 2026-08-30 (T7), on the
+>   runtime where it can be.** Results a denial covers are withheld before the
+>   model sees them, and the count withheld is stated. Unclosable on the native
+>   Codex harness, which is why that backend now sits behind two consent
+>   switches (§3.5.62) rather than being available by default.
+> - **Outbound chat messages — still true, and settled rather than open.** §1.3
+>   requirements 3 and 4 name three resource categories and messaging is not one;
+>   connecting an agent to a channel is itself the permission. Every send is
+>   recorded, redacted, attributed and carrying its destination (§3.5.45).
+>
+> **All three were once labelled "needs something the host does not report", and
+> that phrase was wrong about all three** — twice because a fork can read further
+> than the note assumed, once because the specification never asked. The
+> replacement sentence below states what is true now and names where each claim
+> can be re-checked.
+
+**One limit remains, and it is a decision rather than a gap:** outbound chat
+messages are recorded rather than gated, because §1.3 does not name messaging
+among the resources the default-deny model governs. What was true of the other
+two is now the opposite of what this paragraph said: a lockdown reaches a running
+cross-agent child (T6), and a recursive search cannot hand the model a file a
+denial covers on the in-process runtime (T7). The honest summary is **limits of
+coverage, stated and dated, not defects in what is covered** — and each one is
+re-checkable, which is the property that matters more than the count.
 
 **Eight of nine fully met; #9 partial for want of a deployment rather than for
 want of code.** Say that sentence plainly and name the partial one, because a
@@ -7799,8 +7834,12 @@ know **which runtime a call arrived from**, and it could not: the relay passed n
 such fact.
 
 `nativeHarness?: boolean` was added to three context types — `HookContext`,
-`AgentHarnessHookContext` and `PluginHookAgentContext` — and set by **both**
-native relay call sites, which are the only places that know. The gate reads it
+`AgentHarnessHookContext` and `PluginHookAgentContext` — and set at the two
+native relay sites whose value something reads — `pre_tool_use`, which is the one
+that reaches the gate, and `before_agent_finalize`. **Not at `post_tool_use`**,
+which passes no context object at all, so there is nothing there that could read
+it; finding 153 corrected three write-ups that said "both relay call sites" and
+would have been read as covering it. The gate reads it
 in `evaluateGovernancePolicy` and, when the agent has no permission, refuses:
 
 ```
@@ -7811,14 +7850,35 @@ settings.
 
 Recorded as `agent-not-permitted-on-codex`, decision `deny`.
 
-**Three properties of that check are deliberate.** It runs **after the posture
-and before the lockdown**, because it asks whether the agent may be running
-_here at all_ rather than what it may do — an agent on a forbidden runtime should
-be refused uniformly, not judged rule by rule on a path where a denial cannot be
-enforced. It is **skipped entirely** when the marker is absent, so the
-in-process path pays one property read. And the reason **names the remedy**, so a
-refusal explains itself at the point it occurs — this project's worst bug class
-is a failure with no visible cause.
+**Four properties of that check are deliberate.** It runs **after the posture and
+after the lockdown, before any rule**, because it asks whether the agent may be
+running _here at all_ rather than what it may do — an agent on a forbidden
+runtime should be refused uniformly, not judged rule by rule on a path where a
+denial cannot be enforced. It **blocks in monitor mode**, for the reason the kill
+switch and the core denials do: monitor suspends policy _opinions_, and this is
+not one. It is **skipped entirely** when the marker is absent, so the in-process
+path pays one property read. And the reason **names the remedy**, so a refusal
+explains itself at the point it occurs — this project's worst bug class is a
+failure with no visible cause.
+
+> **This paragraph read "before the lockdown" until 2026-08-31, and the code
+> matched it. Both were wrong — finding 152.** The outcome never differed: a
+> locked, unpermitted agent on Codex was refused either way. The **ledger entry**
+> differed, and that is the whole value of the kill switch after the fact. It
+> read `agent-not-permitted-on-codex`, so an operator asking the one question an
+> emergency stop exists to answer — _did it hold?_ — got a true sentence about
+> the wrong subject.
+>
+> The comment above the lockdown block has said "checked before anything else"
+> since finding 81, and this branch was written past it by somebody (me) who read
+> that comment as being about the tools with no extractor, which is the example
+> it gives. **An invariant stated with an example is read as being about the
+> example.** It is now stated as a rule first.
+>
+> Worth Chapter 4: three of this project's defects — 81, 120 and 152 — are the
+> same sentence about the kill switch failing in a different way, and each time
+> the enforcement was right and the _evidence_ was wrong. A control whose value
+> is retrospective fails quietly, because nothing is broken until somebody asks.
 
 **This is the second time this week upstream code was edited for a security
 guarantee rather than for wiring**, after finding 147's redaction patterns. The

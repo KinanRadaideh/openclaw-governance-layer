@@ -66,7 +66,13 @@ to give it. Counted as outstanding here because the remaining work is yours.
 **One is deprioritised:** T1 — not being done. **T13** is drafted and waiting to
 be read.
 
-**Current as of 2026-08-30: 25 done, 7 open, and T1 deprioritised** across
+**Current as of 2026-08-31: 25 done, 9 open, and T1 deprioritised** across
+T1–T36. The list grew by three on 2026-08-31 — **T34, T35 and T36**, all raised
+by QA rounds twenty-nine to thirty-two and none of them a security gap. T33
+closed 2026-08-28 and T7 closed 2026-08-30, which unblocked T32.
+
+_(The line below is the previous measurement, kept because its correction is the
+point.)_ **As of 2026-08-30: 25 done, 7 open, T1 deprioritised** across
 T1–T33 (T31 and T33 closed 2026-08-28). This read "26 done, 7 open" until
 2026-08-30, which summed to 33 only by counting T1 — an item explicitly _not
 being done_ — among the done. Counting it as neither is the honest split, and it
@@ -85,6 +91,9 @@ four (T29–T32) after two investigations and a request. What is open:
 | **T32**     | Waits on M, and on T7 prevention                                                                                                                                                                                                                                           |
 | **T1**      | Deprioritised, not being done                                                                                                                                                                                                                                              |
 | **T33**     | Claude, after one decision from you — **make the fork build and start on Linux at all.** Added 2026-08-28; a **prerequisite to T3**, because nothing has ever been built or run on Linux, only unit-tested there                                                           |
+| **T34**     | **Kinan, then Claude** — decide what the "three surfaces" rule promises, then make the record match it. Added 2026-08-31 by finding 158                                                                                                                                    |
+| **T35**     | Claude — narrow `AuditActorInput` so the wrong actor cannot typecheck. Added 2026-08-31 after it produced findings 149 and 155 in two days                                                                                                                                 |
+| **T36**     | Claude, once, immediately before Chapter 4 is written — re-derive the requirements validation table from the code. Added 2026-08-31 by finding 159                                                                                                                         |
 
 **"Blocked on the host" was recorded three times and was true zero times — and
 then a fourth was recorded on 2026-08-30 that is true.** The fourth is T7's
@@ -1420,6 +1429,101 @@ that out during T3 wastes the VPS booking rather than the afternoon.
 
 ---
 
+### Open work added 2026-08-31 by QA rounds twenty-nine to thirty-two
+
+Three items. **None is a security gap** — the layer still has no known hole. Two
+need a decision from Kinan before anybody writes code; one is Claude's and is
+small but deliberately not done in the same pass that found it.
+
+| #       | What                                                                                    | Who                    | Effort  |
+| ------- | --------------------------------------------------------------------------------------- | ---------------------- | ------- |
+| **T34** | Decide what the "three surfaces" rule actually promises, and make the record match it   | **Kinan**, then Claude | 0.5–3 d |
+| **T35** | Narrow `AuditActorInput` so the wrong actor cannot typecheck                            | Claude                 | 2–3 h   |
+| **T36** | Re-audit the requirements validation table against the code before Chapter 4 is written | Claude, once           | 1–2 h   |
+
+---
+
+#### T34 — what does "three surfaces" promise? (finding 158)
+
+**The decision.** The project states, in code and in two documents, that "a
+capability reaching only two of them is unfinished". Four capability groups reach
+HTTP and the dashboard but not the CLI: **accounts**, **rule requests**, **who
+can reach an agent**, and **a run in flight**. Either the rule is true and there
+is a day or three of CLI work, or the rule has exceptions and they have never
+been written down.
+
+**Recommended: write the exceptions first, build only what cannot be argued
+away.** Account management from a terminal is plausibly wrong on purpose — it is
+the surface whose boundary is filesystem access rather than RBAC, so a CLI that
+creates Root accounts hands the tier model to anyone with a shell. A rule request
+is a conversation between two people and a scriptable surface serves it badly.
+The other two are harder to argue and may simply be missing.
+
+**Why it matters beyond tidiness.** The rule's value is that a gap must be
+_argued for_ rather than drifted into. Stated universally and audited never, it
+does the opposite: it makes four real gaps invisible, because a reader who
+believes the rule does not go looking. It is the same shape as "blocked on the
+host", recorded three times and audited zero times, and as the Root backend
+switch that reached two surfaces for a day while the session log said three.
+
+**Whatever is decided, `CLI-REFERENCE.md` needs a short section naming what is
+deliberately dashboard-only.** That is the artefact whose absence let this
+survive: a reader of the CLI reference cannot currently tell "not documented"
+from "not built".
+
+#### T35 — narrow `AuditActorInput` (from findings 149 and 155)
+
+`AuditActorInput` is a union with a bare `string` arm. It has now produced **two
+defects in two days**, in two different commands, both of the same shape: a value
+that is not an actor was passed where an actor was wanted, and it typechecked.
+
+- **Finding 149** — `governance kill` resolved a signed-in operator and then
+  passed the literal `"cli"`, so the emergency stop could not name who pressed
+  it. Shipped, and found by reading the documentation against the code.
+- **Finding 155** — the new Root backend command passed a `requireCliActor`
+  result through `toCliAuditActor`, which reads a `username` the object does not
+  have. Every installation-wide backend change would have been recorded against
+  `unknown`. Caught before commit, by a test that exists only because 149 taught
+  us to write it.
+
+**The type is the defect.** A bare `string` arm accepts every wrong value
+silently, and it sits on the write path of every administrative action in the
+layer — the exact place where being wrong is least visible and matters most,
+because the ledger is the thing an investigation has instead of memory.
+
+**The work**: replace the bare arm with a named type that cannot be produced by
+accident, keeping the two legitimate bare-string actors (`CLI_ACTOR` for the
+pre-groups repair command, `BOOTSTRAP_ACTOR` for the first account) as explicit
+constants of that type. Every `recordAdminAction` and `appendLedgerEntry` call
+site then either holds a resolved actor or names one of the two constants, and
+"who did this?" stops being answerable by a typo.
+
+**Deliberately not done in the pass that found it.** It touches every governance
+write path, so it wants its own change, its own suite run, and a mutation check
+per call site rather than a corner of a QA round. Doing it inside round
+twenty-nine would have been the thing round twenty-six warned about: a sweep
+whose blast radius nobody measured.
+
+#### T36 — re-audit the requirements table before Chapter 4 (from finding 159)
+
+The §4.x.5 validation table is what Chapter 4's central argument is built from,
+and the paragraph beneath it was **six days stale**: it listed three remaining
+limits, two of which had closed (T6 on 2026-08-25, T7 on 2026-08-30). Corrected
+2026-08-31.
+
+**The correction is not the fix.** The table has now been wrong once in the way
+that matters most — understating the project to an examiner who can check — and
+nothing re-derives it. Every row says "Met" and cites files; the citations were
+true when written and nothing re-reads them.
+
+**The work is one pass, done once, immediately before Chapter 4 is written**:
+take each of the nine requirements, re-derive its status from the code rather
+than from the row, and re-date the row. Not now — doing it now guarantees it is
+stale again by the time the chapter is written, which is precisely the failure
+being fixed. **Schedule it against the writing, not against the calendar.**
+
+---
+
 ### T32 — folder grants with exceptions: the rest of T7 (depends on the M-series)
 
 Requested 2026-08-26: in the same place an operator sees and changes an agent's
@@ -1604,6 +1708,281 @@ point gets it silently not applied there.
 
 ---
 
+### QA rounds twenty-nine to thirty-two (2026-08-31) — findings 151–159
+
+**Four rounds in one session, at Kinan's request, deliberately scoped so each
+looks at something the previous one could not.** Round twenty-nine audits the
+Codex two-switch feature on its own; round thirty audits everything built since
+round twenty-eight _except_ that feature; round thirty-one is a universal sweep;
+round thirty-two re-reads the day's own work — including these rounds' own
+fixes — against the documentation.
+
+**Nine findings, seven fixed, one withdrawn, one open as a decision.** One further
+candidate was raised and **withdrawn**, written up below because the withdrawal
+is the more useful record.
+
+| #       | Round | What                                                                                                                                        | State                        |
+| ------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| **151** | 29    | The Codex refusal blocks in monitor mode, undocumented and untested, where both neighbouring always-block branches state and test it        | Fixed — stated and pinned    |
+| **152** | 29    | It was checked **before** the lockdown, so a locked agent's ledger entry said "not permitted on Codex" rather than "the kill switch held"   | Fixed — reordered            |
+| **153** | 29    | Four write-ups said the runtime marker is set at "both relay call sites"; the two are `pre_tool_use` and `before_agent_finalize`            | Fixed — wording              |
+| **154** | 29    | The CLI's `agents set-codex on` never mentioned that Root must also enable the backend; the dashboard's confirmation always did             | Fixed                        |
+| **155** | 29    | The new Root CLI command passed a `requireCliActor` result through `toCliAuditActor`, which would have recorded the actor as `unknown`      | Fixed before commit          |
+| **156** | 30    | The search filter's line bound **failed open**: a denied path past line 2,000 reached the model                                             | Fixed — fails closed         |
+| **157** | 30    | ~~The filter discarded an earlier hook's blanked result~~                                                                                   | **Withdrawn — not a defect** |
+| **158** | 31    | The "three surfaces" rule is asserted in code as a standard and is untrue of four capability groups, with no record of which are deliberate | **Open — needs a decision**  |
+| **159** | 31    | The requirements validation table's commentary still listed two limits that closed on 2026-08-25 and 2026-08-30                             | Fixed — and T36 opened       |
+
+---
+
+#### Finding 151 — the Codex refusal blocks in monitor mode and nothing said so
+
+Monitor means policy _decisions_ are recorded rather than acted on. Two branches
+of `evaluateGovernancePolicy` block anyway, and **each carries a paragraph saying
+why and a test pinning it**: the kill switch ("a person deciding, during an
+incident, that this agent stops now") and the core denials ("the restrictions the
+installation declines to merely have an opinion about"). The Codex refusal is a
+third such branch and had neither.
+
+Blocking is the right behaviour, and the reasoning is the kill switch's: it
+answers "may this agent be on this runtime at all", which is not an opinion about
+a request. Degrading to record-only would be the exact failure the control exists
+to prevent — an agent running unenforced on the backend where enforcement is
+weakest, with a ledger that says so and nothing that stops it.
+
+**So nothing changed except that it is now stated and pinned**, which is the
+point: the branch's behaviour was decided by whoever wrote it and recorded
+nowhere, so the next reader could not tell a decision from an oversight. `off`
+still exempts it, like everything else in the gate, and that is pinned too.
+
+#### Finding 152 — the emergency stop lost its own ledger entry
+
+`ctx.nativeHarness` was checked **above** the lockdown block. Both branches
+refuse, so no call was ever wrongly allowed. What differed was the record: a
+locked agent on the Codex path was written to the ledger as
+`agent-not-permitted-on-codex`, and the kill-switch entry was never written.
+
+**That is the one question an emergency stop exists to answer after the fact.**
+An operator who engages a lockdown and later asks whether it held would be shown
+a true sentence about a different subject, and would have to already suspect the
+answer in order to spot the substitution.
+
+The comment above the lockdown block has read "checked before anything else"
+since finding 81. The branch was written past it because that comment explains
+itself with an example — the tools with no resource extractor — and **an
+invariant stated with an example is read as a claim about the example.** It is now
+stated as a rule first.
+
+**Worth Chapter 4: findings 81, 120 and 152 are the same sentence three times.**
+Each is the kill switch failing, each time with the enforcement correct and the
+_evidence_ wrong: 81 refused the call but could not attribute it, 120 could not
+read lineage and degraded to fail-open, 152 refused the call and filed it under
+the wrong cause. **A control whose value is retrospective fails quietly**, because
+nothing is broken until somebody asks — which is exactly when the answer matters
+and exactly too late to obtain it.
+
+The test meant to cover this is its own small finding. It was named
+`refuses before the lockdown check` and **never locked an agent** — it asserted
+the ordering against the "nothing to evaluate" return and nothing else. Its name
+described a property it did not test, so the area looked surveyed. Renamed to
+what it does check; the lockdown ordering is now a separate test asserting the
+_opposite_ order, because the order the old name claimed was the wrong one.
+
+#### Finding 153 — "both relay call sites" named the wrong two
+
+`nativeHarness` is set at two places in `native-hook-relay-events.ts`. The
+write-ups in `CHAPTER3-MATERIAL.md`, `HANDOFF.md`, `REMAINING-WORK.md` and
+`SESSION-LOG-2026-08.md` all said "both relay call sites", which a reader takes to
+mean both sites that relay a **tool call**. The two are `pre_tool_use` — the one
+that reaches the gate — and `before_agent_finalize`. **`post_tool_use` does not
+carry it.**
+
+**No code changed, and that is the finding's conclusion rather than a shortcut.**
+`post_tool_use` calls `runAgentHarnessAfterToolCallHook`, which takes no context
+object at all, so there is nothing there that could read a marker and nothing that
+would: T7's filter is installed on the embedded runner and is structurally
+in-process only. Adding the field for symmetry would be a **fourth upstream type
+edit for a value with no consumer**, which is the cost §3.5.62 already argues
+should be counted rather than paid casually. The claims were corrected instead,
+and the reason the absence is safe is written where the field is declared.
+
+#### Finding 154 — the same act explained itself on one surface and not the other
+
+The dashboard's confirmation dialog has always ended: _"The agent still cannot use
+Codex unless Root has enabled the backend for this installation."_ The CLI's
+`agents set-codex on` printed four lines of warning and never mentioned it.
+
+An operator who permits an agent from the command line and then watches it be
+refused has **no way to learn that a second switch exists**. This is the defect
+class this project has found more often than any other — two surfaces answering
+one question two ways — and it arrived inside a feature whose entire design is
+that two switches compose.
+
+#### Finding 155 — the actor hole from finding 149, one day later
+
+The new Root CLI command was written as
+`setCodexBackendEnabled(actor.groupId, permit, toCliAuditActor(actor))`.
+`requireCliActor` returns `{ name, role, groupId }`; `toCliAuditActor` takes a
+`CliIdentity` and reads `username`. The result would have recorded every
+installation-wide backend change against the actor **`unknown`**.
+
+**It typechecked**, because `AuditActorInput` has a bare `string` arm — the
+identical hole that let finding 149 reach the ledger the day before. Caught
+before commit by the command's own attribution test, which exists only because
+finding 149 established that the seam between _authenticating_ and _recording_ is
+the part no unit test crosses.
+
+**The lesson is about the type, not the mistake.** A union with a bare `string`
+arm accepts every wrong value silently, and it has now produced two defects in
+two days in two different commands. Narrowing it is recorded as open work below,
+because it is a change to a type every governance write-path uses and deserves
+its own pass rather than a corner of this one.
+
+#### Finding 156 — the search filter's bound failed open
+
+`filterSearchResult` examined `text.split("\n", MAX_RESULT_LINES)`.
+`String.prototype.split`'s second argument **truncates the array** rather than
+chunking it, so only the first 2,000 lines were ever examined. When nothing in
+that prefix was denied, the function returned `undefined` — and the caller then
+delivered the tool's **whole untruncated result**, including everything past the
+bound.
+
+**A denied path at line 2,001 of a search result reached the model.** That is
+precisely the case T7 prevention exists for: large recursive searches are the
+whole reason the gap was worth closing.
+
+Two things kept it small. The tools cap themselves first (grep at 100 matches), so
+exceeding 2,000 lines takes an unusual search; and the same declaration already
+called the bound "a backstop rather than a filter". **A backstop that fails open
+is not a backstop**, and this module's own catch block states the principle three
+lines away: a filter that fails open defeats itself.
+
+Fixed by splitting whole and bounding afterwards, so "there was no more" and "we
+stopped looking" become distinguishable. Past the bound the honest answer is _not
+checked_, so the remainder is **withheld and declared** — the agent is told how
+many results were not checked and to narrow the search, because the agent is the
+party that can act on it and one that believes it saw everything will narrow
+nothing. A result inside the bound with nothing denied is still handed over
+untouched. Mutation-checked: restoring the truncating split fails exactly the two
+new tests and none of the thirteen others.
+
+#### Finding 157 — withdrawn, and the withdrawal is the useful part
+
+Raised on this reading: `const effective = prior?.content ? … : context.result`
+treats a **blanked** rewrite from an earlier hook as "no rewrite", so governance
+would filter the tool's raw output and hand back what another layer had
+deliberately suppressed — the removal layer putting back what was removed.
+
+**It is not a defect. `content` is an `Array<{ type; text }>`, not a string, so a
+blanked rewrite is `[]`, which is truthy.** The falsy branch is reached only when
+`content` is absent, which is exactly when there is no rewrite.
+
+**The mutation test caught the mistake, in the honest direction.** Reverting the
+"fix" changed no test result — which is what a fix for a defect that does not
+exist looks like, and is indistinguishable from a fix whose test is vacuous
+unless you go and look. Going and looking found the type.
+
+Recorded rather than deleted, for the same reason decision A is: **a claim that
+dissolved once somebody checked the premise.** With the three "blocked on the
+host" claims, decision A, and finding 148's stated mechanism, the pattern is now
+specific enough to name — _this project's false claims are usually about a
+mechanism nobody re-derived, not a measurement nobody re-ran._ The test written
+for it is kept, because the property is worth holding true whoever edits that hook
+next.
+
+#### Finding 159 — the validation table's own commentary was six days stale
+
+Found in round thirty-one, by reading §1.3's nine requirements first and the code
+second — the order round thirteen established, because reading the code first
+tells you what was built rather than what was asked for.
+
+**The nine rows are accurate.** The paragraph immediately beneath them was not.
+It read:
+
+> _"Three limits remain, each stated rather than closed and each needing
+> something the host does not yet report: search tools are governed at the path
+> they are rooted at and not at the files they go on to open; outbound chat
+> messages have no resource kind describing them; and a lockdown does not reach
+> a cross-agent child that was already running."_
+
+**Two of those three had closed.** A lockdown has reached a running cross-agent
+child since **T6 on 2026-08-25**; a recursive search cannot hand the model a file
+a denial covers, on the in-process runtime, since **T7 on 2026-08-30**. Only the
+outbound-message limit is still true, and it is settled by decision rather than
+open.
+
+**Why this is the worst place in the document set to carry a stale sentence.**
+It is the paragraph Chapter 4's validation argument is built from, and it fails in
+the direction nobody checks for: it **understates** the project. A stale claim
+that overstates gets caught, because somebody eventually tests it. A stale claim
+that undersells sits there being modest, and an examiner who follows it up finds
+the code contradicting the document — which reads as the author not knowing what
+they built.
+
+**All three limits were once labelled "needs something the host does not report",
+and that phrase was wrong about all three.** Twice because a fork can read
+further than the note assumed (T6, T7); once because the specification never
+asked (T8). That phrase has now been the wrong explanation four times, counting
+the fourth instance which _is_ true — T7's prevention on the native Codex
+harness — and the difference is that the fourth was checked before it was
+written down.
+
+**Fixed by replacing the paragraph rather than appending to it**, and the
+struck-through original is kept above the replacement. This section had already
+demonstrated what appending does: `HANDOFF.md` §6's push instructions had
+accumulated four mutually contradictory statements the same way, each true when
+written and none removed. **The rule both places now follow: state the
+measurement and its date, and replace rather than add.**
+
+The recurrence is why **T36** exists rather than this being closed outright. One
+correction does not make the table self-maintaining, and re-deriving it now
+guarantees it is stale again by the time the chapter is written.
+
+#### Finding 158 — the "three surfaces" rule is asserted and untrue
+
+**Open. Needs a decision from Kinan.**
+
+The rule appears in the code as a project standard — _"the project's own rule is
+that a capability reaching only two of them is unfinished"_ — and is repeated in
+`CHAPTER3-MATERIAL.md` and in this file. Measured on 2026-08-31 by enumerating
+every `governance-dashboard-*.ts` route against the registered CLI commands, it
+does not hold:
+
+| Capability                                                         | HTTP | Dashboard | CLI                                  |
+| ------------------------------------------------------------------ | ---- | --------- | ------------------------------------ |
+| Accounts (`users`, `users/role`, `users/password`, `users/delete`) | yes  | yes       | **no** (only `set-policy-authoring`) |
+| Rule requests (`rule-requests`, `rule-requests/decide`)            | yes  | yes       | **no**                               |
+| Who can reach an agent (`agents/access`)                           | yes  | yes       | **no**                               |
+| A run in flight (`agent/runs`, `agent/cancel`)                     | yes  | yes       | **no**                               |
+
+**This is not a claim that all four should be built.** Account management from the
+command line is arguably wrong on purpose — it is the one surface whose boundary
+is filesystem access rather than RBAC — and a rule request is a conversation
+between two people, which a scriptable surface serves badly. The defect is that
+**nothing anywhere records which of these are deliberate**, so the rule is stated
+as universal and audited never. That is the same shape as "blocked on the host",
+recorded three times and audited zero times.
+
+**The Root backend switch was a fifth row in this table until the CLI was built
+earlier the same day**, and it was found by reading the documentation rather than
+by anybody hitting it.
+
+**Two ways to close it**, and the choice is Kinan's:
+
+1. **Build the missing CLI surfaces.** Genuine work — four capability groups — and
+   it makes the rule true as stated.
+2. **Record the exceptions and narrow the rule.** Cheap, and it makes the
+   documentation honest: the rule becomes "every capability reaches all three
+   surfaces unless a stated reason says otherwise", with the four reasons written
+   down and `CLI-REFERENCE.md` gaining a short section naming what is deliberately
+   dashboard-only.
+
+**Recommendation: 2, then 1 only where a reason cannot be written.** The value of
+the rule is that a gap must be argued for rather than drifted into, and that value
+is bought by the record rather than by the code. Writing the four reasons will
+probably also show that one or two cannot be argued — and those are then worth
+building, on evidence rather than on symmetry.
+
 ### Finding 150 — the dashboard told operators something T7 had just made false (2026-08-30)
 
 **Found by reading `HANDOFF.md`'s own claim about a test, not by running it.**
@@ -1676,9 +2055,11 @@ stayed.
 **Enforcement needed the gate to learn something it did not know.** A permission
 nothing checks is a setting. The gate could not tell which runtime a call arrived
 from, so `nativeHarness?: boolean` was added to `HookContext`,
-`AgentHarnessHookContext` and `PluginHookAgentContext`, and set at **both** native
-relay call sites. `evaluateGovernancePolicy` reads it after the posture and
-before the lockdown — the question is whether the agent may be running _there at
+`AgentHarnessHookContext` and `PluginHookAgentContext`, and set at the two native
+relay sites that read it (`pre_tool_use` and `before_agent_finalize`; not
+`post_tool_use`, which has no context object — finding 153).
+`evaluateGovernancePolicy` reads it after the posture and after the lockdown
+(corrected 2026-08-31 — finding 152) — the question is whether the agent may be running _there at
 all_, not what it may do — and refuses with a reason that **names the remedy**,
 recording `agent-not-permitted-on-codex`.
 

@@ -3899,6 +3899,8 @@ alone will be **fifteen findings short** and will not be told so.
 | 141–143     | `REMAINING-WORK.md` §"QA round twenty-six"                                                                        |
 | 144–146     | `REMAINING-WORK.md`, and `HANDOFF.md` §1's 2026-08-29 entry                                                       |
 | **147–149** | `REMAINING-WORK.md` §"Finding 147"/§"Finding 148"/§"Finding 149"; design in §3.5.60; plain language in §5.62–5.64 |
+| **150**     | `REMAINING-WORK.md` §"Finding 150"; design in §3.5.62; plain language in §5.68                                    |
+| **151–159** | `REMAINING-WORK.md` §"QA rounds twenty-nine to thirty-two"; design corrections in §3.5.62 and §4.x.5              |
 
 **Finding 147 in one paragraph**, because it is the one that changes a security
 claim: every component-prefixed credential flag — `--db-password=`,
@@ -3914,5 +3916,21 @@ over-masking spends requirement 5 to buy requirement 8.
 
 **Finding 148** is this same class of problem applied to the test suite: the
 handoff's "no known-failing test anywhere" was false, because two Windows-only
-test failures sit outside the five commands that define verification. Recorded,
-not fixed; neither is a product defect.
+test failures sit outside the five commands that define verification. Neither is
+a product defect. **Fixed 2026-08-31**, having been recorded rather than fixed on
+2026-08-29 — and the reason it was left is worth keeping, because it did not
+survive being questioned. The stated cost was "editing two upstream test files
+for no governance benefit", which T25 had already paid on 2026-08-25 for eight
+files of exactly this class. The fix is a platform guard on a POSIX mode
+assertion and a resolved-path comparison in place of a separator-exact one.
+**The original write-up also had one of the two backwards** — it recorded the
+_production_ code as producing a backslash, when `expandHomePrefix` deliberately
+leaves the operator's separator alone and it is the _test_ that demanded one.
+
+**Finding 150** is the one to read if you read only one of these, because it is
+about a device this project relies on. A test written to fail when T7 closed did
+not fail when T7 closed, and the dashboard went on telling operators that a
+forbid rule does not stop a search finding a file — false, on the runtime almost
+every agent uses. The trip-wire missed it because T7 made the caveat **more
+precise** rather than obsolete: every sentence the test checked was still on the
+page. A device like that detects deletion, not refinement.

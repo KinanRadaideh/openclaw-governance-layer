@@ -3308,6 +3308,14 @@ not tell which runtime a call arrived from. `nativeHarness?: boolean` was added 
 three context types and set at both relay call sites; the gate reads it after the
 posture and before the lockdown, and refuses with a reason that names the remedy.
 
+> **Two corrections to the paragraph above, both made 2026-08-31 and both left
+> visible rather than edited away.** The gate now reads the marker **after the
+> lockdown**, not before it — the old order gave a locked agent on Codex a ledger
+> entry saying it was not permitted on the backend, rather than one saying the
+> emergency stop had held (finding 152). And "both relay call sites" names
+> `pre_tool_use` and `before_agent_finalize`, **not** `post_tool_use`, which
+> passes no context object at all (finding 153).
+
 **All three surfaces**, because §1.6 asks for them: dashboard, HTTP, CLI. The CLI
 prints its warning after the change rather than as a prompt, because that surface
 is scriptable.
@@ -3316,6 +3324,20 @@ is scriptable.
 tier that can see the agent, Viewers included — and states it as a _permission_,
 never as an observation, because the layer genuinely cannot see which runtime an
 agent uses.
+
+> **"All three surfaces" was false for the Root switch when this was written,
+> and it was written on the day the claim was made.** `backend/codex` had a
+> dashboard panel and an HTTP route; it had **no CLI** until 2026-08-31. The
+> per-agent switch did reach all three, and the sentence generalised from the one
+> that did to the one that did not.
+>
+> The interesting part is _how_ it survived a day: the paragraph was true of the
+> half being written about at that moment. **A claim about "the feature" written
+> while looking at one half of it is the most reliable way this project produces
+> a false sentence** — the same shape as T25's 18-versus-9 baseline and T19's
+> "re-measured every row". The CLI was built on 2026-08-31, and the reference
+> documented `agents set-codex` at the same time, which had also shipped on the
+> 30th and been entered nowhere.
 
 ### Three things that went wrong, and what they cost
 
@@ -3366,3 +3388,94 @@ wiring, after finding 147's redaction patterns. Three type fields and two call
 sites. §3.5.2b's diff grows by it, and Chapter 3 should count that honestly
 against what it buys: without the marker the permission is a setting nothing
 checks.
+
+## §38 — 2026-08-31: the commits, the third surface, and four QA rounds
+
+**The day started with 45 uncommitted entries and no work pushed since
+`5a56e826ae1`.** Twelve of them were untracked, including `FIGURES.md`. Committed
+as five commits — finding 149, T7 prevention, the one-organisation cap, the two
+Codex switches with finding 150, and the documentation — and pushed. The commits
+were split by workstream rather than by file, which was possible only because
+three of the four workstreams touched disjoint files; the two that overlapped
+(`governance-agent-registry.test.ts`, `user-store.ts`) went with the larger of
+the two claims on them, and the cross-mentions turned out to be comments.
+
+**Honest note on the split:** the five commits were verified as a set, not
+individually. Each was linted at commit time by the pre-commit hook, and the
+final tree is green on all five verification commands, but no intermediate commit
+was independently typechecked or tested. Splitting a working tree after the fact
+buys readable history, not verified history, and it should not be described as
+the second thing.
+
+### The third surface, and how it was found
+
+`backend/codex` had a dashboard panel and an HTTP route and **no CLI**, while its
+per-agent counterpart had all three. Nobody hit it. It was found by reading
+`CLI-REFERENCE.md` against the code — the same method that found finding 149 the
+day before, and the same method that found finding 159 later the same day.
+
+`register.governance.backend.ts` is its own module for the reason
+`governance-dashboard-backend.ts` is: `register.governance.ts` stood at 633 lines
+against a 700 limit, and the seam is the one every other split here used — one
+file, one statable authorization rule.
+
+**The command was written with a defect and its own test caught it before
+commit** (finding 155): `toCliAuditActor` was applied to a `requireCliActor`
+result, which would have recorded every installation-wide backend change against
+the actor `unknown`. It typechecked because `AuditActorInput` has a bare `string`
+arm — **the identical hole that produced finding 149 the day before.** That is now
+T35.
+
+`agents list` also gained the engine permission on each row, because the CLI could
+_set_ the per-agent permission and not _read_ it back — a setting an operator can
+change but not confirm is one they have to take on trust.
+
+### Finding 148, fixed after being questioned
+
+Kinan asked why it could not simply be fixed. The recorded reason — "editing two
+upstream test files for no governance benefit" — did not survive the question,
+because **T25 had already paid exactly that cost for eight files of the same
+class** six days earlier. Both fixed. Reading them also showed the write-up had
+one of the two backwards: it recorded production as producing the backslash, and
+it is the test that does.
+
+### Four QA rounds, nine findings
+
+Run back to back and deliberately scoped so each could see what the last could
+not: the Codex feature alone (29), everything else since round twenty-eight (30),
+a universal sweep (31), and the day's own work re-read against the documentation
+(32). **151–159: seven fixed, one withdrawn, one open as a decision.**
+
+The two that matter most:
+
+- **152** — the Codex check sat above the lockdown, so a locked agent on that
+  path was recorded as "not permitted on Codex" and the kill-switch entry was
+  never written. The refusal was always correct; the **evidence** was not. With
+  findings 81 and 120 that is three defects that are the same sentence about the
+  kill switch, and the generalisation is worth Chapter 4: **a control whose value
+  is retrospective fails quietly.**
+- **156** — the search filter's line bound failed open. `split(sep, limit)`
+  truncates, so past line 2,000 the filter had not looked, concluded there was
+  nothing to find, and handed over the whole result. A denied path at line 2,001
+  reached the model — the exact case T7 exists for.
+
+### Three lessons from the day, none of them about a specific bug
+
+**A mutation test that changes nothing is ambiguous, and the ambiguity is the
+danger.** Finding 157 was withdrawn because reverting its "fix" changed no test
+result — which is what a fix for a non-existent defect looks like _and_ what a
+vacuous test looks like. Going and reading the type told them apart. Earlier the
+same day a mutation appeared not to apply for the opposite reason: a shell
+escaping mistake meant the file was never edited while the script printed
+`mutated`. **A mutation experiment must verify that it mutated.**
+
+**An invariant stated with an example is read as a claim about the example.** The
+lockdown comment has said "checked before anything else" since finding 81 and
+illustrated it with the tools that have no resource extractor. The Codex branch
+was written past it by somebody who read the example as the scope.
+
+**This project's false claims are usually about a mechanism nobody re-derived,
+not a measurement nobody re-ran.** Findings 148 and 157 both had the right
+conclusion over a wrong mechanism, and three "blocked on the host" claims were
+the same. The measurements here get re-run constantly; the _explanations_ under
+them do not.
