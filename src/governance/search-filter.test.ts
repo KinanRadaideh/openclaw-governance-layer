@@ -168,6 +168,73 @@ describe("filtering a search result", () => {
   });
 });
 
+describe("a result longer than the bound — finding 156", () => {
+  // The bound exists because the result is agent-influenced text and the work
+  // has to be bounded by something other than trust. It used to fail **open**:
+  // `split("\n", limit)` truncates, so lines past the bound were never examined,
+  // and when nothing in the examined prefix was denied the function returned
+  // `undefined` and the model got the whole untruncated result. A denied path at
+  // line 2,001 reached the model — the exact case T7 prevention exists for.
+
+  /** One line per entry, longer than the bound, with the denied file last. */
+  function longResult(deniedLast: boolean): ReturnType<typeof grepResult> {
+    const lines: string[] = [];
+    for (let i = 0; i < 2100; i++) {
+      lines.push(`src/file${i}.ts:1:ordinary match`);
+    }
+    if (deniedLast) {
+      lines.push(".env:1:DB_PASSWORD=hunter2brown");
+    }
+    return grepResult(lines);
+  }
+
+  it("withholds the part it did not examine rather than passing it through", async () => {
+    await denyPath(".*\\.env$");
+    const filtered = await filterSearchResult({
+      toolName: "grep",
+      toolParams: { path: "." },
+      result: longResult(true),
+      agentId: AGENT,
+      cwd: dir,
+    });
+
+    const text = textOf(filtered);
+    // The secret sits past the bound. Before the fix this returned `undefined`
+    // and the caller delivered the tool's own result, secret included.
+    expect(text).not.toContain("hunter2brown");
+    expect(text).toMatch(/were not checked against the policy and were withheld/i);
+    expect(text).toContain("Narrow it");
+  });
+
+  it("says how much it did not check, so the agent can act on it", async () => {
+    await denyPath(".*\\.env$");
+    const filtered = await filterSearchResult({
+      toolName: "grep",
+      toolParams: { path: "." },
+      result: longResult(false),
+      agentId: AGENT,
+      cwd: dir,
+    });
+
+    // 2,100 lines, 2,000 examined: 100 unchecked, and the count is stated rather
+    // than left for the agent to infer from a result that looks complete.
+    expect(textOf(filtered)).toContain("100 further results");
+  });
+
+  it("still hands over a result that fits the bound untouched", async () => {
+    // The fix must not turn every clean search into a filtered one.
+    await denyPath(".*\\.env$");
+    const filtered = await filterSearchResult({
+      toolName: "grep",
+      toolParams: { path: "." },
+      result: grepResult(["src/app.ts:10:ok", "README.md:3:ok"]),
+      agentId: AGENT,
+      cwd: dir,
+    });
+    expect(filtered).toBeUndefined();
+  });
+});
+
 describe("what it deliberately leaves alone", () => {
   it("returns undefined when no denial covers anything the search returned", async () => {
     await denyPath(".*\\.env$");

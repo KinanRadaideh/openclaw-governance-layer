@@ -131,6 +131,31 @@ describe("installing the filter onto a run", () => {
     expect(textOf(out)).toMatch(/withheld by governance policy/i);
   });
 
+  it("respects an earlier hook that blanked the result, rather than refilling it", async () => {
+    // **Not a regression test — this behaviour was already correct.** It was
+    // raised on 2026-08-31 as a defect, on the reading that `prior?.content ? …`
+    // would treat a blanked rewrite as "no rewrite" and hand back the tool's raw
+    // output. `content` is an array, so a blanked rewrite is `[]` and is truthy;
+    // the claim dissolved when reverting the "fix" changed no test result.
+    //
+    // Kept because the property is worth holding true whoever touches this next:
+    // the layer that exists to remove things must never put back what another
+    // layer removed.
+    const agent: FakeAgent = {
+      afterToolCall: async () => ({ content: [] }),
+    };
+    install(agent);
+
+    const out = await agent.afterToolCall?.(
+      callContext("grep", ["safe.ts:1:ok", "secrets.txt:1:LEAK"]),
+    );
+
+    // The earlier hook said "nothing". Governance must not turn that back into
+    // "everything except the denied lines".
+    expect(textOf(out)).not.toContain("LEAK");
+    expect(textOf(out)).not.toContain("safe.ts:1:ok");
+  });
+
   it("preserves the earlier hook's other fields when it filters", async () => {
     const agent: FakeAgent = {
       afterToolCall: async () => ({

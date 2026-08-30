@@ -566,7 +566,14 @@ describe("config io audit helpers", () => {
     expect(secondAfter.argv).toEqual(alreadyRedactedRecord.argv);
 
     const stat = fs.statSync(auditPath);
-    expect(stat.mode & 0o777).toBe(0o600);
+    // POSIX permission bits only. Windows has no `0600`: NTFS access is an ACL,
+    // and Node reports `0666` for any writable file regardless of who may read
+    // it. The production code is already platform-aware; asserting a POSIX mode
+    // unconditionally was the test claiming a guarantee the platform does not
+    // offer. Part of finding 148 (2026-08-31).
+    if (process.platform !== "win32") {
+      expect(stat.mode & 0o777).toBe(0o600);
+    }
 
     const second = await scrubConfigAuditLog({
       fs: { promises: fsPromises },

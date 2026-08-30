@@ -58,6 +58,20 @@ export function installGovernanceSearchFilterHook(params: {
     const prior = await previousAfterToolCall?.(context, signal);
     // What the model would receive if governance did nothing: the earlier hook's
     // rewrite when there was one, otherwise the tool's own result.
+    //
+    // **The truthiness test is correct here, and it was checked rather than
+    // assumed (2026-08-31).** It was raised as a defect on the reading that an
+    // earlier hook blanking a result to `""` would be read as "no rewrite", so
+    // governance would filter the tool's *raw* output and hand back what another
+    // layer had deliberately suppressed. `content` is an
+    // `Array<{ type; text }>`, not a string: a blanked rewrite is `[]`, which is
+    // truthy, so that path was never reachable. The check falls through only
+    // when `content` is absent, which is exactly when there is no rewrite.
+    //
+    // The claimed defect dissolved under a mutation test — reverting the
+    // "fix" changed no test result, which is what a fix for a defect that does
+    // not exist looks like. `search-filter-hook.test.ts` now pins the behaviour
+    // anyway, because it was unpinned and is worth keeping true.
     const effective = prior?.content ? { content: prior.content } : context.result;
     const filtered = await filterSearchResult({
       toolName: context.toolCall.name,

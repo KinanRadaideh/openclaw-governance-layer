@@ -134,15 +134,77 @@ describe("the gate enforcing it", () => {
     expect(entry?.agentId).toBe(AGENT);
   });
 
-  it("refuses before the lockdown check, because it is a question about where, not what", async () => {
+  it("refuses before any rule is consulted, including for a tool with no extractor", async () => {
     // An agent that may not be on this runtime is refused uniformly rather than
     // judged rule by rule on a path where a denial cannot be fully enforced. The
     // reason names the remedy, so the failure explains itself.
+    //
+    // **This test was called "refuses before the lockdown check" and never
+    // locked an agent** — finding 152. It asserted the ordering against the
+    // "nothing to evaluate" return and nothing else, so the property in its name
+    // was untested while the name made it look covered. The lockdown ordering is
+    // now its own test below, and it asserts the opposite ordering, because the
+    // one this name claimed was wrong.
     const verdict = await evaluateGovernancePolicy(
       { toolName: "some_tool_with_no_extractor", params: {} },
       { agentId: AGENT, sessionKey: `agent:${AGENT}:test`, nativeHarness: true },
     );
     expect(verdict?.block).toBe(true);
     expect(verdict?.blockReason).toContain("An Administrator can permit it");
+  });
+
+  it("lets the kill switch answer first, so the ledger can show the stop held", async () => {
+    // Finding 152. Both branches refuse, so the *outcome* never differed — what
+    // differed was the entry an investigation reads afterwards. An operator who
+    // engaged an emergency stop and asks "did it hold?" must not be told
+    // instead that the agent was not permitted on a backend.
+    await savePolicy(TEST_GROUP, {
+      ...defaultPolicyDocument(),
+      mode: "enforce",
+      lockedAgents: [AGENT],
+    });
+
+    const verdict = await evaluateGovernancePolicy(harmlessCall(), {
+      agentId: AGENT,
+      sessionKey: `agent:${AGENT}:test`,
+      nativeHarness: true,
+    });
+
+    expect(verdict?.block).toBe(true);
+    expect(verdict?.blockReason).toContain("locked down");
+    const entries = await tailLedger(TEST_GROUP);
+    expect(entries.some((e) => e.ruleId === "kill-switch")).toBe(true);
+    expect(entries.some((e) => e.ruleId === "agent-not-permitted-on-codex")).toBe(false);
+  });
+
+  it("blocks in monitor mode, because it is a question about where and not what", async () => {
+    // Finding 151. Monitor suspends policy *opinions*; it does not suspend the
+    // kill switch or the core denials, and it does not suspend this. Stated in
+    // a test as well as a comment, because the two neighbouring always-block
+    // branches each have one and this one had neither.
+    await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "monitor" });
+
+    const verdict = await evaluateGovernancePolicy(harmlessCall(), {
+      agentId: AGENT,
+      sessionKey: `agent:${AGENT}:test`,
+      nativeHarness: true,
+    });
+
+    expect(verdict?.block).toBe(true);
+    expect(verdict?.blockReason).toContain("Codex backend");
+  });
+
+  it("is exempt when the posture is off, like everything else in the gate", async () => {
+    // `off` means the gate is not running at all and says so plainly. A control
+    // that survived `off` would make the posture a lie.
+    await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "off" });
+
+    const verdict = await evaluateGovernancePolicy(harmlessCall(), {
+      agentId: AGENT,
+      sessionKey: `agent:${AGENT}:test`,
+      nativeHarness: true,
+    });
+
+    expect(verdict).toBeUndefined();
   });
 });

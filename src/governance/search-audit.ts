@@ -72,6 +72,21 @@ const SEARCH_TOOLS: ReadonlySet<string> = new Set(["grep", "find", "ls"]);
  * path denial exists, so the work has to be bounded by something other than
  * trust. The tools cap themselves well below this (grep at 100 matches, find at
  * its own result limit), so the bound is a backstop rather than a filter.
+ *
+ * **The backstop used to fail open, and that was finding 156.** `filterSearchResult`
+ * examined `text.split("\n", MAX_RESULT_LINES)` — which truncates the array
+ * rather than chunking it — and then returned `undefined` when nothing in those
+ * lines was denied, handing the model the **whole** untruncated result including
+ * everything past the bound. A denied path at line 2,001 of a search result
+ * reached the model, which is precisely the case T7 prevention exists for: large
+ * recursive searches. The likelihood was low because the tools cap themselves
+ * first, and the direction of the failure was wrong regardless — this module's
+ * own catch block already states the principle, that a filter which fails open
+ * defeats itself.
+ *
+ * Past the bound the honest answer is "not checked", so the remainder is now
+ * **withheld and declared** rather than passed through. The bound itself stays:
+ * bounding the work is right, and only its failure direction was wrong.
  */
 const MAX_RESULT_LINES = 2000;
 
@@ -405,7 +420,12 @@ export async function filterSearchResult(params: {
     // what did not. `candidateFromLine` is the same extraction the audit half
     // uses, so a path this removes is exactly a path that would have been
     // recorded as reached — the two halves cannot disagree about what counts.
-    const lines = text.split("\n", MAX_RESULT_LINES);
+    // Split whole, then bound — `split(sep, limit)` truncates the array, so the
+    // old form could not tell "there was no more" from "we stopped looking".
+    // Finding 156.
+    const allLines = text.split("\n");
+    const unchecked = Math.max(0, allLines.length - MAX_RESULT_LINES);
+    const lines = unchecked > 0 ? allLines.slice(0, MAX_RESULT_LINES) : allLines;
     const kept: string[] = [];
     const withheldResources = new Set<string>();
     const verdictByCandidate = new Map<string, boolean>();
@@ -429,7 +449,9 @@ export async function filterSearchResult(params: {
       }
       kept.push(line);
     }
-    if (withheldResources.size === 0) {
+    // Nothing denied *and* nothing left unexamined is the only case in which the
+    // tool's own result may be handed over untouched.
+    if (withheldResources.size === 0 && unchecked === 0) {
       return undefined;
     }
 
@@ -451,7 +473,21 @@ export async function filterSearchResult(params: {
       });
     }
     const body = kept.join("\n").trimEnd();
-    const notice = withheldNotice(withheldResources.size);
+    const notices: string[] = [];
+    if (withheldResources.size > 0) {
+      notices.push(withheldNotice(withheldResources.size));
+    }
+    if (unchecked > 0) {
+      // Said in the result rather than only in the ledger, because the agent is
+      // the party that can act on it — narrowing the search is the remedy, and
+      // an agent that believes it saw everything will not narrow anything.
+      notices.push(
+        `[${unchecked} further ${unchecked === 1 ? "result" : "results"} were not checked ` +
+          `against the policy and were withheld: this search returned more than ` +
+          `${MAX_RESULT_LINES} lines. Narrow it and run it again.]`,
+      );
+    }
+    const notice = notices.join("\n");
     return textContent(body ? `${body}\n${notice}` : notice);
   } catch {
     // See the doc comment: a filter that fails open defeats itself. The agent is

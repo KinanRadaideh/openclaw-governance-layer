@@ -39,7 +39,12 @@ export type HookContext = {
    * filtered on the in-process path and cannot be on the native one, whose hook
    * protocol has no field for substituting a result. A gate that cannot tell
    * them apart cannot apply a per-agent rule about which runtime an agent may
-   * use. Set only by the relay call sites, which are the places that know.
+   * use. Set by the relay sites whose value something reads: `pre_tool_use`,
+   * which reaches the gate, and `before_agent_finalize`. **Deliberately absent
+   * at `post_tool_use`** — that path calls `runAgentHarnessAfterToolCallHook`,
+   * which takes no context object at all, so there is nothing there to read the
+   * marker and no consumer that would. Adding the field for symmetry would be a
+   * fourth upstream edit for a value nobody uses. Finding 153.
    */
   nativeHarness?: boolean;
   config?: OpenClawConfig;

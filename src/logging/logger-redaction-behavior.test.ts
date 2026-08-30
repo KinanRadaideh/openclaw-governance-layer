@@ -166,8 +166,18 @@ describe("file log redaction", () => {
     const home = path.join(path.dirname(logPathTracker.nextPath()), "home");
 
     withEnv({ HOME: home }, () => {
-      expect(loggerTest.resolveActiveLogFile("~/custom-openclaw.log")).toBe(
-        path.join(home, "custom-openclaw.log"),
+      // `expandHomePrefix` replaces the `~` and leaves the rest of the string
+      // exactly as written, so `~/x` yields `<home>/x` with the separator the
+      // operator typed — on Windows a forward slash, which Node accepts
+      // everywhere. This assertion built its expectation with `path.join` and so
+      // demanded a backslash, requiring a normalisation the production code
+      // deliberately does not perform. Comparing resolved paths asserts the
+      // thing that matters — that it names the same file — without
+      // over-specifying the separator. Part of finding 148 (2026-08-31), whose
+      // original write-up had this one backwards: it recorded the *production*
+      // code as producing the backslash, and it is the test that did.
+      expect(path.resolve(loggerTest.resolveActiveLogFile("~/custom-openclaw.log"))).toBe(
+        path.resolve(path.join(home, "custom-openclaw.log")),
       );
     });
   });

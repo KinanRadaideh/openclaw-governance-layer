@@ -26,7 +26,10 @@ export type AgentHarnessHookContext = {
    * filtered on the in-process path and cannot be on the native one, whose hook
    * protocol has no field for substituting a result. A gate that cannot tell
    * them apart cannot apply a per-agent rule about which runtime an agent may
-   * use. Set only by the relay call sites, which are the places that know.
+   * use. Set by the relay sites whose value something reads: `pre_tool_use`,
+   * which reaches the gate, and `before_agent_finalize`. **Deliberately absent
+   * at `post_tool_use`**, which takes no context object at all — see the note on
+   * the same field in `agent-tools.before-tool-call.types.ts`. Finding 153.
    */
   nativeHarness?: boolean;
   trace?: DiagnosticTraceContext;

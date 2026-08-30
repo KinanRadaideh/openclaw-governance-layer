@@ -43,7 +43,7 @@ type ToolCallContext = {
    * True when the call arrives from the native harness rather than this process
    * (§3.5.62).
    *
-   * Supplied from `HookContext.nativeHarness`, which only the relay call sites
+   * Supplied from `HookContext.nativeHarness`, which only the native relay sets
    * set. The gate needs it because the two runtimes are not equivalent for
    * enforcement: T7's prevention half can withhold a denied search result on the
    * in-process path and cannot on the native one.
@@ -418,46 +418,6 @@ export async function evaluateGovernancePolicy(
     return undefined;
   }
 
-  // ---------------------------------------------------------------------
-  // The per-agent Codex permission (§3.5.62).
-  //
-  // Checked here — after the posture, before the lockdown and before any rule —
-  // because it is a question about **whether this agent may be running here at
-  // all**, not about what it may do. An agent on a runtime it is not permitted
-  // to use should be refused uniformly rather than judged rule by rule on a path
-  // where a denial cannot be fully enforced.
-  //
-  // `ctx.nativeHarness` is set only by the relay call sites. On the in-process
-  // runtime it is absent and this whole branch is skipped, so the ordinary path
-  // pays one property read.
-  //
-  // **Refusing rather than degrading is the point.** T7's prevention half cannot
-  // run on that backend, so an agent whose denials matter must not silently get
-  // the weaker enforcement — which is exactly what happened before this existed.
-  // ---------------------------------------------------------------------
-  if (ctx.nativeHarness) {
-    const record = agentId ? await findAgent(agentId) : undefined;
-    if (record?.codexAllowed !== true) {
-      await appendLedgerEntry(groupId, {
-        agentId,
-        sessionKey: ctx.sessionKey,
-        ...intentFields(ctx.sessionKey),
-        toolName: event.toolName,
-        resourceKind: spec?.resourceKind ?? "unknown",
-        resource: "*",
-        ruleId: "agent-not-permitted-on-codex",
-        decision: "deny",
-      });
-      return {
-        block: true,
-        blockReason:
-          `governance: agent "${agentId ?? "unknown"}" is not permitted to run on the ` +
-          "Codex backend, where denied search results cannot be withheld. An " +
-          "Administrator can permit it in the agent's settings.",
-      };
-    }
-  }
-
   // Lockdown is checked before anything else, including before asking whether
   // this tool is one we know how to judge.
   //
@@ -548,6 +508,66 @@ export async function evaluateGovernancePolicy(
             "so it cannot be shown to be unrelated to the agent that was stopped"
           : `governance: agent "${agentId}" is locked down`,
     };
+  }
+
+  // ---------------------------------------------------------------------
+  // The per-agent Codex permission (§3.5.62).
+  //
+  // Checked here — after the posture and the lockdown, before any rule — because
+  // it is a question about **whether this agent may be running here at all**,
+  // not about what it may do. An agent on a runtime it is not permitted to use
+  // should be refused uniformly rather than judged rule by rule on a path where
+  // a denial cannot be fully enforced.
+  //
+  // **It sat above the lockdown until 2026-08-31, and that was finding 152.**
+  // The outcome was the same either way — a locked, unpermitted agent on Codex
+  // was refused by whichever branch ran first — but the *ledger entry* was not.
+  // It read `agent-not-permitted-on-codex`, so an investigation asking the one
+  // question an emergency stop exists to answer — did it hold? — got a true
+  // sentence about the wrong subject. Nothing else in this function is allowed
+  // to answer before the kill switch does, and the comment above the lockdown
+  // block has said so since finding 81; this branch was written past it.
+  //
+  // `ctx.nativeHarness` is set by `pre_tool_use`, the relay site this branch
+  // reads. On the in-process runtime it is absent and this whole branch is
+  // skipped, so the ordinary path pays one property read.
+  //
+  // **Refusing rather than degrading is the point.** T7's prevention half cannot
+  // run on that backend, so an agent whose denials matter must not silently get
+  // the weaker enforcement — which is exactly what happened before this existed.
+  //
+  // **It blocks in monitor mode, and that is deliberate** (stated because the
+  // two neighbouring always-block branches state it and this one did not —
+  // finding 151). Monitor means policy *decisions* are recorded rather than
+  // acted on. This is not a policy decision: it is the answer to "may this agent
+  // be on this runtime at all", which is the same kind of question the kill
+  // switch asks, and monitor does not suspend that either. Degrading to
+  // record-only here would be the exact failure the control exists to prevent —
+  // an agent running unenforced on the backend where enforcement is weakest,
+  // with a ledger that says so and nothing that stops it. `off` still exempts
+  // it, because `off` means the gate is not running at all and says so plainly.
+  // ---------------------------------------------------------------------
+  if (ctx.nativeHarness) {
+    const record = agentId ? await findAgent(agentId) : undefined;
+    if (record?.codexAllowed !== true) {
+      await appendLedgerEntry(groupId, {
+        agentId,
+        sessionKey: ctx.sessionKey,
+        ...intentFields(ctx.sessionKey),
+        toolName: event.toolName,
+        resourceKind: spec?.resourceKind ?? "unknown",
+        resource: "*",
+        ruleId: "agent-not-permitted-on-codex",
+        decision: "deny",
+      });
+      return {
+        block: true,
+        blockReason:
+          `governance: agent "${agentId ?? "unknown"}" is not permitted to run on the ` +
+          "Codex backend, where denied search results cannot be withheld. An " +
+          "Administrator can permit it in the agent's settings.",
+      };
+    }
   }
 
   if (!spec) {
