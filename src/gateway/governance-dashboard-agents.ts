@@ -27,6 +27,7 @@ import {
   MAX_AGENT_ID_LENGTH,
   registerAgent,
   renameAgent,
+  setAgentCodexAllowed,
   setAgentOwner,
   unregisterAgent,
   UnknownAgentError,
@@ -481,6 +482,50 @@ export async function handleGovernanceAgentRoutes(
         res,
         200,
         await renameAgent(agentId, displayName, session.groupId ?? "", auditActor(session)),
+      );
+    } catch (err) {
+      sendRegistryError(res, err);
+    }
+    return true;
+  }
+
+  // Whether this agent may run on the Codex backend (§3.5.62).
+  //
+  // Administrator, and ownership-scoped like every other registry mutation:
+  // this is an agent's security boundary, which §1.6 makes the Administrator's.
+  // Root reaches it by inheritance, as everywhere else. Distinct from Root's
+  // installation-wide switch, which decides whether the backend exists on this
+  // machine at all — an agent permitted here still cannot use a backend Root
+  // has not enabled.
+  if (route === "agents/codex" && req.method === "POST") {
+    if (!requireRole(res, session, "administrator")) {
+      return true;
+    }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
+    const body = await readJsonObjectBodyOrError(req, res);
+    if (body === undefined) {
+      return true;
+    }
+    const { agentId, allowed } = body as { agentId?: unknown; allowed?: unknown };
+    if (typeof agentId !== "string" || !agentId.trim()) {
+      sendInvalidRequest(res, "agentId is required");
+      return true;
+    }
+    if (typeof allowed !== "boolean") {
+      sendInvalidRequest(res, "allowed must be true or false");
+      return true;
+    }
+    if (!(await requireOwnership(res, session, agentId))) {
+      return true;
+    }
+    try {
+      sendJson(
+        res,
+        200,
+        await setAgentCodexAllowed(agentId, allowed, groupId, auditActor(session)),
       );
     } catch (err) {
       sendRegistryError(res, err);

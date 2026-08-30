@@ -317,6 +317,17 @@ export type PluginHookAgentContext = {
   modelProviderId?: string;
   modelId?: string;
   messageProvider?: string;
+  /**
+   * True when the tool call is relayed from a native harness rather than
+   * executed in this process.
+   *
+   * Added by this fork's governance layer (§3.5.62). The two runtimes are not
+   * equivalent for enforcement: a tool result can be filtered on the in-process
+   * path and cannot be on the native one, whose hook protocol has no field for
+   * substituting a result. A gate that cannot tell them apart cannot apply a
+   * per-agent rule about which runtime an agent may use.
+   */
+  nativeHarness?: boolean;
   /** Channel/plugin id for channel-originated runs, e.g. `discord`. */
   channel?: string;
   /** Channel account used by the agent when multiple accounts are configured. */

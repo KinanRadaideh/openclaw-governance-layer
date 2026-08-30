@@ -51,6 +51,29 @@ export type GovernanceAgent = {
   /** The single Administrator answerable for it. */
   adminId: string;
   createdAt: string;
+  /**
+   * Whether this agent may run on the native Codex backend (§3.5.62).
+   *
+   * **Absent means no.** The same default-deny the policy engine applies to
+   * actions, one level up: a runtime whose enforcement is incomplete is not
+   * available to an agent until somebody says it is. T7's prevention half cannot
+   * run there (§3.5.61), so permitting an agent onto it is an operator accepting
+   * a stated gap **for that agent**, recorded and attributed.
+   *
+   * **Per agent, and Administrator-controlled, because of what it is.** Root's
+   * installation-wide switch decides whether the backend exists on this machine
+   * at all — host configuration, and deployment is Root's under §1.6. This
+   * decides which agents may use it, which is an agent's security boundary and
+   * is the Administrator's. The two compose: an agent permitted here still
+   * cannot use a backend Root has not enabled.
+   *
+   * It is a **permission, not an observation.** The layer cannot see which
+   * runtime an agent is actually using — that is resolved at session start from
+   * the model provider and recorded nowhere — so this records what is
+   * *allowed*, which is a fact the layer owns and can therefore display
+   * honestly to every tier that can see the agent.
+   */
+  codexAllowed?: boolean;
 };
 
 type AgentsFile = { version: 1; agents: GovernanceAgent[] };
@@ -426,6 +449,53 @@ export async function renameAgent(
 }
 
 /**
+ * Permits an agent onto the Codex backend, or withdraws it (§3.5.62).
+ *
+ * **Modelled on `renameAgent` rather than invented**, down to reporting an agent
+ * in another group as absent: distinguishing "not yours" from "does not exist"
+ * would turn every mutator into a probe for whether an id is in use anywhere on
+ * the installation.
+ *
+ * Written inside the file lock and followed by the same cache invalidation, for
+ * the reason stated there — the invalidation is part of writing this file, not
+ * something each caller is trusted to remember.
+ *
+ * **Recorded even when the value does not change.** A restatement is itself a
+ * decision an operator made, and an entry that appears only on transitions
+ * cannot answer "who last confirmed this agent may use that backend?"
+ */
+export async function setAgentCodexAllowed(
+  agentId: string,
+  allowed: boolean,
+  groupId: string,
+  actor: AuditActorInput,
+): Promise<GovernanceAgent> {
+  await ensureHomeDir();
+  const changed = await withFileLock(agentsFilePath(), async () => {
+    const file = await readAgentsFile();
+    const agent = file.agents.find((entry) => entry.id === canonicalAgentId(agentId));
+    if (!agent || agent.groupId !== groupId) {
+      throw new UnknownAgentError(agentId);
+    }
+    const previous = agent.codexAllowed === true;
+    agent.codexAllowed = allowed;
+    await writeJsonAtomic(agentsFilePath(), file, { mode: 0o600 });
+    invalidateAgentGroupCache();
+    return { agent: { ...agent }, previous };
+  });
+  await recordAdminAction(changed.agent.groupId, {
+    actor,
+    action: ADMIN_ACTIONS.agentCodexToggle,
+    target: `agent ${changed.agent.id} codex ${changed.previous ? "allowed" : "denied"} -> ${
+      allowed ? "allowed" : "denied"
+    }`,
+    agentId: changed.agent.id,
+    subjectId: changed.agent.id,
+  });
+  return changed.agent;
+}
+
+/**
  * Hands an agent to a different Administrator, and takes it off the people the
  * previous owner had given it to.
  *
@@ -671,6 +741,8 @@ export type AgentListEntry = {
   displayName?: string;
   adminId?: string;
   registered: boolean;
+  /** Whether this agent may run on the Codex backend (§3.5.62). Absent when unregistered. */
+  codexAllowed?: boolean;
 };
 
 export async function listAgentsWithFallback(
@@ -689,6 +761,10 @@ export async function listAgentsWithFallback(
     displayName: agent.displayName,
     adminId: agent.adminId,
     registered: true,
+    // Carried on every listing so the permission is visible wherever an agent
+    // is (§3.5.62). Absent on unregistered fallback rows below, which is
+    // correct: an agent with no record has no permission either.
+    codexAllowed: agent.codexAllowed === true,
   }));
   const held = new Set(registered.map((agent) => agent.id));
   // An id registered to *another* group is deliberately not folded in as a

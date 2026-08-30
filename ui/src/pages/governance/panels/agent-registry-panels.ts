@@ -38,6 +38,7 @@ import {
 } from "../../../components/settings-ui.ts";
 import { t } from "../../../i18n/index.ts";
 import type { GovernanceAgentEntry, GovernanceIdentity, GovernanceUserRecord } from "../api.ts";
+import { canAdminister } from "../identity.ts";
 import type { PanelEffects } from "./account-panels.ts";
 
 export type AgentRegistryDrafts = {
@@ -213,6 +214,25 @@ function renderRemoveChoice(
   </div>`;
 }
 
+/**
+ * Which runtimes this agent is permitted on, in one phrase.
+ *
+ * **Deliberately a permission, not an observation.** The layer cannot see which
+ * runtime an agent is actually using — that is resolved at session start from
+ * the model provider and recorded nowhere — so claiming "running on Codex"
+ * would be inventing precision the data does not support. What it can state
+ * truthfully is what is *allowed*, which is its own data.
+ */
+function renderEngineState(agent: GovernanceAgentEntry): TemplateResult {
+  return agent.codexAllowed
+    ? html`<strong>engine: built-in or Codex</strong>
+        <span
+          title="On the Codex backend a search reaching a denied path is recorded but not prevented."
+          >(denied search results are not withheld on Codex)</span
+        >`
+    : html`engine: built-in only`;
+}
+
 /** One agent, with who owns it and the way in to changing it. */
 function renderAgentRow(
   agent: GovernanceAgentEntry,
@@ -225,13 +245,63 @@ function renderAgentRow(
     // An unregistered agent is listed and labelled rather than hidden. After M5
     // it is refused on every tool call, so an operator seeing it here and
     // wondering why it does nothing is being told exactly the thing they need.
+    // The engine line is appended for **every tier that can see the agent**,
+    // Viewers included (§3.5.62). It is a permission rather than a secret, and
+    // noticing that an agent is permitted onto a runtime where denials are not
+    // fully enforced is exactly what oversight is for. Stating it here — beside
+    // the agent an operator is reasoning about — is the point: consent given
+    // once at a settings switch decays, and nobody remembers weeks later which
+    // agents it covered.
     description: agent.registered
-      ? t("governance.agents.ownedBy", { owner: owner?.username ?? agent.adminId ?? "—" })
+      ? html`${t("governance.agents.ownedBy", {
+          owner: owner?.username ?? agent.adminId ?? "—",
+        })}
+        — ${renderEngineState(agent)}`
       : t("governance.agents.unregisteredHint"),
     stacked: open,
     control: open
       ? renderRemoveChoice(agent, props)
       : html`<div class="settings-row__control" style="gap:0.5rem">
+          ${agent.registered && canAdminister(props.identity)
+            ? html`<button
+                class="btn"
+                ?disabled=${props.busy}
+                title="Whether this agent may run on the Codex backend"
+                @click=${() =>
+                  // Confirmed in the permissive direction only. Permitting
+                  // accepts a stated enforcement gap for this agent; withdrawing
+                  // is the safe direction and needs no caution, and a dialog on
+                  // both would train an operator to dismiss the one that matters
+                  // — finding 87's lesson, applied to a second control.
+                  agent.codexAllowed
+                    ? void props.run(async () => {
+                        await props.api().setAgentCodexAllowed(agent.agentId, false);
+                        await props.refresh();
+                      })
+                    : void props.confirmThen(
+                        {
+                          message: `Allow "${agent.displayName || agent.agentId}" to run on the Codex backend?`,
+                          details:
+                            "On that backend a recursive search that reaches a file your rules " +
+                            "deny is recorded but cannot be prevented: its results are not " +
+                            "withheld from the model, because the Codex hook protocol has no " +
+                            "field for substituting a tool result. Denials, the audit ledger " +
+                            "and the kill switch all still apply there. This decision is " +
+                            "recorded in the ledger against your account and tier. The agent " +
+                            "still cannot use Codex unless Root has enabled the backend for " +
+                            "this installation.",
+                          confirmLabel: "Allow on Codex",
+                          danger: true,
+                        },
+                        async () => {
+                          await props.api().setAgentCodexAllowed(agent.agentId, true);
+                          await props.refresh();
+                        },
+                      )}
+              >
+                ${agent.codexAllowed ? "Disallow Codex" : "Allow Codex"}
+              </button>`
+            : nothing}
           ${agent.registered
             ? html`<button
                 class="btn"

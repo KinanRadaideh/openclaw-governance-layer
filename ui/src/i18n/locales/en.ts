@@ -3626,9 +3626,9 @@ export const en: TranslationMap = {
       evaluationTitle: "How these rules are read",
       evaluationHint:
         "Forbid beats allow, always. Every forbid rule is checked first, whatever tier it belongs to, so a narrow forbid carves an exception out of a broad allow — grant a folder, forbid one subfolder inside it, and the subfolder stays out of reach. Order in this list does not decide anything; effect does.",
-      searchCaveatTitle: "One place a forbid rule does not reach yet",
+      searchCaveatTitle: "Where a forbid rule reaches, and where it only records",
       searchCaveatHint:
-        "A forbid rule stops a file being opened. It does not stop a search finding it: grep, find and ls are judged on the folder they start from, then read everything beneath it. A search rooted above a forbidden path can still return that path's contents. Every time this happens it is written to the audit trail as an ungoverned read, so it is visible — but it is not prevented. Do not rely on a forbid rule alone to keep a folder out of a search.",
+        "A forbid rule stops a file being opened. Searches are different: grep and find are judged on the folder they start from, then read everything beneath it, so a search rooted above a forbidden path reaches that path. On the built-in runtime those results are now removed before the agent sees them, and the agent is told how many were withheld. On the Codex backend they cannot be removed, because its protocol has no way to return a corrected result — there the reach is written to the audit trail and not prevented. An agent is only on that backend if an administrator has permitted it, and each agent's permission is shown in the agent list.",
       accessLabel: "Read or write",
       accessBoth: "read + write",
       accessRead: "read only",

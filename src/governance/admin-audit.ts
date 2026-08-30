@@ -50,6 +50,17 @@ export const ADMIN_ACTIONS = {
   agentLock: "governance.agent.lock",
   agentRelease: "governance.agent.release",
   /**
+   * An operator turned the Codex backend on, or back off.
+   *
+   * Its own action because it is a decision about **what this layer can
+   * enforce**, not about what a particular agent may do. T7's prevention half
+   * cannot run on that backend (§3.5.61), so enabling it is an operator
+   * accepting a stated gap. An investigation asking "when did this installation
+   * start accepting that, and on whose authority?" should find one entry rather
+   * than infer it from a config file's timestamp.
+   */
+  codexBackendToggle: "governance.backend.codex",
+  /**
    * A named account sent a prompt to an agent, and what came back.
    *
    * The trail could already say what an agent did and who wrote the rules it
@@ -143,6 +154,15 @@ export const ADMIN_ACTIONS = {
    */
   agentRegister: "governance.agent.register",
   agentRename: "governance.agent.rename",
+  /**
+   * An Administrator permitted an agent onto the Codex backend, or withdrew it.
+   *
+   * Distinct from `codexBackendToggle`, which is Root's installation-wide
+   * switch. An auditor asking "which agents were allowed onto the runtime where
+   * denied search results are not withheld, and who allowed them?" needs the
+   * per-agent decisions to be countable separately from the machine-level one.
+   */
+  agentCodexToggle: "governance.agent.codex",
   agentOwnerChange: "governance.agent.owner",
   agentUnregister: "governance.agent.unregister",
   /**

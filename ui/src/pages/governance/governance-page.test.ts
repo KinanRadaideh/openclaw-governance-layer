@@ -130,27 +130,38 @@ describe("the page explains how rules are read (2026-08-26)", () => {
     expect(text).toContain("grant a folder, forbid one subfolder");
   });
 
-  it("discloses that a forbid rule does not stop a search finding the file", async () => {
-    // **This test should fail when T7's prevention half lands, and that is the
-    // point.** At that moment the caveat becomes untrue, and whoever closes T7
-    // must come here, see why the sentence existed, and delete it along with
-    // the two i18n keys. The same device as the round-fourteen test that pinned
-    // finding 96 before T6 closed it — which did exactly this and worked.
+  it("says where a forbid rule reaches and where it only records", async () => {
+    // **The device worked, and the answer was "revise", not "delete".**
     //
-    // Until then the sentence stays, because an interface that lets somebody
-    // write "this folder, except that subfolder" while a search walks straight
-    // through the exception is making a promise the gate does not keep. This
-    // project has recorded that shape four times in code (findings 112, 113,
-    // 120, T28); made to a person, in words they chose, it is harder to catch.
+    // This test was written to fail when T7's prevention half landed, so that
+    // whoever closed T7 would come here, see why the sentence existed, and
+    // remove it. T7's prevention half landed on 2026-08-30 (§3.5.61) — and the
+    // caveat did *not* become untrue, it became **half** untrue. On the
+    // in-process runtime denied results are now withheld; on the native Codex
+    // backend they still cannot be, because that protocol has no field for
+    // substituting a result.
+    //
+    // Deleting the sentence would have told an operator on the Codex backend
+    // that a forbid rule protects them from searches, which is exactly the
+    // false promise the caveat existed to prevent. So it was narrowed to name
+    // both runtimes instead, and this test now pins the narrower claim.
+    //
+    // Worth keeping as a note about the device itself: a test written to fail
+    // on a future change assumes the change will make its subject wholly
+    // obsolete. This one made it *more specific*, which the trip-wire could not
+    // express — it kept passing, and the staleness was caught by reading the
+    // handoff's own claim that it would fail.
     const el = await mount({
       identity: identity("administrator"),
       policy: policy([rule({ description: "Something", pattern: "^ls$" })]),
     });
     const text = (el.textContent ?? "").replace(/\s+/g, " ");
-    expect(text).toContain("One place a forbid rule does not reach yet");
-    expect(text).toContain("grep, find and ls are judged on the folder they start from");
-    // The honest half: it is recorded even though it is not prevented, so the
-    // disclosure does not read as a shrug.
+    expect(text).toContain("Where a forbid rule reaches, and where it only records");
+    expect(text).toContain("grep and find are judged on the folder they start from");
+    // The half that is now prevented, named as such.
+    expect(text).toContain("removed before the agent sees them");
+    // The half that is not, and why — so the disclosure does not read as a shrug.
+    expect(text).toContain("On the Codex backend they cannot be removed");
     expect(text).toContain("written to the audit trail");
   });
 
@@ -164,7 +175,7 @@ describe("the page explains how rules are read (2026-08-26)", () => {
     });
     const text = (el.textContent ?? "").replace(/\s+/g, " ");
     expect(text).toContain("Forbid beats allow");
-    expect(text).toContain("One place a forbid rule does not reach yet");
+    expect(text).toContain("Where a forbid rule reaches, and where it only records");
   });
 });
 

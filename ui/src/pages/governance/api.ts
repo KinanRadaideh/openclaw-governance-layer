@@ -431,6 +431,15 @@ export type GovernanceAgentEntry = {
   displayName?: string;
   adminId?: string;
   registered: boolean;
+  /**
+   * Whether this agent may run on the Codex backend (§3.5.62).
+   *
+   * Shown to **every tier that can see the agent**, Viewers included. It is a
+   * permission rather than a secret, and a Viewer's job is oversight — noticing
+   * that an agent is permitted onto a runtime where denials are not fully
+   * enforced is precisely what oversight is for.
+   */
+  codexAllowed?: boolean;
 };
 
 export class GovernanceApi {
@@ -525,6 +534,24 @@ export class GovernanceApi {
     return this.request<GovernancePolicyDocument>("policy/mode", {
       method: "POST",
       body: { mode },
+    });
+  }
+
+  /**
+   * Whether agents may run on the Codex backend, and whether anybody chose it.
+   *
+   * `explicit: false` means nobody has decided and the safe default stands,
+   * which the panel shows differently from a deliberate "off" — consent is a
+   * different thing from a setting happening to be in the safe position.
+   */
+  codexBackend(): Promise<{ enabled: boolean; explicit: boolean }> {
+    return this.request<{ enabled: boolean; explicit: boolean }>("backend/codex");
+  }
+
+  setCodexBackend(enabled: boolean): Promise<{ enabled: boolean; explicit: boolean }> {
+    return this.request<{ enabled: boolean; explicit: boolean }>("backend/codex", {
+      method: "POST",
+      body: { enabled },
     });
   }
 
@@ -735,6 +762,20 @@ export class GovernanceApi {
     return this.request<GovernanceAgentEntry>("agents/register", {
       method: "POST",
       body: { agentId, displayName, ...(adminId ? { adminId } : {}) },
+    });
+  }
+
+  /**
+   * Permits an agent onto the Codex backend, or withdraws it (§3.5.62).
+   *
+   * Administrator, ownership-scoped, Root by inheritance. Distinct from
+   * `setCodexBackend`, which is Root's installation-wide switch: an agent
+   * permitted here still cannot use a backend Root has not enabled.
+   */
+  setAgentCodexAllowed(agentId: string, allowed: boolean): Promise<GovernanceAgentEntry> {
+    return this.request<GovernanceAgentEntry>("agents/codex", {
+      method: "POST",
+      body: { agentId, allowed },
     });
   }
 

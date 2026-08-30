@@ -149,6 +149,10 @@ async function runNativeHookRelayPreToolUse(params: {
     ...(approvalMode === "report" ? { approvalMode: "defer" } : {}),
     signal: params.registration.signal,
     ctx: {
+      // Governance reads this to apply the per-agent Codex permission
+      // (§3.5.62). Set at the sites that know: these *are* the native relay, so
+      // the fact cannot be inferred incorrectly downstream.
+      nativeHarness: true,
       ...(params.registration.agentId ? { agentId: params.registration.agentId } : {}),
       sessionId: params.registration.sessionId,
       ...(params.registration.sessionKey ? { sessionKey: params.registration.sessionKey } : {}),
@@ -263,6 +267,10 @@ async function runNativeHookRelayBeforeAgentFinalize(params: {
         : {}),
     },
     ctx: {
+      // Governance reads this to apply the per-agent Codex permission
+      // (§3.5.62). Set at the sites that know: these *are* the native relay, so
+      // the fact cannot be inferred incorrectly downstream.
+      nativeHarness: true,
       ...(params.registration.agentId ? { agentId: params.registration.agentId } : {}),
       sessionId: params.registration.sessionId,
       ...(params.registration.sessionKey ? { sessionKey: params.registration.sessionKey } : {}),

@@ -130,7 +130,16 @@ describe("an agent is a record, not an inference", () => {
     );
     const listed = await listAgentsWithFallback(org.groupId, []);
     expect(listed).toEqual([
-      { agentId: "agent-fresh", displayName: "Fresh", adminId: org.admin.id, registered: true },
+      {
+        agentId: "agent-fresh",
+        displayName: "Fresh",
+        adminId: org.admin.id,
+        registered: true,
+        // Every listing carries the Codex permission (§3.5.62), so the row is
+        // legible wherever an agent is shown. `false` because absent means not
+        // permitted, and nobody has permitted this one.
+        codexAllowed: false,
+      },
     ]);
   });
 

@@ -59,6 +59,7 @@ import {
 } from "../rule-filter.ts";
 import type { PanelEffects } from "./account-panels.ts";
 import { renderRuleTargets } from "./agent-policy-lookup.ts";
+import { type CodexBackendState, renderCodexBackendPanel } from "./codex-backend-panel.ts";
 import { formatDuration } from "./format.ts";
 import { renderRootPolicySettings } from "./policy-root-settings.ts";
 
@@ -130,6 +131,8 @@ export type PolicyPanelProps = PanelEffects & {
   users: readonly GovernanceUserRecord[];
   busy: boolean;
   canAdminister: boolean;
+  /** Whether agents may run on the Codex backend, and whether anybody chose it. */
+  codexBackend: CodexBackendState | null;
   canManageAnyAgent: boolean;
   knownAgentIds: readonly string[];
   agentLabel: (agentId: string) => string;
@@ -392,6 +395,18 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
       users: props.users,
       drafts: props.drafts,
       onDraft: props.onDraft,
+    }),
+    // Which backend agents may run on, and the gap that comes with one of them.
+    // Beside the posture controls because it answers the same question they do —
+    // what this installation's governance can enforce — and in its own module
+    // for the reason the row above gives about the 700-line limit.
+    renderCodexBackendPanel({
+      api: props.api,
+      run: props.run,
+      confirmThen: props.confirmThen,
+      state: props.codexBackend,
+      isRoot,
+      busy: props.busy,
     }),
     ...Object.entries(policy.agentAsk ?? {}).map(([agentId, ask]) =>
       renderSettingsRow({

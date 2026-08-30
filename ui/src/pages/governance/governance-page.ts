@@ -100,6 +100,14 @@ class GovernancePage extends OpenClawLightDomElement {
   @state() private loading = true;
   @state() private error: string | null = null;
   @state() private policy: GovernancePolicyDocument | null = null;
+  /**
+   * Whether agents may run on the Codex backend (§3.5.61).
+   *
+   * `null` until loaded, and the panel renders nothing rather than guessing —
+   * a toggle that shows "off" before it has asked is a toggle that lies for one
+   * frame, and this one's whole purpose is to state what the layer can enforce.
+   */
+  @state() private codexBackend: { enabled: boolean; explicit: boolean } | null = null;
   @state() private ledger: GovernanceLedgerEntry[] = [];
   @state() private ledgerFilter: LedgerFilter = "all";
   /** Agent → policies. Which agent the operator is asking about, and the answer. */
@@ -367,6 +375,7 @@ class GovernancePage extends OpenClawLightDomElement {
       users: this.users,
       canAdminister: canAdminister(this.identity),
       canManageAnyAgent: canManageAnyAgent(this.identity),
+      codexBackend: this.codexBackend,
       knownAgentIds: knownAgentIds(this.agentSources()),
       agentLabel: (agentId) => agentLabel(this.agents, agentId),
       agentPolicyView: this.agentPolicyView,
@@ -449,6 +458,11 @@ class GovernancePage extends OpenClawLightDomElement {
       // The agent registry (M4). Appended at the end for the reason stated
       // immediately above: this array is destructured by position.
       api.listAgents(),
+      // Which backend agents may run on (§3.5.61). Administrator and above; a
+      // lesser tier would 403 and spoil an otherwise successful refresh, the
+      // same reasoning as the two rows above. Appended at the end for the same
+      // positional-destructuring reason.
+      this.identity?.role === "root" ? api.codexBackend() : Promise.resolve(null),
     ]);
 
     // A 401 anywhere means the login is gone, and that *does* end the session —
@@ -469,9 +483,13 @@ class GovernancePage extends OpenClawLightDomElement {
       users,
       deployment,
       agents,
+      codexBackend,
     ] = results;
     if (policy.status === "fulfilled") {
       this.policy = policy.value;
+    }
+    if (codexBackend.status === "fulfilled") {
+      this.codexBackend = codexBackend.value;
     }
     if (ledger.status === "fulfilled") {
       this.ledger = ledger.value;

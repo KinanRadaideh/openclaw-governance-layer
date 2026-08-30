@@ -31,6 +31,17 @@ export type ToolOutcomeObserver = (observation: ToolOutcomeObservation) => void;
 
 export type HookContext = {
   agentId?: string;
+  /**
+   * True when this tool call is relayed from a native harness rather than
+   * executed in this process (§3.5.62).
+   *
+   * The two runtimes are not equivalent for enforcement: a tool result can be
+   * filtered on the in-process path and cannot be on the native one, whose hook
+   * protocol has no field for substituting a result. A gate that cannot tell
+   * them apart cannot apply a per-agent rule about which runtime an agent may
+   * use. Set only by the relay call sites, which are the places that know.
+   */
+  nativeHarness?: boolean;
   config?: OpenClawConfig;
   /** Tool execution cwd for host-derived path facts. */
   cwd?: string;

@@ -165,7 +165,13 @@ describe("listing agents", () => {
     const reply = await call("GET", "agents", sessionFor(org.admin));
     expect(reply.status).toBe(200);
     expect(reply.body.agents).toEqual([
-      { agentId: "agent-known", displayName: "Known", adminId: org.admin.id, registered: true },
+      {
+        agentId: "agent-known",
+        displayName: "Known",
+        adminId: org.admin.id,
+        registered: true,
+        codexAllowed: false,
+      },
       { agentId: "agent-legacy", registered: false },
     ]);
   });
@@ -389,5 +395,77 @@ describe("assignment through the route an Administrator actually uses", () => {
       agentIds: [],
     });
     expect(reply.status).toBe(404);
+  });
+});
+
+describe("the two Codex switches, and the tiers that own them (§3.5.62)", () => {
+  // The tier on each of these was the most-argued decision in the feature and
+  // nothing pinned it. A role string is one word; a silent regression from Root
+  // to Administrator on the machine-level switch would hand an Administrator the
+  // ability to withdraw an operator's model access, and no test would notice.
+
+  it("lets Root read and change the installation switch", async () => {
+    const org = await organisation("beta");
+    const read = await call("GET", "backend/codex", sessionFor(org.root));
+    expect(read.status).toBe(200);
+    // Nobody has decided yet, so the safe answer stands and says so.
+    expect(read.body).toEqual({ enabled: false, explicit: false });
+  });
+
+  it("refuses the installation switch to an Administrator", async () => {
+    const org = await organisation("gamma");
+    // Deliberately *not* Administrator: this writes the host's configuration,
+    // and disabling it withdraws the model catalogue and locks supervised
+    // chats. §1.6 gives deployment to Root.
+    expect((await call("GET", "backend/codex", sessionFor(org.admin))).status).toBe(403);
+    expect(
+      (await call("POST", "backend/codex", sessionFor(org.admin), { enabled: true })).status,
+    ).toBe(403);
+  });
+
+  it("lets an Administrator permit one of their own agents", async () => {
+    const org = await organisation("delta");
+    await registerAgent(
+      { id: "agent-d", displayName: "D", groupId: org.groupId, adminId: org.admin.id },
+      "delta-root",
+    );
+    const res = await call("POST", "agents/codex", sessionFor(org.admin), {
+      agentId: "agent-d",
+      allowed: true,
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.codexAllowed).toBe(true);
+  });
+
+  it("refuses the per-agent switch to a User", async () => {
+    const org = await organisation("epsilon");
+    await registerAgent(
+      { id: "agent-e", displayName: "E", groupId: org.groupId, adminId: org.admin.id },
+      "epsilon-root",
+    );
+    expect(
+      (
+        await call("POST", "agents/codex", sessionFor(org.user, ["agent-e"]), {
+          agentId: "agent-e",
+          allowed: true,
+        })
+      ).status,
+    ).toBe(403);
+  });
+
+  it("refuses an Administrator another Administrator's agent", async () => {
+    const org = await organisation("zeta");
+    await registerAgent(
+      { id: "agent-z", displayName: "Z", groupId: org.groupId, adminId: org.other.id },
+      "zeta-root",
+    );
+    // Ownership-scoped like every other registry mutation. Permitting somebody
+    // else's agent onto a weaker runtime is exactly the cross-Administrator
+    // reach M4 closed.
+    const res = await call("POST", "agents/codex", sessionFor(org.admin), {
+      agentId: "agent-z",
+      allowed: true,
+    });
+    expect(res.status).toBeGreaterThanOrEqual(400);
   });
 });

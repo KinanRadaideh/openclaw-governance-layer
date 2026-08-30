@@ -14,6 +14,7 @@ import { parseAgentSessionKey } from "../sessions/session-key-utils.js";
 import { parseGovernanceSessionKey } from "./agent-conversation.js";
 import { resolveAgentGroup } from "./agent-group.js";
 import { readAgentIntent } from "./agent-intent.js";
+import { findAgent } from "./agent-registry.js";
 import {
   appendLedgerEntry,
   MAX_LEDGER_RESOURCE_LENGTH,
@@ -38,6 +39,16 @@ type ToolCallEvent = {
 type ToolCallContext = {
   agentId?: string;
   sessionKey?: string;
+  /**
+   * True when the call arrives from the native harness rather than this process
+   * (§3.5.62).
+   *
+   * Supplied from `HookContext.nativeHarness`, which only the relay call sites
+   * set. The gate needs it because the two runtimes are not equivalent for
+   * enforcement: T7's prevention half can withhold a denied search result on the
+   * in-process path and cannot on the native one.
+   */
+  nativeHarness?: boolean;
   /**
    * Workspace root, used to decide whether a path is inside the project (and so
    * recorded in short form) or outside it (recorded absolute). Supplied from
@@ -405,6 +416,46 @@ export async function evaluateGovernancePolicy(
     // The gate is switched off entirely; recording would imply oversight that
     // is not happening.
     return undefined;
+  }
+
+  // ---------------------------------------------------------------------
+  // The per-agent Codex permission (§3.5.62).
+  //
+  // Checked here — after the posture, before the lockdown and before any rule —
+  // because it is a question about **whether this agent may be running here at
+  // all**, not about what it may do. An agent on a runtime it is not permitted
+  // to use should be refused uniformly rather than judged rule by rule on a path
+  // where a denial cannot be fully enforced.
+  //
+  // `ctx.nativeHarness` is set only by the relay call sites. On the in-process
+  // runtime it is absent and this whole branch is skipped, so the ordinary path
+  // pays one property read.
+  //
+  // **Refusing rather than degrading is the point.** T7's prevention half cannot
+  // run on that backend, so an agent whose denials matter must not silently get
+  // the weaker enforcement — which is exactly what happened before this existed.
+  // ---------------------------------------------------------------------
+  if (ctx.nativeHarness) {
+    const record = agentId ? await findAgent(agentId) : undefined;
+    if (record?.codexAllowed !== true) {
+      await appendLedgerEntry(groupId, {
+        agentId,
+        sessionKey: ctx.sessionKey,
+        ...intentFields(ctx.sessionKey),
+        toolName: event.toolName,
+        resourceKind: spec?.resourceKind ?? "unknown",
+        resource: "*",
+        ruleId: "agent-not-permitted-on-codex",
+        decision: "deny",
+      });
+      return {
+        block: true,
+        blockReason:
+          `governance: agent "${agentId ?? "unknown"}" is not permitted to run on the ` +
+          "Codex backend, where denied search results cannot be withheld. An " +
+          "Administrator can permit it in the agent's settings.",
+      };
+    }
   }
 
   // Lockdown is checked before anything else, including before asking whether

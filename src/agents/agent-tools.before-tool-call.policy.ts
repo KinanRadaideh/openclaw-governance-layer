@@ -218,6 +218,10 @@ export async function runBeforeToolCallHook(args: {
         // host already uses to derive path facts a few lines above, so the
         // gate and the host agree on what "inside the project" means.
         ...(args.ctx?.cwd && { cwd: args.ctx.cwd }),
+        // Which runtime this call arrived from (§3.5.62). Only the native relay
+        // sets it, and the gate uses it to apply the per-agent Codex permission
+        // — a rule about *where* an agent may run rather than what it may do.
+        ...(args.ctx?.nativeHarness && { nativeHarness: true }),
       },
     );
     // T23 — bind the call to the path the gate judged.

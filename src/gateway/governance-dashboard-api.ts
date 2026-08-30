@@ -55,6 +55,7 @@ import type { GovernanceSession } from "../governance/session-tokens.js";
 import { handleGovernanceAccountRoutes } from "./governance-dashboard-accounts.js";
 import { handleGovernanceAgentControlRoutes } from "./governance-dashboard-agent-control.js";
 import { handleGovernanceAgentRoutes } from "./governance-dashboard-agents.js";
+import { handleGovernanceCodexBackendRoutes } from "./governance-dashboard-backend.js";
 import { requireGroup } from "./governance-dashboard-group.js";
 import { handleGovernanceOversightRoutes } from "./governance-dashboard-oversight.js";
 import { handleGovernanceRuleRequestRoutes } from "./governance-dashboard-rule-requests.js";
@@ -973,5 +974,8 @@ export async function handleGovernanceApiRequest(
     return true;
   }
 
-  return false;
+  // Which backend agents may run on (§3.5.61); its own module for the 700-line
+  // limit the pre-commit gate enforces.
+  const codexCtx = { requireRole, readJsonObjectBodyOrError, auditActor };
+  return await handleGovernanceCodexBackendRoutes(req, res, route, session, codexCtx);
 }

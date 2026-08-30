@@ -22,6 +22,7 @@ import {
   listAgentsWithFallback,
   registerAgent,
   renameAgent,
+  setAgentCodexAllowed,
   setAgentOwner,
   unregisterAgent,
 } from "../../governance/agent-registry.js";
@@ -181,6 +182,55 @@ export function registerGovernanceAgentCommands(governance: Command): void {
           toCliAuditActor(identity),
         );
         defaultRuntime.log(`renamed ${agent.id} to "${agent.displayName}"`);
+      });
+    });
+
+  agents
+    .command("set-codex <agentId> <allowed>")
+    .description(
+      "Permit or refuse this agent on the Codex backend, where denied search results cannot be withheld",
+    )
+    .action(async (agentId: string, allowed: string) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        const value = allowed.trim().toLowerCase();
+        if (!["on", "off", "true", "false", "yes", "no"].includes(value)) {
+          defaultRuntime.log("allowed must be on or off");
+          defaultRuntime.exit(1);
+          return;
+        }
+        const permit = value === "on" || value === "true" || value === "yes";
+        const identity = await requireOwnedAgent(agentId, "change what an agent may run on");
+        if (!identity) {
+          return;
+        }
+        const agent = await setAgentCodexAllowed(
+          agentId,
+          permit,
+          identity.groupId ?? "",
+          toCliAuditActor(identity),
+        );
+        // **The warning is printed on the permissive direction only**, matching
+        // the dashboard's asymmetry: permitting accepts a stated enforcement
+        // gap, while withdrawing is the safe direction and needs no caution.
+        // Printed after the change rather than as a prompt, because this surface
+        // is scriptable and a prompt would either block automation or be
+        // answered blind.
+        if (permit) {
+          defaultRuntime.log(`${agent.id} may now run on the Codex backend.`);
+          defaultRuntime.log(
+            "  On that backend a recursive search reaching a denied path is recorded but",
+          );
+          defaultRuntime.log(
+            "  NOT prevented: its results cannot be withheld from the model, because the",
+          );
+          defaultRuntime.log("  Codex hook protocol has no field for substituting a tool result.");
+          defaultRuntime.log("  Denials, the audit ledger and the kill switch still apply there.");
+          defaultRuntime.log(
+            "  This decision has been recorded in the ledger against your account.",
+          );
+        } else {
+          defaultRuntime.log(`${agent.id} may no longer run on the Codex backend`);
+        }
       });
     });
 
