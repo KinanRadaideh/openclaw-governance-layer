@@ -3882,6 +3882,12 @@ change), or the gate narrowing the search root before the call using the
 parameter rewriting T23 established (reachable in this fork, and carrying an
 obvious risk of silently changing what an operator asked for).
 
+> **Both descriptions were corrected on 2026-08-30 and neither survived.** Root
+> narrowing cannot express an exception; the exclusion route is limited by globs
+> versus regular expressions rather than by the host. A third route — filtering
+> the result — works in-process and is impossible on the native harness. See
+> §3.5.41 and `REMAINING-WORK.md` §"T7 prevention — the three routes".
+
 Recorded rather than attempted, because choosing between them is a decision
 about how far a security control may alter a request without saying so — which
 belongs beside the M5/M6 decisions, not inside a refactoring session.
@@ -4004,13 +4010,36 @@ fail to record a reach, and it cannot invent one. For an audit that never
 blocks, that is the only safe way to be wrong, and saying so is better than a
 completeness claim that would not survive a question.
 
-**Prevention remains open, and remains a decision.** Stopping the read needs
-either the search tools to accept an exclusion set — a real change to the host's
-tools — or the gate to narrow the search root before the call, which is
-reachable here using the parameter rewriting T23 established. The second means a
-security control silently altering what an operator asked for. That is a
-question about how much a control may change a request, not a plumbing problem,
-and it is recorded as a decision rather than resolved in passing.
+**Prevention was built on 2026-08-30 (§3.5.61); what follows is the correction
+that preceded it and the reason two of the three routes were dead.** This section
+read "prevention remains open, and remains a decision" until then.
+
+**The original decision was not the decision at all.** The paragraph that stood here said prevention
+needed either the search tools to accept an exclusion set (a real host change) or
+the gate to narrow the search root before the call, reachable using T23's
+parameter rewriting. **Both halves were reasoned rather than read, and both are
+wrong**; the correction is dated 2026-08-30 and written up in full in
+`REMAINING-WORK.md` §"T7 prevention — the three routes".
+
+In summary, for the report: narrowing the root **cannot** work, because the
+ordinary case is a denied file inside a permitted directory and a single root
+expresses no exception. The exclusion route is **not** blocked by the host —
+`grep` runs ripgrep and `find` runs fd, both of which take exclusion arguments —
+but by a language mismatch, since those arguments are globs and policy denials
+are regular expressions. A third route nobody had considered, filtering denied
+entries out of the result before the model sees it, works in the rules' own
+language and reuses the set this file already computes; it is reachable on the
+in-process runtime through `afterToolCall`, whose return value replaces the tool
+result, and is **impossible on the native harness**, because the Codex hook
+protocol has no field for substituting a result — stated in upstream's own
+comment at `native-hook-relay-events.ts`. Refusing the call outright, by
+contrast, works on both.
+
+**That last point is worth Chapter 4 on its own account.** This project recorded
+"blocked on the host" three times and all three dissolved when the premise was
+checked (§3.5.42). This is the fourth, and it is the first that survives
+checking: the limit is in a separate program, in another language and repository,
+documented by its own authors, and no amount of forking on this side reaches it.
 
 ### 3.5.42 The third "blocked on the host" claim, and the audit of all three
 
@@ -4532,12 +4561,22 @@ entry switches it the other way, with the same result. Both are detected. A
 version field would have needed protecting itself, and would still have left the
 question of entries written before versions existed.
 
-**Honest limitation to carry into §4.4.** A change made through the CLI is
-recorded with actor `cli`, not a person. The CLI has no login by design — its
-boundary is filesystem access to the governance directory, and anyone who can
-run it could edit the JSON files directly — so a name collected there would be
-a claim, not an authentication. Recording the origin honestly is better than
-implying an accountability the design does not provide. Tracked as A6.
+**Honest limitation to carry into §4.4 — and it was closed four days after it
+was written.** This paragraph read: _"A change made through the CLI is recorded
+with actor `cli`, not a person. The CLI has no login by design"_, on the argument
+that a name collected without authentication would be a claim rather than an
+authentication. **T5 built the login on 2026-08-24** (§3.5.27), and CLI commands
+now resolve a signed-in account through `verifySession` and record it by name and
+tier via `toCliAuditActor`. A6 is closed.
+
+**What survives is narrower and is still worth §4.4.** The login makes the
+command line _attributable and authorized_; it is not a _security boundary_.
+Anyone who can run these commands can still edit the governance directory
+directly, so the boundary remains the filesystem's — stated in `cli-identity.ts`'s
+own header, which is why `requireCliActor` refuses rather than warns.
+`CLI_ACTOR` survives for two narrow cases: the repair command that deletes
+accounts predating groups, where by definition nobody can sign in, and the
+bootstrap of the very first account.
 
 Validation: §4.x.14.
 
@@ -5949,11 +5988,15 @@ Root has no other recovery, so the new password must be recorded before you
 click.
 
 **Deliberately not on the CLI**, which is a divergence from the all-three-surfaces
-rule and is argued rather than overlooked: the CLI has no login (limitation A6),
+rule and is argued rather than overlooked: the CLI had no login when this was
+decided (limitation A6),
 so `governance users set-password` would be an _unauthenticated credential reset
 for the account that governs the installation_. The core denial on `governance`
 subcommands stops an agent reaching it, but that denial is a backstop, not an
-authentication. Until the CLI has a login, the dashboard is the only surface
+authentication. **T5 built the CLI login on 2026-08-24, so the condition this
+paragraph ends on has been met and the argument no longer stands as written**
+(corrected 2026-08-30); the omission is now a decision to revisit rather than a
+consequence. Until the CLI had a login, the dashboard was the only surface
 where "who reset this password?" has an answer.
 
 #### 2. There is always exactly one Root
@@ -7527,3 +7570,328 @@ fire. It passes with or without the fix, which by this project's own mutation
 standard makes it worthless as proof of the fix. It is not there for that. It is
 there so that a future widening of the pattern fails loudly instead of silently
 degrading the record.
+
+---
+
+### 3.5.61 T7 prevention: withholding what a search should not have found
+
+**Built 2026-08-30.** §3.5.39 split T7 into an audit half and a prevention half
+and closed the first. This closes the second, on the runtime where it can be
+closed, and states precisely why the other runtime is beyond reach. Both halves
+of that sentence belong in the report: the limitation is as much a result as the
+control.
+
+#### What the gap is, in one paragraph
+
+`grep`, `find` and `ls` are governed at their **root**. The gate resolves the
+path the agent named, judges that one string, and the tool then walks below it.
+A denial on `.env` therefore stops `read .env` and does not stop
+`grep "password" .`, because the resource the gate saw was the directory and the
+directory is permitted. The file is discovered by the tool after the gate has
+already answered.
+
+#### Three routes, and why two of them are dead
+
+Recorded because the project's own documents recommended the route that cannot
+work, and the correction is Chapter 4 material.
+
+1. **Narrow the search root before the call.** Named in three documents as the
+   reachable option, using T23's parameter rewriting. It **cannot work**. The
+   ordinary case is a denied file _inside_ a permitted directory; a search root
+   is a single location and no single location expresses "everything under `.`
+   except this file". Narrowing can only move the root deeper, which either
+   still contains the file or discards what the operator asked for.
+2. **Hand the tools an exclusion set.** Smaller than recorded — `grep` runs
+   ripgrep and `find` runs fd, and both accept exclusions natively, so this was
+   never the "real host change" the rows describe. It fails for a different
+   reason: those arguments take **globs**, and policy denials are **regular
+   expressions** (`pattern-match.ts` compiles every pattern with `new RegExp`).
+   Simple patterns translate and expressive ones do not, so the result would be
+   partial enforcement presenting as total.
+3. **Remove the covered entries from the result before the model sees them.**
+   This is what was built.
+
+#### What the control actually claims
+
+**The file is still read from disk. Its contents do not reach the model.**
+
+That distinction should be stated plainly rather than smoothed over, because it
+bounds the claim honestly. This is a containment layer: the threat it addresses
+is an agent obtaining and acting on content a rule forbids, and that is what is
+prevented. Preventing the read itself would require the tool to accept an
+exclusion set, which route 2 rules out.
+
+#### Where it runs, and why nowhere else would do
+
+The audit half runs at two sites and **neither can be used**:
+`handleToolExecutionEnd` handles a `tool_execution_end` **event**, and
+`runAgentHarnessAfterToolCallHook` returns `Promise<void>`. Both are observers.
+Filtering there would change the transcript and the logs while the original text
+still reached the model — worse than doing nothing, because it would look like a
+control while being none.
+
+The seam that works is `afterToolCall`. In `finalizeExecutedToolCall`
+(`packages/agent-core/src/agent-loop.ts`) its return value **replaces**
+`content`, `details` and `isError` before the result is appended to the turn.
+That is the last point at which a tool result is still the host's.
+
+`installGovernanceSearchFilterHook`
+(`src/agents/embedded-agent-runner/run/governance-search-filter.ts`) installs it
+onto each run in `attempt-session.ts`, beside the two hooks that already claim
+that slot. Three properties of the installation are load-bearing:
+
+- **It wraps rather than assigns.** `agent.afterToolCall` is one slot with
+  several claimants: `agent-session-base.ts` assigns it for extension
+  `tool_result` handlers and `installMessageToolOnlyTerminalHook` wraps it.
+  Assigning would silently drop whichever arrived first.
+- **It installs last, so governance runs last.** An extension may legitimately
+  rewrite a tool result. A filter that inspected the pre-rewrite text would be
+  checking something nobody receives while the delivered text went unchecked.
+  Two tests pin this, and reverting it fails exactly those two.
+- **It is unconditional.** `agent-session-base.ts` returns early unless an
+  extension registered a handler; governance must not inherit that condition,
+  for the reason `native-relay-requirement.ts` gives about the relay and B1.
+
+#### The decision rule, shared with the audit half
+
+`filterSearchResult` lives beside `auditSearchReach` in `search-audit.ts` and
+both call one extraction, `candidateFromLine`. That sharing is deliberate: two
+copies of "which path does this line refer to" would eventually disagree, and
+the disagreement would be a path recorded as reached that the filter had not
+removed — the ledger and the model's context telling different stories about one
+search. It also means the filter inherits **finding 131's fix** for free: grep's
+matched _content_ is not a path candidate, so a broad denial cannot cause file
+text to be treated as a resource. That inheritance is asserted rather than
+assumed, by a test that greps for the secret in the ledger.
+
+Line-by-line, a covered file's **match lines and its context lines** are both
+removed. `grep` renders context as `path-N- text`, which carries the file's text
+just as a match does; removing only `path:N:` lines would withhold the match and
+disclose its surroundings.
+
+#### Two design choices that are arguable, and the argument
+
+**It fails closed.** If the comparison throws, the agent receives a refusal
+rather than the unchecked result. This is the opposite of `auditSearchReach`,
+which swallows every error, and the difference is the point: an audit that fails
+silently loses a record, while a **filter** that fails silently hands over the
+exact content it exists to withhold. The blast radius is bounded to three tools,
+and by the time this runs the policy was readable moments earlier — the gate read
+it to allow the call at all.
+
+**It tells the agent.** A withheld result is replaced by
+`[N results withheld by governance policy: …]` rather than silently shortening
+the list. Silence would teach the model the file does not exist, and it may then
+act on that belief — reporting a clean scan, or creating a file it thinks absent.
+The notice counts **distinct files, not matching lines**, because three matches
+in one denied file is one withheld result and reporting three would disclose how
+much is in a file the agent may not read.
+
+#### What the ledger now distinguishes
+
+| Ledger id               | Decision     | Means                                                |
+| ----------------------- | ------------ | ---------------------------------------------------- |
+| `search-reached-denied` | `ungoverned` | A search reached it and the model saw it             |
+| `search-withheld`       | `deny`       | A search reached it and the model did **not** see it |
+
+Keeping them apart is what lets an auditor count _what leaked_ and _what was
+stopped_ as separate questions. Recording a prevention as `ungoverned` would
+corrupt the first count; recording a leak as `deny` would claim a protection
+that did not happen, which is the failure §3.5.41 exists to avoid.
+
+#### The half that cannot be closed, and why it is a finding
+
+On the **native Codex harness** this does not apply, and no amount of work on
+this side changes that. Codex executes its own tools in its own process and
+reports afterwards; its hook protocol carries a permission decision at
+`pre_tool_use` and has **no field for substituting a result** at
+`post_tool_use`. Upstream states this at `native-hook-relay-events.ts`.
+
+Two things follow that the report should say plainly.
+
+**This is the project's first true "blocked on the host" claim.** Three earlier
+ones were recorded and all three dissolved when the premise was checked
+(§3.5.42). This one survives checking: the limit is in a separate program, in
+another language and repository, documented by its own authors, and forking
+OpenClaw does not reach it.
+
+**And the limitation is broader than this feature.** OpenClaw ships a
+first-class **tool-result middleware** extension point whose purpose is to
+transform a result before the model sees it. On that backend the middleware
+_runs_, computes a transformed result, and the transformed result is handed only
+to observers while the model receives the original. Any user relying on that
+extension point gets it silently not applied there. This project's feature is one
+casualty of a general platform limitation rather than a special case — which is a
+contribution-shaped finding rather than a limitation-shaped one, and belongs in
+Chapter 4 on that footing.
+
+_Figure candidate — the two runtimes and one seam: tool result → `afterToolCall`
+→ model on the in-process path, versus tool result → observers only on the Codex
+path, with the model unreachable from the hook. It makes the asymmetry visible in
+a way the prose cannot._
+
+---
+
+### 3.5.62 Two switches for one backend, and why the tiers differ
+
+**Built 2026-08-30.** §3.5.61 closed T7's prevention half on the in-process
+runtime and established that it cannot be closed on the native Codex harness.
+This is what the layer does about the half it cannot close, and the design
+argument is worth the section on its own: **an enforcement gap that cannot be
+removed can still be made a decision rather than a surprise.**
+
+#### The three options, and why this one
+
+1. **Refuse every recursive search on that backend.** Real prevention, uniform,
+   and blunt: whether a search _would_ reach a denied file is not knowable before
+   it runs, so the refusal must be conservative and an agent with any file denial
+   loses recursive search entirely.
+2. **Say nothing.** The gap exists, is recorded, nobody is told. What the layer
+   did before today.
+3. **Default to the runtime that can be enforced, and make the other an explicit,
+   recorded decision.** Built.
+
+The third is the honest one. It does not pretend the backends are equivalent, it
+does not punish an operator for a limitation they did not cause, and it produces
+the artefact an investigation needs: a dated, attributed record of when this
+installation began accepting the gap and for which agents.
+
+**Default-off is default-deny one level up.** The layer default-denies _actions_;
+this default-denies a _runtime_ whose enforcement is incomplete.
+
+#### Two switches, two tiers, and the reasoning is the tier model itself
+
+| Switch          | Question                                      | Tier              | Why                                                                                                                                                                                                                       |
+| --------------- | --------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `backend/codex` | Does this backend exist on this installation? | **Root**          | Writes OpenClaw's configuration. Disabling also withdraws the Codex-managed model catalogue, media understanding and prompt overlays, and leaves supervised chats locked — deployment consequences, which §1.6 gives Root |
+| `agents/codex`  | May _this agent_ use it?                      | **Administrator** | An agent's security boundary, which §1.6 gives the Administrator. Ownership-scoped like every other registry mutation; Root reaches it by inheritance                                                                     |
+
+**They compose in the safe direction.** An agent permitted by an Administrator
+still cannot use a backend Root has not enabled. Neither switch alone opens the
+gap.
+
+**The first pass put both at Administrator and that was wrong**, for a reason
+worth recording. `policy/mode` is Administrator, and matching it looked
+consistent. But the posture changes _governance's own state_ in `policy.json`,
+which this layer owns, while the installation switch writes **the host's**
+configuration — the layer reaching outside itself, which M6 established as a
+reversal of the trust direction. An Administrator toggling what reads as a
+security setting could have removed an operator's model access. The per-agent
+switch has no such reach, which is exactly why it stays with the Administrator.
+
+#### What "off by default" means precisely
+
+`readCodexBackendState` returns `{ enabled, explicit }`, and `codexAllowed` on an
+agent record is absent until set. Both report the safe answer when nobody has
+decided.
+
+The `explicit` field is the design point: **consent and coincidence are different
+states.** "Off by default, nobody has enabled this" is not the same sentence as
+"off, somebody decided that", and the dashboard says which. A malformed entry — a
+string where a boolean belongs — also reports `explicit: false`, because a typo
+is not consent and the only reading that cannot turn one into an accepted
+enforcement gap is to fall back to the safe answer.
+
+#### Making the permission real: the runtime marker
+
+A permission nothing checks is a setting. Enforcing this one required the gate to
+know **which runtime a call arrived from**, and it could not: the relay passed no
+such fact.
+
+`nativeHarness?: boolean` was added to three context types — `HookContext`,
+`AgentHarnessHookContext` and `PluginHookAgentContext` — and set by **both**
+native relay call sites, which are the only places that know. The gate reads it
+in `evaluateGovernancePolicy` and, when the agent has no permission, refuses:
+
+```
+governance: agent "…" is not permitted to run on the Codex backend, where denied
+search results cannot be withheld. An Administrator can permit it in the agent's
+settings.
+```
+
+Recorded as `agent-not-permitted-on-codex`, decision `deny`.
+
+**Three properties of that check are deliberate.** It runs **after the posture
+and before the lockdown**, because it asks whether the agent may be running
+_here at all_ rather than what it may do — an agent on a forbidden runtime should
+be refused uniformly, not judged rule by rule on a path where a denial cannot be
+enforced. It is **skipped entirely** when the marker is absent, so the
+in-process path pays one property read. And the reason **names the remedy**, so a
+refusal explains itself at the point it occurs — this project's worst bug class
+is a failure with no visible cause.
+
+**This is the second time this week upstream code was edited for a security
+guarantee rather than for wiring**, after finding 147's redaction patterns. The
+fork diff §3.5.2b measures grows by three type fields and two call sites, and
+Chapter 3 should count that honestly against what it buys.
+
+#### Two dialogs, deliberately asymmetric
+
+Turning the installation switch **on** warns about the enforcement gap. Turning
+it **off** warns about something else entirely: supervised chats become locked
+and unavailable rather than rerouting, and recovering them needs the Gateway
+restarted even though the setting itself is hot (`config-reload-plan.ts`
+classifies `plugins` as hot).
+
+Warning in one direction only would have left the second to be discovered by an
+operator who thought they were tightening security. **A control whose two
+directions break different things needs two different warnings**, and this is the
+first place in the project where that is true.
+
+The per-agent control confirms in the **permissive direction only**, matching
+finding 87's lesson: `off` is gated and `enforce` is not, so operators are not
+trained to dismiss the dialog that matters.
+
+Dialogs are brief on purpose, with the full explanation in a "Why this is off by
+default" disclosure beneath the switch. A dialog nobody finishes reading is a
+dialog nobody consents through, and consent is the entire mechanism here.
+
+#### Composing the host, not writing its files
+
+`readConfigFileSnapshot` → `setPluginEnabledInConfig` → `replaceConfigFile` →
+`refreshPluginRegistryAfterConfigMutation`: exactly what `openclaw plugins
+disable` performs. M6's rule again. Governance decides _whether_; the host
+decides _how_, keeping its invariants about entry merging, alias folding and
+config-size guards.
+
+It also means the dashboard and the command line change **one** thing, so the two
+surfaces cannot drift into disagreeing about what this installation is doing.
+
+#### What the ledger distinguishes
+
+| Action                     | Means                                           |
+| -------------------------- | ----------------------------------------------- |
+| `governance.backend.codex` | Root changed whether the backend exists here    |
+| `governance.agent.codex`   | An Administrator permitted or refused one agent |
+
+Kept apart so an auditor can ask "which agents were allowed onto the runtime
+where denied search results are not withheld, and who allowed them?" separately
+from the machine-level decision. Both record actor, tier and **both ends of the
+transition**, for the reason `setMode` does: an entry recording only the new
+value cannot answer "was this a change, or a restatement?" The per-agent mutator
+records restatements too, because "who last confirmed this?" is a question an
+investigation asks.
+
+Both are **recorded before the change is attempted**, matching `registerAgent`
+and M6's provisioning. A change that fails part-way is exactly the event an
+investigation wants, and recording only success hides it.
+
+#### Making the consent visible afterwards
+
+Consent given once decays: six weeks later nobody remembers which agents it
+covered. So every agent row, in every listing, states its engine permission — and
+it is shown to **every tier that can see the agent, Viewers included**. It is a
+permission rather than a secret, and noticing that an agent is permitted onto a
+runtime where denials are not fully enforced is precisely what oversight is for.
+
+**It is phrased as a permission, never as an observation**, and that distinction
+is load-bearing. The layer _cannot_ see which runtime an agent is actually using:
+that is resolved at session start from the model provider and recorded nowhere.
+A column claiming "running on Codex" would be inventing precision the data does
+not support. "Engine: built-in only" and "engine: built-in or Codex" are true.
+
+_Figure candidate — the two-layer permission: Root's machine switch and the
+Administrator's per-agent one as two gates in series, with an agent reaching the
+Codex runtime only when both are open, and the in-process runtime always
+available. It makes "they compose in the safe direction" visible in a way the
+table does not._

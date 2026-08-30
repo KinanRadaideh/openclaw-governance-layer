@@ -694,9 +694,12 @@ always look dangerous.
 ### What is honestly still missing
 
 No streaming: the reply appears when the run finishes, so a long task shows
-"Working…" and nothing else. No file attachments. And a prompt sent from the
+"Working…" and nothing else. No file attachments. ~~And a prompt sent from the
 command line is still recorded against `cli` rather than a person, because the
-CLI has no login — the dashboard is the surface that answers "who asked".
+CLI has no login.~~ **That last sentence stopped being true on 2026-08-24 and was
+corrected on 2026-08-30**: the command line now has a sign-in, and a prompt sent
+from it is recorded against the person who sent it, the same way the dashboard
+records one.
 
 ---
 
@@ -4586,3 +4589,285 @@ They have been written down rather than fixed. Fixing them means editing two mor
 of the original project's files for no gain to the governance layer. The honest
 resolution is that the notes now say what is actually true, and say plainly where
 the five commands stop looking.
+
+## 5.64 The emergency stop did not record who pressed it
+
+Every action taken through the governance system is written into the permanent
+record along with the name of the person who took it. That has been true of the
+command line since a login was added to it in August.
+
+With one exception, which nobody noticed until the documentation was being
+checked against the code.
+
+The emergency stop, which freezes an agent completely, is run with
+`openclaw governance kill`. The command asks who you are, checks that your
+account is allowed to do this, and then writes the event into the record as
+having been done by **"cli"**. Not by you. The name it had just looked up was
+thrown away one line later.
+
+### Why it stayed hidden
+
+There is a test that checks the emergency stop records who used it, and that test
+passed the whole time. It calls the stop directly and hands it a proper name, so
+it was always testing the half that worked.
+
+The fault was in the join between two correct pieces: the part that works out who
+you are, and the part that writes the record. Each was right on its own. Nothing
+tested the handover.
+
+> **This is the third time this project has found a fault living in a join rather
+> than in a part.** It is a pattern worth naming in the write-up: things that are
+> individually correct and connected wrongly are invisible to tests that examine
+> them individually.
+
+### Why this one mattered more than most
+
+Of everything the system can do, freezing an agent is the most serious. And the
+half that matters even more is **releasing** the freeze. An emergency stop that
+anyone can quietly undo is not really an emergency stop, and there is no other
+field in the record from which "who lifted it" could be worked out afterwards.
+
+So the single action most in need of a name attached was the one action without
+one.
+
+### The fix, and the test that had to be written differently
+
+The fix is to pass the name that was already sitting there. Two lines.
+
+The test could not be written the way the existing ones were, because those call
+the stop directly and would have passed either way. The new test runs the actual
+command, as a person would type it, with a real signed-in account, and then reads
+the record back. With the fix removed it fails and says exactly what went wrong:
+it expected the operator's name and found "cli".
+
+It was also filed alongside the governance tests rather than with the other
+command-line code, on purpose. The project verifies itself by running five
+specific commands, and a test placed outside those would never run. That was the
+lesson of the previous finding, applied immediately to this one.
+
+## 5.65 The search that no longer hands over what it found
+
+A rule saying "this agent may never read the password file" used to work in one
+direction and not the other. Ask for the file directly and it was refused. Search
+the folder containing it and the search opened it along with everything else, and
+the contents went to the model.
+
+The reason is that a search names a _starting point_ and then travels. The layer
+checked the starting point, which was fine, and the file was found afterwards.
+
+Since August the system has **recorded** when that happened. As of today it also
+**stops** it, on the way in which the agent is normally run.
+
+### What it does
+
+When a search finishes, the results pass through the layer before they reach the
+model. Any line pointing at a file the rules forbid is taken out, and a short
+note is put in its place saying how many results were withheld.
+
+The file is still opened by the search program. What is prevented is the model
+ever seeing what was inside. For a system whose job is containment that is the
+line that matters, and it is stated that way rather than claimed as something
+stronger.
+
+### Three things that were decided rather than defaulted
+
+**The agent is told.** Quietly returning a shorter list would teach the model
+that the file does not exist, and it might then act on that — reporting a clean
+search, or creating a file it believes is missing. Saying "some results were
+withheld" is both true and the only version it can reason with correctly.
+
+**The count is of files, not lines.** Three matches inside one forbidden file is
+one withheld result. Saying "three" would tell the agent how much is in a file it
+is not allowed to read.
+
+**If the check itself fails, nothing is handed over.** The recording half of this
+feature swallows its errors on purpose, because a lost record is better than a
+broken tool. The filtering half does the opposite: an error means the agent gets
+a refusal rather than results nobody checked. A filter that fails quietly hands
+over precisely the thing it exists to withhold.
+
+### The half that cannot be done, and why that is worth reporting
+
+The system can run an agent in two ways: inside itself, or by launching a
+separate program called Codex. On the second, Codex runs the search in its own
+process and tells the system afterwards. The fixed set of messages the two
+programs exchange lets our side **refuse** a tool before it runs, and has no
+message meaning "here is a corrected result". So on that path the leak can be
+recorded and not stopped.
+
+That is not something more effort would fix. Codex is a different program, in a
+different language, maintained elsewhere.
+
+> **This is the first time in the project that "we were blocked by the software
+> we inherited" has turned out to be true.** It was claimed three times before
+> and all three dissolved when somebody checked. This one survives checking, and
+> it is documented by the other program's own authors.
+
+There is a wider version of it worth knowing. OpenClaw has a general feature for
+changing a tool's result before the model sees it. On that same path the feature
+_runs_, produces its changed result, and the changed result is then given only to
+things that are watching — the model receives the original. Anyone relying on
+that feature there is getting nothing, silently. Our problem turned out to be one
+instance of a bigger one.
+
+## 5.66 One organisation to a machine
+
+A second change, made for a different reason but on the same day.
+
+The system can hold several separate organisations, each unable to see the
+others. That was built in August. The trouble is that some settings belong to the
+_whole machine_ rather than to one organisation — whether the Codex backend is
+allowed at all is one of them. With several organisations sharing a machine, an
+administrator of one could flip a switch affecting organisations they cannot see
+and are not responsible for.
+
+So a machine now holds one organisation. The switch and the authority to use it
+cover the same ground, and the awkward question disappears instead of needing an
+answer.
+
+**Nothing about the intended setup changes.** One server runs the system; the
+Root, the administrators, the users and the viewers each sign in from **their own
+computer** through a secure tunnel, all at the same time, each seeing only what
+their role allows. That is the arrangement the project was always for, and a test
+now asserts it directly with four people and four simultaneous sessions.
+
+**What is given up** is two unrelated organisations sharing one server. Several
+organisations are still perfectly possible; they take a server each, which is
+what they always took, since nothing in this layer has ever worked across
+machines.
+
+## 5.67 Two switches, because they are two different decisions
+
+The section before this explains a gap that cannot be closed on one of the two
+ways an agent can be run. This is what the system does about it.
+
+**By default that way is switched off, twice over.** Agents run on the path where
+forbidden search results are removed before the model sees them. Nobody has to
+understand any of this for the safe thing to happen, which is what a default is
+for.
+
+If somebody wants the other backend anyway, two separate permissions now have to
+be granted, and they belong to different people.
+
+### The first switch: does this machine offer it at all?
+
+In the governance settings there is a switch labelled **"Enable use of Codex?"**.
+Only Root sees it and only Root can move it.
+
+Root, not an administrator, and the reason is worth stating. This switch edits
+the host application's own configuration. Turning it off takes away things that
+have nothing to do with security: access to certain models, the ability to
+interpret images and documents, and any Codex conversations the system had
+adopted, which become locked until it is switched back on and the server
+restarted.
+
+So an administrator could have clicked what looked like a security setting and
+removed somebody's model access. That is deployment, and the project's
+specification hands deployment to Root.
+
+### The second switch: may _this_ agent use it?
+
+Each agent now carries its own permission, set by an administrator, in the agent
+list on the dashboard, over HTTP, or from the command line with
+`openclaw governance agents set-codex <agent> on`.
+
+This one is the administrator's because it is about one agent's boundary, which
+is exactly what the specification says an administrator manages.
+
+**The two work in series.** An agent an administrator has permitted still cannot
+use the backend if Root has not enabled it. Neither permission alone opens
+anything, which is the safe way round.
+
+### It is enforced, not merely recorded
+
+A permission nothing checks is a setting, not a control. So the gate was taught
+to tell the two runtimes apart — it previously could not — and it now refuses
+every tool call from an agent running on Codex without permission, saying why and
+naming who can fix it. The refusal is written to the permanent log.
+
+### Two warnings, not one
+
+Turning the machine-level switch **on** warns that searches on that backend are
+recorded but not prevented.
+
+Turning it **off** warns about something completely different: supervised chats
+become locked, and getting them back needs a restart.
+
+Warning in one direction only would have left an operator to discover the second
+by accident while trying to make things safer. **A control whose two directions
+break different things needs two different warnings.**
+
+The per-agent one warns only when _permitting_, never when withdrawing. Putting a
+dialog on the safe direction too would just teach people to click through both.
+
+### Saying yes is recorded, and stays visible
+
+Every change writes an entry to the tamper-evident log with the account, the tier
+they held at the time, and both ends of the change — written _before_ the change
+is attempted, so an attempt that fails halfway still leaves a trace. The two
+kinds are recorded separately, so "who allowed this agent onto that backend?" can
+be answered without wading through machine-level changes.
+
+And because consent given once fades, **every agent row now states its engine
+permission**, to everyone who can see the agent, viewers included. It is a
+permission, not a secret, and noticing that an agent is allowed onto a weaker
+runtime is exactly what oversight is for.
+
+### One thing it deliberately does not claim
+
+The row says what an agent is **allowed** to use, never what it is **actually**
+using. The system genuinely does not know the second: the runtime is chosen when
+a session starts, from the agent's model settings, and is written down nowhere.
+
+A column saying "running on Codex" would have looked more useful and been partly
+invented. "Engine: built-in only" is true.
+
+## 5.68 The warning label that stopped being true
+
+The system's policy page carried a note for anyone writing rules. It said, in
+effect: a "forbid" rule stops a file being opened, but it does not stop a search
+finding it, and when that happens it is written to the log rather than prevented.
+
+That note was put there deliberately, because an interface that lets somebody
+write "this folder, except that one" while a search walks straight through the
+exception is making a promise the system does not keep.
+
+**Hours after the search fix landed, the note became false** for the way almost
+every agent actually runs. Denied results are now removed before the model sees
+them. An operator reading that page would have been told their rules are weaker
+than they are — by the very warning built to stop the interface overstating
+itself.
+
+### The tripwire that did not go off
+
+Whoever wrote that note also wrote a test to catch this exact moment. Its comment
+says so plainly: _this test should fail when the search fix lands, and that is
+the point._ The idea was that the next person would be forced to come back, see
+why the sentence existed, and remove it.
+
+The test kept passing.
+
+The reason is worth more than the mistake. The note did not become **untrue** —
+it became **half** true. Results are removed on the built-in engine and still
+cannot be on the Codex one. Every sentence the test checked for was still on the
+page, so nothing failed.
+
+> **A test written to fail on a future change assumes that change will make its
+> subject obsolete. If the change instead makes it more precise, the tripwire has
+> no way to notice.** It catches deletion, not refinement.
+
+It was caught anyway, by reading the handover notes: they claimed a test would
+fail when the search fix landed, the fix had landed, and the tests were green. One
+of those three things had to be wrong.
+
+### Fixed by narrowing, which was the real question
+
+The obvious move — delete the note, the fix is in — would have been wrong. It
+would have told anyone using the Codex engine that a forbid rule protects them
+from searches, which is the precise false promise the note existed to prevent.
+
+So it now names both cases: removed on the built-in engine, not removable on
+Codex and recorded there instead, with each agent's engine permission visible in
+the agent list. The test was rewritten to check both halves, and carries a note
+explaining why the tripwire did not fire, so nobody trusts that device further
+than it goes.

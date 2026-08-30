@@ -764,7 +764,10 @@ The second command exists because the sixth QA round discovered that
 governance-only runs had hidden nineteen regressions in the host for weeks. A
 green governance suite is not evidence on its own.
 
-1,794 automated tests across 87 files (2026-08-24) cover the ledger chain, the
+2,348 automated tests across 112 files (2026-08-29; the figure below read
+"1,794 across 87" when measured on 2026-08-24, and both are file _runs_ and test
+_executions_ rather than distinct files and tests — see finding 109) cover the
+ledger chain, the
 policy engine and its tier model, resource extraction, path and hostname
 canonicalisation, the agreement between the governed-tool registry and the
 host's own tool list, the permission model,
@@ -1419,10 +1422,17 @@ your own row. Right conclusion, wrong reason, now asserted either way.
 
 **Deliberately not on the CLI.** A `governance users set-password` command would
 be an unauthenticated credential reset for the account that governs the
-installation, because the CLI has no login (A6). The core denial on `governance`
+installation, because the CLI had no login (A6). The core denial on `governance`
 subcommands stops an _agent_ reaching it; it is a backstop, not an
 authentication. Recorded as a divergence from the all-three-surfaces rule with
 its reason, rather than as an omission.
+
+> **The premise expired on 2026-08-24 and this paragraph did not.** T5 built the
+> CLI login (`governance login` / `logout` / `whoami`, resolved through
+> `verifySession`, enforcing with the same permission helpers as the HTTP
+> routes), so a `set-password` command there would **not** be unauthenticated.
+> The decision to keep it off the CLI may still be right, but it now needs a
+> different argument than the one above. Corrected 2026-08-30.
 
 > **A property stated in a document is a claim about the system. A property
 > asserted in a test is a claim the system has to keep making.** All three of
@@ -3872,23 +3882,23 @@ with two differences worth naming in Chapter 4:
 ## Where this register stops, and where the rest is (recorded 2026-08-29)
 
 **This document ends at round twenty-one and finding 134.** Rounds twenty-two
-through twenty-eight, and **findings 135–148, were never written into it.** They
+through twenty-eight, and **findings 135–149, were never written into it.** They
 were written into `mg/REMAINING-WORK.md`, `mg/HANDOFF.md`,
 `docs-notes/QA-IN-PLAIN-TERMS.md` and `docs-notes/CHAPTER3-MATERIAL.md` instead.
 
 This is recorded rather than quietly backfilled, because several documents
 describe findings as being "written up in all three registers" and that phrase
 has not been true since 2026-08-27. Anyone auditing the QA history from this file
-alone will be **fourteen findings short** and will not be told so.
+alone will be **fifteen findings short** and will not be told so.
 
-| Findings    | Where the write-up actually is                                                                     |
-| ----------- | -------------------------------------------------------------------------------------------------- |
-| 1–134       | This document, by round                                                                            |
-| 135–136     | `REMAINING-WORK.md` §"QA round twenty-two"                                                         |
-| 137–140     | `REMAINING-WORK.md` §"Lane A is finished"                                                          |
-| 141–143     | `REMAINING-WORK.md` §"QA round twenty-six"                                                         |
-| 144–146     | `REMAINING-WORK.md`, and `HANDOFF.md` §1's 2026-08-29 entry                                        |
-| **147–148** | `REMAINING-WORK.md` §"Finding 147"/§"Finding 148"; design in §3.5.60; plain language in §5.62–5.63 |
+| Findings    | Where the write-up actually is                                                                                    |
+| ----------- | ----------------------------------------------------------------------------------------------------------------- |
+| 1–134       | This document, by round                                                                                           |
+| 135–136     | `REMAINING-WORK.md` §"QA round twenty-two"                                                                        |
+| 137–140     | `REMAINING-WORK.md` §"Lane A is finished"                                                                         |
+| 141–143     | `REMAINING-WORK.md` §"QA round twenty-six"                                                                        |
+| 144–146     | `REMAINING-WORK.md`, and `HANDOFF.md` §1's 2026-08-29 entry                                                       |
+| **147–149** | `REMAINING-WORK.md` §"Finding 147"/§"Finding 148"/§"Finding 149"; design in §3.5.60; plain language in §5.62–5.64 |
 
 **Finding 147 in one paragraph**, because it is the one that changes a security
 claim: every component-prefixed credential flag — `--db-password=`,

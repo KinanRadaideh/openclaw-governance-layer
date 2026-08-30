@@ -379,7 +379,7 @@ Chapter 3 will need them.
 
 ## 5. Quality assurance history
 
-Twenty-eight rounds plus the M-series build, **148 defects found, 147 fixed, one recorded rather than fixed by decision** — **147** (2026-08-29) closed the last requirement-8 leak: every component-prefixed credential flag (`--db-password=`, `--admin-password=`, `--gateway-token=`) reached the ledger in plaintext, because the CLI-flag patterns anchor the key to `--` and one component of prefix made the whole list unreachable — two earlier write-ups had recorded this as a single missing key, having probed exactly one spelling. **148** is two Windows-only test failures that sit outside the five documented verification commands while the handoff claimed "no known-failing test anywhere"; not product defects, and recorded rather than fixed.
+Twenty-eight rounds plus the M-series build, **150 defects found, 149 fixed, one recorded rather than fixed by decision** — **150** (2026-08-30) is the dashboard telling operators a forbid rule does not stop a search, hours after T7's prevention half made that false on the default runtime; the test written to catch exactly that moment kept passing, because the change narrowed the claim instead of retiring it — **149** (2026-08-30) closed an attribution gap the documentation audit surfaced: the command-line kill switch recorded actor `cli` while the signed-in account sat unused two lines above, so the most consequential administrative action was the one the trail could not attribute — **147** (2026-08-29) closed the last requirement-8 leak: every component-prefixed credential flag (`--db-password=`, `--admin-password=`, `--gateway-token=`) reached the ledger in plaintext, because the CLI-flag patterns anchor the key to `--` and one component of prefix made the whole list unreachable — two earlier write-ups had recorded this as a single missing key, having probed exactly one spelling. **148** is two Windows-only test failures that sit outside the five documented verification commands while the handoff claimed "no known-failing test anywhere"; not product defects, and recorded rather than fixed.
 
 **The history of the count.** Finding 120 (2026-08-26) was found by mutation-testing T6 and closed the same day; the count became 121 when T29's numbering audit found two defects sharing the number 104, **127 on 2026-08-27** when M5's four and M6's two were numbered 122–127, **130** when QA round nineteen audited the M-series as one system (128–130), **131** when QA round twenty read the remaining work against the nine design requirements and found a requirement-8 breach in the search audit, **134** when round twenty-one built the missing "raw LLM intent" field and found three defects in it (132–134), and **136** on 2026-08-28 when round twenty-two audited that documentation pass against the code (135–136): a JSDoc comment orphaned from `entryKind` by the new field, and T16 regressed in the same commit whose documentation asserted it closed.
 
@@ -567,18 +567,33 @@ conclusion.
 > paragraph, the two things to do before anything else, and how to verify
 > nothing is broken. This file is the reference beneath it.
 
-- **2,311 governance tests pass across 107 files** — file _runs_, not files; 1,467 distinct tests across 81 distinct files, because the thirteen gateway files each run under three Vitest projects (measured 2026-08-27, after QA rounds nineteen to twenty-one); `pnpm tsgo:core` and `pnpm tsgo:ui` both clean;
-  OpenClaw's own harness suite **fully green (192 passed)** since T25 closed on
-  2026-08-25; it had been 18 failed / 174 passed for the life of the project.
-- **Branch:** `governance-layer`, **clean as of 2026-08-27**, **47** commits ahead
+- **2,317 governance tests pass across 113 files**, plus 92 across 5 in the
+  dashboard suite, which is a separate command — file _runs_, not files;
+  roughly 1,469 distinct tests across 81 distinct files, because the thirteen
+  gateway files each run under three Vitest projects (measured 2026-08-29, after
+  finding 147; the distinct figure was 1,467 on 2026-08-27 and has not been
+  re-derived since, only adjusted by the two tests added with 147);
+  `pnpm tsgo:core` and `pnpm tsgo:ui` both clean; OpenClaw's own harness suites
+  **fully green — 263 passed, 0 failed** (192 in `native-hook-relay.test.ts`
+  plus 71 in `host-hooks.contract.test.ts`) since T25 closed on 2026-08-25; the
+  relay file had been 18 failed / 174 passed for the life of the project.
+- **Two tests outside the five verification commands fail on Windows and always
+  have** — finding 148, recorded 2026-08-29 rather than fixed. Both are
+  POSIX-only assertions against correct platform-aware code, so neither is a
+  product defect, but no document should claim the repository is green: the
+  claim that holds is that the five documented commands are.
+- **Branch:** `governance-layer`, **clean as of 2026-08-30**, **59** commits ahead
   of `main` (re-check with `git rev-list --count main..HEAD`; the number moves
   with every commit and should not be trusted from a document — this line said
   "clean as of 2026-08-24, 22 commits ahead" until it was measured, and was wrong
-  on both halves). M5, M6, T7's audit half, T29, T30, finding 120's fix and QA
-  rounds nineteen to twenty-one landed on 2026-08-27 in two commits, `76a0a51`
-  (code) and `add4f9c` (documentation). **The push is outstanding**: the private
-  remote was at the 2026-08-21 tip until 2026-08-28, when **35 commits** were pushed (`e5a7876431b` to `2916aebb206`). Until that moment they existed only on this
-  machine and in OneDrive. `origin` points at upstream OpenClaw, so this branch
+  on both halves, then "47" until 2026-08-30). M5, M6, T7's audit half, T29, T30,
+  finding 120's fix and QA rounds nineteen to twenty-one landed on 2026-08-27 in
+  two commits, `76a0a51` (code) and `add4f9c` (documentation). **The push is no
+  longer outstanding**: 35 commits went to the private remote on 2026-08-28
+  (`e5a7876431b` to `2916aebb206`), and everything since is pushed as it lands —
+  the tip is `5a56e826ae1` and `git log --oneline personal/governance-layer..HEAD`
+  is empty. Until 2026-08-28 the work existed only on this machine and in
+  OneDrive. `origin` points at upstream OpenClaw, so this branch
   must never be pushed there, and it has not been. The branch lives at
   `github.com/KinanRadaideh/openclaw-governance-layer` (private, remote
   `personal`), verified by cloning it back: same tip and tree. **F1 is closed.**

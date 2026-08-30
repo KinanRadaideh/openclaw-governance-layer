@@ -74,14 +74,16 @@ you actually want" is more use to him than doing it.
 
 **Current as of 2026-08-29.** The governance layer is **built and verified, and
 still not demonstrated.** Eight of the nine design requirements are fully met;
-the ninth (Linux deployment) is tested but never deployed. **2,348 automated
-tests pass across 112 files** (1,467 distinct across 81 — see §4), both
+the ninth (Linux deployment) is tested but never deployed. **2,317 automated
+tests pass across 113 files** in the governance suite, plus 92 across 5 in the
+dashboard suite (see §4; the totals moved twice on 2026-08-30, for T7 prevention
+plus the one-organisation cap and then for the two Codex switches), both
 typechecks are clean, and OpenClaw's own test
 suite is **fully green for the first time**: the 18 pre-existing Windows
 failures used as this project's baseline were fixed on 2026-08-25 (T25), along
 with nine more in `host-hooks.contract.test.ts`. **The M-series is complete**
 (M1–M6, finished 2026-08-27), so no substantial engineering is left. Twenty-eight
-QA rounds and the build itself have found **148 defects, 147 fixed — one recorded rather than fixed, by decision (148).** The count reached **148** on 2026-08-29: **147** is the `--http-password` decision being taken and built, which found the gap was **every** component-prefixed credential flag (`--db-password=`, `--admin-password=`, `--gateway-token=`) and not the single key two write-ups had recorded; **148** is two tests that fail on Windows and always have, sitting outside the five commands §4 defines as verification, while §1 claimed "no known-failing test anywhere". The count moved from 120 to 121 when T29's numbering audit (2026-08-26) found **two different defects both numbered 104**; to 127 on 2026-08-27 when M5's four and M6's two were numbered **122–127**, having been fixed and written up in all three registers but never entered on the numbered list; to **130** the same day when **QA round nineteen** audited the M-series as one system and found **128–130**; and to **131** when **QA round twenty** read the rest of the window's work against the nine design requirements and found `search-audit.ts` writing grep's matched file content — secrets included — into the tamper-evident ledger, a direct breach of requirement 8; and to **134** when **round twenty-one** built §1.6's missing "raw LLM intent" field and audited it, finding three defects in one day's work (**132–134**); and to **136** on 2026-08-28 when **round twenty-two** re-measured the previous day's documentation against the code and found **135–136** — `entryKind`'s JSDoc orphaned by the insertion of the intent field, and **T16 regressed in the very commit whose documentation declared it closed** (`governance-page.ts` back to 703 lines against a 700-line limit, while §4 read "`max-lines` reports zero errors repo-wide"). **Standing rule from 2026-08-27: every defect gets a number when it is found.** Finding 120 was found and
+QA rounds and the build itself have found **150 defects, 149 fixed — one recorded rather than fixed, by decision (148).** **150 was found on 2026-08-30**, by reading this file's own claim that a test was "written to fail when T7 closes": T7 had closed, the suite was green, and one of the two had to be wrong. The dashboard's search caveat had become false on the runtime almost every agent uses, and the trip-wire test did not fire because T7 made the caveat _more specific_ rather than obsolete — a device that detects deletion, not refinement. **149 was found on 2026-08-30** by auditing the documentation against the code: `openclaw governance kill` resolved a signed-in operator and then passed the literal `"cli"` to the kill switch anyway, so the emergency stop and its release were the only administrative actions on the command line that could not name a person. `AuditActorInput`'s bare-string arm made the wrong value typecheck, and `kill-switch.test.ts` passed throughout because it calls the function directly with a good actor — the defect was the seam between authenticating and recording. The count reached **148** on 2026-08-29: **147** is the `--http-password` decision being taken and built, which found the gap was **every** component-prefixed credential flag (`--db-password=`, `--admin-password=`, `--gateway-token=`) and not the single key two write-ups had recorded; **148** is two tests that fail on Windows and always have, sitting outside the five commands §4 defines as verification, while §1 claimed "no known-failing test anywhere". The count moved from 120 to 121 when T29's numbering audit (2026-08-26) found **two different defects both numbered 104**; to 127 on 2026-08-27 when M5's four and M6's two were numbered **122–127**, having been fixed and written up in all three registers but never entered on the numbered list; to **130** the same day when **QA round nineteen** audited the M-series as one system and found **128–130**; and to **131** when **QA round twenty** read the rest of the window's work against the nine design requirements and found `search-audit.ts` writing grep's matched file content — secrets included — into the tamper-evident ledger, a direct breach of requirement 8; and to **134** when **round twenty-one** built §1.6's missing "raw LLM intent" field and audited it, finding three defects in one day's work (**132–134**); and to **136** on 2026-08-28 when **round twenty-two** re-measured the previous day's documentation against the code and found **135–136** — `entryKind`'s JSDoc orphaned by the insertion of the intent field, and **T16 regressed in the very commit whose documentation declared it closed** (`governance-page.ts` back to 703 lines against a 700-line limit, while §4 read "`max-lines` reports zero errors repo-wide"). **Standing rule from 2026-08-27: every defect gets a number when it is found.** Finding 120 was found and
 closed on 2026-08-26: T6's fail-closed branch could not fire, so a lockdown
 whose lineage records were unreadable degraded to fail-_open_. It was closed by
 probing the store with a scoped listing rather than a keyed read — which
@@ -118,15 +120,95 @@ holds **T1–T32**, the original project, and supersedes every older list.
 §"The M-series" holds **M1–M6**, a multi-tenancy feature requested on
 2026-08-24 and added on top — **all six are done as of 2026-08-27**. M4 gave the layer a
 first-class agent record, which M6 was said to be blocked on; in the event M5
-unblocked it by making registration mandatory, and M6 closed two days later. **Twenty-four of thirty-two T-items are done** — one of those (T13) is
-drafted and still waiting to be read, and T1 is deprioritised, so **seven are
-genuinely outstanding: T2, T3, T7 (prevention half), T17, T18, T31, T32**
+unblocked it by making registration mandatory, and M6 closed two days later. **Twenty-five of thirty-three T-items are done** (re-counted 2026-08-30; this
+read "twenty-four of thirty-two" and listed T31 as outstanding, which was written
+before T31 and T33 closed on 2026-08-28). T1 is deprioritised and counted as
+neither done nor outstanding, so **seven are genuinely outstanding: T2, T3, T7
+(prevention half — **closed 2026-08-30**, so six remain), T13, T17, T18, T32** — T13 among them because the answer is
+drafted and the remaining work, reading it until you can give it without notes,
+is yours
 (T26 and T27 were added 2026-08-24 for work that shipped on the 22nd and had
 never been entered; T28 was added and closed on the 25th; T29–T32 were added on
 the 26th, and T29 and T30 closed the same day). **T8 is closed** — 2026-08-26,
 by decision — so any older sentence listing it as outstanding is stale. The old letters
 (A-, B-, F-, R5, G) survive only as a `Ref` column pointing at their historical
 write-ups; nothing is orphaned.
+
+### 2026-08-30 — T7 closed where it can be, and the backend it cannot reach put behind two switches
+
+**Read this entry before touching anything to do with searches or backends.** It
+is the largest change since the M-series and it moves a claim the report rests
+on.
+
+**T7's prevention half is built** (§3.5.61). A recursive search that reaches a
+file a denial names now has those results **removed before the model sees them**,
+on the in-process runtime. The file is still read from disk; its contents do not
+reach the model. That is the claim, phrased that way deliberately, and it is what
+the report should say.
+
+**Two of the three routes the documents recommended were dead**, and the
+correction is Chapter 4 material. Narrowing the search root — named as _the_
+reachable option in three places — cannot express "under `.` except this file".
+The exclusion route is not blocked by the host at all: `grep` runs ripgrep and
+`find` runs fd, both of which take exclusions; it is blocked because those take
+**globs** and policy denials are **regexes**. The route that worked was a third
+nobody had written down.
+
+**On the native Codex harness it cannot be closed, and that is a result rather
+than a caveat.** The hook protocol carries a permission decision before a tool
+runs and has **no field for substituting a result** afterwards. Codex is a
+separate program, in another language and repository, that this fork launches but
+does not contain. **This is the project's first "blocked on the host" claim that
+is true** — the three earlier ones dissolved when the premise was checked, and
+`REMAINING-WORK.md` §"Blocked on the host" now records three that dissolved and a
+fourth that survives. It is also broader than this feature: OpenClaw's own
+tool-result middleware runs on that backend, computes a transformed result, and
+hands it only to observers while the model receives the original.
+
+**So the backend is now behind two switches, at two tiers** (§3.5.62):
+
+| Switch          | Question                      | Tier              |
+| --------------- | ----------------------------- | ----------------- |
+| `backend/codex` | Does this backend exist here? | **Root**          |
+| `agents/codex`  | May _this agent_ use it?      | **Administrator** |
+
+They compose in the safe direction: an agent an Administrator permits still
+cannot use a backend Root has not enabled. Default off on both, and `explicit`
+distinguishes "nobody decided" from "somebody chose the safe answer".
+
+**Both started at Administrator and the machine-level one moved to Root.** The
+reasoning is the tier model applied rather than asserted, and is worth quoting in
+Chapter 3: the posture (`policy/mode`, Administrator) changes _governance's own_
+state, while this writes **OpenClaw's** configuration and withdraws the
+Codex-managed model catalogue, media understanding and prompt overlays, leaving
+supervised chats locked. An Administrator toggling a security-looking setting
+could have removed an operator's model access. §1.6 gives deployment to Root.
+
+**One organisation per installation** was capped the same day, and it is what
+makes the tier split coherent: an installation-wide control needs an unambiguous
+owner. The deployment the project targets is untouched — one server, and Root,
+Administrators, Users and Viewers each signing in from their own computer, all at
+once — and `single-organisation.test.ts` asserts exactly that. What is given up is
+two unrelated organisations sharing one server.
+
+**Three things a successor should not have to rediscover.**
+
+1. **`ls` does not recurse.** T7 names three tools; the gap is `grep` and `find`.
+2. **The agent list shows a permission, never an observation.** The layer cannot
+   see which runtime an agent is using — resolved at session start from the model
+   provider, recorded nowhere. "Engine: built-in only" is true; "running on
+   Codex" would be invented. Do not "improve" it into the second.
+3. **A mutation experiment and a background suite cannot share a working tree.**
+   Two runs on 2026-08-30 reported failures that existed in neither the mutated
+   nor the restored tree, because the suite read the tree mid-experiment. Both
+   were re-run clean. This cost about twenty minutes twice.
+
+**What this cost the fork.** `nativeHarness?: boolean` was added to three
+upstream context types and set at both native relay call sites, because the gate
+could not otherwise tell which runtime a call arrived from and a permission
+nothing checks is a setting. That is the **second upstream edit this week for a
+security guarantee** rather than for wiring, after finding 147's redaction
+patterns. §3.5.2b's fork diff grows by it.
 
 ### 2026-08-29 (later) — the last requirement-8 leak, closed; and a claim that was never measured
 
@@ -753,10 +835,11 @@ backlog.**
 >   the remainder of **T7**, not T8. The engine already honours "grant a folder,
 >   forbid a subfolder", and the page now says so out loud. What is left is the
 >   authoring affordance — which needs M6 to decide which policy surface it lands
->   in — and **T7 prevention**, without which a recursive search still walks
->   through the exception. **Do not build the interface before the enforcement:**
->   the caveat now shown on the policy page is the honest stopgap, and the test
->   that pins it is written to fail when T7 closes.
+>   in. **T7 prevention landed on 2026-08-30**, so the enforcement this row was
+>   waiting for now exists on the in-process runtime and T32 is unblocked. On the
+>   Codex backend a search still walks through the exception, which is why the
+>   policy page's caveat was narrowed rather than deleted (finding 150) — and why
+>   the interface, when built, must say which runtime it is promising about.
 
 **Two things need doing before anything else:**
 
@@ -980,13 +1063,13 @@ node node_modules/oxlint/bin/oxlint --config .oxlintrc.json src ui/src
 Expected, and **every row below re-measured on 2026-08-27** (the table said
 "measured 2026-08-25", which predated M5):
 
-| Command                  | Expected                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Governance suite         | **2,348 passed across 112 files** — measured 2026-08-29 after finding 147 added two ledger-masking tests (107 files + 2,256 from `src/governance/` and `src/gateway/governance-*`, plus 5 files + 92 from `ui/src/pages/governance/`). Was 2,346/112 after round twenty-eight and finding 146; 2,339/111, 2,327/108, 2,322/108, 2,315/107 and 2,311/107 before that. Was 2,292/106, 2,283/105, 2,247/104 after M6. **These five commands are not the repository.** Two tests outside them fail on Windows and always have — finding 148; do not read a green run here as a green run of everything                                                                                                                                                                                                                                                                                      |
-| `tsgo:core`              | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `tsgo:ui`                | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Host suites (both)       | **263 passed, 0 failed** — re-run 2026-08-27, exact match. **263 = 192 (`native-hook-relay.test.ts`) + 71 (`host-hooks.contract.test.ts`)**; older notes below quote the 192 alone and are not contradicting this row                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| oxlint over `src ui/src` | **Every non-test file under `src/governance/` and `ui/src/pages/governance/` is clean as of 2026-08-26.** The row here used to say "clean, except four pre-existing errors in `file-lock.ts` and `audit-ledger.ts`" and **that was false** — there were 24, across 18 files; the row named two of them. Twelve were fixed (the four documented ones plus eight more in `agent-terminator.ts`, `user-store.ts`, `rule-validation.ts`, `active-sessions.ts` and `attachment-store.ts`), three of those as `oxlint-disable-next-line` with a stated reason where the rule's suggested fix would have been _wrong_ — `no-map-spread` recommends in-place mutation, and all three sites copy on purpose so a caller's object is not changed underneath them. **16 errors remain and all of them are in `.test.ts` files** across **14** files, not 13 — re-counted 2026-08-27 with `oxlint … | grep ': error' | sed 's/:.*//' | sort -u | wc -l`(shadowed names,`filter(...)[0]`, an unused import, `sort()`over`toSorted()`, a `return` in a Promise executor, a dangling underscore); tracked as **T31**. **`max-lines`reports zero errors repo-wide**, so T16 is closed. **Both halves of this row were false when written on 2026-08-27 and are true again as of 2026-08-28 (finding 136).** M6 had taken`governance-page.ts`to 703 code lines against the 700 limit, so the real count was **17 errors across 15 files, one of them production code** — and the sentence asserting`max-lines`clean was written in the documentation pass that followed the commit which broke it. Fixed by moving`renderFreshness`into`panels/oversight-panels.ts`, the last markup still living in the page T16 split to hold state and effects only. **Run the command; do not read this cell and believe it.** |
+| Command                  | Expected                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Governance suite         | **2,317 passed across 113 files** — measured 2026-08-30 after the two Codex switches (`agent-codex-permission.test.ts`, `codex-backend.test.ts`, and five tier tests in `governance-agent-registry.test.ts`). Was 2,282/111 after T7 prevention and the one-organisation cap; 2,264/109 before that day's work; 2,348/112 after finding 149. The dashboard suite is a separate command at 92 across 5, listed apart because a different command runs it. **Two runs on 2026-08-30 reported failures that did not exist**, both because a mutation experiment was run against the working tree while a background suite was in flight — see §5. A suite and a mutation cannot share a tree (108 files + 2,258 from `src/governance/` and `src/gateway/governance-*`, plus 5 files + 92 from `ui/src/pages/governance/`). Was 2,348/112 after finding 147 added two ledger-masking tests (107 files + 2,256 from `src/governance/` and `src/gateway/governance-*`, plus 5 files + 92 from `ui/src/pages/governance/`). Was 2,346/112 after round twenty-eight and finding 146; 2,339/111, 2,327/108, 2,322/108, 2,315/107 and 2,311/107 before that. Was 2,292/106, 2,283/105, 2,247/104 after M6. **These five commands are not the repository.** Two tests outside them fail on Windows and always have — finding 148; do not read a green run here as a green run of everything |
+| `tsgo:core`              | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `tsgo:ui`                | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Host suites (both)       | **263 passed, 0 failed** — re-run 2026-08-27, exact match. **263 = 192 (`native-hook-relay.test.ts`) + 71 (`host-hooks.contract.test.ts`)**; older notes below quote the 192 alone and are not contradicting this row                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| oxlint over `src ui/src` | **Every non-test file under `src/governance/` and `ui/src/pages/governance/` is clean as of 2026-08-26.** The row here used to say "clean, except four pre-existing errors in `file-lock.ts` and `audit-ledger.ts`" and **that was false** — there were 24, across 18 files; the row named two of them. Twelve were fixed (the four documented ones plus eight more in `agent-terminator.ts`, `user-store.ts`, `rule-validation.ts`, `active-sessions.ts` and `attachment-store.ts`), three of those as `oxlint-disable-next-line` with a stated reason where the rule's suggested fix would have been _wrong_ — `no-map-spread` recommends in-place mutation, and all three sites copy on purpose so a caller's object is not changed underneath them. **16 errors remain and all of them are in `.test.ts` files** across **14** files, not 13 — re-counted 2026-08-27 with `oxlint …                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | grep ': error' | sed 's/:.*//' | sort -u | wc -l`(shadowed names,`filter(...)[0]`, an unused import, `sort()`over`toSorted()`, a `return` in a Promise executor, a dangling underscore); tracked as **T31**. **`max-lines`reports zero errors repo-wide**, so T16 is closed. **Both halves of this row were false when written on 2026-08-27 and are true again as of 2026-08-28 (finding 136).** M6 had taken`governance-page.ts`to 703 code lines against the 700 limit, so the real count was **17 errors across 15 files, one of them production code** — and the sentence asserting`max-lines`clean was written in the documentation pass that followed the commit which broke it. Fixed by moving`renderFreshness`into`panels/oversight-panels.ts`, the last markup still living in the page T16 split to hold state and effects only. **Run the command; do not read this cell and believe it.** |
 
 **All five re-run and green on 2026-08-27**, after M5. The suite figure
 has moved **sixteen** times across three days — 1,794/87, 1,802/88, 1,877/91, 1,901/94,
@@ -1489,9 +1572,11 @@ Now `core-invariants.test.ts` (15 assertions).
   per-row password control, behind a confirmation that says all sessions are
   revoked and a self-reset signs you out at once. Verified in a browser:
   password changed, signed out, old password refused, new one accepted.
-  **Deliberately not on the CLI** — it has no login, so the command would be an
-  unauthenticated credential reset for the account that governs the
-  installation.
+  **Deliberately not on the CLI** — it had no login when this was decided, so
+  the command would have been an unauthenticated credential reset for the
+  account that governs the installation. **T5 built the CLI login on
+  2026-08-24**, so that reason no longer holds; the omission stands but wants a
+  fresh argument (noted 2026-08-30).
 - **Exactly one Root** — held. Now proved across all four routes at once
   (create, promote, demote, delete by another and by itself), with the Root
   count asserted after each refusal.
@@ -1747,19 +1832,30 @@ backwards when the language stops being allow-only. Report material:
 
 **Two lists, and they are different kinds of thing.**
 
-| List                                                     | What it is                                                    | State                 |
-| -------------------------------------------------------- | ------------------------------------------------------------- | --------------------- |
-| `REMAINING-WORK.md` §"The numbered backlog" — **T1–T32** | The original project: build the layer, verify it, defend it   | 24 done, 8 left       |
-| `REMAINING-WORK.md` §"The M-series" — **M1–M6**          | A multi-tenancy feature requested 2026-08-24 and added on top | **COMPLETE** (6 of 6) |
+| List                                                     | What it is                                                    | State                             |
+| -------------------------------------------------------- | ------------------------------------------------------------- | --------------------------------- |
+| `REMAINING-WORK.md` §"The numbered backlog" — **T1–T33** | The original project: build the layer, verify it, defend it   | 25 done, 7 open, T1 deprioritised |
+| `REMAINING-WORK.md` §"The M-series" — **M1–M6**          | A multi-tenancy feature requested 2026-08-24 and added on top | **COMPLETE** (6 of 6)             |
 
-_(Verified 2026-08-27. Several older paragraphs in this file said "four done,
-two not started" and one M-series row said M5 was not started; all were written
-before M5 landed and have been corrected.)_
+_(Re-counted 2026-08-30. The row read "T1–T32 · 24 done, 8 left" until then,
+which was written before T31 and T33 closed on 2026-08-28. Several older
+paragraphs in this file said "four done, two not started" and one M-series row
+said M5 was not started; all were written before M5 landed and have been
+corrected.)_
 
 Quote the task numbers; the old letters (A-, B-, F-, R5, G) survive only as a
 `Ref` column pointing at their historical write-ups.
 
-**Every "blocked on the host" claim has now been audited, and none was true.**
+**Three "blocked on the host" claims were audited and none of the three was
+true. A fourth was found on 2026-08-30 and it _is_ true.** T7's prevention half,
+in the form of filtering a search result, is impossible on the native Codex
+harness: that protocol has no message for replacing a tool result, which
+upstream's own comment states. Codex is a separate program in another language
+and repository, so forking OpenClaw does not reach it. The three original claims
+are below and all three dissolved; the fourth is written up in
+`REMAINING-WORK.md` §"T7 prevention — the three routes".
+
+The three that dissolved:
 T6 closed 2026-08-25 without touching upstream. T7 split — its audit half shipped
 2026-08-26, its prevention half is a decision rather than a blocker. T8 closed
 2026-08-26 by decision, and measured against the specification rather than
@@ -1799,8 +1895,10 @@ Sorted below by who has to move first.
 > - ~~**Entropy analysis.**~~ **SETTLED 2026-08-28 — not being built.** See §0.
 >   Do not re-open it.
 >
-> **Both are now closed, so this list is empty.** The open decisions are **T7
-> prevention** and **T32**, which waits on it.
+> **Both are now closed, so this list is empty.** **T7 prevention closed on
+> 2026-08-30** — built on the in-process runtime and structurally unclosable on
+> the native Codex harness, which is recorded as a result rather than a gap
+> (§3.5.61). **T32** was waiting on it and is now unblocked.
 
 ### Do this before anything else
 

@@ -3118,3 +3118,251 @@ passed / 0 failed. Lint clean on both changed files.
 **Verified by mutation**: reverting the pattern change fails the new positive
 test. The negative test passes either way by design — it is a tripwire against
 future over-masking, not proof of this fix.
+
+---
+
+## 35. The documentation audited against the code (2026-08-30)
+
+Kinan asked for the documentation to be checked against the project it describes.
+The round produced one code defect, several corrections, and one correction to a
+correction I had made the same morning.
+
+### Finding 149 — the emergency stop could not name its operator
+
+Found by sweeping for a stale phrase rather than by testing. Eleven documents
+said "the CLI has no login", which stopped being true when T5 shipped on
+2026-08-24. Following the phrase into `register.governance.ts` showed the `kill`
+command resolving a signed-in operator and then passing the literal `"cli"` to
+the kill switch, discarding it. `killActor.groupId` was used on the same line, so
+the identity was demonstrably in hand.
+
+`AuditActorInput`'s bare-string arm let the wrong value typecheck, and
+`kill-switch.test.ts` passed throughout because it calls `lockDownAgent` directly
+with a good actor. **The defect lived in the seam between authenticating and
+recording, and both sides of the seam were correct.** Fixed, and pinned by two
+tests that drive the real command tree; reverting fails both.
+
+### A correction to my own work, made the same day
+
+Earlier that morning I had reported the tool-coverage figures in
+`CHAPTER3-MATERIAL.md` as stale and changed them to 56/22. **The documents were
+right and I was wrong.** `tool-catalog.ts` declares 52 tools of which 18 are
+governed, and 18 + 34 = 52; the guard checks 56 names because four governed tools
+live in the session-tool barrel rather than the catalogue, and 22 + 34 = 56. Both
+framings are internally consistent. `QA-IN-PLAIN-TERMS.md` already explained the
+discrepancy, and noted it as part of how the original coverage gap stayed
+invisible. Reverted, with a note in `FIGURES.md` telling the next reader not to
+"correct" 52 to 56.
+
+> **Worth keeping for Chapter 4.** An audit measured the thing it was auditing
+> with a different definition and concluded the record was wrong. That is the
+> same failure the project keeps finding, arriving from the direction of the
+> reviewer rather than the reviewed.
+
+### What else diverged
+
+- **`PROJECT-SUMMARY.md` §6** carried four stale facts: the test count, a host
+  baseline counting one of two suites (192 rather than 263), the commit count,
+  and "the push is outstanding" in a paragraph that then described the push
+  happening.
+- **The T-item counts disagreed between the two backlogs.** `HANDOFF.md` listed
+  T31 as outstanding after it closed; `REMAINING-WORK.md` summed to 33 only by
+  counting T1, an item explicitly not being done, among the done. Enumerated:
+  **25 done, 7 open, T1 deprioritised.**
+- **T7's prevention routes were described from reasoning rather than from the
+  code in seven places.** Root-narrowing cannot express an exception at all; the
+  exclusion route is limited by globs versus regexes rather than by the host; and
+  a third route nobody had considered works in-process and is impossible on the
+  Codex harness. Written up as its own section.
+- **"Blocked on the host was true zero times" is now false.** The Codex protocol
+  genuinely has no field for replacing a tool result. Fourth claim of that shape,
+  and the first that survives checking.
+
+### State
+
+**2,350 tests across 113 files, all passing.** Both typechecks clean. Host
+baseline 263 passed / 0 failed. Lint clean on every changed file.
+
+**149 defects found, 148 fixed, one recorded rather than fixed by decision.**
+
+---
+
+## 36. T7 prevention, and one organisation to a machine (2026-08-30)
+
+Two pieces of work, both arising from the same investigation: explaining the T7
+decision required reading the routes, and the routes did not survive reading.
+
+### T7's prevention half, closed where it can be
+
+**Built.** `filterSearchResult` removes result lines whose file a live denial
+covers, before the model sees them. Carried in by
+`installGovernanceSearchFilterHook` at the `afterToolCall` seam, where
+`finalizeExecutedToolCall` substitutes a tool result on its way into the turn.
+
+**Two of the three routes in the documents were wrong**, and that is the part
+worth carrying into Chapter 4. Narrowing the search root — named as the reachable
+option in three places — cannot express an exception at all. The exclusion route
+is not blocked by the host: ripgrep and fd take exclusions natively, and the
+obstacle is that they take globs while policy denials are regexes. The route that
+worked was a third nobody had written down.
+
+**Where it could not go.** Both existing T7 call sites are observers. Filtering
+there would have changed the transcript and the logs while the model still got
+the original text: worse than nothing, because it would look like a control.
+
+**What it claims.** The file is still read; its contents do not reach the model.
+Stated that way deliberately.
+
+**Three properties, each tested:** it wraps rather than assigns, because the hook
+slot has several claimants; it installs last, so it inspects what is delivered
+rather than an intermediate; and it is unconditional, because governance must not
+inherit the extension check — B1's lesson.
+
+**Two arguable choices, argued.** It fails closed, unlike the audit half, because
+an audit that fails quietly loses a record while a filter that fails quietly
+hands over what it exists to withhold. And it tells the agent, counting distinct
+files rather than lines, because silence teaches the model a file is absent and a
+line count discloses how much is in one it may not read.
+
+**A test corrected an assumption rather than confirming one.** "No path denials,
+so nothing is filtered" failed: the shipped core rules already deny `.env`. A
+fresh installation is protected before anyone authors anything, and the explicit
+rules elsewhere prove the operator path rather than the only path.
+
+### The limitation is a result, not a caveat
+
+On the native Codex harness the hook protocol carries a permission decision
+before a tool runs and no field for substituting a result afterwards. Codex is a
+separate program in another language and repository; forking OpenClaw does not
+reach it.
+
+> **The project's first true "blocked on the host" claim.** Three earlier ones
+> were recorded and all three dissolved when the premise was checked. This one
+> survives it, and is documented by the other program's own authors.
+
+It is also broader than this feature: OpenClaw's own tool-result middleware runs
+on that backend, computes a transformed result, and hands it only to observers
+while the model receives the original. This project's feature is one casualty of
+a general platform limitation, which is contribution-shaped rather than
+limitation-shaped.
+
+### One organisation per installation
+
+`createUser` now refuses an account that would start a second organisation,
+checked inside the write lock for the reason the Root cap gives. It exists so
+that installation-wide controls have an unambiguous owner: the Codex toggle is
+one switch for a whole machine, and several organisations sharing one would let
+an Administrator of one throw it for organisations they cannot see.
+
+The intended deployment is unaffected and is now asserted directly: one server,
+and Root, Administrators, Users and Viewers each signing in from **their own
+computer**, four concurrent sessions in one organisation. What is given up is two
+unrelated organisations on one server; several organisations still take an
+installation each, which is what they always took.
+
+### State
+
+**2,282 governance tests across 111 files**, plus 92 across 5 in the dashboard
+suite. Host baseline 263 passed / 0 failed. `attempt-session` and
+`message-tool-terminal` suites 66 across 6. Both typechecks clean; lint clean on
+all eight changed files.
+
+**Mutation-checked in three places.** Disabling the filter fails 7 of 12 filter
+tests, and the 5 survivors are exactly the "leaves alone" cases that should pass
+either way. Making the hook ignore an earlier hook's rewrite fails precisely the
+2 ordering tests. Disabling the organisation guard fails exactly 1 test.
+
+**149 defects found, 148 fixed, one recorded rather than fixed by decision.** T7
+prevention and the organisation cap are features rather than defects and carry no
+finding number.
+
+---
+
+## 37. The Codex backend, governed in two layers (2026-08-30, later)
+
+Continues §36, which closed T7's prevention half where it could be closed and
+established that it cannot be closed on the native Codex harness. This session
+built what the layer does about the half it cannot close.
+
+### What was built
+
+**Two switches, at two tiers, composing in the safe direction.**
+
+| Switch          | Question                      | Tier              |
+| --------------- | ----------------------------- | ----------------- |
+| `backend/codex` | Does this backend exist here? | **Root**          |
+| `agents/codex`  | May _this agent_ use it?      | **Administrator** |
+
+An agent an Administrator permits still cannot use a backend Root has not
+enabled. Neither permission alone opens the gap.
+
+**Both started at Administrator and the machine-level one moved.** Matching
+`policy/mode` looked consistent and was wrong: the posture changes governance's
+own state, while the installation switch writes **OpenClaw's** configuration and
+withdraws the model catalogue, media understanding and prompt overlays, leaving
+supervised chats locked. An Administrator toggling a security-looking setting
+could have removed an operator's model access. §1.6 gives deployment to Root.
+
+**Enforcement required teaching the gate something it did not know.** It could
+not tell which runtime a call arrived from. `nativeHarness?: boolean` was added to
+three context types and set at both relay call sites; the gate reads it after the
+posture and before the lockdown, and refuses with a reason that names the remedy.
+
+**All three surfaces**, because §1.6 asks for them: dashboard, HTTP, CLI. The CLI
+prints its warning after the change rather than as a prompt, because that surface
+is scriptable.
+
+**Consent made durable.** Every agent row states its engine permission, to every
+tier that can see the agent, Viewers included — and states it as a _permission_,
+never as an observation, because the layer genuinely cannot see which runtime an
+agent uses.
+
+### Three things that went wrong, and what they cost
+
+**A revert, cleanly.** The tier was changed to Root, documented, and then Kinan
+asked for the state to be rolled back to an earlier point in the conversation.
+Nine targeted reversals plus two documentation sections removed; typecheck and
+lint clean afterwards. Worth recording because the reversal was possible only
+because every change had been made as a small, named edit rather than a sweep.
+
+**Two tests changed rather than broke.** Adding `codexAllowed` to agent listings
+altered a shape two suites asserted with deep equality. That is the ordinary cost
+of widening a record everything reads, and both were updated.
+
+**A suite was contaminated by a concurrent mutation experiment — twice.** A
+full-suite run was in flight while the Root tier was mutated to Administrator to
+prove the new tier test fails without the fix. The run read the mutated file and
+reported one failure that did not exist in either the mutated or the restored
+tree as a whole. **The lesson is procedural and belongs in the write-up: a
+mutation experiment and a background suite cannot share a working tree.** The
+same shape cost a measurement earlier the same day.
+
+### Verification
+
+18 tests added across three files (10 on the per-agent permission and its
+enforcement, 5 pinning both tiers through the real route handler, 3 already
+counted with the installation switch).
+
+**Mutation-checked three ways.** Disabling the gate's runtime branch fails
+exactly the three enforcement tests and none of the record-keeping ones.
+Loosening Root to Administrator fails exactly the tier test. Both are the correct
+signature: the tests that should pass either way do.
+
+### State
+
+**2,317 governance tests across 113 files, all passing**, plus 92 across 5 in the
+dashboard suite. Host baseline 263 passed / 0 failed. Both typechecks clean; lint
+clean across `src/governance/`, `src/gateway/`, `src/cli/`, `src/agents/` and
+`ui/src/pages/governance/`.
+
+**149 defects found, 148 fixed, one recorded rather than fixed by decision.** T7
+prevention, the organisation cap and the two Codex switches are features rather
+than defects and carry no finding number.
+
+### What this costs the fork
+
+**The second upstream edit this week for a security guarantee** rather than for
+wiring, after finding 147's redaction patterns. Three type fields and two call
+sites. §3.5.2b's diff grows by it, and Chapter 3 should count that honestly
+against what it buys: without the marker the permission is a setting nothing
+checks.

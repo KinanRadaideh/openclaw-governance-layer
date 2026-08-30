@@ -66,23 +66,32 @@ to give it. Counted as outstanding here because the remaining work is yours.
 **One is deprioritised:** T1 — not being done. **T13** is drafted and waiting to
 be read.
 
-**Current as of 2026-08-28: 26 done, 7 open** across T1–T33 (T31 and T33 closed 2026-08-28) — the list grew by
+**Current as of 2026-08-30: 25 done, 7 open, and T1 deprioritised** across
+T1–T33 (T31 and T33 closed 2026-08-28). This read "26 done, 7 open" until
+2026-08-30, which summed to 33 only by counting T1 — an item explicitly _not
+being done_ — among the done. Counting it as neither is the honest split, and it
+makes this line agree with `HANDOFF.md` §1, which had drifted the other way. The
+list grew by
 four (T29–T32) after two investigations and a request. What is open:
 
-| Open        | Who has to move                                                                                                                                                                                                  |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **T2**      | You — one real agent driving one real tool call. Still the highest-value item left                                                                                                                               |
-| **T3**      | You — a Linux host that does not exist yet. The only unmet design requirement                                                                                                                                    |
-| **T17**     | You — a judgement about how the report should look                                                                                                                                                               |
-| **T18**     | You — it is your report                                                                                                                                                                                          |
-| **T7**      | A decision (prevention half). The audit half shipped 2026-08-26                                                                                                                                                  |
-| ~~**T31**~~ | ~~Claude — 16 lint errors across 14 test files, mechanical.~~ **DONE 2026-08-28** — all 16 fixed, and `git-hooks/pre-commit` now lints staged files, so the count cannot drift back unnoticed                    |
-| **T32**     | Waits on M, and on T7 prevention                                                                                                                                                                                 |
-| **T1**      | Deprioritised, not being done                                                                                                                                                                                    |
-| **T33**     | Claude, after one decision from you — **make the fork build and start on Linux at all.** Added 2026-08-28; a **prerequisite to T3**, because nothing has ever been built or run on Linux, only unit-tested there |
+| Open        | Who has to move                                                                                                                                                                                                                                                            |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **T2**      | You — one real agent driving one real tool call. Still the highest-value item left                                                                                                                                                                                         |
+| **T3**      | You — a Linux host that does not exist yet. The only unmet design requirement                                                                                                                                                                                              |
+| **T17**     | You — a judgement about how the report should look                                                                                                                                                                                                                         |
+| **T18**     | You — it is your report                                                                                                                                                                                                                                                    |
+| ~~**T7**~~  | ~~A decision (prevention half). The audit half shipped 2026-08-26.~~ **CLOSED 2026-08-30** — prevention built on the in-process runtime; structurally unclosable on the native Codex harness, stated as a result rather than as a gap. §"T7 prevention — built 2026-08-30" |
+| ~~**T31**~~ | ~~Claude — 16 lint errors across 14 test files, mechanical.~~ **DONE 2026-08-28** — all 16 fixed, and `git-hooks/pre-commit` now lints staged files, so the count cannot drift back unnoticed                                                                              |
+| **T32**     | Waits on M, and on T7 prevention                                                                                                                                                                                                                                           |
+| **T1**      | Deprioritised, not being done                                                                                                                                                                                                                                              |
+| **T33**     | Claude, after one decision from you — **make the fork build and start on Linux at all.** Added 2026-08-28; a **prerequisite to T3**, because nothing has ever been built or run on Linux, only unit-tested there                                                           |
 
-**"Blocked on the host" was recorded three times and was true zero times, and
-all three are now resolved.** T6 closed 2026-08-25 without touching upstream —
+**"Blocked on the host" was recorded three times and was true zero times — and
+then a fourth was recorded on 2026-08-30 that is true.** The fourth is T7's
+prevention half on the native Codex harness, where the hook protocol has no field
+for replacing a tool result; see §"T7 prevention — the three routes".
+
+**The original three, and all three are now resolved.** T6 closed 2026-08-25 without touching upstream —
 the data was already on the session entry, and only the hook payload lacked it.
 T7's hook turned out to exist and always have; it still cannot prevent the read,
 only record it, so the row split into an audit half (**shipped 2026-08-26**) and
@@ -205,7 +214,7 @@ category 1 and 2 is worth less than it.
 | #          | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | What upstream would have to provide     |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
 | ~~**T6**~~ | ~~**A lockdown does not reach a cross-agent child already running.**~~ **DONE, 2026-08-25 — and it was never blocked on the host.** The row said it needed `spawnedBy` through `HookContext`, which is true of the _hook_ and was read as true of the _project_. **This is a fork:** the host already writes `spawnedBy` onto the session entry, so the gate reads the session store instead of waiting for a payload field. `session-lineage.ts` walks the chain and refuses a call descending from a locked agent, naming the nearest cause. Costs nothing when nothing is locked, bounded at depth 16 with a cycle guard, and **fails closed when lineage cannot be read during an incident** (finding 81's reasoning). That last property was **not** true when T6 shipped: finding 120 (2026-08-26) found the guard could never fire, because the keyed store probe answered `undefined` for an absent entry and an unreadable store alike. Fixed the same day with a scoped listing, which tells the two apart — so the gap closed **without** costing narrowness, and readability is now checked at every hop, since a chain across three agents crosses three stores. Four ledger ids now separate the cases. The round-14 test that pinned the limitation was written to fail when closed — it did, which is the best argument this project has for pinning a limitation rather than only writing it down. §3.5.38 | done                                    | done        |
-| **T7**     | **Search tools are governed at their root only.** `grep`/`find`/`ls` recurse, so a search rooted at the workspace still reads files a denial names. **Row corrected 2026-08-25: `after_tool_call` already exists** (`hook-types.ts:1327`, fired from both paths) — so the stated blocker is gone, and it still does not close the gap. The hook runs _after_ the tool, returns `Promise<void>`, and is fire-and-forget on the embedded path, so it can **record** that a search reached a denied path but cannot prevent it. **The item splits: audit is closable here with no upstream change; prevention is not, by this route.** Prevention needs either the tool to accept an exclusion set (a real host change) or the gate to narrow the search root before the call using T23's parameter rewriting (reachable here, and a security control silently altering what an operator asked for — a decision, not plumbing). §3.5.39                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Nothing (audit) / decision (prevention) | 1 day audit |
+| **T7**     | **Search tools are governed at their root only.** `grep`/`find`/`ls` recurse, so a search rooted at the workspace still reads files a denial names. **Row corrected 2026-08-25: `after_tool_call` already exists** (`hook-types.ts:1327`, fired from both paths) — so the stated blocker is gone, and it still does not close the gap. The hook runs _after_ the tool, returns `Promise<void>`, and is fire-and-forget on the embedded path, so it can **record** that a search reached a denied path but cannot prevent it. **The item splits: audit is closable here with no upstream change; prevention is not, by this route.** Prevention needs either the tool to accept an exclusion set (a real host change) or the gate to narrow the search root before the call using T23's parameter rewriting (reachable here, and a security control silently altering what an operator asked for — a decision, not plumbing). §3.5.39 **— SUPERSEDED 2026-08-30. Both named routes were investigated and neither works: a root cannot express an exception, and the exclusion route is blocked by globs-versus-regexes rather than by the host. A third route — filtering the result — was built. §3.5.61**                                                                                                                                                                                                                  | Nothing (audit) / decision (prevention) | 1 day audit |
 | ~~**T8**~~ | ~~**Outbound messages are ungoverned.**~~ **DONE — closed by decision, 2026-08-26.** Not blocked on the host (the resource-kind enumeration is `policy-types.ts:17`, this fork's own file), and **not a gap in the specification**: §1.3 requirement 3 names the resources the default-deny model governs — "file system paths, process execution, and network communication" — and requirement 4 repeats the same three as the fine-grained axes. Those are exactly the three kinds that exist; a fourth is _beyond_ spec. §2.1.1.3, the only mention of chat platforms, casts Telegram/Slack as the **interface users interact through**, the recommended alternative to exposing a port. **Operative rule: connecting an agent to a channel is itself the permission** — an operator who attached it meant it to speak there, and refusing would override the grant. What the layer guarantees instead is the record: every send is written to the ledger as `ungoverned`, redacted, attributed, **and carrying its destination**, pinned by `qa-round12.test.ts`. `DELIBERATELY_UNGOVERNED`, `PERMISSION-SPEC.md` §12.7 and `CHAT-DEPLOYMENTS.md` all restated from pending to settled. §3.5.45                                                                                                                                                                                                                         | Nothing                                 | done        |
 
 **That check was run on 2026-08-25 for two of the three, and both moved.**
@@ -308,7 +317,7 @@ each is pinned by a test asserting present behaviour rather than left silent.
 | #           | Task                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Ref                                     | Blocked     | Effort |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- | ----------- | ------ |
 | ~~**T6**~~  | ~~**A lockdown does not reach a cross-agent child already running.**~~ **DONE, 2026-08-25 — and it was never blocked on the host.** The row said it needed `spawnedBy` through `HookContext`, which is true of the _hook_ and was read as true of the _project_. **This is a fork:** the host already writes `spawnedBy` onto the session entry, so the gate reads the session store instead of waiting for a payload field. `session-lineage.ts` walks the chain and refuses a call descending from a locked agent, naming the nearest cause. Costs nothing when nothing is locked, bounded at depth 16 with a cycle guard, and **fails closed when lineage cannot be read during an incident** (finding 81's reasoning). That last property was **not** true when T6 shipped: finding 120 (2026-08-26) found the guard could never fire, because the keyed store probe answered `undefined` for an absent entry and an unreadable store alike. Fixed the same day with a scoped listing, which tells the two apart — so the gap closed **without** costing narrowness, and readability is now checked at every hop, since a chain across three agents crosses three stores. Four ledger ids now separate the cases. The round-14 test that pinned the limitation was written to fail when closed — it did, which is the best argument this project has for pinning a limitation rather than only writing it down. §3.5.38   | done                                    | done        |
-| **T7**      | **Search tools are governed at their root only.** `grep`/`find`/`ls` recurse, so a search rooted at the workspace still reads files a denial names. **Row corrected 2026-08-25: `after_tool_call` already exists** (`hook-types.ts:1327`, fired from both paths) — so the stated blocker is gone, and it still does not close the gap. The hook runs _after_ the tool, returns `Promise<void>`, and is fire-and-forget on the embedded path, so it can **record** that a search reached a denied path but cannot prevent it. **The item splits: audit is closable here with no upstream change; prevention is not, by this route.** Prevention needs either the tool to accept an exclusion set (a real host change) or the gate to narrow the search root before the call using T23's parameter rewriting (reachable here, and a security control silently altering what an operator asked for — a decision, not plumbing). §3.5.39                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Nothing (audit) / decision (prevention) | 1 day audit |
+| **T7**      | **Search tools are governed at their root only.** `grep`/`find`/`ls` recurse, so a search rooted at the workspace still reads files a denial names. **Row corrected 2026-08-25: `after_tool_call` already exists** (`hook-types.ts:1327`, fired from both paths) — so the stated blocker is gone, and it still does not close the gap. The hook runs _after_ the tool, returns `Promise<void>`, and is fire-and-forget on the embedded path, so it can **record** that a search reached a denied path but cannot prevent it. **The item splits: audit is closable here with no upstream change; prevention is not, by this route.** Prevention needs either the tool to accept an exclusion set (a real host change) or the gate to narrow the search root before the call using T23's parameter rewriting (reachable here, and a security control silently altering what an operator asked for — a decision, not plumbing). §3.5.39 **— SUPERSEDED 2026-08-30. Both named routes were investigated and neither works: a root cannot express an exception, and the exclusion route is blocked by globs-versus-regexes rather than by the host. A third route — filtering the result — was built. §3.5.61**                                                                                                                                                                                                                    | Nothing (audit) / decision (prevention) | 1 day audit |
 | ~~**T23**~~ | ~~**Bind the decision to the resolved path.**~~ **DONE, 2026-08-24.** The gate already computed the canonical absolute path in order to decide; it now returns it in the hook result's `params`, which the host applies, so the tool opens the file that was judged. **The second resolution is removed rather than raced** — a re-check inside the gate was rejected as theatre, since two resolutions microseconds apart agree during an attack. Narrow by design: it fires only when canonicalization actually redirected the call, so nearly every call stays byte-identical; never for non-`path` tools; never for `apply_patch`, whose paths arrive as host-derived `derivedPaths` rather than as a parameter; never on a block. **Two hazards a probe caught before the code was written:** on Windows `realpath` normalises separators _and_ case, so `SAFE/NOTES.TXT` comes back `safe/notes.txt` with no link involved — comparing naively would have fired on ordinary calls. Case is ignored on Windows because case cannot be swapped underneath the gate; a link's target is data, and data changes. **The consequence worth knowing:** allowing no longer always means returning `undefined`, and fifteen copies of a test helper read absence as "allow". All fifteen now ask the question directly. 8 tests in `path-binding.test.ts`, including the swap replayed end to end. §3.5.29; plain language §5.22 | Nothing                                 | done        |
 | ~~**T8**~~  | ~~**Outbound messages are ungoverned.**~~ **DONE — closed by decision, 2026-08-26.** Not blocked on the host (the resource-kind enumeration is `policy-types.ts:17`, this fork's own file), and **not a gap in the specification**: §1.3 requirement 3 names the resources the default-deny model governs — "file system paths, process execution, and network communication" — and requirement 4 repeats the same three as the fine-grained axes. Those are exactly the three kinds that exist; a fourth is _beyond_ spec. §2.1.1.3, the only mention of chat platforms, casts Telegram/Slack as the **interface users interact through**, the recommended alternative to exposing a port. **Operative rule: connecting an agent to a channel is itself the permission** — an operator who attached it meant it to speak there, and refusing would override the grant. What the layer guarantees instead is the record: every send is written to the ledger as `ungoverned`, redacted, attributed, **and carrying its destination**, pinned by `qa-round12.test.ts`. `DELIBERATELY_UNGOVERNED`, `PERMISSION-SPEC.md` §12.7 and `CHAT-DEPLOYMENTS.md` all restated from pending to settled. §3.5.45                                                                                                                                                                                                                           | Nothing                                 | done        |
 
@@ -1138,6 +1147,77 @@ platform-aware, which grows the fork diff for no governance benefit. The honest
 resolution is that §1 and §4 now say what is actually true, and name the boundary
 of what the five commands cover.
 
+### Finding 149 — the emergency stop was the one CLI action that could not say who took it (2026-08-30)
+
+**Found by auditing documentation against code, not by testing.** A sweep for the
+stale phrase "the CLI has no login" led into `register.governance.ts`, where the
+`kill` command resolves a signed-in operator and then discards them.
+
+| #       | What                                                                                                                                                                                                                                                                                                                      | State |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| **149** | **`openclaw governance kill` recorded actor `cli` with no tier.** Both call sites passed the literal string instead of `killActor`, the named identity `requireCliActor` had returned two lines above. The lockdown and its release were the only administrative actions on the command line that could not name a person | fixed |
+
+**What was wrong.** T5 (2026-08-24) made the command line attributable: every
+command resolves a session through `verifySession` and records the account by
+name and tier. This pair of call sites was missed:
+
+```ts
+const killActor = await requireCliActor(defaultRuntime, "stop an agent", () => true);
+…
+await releaseAgentLockdown(killActor.groupId, agentId, "cli");   // identity discarded
+const outcome = await lockDownAgent(killActor.groupId, agentId, "cli");
+```
+
+`killActor.groupId` is used, so the identity was plainly in hand. Only the actor
+was thrown away.
+
+**Why it typechecked.** `AuditActorInput = string | { name: string; role?: GovernanceRole }`.
+The bare-string arm exists for `BOOTSTRAP_ACTOR` and `CLI_ACTOR`, which are
+legitimate in the two cases where no account can sign in. It also makes every
+wrong string assignable, so passing `"cli"` where an account was available is
+indistinguishable to the compiler from passing it where none exists. **A union
+that admits a sentinel admits every mistake shaped like the sentinel.**
+
+**Why it survived four months of tests.** `kill-switch.test.ts` asserts
+attribution and passed throughout, because it calls `lockDownAgent` directly with
+a good actor. The defect was one layer up, at the seam between _who did we
+authenticate_ and _who do we record_. Both sides were individually correct and
+the join between them was tested by nothing. Third instance of a family this
+project keeps finding: finding 116 (a fix performing the second resolution it
+existed to remove), finding 133 (a rule written in prose two functions above the
+code that broke it), and now a wiring miss between two correct functions.
+
+**Why it matters more than an ordinary attribution gap.** Requirement #5 asks for
+"agent actions, policy decisions, and administrative approvals". The kill switch
+is the most consequential administrative action the layer offers, and lifting a
+lockdown is the half an investigation cares about most: an emergency stop anyone
+can quietly release is not an emergency stop, and "who released it" is
+recoverable from no other field. The trail said `cli` and stopped.
+
+**The fix** passes `killActor` at both sites. Nothing else changed: it is already
+the shape `requireCliActor` builds, whose own comment says it is "assignable to
+`AuditActorInput`, which is what every caller needs".
+
+**Verified by mutation.** Two tests in a new file,
+`kill-switch-cli-attribution.test.ts`, drive the **real command tree** —
+`registerGovernanceCommands` against a live `Command`, with a genuine signed-in
+session — and assert `actor` and `actorRole` on the ledger entries. Reverting the
+fix fails both, with `expected 'cli' to be 'kinan'`. A test calling
+`lockDownAgent` directly cannot catch this shape, which is the reason the file
+exists at all.
+
+**It is filed under `src/governance/` on purpose, and that is finding 148
+applied.** The verification set runs `src/governance/` and
+`src/gateway/governance-*.test.ts`. A CLI test filed under `src/cli/` would sit
+outside every command the project uses to check itself, which is precisely how
+148's two Windows failures went unnoticed.
+
+**One thing this does not close.** `CLI_ACTOR` still exists and is still correct
+in its two remaining uses: the repair command that deletes accounts predating
+groups, where by definition nobody can sign in, and the first-account bootstrap,
+which has `BOOTSTRAP_ACTOR` of its own. The finding is that it was used where an
+account _was_ available, not that it should not exist.
+
 ### Settled 2026-08-28 — entropy analysis will not be built
 
 Kinan's decision, and it closes the item rather than deferring it. §2.1.5.2
@@ -1432,8 +1512,324 @@ code.
 | #     | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | ~~A~~ | ~~**Finding 120 — what does a kill switch promise when it cannot read lineage?**~~ **RESOLVED 2026-08-26 — no decision needed after all.** Both options on the table traded something real: strict cost narrowness, visible left the gap open. Neither was necessary, because the choice rested on a false premise — that the store could not tell the two cases apart. It can: a **scoped listing** returns an empty array for an agent with no sessions and throws for a store that will not open, where the keyed read returned `undefined` for both. The gap closes with narrowness intact. Recorded here rather than deleted, because "the decision dissolved once somebody checked the premise" is the same lesson as the three host-blocked claims. §3.5.40 |
-| B     | **T7 prevention — may a security control silently narrow what an operator asked for?** Stopping a recursive search reading a denied file needs either the tools to accept an exclusion set (a real host change) or the gate to rewrite the search root before the call (reachable here, using T23's machinery). The second changes a request without saying so. §3.5.41                                                                                                                                                                                                                                                                                                                                                                                            |
+| B     | **T7 prevention — may a security control silently narrow what an operator asked for?** ~~Stopping a recursive search reading a denied file needs either the tools to accept an exclusion set (a real host change) or the gate to rewrite the search root before the call (reachable here, using T23's machinery). The second changes a request without saying so.~~ **BOTH ROUTES INVESTIGATED AND BOTH DESCRIPTIONS ARE WRONG — see §"T7 prevention — the three routes" immediately below (2026-08-30).** Root-narrowing cannot express an exception at all; the exclusion route is blocked by globs-versus-regexes rather than by the host. The question the decision actually turns on is different, and is stated in that section. §3.5.41                     |
 | C     | **T8 — what does a fresh installation do about outbound messages?** Nothing upstream is missing (§3.5.42). Default-deny stops a chat agent replying to the person addressing it; a permissive baseline gives the policy language the axis — "this agent may not message anywhere but its origin" becomes writable — with default behaviour unchanged. The second is almost certainly right and is still a choice about what ships                                                                                                                                                                                                                                                                                                                                  |
+
+---
+
+### T7 prevention — built 2026-08-30, on the runtime where it can be
+
+**T7's second half is closed on the in-process runtime and is structurally
+unclosable on the native Codex harness.** Both halves of that sentence are the
+result; the limitation is not a caveat attached to the work, it is part of it.
+
+**What was built.** `filterSearchResult` (`search-audit.ts`, beside the audit
+half) removes result lines whose file a live denial covers, before the model
+sees them. Carried into each run by `installGovernanceSearchFilterHook`
+(`src/agents/embedded-agent-runner/run/governance-search-filter.ts`), installed
+in `attempt-session.ts` at the `afterToolCall` seam — the point where
+`finalizeExecutedToolCall` substitutes a tool result on its way into the turn.
+Design write-up: `CHAPTER3-MATERIAL.md` §3.5.61. Plain language: §5.65.
+
+**What it claims, exactly.** The file is still read from disk; its contents do
+not reach the model. That is the containment claim and it is the one the report
+should make. Preventing the read would need the tools to accept an exclusion
+set, which the route table below rules out.
+
+**The three routes, and the two corrections.** This is the part worth carrying
+into Chapter 4, because the documents recommended the route that cannot work:
+
+| Route                                      | Verdict                                                                                                                                        |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Narrow the search root before the call     | **Cannot work.** A root is one location; no location expresses "under `.` except this file". Named as reachable in three documents             |
+| Hand the tools an exclusion set            | **Blocked by a language mismatch, not by the host.** ripgrep and fd accept exclusions natively; they take globs and policy denials are regexes |
+| Filter the result before the model sees it | **Built.** Works in the rules' own language and reuses the audit half's matcher                                                                |
+
+**Where it could not go.** Both existing T7 call sites are observers —
+`handleToolExecutionEnd` handles an event and `runAgentHarnessAfterToolCallHook`
+returns `Promise<void>`. Filtering there would have changed the transcript and
+the logs while the model still received the original text: worse than nothing,
+because it would look like a control.
+
+**Three properties of the installation, each load-bearing and each tested.** It
+**wraps** rather than assigns, because `agent.afterToolCall` has several
+claimants and assignment would drop whichever arrived first. It installs
+**last**, so what governance inspects is what the model receives rather than an
+intermediate a later hook rewrites. And it is **unconditional**, because
+`agent-session-base.ts` returns early without an extension handler and
+governance must not inherit that condition — the argument
+`native-relay-requirement.ts` makes about the relay, and B1's lesson.
+
+**Two arguable choices, argued.** It **fails closed**: a comparison that throws
+yields a refusal, not the unchecked result — the opposite of the audit half,
+because an audit that fails silently loses a record while a filter that fails
+silently hands over exactly what it exists to withhold. And it **tells the
+agent** how many results were withheld, counting distinct files rather than
+matching lines, because silence teaches the model the file does not exist and a
+line count discloses how much is in a file it may not read.
+
+**The ledger now separates two questions it used to conflate:**
+
+| Ledger id               | Decision     | Means                                        |
+| ----------------------- | ------------ | -------------------------------------------- |
+| `search-reached-denied` | `ungoverned` | Reached it, and the model saw it             |
+| `search-withheld`       | `deny`       | Reached it, and the model did **not** see it |
+
+**Verification.** 18 tests across `search-filter.test.ts` and
+`search-filter-hook.test.ts`, both filed under `src/governance/` so they sit
+inside §4's verification set — finding 148 applied the day after it was
+recorded. Mutation-checked in both halves: disabling the filter fails 7 of 12
+filter tests, and the 5 survivors are exactly the "leaves alone" cases that
+should pass either way; making the hook ignore an earlier hook's rewrite fails
+precisely the 2 ordering tests. Suite **2,282 across 111 files**, UI 92 across 5,
+host baseline 263/0, both typechecks and lint clean.
+
+**One assumption the tests corrected.** A test asserting "no path denials, so
+nothing is filtered" failed, because the **shipped core rules already deny
+`.env`**. A fresh installation is therefore protected before an operator authors
+anything, and the explicit rules in the other tests prove the operator path
+rather than the only path. The wrong assumption was replaced by an assertion of
+the real behaviour.
+
+**What remains open, and it is not a defect.** On the native Codex harness the
+protocol carries a permission decision before a tool runs and **no field for
+substituting a result** afterwards, which upstream states in its own comment.
+Codex is a separate program in another language and repository, so forking
+OpenClaw does not reach it. **This is the project's first "blocked on the host"
+claim that is true** — three earlier ones dissolved when the premise was checked
+(§3.5.42). It is also broader than this feature: OpenClaw's own tool-result
+middleware runs on that backend, computes a transformed result, and hands it only
+to observers while the model receives the original. Any user of that extension
+point gets it silently not applied there.
+
+---
+
+### Finding 150 — the dashboard told operators something T7 had just made false (2026-08-30)
+
+**Found by reading `HANDOFF.md`'s own claim about a test, not by running it.**
+The handoff said a test was "written to fail when T7 closes". T7's prevention half
+had just closed and the suite was green, so one of the two was wrong.
+
+**What was wrong.** The policy page carries a caveat headed _"One place a forbid
+rule does not reach yet"_, telling operators that a forbid rule does not stop a
+search finding the file and that the reach is "written to the audit trail… but
+not prevented". After §3.5.61 that is **false on the runtime almost every agent
+uses**: denied results are removed before the model sees them. It stayed true
+only on the Codex backend.
+
+An operator reading it on a default installation would have concluded their
+forbid rules are weaker than they are — and would have been told so by the
+interface, in the one place the project built specifically to stop an interface
+making a promise the gate does not keep.
+
+**Why the trip-wire did not fire, and this is the part worth keeping.** The test
+was a deliberate device, copied from the round-fourteen test that pinned finding
+96 before T6 closed it, and its author expected the caveat to become _obsolete_.
+It did not: it became **more specific**. Half of it stayed true, so every
+assertion still passed and the test sailed through T7's closure.
+
+> **A test written to fail on a future change assumes that change makes its
+> subject wholly untrue.** Where the change instead narrows the claim, the
+> trip-wire cannot express the difference and keeps passing. The device is still
+> worth using — it worked for finding 96 — but it detects deletion, not
+> refinement.
+
+**Fixed by narrowing rather than deleting**, which was the whole question the
+device existed to force. The caveat now names both runtimes: results are removed
+on the built-in one, cannot be removed on Codex and are recorded there instead,
+and each agent's permission is visible in the agent list. Deleting it would have
+told an operator on the Codex backend that a forbid rule protects them from
+searches — the exact false promise the caveat was written to prevent.
+
+The test now pins the narrower claim, asserting both halves, and its comment
+records why the device did not fire so the next person does not trust it further
+than it goes.
+
+---
+
+### The Codex backend: two switches, two tiers — built 2026-08-30
+
+**What T7's unclosable half is handled with.** §3.5.61 established that
+prevention cannot run on the native Codex harness. Rather than leaving the
+difference undisclosed or refusing every recursive search there, the layer
+defaults to the runtime it can enforce and makes the other an explicit, recorded
+decision. Design write-up: `CHAPTER3-MATERIAL.md` §3.5.62. Plain language: §5.67.
+
+| Switch          | Question                                      | Tier              |
+| --------------- | --------------------------------------------- | ----------------- |
+| `backend/codex` | Does this backend exist on this installation? | **Root**          |
+| `agents/codex`  | May _this agent_ use it?                      | **Administrator** |
+
+**They compose in the safe direction**: an agent an Administrator permits still
+cannot use a backend Root has not enabled.
+
+**The tier split is the tier model applied, and the first pass got it wrong.**
+Both started at Administrator, matching `policy/mode`. That comparison fails: the
+posture changes governance's own state in `policy.json`, while the installation
+switch writes **OpenClaw's** configuration and withdraws the Codex-managed model
+catalogue, media understanding and prompt overlays, leaving supervised chats
+locked. An Administrator toggling what reads as a security setting could remove
+an operator's model access. §1.6 gives deployment to Root and agents' boundaries
+to the Administrator, so the machine-level switch moved and the per-agent one
+stayed.
+
+**Enforcement needed the gate to learn something it did not know.** A permission
+nothing checks is a setting. The gate could not tell which runtime a call arrived
+from, so `nativeHarness?: boolean` was added to `HookContext`,
+`AgentHarnessHookContext` and `PluginHookAgentContext`, and set at **both** native
+relay call sites. `evaluateGovernancePolicy` reads it after the posture and
+before the lockdown — the question is whether the agent may be running _there at
+all_, not what it may do — and refuses with a reason that **names the remedy**,
+recording `agent-not-permitted-on-codex`.
+
+**Second upstream edit this week for a security guarantee** rather than for
+wiring, after finding 147. Three type fields and two call sites; §3.5.2b's fork
+diff grows by it and Chapter 3 should count that honestly.
+
+**Surfaces, all three, because §1.6 asks for them:** dashboard (a button per
+agent, plus Root's switch in policy settings), HTTP (`agents/codex`,
+`backend/codex`), and CLI (`openclaw governance agents set-codex <id> on|off`).
+The CLI prints its warning on the permissive direction only and after the change
+rather than as a prompt, because that surface is scriptable and a prompt would
+either block automation or be answered blind.
+
+**Two dialogs, asymmetric on purpose.** Enabling warns about the enforcement gap;
+disabling warns that supervised chats become locked and need a restart to
+recover. A control whose two directions break different things needs two
+warnings. The per-agent control confirms only when permitting — finding 87's
+lesson about not training operators to dismiss dialogs.
+
+**Consent is made durable rather than momentary.** Every agent row states its
+engine permission, to **every tier that can see the agent, Viewers included**,
+because a permission is not a secret and noticing one is oversight's job. It is
+phrased as a permission and never as an observation: the layer cannot see which
+runtime an agent actually uses — that is resolved at session start from the model
+provider and recorded nowhere — so "engine: built-in only" is true where
+"running on Codex" would be invented.
+
+**Verification.** 10 tests on the per-agent permission and its enforcement, 10 on
+the installation switch, 5 pinning the tiers through the real route handler.
+Mutation-checked three ways: disabling the gate branch fails exactly the three
+enforcement tests; loosening Root to Administrator fails exactly the tier test;
+the record-keeping tests pass either way, as they should.
+
+**Two tests changed rather than broke.** Adding `codexAllowed` to agent listings
+altered a shape two suites asserted with deep equality. Updated, and worth noting
+as the ordinary cost of widening a record everything reads.
+
+---
+
+### One organisation per installation — built 2026-08-30
+
+**A product decision rather than a security boundary, and the distinction is
+stated in the code.** `createUser` refuses an account that would start a second
+organisation, checked inside the same lock as the write for the reason the Root
+cap gives: outside it, two simultaneous signups both read "no organisation yet"
+and both succeed.
+
+**Why.** Installation-wide controls need an unambiguous owner. The Codex backend
+toggle is one switch for the whole machine; with several organisations on one
+installation, an Administrator of one could throw it for organisations they
+cannot see and are not answerable for. Capping at one makes the control's scope
+and the authority's scope the same scope, so the question dissolves rather than
+needing arbitration between several Roots. It also turns the currently ungated
+signup route into the one-time bootstrap the documentation kept describing.
+
+**What it does not cost.** The deployment the project actually targets is
+unaffected: one VPS runs the Gateway, and Root, Administrators, Users and Viewers
+reach it from **their own computers** through an SSH tunnel, all signed in at
+once. `single-organisation.test.ts` asserts that arrangement directly, with four
+accounts and four concurrent sessions. Several organisations remain possible;
+they take an installation each, which is what they always took — nothing in the
+governance layer is cross-machine, and never was.
+
+**What it does cost.** Two unrelated organisations can no longer share one
+installation. The isolation machinery M5 built is untouched and still enforced,
+but findings 119 and 145 become history rather than live demonstrations.
+`setMultiOrganisationAllowedForTests` — the shape `setLedgerRotateBytesForTests`
+established, unreachable from configuration, the CLI or the network — lets the
+isolation suites keep creating two, and `test-group.ts` (never imported by
+shipped code) enables it.
+
+**Verified by mutation**: disabling only the guard fails exactly one test, the
+one asserting a second organisation is refused, and no others.
+
+### T7 prevention — the three routes, investigated 2026-08-30
+
+**Decision B above, and every row in this file describing how T7 prevention could
+be built, was written from reasoning rather than from the code. Two of its three
+claims are wrong.** The investigation was prompted by Kinan asking for the
+decision to be explained before taking it; explaining it required reading the
+routes, and the routes did not survive.
+
+**Route 1 — narrow the search root before the call. Cannot work.** This is the
+route decision B calls "reachable here, using T23's machinery", and it is named
+as the reachable option in three documents. The ordinary case is a denied file
+_inside_ a permitted directory: deny `.env`, agent searches `.`. A search root is
+a **single location**, and no single location expresses "everything under `.`
+except this one file". Narrowing can only move the root deeper, which either
+still contains the denied file or discards most of what the operator asked for.
+The mechanism T23 supplies is real; the thing it would be asked to express is
+not.
+
+**Route 2 — hand the search tools an exclusion set. Blocked by a language
+mismatch, not by the host.** `grep` runs **ripgrep** and `find` runs **fd**
+(`src/agents/sessions/tools/grep.ts`, `find.ts`), and both accept exclusion
+arguments natively, so the "real host change" the rows describe is smaller than
+recorded. The obstacle is elsewhere: those arguments take **globs**, and policy
+denials are **regular expressions** (`pattern-match.ts` compiles every pattern
+with `new RegExp`). Simple patterns translate; anything using regex expressiveness
+a glob cannot represent does not, and would be silently unenforced. That is
+partial protection presenting as total — the failure mode this project rejects
+elsewhere, and worse than the documented gap.
+
+**Route 3 — filter denied results before the model sees them. Works on one
+runtime, and cannot work on the other.** This route was not in the original
+analysis at all. It operates in the rules' own language, so route 2's mismatch
+does not arise, and it reuses the set `auditSearchReach` already computes.
+
+- **Neither existing T7 call site can do it.** `handleToolExecutionEnd` handles a
+  `tool_execution_end` **event** and `runAgentHarnessAfterToolCallHook` returns
+  `Promise<void>`; both are observers. Filtering there changes what is displayed
+  and logged while the model still receives the original text.
+- **The real seam is `afterToolCall`** (`packages/agent-core/src/agent-loop.ts`,
+  `finalizeExecutedToolCall`), whose return value **replaces** the tool result.
+  It is wired at `agent-session-base.ts` behind a `hasHandlers("tool_result")`
+  check — the same shape as the `hasHooks` check the audit half already sits
+  above, so governance would install itself the same way.
+- **On the native harness it is impossible.** Upstream's own comment at
+  `native-hook-relay-events.ts` states it: _"codex-rs PostToolUse hooks cannot
+  replace tool_response (PostToolUseOutcome has no result field)."_ The protocol
+  has no message for substituting a result. Codex is a **separate program**, in
+  another language and repository, so forking OpenClaw grants no access to it.
+
+> **This is the first "blocked on the host" claim in the project that is
+> true.** §"Blocked on the host was recorded three times and was true zero times"
+> now needs a fourth entry with the opposite verdict. The three earlier claims
+> dissolved when somebody checked the premise; this one survives checking, is
+> documented by the software's own authors, and is not reachable by any amount of
+> forking on this side.
+
+**What _is_ available on both runtimes: refusal.** The relay carries an allow/deny
+answer back to Codex (`renderPermissionDecisionResponse("deny", …)`), and
+governance already forces the relay on for every installation — that is B1's fix.
+So a recursive search can be **refused** everywhere it cannot be **filtered**.
+Refusal is blunt, because whether a search would reach a denied file is not
+knowable before it runs, so it must be conservative.
+
+**One correction to the scope of the item itself.** T7 names `grep`, `find` and
+`ls`. **`ls` does not recurse** — `src/agents/sessions/tools/ls.ts` reads a single
+directory with `readdirSync`. It can disclose that a denied file exists, by name,
+and never its contents. The gap is `grep` and `find`.
+
+**Status: undecided, and deliberately so.** The options are (a) filter on the
+embedded runtime and refuse on the harness, giving one guarantee by two
+mechanisms; (b) refuse on both, as an operator-selectable posture; (c) leave the
+audit half as the answer and document the boundary; (d) fork Codex as well. A
+draft asking the supervisor about (d)'s scope is at
+`mg/email-to-supervisor-t7.md`. **Nothing in this section decides the item** — it
+records what the routes actually are, because the rows above described routes
+that do not exist.
 
 ---
 
@@ -1681,7 +2077,7 @@ the files a tool actually opened (`after_tool_call`) — a host change, like B1.
 | A3     | ~~**Kill-switch timing measures dispatch, not termination.**~~ **FIXED 2026-08-15.** The terminator seam now carries an optional run-activity probe, so after signalling the abort the kill switch waits (bounded at 2s) for the signalled runs to leave the Gateway's live registry. Reports `dispatchMs` and `elapsedMs` separately plus `stoppedConfirmed`, and says _which_ of the two reasons an unconfirmed stop had — nothing could observe, or the runs were still going. The wait delays only the report; the lockdown is already in force. **[verified]**                                                                        |
 | A4     | ~~**The human-approval toggle is on the wrong axis.**~~ **FIXED 2026-08-15.** Both axes now exist: `agentAsk` (Administrator, per agent) and `userAsk` (Root, per user, via `POST policy/user-ask`). Combined by taking the **stricter**, deliberately — the two are independent judgements rather than a hierarchy, and stricter-wins is the only rule that cannot be used to widen access by setting the other axis. A tool call carries an agent and not a person, so the user behind it is resolved from `assignedAgents`; the lookup is skipped entirely when no per-user override exists, so unused it costs nothing. **[verified]** |
 | A5     | **That toggle sits one tier too low.** The paper assigns it to Administrator/Root; the API accepts `user`. This was a deliberate choice when the User role was expanded and is documented in `ROLE-MODEL.md`, but it is still a divergence.                                                                                                                                                                                                                                                                                                                                                                                                | **[verified] [new]**                                                                  |
-| A6     | **Command-line actions are not attributable to a person.** The CLI has no login by design — filesystem access is the boundary. But changes made there are recorded as actor `cli`, not a named account. Even after A2 is fixed, CLI-origin changes will not say who.                                                                                                                                                                                                                                                                                                                                                                       | **[new]**                                                                             |
+| ~~A6~~ | ~~**Command-line actions are not attributable to a person.** The CLI has no login by design — filesystem access is the boundary. But changes made there are recorded as actor `cli`, not a named account.~~ **CLOSED by T5, 2026-08-24** (`cli-identity.ts`): commands resolve a signed-in account and record it by name and tier. **The row was still marked open on 2026-08-30**, five days after `Q-73b` was corrected for the same reason. What survives is narrower and is stated in `cli-identity.ts`: a login makes the CLI attributable and authorized, not a security boundary — the boundary is still the filesystem's.          | **[new]**                                                                             |
 | ~~A7~~ | **DONE, 2026-08-20.** Root's deployment/network oversight exists: a read-only posture report on the dashboard and as `openclaw governance deployment`, checking the live installation against the four architecture claims in §1.6 plus the governance layer's own file permissions and ledger-key state. Implemented as _seeing and judging_ rather than editing — reasoning in `CHAPTER3-MATERIAL.md` §3.5.14.                                                                                                                                                                                                                           | done                                                                                  |
 | A8     | **Linux is tested, not deployed.** The full suite runs on Ubuntu under WSL2, but nothing has run on an actual VPS, and the launch script is PowerShell-only.                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |                                                                                       |
 | A9     | **Never run by a real AI agent.** Everything is proven by tests that call the security check directly. No LLM has driven a tool call through the gate.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Biggest credibility gap. Deferred to last by decision.                                |
@@ -2200,11 +2596,15 @@ Checked because they were claimed everywhere and tested nowhere.
   changing Root's password, being signed out, and finding the old password
   refused and the new one accepted.
   - **Deliberately not on the CLI**, diverging from the all-three-surfaces rule
-    with a reason: the CLI has no login (A6), so the command would be an
+    with a reason: the CLI had no login (A6), so the command would be an
     unauthenticated credential reset for the account that governs the
     installation. The core denial on `governance` subcommands stops an _agent_
     reaching it — a backstop, not an authentication. Revisit if a CLI login is
     ever built (it is the proper fix for Q-73b as well).
+    **It was built — T5, 2026-08-24 — so this row's own trigger has fired and
+    the stated reason has expired.** Recorded 2026-08-30 rather than acted on:
+    whether `set-password` belongs on an authenticated CLI is a decision, not a
+    correction.
 - **Exactly one Root** — held, but each guard had only ever been tested alone,
   which is how round eleven found two of them contradicting each other's advice.
   All four routes are now driven in one test and the Root count asserted after

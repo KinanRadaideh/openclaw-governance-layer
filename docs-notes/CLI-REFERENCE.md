@@ -718,10 +718,14 @@ somebody else started, or one whose terminal is gone.
 account may have two running at once (six across the installation). The CLI
 counts as the account `cli`, so several terminals share one allowance.
 
-**Attribution caveat.** The CLI has no login, so a prompt sent from a terminal
-is recorded in the ledger against `cli` rather than a person (known limitation
-A6). The dashboard is the surface that answers "who asked" — sign in there when
-that matters.
+**Attribution.** ~~The CLI has no login, so a prompt sent from a terminal is
+recorded against `cli` rather than a person (limitation A6).~~ **Corrected
+2026-08-30: the CLI has had a login since T5 (2026-08-24).** Run
+`openclaw governance login`; commands then resolve the signed-in account through
+`verifySession` and record it in the ledger by name and tier, exactly as the
+dashboard does. A6 is closed. `cli` survives only where no account can sign in:
+the repair command for accounts predating groups, and the first-account
+bootstrap.
 
 **Exit codes:** `0` the run completed · `1` the run failed or was refused.
 
@@ -798,9 +802,15 @@ displayed separately, and it is excluded from the overall verdict so that
 "three things could not be checked here" cannot turn a sound deployment amber
 either.
 
-The same report is available to **Root** on the dashboard. The tier is enforced
-server-side; the CLI has no login and reports with full visibility, because its
-boundary is filesystem access rather than RBAC — see §1 above.
+The same report is available to **Root** on the dashboard, where the tier is
+enforced server-side. ~~The CLI has no login and reports with full visibility,
+because its boundary is filesystem access rather than RBAC.~~ **Corrected
+2026-08-30.** Since T5 the command requires a signed-in account
+(`requireCliActor`), so it is not reachable without a login. What remains true is
+that **any** signed-in tier may read it, because the command's predicate is
+`() => true`, whereas the dashboard restricts the same report to Root. That
+asymmetry is real and is now stated as itself rather than blamed on an absent
+login — see §1 above.
 
 ---
 
