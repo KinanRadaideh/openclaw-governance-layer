@@ -1,6 +1,6 @@
-// T7 (audit half) — recording when a search reached a path a denial names.
+// T7 — recording when a search reached a path a denial names, and withholding it.
 //
-// ## The gap this covers, and the half it does not
+// ## The gap, and the two halves that answer it
 //
 // `grep`, `find` and `ls` are governed at their **root**. `extractSearchPaths`
 // resolves the path the agent named — defaulting to `.` when it named none —
@@ -9,18 +9,25 @@
 // gate never sees them. A core denial on `.env` does not stop
 // `grep -r "SECRET" .` from printing the contents of `.env`.
 //
-// **This file does not close that.** It closes the half that can be closed
-// here: the reach becomes *visible*. Every path a search returned that a denial
-// covers is written to the ledger, so an operator can ask "did any search reach
-// something it should not have?" and get an answer, instead of the question
-// being unanswerable.
+// **This file now holds both halves, and they answer different questions.**
+// `auditSearchReach` makes the reach *visible*: every path a search returned
+// that a denial covers is written to the ledger, so an operator can ask "did any
+// search reach something it should not have?" and get an answer.
+// `filterSearchResult` (below) *stops* it, by removing those entries from the
+// result before the model sees them. They share `candidateFromLine` so the two
+// cannot disagree about what counts as a path.
 //
-// Prevention is the other half and it is **not** a plumbing problem, which is
-// why it is not here. It needs either the search tools to accept an exclusion
-// set (a real change to the host's tools) or the gate to narrow the search root
-// before the call — reachable with T23's parameter rewriting, and a security
-// control silently altering what an operator asked for. That is a decision, and
-// it is recorded as one in `REMAINING-WORK.md`.
+// **Both are needed, because they cover different runtimes.** The filter runs at
+// `afterToolCall`, whose return value replaces a tool result — reachable only on
+// the in-process runtime. On the native Codex harness the hook protocol has no
+// field for substituting a result, so there the reach can be recorded and not
+// prevented. That limit is in a separate program and is not reachable by forking
+// this one; §3.5.61 states it as a result rather than as a gap.
+//
+// **The two routes this file does *not* take**, both of which earlier documents
+// recommended: narrowing the search root cannot express "under `.` except this
+// file", and handing the tools an exclusion set fails because ripgrep and fd
+// take globs while policy denials are regular expressions.
 //
 // ## Why this is a direct call and not a plugin hook
 //
@@ -139,33 +146,46 @@ function candidatePaths(result: unknown, toolName: string): string[] {
   const seen = new Set<string>();
   const lines = text.split("\n", MAX_RESULT_LINES);
   for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("[")) {
-      // `[…]` is how both tools append their truncation notice.
-      continue;
-    }
-    // **`grep` returns matched file *content*, and content is not a candidate**
-    // (finding 131). Its lines are `path:line:text` when it searched more than
-    // one file, and bare `line:text` — or bare text — when it searched one. This
-    // used to fall back to the whole line whenever the prefix was absent, so a
-    // single-file grep handed this function the matched text itself, which was
-    // resolved as a path and, under a broad denial, written verbatim into the
-    // ledger. A grep for `password` recorded the passwords it found, in the one
-    // file the layer protects and never deletes.
-    //
-    // Requiring the prefix costs nothing T7 exists to catch: the gap T7 records
-    // is a **recursive** search reaching below a root the gate judged, and a
-    // grep over a single named file is not recursive — the gate already judged
-    // that exact path on the way in.
-    const prefixed =
-      GREP_LINE.exec(trimmed)?.[1]?.trim() ?? GREP_CONTEXT_LINE.exec(trimmed)?.[1]?.trim();
-    const candidate = toolName === "grep" ? prefixed : (prefixed ?? trimmed);
+    const candidate = candidateFromLine(line, toolName);
     if (candidate && !seen.has(candidate)) {
       seen.add(candidate);
       out.push(candidate);
     }
   }
   return out;
+}
+
+/**
+ * The path one rendered line refers to, or `undefined` if it names none.
+ *
+ * Extracted from `candidatePaths` so that `filterSearchResult` decides line by
+ * line using **the same rule** the audit uses to decide path by path. Two
+ * copies of this judgement would eventually disagree, and the disagreement
+ * would be a path recorded as reached that the filter had not removed — the
+ * ledger and the model's context telling different stories about one search.
+ */
+function candidateFromLine(line: string, toolName: string): string | undefined {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith("[")) {
+    // `[…]` is how both tools append their truncation notice.
+    return undefined;
+  }
+  // **`grep` returns matched file *content*, and content is not a candidate**
+  // (finding 131). Its lines are `path:line:text` when it searched more than
+  // one file, and bare `line:text` — or bare text — when it searched one. This
+  // used to fall back to the whole line whenever the prefix was absent, so a
+  // single-file grep handed this function the matched text itself, which was
+  // resolved as a path and, under a broad denial, written verbatim into the
+  // ledger. A grep for `password` recorded the passwords it found, in the one
+  // file the layer protects and never deletes.
+  //
+  // Requiring the prefix costs nothing T7 exists to catch: the gap T7 records
+  // is a **recursive** search reaching below a root the gate judged, and a
+  // grep over a single named file is not recursive — the gate already judged
+  // that exact path on the way in.
+  const prefixed =
+    GREP_LINE.exec(trimmed)?.[1]?.trim() ?? GREP_CONTEXT_LINE.exec(trimmed)?.[1]?.trim();
+  return toolName === "grep" ? prefixed : (prefixed ?? trimmed);
 }
 
 /**
@@ -291,5 +311,154 @@ export async function auditSearchReach(params: {
     }
   } catch {
     // See the doc comment. Recording is best-effort by construction.
+  }
+}
+
+/** Ledger id for a reach that was stopped rather than merely seen (T7 prevention). */
+const SEARCH_WITHHELD = "search-withheld";
+
+/**
+ * What replaces the lines that were removed.
+ *
+ * **The agent is told, deliberately.** Silently shortening a result teaches the
+ * model that the file does not exist, and it may then act on that belief —
+ * reporting a clean scan, or writing a file it thinks is absent. Saying "some
+ * results were withheld" is both true and the only version that leaves the
+ * agent able to reason correctly about what it does not have.
+ */
+function withheldNotice(count: number): string {
+  const plural = count === 1 ? "result" : "results";
+  return `[${count} ${plural} withheld by governance policy: the path is covered by a deny rule]`;
+}
+
+/** The content shape a filtered result is returned in. */
+export type FilteredSearchResult = { content: Array<{ type: "text"; text: string }> };
+
+function textContent(text: string): FilteredSearchResult {
+  return { content: [{ type: "text", text }] };
+}
+
+/**
+ * Removes results a denial covers **before the model sees them** (T7 prevention).
+ *
+ * ## What this is, and what it deliberately is not
+ *
+ * `auditSearchReach` records that a recursive search reached a denied path. This
+ * removes those entries from the result on their way to the model. The file is
+ * still read from disk by the search process, so this does **not** prevent the
+ * read — it prevents the *disclosure*, which for a containment layer is the line
+ * that matters and is the line the report should claim. Anything stronger would
+ * need the tool to accept an exclusion set, and §3.5.41 records why that route
+ * cannot express this project's rules.
+ *
+ * ## Why it returns `undefined` so often
+ *
+ * The same principle as T23's parameter binding: a call the control does not act
+ * on must flow on **byte-identical**. `undefined` means "nothing to change", and
+ * the caller passes the original result through untouched. Only a search, with a
+ * live path denial, that actually returned a covered path, produces a rewrite.
+ *
+ * ## Failing closed, and why that is safe here
+ *
+ * If the comparison throws, this returns a refusal rather than the original
+ * result. That is the opposite of `auditSearchReach`, which swallows everything
+ * — and the difference is the point. An audit that fails silently loses a
+ * record; a *filter* that fails silently hands the model the very content it
+ * exists to withhold. The blast radius is bounded to three tools, and by the
+ * time this runs the policy was readable moments earlier, because the gate read
+ * it to allow the call at all.
+ */
+export async function filterSearchResult(params: {
+  toolName: string;
+  toolParams?: Record<string, unknown>;
+  result: unknown;
+  agentId?: string;
+  sessionKey?: string;
+  cwd?: string;
+}): Promise<FilteredSearchResult | undefined> {
+  if (!SEARCH_TOOLS.has(params.toolName)) {
+    return undefined;
+  }
+  let groupId: string | undefined;
+  try {
+    groupId = await resolveAgentGroup(params.agentId);
+    if (!groupId) {
+      // Unregistered: the gate refused the call, so there is no result of ours
+      // to filter and nothing happened to record.
+      return undefined;
+    }
+    const doc = await loadPolicy(groupId);
+    if (doc.mode === "off") {
+      return undefined;
+    }
+    const denials = applicableDenials(doc.rules, params.agentId, Date.now());
+    if (denials.length === 0) {
+      return undefined;
+    }
+    const text = resultText(params.result);
+    if (!text) {
+      return undefined;
+    }
+    const base = searchBaseDir(params.toolParams, params.cwd);
+
+    // One pass over the rendered lines, keeping what survives and remembering
+    // what did not. `candidateFromLine` is the same extraction the audit half
+    // uses, so a path this removes is exactly a path that would have been
+    // recorded as reached — the two halves cannot disagree about what counts.
+    const lines = text.split("\n", MAX_RESULT_LINES);
+    const kept: string[] = [];
+    const withheldResources = new Set<string>();
+    const verdictByCandidate = new Map<string, boolean>();
+    for (const line of lines) {
+      const candidate = candidateFromLine(line, params.toolName);
+      if (!candidate) {
+        kept.push(line);
+        continue;
+      }
+      let denied = verdictByCandidate.get(candidate);
+      if (denied === undefined) {
+        const resource = await normalizeGovernedPath(candidate, base);
+        denied = denials.some((rule) => matchesPattern(rule.pattern, resource));
+        verdictByCandidate.set(candidate, denied);
+        if (denied) {
+          withheldResources.add(resource);
+        }
+      }
+      if (denied) {
+        continue;
+      }
+      kept.push(line);
+    }
+    if (withheldResources.size === 0) {
+      return undefined;
+    }
+
+    // Recorded as a **denial**, not as `ungoverned`. The audit half writes
+    // `ungoverned` because the reach happened and the gate had not judged it;
+    // here the gate did judge it and the content did not reach the model, so the
+    // honest verdict is `deny`. Keeping the two ids apart lets an auditor count
+    // "what leaked" and "what was stopped" separately, which is the whole
+    // question T7 exists to make answerable.
+    for (const resource of withheldResources) {
+      await appendLedgerEntry(groupId, {
+        agentId: params.agentId,
+        sessionKey: params.sessionKey,
+        toolName: params.toolName,
+        resourceKind: "path",
+        resource,
+        ruleId: SEARCH_WITHHELD,
+        decision: "deny",
+      });
+    }
+    const body = kept.join("\n").trimEnd();
+    const notice = withheldNotice(withheldResources.size);
+    return textContent(body ? `${body}\n${notice}` : notice);
+  } catch {
+    // See the doc comment: a filter that fails open defeats itself. The agent is
+    // told plainly rather than handed a result nothing checked.
+    return textContent(
+      "[governance: this search could not be checked against the policy, so its " +
+        "results were withheld. Narrow the search or ask an administrator.]",
+    );
   }
 }

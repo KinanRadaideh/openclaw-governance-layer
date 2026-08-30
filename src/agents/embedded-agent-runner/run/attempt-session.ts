@@ -24,6 +24,7 @@ import { prepareEmbeddedAttemptClientTools } from "./attempt-client-tools.js";
 import type { AttemptContextEngine } from "./attempt.context-engine-helpers.js";
 import type { EmbeddedAttemptSessionLockController } from "./attempt.session-lock.js";
 import { installCodeModeRepairHook } from "./code-mode-repair.js";
+import { installGovernanceSearchFilterHook } from "./governance-search-filter.js";
 import { installMessageToolOnlyTerminalHook } from "./message-tool-terminal.js";
 import { notifyToolActivity } from "./tool-activity-heartbeat.js";
 import {
@@ -196,6 +197,18 @@ export async function prepareEmbeddedAttemptAgentSession(input: {
     agent: activeSession.agent,
     sourceReplyDeliveryMode: attempt.sourceReplyDeliveryMode,
     onDeliveredSourceReply: markSourceReplyDelivered,
+  });
+  // T7 prevention. Installed last of the after-tool hooks on purpose, so that
+  // what governance filters is what the model actually receives rather than an
+  // intermediate a later hook would rewrite. Unconditional: this layer is
+  // compiled in so that configuration cannot remove it.
+  installGovernanceSearchFilterHook({
+    agent: activeSession.agent,
+    ...(input.sessionAgentId ? { agentId: input.sessionAgentId } : {}),
+    ...((attempt.sessionKey ?? attempt.sandboxSessionKey)
+      ? { sessionKey: attempt.sessionKey ?? attempt.sandboxSessionKey }
+      : {}),
+    ...(input.effectiveCwd ? { cwd: input.effectiveCwd } : {}),
   });
   if (input.clientToolPreparation.codeModeControlsEnabledForRun) {
     installCodeModeRepairHook({ agent: activeSession.agent });
