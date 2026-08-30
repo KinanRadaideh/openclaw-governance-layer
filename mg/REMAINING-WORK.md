@@ -1429,6 +1429,62 @@ that out during T3 wastes the VPS booking rather than the afternoon.
 
 ---
 
+#### Finding 160 — the section titled "Authorization" said the CLI has no login
+
+**The worst instance of this project's most common defect, and the last one
+found on 2026-08-31.**
+
+`CLI-REFERENCE.md` §1 "Authorization" opened with _"The CLI performs **no role
+check**"_, said _"Every change made from the CLI is recorded in the audit ledger
+with the actor `cli`"_, and explained _"Because the CLI has no login, there is
+nobody to authenticate"_. Two further paragraphs called a CLI login "still open
+work" and tracked it as Q-73b.
+
+**All of it was true on 2026-08-20 and false from 2026-08-24**, when T5 added
+`governance login`. Seven days, in the file whose own header reads: _"a CLI
+reference that has drifted is worse than none, because it is trusted."_
+
+**How it survived is the finding, and it is a lesson about method rather than
+about attention.** On 2026-08-30 a correction pass through _this same file_ found
+this exact claim and fixed it — **twice**. One copy under `agent prompt`, one
+under `deployment`. Both were rewritten carefully, with struck-through originals
+and dated corrections. The section **titled Authorization**, three doors up, was
+not touched.
+
+The pass was driven by searching for places the claim was _used_ — a caveat
+attached to a specific command — and the section that _defines_ it does not read
+like a caveat, because it reads like a definition. **Grepping for a stale claim
+finds its citations, not its source.** And the source is the one a reader arrives
+at first, because it is in §1 and the citations are 700 lines down.
+
+**Two further staleness items in the same header, both found by the same read:**
+
+- The file listed the command tree as `governance → policy · agent · sessions ·
+pending · audit · deployment · kill`. Since then it has gained
+  `login`/`logout`/`whoami` (T5), `agents` (M4), `groups` (M3) and `backend`
+  (2026-08-31) — **four whole command groups missing from the sentence that
+  claims to enumerate them.**
+- It asserted _"no known CLI gaps remain against the dashboard still holds"_.
+  That is finding 158, arrived at from the other direction: the claim had never
+  been measured, and measuring it found four gaps. **Two independent routes to
+  the same false sentence in one session** is the strongest argument in this
+  project's record for auditing assertions rather than only re-running
+  measurements.
+
+**Why this matters more than a documentation nit.** `CLI-REFERENCE.md` §1 is
+where a reader decides what the command line _is_. A reader who believes the CLI
+has no role check will not look for one, will not sign in, and will conclude —
+reasonably — that the tier model does not apply to half the system. The document
+was arguing the project's security posture is weaker than it is, in the section
+whose job is to state that posture.
+
+Fixed by rewriting the section around what is still true (**the boundary is
+filesystem permissions**, which a login does not change and never claimed to)
+and striking through what stopped being true, with the correction's own history
+attached.
+
+---
+
 ### Open work added 2026-08-31 by QA rounds twenty-nine to thirty-two
 
 Three items. **None is a security gap** — the layer still has no known hole. Two
@@ -1708,7 +1764,7 @@ point gets it silently not applied there.
 
 ---
 
-### QA rounds twenty-nine to thirty-two (2026-08-31) — findings 151–159
+### QA rounds twenty-nine to thirty-two (2026-08-31) — findings 151–160
 
 **Four rounds in one session, at Kinan's request, deliberately scoped so each
 looks at something the previous one could not.** Round twenty-nine audits the
@@ -1717,7 +1773,7 @@ round twenty-eight _except_ that feature; round thirty-one is a universal sweep;
 round thirty-two re-reads the day's own work — including these rounds' own
 fixes — against the documentation.
 
-**Nine findings, seven fixed, one withdrawn, one open as a decision.** One further
+**Ten findings, eight fixed, one withdrawn, one open as a decision.** One further
 candidate was raised and **withdrawn**, written up below because the withdrawal
 is the more useful record.
 
@@ -1732,6 +1788,7 @@ is the more useful record.
 | **157** | 30    | ~~The filter discarded an earlier hook's blanked result~~                                                                                   | **Withdrawn — not a defect** |
 | **158** | 31    | The "three surfaces" rule is asserted in code as a standard and is untrue of four capability groups, with no record of which are deliberate | **Open — needs a decision**  |
 | **159** | 31    | The requirements validation table's commentary still listed two limits that closed on 2026-08-25 and 2026-08-30                             | Fixed — and T36 opened       |
+| **160** | 32    | `CLI-REFERENCE.md` section 1 Authorization said the CLI has no login and no role check — false since T5 on 2026-08-24                       | Fixed — section rewritten    |
 
 ---
 

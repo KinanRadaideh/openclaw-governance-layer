@@ -8,15 +8,24 @@ examples.
 update this file in the same change — a CLI reference that has drifted is worse
 than none, because it is trusted.
 
-Last verified against the build of **2026-08-20**, Node v22.22.3 (Windows) and
+Last verified against the build of **2026-08-31**, Node v22.22.3 (Windows) and
 Node v22.23.2 (Ubuntu 24.04 / WSL2).
 
-**Coverage, checked rather than assumed:** every command the CLI registers and
-every option it accepts appears below. The command tree is
-`governance` → `policy` · `agent` · `sessions` · `pending` · `audit` ·
-`deployment` · `kill`, and `no known CLI gaps remain against the dashboard`
-still holds — the one Root capability added since (the deployment report, A7)
-landed on both surfaces at once.
+**Coverage, checked rather than assumed — and the previous version of this
+paragraph was neither (finding 160).** Every command the CLI registers appears
+below. The command tree is `governance` → `login` · `logout` · `whoami` ·
+`policy` · `agent` · `agents` · `groups` · `backend` · `sessions` · `pending` ·
+`audit` · `deployment` · `kill` · `set-policy-authoring`.
+
+~~`no known CLI gaps remain against the dashboard` still holds~~ — **false as of
+2026-08-31, and it was an assertion nobody had ever measured.** Enumerating the
+dashboard routes against the registered commands found **four capability groups
+that reach the dashboard and the HTTP API but not the CLI**: accounts, rule
+requests, who can reach an agent, and a run in flight. Some of those gaps are
+probably deliberate — creating Root accounts from a terminal may be exactly the
+wrong idea — but **not one of them had a reason written anywhere**. Tracked as
+**T34**; until it is decided, read this file as a reference to what the CLI does
+and **not** as evidence that the CLI does everything.
 
 ---
 
@@ -77,32 +86,71 @@ audit chain, and why the CLI is safe to use while the Gateway is running.
 
 ### Authorization
 
-The CLI performs **no role check**. It is deliberately an operating-system-level
-tool: anyone who can run it already has shell access as the user that owns
-`~/.openclaw/`, and could edit those files directly. The four-tier RBAC governs
-the **dashboard**, which is reachable over the network; the CLI's boundary is
-filesystem permissions (`0700` on the directory, `0600` on files — verified
-enforced on Linux).
+**Rewritten 2026-08-31 — finding 160. Everything this section said was true on
+2026-08-20 and false from 2026-08-24, when T5 gave the CLI a login.** What stood
+here is struck through below, because the way it survived is worth more than the
+correction.
 
-**Every** change made from the CLI is recorded in the audit ledger with the
-actor `cli` — not only kill-switch actions. That covers adding and removing
-rules, changing the posture and ask behaviour, the escalation window, per-agent
-overrides, and deciding held escalations.
+**The CLI checks the caller's tier, on every command that changes anything.**
+Sign in with `governance login`; the session is a `0600` file inside the
+self-protected governance directory, and every command resolves it through
+`verifySession` — the same function the dashboard uses, so a session revoked in
+the browser dies on the command line too. The gate is `requireCliActor` /
+`requireCliIdentity` (`src/cli/program/governance-cli-gate.ts`), which takes the
+question as a predicate so both surfaces ask it through the same permission
+functions. **A command you are not entitled to run prints the reason and changes
+nothing.**
 
-The honest limit: `cli` names the _origin_, not a person. Because the CLI has no
-login, there is nobody to authenticate, and a name collected here would be a
-claim rather than a fact. So the ledger will tell you a change came from the
-terminal on this machine, and not which human typed it. Where that matters, make
-the change from the dashboard, which records the account name. (Known limitation
-A6 in `mg/REMAINING-WORK.md`.)
+**Changes are recorded against the account, by name and tier**, exactly as the
+dashboard records them. The literal actor `cli` survives in only two places,
+both being cases where no account _can_ sign in: the repair command for accounts
+that predate groups, and the bootstrap of the first account, which has
+`BOOTSTRAP_ACTOR` of its own.
+
+**What remains true**, and is the part worth keeping: the CLI's boundary is
+**filesystem permissions** (`0700` on the directory, `0600` on files, verified
+enforced on Linux). Anyone with shell access as the owning user can edit
+`users.json` by hand, and no login changes that. The tier check stops mistakes
+and records intent; it is not a defence against somebody who already owns the
+files. That was always the durable half of the paragraph below, and it was
+attached to three claims that stopped being true.
+
+> ~~The CLI performs **no role check**. It is deliberately an
+> operating-system-level tool: anyone who can run it already has shell access as
+> the user that owns `~/.openclaw/`, and could edit those files directly. …
+> **Every** change made from the CLI is recorded in the audit ledger with the
+> actor `cli`. … The honest limit: `cli` names the _origin_, not a person.
+> Because the CLI has no login, there is nobody to authenticate … (Known
+> limitation A6.)~~
+>
+> **A6 was closed on 2026-08-24.** This section went on asserting it for seven
+> days, in the file whose own header says _"a CLI reference that has drifted is
+> worse than none, because it is trusted."_
+>
+> **How it survived is the finding.** On 2026-08-30 a correction pass through
+> this same file found and fixed **two** copies of "the CLI has no login" — one
+> under `agent prompt`, one under `deployment` — and did not touch the section
+> **titled Authorization**, which says it three times. The pass was driven by
+> searching for the places the claim was _used_, and missed the place it was
+> _defined_. **Grepping for a stale claim finds its citations, not its source**,
+> and the source is the one a reader arrives at first.
+>
+> The same day's work also left this file's header saying the command tree is
+> `governance → policy · agent · sessions · pending · audit · deployment · kill`.
+> It has since gained `login`/`logout`/`whoami` (T5), `agents` (M4), `groups`
+> (M3) and `backend` (2026-08-31) — four whole command groups, none of them in
+> the sentence that claims to list them.
 
 #### The consequence that is not about attribution (QA round 13, finding 73)
 
-> **Partly closed.** A core denial now covers `governance <subcommand>`, so the
-> _agent_ can no longer reach these commands through a broad allow rule. That
-> is a backstop, not the fix: it does nothing about a **person** with shell
-> access, which is what the paragraph below is really about, and a CLI login
-> remains open work.
+> **Closed, in two stages: the core denial on 2026-08-19 and the CLI login on
+> 2026-08-24 (T5).** This note read "a CLI login remains open work" until
+> 2026-08-31 — finding 160. A core denial covers `governance <subcommand>`, so
+> the _agent_ cannot reach these commands through a broad allow rule; and the
+> commands now require a signed-in account, so a **person** with shell access is
+> at least recorded by name. Neither changes the fact that somebody who owns the
+> files can edit them directly, which is the boundary this surface has always
+> had and still has.
 
 The reasoning above — _anyone who can run the CLI could edit the files
 directly_ — is sound for a **human** with a shell. It does not hold for the
@@ -140,13 +188,20 @@ Two fixes, and they were never alternatives so much as stages:
    shim) and the subcommand has one. Four spellings are asserted by
    `qa-round13.test.ts`. This restores the property the directory rule was
    written to provide.
-2. **Still open** — a CLI login, which would close A6 and this finding together
-   and make the sentence at the top of this section true of agents _and_ of
-   people. Until then, the honest statement is that the CLI's boundary is
-   filesystem permissions, and that this is sound for a human operator and was
-   never sound for the agent.
+2. ~~**Still open** — a CLI login, which would close A6 and this finding
+   together.~~ **DONE 2026-08-24 (T5), and this line said "still open" until
+   2026-08-31 — part of finding 160.** `governance login` exists, every
+   mutating command resolves the signed-in account through `verifySession`, and
+   the ledger records the operator by name and tier. A6 is closed.
 
-Tracked as Q-73b in `mg/REMAINING-WORK.md` §13c.
+   What is still true, and is the durable half: **the CLI's boundary is
+   filesystem permissions.** A login makes changes attributable and stops a
+   Viewer changing policy; it does not stop somebody who can already edit
+   `users.json` by hand. That was sound for a human operator and was never
+   sound for the agent, which is what fix 1 above addresses.
+
+~~Tracked as Q-73b in `mg/REMAINING-WORK.md` §13c.~~ **Both halves are closed:**
+the core denial on 2026-08-19, the login on 2026-08-24.
 
 ---
 

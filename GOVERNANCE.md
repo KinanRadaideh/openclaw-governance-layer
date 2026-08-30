@@ -3900,7 +3900,7 @@ alone will be **fifteen findings short** and will not be told so.
 | 144–146     | `REMAINING-WORK.md`, and `HANDOFF.md` §1's 2026-08-29 entry                                                       |
 | **147–149** | `REMAINING-WORK.md` §"Finding 147"/§"Finding 148"/§"Finding 149"; design in §3.5.60; plain language in §5.62–5.64 |
 | **150**     | `REMAINING-WORK.md` §"Finding 150"; design in §3.5.62; plain language in §5.68                                    |
-| **151–159** | `REMAINING-WORK.md` §"QA rounds twenty-nine to thirty-two"; design corrections in §3.5.62 and §4.x.5              |
+| **151–160** | `REMAINING-WORK.md` §"QA rounds twenty-nine to thirty-two"; design corrections in §3.5.62 and §4.x.5              |
 
 **Finding 147 in one paragraph**, because it is the one that changes a security
 claim: every component-prefixed credential flag — `--db-password=`,

@@ -4990,3 +4990,38 @@ the rule was stated as if it were universal and had never once been checked.
 
 That is the third time this project has found a rule it had asserted and never
 audited. It matters because a rule you believe stops you looking.
+
+## 5.74 The page that said the front door had no lock
+
+The command-line guide has a section called "Authorization". Its job is to tell
+you who is allowed to run these commands.
+
+It said there was no check at all. It said nobody signs in, so every change is
+recorded as having come from "the terminal" rather than from a person. It said
+adding a sign-in was still on the to-do list.
+
+All of that was true on the 20th of August and stopped being true on the 24th,
+when we added exactly that sign-in. The section kept saying it for a week.
+
+**The part worth telling is how it survived.** The day before, we went through
+this very file looking for that same wrong claim, and we found it twice and fixed
+it both times — once under one command, once under another. We did not touch the
+section titled "Authorization", three paragraphs further up, which said it three
+more times.
+
+We had searched for the places the claim was _mentioned_. The place it was
+_defined_ did not look like a mention; it looked like a definition. And that is
+the one a reader hits first, because it is near the top and the others are
+hundreds of lines down.
+
+The consequence was not cosmetic. Someone reading that page would conclude the
+whole permission system does not apply to the command line — so they would not
+sign in, and would not look for a check that is actually there. **The document
+was arguing that the project is less secure than it is, in the section whose
+entire job is to describe how secure it is.**
+
+Two more things in the same header turned out to be wrong the same way: the list
+of available commands was missing four whole groups added since it was written,
+and the claim that the command line can do everything the web page can had never
+once been checked. When we checked it, it could not — four things are missing.
+Whether all four should be built is now a decision for Kinan.
