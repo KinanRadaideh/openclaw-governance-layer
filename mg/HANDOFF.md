@@ -1893,8 +1893,10 @@ does not exist.
 
 **What is actually left: six T-items.** Five are yours — **T2** (a live run),
 **T3** (a Linux host), **T13** (a read), **T17** (a judgement about the report's
-look) and **T18** (the writing). One is Claude's and is newly unblocked:
-**T32**, which waited on T7's prevention half and no longer does. **T1** stays
+look) and **T18** (the writing). **T32** is Kinan's first and Claude's second:
+its old blocker dissolved, and a new decision replaced it — what an exception may
+promise for an agent that can run on Codex, where the gate records the reach and
+cannot prevent it. **T1** stays
 deprioritised. Sorted below by who has to move first.
 
 > **What used to be listed here as un-numbered outstanding items is now down to
@@ -1928,7 +1930,10 @@ deprioritised. Sorted below by who has to move first.
 > **Both are now closed, so this list is empty.** **T7 prevention closed on
 > 2026-08-30** — built on the in-process runtime and structurally unclosable on
 > the native Codex harness, which is recorded as a result rather than a gap
-> (§3.5.61). **T32** was waiting on it and is now unblocked.
+> (§3.5.61). **T32** was waiting on it and is **partly** unblocked: the gate
+> keeps an exception in-process and cannot on the native Codex harness, so what
+> the authoring affordance may promise on that runtime is a decision in its own
+> right (`REMAINING-WORK.md` §"T32's decision, restated 2026-08-31").
 
 ### Do this before anything else
 
@@ -1994,7 +1999,13 @@ git log --oneline personal/governance-layer..HEAD
 >
 > What still needs Kinan: a live model (T2), a server (T3), a judgement about the
 > report's look (T17), the writing itself (T18), thirty minutes of reading (T13).
-> **No decisions are outstanding** — T7 prevention was built on 2026-08-30 rather
+> **Two decisions are outstanding: T34 and T32.** ~~No decisions are
+> outstanding~~ — written earlier on 2026-08-31 and wrong within the hour, in the
+> way this file is always wrong: it generalised from the decision that had just
+> dissolved to the whole category. **T34** (what the three-surfaces rule
+> promises) was raised by finding 158 the same day. **T32** needs one too, and it
+> is a _new_ decision rather than the old one — see `REMAINING-WORK.md`
+> §"T32's decision, restated 2026-08-31". T7 prevention was built on 2026-08-30 rather
 > than decided, `--http-password` was decided and built on 2026-08-29 (finding
 > 147), and T8's remaining question is settled and is not being reopened. The
 > rows below are kept as the record of what was done.

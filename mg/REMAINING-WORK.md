@@ -80,20 +80,20 @@ makes this line agree with `HANDOFF.md` §1, which had drifted the other way. Th
 list grew by
 four (T29–T32) after two investigations and a request. What is open:
 
-| Open        | Who has to move                                                                                                                                                                                                                                                            |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **T2**      | You — one real agent driving one real tool call. Still the highest-value item left                                                                                                                                                                                         |
-| **T3**      | You — a Linux host that does not exist yet. The only unmet design requirement                                                                                                                                                                                              |
-| **T17**     | You — a judgement about how the report should look                                                                                                                                                                                                                         |
-| **T18**     | You — it is your report                                                                                                                                                                                                                                                    |
-| ~~**T7**~~  | ~~A decision (prevention half). The audit half shipped 2026-08-26.~~ **CLOSED 2026-08-30** — prevention built on the in-process runtime; structurally unclosable on the native Codex harness, stated as a result rather than as a gap. §"T7 prevention — built 2026-08-30" |
-| ~~**T31**~~ | ~~Claude — 16 lint errors across 14 test files, mechanical.~~ **DONE 2026-08-28** — all 16 fixed, and `git-hooks/pre-commit` now lints staged files, so the count cannot drift back unnoticed                                                                              |
-| **T32**     | **Claude — unblocked 2026-08-30.** Waited on the M-series (finished 2026-08-27) and on T7 prevention (built 2026-08-30); this row read "Waits on M, and on T7 prevention" until 2026-08-31. Ship it with the runtime caveat stated, or it recreates finding 150            |
-| **T1**      | Deprioritised, not being done                                                                                                                                                                                                                                              |
-| ~~**T33**~~ | ~~Claude — make the fork build and start on Linux at all.~~ **DONE 2026-08-28**, verified on Ubuntu 24.04: installer exit 0, probe 14/14, `openclaw` on PATH. It was listed here as open until 2026-08-31 while §1 and §6 both recorded it closed                          |
-| **T34**     | **Kinan, then Claude** — decide what the "three surfaces" rule promises, then make the record match it. Added 2026-08-31 by finding 158                                                                                                                                    |
-| **T35**     | Claude — narrow `AuditActorInput` so the wrong actor cannot typecheck. Added 2026-08-31 after it produced findings 149 and 155 in two days                                                                                                                                 |
-| **T36**     | Claude, once, immediately before Chapter 4 is written — re-derive the requirements validation table from the code. Added 2026-08-31 by finding 159                                                                                                                         |
+| Open        | Who has to move                                                                                                                                                                                                                                                                                                                                         |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **T2**      | You — one real agent driving one real tool call. Still the highest-value item left                                                                                                                                                                                                                                                                      |
+| **T3**      | You — a Linux host that does not exist yet. The only unmet design requirement                                                                                                                                                                                                                                                                           |
+| **T17**     | You — a judgement about how the report should look                                                                                                                                                                                                                                                                                                      |
+| **T18**     | You — it is your report                                                                                                                                                                                                                                                                                                                                 |
+| ~~**T7**~~  | ~~A decision (prevention half). The audit half shipped 2026-08-26.~~ **CLOSED 2026-08-30** — prevention built on the in-process runtime; structurally unclosable on the native Codex harness, stated as a result rather than as a gap. §"T7 prevention — built 2026-08-30"                                                                              |
+| ~~**T31**~~ | ~~Claude — 16 lint errors across 14 test files, mechanical.~~ **DONE 2026-08-28** — all 16 fixed, and `git-hooks/pre-commit` now lints staged files, so the count cannot drift back unnoticed                                                                                                                                                           |
+| **T32**     | **Kinan, then Claude.** The old blocker (decision B) dissolved rather than being taken — both routes it offered were wrong and a third was built. **A new decision replaced it**, created by T7 prevention closing on one runtime of two: what does an exception promise for an agent that may run on Codex? See §"T32's decision, restated 2026-08-31" |
+| **T1**      | Deprioritised, not being done                                                                                                                                                                                                                                                                                                                           |
+| ~~**T33**~~ | ~~Claude — make the fork build and start on Linux at all.~~ **DONE 2026-08-28**, verified on Ubuntu 24.04: installer exit 0, probe 14/14, `openclaw` on PATH. It was listed here as open until 2026-08-31 while §1 and §6 both recorded it closed                                                                                                       |
+| **T34**     | **Kinan, then Claude** — decide what the "three surfaces" rule promises, then make the record match it. Added 2026-08-31 by finding 158                                                                                                                                                                                                                 |
+| **T35**     | Claude — narrow `AuditActorInput` so the wrong actor cannot typecheck. Added 2026-08-31 after it produced findings 149 and 155 in two days                                                                                                                                                                                                              |
+| **T36**     | Claude, once, immediately before Chapter 4 is written — re-derive the requirements validation table from the code. Added 2026-08-31 by finding 159                                                                                                                                                                                                      |
 
 **"Blocked on the host" was recorded three times and was true zero times — and
 then a fourth was recorded on 2026-08-30 that is true.** The fourth is T7's
@@ -1637,15 +1637,87 @@ So T32 is **two things, and only the first is UX**:
 > property the code does not deliver — except here the promise would be made to
 > a person, in a form they chose, which makes it harder to discover.
 >
-> T7 prevention is decision B. **T32 turns decision B from a nice-to-have into a
-> prerequisite**, and that is the strongest argument yet for taking it: the
+> ~~T7 prevention is decision B. **T32 turns decision B from a nice-to-have into
+> a prerequisite**, and that is the strongest argument yet for taking it: the
 > exclusion set an exception list produces is exactly what the search root needs
-> in order to be narrowed.
+> in order to be narrowed.~~
+>
+> **Superseded 2026-08-31.** Decision B dissolved — both routes it offered were
+> wrong, and the route that was built narrows nothing, so the question it posed
+> is not a question about the system that exists. **The paragraph above this one
+> is still live**, and it is now half-satisfied rather than unsatisfied: the gate
+> keeps the exception in-process and cannot on the native Codex harness. The
+> decision T32 now waits on is what the affordance may _promise_ on that
+> runtime — see §"T32's decision, restated 2026-08-31" at the end of this
+> section.
 
 **So the honest scope of what is deferred is narrow**: not "folder grants with
 exceptions", which the engine already does and the interface now explains, but
 **one authoring affordance and one enforcement fix**. Everything else on the
 original request is in place today.
+
+#### T32's decision, restated 2026-08-31 — and why the old one no longer applies
+
+**Kinan asked, on 2026-08-31, whether T32 still needs a decision. It does, and it
+is not the decision this file had recorded.** Both halves of that are worth
+keeping, because the swap is easy to miss and this file had already missed it.
+
+**The old blocker is genuinely gone.** T32 was recorded as waiting on **decision
+B** — _"may a security control silently narrow what an operator asked for?"_ —
+because the two routes then believed available for T7 prevention both rewrote the
+operator's request before it ran. On 2026-08-30 both were investigated and **both
+descriptions were wrong**: a search root cannot express an exception at all, and
+the exclusion route was blocked by a glob/regex mismatch rather than by the host.
+The route that was built — filtering the completed result — narrows nothing the
+operator asked for, so **the question decision B posed is not a question about
+the system that exists.** Decision B dissolved; it was never taken.
+
+**The blocking condition was never "decision B is taken".** It was the sentence
+above it, and that sentence is still live:
+
+> _"T32 must not ship before T7's prevention half. An interface that lets someone
+> write an exception the gate does not keep is worse than no interface."_
+
+**T7's prevention half exists on one of two runtimes.** In-process, the gate
+keeps the exception. On the native Codex harness it cannot — no hook message
+substitutes a tool result — so there the exception is recorded and not kept.
+**The condition is half-satisfied**, and §"T7 prevention — built 2026-08-30"
+does not mention T32 anywhere, so nothing in this file reconciled the two.
+
+**The live question**, therefore: _what does an exception promise, when it is
+authored for an agent that may run on Codex?_
+
+This is finding 150's shape arriving by a different door, and the reason it needs
+Kinan rather than Claude is that all three answers are defensible and they trade
+different things. Consent is already recorded — an agent reaches Codex only if
+Root enabled the backend **and** an Administrator permitted that agent, the
+second through a dialog that states this exact gap and writes it to the ledger.
+The question is whether consent given on the agent's settings screen carries to a
+sentence written weeks later on the policy screen.
+
+| Option                                                                                                                                                                                                                                                                                    | What it buys                                                                                                                                 | What it costs                                                                                                                                                         |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A — author it, and say what it means.** The exception is authorable for any agent; wherever it is displayed, an agent permitted on Codex carries an inline statement that exceptions are recorded and not enforced on that engine, phrased as a permission the way the engine column is | The capability, and an honest interface. Cheapest. Consistent with how the engine permission is already surfaced on every agent row          | Relies on the reader. Finding 150 is precisely a caveat that stopped being read correctly, and this puts a second one on a busier screen                              |
+| **B — refuse the combination.** An exception cannot be authored for a Codex-permitted agent; authoring one offers to withdraw that agent's Codex permission, with a confirmation                                                                                                          | **"Exception" means one thing everywhere in the system.** The strongest guarantee, and the only option where the word never needs a footnote | Removes a real combination an operator may want, and makes a policy edit reach into an agent's engine permission — a surprising coupling that itself needs explaining |
+| **C — author it, and show it as inactive.** The rule exists and is displayed struck through or greyed for agents on Codex, with the reason                                                                                                                                                | Honest without removing the capability; the interface shows a rule that is not in force rather than describing it in prose                   | A rule list where some rules are decorative is a new concept in this layer, and every future reader has to learn it                                                   |
+
+**Recommendation: A, done properly — with the caveat on the rule row and not only
+in the authoring dialog.** A policy is written once and read for months, usually
+by somebody who did not write it, and finding 150's lesson is that the moment of
+authoring is not where the misunderstanding happens. If the statement appears
+only in the dialog, this becomes finding 150 again on a two-month delay.
+
+**B is the intellectually cleanest and should not be dismissed**, and there is a
+real argument for it in a report: a security vocabulary in which one word means
+two things depending on an unrelated setting is a vocabulary that will be
+misused. If Kinan wants the strongest defensible claim in Chapter 4, B is it. It
+costs a capability nobody has yet asked for.
+
+**Whichever is chosen, the enforcement half is unchanged and already works**: deny
+beats allow across every tier, in-process results are withheld, and every reach on
+Codex is recorded. **T32 is an authoring affordance over behaviour the engine
+already has** — the decision is only about what the affordance is allowed to
+promise.
 
 ---
 
@@ -1690,6 +1762,14 @@ sees them. Carried into each run by `installGovernanceSearchFilterHook`
 in `attempt-session.ts` at the `afterToolCall` seam — the point where
 `finalizeExecutedToolCall` substitutes a tool result on its way into the turn.
 Design write-up: `CHAPTER3-MATERIAL.md` §3.5.61. Plain language: §5.65.
+
+**What this does to T32, which nothing here said until 2026-08-31.** T32 was
+blocked on this work, and closing it on one runtime of two leaves that block
+**half lifted**. The gate keeps an exception in-process and cannot on the native
+Codex harness, so the interface T32 adds would promise something that is true on
+one engine and not the other. That is a decision, and it is written up at
+§"T32 decision, restated 2026-08-31". A section that closes a blocker owes the
+thing it was blocking a sentence; this one did not have one for a day.
 
 **What it claims, exactly.** The file is still read from disk; its contents do
 not reach the model. That is the containment claim and it is the one the report
