@@ -249,12 +249,22 @@ export const UNAUTHENTICATED_ACTOR = "unauthenticated";
 /**
  * Actor recorded for a rule created by an approved escalation.
  *
- * When a human answers "allow always" to a governance prompt, a rule is written
- * as a direct consequence. OpenClaw's approval machinery reports the decision
- * but not the identity of whoever made it, so the entry records the *origin* of
- * the grant rather than inventing a name for it. An auditor seeing this actor
- * knows the permission came from an in-the-moment approval rather than from
- * someone deliberately editing policy — a genuinely different kind of event.
+ * **No code writes this any more, and the paragraph that used to stand here
+ * described the behaviour in the present tense (finding 170).** It read: *"When
+ * a human answers 'allow always' to a governance prompt, a rule is written as a
+ * direct consequence."* **Finding 83 removed that.** `allowedDecisions` on an
+ * escalation is now `["allow-once", "deny"]`, because the button is rendered in
+ * Discord or Telegram and the person pressing it holds no governance account and
+ * sits in none of the four tiers — so making a grant *permanent* from there was
+ * policy authorship by somebody the layer could not name.
+ *
+ * **The constant survives deliberately, for reading rather than writing.**
+ * Entries written before that change still carry this actor, and the ledger
+ * never deletes; `ledger-filter.ts` and `RESERVED_ACTOR_NAMES` both need the
+ * label to recognise them. Removing it would make historical entries
+ * unclassifiable.
+ *
+ * Do not reintroduce a writer for it without re-opening finding 83.
  */
 export const HITL_ACTOR = "hitl-approval";
 

@@ -5259,3 +5259,78 @@ this whole document exists to keep straight.
 
 If it happens again: keep the full output. The name of the test is the entire
 diagnosis, and it cost nothing to have kept it.
+
+## 5.84 Two commands that were missing for no reason, and two that weren't
+
+The project told itself a rule: anything you can do should work in all three
+places — the web page, the command line, and the programming interface. Nobody
+had checked it. When we did, four things were missing from the command line.
+
+Rather than build all four, we wrote down _why_ each one was missing first. That
+turned out to matter, because **two of the four reasons I expected to use were
+wrong.**
+
+For accounts, I expected to say "anyone with a terminal on that machine could
+edit the account file by hand anyway, so a command adds nothing". That stopped
+being true in August, when we added a sign-in to the command line. The reason
+that actually holds is different and duller: the web form has small safety guards
+that earlier reviews put there, and building a second version of those guards is
+how two versions come to disagree.
+
+For rule requests, I expected to say "this is a conversation between two people,
+which a script serves badly". Except this project already ships a command that
+does exactly that shape for a different kind of request. So that reason collapses
+too. What survives is much narrower.
+
+The other two had no reason at all, so we built them: seeing **who can reach an
+agent**, and seeing **what an agent is doing right now and stopping one job**.
+
+That second one was actively a problem. There was already a command to stop an
+agent _completely_ and keep it stopped, and no command to end a single job. So
+someone dealing with a problem over a remote connection had only the heavy hammer
+— which pushes people toward using it.
+
+**The rule itself changed, and that matters more than the two commands.** It now
+reads: everything reaches all three places _unless a written reason says
+otherwise_ — and the reasons are in the reference guide. A rule stated as
+absolute and never checked does the opposite of its job: it makes real gaps
+invisible, because someone who believes it doesn't go looking.
+
+## 5.85 A review of a randomly chosen fifth of the system
+
+You asked for a thorough review of a random slice of the project. To keep it
+honest we picked the slice **mechanically** — a random draw over the 48 main
+files, taking nine — so it couldn't drift toward parts I already knew well. Six
+of the nine were untouched by anything done this week.
+
+**Two problems, and neither is a bug in what the code does.**
+
+**A comment that outlived its behaviour.** There is a label the system uses for
+"this rule was created by someone approving a prompt in the moment". The
+explanation next to it describes that as something the system does. It doesn't —
+we deliberately removed it weeks ago, because on a chat app that approval button
+is pressed by someone with no account here at all, and letting them create a
+permanent rule was letting an unnamed person write policy.
+
+The label itself is still needed, to read old records. But the explanation was
+inviting the next person to build the thing we removed.
+
+**A safety property that was true for a reason living outside the file.** One
+function looked up "which agents does this administrator own" without checking
+which organisation they belonged to — the only lookup in that file that didn't.
+It was still _correct_, because account identifiers are unique, so knowing the
+account already tells you the organisation. But that argument lives nowhere in
+the code, in a file where every neighbouring lookup states the boundary out loud.
+That is precisely the shape of a real leak we found earlier this month.
+
+Worse: **nothing calls that function, but it has a passing test** — so it reads
+as working, covered code.
+
+**Seven files came back clean**, including the ones handling login tokens, file
+uploads and the emergency-stop chain, each checked against the specific attacks
+they'd be vulnerable to rather than just read.
+
+**The pattern worth noticing:** two findings, and neither is the code doing the
+wrong thing. Both are the code and its description drifting apart. That is now
+comfortably the most common kind of problem in this project — and it is exactly
+the kind that tests cannot catch.

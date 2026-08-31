@@ -1502,6 +1502,103 @@ attached.
 
 ---
 
+### QA round thirty-four — a randomly drawn fifth of the layer (2026-08-31)
+
+**Kinan asked for a complete QA on a random set of features not exceeding 20% of
+the project.** The set was drawn mechanically rather than chosen, so it could not
+be steered toward ground I already knew: a date-seeded PRNG over the 48 non-test
+modules in `src/governance/`, taking nine.
+
+```
+active-sessions.ts   admin-audit.ts     agent-registry.ts
+attachment-store.ts  codex-backend.ts   regex-safety.ts
+session-lineage.ts   session-tokens.ts  system-status.ts
+```
+
+2,767 lines. **Six of the nine were untouched by any of this session's work**,
+which is the point of drawing rather than picking.
+
+#### Two findings, both latent rather than live
+
+| #       | What                                                                                                  | State |
+| ------- | ----------------------------------------------------------------------------------------------------- | ----- |
+| **170** | `HITL_ACTOR`'s documentation describes, in the present tense, a behaviour finding 83 removed          | Fixed |
+| **171** | `agentIdsOwnedBy` is the one registry read with no group boundary — and has no caller, but has a test | Fixed |
+
+**Finding 170 — a comment outliving its behaviour.** `HITL_ACTOR`'s doc read:
+_"When a human answers 'allow always' to a governance prompt, a rule is written
+as a direct consequence."_ **Finding 83 removed that**, and the removal is one of
+the project's better decisions: `allowedDecisions` is now `["allow-once",
+"deny"]`, because on a chat deployment the approval button is rendered in Discord
+or Telegram and the person pressing it holds no governance account. Making a
+grant _permanent_ from there was policy authorship by somebody the layer could
+not name.
+
+So the constant has **no writer**. It survives correctly — historical entries
+still carry it and the ledger never deletes, so `ledger-filter.ts` needs the
+label to classify them — but nothing said so, and the comment actively described
+a live path. **A reader wiring up an "allow always" button would have found
+documentation inviting them to.** The comment now says the opposite, and names
+the finding to re-open first.
+
+**It was found in a file edited earlier the same day** for T35, and not noticed
+then. Reading a file to change one thing is not reading it.
+
+**Finding 171 — safe by an implication nobody wrote down.** `agentIdsOwnedBy`
+filtered on `adminId` alone: the only read in `agent-registry.ts` with no group
+comparison, in a file where every neighbour states the boundary explicitly.
+
+It was _correct_, because account ids are unique across the installation, so an
+`adminId` already implies one group. **That is exactly the shape of finding
+119** — a read that is right on the day, by an argument outside the code, in a
+system where groups were added later. Scoping it costs one comparison.
+
+The second half is worse than the first. **It has no caller in shipped code, and
+it has a passing test** — so a dead export reads as covered. `assignAgentsToAccount`
+does the real job and validates through `assertAssignable`, which is already
+group-scoped. Kept rather than deleted, because "which agents could I assign?" is
+a question a surface may yet ask, but the absence of a caller is now stated in
+the doc rather than left to be discovered by whoever wires it up.
+
+#### What the round cleared, and why that is worth recording too
+
+Seven modules produced nothing, and three of those were checked against specific
+attack shapes rather than read generally:
+
+- **`session-tokens.ts`** — fingerprints stored rather than tokens, constant-time
+  comparison, and expired sessions pruned on every issue, so the file cannot grow
+  without bound. The one asymmetry — `revokeSession` compares with `!==` rather
+  than the constant-time helper — is not a leak, because revoking requires
+  already holding the token.
+- **`attachment-store.ts`** — checked for the classic path traversal via a
+  declared filename. **The stored file is named by its SHA-256**, which is hex by
+  construction, and the declared name is redacted, truncated, and never used as a
+  path. Control characters are rejected at upload, so the name cannot reach a
+  response header with a newline in it either.
+- **`session-lineage.ts`** — the depth cap returns `unreadable` rather than
+  "no ancestor", the cycle guard is present, and the `catch` is total because an
+  exception out of the store during an incident is the definition of not being
+  able to tell. Findings 81 and 120 are visibly still fixed.
+- **`regex-safety.ts`** — reachable only through `validateRulePattern`, so the
+  question that matters is which write paths call it. **All four do**: both
+  add-rule surfaces, the folder grant, and — the one worth checking, because it
+  is the only pattern a _lower-trust tier_ supplies — the rule-request submit
+  route.
+- **`active-sessions.ts`** — scoped twice, by group and by `canViewAgent`, and
+  reports `supported: false` honestly when no supplier is registered.
+- **`system-status.ts`** — Viewer tier, which §1.6 names explicitly, and the
+  memory percentage guards its own division.
+
+**Two findings in 2,767 lines of code that has been through thirty-three prior
+rounds is the result to expect**, and both are latent rather than live. What is
+worth carrying into Chapter 4 is their shape: **neither is a bug in what the code
+does. Both are a gap between what the code does and what it says** — one comment
+outliving its behaviour, one safety property true by an argument living outside
+the file. That is now the dominant defect class in this project by a wide margin,
+and it is not a class tests catch.
+
+---
+
 ### T34 — the three-surfaces rule, audited and narrowed (2026-08-31)
 
 **Option 3, at Kinan's decision: write the four reasons first, build only what

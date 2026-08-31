@@ -3900,6 +3900,7 @@ alone will be **fifteen findings short** and will not be told so.
 | 144–146     | `REMAINING-WORK.md`, and `HANDOFF.md` §1's 2026-08-29 entry                                                       |
 | **147–149** | `REMAINING-WORK.md` §"Finding 147"/§"Finding 148"/§"Finding 149"; design in §3.5.60; plain language in §5.62–5.64 |
 | **150**     | `REMAINING-WORK.md` §"Finding 150"; design in §3.5.62; plain language in §5.68                                    |
+| **170–171** | `REMAINING-WORK.md` §"QA round thirty-four"                                                                       |
 | **165–169** | `REMAINING-WORK.md` §"T32 — built 2026-08-31, and QA round thirty-three"; design in §3.5.66                       |
 | **164**     | `REMAINING-WORK.md` §"Finding 164 and T37"; design in §3.5.65                                                     |
 | **161–163** | `REMAINING-WORK.md` §"Findings 161–163"; design in §3.5.63 and §3.5.64                                            |

@@ -233,10 +233,30 @@ export async function listAgents(groupId: string | undefined): Promise<Governanc
   return file.agents.filter((agent) => agent.groupId === groupId);
 }
 
-/** The ids one Administrator owns. The set an account they manage may be given. */
-export async function agentIdsOwnedBy(adminId: string): Promise<string[]> {
+/**
+ * The ids one Administrator owns, inside one organisation.
+ *
+ * **`groupId` was added in QA round thirty-four (finding 171), and the reason is
+ * the hazard rather than a live bug.** This filtered on `adminId` alone — the
+ * only read in this file with no group boundary. It was *safe* because account
+ * ids are unique across the installation, so an `adminId` already implies one
+ * group; it was safe by an implication nobody had written down, in a file where
+ * every neighbouring read states the boundary explicitly.
+ *
+ * That is precisely the shape of finding 119: a read written before groups
+ * existed, correct on the day, and answering across all of them the moment
+ * something changed. Scoping it costs one comparison and removes the question.
+ *
+ * **It has no caller in shipped code**, and did not when this was written.
+ * `assignAgentsToAccount` does the assignment job and validates through
+ * `assertAssignable`, which is already group-scoped. It is kept rather than
+ * deleted because "which agents could I assign?" is a question a surface may yet
+ * ask — but a dead export **with a passing test** reads as covered code, so the
+ * absence of a caller is stated here rather than left to be discovered.
+ */
+export async function agentIdsOwnedBy(adminId: string, groupId: string): Promise<string[]> {
   return (await readAgentsFile()).agents
-    .filter((agent) => agent.adminId === adminId)
+    .filter((agent) => agent.adminId === adminId && agent.groupId === groupId)
     .map((agent) => agent.id)
     .toSorted();
 }

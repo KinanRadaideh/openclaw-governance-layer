@@ -567,7 +567,7 @@ conclusion.
 > paragraph, the two things to do before anything else, and how to verify
 > nothing is broken. This file is the reference beneath it.
 
-- **2,364 governance tests pass across 118 files** (2026-08-31), plus 92 across 5 in the
+- **2,372 governance tests pass across 119 files** (2026-08-31), plus 92 across 5 in the
   dashboard suite, which is a separate command — file _runs_, not files;
   roughly 1,469 distinct tests across 81 distinct files, because the thirteen
   gateway files each run under three Vitest projects (measured 2026-08-29, after

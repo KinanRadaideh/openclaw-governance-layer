@@ -409,7 +409,7 @@ describe("ownership changes repair the assignments they invalidate", () => {
       { id: "agent-b", displayName: "B", groupId: org.groupId, adminId: org.other.id },
       "alpha-admin2",
     );
-    expect(await agentIdsOwnedBy(org.admin.id)).toEqual(["agent-a"]);
+    expect(await agentIdsOwnedBy(org.admin.id, org.groupId)).toEqual(["agent-a"]);
   });
 });
 
