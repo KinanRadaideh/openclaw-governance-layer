@@ -67,10 +67,22 @@ to give it. Counted as outstanding here because the remaining work is yours.
 be read.
 
 **Current as of 2026-08-31: 28 done, 7 open, and T1 deprioritised** across
-T1–T37. **T35, T36 and T37 all closed the same day.** **T35 and T36 closed the same day**; **T37** was added by finding 162,
-which they turned up. The list grew by three on 2026-08-31 — **T34, T35 and T36**, all raised
-by QA rounds twenty-nine to thirty-two and none of them a security gap. T33
-closed 2026-08-28 and T7 closed 2026-08-30, which unblocked T32.
+T1–T37.
+
+The list grew by four on 2026-08-31 — **T34, T35, T36 and T37**, all raised by
+that day's QA rounds and none of them a security gap — and **three of the four
+closed the same day** (T35, T36, T37). T33 closed 2026-08-28; T7 closed
+2026-08-30, which partly unblocked T32.
+
+**The seven open are T2, T3, T13, T17, T18, T32 and T34.** T13 was missing from
+the table below until 2026-08-31 while the count above included it, which is the
+same shape as the two stale rows corrected earlier the same day: **the count and
+the rows are two records of one fact, and nothing checks them against each
+other.** Count the rows before trusting the number, and vice versa.
+
+_(This paragraph was itself garbled between 2026-08-31's patches — it carried the
+same sentence twice — which is worth leaving recorded. A file edited by script
+accumulates duplication exactly where a human editing by hand would notice it.)_
 
 _(The line below is the previous measurement, kept because its correction is the
 point.)_ **As of 2026-08-30: 25 done, 7 open, T1 deprioritised** across
@@ -85,6 +97,7 @@ four (T29–T32) after two investigations and a request. What is open:
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **T2**      | You — one real agent driving one real tool call. Still the highest-value item left                                                                                                                                                                                                                                                                                                                    |
 | **T3**      | You — a Linux host that does not exist yet. The only unmet design requirement                                                                                                                                                                                                                                                                                                                         |
+| **T13**     | You — thirty minutes of reading. The prompt-injection answer is drafted at `CHAPTER3-MATERIAL.md` §4.x.26; the remaining work is being able to give it without notes. **Absent from this table until 2026-08-31** while the count above included it                                                                                                                                                   |
 | **T17**     | You — a judgement about how the report should look                                                                                                                                                                                                                                                                                                                                                    |
 | **T18**     | You — it is your report                                                                                                                                                                                                                                                                                                                                                                               |
 | ~~**T7**~~  | ~~A decision (prevention half). The audit half shipped 2026-08-26.~~ **CLOSED 2026-08-30** — prevention built on the in-process runtime; structurally unclosable on the native Codex harness, stated as a result rather than as a gap. §"T7 prevention — built 2026-08-30"                                                                                                                            |
