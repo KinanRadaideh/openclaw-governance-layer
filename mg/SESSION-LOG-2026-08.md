@@ -3554,3 +3554,71 @@ exists for.
 **Procedural note, the third of its kind this week**: capture full output. The
 name of the test was the whole diagnosis, and a `| tail` that saved nothing threw
 it away.
+
+## §40 — 2026-08-31 (evening): T34, a drawn QA round, and the handoff made ready
+
+### T34, done as option 3
+
+**Write the four reasons first, build only what cannot be argued away.** Doing it
+in that order was the whole value: **two of my four predicted reasons were
+wrong**, and building on prediction would have kept two capabilities
+dashboard-only for reasons that are not true.
+
+- **Accounts** — the argument I expected ("anyone with a shell could edit
+  `users.json` anyway") is void since T5, because every CLI command requires a
+  signed-in account. What holds is divergence cost, which is a smaller and duller
+  claim.
+- **Rule requests** — "it is a conversation between two people" is contradicted
+  by this project's own `pending list` / `pending decide`. What survives is that
+  the gap costs the _link_ between a request and its rule, not the capability.
+- **Agent access and runs/cancel** — no reason at all, so both were built.
+  `agent cancel` was the one actively missing: `sessions` and `kill` both
+  existed, so an operator over SSH had the blunt instrument and not the precise
+  one, which pushes people toward it.
+
+**The rule itself changed**, and that matters more than the commands: from _"a
+capability reaching only two surfaces is unfinished"_ to _"every capability
+reaches all three unless a stated reason says otherwise"_, with the reasons in
+`CLI-REFERENCE.md` §2d.
+
+### QA round thirty-four, on a drawn sample
+
+Kinan asked for a complete QA on a random ≤20% of the project. The set was drawn
+**mechanically** — a date-seeded PRNG over the 48 non-test modules, taking nine —
+so it could not drift toward familiar ground. Six of the nine were untouched by
+the week's work.
+
+**Two findings, and both are the same shape**: not the code doing the wrong
+thing, but the code and its description drifting apart. `HITL_ACTOR`'s comment
+describes a behaviour finding 83 removed, in the present tense, inviting the next
+reader to rebuild it. `agentIdsOwnedBy` was safe by an argument living outside the
+file — and has no caller but a passing test, so a dead export reads as covered.
+
+**Seven modules cleared**, three checked against specific attack shapes: stored
+attachments are named by their SHA-256 so a declared filename cannot traverse and
+control characters are rejected at upload; session tokens are fingerprinted,
+compared in constant time and pruned on every issue; the lineage walk's depth cap
+and cycle guard both fail closed.
+
+### The handoff documents, made ready
+
+**Read as a stranger would, and the top of `HANDOFF.md` was three days stale in
+the first paragraph a reader meets.** It described a _pending push_ that had
+happened, a tree that had changed twice since, and a backlog of "T1–T32" when the
+list was at T41. Four places still listed T7 and T31 as open.
+
+Replaced rather than appended to — the rule §6 now states — and the opening block
+is now a four-line state summary, two commands to verify it, and one instruction:
+**re-measure before repeating a number, including a number in that paragraph.**
+
+`HANDOFF.md` §7's caveat 6 was the one worth reopening rather than retiring. It
+said the dashboard "has now been driven by hand, 2026-08-21", which is true and,
+undated, misleading: **everything shipped since 2026-08-24 is unrendered.** That
+is now T38, and it is the item most likely to find real defects, because M1's one
+hand-driven pass found five and not one of them was a kind a component test
+catches.
+
+**T41 was cancelled by Kinan** the same evening. The draft email stays in the
+repository with a header saying it is cancelled and why — it is an honest record
+of what T7 looked like before the third route was found, which Chapter 4 uses.
+What it must not read as is a draft still waiting to go.

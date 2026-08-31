@@ -13,7 +13,9 @@ Nothing here is speculative — every item was found by one of those two reviews
 up cold; `mg/PROJECT-SUMMARY.md` — what the project is and what has been built.
 
 **The authoritative outstanding list is §"The numbered backlog" immediately
-below — thirty-two tasks, T1–T32, of which 24 are done and 8 open, current as of
+below — **forty-one tasks, T1–T41, of which 30 are done and 8 open** (T1 and T41
+are not being done), current as of 2026-08-31. The sentence that stood here said
+"thirty-two tasks, T1–T32, of which 24 are done and 8 open, current as of
 2026-08-27**, with a
 §"Who can do what" triage in front of it. **A second backlog, §"The M-series"
 (M1–M6), holds the multi-tenancy feature: five done, M6 left.** The older §"What is actually left" is
@@ -47,7 +49,9 @@ left" further down, which was accurate on 2026-08-19 and is kept unedited
 because the report's Chapter 4 argument is partly about how a confident summary
 survives twelve reviews and does not survive the thirteenth.
 
-**Thirty-two tasks, numbered T1–T32**, grouped by what blocks them rather than
+**Forty-one tasks, numbered T1–T41** (the paragraph below this one was written
+when the list was T1–T28 and is kept as history — see the dated count above it),
+grouped by what blocks them rather than
 by severity. (The paragraphs immediately below were written when the list was
 T1–T28 and are kept as history; the authoritative count is the
 "24 done, 8 open" table further down, re-verified 2026-08-27.) (T26 and T27 were added on 2026-08-24 for work that shipped on the
@@ -66,7 +70,7 @@ to give it. Counted as outstanding here because the remaining work is yours.
 **One is deprioritised:** T1 — not being done. **T13** is drafted and waiting to
 be read.
 
-**Current as of 2026-08-31: 30 done, 9 open, and T1 deprioritised** across
+**Current as of 2026-08-31: 30 done, 8 open; T1 and T41 are not being done** across
 T1–T41. **T32 and T34 both closed on 2026-08-31**, and with them the last two
 items on the original backlog that were not purely Kinan's. **Four new items
 (T38–T41) were added the same evening**, by asking what was outstanding that
@@ -114,7 +118,7 @@ four (T29–T32) after two investigations and a request. What is open:
 | **T38**     | **Claude** — drive the dashboard by hand again. Everything shipped since 2026-08-24 is **unrendered**: the Codex panel and its two dialogs, the folder-grant form and its explainer, and the per-rule Codex note. M1 found five defects by doing exactly this once                                                                                                                                     |
 | **T39**     | **Claude** — the other three test-typecheck configs (`tsgo:test:ui`, `test:root`, `test:packages`), never run here. T37 covered `src/` and said so; this is the rest of its own residue                                                                                                                                                                                                                |
 | **T40**     | **Claude** — a CLI for rule requests. Named in `CLI-REFERENCE.md` §2d as the weakest of T34's four reasons and the first to revisit                                                                                                                                                                                                                                                                    |
-| **T41**     | **Kinan** — the draft supervisor email about T7 asks a question that no longer has a live answer. Rewrite it as "here is what I did instead", or delete it                                                                                                                                                                                                                                             |
+| ~~**T41**~~ | ~~The supervisor email about T7.~~ **CANCELLED 2026-08-31 by Kinan — not being sent.** The draft stays in the repository as the record of the question as it stood before T7 was closed a different way, with a header saying so. Counted as neither done nor open, like T1                                                                                                                            |
 | **T1**      | Deprioritised, not being done                                                                                                                                                                                                                                                                                                                                                                          |
 | ~~**T33**~~ | ~~Claude — make the fork build and start on Linux at all.~~ **DONE 2026-08-28**, verified on Ubuntu 24.04: installer exit 0, probe 14/14, `openclaw` on PATH. It was listed here as open until 2026-08-31 while §1 and §6 both recorded it closed                                                                                                                                                      |
 | ~~**T34**~~ | ~~Decide what the three-surfaces rule promises.~~ **DONE 2026-08-31**, option 3 at Kinan’s decision: the four reasons were written first, two survived and two did not. `agents access`, `agent runs` and `agent cancel` built; accounts and rule requests kept as deliberate, with the reasons in `CLI-REFERENCE.md` §2d. **The rule itself was narrowed**, which matters more than the commands      |
@@ -1560,7 +1564,7 @@ rule it produces, not the capability, because an Administrator can already write
 the rule directly. Recorded here so the "revisit this first" is a task rather
 than a sentence in a reference document.
 
-#### T41 — the supervisor email
+#### T41 — the supervisor email — **CANCELLED 2026-08-31**
 
 `mg/email-to-supervisor-t7.md` asks Dr. Haitham whether forking a second project
 is acceptable, because at the time that looked like the only way to close T7 on

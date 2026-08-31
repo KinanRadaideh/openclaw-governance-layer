@@ -6,7 +6,7 @@ or picking it up after a break.
 
 **Companion documents:**
 
-- `mg/REMAINING-WORK.md` — everything still outstanding. **§"The numbered backlog" (T1–T32) is the authoritative list**; the sections below it are history. A second backlog, §"The M-series" (M1–M6), holds the multi-tenancy feature — **complete as of 2026-08-27**
+- `mg/REMAINING-WORK.md` — everything still outstanding. **§"The numbered backlog" (T1–T41) is the authoritative list** — 30 done, 8 open as of 2026-08-31; the sections below it are history. A second backlog, §"The M-series" (M1–M6), holds the multi-tenancy feature — **complete as of 2026-08-27**
 - `mg/SESSION-LOG-2026-08.md` — what the August 2026 session changed, and why
 
 ---
@@ -203,7 +203,7 @@ C:\Users\kinan\openclaw\          (the fork; branch: governance-layer)
 | `UPSTREAM-BUG-REPORT.md`            | A bug found in OpenClaw itself (written, not yet filed)                                                                                                                                                                 |
 | `Kimi_QA_1.md`                      | An independent review comparing the code against the PDF                                                                                                                                                                |
 | `mg/PROJECT-SUMMARY.md`             | This file — what the project is and where everything lives                                                                                                                                                              |
-| `mg/REMAINING-WORK.md`              | The backlog. **§"The numbered backlog" (T1–T32) is authoritative** — 24 done, 8 open; §"The M-series" (M1–M6) is the multi-tenancy feature, **complete**. Everything beneath them is kept as history and marked as such |
+| `mg/REMAINING-WORK.md`              | The backlog. **§"The numbered backlog" (T1–T41) is authoritative** — 30 done, 8 open; §"The M-series" (M1–M6) is the multi-tenancy feature, **complete**. Everything beneath them is kept as history and marked as such |
 | `mg/SESSION-LOG-2026-08.md`         | What the August 2026 session changed, and why                                                                                                                                                                           |
 
 ### Runtime state (created on first use, not in the repo)
@@ -564,8 +564,14 @@ conclusion.
 ## 6. Current state
 
 > **Picking this up cold? Read `mg/HANDOFF.md` first.** It gives the state in a
-> paragraph, the two things to do before anything else, and how to verify
-> nothing is broken. This file is the reference beneath it.
+> paragraph, what to do before anything else, and how to verify nothing is
+> broken. This file is the reference beneath it.
+>
+> **The state in one line, as of 2026-08-31:** built and verified, never
+> demonstrated; **the engineering on the backlog is finished** (T32 and T34 were
+> the last two, both closed that day); **171 findings, 169 fixed**; and what
+> remains is a live run, a Linux host, the figures, the report, and three small
+> items of Claude's (T38–T40).
 
 - **2,372 governance tests pass across 119 files** (2026-08-31), plus 92 across 5 in the
   dashboard suite, which is a separate command — file _runs_, not files;
@@ -577,13 +583,28 @@ conclusion.
   **fully green — 263 passed, 0 failed** (192 in `native-hook-relay.test.ts`
   plus 71 in `host-hooks.contract.test.ts`) since T25 closed on 2026-08-25; the
   relay file had been 18 failed / 174 passed for the life of the project.
-- **Two tests outside the five verification commands fail on Windows and always
-  have** — finding 148, recorded 2026-08-29 rather than fixed. Both are
-  POSIX-only assertions against correct platform-aware code, so neither is a
-  product defect, but no document should claim the repository is green: the
-  claim that holds is that the five documented commands are.
-- **Branch:** `governance-layer`, **clean as of 2026-08-30**, **59** commits ahead
-  of `main` (re-check with `git rev-list --count main..HEAD`; the number moves
+- **The verification set is six commands as of 2026-08-31**, not five. The sixth
+  is `tsgo:test:src`, which typechecks every test file under `src/` and had
+  **never been run in this fork** — so until that day a test could reference a
+  symbol that does not exist and pass, with the assertion silently reading
+  `undefined` (finding 162). It reported 189 errors; T37 took it to zero and
+  then added it, in that order, because a gate that is red on arrival teaches
+  everyone to skip it.
+- ~~Two tests outside the verification commands fail on Windows and always
+  have.~~ **Fixed 2026-08-31** (finding 148), once the recorded reason for not
+  fixing them — that it edits two upstream test files — was questioned and did
+  not survive: T25 had already paid exactly that cost for eight files of the
+  same class. **The caveat it taught outlives its own fix and must not be
+  deleted with it:** the six commands are not the repository, and
+  `tsgo:test:src` covers `src/` and not `ui/`, `test/` or `packages/` (T39).
+  No document should claim the repository is green; the claim that holds is that
+  the six documented commands are.
+- **Branch:** `governance-layer`, **clean as of 2026-08-31**, and everything is
+  pushed — `git log --oneline personal/governance-layer..HEAD` is empty. The
+  commit count ahead of `main` is deliberately not stated here any more: it has
+  been wrong in this line three times, and `git rev-list --count main..HEAD` is
+  one command. **Historic detail follows, and its numbers are dated.** ~~**59** commits ahead
+  of `main`~~ (re-check with `git rev-list --count main..HEAD`; the number moves
   with every commit and should not be trusted from a document — this line said
   "clean as of 2026-08-24, 22 commits ahead" until it was measured, and was wrong
   on both halves, then "47" until 2026-08-30). M5, M6, T7's audit half, T29, T30,

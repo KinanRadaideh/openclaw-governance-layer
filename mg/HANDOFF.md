@@ -1,32 +1,49 @@
 # Handoff — read this first
 
-**Written 2026-08-19, current as of 2026-08-27.** The single entry
-point for whoever picks this project up next, whether that is a teammate, a
-supervisor, or the same person after a break. Everything else in `mg/` is detail
-beneath this.
+**Written 2026-08-19. Current as of 2026-08-31.** The single entry point for
+whoever picks this project up next — a teammate, a supervisor, or the same person
+after a break. Everything else in `mg/` is detail beneath this.
 
-> **If you read three things:** §1 for the state, §6 for what is left, and §7's
-> caveats. **The push is done as of 2026-08-28** — the private remote moved from
-> the 2026-08-21 tip `e5a7876431b` to `2916aebb206`, carrying 35 commits, and
-> for the first time in a week the work exists somewhere other than this machine
-> and OneDrive. Re-measure with
-> `git log --oneline personal/governance-layer..HEAD | wc -l` rather than
-> trusting this sentence; it is the number this file has got wrong most often.
+> ## Start here
 >
-> **The working tree is clean as of 2026-08-27**, and that is new. For most of
-> August it was not: M5, M6, T7's audit half, T29, T30, finding 120's fix and QA
-> rounds nineteen to twenty-one all sat uncommitted at once — 113 entries, eleven
-> of them untracked files that a careless `git checkout .` would have destroyed.
-> They are now in **three** commits, `76a0a51` (code), `add4f9c` (documentation)
-> and `79c9618` (the documentation sweep that followed).
-> **What is left is the push**, and nothing else stands between this work and
-> the only off-machine copy.
+> **Read §1 for the state, §6 for what is left, §7 for the caveats.** If you have
+> five minutes, read §1's **2026-08-31** entry alone: it is the largest day in the
+> project's history and it changes what "left to do" means.
 >
-> **The count said 32 until 2026-08-28, and why it was wrong is the point.** It
-> was written into the documentation _by_ `79c9618`, the commit that made it 33 —
-> a number measured before the act that changed it and then committed as though
-> it described the result. Same shape as every other stale claim this file
-> records. Re-measure; do not trust the number in the prose, including this one.
+> ### Where things stand, in four lines
+>
+> - **Built and verified; still never demonstrated.** Eight of nine design
+>   requirements fully met. **2,372 tests across 119 files**, six verification
+>   commands, all green. No known security gap.
+> - **The engineering is finished.** Every item on the original backlog that was
+>   code is done — T32 and T34 closed on 2026-08-31 and were the last two.
+> - **What remains is mostly yours**: a live run (T2), a Linux host (T3), a read
+>   (T13), the figures (T17), the report (T18), one email decision (T41). Three
+>   small items are Claude's (T38–T40).
+> - **The tree is clean and everything is pushed.** Verify both rather than
+>   believing this line — it is the claim this file has got wrong most often.
+>
+> ```bash
+> git status --porcelain
+> ```
+>
+> ```bash
+> git log --oneline personal/governance-layer..HEAD
+> ```
+>
+> ### The one habit this file asks of you
+>
+> **Re-measure before you repeat a number, including a number in this paragraph.**
+> Every stale claim this project has recorded — and there are now a dozen — was
+> true when written. The count of tasks was wrong for four days running; the test
+> total moved eight times on 2026-08-31 alone; this file's own opening block
+> described a _pending push_ for three days after it had been done. Nothing here
+> is dishonest. It is what happens when a fact is stated in prose and the prose
+> is not re-derived.
+>
+> _(The block that stood here described the 2026-08-28 push and a tree that had
+> since changed twice. Replaced rather than appended to, which is the rule §6 now
+> states explicitly: state the measurement and its date, and replace it.)_
 
 ---
 
@@ -133,24 +150,118 @@ intent** field records what the model said it was doing, and while every piece o
 it is unit-tested, the one thing only a live run can confirm is that the capture
 fires before the tool calls of the same turn.
 
-**There are two backlogs now.** `REMAINING-WORK.md` §"The numbered backlog"
-holds **T1–T32**, the original project, and supersedes every older list.
-§"The M-series" holds **M1–M6**, a multi-tenancy feature requested on
-2026-08-24 and added on top — **all six are done as of 2026-08-27**. M4 gave the layer a
-first-class agent record, which M6 was said to be blocked on; in the event M5
-unblocked it by making registration mandatory, and M6 closed two days later. **Twenty-five of thirty-three T-items are done** (re-counted 2026-08-30; this
-read "twenty-four of thirty-two" and listed T31 as outstanding, which was written
-before T31 and T33 closed on 2026-08-28). T1 is deprioritised and counted as
-neither done nor outstanding, so **seven are genuinely outstanding: T2, T3, T7
-(prevention half — **closed 2026-08-30**, so six remain), T13, T17, T18, T32** — T13 among them because the answer is
-drafted and the remaining work, reading it until you can give it without notes,
-is yours
-(T26 and T27 were added 2026-08-24 for work that shipped on the 22nd and had
-never been entered; T28 was added and closed on the 25th; T29–T32 were added on
-the 26th, and T29 and T30 closed the same day). **T8 is closed** — 2026-08-26,
-by decision — so any older sentence listing it as outstanding is stale. The old letters
-(A-, B-, F-, R5, G) survive only as a `Ref` column pointing at their historical
-write-ups; nothing is orphaned.
+**There are two backlogs.** `REMAINING-WORK.md` §"The numbered backlog" holds
+**T1–T41**, the original project plus everything added since, and supersedes
+every older list. §"The M-series" holds **M1–M6**, a multi-tenancy feature
+requested 2026-08-24 and **complete since 2026-08-27**.
+
+**Measured 2026-08-31: 30 done, 8 open; T1 and T41 are not being done.**
+
+| Open    | Who    | What                                                                                       |
+| ------- | ------ | ------------------------------------------------------------------------------------------ |
+| **T2**  | You    | One real agent driving one real tool call. **Still the highest-value item on the project** |
+| **T3**  | You    | A Linux host. The only design requirement not fully met                                    |
+| **T13** | You    | Read the prompt-injection answer until you can give it without notes                       |
+| **T17** | You    | Redraw the figures — or decide Claude drafts them                                          |
+| **T18** | You    | The report                                                                                 |
+| **T38** | Claude | Drive the dashboard by hand. Everything since 2026-08-24 is unrendered                     |
+| **T39** | Claude | The three test-typecheck configs T37 did not cover                                         |
+| **T40** | Claude | A CLI for rule requests                                                                    |
+
+**Every item on the original backlog that was engineering is done.** T32 and T34
+closed on 2026-08-31 and were the last two; T38–T40 were added the same evening by
+asking what was outstanding that this file did not say.
+
+**Do not trust the table above; re-read the source.** It has been wrong in this
+file more often than any other claim — it said "T1–T32" for four days after the
+list reached T37, and listed T7 and T31 as open after both had closed. The
+authoritative list is `REMAINING-WORK.md` §"The numbered backlog", and its own
+count paragraph has duplicated itself twice under scripted edits.
+
+**T8 is closed** (2026-08-26, by decision), so any older sentence listing it as
+outstanding is stale. The old letters (A-, B-, F-, R5, G) survive only as a
+`Ref` column pointing at their historical write-ups; nothing is orphaned.
+
+### 2026-08-31 — the backlog's engineering finished, and four QA rounds
+
+**Read this before anything else if you are picking the project up.** It is the
+largest single day in the project's history and it changes what "left to do"
+means: **every remaining item is now Kinan's, or is one of three small ones
+Claude added that evening.**
+
+#### What closed
+
+|         |                                                                                              |
+| ------- | -------------------------------------------------------------------------------------------- |
+| **T32** | Folder grants with exceptions, as one act. The last engineering item on the original backlog |
+| **T34** | The three-surfaces rule, audited and **narrowed**                                            |
+| **T35** | The audit actor type — a guard shipped, and a stronger version measured and rejected         |
+| **T36** | The requirements validation table re-derived from the code                                   |
+| **T37** | 189 test-typecheck errors to zero, then added to the verification set                        |
+
+**T32's decision is worth reading before touching policy authoring.** It was
+blocked for weeks on a decision that **dissolved rather than being taken** —
+both routes it offered for T7 had been described wrongly. A new decision
+replaced it, and Kinan chose **option A**: the control is authorable for every
+agent, and the limit is stated **on the rule row** rather than only in the dialog,
+because a policy is written once and read for months by somebody who did not
+write it.
+
+**T34 changed a rule, and that matters more than the two commands it produced.**
+The project asserted, in its own code, that a capability reaching only two of the
+three surfaces is unfinished. Nobody had measured it; it was false of four
+capability groups. Writing the four reasons out first — Kinan's instruction —
+found that **two of my four predicted reasons were wrong**, and I would have kept
+two capabilities dashboard-only for reasons that are not true. The rule now
+reads: _every capability reaches all three surfaces unless a stated reason says
+otherwise_, and the reasons live in `CLI-REFERENCE.md` §2d.
+
+#### Four QA rounds, twenty-one findings
+
+Rounds **twenty-nine to thirty-two** (the Codex feature; everything else since
+round twenty-eight; a universal sweep; the day's own work against the
+documentation), then **thirty-three** on T32, then **thirty-four** on a randomly
+drawn fifth of the layer.
+
+**Findings 150–171. The two that change how you should read this project:**
+
+- **164** — T7's two ledger ids stay honest only because `agent-loop.ts`
+  finalizes a tool call _before_ it emits the event the audit half observes.
+  Reverse that ordering and **every existing test stays green** while the ledger
+  quietly starts reporting a leak for every path the filter successfully stopped.
+  It is upstream code this fork does not own. Pinned by a regression test.
+- **168** — the folder-grant explainer promised something that did not exist yet.
+  **Finding 150 again, by the author of finding 150's write-up, eight hours later,
+  about the same feature.** Knowing the failure mode did not prevent it; the QA
+  round caught it.
+
+**One remains open: 169.** A suite run reported one failure that three later runs
+did not reproduce, and the test was never identified because the output was piped
+through a filter that discarded the name. Recorded rather than dismissed — this
+project has had three load-sensitive tests already.
+
+#### What the day says about the project, for Chapter 4
+
+**Findings 81, 120, 152 and 164 are one sentence four times**: the enforcement
+was right and the _evidence_ was wrong. A control whose value is retrospective
+fails silently, because nothing is broken until somebody asks — and by then the
+moment it was describing has passed.
+
+**Round thirty-four's two findings are the other recurring shape**, and it is now
+the dominant one: neither is the code doing the wrong thing. Both are the code
+and its description drifting apart — a comment outliving its behaviour, and a
+safety property true by an argument living outside the file. **Tests do not catch
+that class**, which is the argument for the QA rounds existing at all.
+
+#### The counts, and a warning about them
+
+**2,372 tests across 119 files**, dashboard 92/5, host baseline 263/0, both
+typechecks clean, `tsgo:test:src` at zero, oxlint clean. **The verification set is
+now six commands**, not five.
+
+**Do not quote those numbers without re-measuring.** They moved eight times on
+2026-08-31 alone, and this file's own count paragraph duplicated itself twice
+that day under scripted edits.
 
 ### 2026-08-30 — T7 closed where it can be, and the backend it cannot reach put behind two switches
 
@@ -761,9 +872,14 @@ but the evaluation order that moving changes, which it does not.**
 
 #### Where things stand
 
-**Written 2026-08-25 and superseded three times since.** As of 2026-08-27 the
-outstanding T-items are **T2, T3, T7 (prevention), T17, T18, T31, T32**, plus
-T13 to read and T1 deprioritised — T8 closed on the 26th. **No substantial
+> **This paragraph is a snapshot of 2026-08-27, kept as one.** Its list is five
+> generations out of date and is _not_ the answer to "what is left" — §1 and §6
+> are. It is here because the entry around it records that day's work.
+
+**Written 2026-08-25 and superseded five times since.** As of 2026-08-27 the
+outstanding T-items were **T2, T3, T7 (prevention), T17, T18, T31, T32**, plus
+T13 to read and T1 deprioritised — T8 closed on the 26th. Of those, **T7, T31 and
+T32 have all since closed.** **No substantial
 engineering is left**: M5 landed on the 26th/27th and **M6 closed on the 27th**,
 completing the M-series. All eleven decisions listed in
 `REMAINING-WORK.md` §"Open before M5 or M6 starts" are answered.
@@ -840,7 +956,7 @@ backlog.**
   M4 gave the layer an agent **record**, which M6 was blocked on. See §6 and
   `REMAINING-WORK.md` §"The M-series".
 
-> ### ⏭ When M is finished, come back to T32
+> ### ⏭ ~~When M is finished, come back to T32~~ — **T32 closed 2026-08-31**
 >
 > **T8 is closed** (2026-08-26, by decision): connecting an agent to a channel is
 > itself the permission, the specification names three resource categories and
@@ -906,7 +1022,7 @@ The work now exists in three places rather than one.
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `mg/HANDOFF.md`                   | This file. State, next actions, how to verify                                                                                                                                        |
 | `mg/PROJECT-SUMMARY.md`           | What the project _is_ — problem, design, where every file lives                                                                                                                      |
-| `mg/REMAINING-WORK.md`            | **Two backlogs.** §"The numbered backlog" (T1–T32) is the project; §"The M-series" (M1–M6, **complete**) is the multi-tenancy feature added on top. Everything below them is history |
+| `mg/REMAINING-WORK.md`            | **Two backlogs.** §"The numbered backlog" (T1–T41) is the project; §"The M-series" (M1–M6, **complete**) is the multi-tenancy feature added on top. Everything below them is history |
 | `mg/SESSION-LOG-2026-08.md`       | Narrative of how the work was done and why decisions went the way they did                                                                                                           |
 | `GOVERNANCE.md`                   | Operator overview + the full engineering defect table, findings 1–130 across nineteen rounds and the M-series build                                                                  |
 | `docs-notes/CHAPTER3-MATERIAL.md` | **Report source material**, keyed to section numbers. Start here for Ch. 3–4                                                                                                         |
@@ -1096,14 +1212,14 @@ node scripts/run-tsgo.mjs -p test/tsconfig/tsconfig.test.src.json
 Expected, and **every row below re-measured on 2026-08-27** (the table said
 "measured 2026-08-25", which predated M5):
 
-| Command                  | Expected                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Governance suite         | **2,341 passed across 116 files** — measured 2026-08-31 after T35, T36 and T37. Was 2,338/115 before T37's ordering regression test; 2,332/114 after QA rounds twenty-nine to thirty-two. Was 2,325/114 after the Root backend CLI (`codex-backend-cli.test.ts`, 8 tests including two that pin the Root tier); 2,317/113 on 2026-08-30 after the two Codex switches; 2,282/111 after T7 prevention and the one-organisation cap; 2,264/109 before that day. **The two Windows failures §1 used to name are gone** — finding 148 was fixed on 2026-08-31, so `logger-redaction-behavior.test.ts` and `io.audit.test.ts` now pass too (42/42), and they are still **outside** these five commands. That scope caveat is the durable point and it survives the fix: **these five commands are not the repository.** Two runs on 2026-08-30 reported failures that did not exist, both because a mutation experiment shared a working tree with a suite in flight — a suite and a mutation cannot share a tree |
-| `tsgo:core`              | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `tsgo:ui`                | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| Host suites (both)       | **263 passed, 0 failed** — re-run 2026-08-27, exact match. **263 = 192 (`native-hook-relay.test.ts`) + 71 (`host-hooks.contract.test.ts`)**; older notes below quote the 192 alone and are not contradicting this row                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `tsgo:test:src`          | **clean, as of 2026-08-31 (T37)** — from a baseline of 189. It typechecks every `.test.ts` under `src/`, which the other two typechecks explicitly exclude. Fixing those 189 changed **no test result**: 2,338 passed before and after, which is the evidence the pass corrected types rather than assertions                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| oxlint over `src ui/src` | **Every non-test file under `src/governance/` and `ui/src/pages/governance/` is clean as of 2026-08-26.** The row here used to say "clean, except four pre-existing errors in `file-lock.ts` and `audit-ledger.ts`" and **that was false** — there were 24, across 18 files; the row named two of them. Twelve were fixed (the four documented ones plus eight more in `agent-terminator.ts`, `user-store.ts`, `rule-validation.ts`, `active-sessions.ts` and `attachment-store.ts`), three of those as `oxlint-disable-next-line` with a stated reason where the rule's suggested fix would have been _wrong_ — `no-map-spread` recommends in-place mutation, and all three sites copy on purpose so a caller's object is not changed underneath them. **16 errors remain and all of them are in `.test.ts` files** across **14** files, not 13 — re-counted 2026-08-27 with `oxlint …                                                                                                                     | grep ': error' | sed 's/:.*//' | sort -u | wc -l`(shadowed names,`filter(...)[0]`, an unused import, `sort()`over`toSorted()`, a `return` in a Promise executor, a dangling underscore); tracked as **T31**. **`max-lines`reports zero errors repo-wide**, so T16 is closed. **Both halves of this row were false when written on 2026-08-27 and are true again as of 2026-08-28 (finding 136).** M6 had taken`governance-page.ts`to 703 code lines against the 700 limit, so the real count was **17 errors across 15 files, one of them production code** — and the sentence asserting`max-lines`clean was written in the documentation pass that followed the commit which broke it. Fixed by moving`renderFreshness`into`panels/oversight-panels.ts`, the last markup still living in the page T16 split to hold state and effects only. **Run the command; do not read this cell and believe it.** |
+| Command                  | Expected                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Governance suite         | **2,372 passed across 119 files** — measured 2026-08-31 on the committed tree, after T32, T34 and QA rounds twenty-nine to thirty-four. It moved eight times that day: 2,364/118 after T32; 2,352/117 before its QA fixes; 2,341/116 after T37; 2,338/115; 2,332/114; 2,325/114; 2,317/113; 2,282/111. **Re-measure rather than quoting this.** One run on 2026-08-31 reported a single failure that three later runs did not reproduce and that was never identified, because the output was piped through a filter that discarded the name (finding 169) — so the honest sentence is _three clean runs and one unexplained failure_, not _the suite is green_. Two runs on 2026-08-30 reported failures that did not exist at all, both because a mutation experiment shared a working tree with a suite in flight: **a suite and a mutation cannot share a tree**                    |
+| `tsgo:core`              | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `tsgo:ui`                | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Host suites (both)       | **263 passed, 0 failed** — re-run 2026-08-27, exact match. **263 = 192 (`native-hook-relay.test.ts`) + 71 (`host-hooks.contract.test.ts`)**; older notes below quote the 192 alone and are not contradicting this row                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `tsgo:test:src`          | **clean, as of 2026-08-31 (T37)**, and note the scope: it covers `src/` only. `tsgo:test:ui`, `test:root` and `test:packages` exist upstream and have **never been run here** (T39), so `ui/`'s five governance test files are typechecked by nothing. Originally — from a baseline of 189. It typechecks every `.test.ts` under `src/`, which the other two typechecks explicitly exclude. Fixing those 189 changed **no test result**: 2,338 passed before and after, which is the evidence the pass corrected types rather than assertions                                                                                                                                                                                                                                                                                                                                           |
+| oxlint over `src ui/src` | **Every non-test file under `src/governance/` and `ui/src/pages/governance/` is clean as of 2026-08-26.** The row here used to say "clean, except four pre-existing errors in `file-lock.ts` and `audit-ledger.ts`" and **that was false** — there were 24, across 18 files; the row named two of them. Twelve were fixed (the four documented ones plus eight more in `agent-terminator.ts`, `user-store.ts`, `rule-validation.ts`, `active-sessions.ts` and `attachment-store.ts`), three of those as `oxlint-disable-next-line` with a stated reason where the rule's suggested fix would have been _wrong_ — `no-map-spread` recommends in-place mutation, and all three sites copy on purpose so a caller's object is not changed underneath them. **16 errors remain and all of them are in `.test.ts` files** across **14** files, not 13 — re-counted 2026-08-27 with `oxlint … | grep ': error' | sed 's/:.*//' | sort -u | wc -l`(shadowed names,`filter(...)[0]`, an unused import, `sort()`over`toSorted()`, a `return` in a Promise executor, a dangling underscore); tracked as **T31**. **`max-lines`reports zero errors repo-wide**, so T16 is closed. **Both halves of this row were false when written on 2026-08-27 and are true again as of 2026-08-28 (finding 136).** M6 had taken`governance-page.ts`to 703 code lines against the 700 limit, so the real count was **17 errors across 15 files, one of them production code** — and the sentence asserting`max-lines`clean was written in the documentation pass that followed the commit which broke it. Fixed by moving`renderFreshness`into`panels/oversight-panels.ts`, the last markup still living in the page T16 split to hold state and effects only. **Run the command; do not read this cell and believe it.** |
 
 **All five re-run and green on 2026-08-27**, after M5. The suite figure
 has moved **sixteen** times across three days — 1,794/87, 1,802/88, 1,877/91, 1,901/94,
@@ -1239,6 +1355,11 @@ regression introduced here.
 ---
 
 ## 5. What was done in the most recent stretch of work
+
+> **The most recent stretch is 2026-08-31, and it is written up in §1** rather
+> than here, because it changes what is left rather than only what was done.
+> This section is the record of earlier sessions and is not maintained forward;
+> the entries below are dated and should be read as dated.
 
 ### 2026-08-28 / 29 — the whole session, in order
 
@@ -1866,16 +1987,30 @@ backwards when the language stops being allow-only. Report material:
 
 **Two lists, and they are different kinds of thing.**
 
-| List                                                     | What it is                                                    | State                             |
-| -------------------------------------------------------- | ------------------------------------------------------------- | --------------------------------- |
-| `REMAINING-WORK.md` §"The numbered backlog" — **T1–T33** | The original project: build the layer, verify it, defend it   | 25 done, 7 open, T1 deprioritised |
-| `REMAINING-WORK.md` §"The M-series" — **M1–M6**          | A multi-tenancy feature requested 2026-08-24 and added on top | **COMPLETE** (6 of 6)             |
+| List                                                     | What it is                                                    | State                                          |
+| -------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------- |
+| `REMAINING-WORK.md` §"The numbered backlog" — **T1–T41** | The original project, plus everything added since             | **30 done, 8 open**; T1 and T41 not being done |
+| `REMAINING-WORK.md` §"The M-series" — **M1–M6**          | A multi-tenancy feature requested 2026-08-24 and added on top | **COMPLETE** (6 of 6)                          |
 
-_(Re-counted 2026-08-30. The row read "T1–T32 · 24 done, 8 left" until then,
-which was written before T31 and T33 closed on 2026-08-28. Several older
-paragraphs in this file said "four done, two not started" and one M-series row
-said M5 was not started; all were written before M5 landed and have been
-corrected.)_
+**The nine open, and who has to move.**
+
+| #       | Who    | What                                                                                                                                                       |
+| ------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **T2**  | You    | **Run it once with a real model driving a real tool call.** Still the highest-value item on the project, and the only one that changes how Chapter 4 reads |
+| **T3**  | You    | Deploy to a Linux host. The one design requirement not fully met; T33 made the build work                                                                  |
+| **T13** | You    | Read the prompt-injection answer (§4.x.26) until you can give it without notes                                                                             |
+| **T17** | You    | Redraw the figures — 21 candidates marked. Or decide Claude drafts them for approval                                                                       |
+| **T18** | You    | Write Chapters 3, 4 and the conclusion                                                                                                                     |
+| **T38** | Claude | **Drive the dashboard by hand.** Everything since 2026-08-24 is unrendered; see §7 caveat 6                                                                |
+| **T39** | Claude | The three test-typecheck configs T37 did not cover                                                                                                         |
+| **T40** | Claude | A CLI for rule requests — §2d of the CLI reference names it as the first thing to revisit                                                                  |
+
+**T1 and T41 are not being done** and are counted as neither done nor open. T41 — the supervisor email — was **cancelled by Kinan on 2026-08-31**.
+
+_(Re-counted 2026-08-31. This row has been wrong more often than any other line
+in this file: it read "T1–T32 · 24 done, 8 left", then "T1–T33 · 25 done, 7",
+each written before the closures that changed it. The list is now T1–T41 and the
+count is measured against the rows, not carried forward. **Count the rows.**)_
 
 Quote the task numbers; the old letters (A-, B-, F-, R5, G) survive only as a
 `Ref` column pointing at their historical write-ups.
@@ -1988,7 +2123,13 @@ git log --oneline personal/governance-layer..HEAD
 > **The rule this section now follows: state the measurement and its date, and
 > replace it rather than adding to it.**
 
-### Needs you — three decisions and one machine
+### Needs you — a machine, a session, a read, and two judgements
+
+_(Heading corrected 2026-08-31: it read "three decisions and one machine", which
+was written when T7, T32 and `--http-password` were all undecided. All three are
+settled — two were built rather than decided. **T17 and T41 are the judgements
+now**, and T41 is not in the table below because it was added the same evening;
+see §6.)_
 
 | #           | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Effort   |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
@@ -2011,18 +2152,22 @@ git log --oneline personal/governance-layer..HEAD
 > moment anything closes**, because closing one item is the most common way
 > another becomes available. Read the numbered backlog rather than this note.
 >
-> What still needs Kinan: a live model (T2), a server (T3), a judgement about the
-> report's look (T17), the writing itself (T18), thirty minutes of reading (T13).
-> **Two decisions are outstanding: T34 and T32.** ~~No decisions are
-> outstanding~~ — written earlier on 2026-08-31 and wrong within the hour, in the
-> way this file is always wrong: it generalised from the decision that had just
-> dissolved to the whole category. **T34** (what the three-surfaces rule
-> promises) was raised by finding 158 the same day. **T32** needs one too, and it
-> is a _new_ decision rather than the old one — see `REMAINING-WORK.md`
-> §"T32's decision, restated 2026-08-31". T7 prevention was built on 2026-08-30 rather
-> than decided, `--http-password` was decided and built on 2026-08-29 (finding
-> 147), and T8's remaining question is settled and is not being reopened. The
-> rows below are kept as the record of what was done.
+> **Three items became Claude's on 2026-08-31: T38, T39 and T40.** T32 and T34
+> both closed that day, so the two decisions this paragraph used to list are gone
+> — and were replaced within hours by three items nobody had written down, found
+> by asking what was outstanding that the backlog did not _say_ was outstanding.
+>
+> **That is the pattern, and it is why this note keeps being wrong.** This
+> section has recorded "there is nothing left for me to do" twice, and both times
+> the emptiness was an artefact of nobody having looked recently rather than of
+> the work being finished.
+>
+> What still needs Kinan: a live model (T2), a server (T3), a read (T13), the
+> figures (T17), and the report (T18). **No decisions are outstanding as of
+> 2026-08-31** — and that sentence has been written prematurely once already
+> today, so check §6's table rather than believing it.
+>
+> The rows below are kept as the record of what was done.
 
 | #           | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Effort   |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
@@ -2171,8 +2316,23 @@ Stated here so they are not discovered late.
    candidates were disproved by driving it** and are recorded so nobody "fixes"
    them: Governance _is_ in the settings navigation, and Delete on the Root row
    is legitimate (emptying the account list entirely is a permitted teardown).
-   The remaining honest qualifier is narrower: the _prompting_ path has still
-   never been watched with a live model behind it, which is T2 (formerly A9).
+   **And it has not been driven since 2026-08-24 — this caveat needed re-opening,
+   not retiring (T38, added 2026-08-31).** Everything shipped in the week after
+   that pass has been verified by typecheck, lint and jsdom component tests, and
+   by nothing that renders it: the Codex backend panel and its two dialogs, the
+   per-agent Codex toggle on every agent row, the folder-grant form with its
+   explainer and its written-rules list, the per-rule note about searches on
+   Codex, and finding 150's narrowed search caveat.
+
+   **The five defects that pass found were not a kind a component test catches** —
+   a title, a missing confirmation, a stuck loading state, ten unnamed controls —
+   and every one of them was in code whose tests were green. There is no reason
+   to think a week of new interface is different. **"Driven by hand twice" is
+   true and, said without a date, misleading.**
+
+   The other honest qualifier is unchanged: the _prompting_ path has still never
+   been watched with a live model behind it, which is T2.
+
 7. **A chat user is not a governance account.** The four tiers govern the
    dashboard; a person messaging the bot on Discord is authenticated by that
    channel's access controls, and their activity is attributed to the agent.
