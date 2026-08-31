@@ -17,6 +17,9 @@ import {
 import { defaultPolicyDocument } from "./policy-types.js";
 import { seedGroupWithAgents } from "./test-group.js";
 
+/** The operator these tests act as (T37); the actor was omitted entirely before. */
+const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
+
 let dir: string;
 /**
  * The organisation this suite's agents belong to (M5).
@@ -485,8 +488,8 @@ describe("per-agent HITL override (design doc §1.6)", () => {
   });
 
   it("clearing an override restores the default rather than pinning a value", async () => {
-    await setAgentAskMode(TEST_GROUP, "agent-a", "off");
-    await setAgentAskMode(TEST_GROUP, "agent-a", undefined);
+    await setAgentAskMode(TEST_GROUP, "agent-a", "off", TEST_ACTOR);
+    await setAgentAskMode(TEST_GROUP, "agent-a", undefined, TEST_ACTOR);
     await updatePolicy(TEST_GROUP, (doc) => {
       doc.ask = "on-miss";
     });
@@ -504,7 +507,7 @@ describe("per-agent HITL override (design doc §1.6)", () => {
   it("does not let an override bypass a matching allow rule", async () => {
     // The override changes what happens on a *miss*, never whether a rule matches.
     await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "tester");
-    await setAgentAskMode(TEST_GROUP, "agent-a", "off");
+    await setAgentAskMode(TEST_GROUP, "agent-a", "off", TEST_ACTOR);
     expect(
       verdict(
         await evaluateGovernancePolicy(
@@ -517,7 +520,7 @@ describe("per-agent HITL override (design doc §1.6)", () => {
 
   it("does not let an override bypass a lockdown", async () => {
     await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, "tester");
-    await setAgentAskMode(TEST_GROUP, "agent-a", "on-miss");
+    await setAgentAskMode(TEST_GROUP, "agent-a", "on-miss", TEST_ACTOR);
     await updatePolicy(TEST_GROUP, (doc) => {
       doc.lockedAgents = ["agent-a"];
     });

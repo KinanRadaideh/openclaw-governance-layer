@@ -19,6 +19,16 @@ import type { GovernanceSession } from "../governance/session-tokens.js";
 import { seedGroupWithAgents } from "../governance/test-group.js";
 import { handleGovernanceApiRequest } from "./governance-dashboard-api.js";
 
+/**
+ * The operator these tests act as (T37).
+ *
+ * These calls omitted the actor entirely, which typechecked only because no
+ * test file was ever typechecked (finding 162). At runtime the omission
+ * recorded every one of these actions against `unknown`, so the suite was
+ * exercising the audit trail's *fallback* path rather than its ordinary one.
+ */
+const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
+
 let dir: string;
 
 /** The organisation this suite's agents belong to (M5). Per-group storage means
@@ -203,17 +213,29 @@ describe("agent scope", () => {
   });
 
   it("authorizes rule removal against the rule's stored scope, not the caller's claim", async () => {
-    const globalRule = await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^global$" });
-    const foreignRule = await addRule(TEST_GROUP, {
-      resourceKind: "command",
-      pattern: "^foreign$",
-      agentId: "agent-b",
-    });
-    const ownRule = await addRule(TEST_GROUP, {
-      resourceKind: "command",
-      pattern: "^own$",
-      agentId: "agent-a",
-    });
+    const globalRule = await addRule(
+      TEST_GROUP,
+      { resourceKind: "command", pattern: "^global$" },
+      TEST_ACTOR,
+    );
+    const foreignRule = await addRule(
+      TEST_GROUP,
+      {
+        resourceKind: "command",
+        pattern: "^foreign$",
+        agentId: "agent-b",
+      },
+      TEST_ACTOR,
+    );
+    const ownRule = await addRule(
+      TEST_GROUP,
+      {
+        resourceKind: "command",
+        pattern: "^own$",
+        agentId: "agent-a",
+      },
+      TEST_ACTOR,
+    );
     const user = session("user", ["agent-a"]);
     expect((await call("POST", "policy/rules/remove", user, { id: globalRule.id })).status).toBe(
       403,
@@ -240,9 +262,17 @@ describe("agent scope", () => {
   });
 
   it("hides another agent's rules from a scoped account's policy read", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^global$" });
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^a$", agentId: "agent-a" });
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^b$", agentId: "agent-b" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^global$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "command", pattern: "^a$", agentId: "agent-a" },
+      TEST_ACTOR,
+    );
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "command", pattern: "^b$", agentId: "agent-b" },
+      TEST_ACTOR,
+    );
     const result = await call("GET", "policy", session("user", ["agent-a"]));
     const patterns = (result.body as { rules: { pattern: string }[] }).rules.map((r) => r.pattern);
     expect(patterns).toContain("^global$");

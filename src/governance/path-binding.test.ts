@@ -23,6 +23,16 @@ import { addRule, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
 import { seedGroupWithAgents } from "./test-group.js";
 
+/**
+ * The operator these tests act as (T37).
+ *
+ * These calls omitted the actor entirely, which typechecked only because no
+ * test file was ever typechecked (finding 162). At runtime the omission
+ * recorded every one of these actions against `unknown`, so the suite was
+ * exercising the audit trail's *fallback* path rather than its ordinary one.
+ */
+const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
+
 let dir: string;
 let workspace: string;
 let outside: string;
@@ -82,7 +92,11 @@ describe("T23 — the gate binds the call to the path it judged", () => {
     // calls it was never meant to touch, and the parameters stop being
     // byte-identical for every consumer below the gate: skill-workshop
     // approval, voice confirmation, trusted tool policies, plugin hooks.
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^safe/.*$", access: "read" });
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "path", pattern: "^safe/.*$", access: "read" },
+      TEST_ACTOR,
+    );
     const decision = await evaluateGovernancePolicy(
       { toolName: "read", params: { path: "safe/notes.txt" } },
       ctx(),
@@ -115,7 +129,11 @@ describe("T23 — the gate binds the call to the path it judged", () => {
     }
     // Allow the *resolved* location, so the call is permitted and we are
     // testing the binding rather than the verdict.
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^safe/.*$", access: "read" });
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "path", pattern: "^safe/.*$", access: "read" },
+      TEST_ACTOR,
+    );
     const decision = await evaluateGovernancePolicy(
       { toolName: "read", params: { path: "via-link/notes.txt" } },
       ctx(),
@@ -131,7 +149,11 @@ describe("T23 — the gate binds the call to the path it judged", () => {
     if (!(await link(join(workspace, "safe"), linkPath))) {
       return;
     }
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^safe/.*$", access: "write" });
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "path", pattern: "^safe/.*$", access: "write" },
+      TEST_ACTOR,
+    );
     const decision = await evaluateGovernancePolicy(
       { toolName: "edit", params: { file_path: "via-link-2/notes.txt" } },
       ctx(),
@@ -147,7 +169,11 @@ describe("T23 — the gate binds the call to the path it judged", () => {
     // `derivedPaths` is host-derived and already absolute; there is no
     // parameter to rebind, and inventing one would write a field the tool does
     // not read.
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^safe/.*$", access: "write" });
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "path", pattern: "^safe/.*$", access: "write" },
+      TEST_ACTOR,
+    );
     const decision = await evaluateGovernancePolicy(
       {
         toolName: "apply_patch",
@@ -185,7 +211,11 @@ describe("T23 — the gate binds the call to the path it judged", () => {
     if (!(await link(join(workspace, "safe"), linkPath))) {
       return;
     }
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^safe/.*$", access: "read" });
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "path", pattern: "^safe/.*$", access: "read" },
+      TEST_ACTOR,
+    );
     const decision = await evaluateGovernancePolicy(
       { toolName: "read", params: { path: "via-link-4/notes.txt" } },
       ctx(),
@@ -208,7 +238,11 @@ describe("T23 — the gate binds the call to the path it judged", () => {
     if (!(await link(join(workspace, "safe"), linkPath))) {
       return;
     }
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^safe/.*$", access: "read" });
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "path", pattern: "^safe/.*$", access: "read" },
+      TEST_ACTOR,
+    );
     const decision = await evaluateGovernancePolicy(
       { toolName: "read", params: { path: "via-link-5/notes.txt" } },
       ctx(),

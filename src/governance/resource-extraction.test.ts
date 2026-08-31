@@ -7,6 +7,16 @@ import { addRule, savePolicy, updatePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
 import { seedGroupWithAgents } from "./test-group.js";
 
+/**
+ * The operator these tests act as (T37).
+ *
+ * These calls omitted the actor entirely, which typechecked only because no
+ * test file was ever typechecked (finding 162). At runtime the omission
+ * recorded every one of these actions against `unknown`, so the suite was
+ * exercising the audit trail's *fallback* path rather than its ordinary one.
+ */
+const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
+
 let dir: string;
 
 /** The organisation this suite's agents belong to (M5). Per-group storage means
@@ -67,7 +77,7 @@ describe("resource extraction edge cases", () => {
   });
 
   it("matches path rules written with forward slashes on Windows-style paths", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^src/allowed[.]ts$" });
+    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^src/allowed[.]ts$" }, TEST_ACTOR);
     const decision = await evaluateGovernancePolicy(
       { toolName: "write", params: { path: "src\\allowed.ts" } },
       ctx,
@@ -76,7 +86,7 @@ describe("resource extraction edge cases", () => {
   });
 
   it("reads a path from either path or file_path", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^ok[.]txt$" });
+    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^ok[.]txt$" }, TEST_ACTOR);
     expect(
       verdict(
         await evaluateGovernancePolicy({ toolName: "read", params: { path: "ok.txt" } }, ctx),
@@ -90,7 +100,7 @@ describe("resource extraction edge cases", () => {
   });
 
   it("governs bash the same way it governs exec", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^echo .*$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^echo .*$" }, TEST_ACTOR);
     expect(
       verdict(
         await evaluateGovernancePolicy({ toolName: "bash", params: { command: "echo hi" } }, ctx),
@@ -114,7 +124,11 @@ describe("resource extraction edge cases", () => {
   });
 
   it("keeps the query string out of the matched network resource", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "network", pattern: "^api[.]example[.]com$" });
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "network", pattern: "^api[.]example[.]com$" },
+      TEST_ACTOR,
+    );
     const decision = await evaluateGovernancePolicy(
       { toolName: "web_fetch", params: { url: "https://api.example.com/p?secret=abc#frag" } },
       ctx,
@@ -123,7 +137,7 @@ describe("resource extraction edge cases", () => {
   });
 
   it("treats an anchored command rule as exact, not a prefix", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
     expect(
       verdict(await evaluateGovernancePolicy({ toolName: "exec", params: { command: "ls" } }, ctx)),
     ).toBe("allow");

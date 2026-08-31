@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { ResourceKind } from "./policy-types.js";
 import {
   MAX_PENDING_REQUESTS_PER_USER,
   attachCreatedRule,
@@ -11,6 +12,7 @@ import {
   reopenRuleRequest,
   submitRuleRequest,
 } from "./rule-requests.js";
+import type { SubmitRuleRequestInput } from "./rule-requests.js";
 import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
@@ -31,7 +33,18 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-function input(overrides: Partial<Parameters<typeof submitRuleRequest>[0]> = {}) {
+/** The rule arm of the request union, which is what these tests exercise. */
+type RuleRequestInput = Extract<SubmitRuleRequestInput, { resourceKind: ResourceKind }>;
+
+/**
+ * A submittable rule request, with the fields under test overridden (T37).
+ *
+ * The overrides were typed `Partial<Parameters<typeof submitRuleRequest>[0]>`,
+ * and M5 made parameter 0 the `groupId` — so this read `Partial<string>` and
+ * every override was silently unchecked. Narrowed to the rule arm because a
+ * `Partial` of the whole union distributes into something no call accepts.
+ */
+function input(overrides: Partial<RuleRequestInput> = {}): RuleRequestInput {
   return {
     resourceKind: "command" as const,
     pattern: "^git status$",

@@ -31,6 +31,16 @@ import type { GovernanceSession } from "../governance/session-tokens.js";
 import { seedGroupWithAgents } from "../governance/test-group.js";
 import { handleGovernanceApiRequest } from "./governance-dashboard-api.js";
 
+/**
+ * The operator these tests act as (T37).
+ *
+ * These calls omitted the actor entirely, which typechecked only because no
+ * test file was ever typechecked (finding 162). At runtime the omission
+ * recorded every one of these actions against `unknown`, so the suite was
+ * exercising the audit trail's *fallback* path rather than its ordinary one.
+ */
+const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
+
 let dir: string;
 let workspace: string;
 
@@ -141,7 +151,7 @@ function verdict(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>)
 
 describe("the emergency stop, end to end", () => {
   it("an allowed action becomes a blocked one, and the agent stays blocked", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
     // Before: the agent may run the allowlisted command.
     expect(
       verdict(
@@ -170,7 +180,7 @@ describe("the emergency stop, end to end", () => {
   });
 
   it("stops only the named agent", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
     await post("kill", session("administrator"), { agentId: "a1" });
 
     expect(
@@ -237,7 +247,7 @@ describe("the emergency stop, end to end", () => {
   });
 
   it("is reversible, and the release is recorded too", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
     await post("kill", session("administrator"), { agentId: "a1" });
     const release = await post("kill", session("administrator"), { agentId: "a1", locked: false });
 
@@ -291,7 +301,7 @@ describe("round thirteen's three silent failures stay closed", () => {
       ask: "off",
       agentMode: { a1: "monitor" },
     });
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
     await post("kill", session("administrator"), { agentId: "a1" });
 
     expect(
@@ -311,7 +321,7 @@ describe("round thirteen's three silent failures stay closed", () => {
       ask: "off",
       agentMode: { a1: "off" },
     });
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
     await post("kill", session("administrator"), { agentId: "a1" });
 
     expect(
@@ -322,7 +332,7 @@ describe("round thirteen's three silent failures stay closed", () => {
   });
 
   it("refuses an unattributable call while any agent is locked", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
     await post("kill", session("administrator"), { agentId: "a1" });
 
     // Neither agentId nor a parseable session key. With a lockdown in force

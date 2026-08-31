@@ -29,7 +29,7 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-function escalation(overrides: Partial<Parameters<typeof recordTimedOutEscalation>[0]> = {}) {
+function escalation(overrides: Partial<Parameters<typeof recordTimedOutEscalation>[1]> = {}) {
   return {
     agentId: "agent-a",
     sessionKey: "agent:agent-a:main",

@@ -27,6 +27,16 @@ import {
 } from "./policy-types.js";
 import { seedGroupWithAgents } from "./test-group.js";
 
+/**
+ * The operator these tests act as (T37).
+ *
+ * These calls omitted the actor entirely, which typechecked only because no
+ * test file was ever typechecked (finding 162). At runtime the omission
+ * recorded every one of these actions against `unknown`, so the suite was
+ * exercising the audit trail's *fallback* path rather than its ordinary one.
+ */
+const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
+
 let dir: string;
 const NOW = 1_800_000_000_000;
 
@@ -88,11 +98,15 @@ describe("time-limited rules", () => {
     // whatever expiry did — it has to exercise a grant that is genuinely the
     // only thing permitting the action.
     const pattern = "^deploy-service$";
-    await addRule(TEST_GROUP, {
-      resourceKind: "command",
-      pattern,
-      expiresAt: new Date(Date.now() + 60_000).toISOString(),
-    });
+    await addRule(
+      TEST_GROUP,
+      {
+        resourceKind: "command",
+        pattern,
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      },
+      TEST_ACTOR,
+    );
     const allowed = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "deploy-service" } },
       { agentId: "a" },
@@ -159,7 +173,7 @@ describe("retention of lapsed rules", () => {
         }),
       ];
     });
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^new$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^new$" }, TEST_ACTOR);
     const ids = (await loadPolicy(TEST_GROUP)).rules.map((r) => r.id);
     expect(ids).not.toContain("ancient");
     expect(ids.some((id) => id.startsWith("command-"))).toBe(true);

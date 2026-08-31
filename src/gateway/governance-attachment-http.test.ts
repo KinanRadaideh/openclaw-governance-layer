@@ -57,7 +57,7 @@ afterEach(async () => {
 
 function session(
   role: GovernanceRole,
-  username = role,
+  username: string = role,
   assignedAgents: string[] = [],
 ): GovernanceSession {
   return {

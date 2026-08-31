@@ -5112,3 +5112,73 @@ The problem is not that somebody was sloppy — three thorough passes already
 looked. **The problem is that one fact lives in four places and nothing connects
 them**, so each restatement has to be found and fixed on its own, by someone who
 happens to be looking in the right file on the right day.
+
+## 5.79 Nobody was checking the tests, so some of them were pretending
+
+The last entry mentioned that none of this project's 116 test files was ever
+checked by the tool that catches this kind of mistake. We turned that tool on.
+It reported 189 problems.
+
+**Most of them were not cosmetic.** Three groups are worth knowing about, because
+in each one the tests looked stronger than they were:
+
+**Ninety-seven places forgot to say who was acting.** Five of our functions
+require you to name the person performing an action, because that name goes into
+the permanent log. The tests left it out. So every one of those actions was
+recorded as done by "unknown" — meaning the tests were exercising the emergency
+fallback of our record-keeping, while appearing to exercise the normal path.
+
+**Thirty places had quietly stopped checking anything.** Three test helpers were
+written to borrow their shape from the function they were testing. When we
+reorganised those functions back in August, the borrowing silently started
+pointing at the wrong thing, and the helpers went from "checks your input" to
+"accepts anything". Nothing failed. Nothing warned.
+
+**Fourteen places were asking a question that could never be answered.** They
+read a property off a result that does not have it. The answer is always
+"nothing", and a check like "make sure this is not true" passes happily when the
+answer is nothing. Those tests were passing for the wrong reason.
+
+We fixed all 189. **The important number is a different one: 2,338 tests passed
+before we started and 2,338 passed afterwards.** Across roughly 140 edits, not a
+single test changed its mind about anything. That was the thing to be careful
+about — a clean-up like this can destroy a real warning by forcing a stale test
+to compile, and the only proof it did not is that nothing moved.
+
+Then we added the check to the list of things that must pass before work is
+considered done — but only _after_ getting it to zero. A check that fails from
+the day it arrives teaches everyone to ignore it, and an ignored check is worse
+than no check, because it looks like protection.
+
+## 5.80 The safety net held up by someone else's furniture
+
+You asked us to verify that our search fix works the way we said it does. It
+does. But checking turned up something we had not noticed.
+
+Two parts of the system watch searches. One removes files your rules forbid
+before the AI sees them, and notes "we stopped this". The other notes "the AI saw
+this" for anything forbidden that got through. Those two notes mean opposite
+things, and telling them apart is the entire point of having two.
+
+Both of them run. So why doesn't the second one report a leak every time the
+first one prevents one?
+
+Because of the order two lines run in — **inside OpenClaw's code, which is not
+ours.** The removal happens first, so by the time the second part looks, there is
+nothing left to report. Correct, and entirely accidental as far as our own code
+knows.
+
+**Nothing anywhere said this.** And if that order ever changed, the failure would
+be invisible: every single one of our tests would still pass. The only thing that
+would change is what the log _means_ — and only for someone reading it months
+later, asking the one question those two notes exist to answer.
+
+That is now the fourth time we have found this exact shape: the protection works,
+the **record** of the protection is wrong. It is a nasty kind of bug, because
+nothing appears broken until somebody needs the answer, and by then the moment
+has gone.
+
+We did not change the behaviour — it is right. We wrote a test that fails loudly
+if that order ever reverses, including a demonstration of what the log would say
+if it did. A comment would only warn someone already looking here; the person who
+might change that order will be working somewhere else entirely.

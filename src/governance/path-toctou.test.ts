@@ -36,6 +36,16 @@ import { addRule, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
 import { seedGroupWithAgents } from "./test-group.js";
 
+/**
+ * The operator these tests act as (T37).
+ *
+ * These calls omitted the actor entirely, which typechecked only because no
+ * test file was ever typechecked (finding 162). At runtime the omission
+ * recorded every one of these actions against `unknown`, so the suite was
+ * exercising the audit trail's *fallback* path rather than its ordinary one.
+ */
+const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
+
 let dir: string;
 let workspace: string;
 let outside: string;
@@ -106,7 +116,11 @@ describe("the window between the gate's resolve and the tool's open", () => {
     const asChecked = await normalizeGovernedPath("link/notes.txt", workspace);
     expect(asChecked).toBe("safe/notes.txt");
 
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^safe/.*$", access: "read" });
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "path", pattern: "^safe/.*$", access: "read" },
+      TEST_ACTOR,
+    );
     expect(
       verdict(
         await evaluateGovernancePolicy(
@@ -175,7 +189,11 @@ describe("the window between the gate's resolve and the tool's open", () => {
     if (!(await link(outside, linkPath))) {
       return;
     }
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^escape/.*$", access: "read" });
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "path", pattern: "^escape/.*$", access: "read" },
+      TEST_ACTOR,
+    );
 
     // Under the shipped default posture (`ask: "on-miss"`) the escape does not
     // match the rule any more, misses the policy, and goes to a human. Asserted
@@ -195,7 +213,11 @@ describe("the window between the gate's resolve and the tool's open", () => {
     // refuses it outright. Both postures agree on the thing that matters: the
     // escape is never silently allowed.
     await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^escape/.*$", access: "read" });
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "path", pattern: "^escape/.*$", access: "read" },
+      TEST_ACTOR,
+    );
     expect(
       verdict(
         await evaluateGovernancePolicy(

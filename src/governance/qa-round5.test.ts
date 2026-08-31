@@ -17,6 +17,16 @@ import { defaultPolicyDocument } from "./policy-types.js";
 import { resolveGovernedTool } from "./resource-extraction.js";
 import { seedGroupWithAgents } from "./test-group.js";
 
+/**
+ * The operator these tests act as (T37).
+ *
+ * These calls omitted the actor entirely, which typechecked only because no
+ * test file was ever typechecked (finding 162). At runtime the omission
+ * recorded every one of these actions against `unknown`, so the suite was
+ * exercising the audit trail's *fallback* path rather than its ordinary one.
+ */
+const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
+
 let dir: string;
 
 /** The organisation this suite's agents belong to (M5). Per-group storage means
@@ -81,7 +91,7 @@ describe("the governed tool registry matches the tools OpenClaw actually ships",
   });
 
   it("allows a file edit that a path rule covers", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^workspace/.*$" });
+    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^workspace/.*$" }, TEST_ACTOR);
     const decision = await evaluateGovernancePolicy(
       { toolName: "edit", params: { path: "workspace/main.ts", edits: [] } },
       ctx,

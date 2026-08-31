@@ -19,6 +19,16 @@ import type { GovernanceSession } from "../governance/session-tokens.js";
 import { seedGroupWithAgents } from "../governance/test-group.js";
 import { handleGovernanceApiRequest } from "./governance-dashboard-api.js";
 
+/**
+ * The operator these tests act as (T37).
+ *
+ * These calls omitted the actor entirely, which typechecked only because no
+ * test file was ever typechecked (finding 162). At runtime the omission
+ * recorded every one of these actions against `unknown`, so the suite was
+ * exercising the audit trail's *fallback* path rather than its ordinary one.
+ */
+const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
+
 let dir: string;
 
 /** The organisation this suite's agents belong to (M5). Per-group storage means
@@ -102,9 +112,17 @@ async function get(
 
 describe("agent → policies", () => {
   it("gives an Administrator every rule binding an agent, global and scoped", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^only-a$", agentId: "agent-a" });
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^only-b$", agentId: "agent-b" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "command", pattern: "^only-a$", agentId: "agent-a" },
+      TEST_ACTOR,
+    );
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "command", pattern: "^only-b$", agentId: "agent-b" },
+      TEST_ACTOR,
+    );
 
     const { status, body } = await get(
       "policy/by-agent?agentId=agent-a",
@@ -123,7 +141,11 @@ describe("agent → policies", () => {
   });
 
   it("lets a Viewer read an agent they were assigned", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^only-a$", agentId: "agent-a" });
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "command", pattern: "^only-a$", agentId: "agent-a" },
+      TEST_ACTOR,
+    );
 
     const { status, body } = await get(
       "policy/by-agent?agentId=agent-a",
@@ -163,7 +185,11 @@ describe("agent → policies", () => {
 
 describe("policy → agents", () => {
   it("names the single agent an agent-scoped rule binds", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^only-a$", agentId: "agent-a" });
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "command", pattern: "^only-a$", agentId: "agent-a" },
+      TEST_ACTOR,
+    );
     const policy = await loadPolicy(TEST_GROUP);
     const rule = policy.rules.find((r) => r.pattern === "^only-a$");
 
@@ -179,9 +205,17 @@ describe("policy → agents", () => {
   });
 
   it("says a global rule binds future agents as well as the known ones", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^x$", agentId: "agent-a" });
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^y$", agentId: "agent-b" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "command", pattern: "^x$", agentId: "agent-a" },
+      TEST_ACTOR,
+    );
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "command", pattern: "^y$", agentId: "agent-b" },
+      TEST_ACTOR,
+    );
     const policy = await loadPolicy(TEST_GROUP);
     const globalRule = policy.rules.find((r) => r.pattern === "^ls$");
 
@@ -201,9 +235,17 @@ describe("policy → agents", () => {
   });
 
   it("does not hand a scoped User an inventory of other agents", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^x$", agentId: "agent-a" });
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^y$", agentId: "secret-agent" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "command", pattern: "^x$", agentId: "agent-a" },
+      TEST_ACTOR,
+    );
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "command", pattern: "^y$", agentId: "secret-agent" },
+      TEST_ACTOR,
+    );
     const policy = await loadPolicy(TEST_GROUP);
     const globalRule = policy.rules.find((r) => r.pattern === "^ls$");
 
@@ -225,7 +267,11 @@ describe("policy → agents", () => {
   });
 
   it("refuses a rule scoped to an agent the caller may not see", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^y$", agentId: "secret-agent" });
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "command", pattern: "^y$", agentId: "secret-agent" },
+      TEST_ACTOR,
+    );
     const policy = await loadPolicy(TEST_GROUP);
     const rule = policy.rules.find((r) => r.pattern === "^y$");
 

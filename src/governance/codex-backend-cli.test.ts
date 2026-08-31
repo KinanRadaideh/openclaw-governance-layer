@@ -110,8 +110,8 @@ async function signIn(username: string, role: GovernanceRole): Promise<void> {
 /** Builds the real command tree and runs one `governance …` invocation through it. */
 async function runGovernance(args: readonly string[]): Promise<void> {
   const runtime = await import("../runtime.js");
-  vi.spyOn(runtime.defaultRuntime, "log").mockImplementation((line: string) => {
-    printed.push(line);
+  vi.spyOn(runtime.defaultRuntime, "log").mockImplementation((...parts: unknown[]) => {
+    printed.push(parts.map((part) => String(part)).join(" "));
   });
   const program = new Command();
   program.exitOverride();

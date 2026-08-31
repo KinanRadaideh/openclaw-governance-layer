@@ -25,6 +25,16 @@ import { addRule, loadPolicy, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument, type PolicyDocument, type PolicyRule } from "./policy-types.js";
 import { seedGroupWithAgents } from "./test-group.js";
 
+/**
+ * The operator these tests act as (T37).
+ *
+ * These calls omitted the actor entirely, which typechecked only because no
+ * test file was ever typechecked (finding 162). At runtime the omission
+ * recorded every one of these actions against `unknown`, so the suite was
+ * exercising the audit trail's *fallback* path rather than its ordinary one.
+ */
+const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
+
 let dir: string;
 let workspace: string;
 
@@ -198,7 +208,11 @@ describe("the view agrees with the gate", () => {
   }
 
   it("an agent-scoped allowance appears for its agent and authorizes only that agent", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^whoami$", agentId: "agent-a" });
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "command", pattern: "^whoami$", agentId: "agent-a" },
+      TEST_ACTOR,
+    );
     const policy = await loadPolicy(TEST_GROUP);
 
     // The projection says the rule binds agent-a and not agent-b...
@@ -226,7 +240,7 @@ describe("the view agrees with the gate", () => {
   });
 
   it("a global allowance appears for every agent and authorizes every agent", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^hostname$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^hostname$" }, TEST_ACTOR);
     const policy = await loadPolicy(TEST_GROUP);
 
     for (const agentId of ["agent-a", "agent-b"]) {
@@ -245,7 +259,11 @@ describe("the view agrees with the gate", () => {
   });
 
   it("every rule the projection omits is one the gate does not consult", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^only-b$", agentId: "agent-b" });
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "command", pattern: "^only-b$", agentId: "agent-b" },
+      TEST_ACTOR,
+    );
     const policy = await loadPolicy(TEST_GROUP);
 
     const visibleToA = new Set(rulesForAgent(policy, "agent-a").map((e) => e.rule.id));

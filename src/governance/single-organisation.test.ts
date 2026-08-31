@@ -16,7 +16,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { canManageAccounts, canManageGlobalPolicy } from "./permissions.js";
+import { canManageAccounts, canManageGlobalPolicy, type GovernanceActor } from "./permissions.js";
+import type { GovernanceRole } from "./roles.js";
 import { issueSession, verifySession } from "./session-tokens.js";
 import {
   createUser,
@@ -25,6 +26,18 @@ import {
   newGroupId,
   setMultiOrganisationAllowedForTests,
 } from "./user-store.js";
+
+/**
+ * A minimal actor of a given tier (T37).
+ *
+ * These assertions passed a bare `{ role }`, which is not a `GovernanceActor` —
+ * it lacks `username` and `assignedAgents`. It typechecked only because no test
+ * file was typechecked (finding 162). The tier is the thing under test, so the
+ * rest is filled in rather than the assertion weakened.
+ */
+function actorOfRole(role: GovernanceRole): GovernanceActor {
+  return { username: `test-${role}`, role, assignedAgents: [] };
+}
 
 let dir: string;
 const PASSWORD = "correct horse battery";
@@ -140,9 +153,9 @@ describe("the deployment this assumes: one installation, four people, four compu
     // A Viewer signing in from their own computer gets a Viewer's authority and
     // no more, even though a Root and an Administrator hold live sessions on the
     // same installation at the same moment.
-    expect(canManageAccounts({ role: "viewer" })).toBe(false);
-    expect(canManageGlobalPolicy({ role: "viewer" })).toBe(false);
-    expect(canManageGlobalPolicy({ role: "administrator" })).toBe(true);
+    expect(canManageAccounts(actorOfRole("viewer"))).toBe(false);
+    expect(canManageGlobalPolicy(actorOfRole("viewer"))).toBe(false);
+    expect(canManageGlobalPolicy(actorOfRole("administrator"))).toBe(true);
     expect(asViewer?.role).toBe("viewer");
   });
 });

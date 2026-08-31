@@ -24,6 +24,16 @@ import { seedNamedGroup } from "./test-group.js";
 import { createUser, deleteUser, LastRootError, listUsers, setUserRole } from "./user-store.js";
 
 /**
+ * The operator these tests act as (T37).
+ *
+ * These calls omitted the actor entirely, which typechecked only because no
+ * test file was ever typechecked (finding 162). At runtime the omission
+ * recorded every one of these actions against `unknown`, so the suite was
+ * exercising the audit trail's *fallback* path rather than its ordinary one.
+ */
+const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
+
+/**
  * Every account belongs to a group (M3); these tests all live in one.
  *
  * Accounts that were Viewers or Users before M3 are Administrators here unless
@@ -132,12 +142,15 @@ describe("the last Root cannot be removed by two requests at once", () => {
    * something the API is right to refuse.
    */
   async function twoRoots() {
-    await createUser({
-      username: "root-a",
-      password: "correct-horse",
-      role: "root",
-      groupId: TEST_GROUP,
-    });
+    await createUser(
+      {
+        username: "root-a",
+        password: "correct-horse",
+        role: "root",
+        groupId: TEST_GROUP,
+      },
+      TEST_ACTOR,
+    );
     const raw = JSON.parse(await readFile(usersFilePath(), "utf8")) as {
       users: Array<Record<string, unknown>>;
     };
@@ -158,8 +171,8 @@ describe("the last Root cannot be removed by two requests at once", () => {
     // so zero Roots is unrecoverable.
     const [a, b] = await twoRoots();
     await Promise.allSettled([
-      setUserRole(a as string, "viewer"),
-      setUserRole(b as string, "viewer"),
+      setUserRole(a as string, "viewer", TEST_ACTOR),
+      setUserRole(b as string, "viewer", TEST_ACTOR),
     ]);
     const roots = (await listUsers()).filter((user) => user.role === "root");
     expect(roots.length).toBeGreaterThanOrEqual(1);
@@ -167,56 +180,73 @@ describe("the last Root cannot be removed by two requests at once", () => {
 
   it("survives a concurrent demotion and deletion", async () => {
     const [a, b] = await twoRoots();
-    await Promise.allSettled([setUserRole(a as string, "user"), deleteUser(b as string)]);
+    await Promise.allSettled([
+      setUserRole(a as string, "user", TEST_ACTOR),
+      deleteUser(b as string, TEST_ACTOR),
+    ]);
     const roots = (await listUsers()).filter((user) => user.role === "root");
     expect(roots.length).toBeGreaterThanOrEqual(1);
   });
 
   it("refuses the demotion of a sole Root with a typed error", async () => {
-    await createUser({
-      username: "only-root",
-      password: "correct-horse",
-      role: "root",
-      groupId: TEST_GROUP,
-    });
+    await createUser(
+      {
+        username: "only-root",
+        password: "correct-horse",
+        role: "root",
+        groupId: TEST_GROUP,
+      },
+      TEST_ACTOR,
+    );
     const [only] = await listUsers();
-    await expect(setUserRole(only?.id as string, "viewer")).rejects.toBeInstanceOf(LastRootError);
+    await expect(setUserRole(only?.id as string, "viewer", TEST_ACTOR)).rejects.toBeInstanceOf(
+      LastRootError,
+    );
   });
 
   it("refuses deleting the sole Root while other accounts survive", async () => {
-    await createUser({
-      username: "only-root",
-      password: "correct-horse",
-      role: "root",
-      groupId: TEST_GROUP,
-    });
-    await createUser({
-      username: "analyst",
-      password: "correct-horse",
-      role: "administrator",
-      groupId: TEST_GROUP,
-    });
+    await createUser(
+      {
+        username: "only-root",
+        password: "correct-horse",
+        role: "root",
+        groupId: TEST_GROUP,
+      },
+      TEST_ACTOR,
+    );
+    await createUser(
+      {
+        username: "analyst",
+        password: "correct-horse",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
+      TEST_ACTOR,
+    );
     const root = (await listUsers()).find((user) => user.role === "root");
-    await expect(deleteUser(root?.id as string)).rejects.toBeInstanceOf(LastRootError);
+    await expect(deleteUser(root?.id as string, TEST_ACTOR)).rejects.toBeInstanceOf(LastRootError);
   });
 
   it("allows removing the very last account, which is a teardown not a lockout", async () => {
     // With no accounts left, bootstrap becomes available again, so this is
     // recoverable — unlike leaving Root-less accounts behind.
-    await createUser({
-      username: "only-root",
-      password: "correct-horse",
-      role: "root",
-      groupId: TEST_GROUP,
-    });
+    await createUser(
+      {
+        username: "only-root",
+        password: "correct-horse",
+        role: "root",
+        groupId: TEST_GROUP,
+      },
+      TEST_ACTOR,
+    );
     const [only] = await listUsers();
-    await expect(deleteUser(only?.id as string)).resolves.toBe(true);
+    await expect(deleteUser(only?.id as string, TEST_ACTOR)).resolves.toBe(true);
     expect(await listUsers()).toHaveLength(0);
   });
 
   it("still allows demoting one of two Roots", async () => {
     const [a] = await twoRoots();
-    await expect(setUserRole(a as string, "administrator")).resolves.toBe(true);
+    await expect(setUserRole(a as string, "administrator", TEST_ACTOR)).resolves.toBe(true);
   });
 });
 

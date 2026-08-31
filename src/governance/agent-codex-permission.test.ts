@@ -36,6 +36,22 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
+/**
+ * Narrows the gate verdict to its refusal arm.
+ *
+ * The verdict is a union — refuse, escalate, or allow-with-rewritten-params —
+ * so `verdict?.block` is not a property that exists on it. It read that way
+ * until 2026-08-31 and typechecked only because **no test file was typechecked**
+ * (finding 162); at runtime the reads returned `undefined`, and
+ * `expect(undefined).not.toBe(true)` passes for the wrong reason. The
+ * shape-narrowing pattern is `policy-engine.test.ts`s.
+ */
+function refusal(
+  decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>,
+): { block: true; blockReason: string } | undefined {
+  return decision && "block" in decision ? decision : undefined;
+}
+
 /** A read of a plainly permitted file, so only the permission under test decides. */
 function harmlessCall() {
   return { toolName: "read", params: { path: "notes.txt" } };
@@ -95,8 +111,8 @@ describe("the gate enforcing it", () => {
       sessionKey: `agent:${AGENT}:test`,
       nativeHarness: true,
     });
-    expect(verdict?.block).toBe(true);
-    expect(verdict?.blockReason).toContain("not permitted to run on the Codex backend");
+    expect(refusal(verdict)?.block).toBe(true);
+    expect(refusal(verdict)?.blockReason).toContain("not permitted to run on the Codex backend");
   });
 
   it("allows the same call once an Administrator permits the agent", async () => {
@@ -107,7 +123,7 @@ describe("the gate enforcing it", () => {
       nativeHarness: true,
     });
     // `undefined` is the engine's "nothing to say, carry on".
-    expect(verdict?.block).not.toBe(true);
+    expect(refusal(verdict)?.block).not.toBe(true);
   });
 
   it("does not touch the in-process runtime, permitted or not", async () => {
@@ -117,7 +133,7 @@ describe("the gate enforcing it", () => {
       agentId: AGENT,
       sessionKey: `agent:${AGENT}:test`,
     });
-    expect(verdict?.block).not.toBe(true);
+    expect(refusal(verdict)?.block).not.toBe(true);
   });
 
   it("records the refusal, so a blocked run is explainable afterwards", async () => {
@@ -149,8 +165,8 @@ describe("the gate enforcing it", () => {
       { toolName: "some_tool_with_no_extractor", params: {} },
       { agentId: AGENT, sessionKey: `agent:${AGENT}:test`, nativeHarness: true },
     );
-    expect(verdict?.block).toBe(true);
-    expect(verdict?.blockReason).toContain("An Administrator can permit it");
+    expect(refusal(verdict)?.block).toBe(true);
+    expect(refusal(verdict)?.blockReason).toContain("An Administrator can permit it");
   });
 
   it("lets the kill switch answer first, so the ledger can show the stop held", async () => {
@@ -170,8 +186,8 @@ describe("the gate enforcing it", () => {
       nativeHarness: true,
     });
 
-    expect(verdict?.block).toBe(true);
-    expect(verdict?.blockReason).toContain("locked down");
+    expect(refusal(verdict)?.block).toBe(true);
+    expect(refusal(verdict)?.blockReason).toContain("locked down");
     const entries = await tailLedger(TEST_GROUP);
     expect(entries.some((e) => e.ruleId === "kill-switch")).toBe(true);
     expect(entries.some((e) => e.ruleId === "agent-not-permitted-on-codex")).toBe(false);
@@ -190,8 +206,8 @@ describe("the gate enforcing it", () => {
       nativeHarness: true,
     });
 
-    expect(verdict?.block).toBe(true);
-    expect(verdict?.blockReason).toContain("Codex backend");
+    expect(refusal(verdict)?.block).toBe(true);
+    expect(refusal(verdict)?.blockReason).toContain("Codex backend");
   });
 
   it("is exempt when the posture is off, like everything else in the gate", async () => {

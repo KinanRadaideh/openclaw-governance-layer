@@ -262,7 +262,14 @@ describe("accounts that predate groups", () => {
     const file = JSON.parse(await readFile(usersFilePath(), "utf8")) as {
       users: Array<Record<string, unknown>>;
     };
-    const legacy = { ...file.users[0], id: "user-legacy", username: "legacy" };
+    // Annotated because `file.users[0]` is possibly undefined, so the spread
+    // narrows to just the two literal keys and `groupId` — the field this line
+    // exists to remove — is not visible on the result (T37).
+    const legacy: Record<string, unknown> = {
+      ...file.users[0],
+      id: "user-legacy",
+      username: "legacy",
+    };
     delete legacy.groupId;
     file.users.push(legacy);
     await writeFile(usersFilePath(), JSON.stringify(file));

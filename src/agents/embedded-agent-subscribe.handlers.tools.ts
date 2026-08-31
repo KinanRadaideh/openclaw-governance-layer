@@ -1894,6 +1894,19 @@ export async function handleToolExecutionEnd(
   // Direct call, above the `hasHooks` check below, for the reason given in
   // src/governance/search-audit.ts: governance is core, not a plugin, so it
   // must not depend on a plugin having registered this hook.
+  //
+  // **`result` here is the result the model actually received, and a governance
+  // guarantee depends on that** (finding 164). `agent-loop.ts` runs
+  // `finalizeExecutedToolCall` — which applies `afterToolCall`, where T7's
+  // filter lives — *before* `emitToolExecutionEnd`, so anything the filter
+  // withheld is already gone from this text. That is what keeps
+  // `search-reached-denied` ("the model saw it") and `search-withheld` ("it
+  // did not") from both being written for the same path.
+  //
+  // If that ordering ever reverses, this call starts recording a leak for every
+  // path the filter successfully stopped, and **no existing test would fail** —
+  // both halves would still pass their own suites and only the ledger's meaning
+  // would change. `src/governance/search-audit-ordering.test.ts` pins it.
   await auditSearchReach({
     toolName,
     toolParams: startArgs,

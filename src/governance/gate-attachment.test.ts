@@ -1,3 +1,11 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  hasBeforeToolCallPolicy,
+  runBeforeToolCallHook,
+} from "../agents/agent-tools.before-tool-call.policy.js";
 // The gate is tested where it is actually mounted.
 //
 // Every other governance test calls `evaluateGovernancePolicy` directly. That
@@ -9,20 +17,37 @@
 // This is the same class of mistake as the fictional tool names — testing the
 // component against our model of the system instead of against the system —
 // which is why it gets its own file rather than a line in an existing one.
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  hasBeforeToolCallPolicy,
-  runBeforeToolCallHook,
-} from "../agents/agent-tools.before-tool-call.policy.js";
+import type { HookOutcome } from "../agents/agent-tools.before-tool-call.types.js";
 import { registerNativeHookRelay } from "../agents/harness/native-hook-relay.js";
 import { resetLedgerCursorForTests, tailLedger } from "./audit-ledger.js";
 import { governanceRequiresNativeToolRelay } from "./native-relay-requirement.js";
 import { addRule, lockAgent, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
 import { seedGroupWithAgents } from "./test-group.js";
+
+/**
+ * Narrows a hook outcome to its blocked arm (T37).
+ *
+ * `HookOutcome` is a union and only the blocked arm carries `reason` and
+ * `deniedReason`. These assertions read them off the union directly, which
+ * typechecked only because no test file was typechecked (finding 162).
+ */
+function blockedOutcome(outcome: HookOutcome): { reason: string; deniedReason?: unknown } {
+  if (!outcome.blocked) {
+    throw new Error("expected a blocked outcome");
+  }
+  return outcome;
+}
+
+/**
+ * The operator these tests act as (T37).
+ *
+ * These calls omitted the actor entirely, which typechecked only because no
+ * test file was ever typechecked (finding 162). At runtime the omission
+ * recorded every one of these actions against `unknown`, so the suite was
+ * exercising the audit trail's *fallback* path rather than its ordinary one.
+ */
+const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
 
 let dir: string;
 
@@ -58,7 +83,7 @@ describe("the policy gate is reached through the host's tool hook", () => {
       ctx,
     });
     expect(outcome.blocked).toBe(true);
-    expect(outcome.deniedReason).toBe("governance-policy");
+    expect(blockedOutcome(outcome).deniedReason).toBe("governance-policy");
   });
 
   it("blocks an unlisted file write", async () => {
@@ -68,11 +93,11 @@ describe("the policy gate is reached through the host's tool hook", () => {
       ctx,
     });
     expect(outcome.blocked).toBe(true);
-    expect(outcome.deniedReason).toBe("governance-policy");
+    expect(blockedOutcome(outcome).deniedReason).toBe("governance-policy");
   });
 
   it("lets an allowed command through", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
     const outcome = await runBeforeToolCallHook({
       toolName: "exec",
       params: { command: "ls" },
@@ -82,7 +107,7 @@ describe("the policy gate is reached through the host's tool hook", () => {
   });
 
   it("enforces lockdown through the hook", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
     await lockAgent(TEST_GROUP, "agent-a");
     const outcome = await runBeforeToolCallHook({
       toolName: "exec",
@@ -91,7 +116,7 @@ describe("the policy gate is reached through the host's tool hook", () => {
     });
     // Even an explicitly allowed command is refused once the agent is locked.
     expect(outcome.blocked).toBe(true);
-    expect(outcome.reason).toMatch(/locked down/);
+    expect(blockedOutcome(outcome).reason).toMatch(/locked down/);
   });
 
   it("writes a ledger entry for a call made through the hook", async () => {

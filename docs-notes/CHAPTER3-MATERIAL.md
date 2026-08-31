@@ -8161,3 +8161,105 @@ rather than at once — re-deriving early does not prevent staleness, it only re
 a clock. Kinan directed that it be done now. Both are recorded: the pass is done
 and dated, and the instruction to repeat it against the writing rather than
 against the calendar stands.
+
+### 3.5.65 Typechecking the tests, and a guarantee resting on someone else's ordering
+
+**Built 2026-08-31 (T37, finding 164).** Two pieces of work that arrived
+together and belong together in the report, because both are about **a check
+that was not happening and nothing said so.**
+
+#### Part one: no test file was typechecked
+
+`tsconfig.core.json` and `tsconfig.ui.json` both exclude `**/*.test.ts`. Those
+are the two typechecks in the project's verification set, so **not one of 116
+test files was seen by a typechecker.** Upstream ships `tsgo:test:src` for
+precisely this; it had never been run in this fork, and it reported **189
+errors**.
+
+**It was found by falling into it.** A test written that morning referenced
+`ADMIN_ACTIONS.accountDelete`, which does not exist — the key is `userDelete`.
+The test **passed**: `action: undefined` reached the ledger, an entry was
+written, and every assertion still held because none looked at that field.
+
+> **A test asserting the wrong thing about the right thing is the failure this
+> project's whole review process exists to catch**, and the mechanism that would
+> have caught this one in under a second was switched off. It is finding 148 one
+> level up: not two failing tests outside the verification set, but an entire
+> _category of checking_ outside it.
+
+**The classification mattered more than the fixing**, because "make the type
+errors go away" would have been the wrong instruction. Three of the five classes
+were tests that were **weaker than they appeared**:
+
+- **~97 missing actor arguments.** `addRule`, `createUser`, `setAgentAskMode`,
+  `deleteUser` and `setUserRole` all require an actor and the calls omitted it —
+  so every one of those actions was recorded against `unknown`. The suite was
+  exercising the audit trail's **fallback** path while appearing to exercise its
+  ordinary one.
+- **~30 detyped helpers.** Three test helpers used
+  `Partial<Parameters<typeof fn>[0]>`. **M5 made `groupId` parameter 0**, so each
+  quietly became `Partial<string>` and stopped checking its overrides — a
+  signature change silently disabling a test's own type safety.
+- **~14 union reads.** `verdict?.block`, `outcome.reason` — properties read off
+  unions that do not carry them. At runtime they are `undefined`, so
+  `expect(undefined).not.toBe(true)` **passed for the wrong reason.**
+
+The other two classes (inferred-default parameters, and signature drift needing a
+decision each) were ordinary.
+
+**The property that had to be protected was that nothing changed.** A pass like
+this can destroy a real signal by making a stale assertion compile. The evidence
+that it did not: **2,338 tests passed before and 2,338 after**, across roughly
+140 edits. Not one result moved.
+
+**Then, and only then, added to the verification set.** Zero first, gate second —
+a check that is red on the day it arrives teaches everyone to skip it, and a
+skipped gate is worse than an absent one because it looks like coverage.
+
+**And the honest residue, stated before somebody else has to.** `tsgo:test:src`
+covers `src/`. It does not cover `ui/`, `test/`, `packages/` or `extensions/`,
+each with its own upstream config. The claim is **"every test under `src/` is
+typechecked"**, not "the tests are typechecked" — which is finding 148's lesson
+applied to finding 148's own fix.
+
+#### Part two: the ledger's honesty rested on three lines of upstream code
+
+T7 ships two halves that **both run on the in-process runtime**.
+`filterSearchResult` removes denied entries at `afterToolCall` and records
+`search-withheld` ("the model did not see it"). `auditSearchReach` records every
+denied path a search returned as `search-reached-denied` ("the model did"). The
+two ids exist so an auditor can count **what leaked** apart from **what was
+stopped**.
+
+If the audit half read the _unfiltered_ result, every successfully withheld path
+would also be recorded as reached — the ledger reporting a leak for exactly the
+cases where prevention worked.
+
+It does not, because `agent-loop.ts` runs `finalizeExecutedToolCall`, which
+applies `afterToolCall`, **before** `emitToolExecutionEnd`. The audit half reads
+already-filtered text.
+
+**The finding is that nothing said so** — not a comment at either call site, not
+the design write-up, not a test. And the failure would have been invisible:
+
+> **Reverse that ordering and every existing test stays green.** The filter's
+> tests pass. The audit half's tests pass. Only the _meaning_ of the ledger
+> changes, and only for an auditor reading it months later, asking the one
+> question the two ids exist to answer.
+
+**This is the fourth instance of one pattern**, and Chapter 4 should say so
+plainly: findings **81, 120, 152 and 164** are all the enforcement being right
+while the **evidence** goes wrong. A control whose value is retrospective fails
+silently, because nothing is broken until somebody asks — and by then the moment
+it was describing has passed.
+
+**Closed by making it loud rather than by changing it**, since the behaviour is
+correct. A regression test pins the composition, adds the native counter-case so
+it cannot pass by the audit half never firing, and **demonstrates the failure
+mode** by feeding both halves the same unfiltered result and showing the two
+contradictory entries that would result. Notes at both ends state the dependency.
+
+**Why a test and not just a comment.** The ordering is not this fork's to keep. A
+comment informs a reader who is already looking; a failing test informs one who
+is not — and the person who reverses that ordering will be working in a different
+repository, on something unrelated, with no reason to look here at all.

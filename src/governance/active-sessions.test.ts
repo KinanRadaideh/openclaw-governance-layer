@@ -114,6 +114,7 @@ describe("scope", () => {
     const view = listActiveSessions({
       actor: { username: "u2", role: "user", assignedAgents: [] },
       lockedAgents: [],
+      groupAgentIds: ["agent-a"],
       nowMs: NOW,
     });
     expect(view.sessions).toEqual([]);

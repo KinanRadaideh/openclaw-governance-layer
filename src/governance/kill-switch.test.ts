@@ -18,6 +18,16 @@ import { addRule, loadPolicy, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
 import { seedGroupWithAgents } from "./test-group.js";
 
+/**
+ * The operator these tests act as (T37).
+ *
+ * These calls omitted the actor entirely, which typechecked only because no
+ * test file was ever typechecked (finding 162). At runtime the omission
+ * recorded every one of these actions against `unknown`, so the suite was
+ * exercising the audit trail's *fallback* path rather than its ordinary one.
+ */
+const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
+
 let dir: string;
 
 /** The organisation this suite's agents belong to (M5). Per-group storage means
@@ -43,7 +53,7 @@ afterEach(async () => {
 
 describe("lockdown", () => {
   it("blocks every subsequent governed action, even an allowlisted one", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
     expect(
       await evaluateGovernancePolicy(
         { toolName: "exec", params: { command: "ls" } },
@@ -61,7 +71,7 @@ describe("lockdown", () => {
   });
 
   it("does not affect other agents", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
     await lockDownAgent(TEST_GROUP, "agent-a");
     const other = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "ls" } },
@@ -71,7 +81,7 @@ describe("lockdown", () => {
   });
 
   it("is reversible", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^ls$" }, TEST_ACTOR);
     await lockDownAgent(TEST_GROUP, "agent-a");
     await releaseAgentLockdown(TEST_GROUP, "agent-a");
     expect((await loadPolicy(TEST_GROUP)).lockedAgents).not.toContain("agent-a");

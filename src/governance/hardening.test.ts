@@ -18,6 +18,16 @@ import { seedNamedGroup } from "./test-group.js";
 import { createUser, MAX_USERNAME_LENGTH } from "./user-store.js";
 
 /**
+ * The operator these tests act as (T37).
+ *
+ * These calls omitted the actor entirely, which typechecked only because no
+ * test file was ever typechecked (finding 162). At runtime the omission
+ * recorded every one of these actions against `unknown`, so the suite was
+ * exercising the audit trail's *fallback* path rather than its ordinary one.
+ */
+const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
+
+/**
  * Every account belongs to a group (M3); these tests all live in one.
  *
  * Accounts that were Viewers or Users before M3 are Administrators here unless
@@ -107,12 +117,15 @@ describe("rule-request store cannot grow without bound", () => {
 describe("username hygiene", () => {
   it("rejects an absurdly long username", async () => {
     await expect(
-      createUser({
-        username: "a".repeat(MAX_USERNAME_LENGTH + 1),
-        password: "pw12345678",
-        role: "administrator",
-        groupId: TEST_GROUP,
-      }),
+      createUser(
+        {
+          username: "a".repeat(MAX_USERNAME_LENGTH + 1),
+          password: "pw12345678",
+          role: "administrator",
+          groupId: TEST_GROUP,
+        },
+        TEST_ACTOR,
+      ),
     ).rejects.toThrow(/length|long/i);
   });
 
@@ -120,12 +133,15 @@ describe("username hygiene", () => {
     // "admin" composed differently must not yield two accounts that look
     // identical in the operator list — an impersonation vector in a product
     // whose whole purpose is knowing who did what.
-    await createUser({
-      username: "admin",
-      password: "pw12345678",
-      role: "root",
-      groupId: TEST_GROUP,
-    });
+    await createUser(
+      {
+        username: "admin",
+        password: "pw12345678",
+        role: "root",
+        groupId: TEST_GROUP,
+      },
+      TEST_ACTOR,
+    );
     // A *genuinely different* byte sequence that NFKC folds onto the same name:
     // fullwidth Latin small letter A (U+FF41). The earlier version of this test
     // passed the identical string twice, so it compared "admin" with "admin"
@@ -135,52 +151,67 @@ describe("username hygiene", () => {
     expect(fullwidth).not.toBe("admin");
     expect(fullwidth.normalize("NFKC")).toBe("admin");
     await expect(
-      createUser({
-        username: fullwidth,
-        password: "pw12345678",
-        role: "administrator",
-        groupId: TEST_GROUP,
-      }),
+      createUser(
+        {
+          username: fullwidth,
+          password: "pw12345678",
+          role: "administrator",
+          groupId: TEST_GROUP,
+        },
+        TEST_ACTOR,
+      ),
     ).rejects.toThrow(/already exists/);
   });
 
   it("normalizes combining marks so one visual name is one account", async () => {
-    await createUser({
-      username: "josé",
-      password: "pw12345678",
-      role: "administrator",
-      groupId: TEST_GROUP,
-    });
-    // "jose" + combining acute — renders identically to the precomposed form.
-    await expect(
-      createUser({
-        username: "josé",
+    await createUser(
+      {
+        username: "josé",
         password: "pw12345678",
         role: "administrator",
         groupId: TEST_GROUP,
-      }),
+      },
+      TEST_ACTOR,
+    );
+    // "jose" + combining acute — renders identically to the precomposed form.
+    await expect(
+      createUser(
+        {
+          username: "josé",
+          password: "pw12345678",
+          role: "administrator",
+          groupId: TEST_GROUP,
+        },
+        TEST_ACTOR,
+      ),
     ).rejects.toThrow(/already exists/);
   });
 
   it("stores the username without surrounding whitespace", async () => {
-    const user = await createUser({
-      username: "  spaced  ",
-      password: "pw12345678",
-      role: "administrator",
-      groupId: TEST_GROUP,
-    });
+    const user = await createUser(
+      {
+        username: "  spaced  ",
+        password: "pw12345678",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
+      TEST_ACTOR,
+    );
     expect(user.username).toBe("spaced");
   });
 });
 
 describe("session token handling", () => {
   it("rejects a token of the wrong length without matching", async () => {
-    const user = await createUser({
-      username: "tok",
-      password: "pw12345678",
-      role: "administrator",
-      groupId: TEST_GROUP,
-    });
+    const user = await createUser(
+      {
+        username: "tok",
+        password: "pw12345678",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
+      TEST_ACTOR,
+    );
     const session = await issueSession({
       id: user.id,
       username: user.username,
@@ -193,12 +224,15 @@ describe("session token handling", () => {
   });
 
   it("never writes the raw session token to disk", async () => {
-    const user = await createUser({
-      username: "tok2",
-      password: "pw12345678",
-      role: "administrator",
-      groupId: TEST_GROUP,
-    });
+    const user = await createUser(
+      {
+        username: "tok2",
+        password: "pw12345678",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
+      TEST_ACTOR,
+    );
     const session = await issueSession({
       id: user.id,
       username: user.username,

@@ -29,6 +29,16 @@ import {
 import { defaultPolicyDocument } from "./policy-types.js";
 import { seedGroupWithAgents } from "./test-group.js";
 
+/**
+ * The operator these tests act as (T37).
+ *
+ * These calls omitted the actor entirely, which typechecked only because no
+ * test file was ever typechecked (finding 162). At runtime the omission
+ * recorded every one of these actions against `unknown`, so the suite was
+ * exercising the audit trail's *fallback* path rather than its ordinary one.
+ */
+const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
+
 let dir: string;
 let workspace: string;
 
@@ -114,7 +124,7 @@ describe("the five that are Root's to decide", () => {
   it("lets an operator rule take effect once the core denial is off", async () => {
     const sudo = idFor("privilege-escalation");
     const { addRule } = await import("./policy-store.js");
-    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^sudo ls$" });
+    await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^sudo ls$" }, TEST_ACTOR);
 
     // A core denial is consulted before allow rules, so the allowance is inert
     // while it stands. This is the whole reason an operator might need the

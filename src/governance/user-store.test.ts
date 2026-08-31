@@ -23,6 +23,16 @@ import {
 } from "./user-store.js";
 
 /**
+ * The operator these tests act as (T37).
+ *
+ * These calls omitted the actor entirely, which typechecked only because no
+ * test file was ever typechecked (finding 162). At runtime the omission
+ * recorded every one of these actions against `unknown`, so the suite was
+ * exercising the audit trail's *fallback* path rather than its ordinary one.
+ */
+const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
+
+/**
  * Every account belongs to a group (M3); these tests all live in one.
  *
  * The accounts below are Administrators rather than Viewers, which they were
@@ -86,12 +96,15 @@ describe("role hierarchy", () => {
 
 describe("user store", () => {
   it("creates and authenticates a user", async () => {
-    await createUser({
-      username: "alice",
-      password: "pw12345678",
-      role: "administrator",
-      groupId: TEST_GROUP,
-    });
+    await createUser(
+      {
+        username: "alice",
+        password: "pw12345678",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
+      TEST_ACTOR,
+    );
     expect(await countUsers()).toBe(1);
     const ok = await authenticate("alice", "pw12345678");
     expect(ok?.role).toBe("administrator");
@@ -100,68 +113,89 @@ describe("user store", () => {
   });
 
   it("never exposes the password hash through the record API", async () => {
-    await createUser({
-      username: "alice",
-      password: "pw12345678",
-      role: "administrator",
-      groupId: TEST_GROUP,
-    });
+    await createUser(
+      {
+        username: "alice",
+        password: "pw12345678",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
+      TEST_ACTOR,
+    );
     const [record] = await listUsers();
     expect(record).toBeDefined();
     expect(Object.keys(record as object)).not.toContain("passwordHash");
   });
 
   it("rejects a duplicate username regardless of letter case", async () => {
-    await createUser({
-      username: "alice",
-      password: "pw12345678",
-      role: "administrator",
-      groupId: TEST_GROUP,
-    });
+    await createUser(
+      {
+        username: "alice",
+        password: "pw12345678",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
+      TEST_ACTOR,
+    );
     await expect(
-      createUser({ username: "ALICE", password: "other12345", role: "root", groupId: TEST_GROUP }),
+      createUser(
+        { username: "ALICE", password: "other12345", role: "root", groupId: TEST_GROUP },
+        TEST_ACTOR,
+      ),
     ).rejects.toThrow(/already exists/);
     expect(await countUsers()).toBe(1);
   });
 
   it("authenticates case-insensitively on the username", async () => {
-    await createUser({
-      username: "Alice",
-      password: "pw12345678",
-      role: "administrator",
-      groupId: TEST_GROUP,
-    });
+    await createUser(
+      {
+        username: "Alice",
+        password: "pw12345678",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
+      TEST_ACTOR,
+    );
     expect(await authenticate("alice", "pw12345678")).toBeDefined();
   });
 
   it("rejects an empty username", async () => {
     await expect(
-      createUser({ username: "   ", password: "pw", role: "root", groupId: TEST_GROUP }),
+      createUser(
+        { username: "   ", password: "pw", role: "root", groupId: TEST_GROUP },
+        TEST_ACTOR,
+      ),
     ).rejects.toThrow();
   });
 
   it("changes and removes users", async () => {
-    const user = await createUser({
-      username: "bob",
-      password: "pw12345678",
-      role: "administrator",
-      groupId: TEST_GROUP,
-    });
-    expect(await setUserRole(user.id, "root")).toBe(true);
+    const user = await createUser(
+      {
+        username: "bob",
+        password: "pw12345678",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
+      TEST_ACTOR,
+    );
+    expect(await setUserRole(user.id, "root", TEST_ACTOR)).toBe(true);
     expect((await authenticate("bob", "pw12345678"))?.role).toBe("root");
-    expect(await deleteUser(user.id)).toBe(true);
+    expect(await deleteUser(user.id, TEST_ACTOR)).toBe(true);
     expect(await countUsers()).toBe(0);
-    expect(await setUserRole("missing-id", "root")).toBe(false);
-    expect(await deleteUser("missing-id")).toBe(false);
+    expect(await setUserRole("missing-id", "root", TEST_ACTOR)).toBe(false);
+    expect(await deleteUser("missing-id", TEST_ACTOR)).toBe(false);
   });
 
   it("stores users on disk without any plaintext password", async () => {
-    await createUser({
-      username: "carol",
-      password: "plaintextpw999",
-      role: "root",
-      groupId: TEST_GROUP,
-    });
+    await createUser(
+      {
+        username: "carol",
+        password: "plaintextpw999",
+        role: "root",
+        groupId: TEST_GROUP,
+      },
+      TEST_ACTOR,
+    );
     const raw = await readFile(join(dir, "users.json"), "utf8");
     expect(raw).not.toContain("plaintextpw999");
   });
@@ -169,12 +203,15 @@ describe("user store", () => {
   it("does not lose users when created concurrently", async () => {
     await Promise.all(
       Array.from({ length: 8 }, (_unused, index) =>
-        createUser({
-          username: `user${index}`,
-          password: "pw12345678",
-          role: "administrator",
-          groupId: TEST_GROUP,
-        }),
+        createUser(
+          {
+            username: `user${index}`,
+            password: "pw12345678",
+            role: "administrator",
+            groupId: TEST_GROUP,
+          },
+          TEST_ACTOR,
+        ),
       ),
     );
     expect(await countUsers()).toBe(8);
@@ -183,12 +220,15 @@ describe("user store", () => {
 
 describe("session tokens", () => {
   it("issues, verifies, and revokes a session", async () => {
-    const user = await createUser({
-      username: "dan",
-      password: "pw12345678",
-      role: "root",
-      groupId: TEST_GROUP,
-    });
+    const user = await createUser(
+      {
+        username: "dan",
+        password: "pw12345678",
+        role: "root",
+        groupId: TEST_GROUP,
+      },
+      TEST_ACTOR,
+    );
     const session = await issueSession({ id: user.id, username: user.username, role: user.role });
     expect((await verifySession(session.token))?.username).toBe("dan");
     await revokeSession(session.token);
@@ -201,12 +241,15 @@ describe("session tokens", () => {
   });
 
   it("issues unpredictable tokens", async () => {
-    const user = await createUser({
-      username: "erin",
-      password: "pw12345678",
-      role: "root",
-      groupId: TEST_GROUP,
-    });
+    const user = await createUser(
+      {
+        username: "erin",
+        password: "pw12345678",
+        role: "root",
+        groupId: TEST_GROUP,
+      },
+      TEST_ACTOR,
+    );
     const tokens = new Set<string>();
     for (let index = 0; index < 5; index += 1) {
       const session = await issueSession({
@@ -225,47 +268,62 @@ describe("session tokens", () => {
     // an already-issued session; using Root forced the setup to create a second
     // Root, which the store now refuses (B11: exactly one Root). A Root is
     // still created so demoting this account does not strand the installation.
-    const user = await createUser({
-      username: "frank",
-      password: "pw12345678",
-      role: "administrator",
-      groupId: TEST_GROUP,
-    });
-    await createUser({
-      username: "grace",
-      password: "pw12345678",
-      role: "root",
-      groupId: TEST_GROUP,
-    });
+    const user = await createUser(
+      {
+        username: "frank",
+        password: "pw12345678",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
+      TEST_ACTOR,
+    );
+    await createUser(
+      {
+        username: "grace",
+        password: "pw12345678",
+        role: "root",
+        groupId: TEST_GROUP,
+      },
+      TEST_ACTOR,
+    );
     // Somebody has to answer for a Viewer since M3, and it cannot be the
     // account being demoted. This test is about session propagation, so the
     // manager is scaffolding — but the demotion is refused without it, which is
     // the invariant doing its job.
-    const manager = await createUser({
-      username: "heidi",
-      password: "pw12345678",
-      role: "administrator",
-      groupId: TEST_GROUP,
-    });
+    const manager = await createUser(
+      {
+        username: "heidi",
+        password: "pw12345678",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
+      TEST_ACTOR,
+    );
     const session = await issueSession({ id: user.id, username: user.username, role: user.role });
-    await setUserRole(user.id, "viewer", undefined, manager.id);
+    await setUserRole(user.id, "viewer", TEST_ACTOR, manager.id);
     await updateSessionsRoleForUser(user.id, "viewer");
     expect((await verifySession(session.token))?.role).toBe("viewer");
   });
 
   it("revokes every session for one account without touching others", async () => {
-    const doomed = await createUser({
-      username: "doomed",
-      password: "pw12345678",
-      role: "administrator",
-      groupId: TEST_GROUP,
-    });
-    const keeper = await createUser({
-      username: "keeper",
-      password: "pw12345678",
-      role: "administrator",
-      groupId: TEST_GROUP,
-    });
+    const doomed = await createUser(
+      {
+        username: "doomed",
+        password: "pw12345678",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
+      TEST_ACTOR,
+    );
+    const keeper = await createUser(
+      {
+        username: "keeper",
+        password: "pw12345678",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
+      TEST_ACTOR,
+    );
     const doomedA = await issueSession({
       id: doomed.id,
       username: doomed.username,
@@ -294,12 +352,15 @@ describe("session tokens", () => {
   });
 
   it("treats an expired session as invalid", async () => {
-    const user = await createUser({
-      username: "gina",
-      password: "pw12345678",
-      role: "root",
-      groupId: TEST_GROUP,
-    });
+    const user = await createUser(
+      {
+        username: "gina",
+        password: "pw12345678",
+        role: "root",
+        groupId: TEST_GROUP,
+      },
+      TEST_ACTOR,
+    );
     const session = await issueSession({ id: user.id, username: user.username, role: user.role });
     const path = join(dir, "sessions.json");
     const file = JSON.parse(await readFile(path, "utf8"));

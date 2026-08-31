@@ -16,6 +16,16 @@ import { addRule, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
 import { seedGroupWithAgents } from "./test-group.js";
 
+/**
+ * The operator these tests act as (T37).
+ *
+ * These calls omitted the actor entirely, which typechecked only because no
+ * test file was ever typechecked (finding 162). At runtime the omission
+ * recorded every one of these actions against `unknown`, so the suite was
+ * exercising the audit trail's *fallback* path rather than its ordinary one.
+ */
+const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
+
 let governanceDir: string;
 let workspace: string;
 
@@ -102,7 +112,7 @@ describe("path traversal (B2: rules could be walked around)", () => {
   });
 
   it("blocks the documented traversal attack end to end", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^src/.*$" });
+    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^src/.*$" }, TEST_ACTOR);
     // The rule allows the project's own source directory.
     expect(
       verdict(
@@ -122,7 +132,7 @@ describe("path traversal (B2: rules could be walked around)", () => {
   });
 
   it("applies the same rule identically to read and to apply_patch", async () => {
-    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^src/app[.]ts$" });
+    await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^src/app[.]ts$" }, TEST_ACTOR);
     const absolute = join(workspace, "src", "app.ts");
     expect(
       verdict(
@@ -161,7 +171,7 @@ describe("symbolic links", () => {
       expect(resolved.startsWith("notes/")).toBe(false);
       expect(resolved).toContain("secret.txt");
 
-      await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^notes/.*$" });
+      await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^notes/.*$" }, TEST_ACTOR);
       expect(
         verdict(
           await evaluateGovernancePolicy(

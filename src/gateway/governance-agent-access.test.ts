@@ -50,7 +50,7 @@ afterEach(async () => {
 
 function session(
   role: GovernanceRole,
-  username = role,
+  username: string = role,
   assignedAgents: string[] = [],
 ): GovernanceSession {
   return {
@@ -65,7 +65,7 @@ function session(
   };
 }
 
-const ROOT_ACTOR = { username: "rootie", role: "root" as GovernanceRole };
+const ROOT_ACTOR = { name: "rootie", role: "root" as GovernanceRole };
 
 /**
  * Creates a User or Viewer with the Administrator M3 requires over it.
@@ -217,7 +217,7 @@ describe("who can reach an agent", () => {
         role: "administrator",
         groupId: "group-other",
       },
-      { username: otherRoot.username, role: "root" },
+      { name: otherRoot.username, role: "root" },
     );
     await createUser(
       {
@@ -228,7 +228,7 @@ describe("who can reach an agent", () => {
         assignedAgents: ["agent-shared"],
         managedBy: otherAdmin.id,
       },
-      { username: otherRoot.username, role: "root" },
+      { name: otherRoot.username, role: "root" },
     );
 
     const mine = session("administrator", "amina");

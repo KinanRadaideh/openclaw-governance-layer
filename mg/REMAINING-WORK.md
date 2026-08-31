@@ -66,8 +66,8 @@ to give it. Counted as outstanding here because the remaining work is yours.
 **One is deprioritised:** T1 — not being done. **T13** is drafted and waiting to
 be read.
 
-**Current as of 2026-08-31: 27 done, 8 open, and T1 deprioritised** across
-T1–T37. **T35 and T36 closed the same day**; **T37** was added by finding 162,
+**Current as of 2026-08-31: 28 done, 7 open, and T1 deprioritised** across
+T1–T37. **T35, T36 and T37 all closed the same day.** **T35 and T36 closed the same day**; **T37** was added by finding 162,
 which they turned up. The list grew by three on 2026-08-31 — **T34, T35 and T36**, all raised
 by QA rounds twenty-nine to thirty-two and none of them a security gap. T33
 closed 2026-08-28 and T7 closed 2026-08-30, which unblocked T32.
@@ -95,7 +95,7 @@ four (T29–T32) after two investigations and a request. What is open:
 | **T34**     | **Kinan, then Claude** — decide what the "three surfaces" rule promises, then make the record match it. Added 2026-08-31 by finding 158                                                                                                                                                                                                                                                               |
 | ~~**T35**~~ | ~~Claude — narrow `AuditActorInput`.~~ **DONE 2026-08-31.** A brand on the labelled arm was built, measured and **rejected** — 8 shipped rewrites finding zero defects, plus 311 test errors, to catch one historical defect, enforced by a command nobody runs. What shipped is a guard at the choke point: a named actor may not claim a labelled origin's name, which catches finding 161. §3.5.63 |
 | ~~**T36**~~ | ~~Claude — re-derive the requirements validation table.~~ **DONE 2026-08-31** at Kinan's direction, earlier than recommended. Eight rows re-derived clean, one caveat false (finding 163), and each row now records the evidence it rests on so the next pass re-derives rather than re-reads. §3.5.64                                                                                                |
-| **T37**     | Claude — bring `tsgo:test:src` to zero and add it to the verification set. **No test file in this project is typechecked by anything §4 runs**, and the command that would is 189 errors deep. Added 2026-08-31 by finding 162                                                                                                                                                                        |
+| ~~**T37**~~ | ~~Claude — typecheck the tests.~~ **DONE 2026-08-31.** 189 errors to zero, then added to the verification set in that order. Roughly 140 edits and **no test result changed** (2,338 before and after), which is the evidence it corrected types rather than assertions. Three of the five error classes were tests that were weaker than they looked. §3.5.65                                        |
 
 **"Blocked on the host" was recorded three times and was true zero times — and
 then a fourth was recorded on 2026-08-30 that is true.** The fourth is T7's
@@ -1611,6 +1611,110 @@ looks like coverage.
 **Worth doing before T18.** Chapter 4 argues that this layer is verified by 2,338
 tests. That argument is materially weaker if none of those tests is typechecked,
 and an examiner who knows TypeScript may well ask.
+
+---
+
+### Finding 164 and T37 — the ordering the ledger rests on, and typechecking the tests (2026-08-31)
+
+#### Finding 164 — a governance guarantee resting on undocumented upstream ordering
+
+**Found by Kinan asking for the T7 solution to be verified against the code
+rather than against its own description.** The check was for differences; what it
+turned up was an agreement that holds for a reason nobody had written down.
+
+T7 ships **two halves that both run on the in-process runtime**:
+
+| Where                                                                     | What it writes                         | Means                        |
+| ------------------------------------------------------------------------- | -------------------------------------- | ---------------------------- |
+| `filterSearchResult`, at `agent.afterToolCall`                            | `search-withheld` / `deny`             | the model did **not** see it |
+| `auditSearchReach`, in the embedded runner's `tool_execution_end` handler | `search-reached-denied` / `ungoverned` | the model **did** see it     |
+
+Keeping those apart is the entire reason there are two ids: an auditor counts
+**what leaked** separately from **what was stopped**.
+
+**The risk.** If the audit half read the _unfiltered_ result, every path the
+filter successfully withheld would **also** be recorded as reached. The ledger
+would report a leak for exactly the cases where prevention worked — inverting the
+distinction precisely where it matters, and overstating the gap rather than
+understating it.
+
+**It does not happen**, and the reason is three lines of upstream code:
+`agent-loop.ts` runs `finalizeExecutedToolCall` — which applies `afterToolCall` —
+**before** `emitToolExecutionEnd`, so the event carries the substituted result.
+The audit half reads already-filtered text and finds nothing left to report.
+
+**The finding is that nothing said so.** Not a comment at either call site, not
+the design write-up, not a test. A governance guarantee rested on the ordering of
+two statements in a file this fork does not own, and:
+
+> **If that ordering ever reversed, every existing test would stay green.** The
+> filter's twenty-two tests would pass. The audit half's eleven would pass. Only
+> the _meaning_ of the ledger would change — and only for an auditor reading it
+> months later, asking the one question the two ids exist to answer.
+
+That is this project's recurring shape, for the fourth time: **findings 81, 120,
+152 and now 164 are all the enforcement being right while the evidence goes
+wrong.** A control whose value is retrospective fails silently, because nothing
+is broken until somebody asks.
+
+**Fixed by making it loud rather than by changing it**, since the behaviour is
+correct:
+
+- **A regression test**, `search-audit-ordering.test.ts`. Three cases: the two
+  halves composing correctly (stop recorded, no false reach); the native
+  counter-case (reach recorded, no stop) so the first cannot pass by the audit
+  half simply never firing; and a **demonstration of the failure mode** — feeding
+  both halves the same unfiltered result produces two contradictory entries about
+  one path, which is what the ledger would say if the ordering reversed.
+- **A note at both ends**: the embedded call site now says the result it receives
+  is post-filter and why that matters, and `SEARCH_WITHHELD`'s declaration says
+  the pair stays honest only because of it.
+
+**Why a test rather than only a comment.** The upstream ordering is not this
+fork's to keep. A comment tells a reader who is already looking; a failing test
+tells one who is not.
+
+#### T37 — 189 test-typecheck errors to zero, then into the verification set
+
+**Finding 162 was that no test file in this project is typechecked by anything.**
+`tsconfig.core.json` and `tsconfig.ui.json` both exclude `**/*.test.ts`.
+`tsgo:test:src` ships upstream, had never been run here, and reported **189
+errors** across the governance suite.
+
+**What the 189 turned out to be** — and the classification is the useful part,
+because "fix the type errors" would have been the wrong instruction:
+
+| Kind                        | Count | What it actually was                                                                                                                                                                                                                                                     |
+| --------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Missing actor argument      | ~97   | `addRule`, `createUser`, `setAgentAskMode`, `deleteUser` and `setUserRole` all require an actor. The calls omitted it, so **every one of those actions was recorded against `unknown`** — the suite was exercising the audit trail's fallback path, not its ordinary one |
+| Detyped test helpers        | ~30   | Three helpers used `Partial<Parameters<typeof fn>[0]>`. **M5 made `groupId` parameter 0**, so each became `Partial<string>` and silently stopped checking its overrides                                                                                                  |
+| Union reads                 | ~14   | `verdict?.block`, `outcome.reason` — properties read off unions that do not have them. At runtime these are `undefined`, so `expect(undefined).not.toBe(true)` **passed for the wrong reason**                                                                           |
+| Inferred-default parameters | ~24   | `function session(role, username = role)` infers `username: GovernanceRole`, so passing a real username failed                                                                                                                                                           |
+| Individually judged         | ~24   | Signature drift needing a decision each                                                                                                                                                                                                                                  |
+
+**Three of those classes are not cosmetic.** Actions recorded against `unknown`,
+helpers that stopped type-checking their inputs when a signature changed, and
+assertions passing because they read `undefined` are all cases where **the tests
+were weaker than they appeared**. None of them made a test fail, which is exactly
+why none was noticed.
+
+**The evidence that the pass corrected types rather than assertions: 2,338 tests
+passed before it and 2,338 after.** Not one test result changed across roughly
+140 edits. That was the property to protect — a pass like this can silently
+delete a real signal by making a stale assertion compile, and the way to know it
+did not is that nothing moved.
+
+**Then, and only then, into `HANDOFF.md` §4.** Zero first, gate second: a check
+that is red the day it arrives teaches everyone to skip it, and a skipped gate is
+worse than an absent one because it looks like coverage. The verification set is
+now **six commands**.
+
+**One residue worth stating.** `tsgo:test:src` covers `src/`. It does not cover
+`ui/`, `test/`, `packages/` or `extensions/`, each of which has its own upstream
+config (`tsgo:test:ui`, `tsgo:test:root`, `tsgo:test:packages`). Those were not
+measured, and **the honest sentence is "every test under `src/` is typechecked",
+not "the tests are typechecked"** — which is the finding-148 lesson applied to
+its own fix, before somebody else has to apply it.
 
 ---
 

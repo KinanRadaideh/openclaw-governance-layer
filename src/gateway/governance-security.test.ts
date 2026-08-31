@@ -18,6 +18,16 @@ import { createUser } from "../governance/user-store.js";
 import { handleGovernanceApiRequest } from "./governance-dashboard-api.js";
 
 /**
+ * The operator these tests act as (T37).
+ *
+ * These calls omitted the actor entirely, which typechecked only because no
+ * test file was ever typechecked (finding 162). At runtime the omission
+ * recorded every one of these actions against `unknown`, so the suite was
+ * exercising the audit trail's *fallback* path rather than its ordinary one.
+ */
+const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
+
+/**
  * Every account belongs to a group (M3); these tests all live in one.
  *
  * Accounts that were Viewers or Users before M3 are Administrators here unless
@@ -204,12 +214,15 @@ describe("account enumeration", () => {
     // If a missing account short-circuits before password hashing, response
     // time reveals which usernames exist.
     const { authenticate } = await import("../governance/user-store.js");
-    await createUser({
-      username: "real-user",
-      password: "correct-horse",
-      role: "administrator",
-      groupId: TEST_GROUP,
-    });
+    await createUser(
+      {
+        username: "real-user",
+        password: "correct-horse",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
+      TEST_ACTOR,
+    );
 
     const timeOf = async (username: string, password: string): Promise<number> => {
       const start = process.hrtime.bigint();

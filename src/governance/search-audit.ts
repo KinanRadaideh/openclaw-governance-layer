@@ -329,7 +329,21 @@ export async function auditSearchReach(params: {
   }
 }
 
-/** Ledger id for a reach that was stopped rather than merely seen (T7 prevention). */
+/**
+ * Ledger id for a reach that was stopped rather than merely seen (T7 prevention).
+ *
+ * **The pair only stays honest because of an ordering this module does not
+ * control** (finding 164). `search-reached-denied` means the model saw the
+ * path; this one means it did not. On the in-process runtime both halves run,
+ * and they avoid contradicting each other only because `agent-loop.ts` applies
+ * `afterToolCall` — where the filter lives — before it emits
+ * `tool_execution_end`, which is what the audit half observes. The audit half
+ * therefore reads the already-filtered text and finds nothing left to report.
+ *
+ * Reverse that ordering and every withheld path would also be recorded as
+ * reached, inverting the distinction exactly where it matters, with no test
+ * failing. `search-audit-ordering.test.ts` exists to make that fail loudly.
+ */
 const SEARCH_WITHHELD = "search-withheld";
 
 /**

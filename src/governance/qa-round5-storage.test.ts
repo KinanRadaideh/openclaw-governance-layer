@@ -23,6 +23,16 @@ import { seedNamedGroup } from "./test-group.js";
 import { createUser, DuplicateRootError, listUsers, MissingGroupError } from "./user-store.js";
 
 /**
+ * The operator these tests act as (T37).
+ *
+ * These calls omitted the actor entirely, which typechecked only because no
+ * test file was ever typechecked (finding 162). At runtime the omission
+ * recorded every one of these actions against `unknown`, so the suite was
+ * exercising the audit trail's *fallback* path rather than its ordinary one.
+ */
+const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
+
+/**
  * Every account belongs to a group (M3); these tests all live in one.
  *
  * Accounts that were Viewers or Users before M3 are Administrators here unless
@@ -205,11 +215,15 @@ describe("rule validation is the same wherever a rule is authored", () => {
 describe("a rule keeps its generated id", () => {
   it("does not let an explicit undefined id erase it", async () => {
     await savePolicy(TEST_GROUP, defaultPolicyDocument() as PolicyDocument);
-    const rule = await addRule(TEST_GROUP, {
-      id: undefined,
-      resourceKind: "command",
-      pattern: "^ls$",
-    });
+    const rule = await addRule(
+      TEST_GROUP,
+      {
+        id: undefined,
+        resourceKind: "command",
+        pattern: "^ls$",
+      },
+      TEST_ACTOR,
+    );
     expect(typeof rule.id).toBe("string");
     expect(rule.id).not.toBe("");
     const firstOperatorRule = (await loadPolicy(TEST_GROUP)).rules.find(
@@ -232,18 +246,24 @@ describe("creating a Root now creates a group (M3)", () => {
     // nothing left to race *for*. What replaces the guard is the group
     // boundary, asserted below.
     const attempts = await Promise.allSettled([
-      createUser({
-        username: "root-a",
-        password: "correct-horse",
-        role: "root",
-        groupId: "group-a",
-      }),
-      createUser({
-        username: "root-b",
-        password: "correct-horse",
-        role: "root",
-        groupId: "group-b",
-      }),
+      createUser(
+        {
+          username: "root-a",
+          password: "correct-horse",
+          role: "root",
+          groupId: "group-a",
+        },
+        TEST_ACTOR,
+      ),
+      createUser(
+        {
+          username: "root-b",
+          password: "correct-horse",
+          role: "root",
+          groupId: "group-b",
+        },
+        TEST_ACTOR,
+      ),
     ]);
     expect(attempts.filter((result) => result.status === "fulfilled")).toHaveLength(2);
     expect(await listUsers()).toHaveLength(2);
@@ -253,26 +273,32 @@ describe("creating a Root now creates a group (M3)", () => {
     // The invariant did not weaken; its scope moved. Within a group the
     // original argument holds exactly as written: a second Root can delete the
     // first, and then "you cannot remove the last Root" protects nobody.
-    await createUser({
-      username: "root-a",
-      password: "correct-horse",
-      role: "root",
-      groupId: "group-a",
-    });
-    await expect(
-      createUser({
-        username: "root-b",
+    await createUser(
+      {
+        username: "root-a",
         password: "correct-horse",
         role: "root",
         groupId: "group-a",
-      }),
+      },
+      TEST_ACTOR,
+    );
+    await expect(
+      createUser(
+        {
+          username: "root-b",
+          password: "correct-horse",
+          role: "root",
+          groupId: "group-a",
+        },
+        TEST_ACTOR,
+      ),
     ).rejects.toBeInstanceOf(DuplicateRootError);
     expect(await listUsers()).toHaveLength(1);
   });
 
   it("refuses an account with no group at all", async () => {
     await expect(
-      createUser({ username: "nowhere", password: "correct-horse", role: "root" }),
+      createUser({ username: "nowhere", password: "correct-horse", role: "root" }, TEST_ACTOR),
     ).rejects.toBeInstanceOf(MissingGroupError);
   });
 });
