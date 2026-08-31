@@ -51,9 +51,11 @@ export type CodexBackendPanelProps = PanelEffects & {
  */
 const ENABLE_WARNING = {
   message:
-    "Enabling the Codex backend accepts a known enforcement gap. On that backend, " +
-    "a recursive search that reaches a file your rules deny is recorded but cannot " +
-    "be prevented.",
+    "Codex adds its managed model catalogue, media understanding, prompt overlays " +
+    "and supervised chats — sessions started from a terminal, an editor or ChatGPT " +
+    "that this installation can adopt and oversee.\n\n" +
+    "It also accepts a known enforcement gap: on that backend, a recursive search " +
+    "that reaches a file your rules deny is recorded but cannot be prevented.",
   details:
     "Everywhere else, results covered by a deny rule are removed before the model " +
     "sees them. Codex runs its own tools in its own process and its hook protocol " +
@@ -79,8 +81,10 @@ const ENABLE_WARNING = {
  */
 const DISABLE_WARNING = {
   message:
-    "Disabling the Codex backend also stops Codex session supervision. Supervised " +
-    "chats become locked and unavailable rather than moving to another backend.",
+    "This closes the enforcement gap: with Codex off, every agent runs where a " +
+    "denied search result is removed before the model sees it.\n\n" +
+    "It also stops Codex session supervision. Supervised chats become locked and " +
+    "unavailable rather than moving to another backend.",
   details:
     "Agents currently running on Codex will need another backend. Any Codex " +
     "sessions this installation had adopted — from a terminal, an editor or " +
@@ -99,6 +103,24 @@ function renderLearnMore(): TemplateResult {
     <details class="governance-codex-learn-more">
       <summary>Why this is off by default</summary>
       <div>
+        <p>
+          <strong>What the Codex backend gives you.</strong> A managed model catalogue, media
+          understanding, prompt overlays, and <em>supervised chats</em> — Codex sessions started
+          somewhere else, from a terminal, an editor or ChatGPT, which this installation can adopt
+          so they are governed and recorded like any other agent activity. With Codex off, those
+          sessions are not reachable from here.
+        </p>
+        <p>
+          <strong>What it costs.</strong> One specific enforcement gap, described below. It is
+          narrow, it is permanent, and it is the only reason this is off by default.
+        </p>
+        <p>
+          <strong>What still works on Codex, and this is the part most easily misread.</strong> A
+          deny rule still <em>prevents</em> a file being opened: the gate runs before every tool
+          call on that backend and refuses the ones your policy forbids. The kill switch works. The
+          audit ledger records everything. The gap is <em>one</em> thing — what a recursive search
+          hands back — not denials in general.
+        </p>
         <p>
           This layer decides whether an agent may perform an action, and records what happened. For
           most tools that is enough, because a tool touches exactly what it names.

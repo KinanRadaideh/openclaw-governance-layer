@@ -1959,6 +1959,59 @@ two things depending on an unrelated setting is a vocabulary that will be
 misused. If Kinan wants the strongest defensible claim in Chapter 4, B is it. It
 costs a capability nobody has yet asked for.
 
+##### Constraints Kinan set on T32, and a correction that moves the recommendation (2026-08-31)
+
+**Two constraints, both binding on whatever option is chosen.**
+
+**1. The existing two-rule authoring stays, unchanged.** T32 is **purely
+additive**. The current add-rule form keeps working exactly as it does;
+deny-beats-allow stays the engine's behaviour across every tier; and writing a
+deny for a file inside an allowed folder, by hand, as two separate rules, must
+keep working. The new control is a second door to the same room — and the rules
+it produces are **ordinary rules**, individually visible, editable and
+deletable afterwards. Anything that made the two-rule route harder, or made a
+generated pair un-editable, would trade a capability for a convenience.
+
+**2. The Codex switch dialogs must state benefits as well as dangers.** Built
+2026-08-31 on the same instruction. They were precise about the cost and silent
+about the point: an operator read a pure warning with nothing to weigh it
+against, which is discouragement rather than informed consent. Both directions
+now lead with what changes for the better — enabling names the managed model
+catalogue, media understanding, prompt overlays and supervised chats; disabling
+names the closed enforcement gap — and the disclosure gained a "what it gives
+you" section before the explanation of the problem.
+
+##### The correction: an exception **is** enforced on Codex, except against searches
+
+**Kinan asked whether an exception can be enforced on Codex at all, recalling the
+position as "with Codex on we record but not prevent". That phrase is right about
+searches and wrong as a general statement, and the difference decides the
+option.** Re-verified in the code on 2026-08-31:
+
+| On the Codex backend                                         |                                                                                                                                                  |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| An agent **opens** a denied file directly                    | **Refused.** `runNativeHookRelayPreToolUse` calls the gate, and a block becomes `renderPreToolUseBlockResponse`. Prevention, not merely a record |
+| An agent runs a **search** that returns that file's contents | **Recorded, not prevented.** The protocol has no message for substituting a tool result                                                          |
+
+The enable dialog has always said this correctly — _"Denials, the audit ledger
+and the kill switch all still apply there. What does not apply is the removal of
+denied search results"_ — but the shorthand "record but not prevent" travelled
+further than the sentence it came from, which is finding 163's shape again: a
+precise claim summarised into a wrong one.
+
+**This moves the recommendation.** An exception written for an agent on Codex is
+**mostly enforced**, with one named hole. That is a much weaker case for **option
+B**, which would refuse to create a rule that still blocks direct access —
+withholding a control that works in most cases because it leaks in one is an
+over-correction, and it would push operators toward hand-writing the same rules
+anyway, which constraint 1 guarantees they can.
+
+**Recommendation, now stated more firmly: option A.** Author it for every agent,
+and put the limit on the rule row rather than only in the creating dialog —
+because the rule is read for months, usually by somebody who did not write it.
+The wording should say what is true rather than the shorthand: _"on Codex, a
+search can still return this file; opening it directly is still refused."_
+
 **Whichever is chosen, the enforcement half is unchanged and already works**: deny
 beats allow across every tier, in-process results are withheld, and every reach on
 Codex is recorded. **T32 is an authoring affordance over behaviour the engine
