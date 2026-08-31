@@ -2,6 +2,7 @@
 // tamper-evident audit ledger, and trigger the kill switch from the terminal.
 import type { Command } from "commander";
 import { listActiveSessions } from "../../governance/active-sessions.js";
+import { CLI_ACTOR } from "../../governance/admin-audit.js";
 import { listAgents } from "../../governance/agent-registry.js";
 import { tailLedger, verifyLedgerChain } from "../../governance/audit-ledger.js";
 import { auditLoginSuccess, auditLogout } from "../../governance/auth-audit.js";
@@ -180,7 +181,19 @@ export function registerGovernanceCommands(program: Command): void {
         // command still runs, attributed to the command line itself.
         const identity = await currentCliIdentity();
         const removed = await deleteUnmigratedAccounts(
-          identity ? toCliAuditActor(identity) : { name: "cli", role: "root" },
+          // **Finding 161.** This read `{ name: "cli", role: "root" }`, so a
+          // destructive account deletion was recorded as the act of a **Root**
+          // — a tier no authenticated account held, on the one code path that
+          // exists precisely because nobody can sign in. `AuditActorInput`'s
+          // own doc forbids it in as many words: the labelled actors "are not
+          // accounts and hold no role, and supplying one would invent an
+          // authority that never existed."
+          //
+          // Inventing an authority is worse than recording none. An entry
+          // saying `unknown` or `cli` announces that attribution is missing
+          // and invites the question; an entry saying `root` answers it,
+          // wrongly, and nothing downstream can tell it from the real thing.
+          identity ? toCliAuditActor(identity) : CLI_ACTOR,
         );
         defaultRuntime.log(`deleted ${removed} account(s) that predated groups`);
       });

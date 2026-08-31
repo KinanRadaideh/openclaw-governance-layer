@@ -66,8 +66,9 @@ to give it. Counted as outstanding here because the remaining work is yours.
 **One is deprioritised:** T1 — not being done. **T13** is drafted and waiting to
 be read.
 
-**Current as of 2026-08-31: 25 done, 9 open, and T1 deprioritised** across
-T1–T36. The list grew by three on 2026-08-31 — **T34, T35 and T36**, all raised
+**Current as of 2026-08-31: 27 done, 8 open, and T1 deprioritised** across
+T1–T37. **T35 and T36 closed the same day**; **T37** was added by finding 162,
+which they turned up. The list grew by three on 2026-08-31 — **T34, T35 and T36**, all raised
 by QA rounds twenty-nine to thirty-two and none of them a security gap. T33
 closed 2026-08-28 and T7 closed 2026-08-30, which unblocked T32.
 
@@ -80,20 +81,21 @@ makes this line agree with `HANDOFF.md` §1, which had drifted the other way. Th
 list grew by
 four (T29–T32) after two investigations and a request. What is open:
 
-| Open        | Who has to move                                                                                                                                                                                                                                                                                                                                         |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **T2**      | You — one real agent driving one real tool call. Still the highest-value item left                                                                                                                                                                                                                                                                      |
-| **T3**      | You — a Linux host that does not exist yet. The only unmet design requirement                                                                                                                                                                                                                                                                           |
-| **T17**     | You — a judgement about how the report should look                                                                                                                                                                                                                                                                                                      |
-| **T18**     | You — it is your report                                                                                                                                                                                                                                                                                                                                 |
-| ~~**T7**~~  | ~~A decision (prevention half). The audit half shipped 2026-08-26.~~ **CLOSED 2026-08-30** — prevention built on the in-process runtime; structurally unclosable on the native Codex harness, stated as a result rather than as a gap. §"T7 prevention — built 2026-08-30"                                                                              |
-| ~~**T31**~~ | ~~Claude — 16 lint errors across 14 test files, mechanical.~~ **DONE 2026-08-28** — all 16 fixed, and `git-hooks/pre-commit` now lints staged files, so the count cannot drift back unnoticed                                                                                                                                                           |
-| **T32**     | **Kinan, then Claude.** The old blocker (decision B) dissolved rather than being taken — both routes it offered were wrong and a third was built. **A new decision replaced it**, created by T7 prevention closing on one runtime of two: what does an exception promise for an agent that may run on Codex? See §"T32's decision, restated 2026-08-31" |
-| **T1**      | Deprioritised, not being done                                                                                                                                                                                                                                                                                                                           |
-| ~~**T33**~~ | ~~Claude — make the fork build and start on Linux at all.~~ **DONE 2026-08-28**, verified on Ubuntu 24.04: installer exit 0, probe 14/14, `openclaw` on PATH. It was listed here as open until 2026-08-31 while §1 and §6 both recorded it closed                                                                                                       |
-| **T34**     | **Kinan, then Claude** — decide what the "three surfaces" rule promises, then make the record match it. Added 2026-08-31 by finding 158                                                                                                                                                                                                                 |
-| **T35**     | Claude — narrow `AuditActorInput` so the wrong actor cannot typecheck. Added 2026-08-31 after it produced findings 149 and 155 in two days                                                                                                                                                                                                              |
-| **T36**     | Claude, once, immediately before Chapter 4 is written — re-derive the requirements validation table from the code. Added 2026-08-31 by finding 159                                                                                                                                                                                                      |
+| Open        | Who has to move                                                                                                                                                                                                                                                                                                                                                                                       |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **T2**      | You — one real agent driving one real tool call. Still the highest-value item left                                                                                                                                                                                                                                                                                                                    |
+| **T3**      | You — a Linux host that does not exist yet. The only unmet design requirement                                                                                                                                                                                                                                                                                                                         |
+| **T17**     | You — a judgement about how the report should look                                                                                                                                                                                                                                                                                                                                                    |
+| **T18**     | You — it is your report                                                                                                                                                                                                                                                                                                                                                                               |
+| ~~**T7**~~  | ~~A decision (prevention half). The audit half shipped 2026-08-26.~~ **CLOSED 2026-08-30** — prevention built on the in-process runtime; structurally unclosable on the native Codex harness, stated as a result rather than as a gap. §"T7 prevention — built 2026-08-30"                                                                                                                            |
+| ~~**T31**~~ | ~~Claude — 16 lint errors across 14 test files, mechanical.~~ **DONE 2026-08-28** — all 16 fixed, and `git-hooks/pre-commit` now lints staged files, so the count cannot drift back unnoticed                                                                                                                                                                                                         |
+| **T32**     | **Kinan, then Claude.** The old blocker (decision B) dissolved rather than being taken — both routes it offered were wrong and a third was built. **A new decision replaced it**, created by T7 prevention closing on one runtime of two: what does an exception promise for an agent that may run on Codex? See §"T32's decision, restated 2026-08-31"                                               |
+| **T1**      | Deprioritised, not being done                                                                                                                                                                                                                                                                                                                                                                         |
+| ~~**T33**~~ | ~~Claude — make the fork build and start on Linux at all.~~ **DONE 2026-08-28**, verified on Ubuntu 24.04: installer exit 0, probe 14/14, `openclaw` on PATH. It was listed here as open until 2026-08-31 while §1 and §6 both recorded it closed                                                                                                                                                     |
+| **T34**     | **Kinan, then Claude** — decide what the "three surfaces" rule promises, then make the record match it. Added 2026-08-31 by finding 158                                                                                                                                                                                                                                                               |
+| ~~**T35**~~ | ~~Claude — narrow `AuditActorInput`.~~ **DONE 2026-08-31.** A brand on the labelled arm was built, measured and **rejected** — 8 shipped rewrites finding zero defects, plus 311 test errors, to catch one historical defect, enforced by a command nobody runs. What shipped is a guard at the choke point: a named actor may not claim a labelled origin's name, which catches finding 161. §3.5.63 |
+| ~~**T36**~~ | ~~Claude — re-derive the requirements validation table.~~ **DONE 2026-08-31** at Kinan's direction, earlier than recommended. Eight rows re-derived clean, one caveat false (finding 163), and each row now records the evidence it rests on so the next pass re-derives rather than re-reads. §3.5.64                                                                                                |
+| **T37**     | Claude — bring `tsgo:test:src` to zero and add it to the verification set. **No test file in this project is typechecked by anything §4 runs**, and the command that would is 189 errors deep. Added 2026-08-31 by finding 162                                                                                                                                                                        |
 
 **"Blocked on the host" was recorded three times and was true zero times — and
 then a fourth was recorded on 2026-08-30 that is true.** The fourth is T7's
@@ -1482,6 +1484,133 @@ Fixed by rewriting the section around what is still true (**the boundary is
 filesystem permissions**, which a login does not change and never claimed to)
 and striking through what stopped being true, with the correction's own history
 attached.
+
+---
+
+### Findings 161–163, and T37 — from doing T35 and T36 (2026-08-31)
+
+**All three were found by building the two tasks rather than by a QA round**,
+which is the pattern rounds twenty-six and twenty-nine already established: the
+most productive audit of a piece of work is the work that has to touch it.
+
+| #       | What                                                                                                                                 | State          |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------- |
+| **161** | The pre-groups repair command recorded a destructive account deletion as the act of a **Root that does not exist**                   | Fixed          |
+| **162** | **No test file in the project is typechecked** by anything in the verification set; `tsgo:test:src` exists and carries 189 errors    | **Open — T37** |
+| **163** | The requirements validation table still said command-line changes are attributed to `cli` — the same claim as finding 160, 4th place | Fixed by T36   |
+
+---
+
+#### Finding 161 — inventing an authority nobody held
+
+`governance groups migrate --delete` removes every account that predates groups.
+It is the most destructive command on the surface: it deletes credentials, and
+the only recovery is a password nobody has.
+
+It recorded itself like this:
+
+```ts
+identity ? toCliAuditActor(identity) : { name: "cli", role: "root" };
+```
+
+The fallback runs when nobody is signed in — which is **the normal case for this
+command**, because an installation whose only accounts predate groups has nobody
+left who _can_ sign in. That is precisely the state it exists to repair. So the
+ordinary path wrote a ledger entry saying a **Root** deleted the accounts.
+
+**No Root did.** No account was authenticated at all.
+
+`AuditActorInput`'s own doc comment forbids this in as many words: the labelled
+actors "are not accounts and hold no role, and supplying one would invent an
+authority that never existed." The code sat eight lines from a comment
+prohibiting it.
+
+**Why it is worse than recording nothing.** An entry reading `cli` or `unknown`
+**announces that attribution is missing** and invites the question. An entry
+reading `root` **answers** the question, wrongly, and nothing downstream can tell
+it from a real Root's action: the tier is a plain field, the chain hashes it
+faithfully, and the tamper-evidence guarantees only that nobody altered it
+afterwards. **Tamper-evidence protects a lie as carefully as it protects the
+truth**, which is a sentence worth having in Chapter 4 — integrity of the record
+is not accuracy of the record, and this project has previously written as though
+they were the same property.
+
+Fixed by passing `CLI_ACTOR`, and generalised by the guard T35 built: a named
+actor may no longer claim a labelled origin's name, with or without a tier.
+
+#### Finding 162 — nothing typechecks the tests
+
+**Open. Recorded as T37.**
+
+`tsconfig.core.json` excludes `**/*.test.ts` explicitly, and so does the UI
+config. **Both typechecks in `HANDOFF.md` §4's verification set therefore cover
+zero test files.** Upstream ships `tsgo:test:src` for exactly this, and this
+project has never run it.
+
+Running it: **189 errors** across the governance suite, before any change of
+mine.
+
+**It was found by hitting it.** While writing T35's tests I referenced
+`ADMIN_ACTIONS.accountDelete`, which does not exist — the key is `userDelete`.
+The test **passed**. `action: undefined` reached `recordAdminAction`, the entry
+was written, and every assertion in that test still held, because none of them
+looked at the action. A test asserting the wrong thing about the right thing is
+the failure mode this whole register exists to catch, and here the mechanism that
+would have caught it in one second was switched off.
+
+**This is finding 148's shape, one level up.** 148 was two failing tests outside
+the verification set. This is an entire _category of checking_ outside it, and it
+covers 115 files. The five commands are not the repository, and the more useful
+statement of that is: **the five commands do not check the things that check the
+repository.**
+
+**Why it is not fixed here.** 189 pre-existing errors is a day's work with real
+judgement in it — several are genuine test bugs of the kind above, and some are
+upstream test files this fork does not own. Fixing them inside a task about actor
+types would be a sweep whose blast radius nobody measured, which round
+twenty-six named as the thing not to do.
+
+#### Finding 163 — the fourth home of one sentence
+
+Row 5 of the §4.x.5 requirements table carried _"Caveat to state: CLI-origin
+changes are attributed to `cli`, not a person"_. False since T5 on 2026-08-24.
+
+**The count is the finding.** That one sentence was corrected in **four separate
+places in seven days**: two citations in `CLI-REFERENCE.md` on 2026-08-30, the
+section defining it in the same file on 2026-08-31 (finding 160), and this table
+the same afternoon. Each pass was thorough within the scope it chose. The
+30th's pass searched for where the claim was _used_; the 31st's found where it
+was _defined_; T36 found a fourth place neither had looked at.
+
+**A fact stated once and cited three times is four things to maintain, and
+nothing in this project links a claim to its citations.** That is a documentation
+architecture problem rather than an attention problem, and it is the honest
+lesson: the fix is not "look harder", because three careful passes already
+looked.
+
+---
+
+#### T37 — typecheck the tests
+
+| #       | What                                                                           | Who    | Effort |
+| ------- | ------------------------------------------------------------------------------ | ------ | ------ |
+| **T37** | Bring `tsgo:test:src` to zero and add it to the verification set (finding 162) | Claude | ~1 d   |
+
+**189 errors, and they are not one thing.** A first read shows at least three
+kinds: calls that predate a signature change (`Expected 2 arguments, but got 1`),
+assertions on properties that no longer exist (`TS2339`), and arguments of the
+wrong type. Each needs deciding individually, because **a test that no longer
+compiles may be asserting something that is no longer true**, and silently
+"fixing" it to compile would delete a real signal.
+
+**The order matters.** Fix the errors first, then add the command to §4's
+verification set. Adding it first makes the gate red on arrival, which trains
+everyone to skip it — and a skipped gate is worse than an absent one, because it
+looks like coverage.
+
+**Worth doing before T18.** Chapter 4 argues that this layer is verified by 2,338
+tests. That argument is materially weaker if none of those tests is typechecked,
+and an examiner who knows TypeScript may well ask.
 
 ---
 

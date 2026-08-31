@@ -5025,3 +5025,90 @@ of available commands was missing four whole groups added since it was written,
 and the claim that the command line can do everything the web page can had never
 once been checked. When we checked it, it could not — four things are missing.
 Whether all four should be built is now a decision for Kinan.
+
+## 5.75 The clean-up command that signed the deletion as the boss
+
+There is a command that deletes old accounts left over from before the system
+had organisations. It is the most destructive thing on the command line: it
+removes people's logins, and there is no way back.
+
+When it ran, the logbook recorded who did it. If nobody was signed in, it wrote
+down that **the owner of the whole installation** had done it.
+
+Nobody had. That command's normal situation is that nobody is signed in — the
+accounts it repairs are the reason nobody can sign in — so the usual entry was a
+deletion attributed to a person who does not exist.
+
+**Recording nothing would have been better than recording that.** An entry
+saying "we do not know who did this" tells you there is a question to ask. An
+entry naming the owner answers the question, wrongly, and nothing further down
+can tell it apart from the real thing. Our tamper-proofing guarantees nobody
+changed the entry afterwards. It does not, and cannot, guarantee the entry was
+true when it was written.
+
+We fixed the command, and then made the mistake impossible to repeat: the five
+special labels the system uses for "no person was involved" can no longer be
+dressed up as a person with a rank.
+
+## 5.76 We tried a stronger fix and measured that it cost too much
+
+The obvious way to prevent all of this is to make the computer reject the wrong
+kind of value before the program will even run.
+
+We built it, and then we counted what it cost. Eight changes in the real code —
+**none of which was a bug**; all eight were perfectly good names being written in
+a slightly different style. And three hundred and eleven complaints across about
+thirty test files, because that style is how the tests have always been written.
+
+Then the deciding fact: the tool that would enforce all of this in the test files
+**is not one of the checks this project runs**, and it already reports 189
+problems nobody has looked at. We would have paid three hundred edits for a
+guarantee that nothing would check.
+
+So we took it out again and wrote down the measurement, because "we tried the
+stronger version and here is the bill" is more useful to whoever comes next than
+quietly not trying it.
+
+## 5.77 Nobody has ever type-checked the tests
+
+That last point turned out to be its own problem.
+
+This project runs two type-checkers, and **neither of them looks at a single test
+file**. All 115 of them are outside.
+
+We found it by falling into it. Writing a new test, I referred to a setting that
+does not exist — I used the wrong name for it. The test passed anyway. The value
+came out as "nothing", the entry was written with a blank where the action should
+be, and every check in that test still succeeded, because none of them happened
+to look at that field.
+
+**A test that passes while asserting the wrong thing is the exact failure this
+whole review process exists to catch** — and the tool that would have caught it
+in one second was switched off.
+
+It is the same shape as something we found two days ago, one level up. Then it
+was two failing tests sitting outside the checks. This time it is an entire kind
+of checking sitting outside them, covering every test in the project.
+
+Turning it on reports 189 existing problems, so it is a day's careful work rather
+than a quick fix — and it needs care, because a test that no longer compiles may
+be one that is asserting something no longer true, and forcing it to compile
+would throw away a real warning.
+
+## 5.78 One sentence, four homes, seven days
+
+There is a sentence that says the command line has no sign-in, so changes cannot
+be attributed to a person. It stopped being true on the 24th of August.
+
+We have now corrected it **four times, in four different documents, over seven
+days**. Twice on the 30th in one file. A third time on the 31st, in the section
+of that same file that _defines_ it — which the previous day's pass walked past,
+because it had been searching for places the claim was _used_. And a fourth time
+the same afternoon, in the table that lists what the project promised and whether
+it delivered.
+
+Every one of those passes was careful. That is what makes it worth writing down.
+The problem is not that somebody was sloppy — three thorough passes already
+looked. **The problem is that one fact lives in four places and nothing connects
+them**, so each restatement has to be found and fixed on its own, by someone who
+happens to be looking in the right file on the right day.

@@ -24,7 +24,12 @@
 // rules had exceptions.
 
 import { canonicalAccountName } from "./account-name.js";
-import { ADMIN_ACTIONS, recordAdminAction, UNAUTHENTICATED_ACTOR } from "./admin-audit.js";
+import {
+  ADMIN_ACTIONS,
+  type AuditActorInput,
+  recordAdminAction,
+  UNAUTHENTICATED_ACTOR,
+} from "./admin-audit.js";
 import { INSTALLATION_LEDGER_GROUP } from "./paths.js";
 import type { GovernanceRole } from "./roles.js";
 
@@ -169,7 +174,10 @@ function subjectFor(submitted: string): string {
  * requirement, and for an addition, degrading is the right failure direction.
  */
 async function writeAuthEntry(input: {
-  actor: string;
+  // `AuditActorInput` rather than `string` (T35). This wrapper receives either a
+  // real account or `UNAUTHENTICATED_ACTOR`, and typing it `string` flattened
+  // that distinction at the one seam where the distinction is the entire point.
+  actor: AuditActorInput;
   action: (typeof ADMIN_ACTIONS)[keyof typeof ADMIN_ACTIONS];
   target: string;
   subjectId?: string;
@@ -252,7 +260,7 @@ export async function auditLoginSuccess(user: {
     // The spelling held in `users.json`, never the spelling that was typed.
     // The ledger is read by people, and showing them the account as it exists
     // is what lets an entry be matched against the account list by eye.
-    actor: user.username,
+    actor: { name: user.username },
     action: ADMIN_ACTIONS.authLogin,
     target: `signed in as ${user.role}`,
     subjectId: user.id,
@@ -365,7 +373,7 @@ export async function auditLogout(session: {
   groupId?: string;
 }): Promise<void> {
   await writeAuthEntry({
-    actor: session.username,
+    actor: { name: session.username },
     action: ADMIN_ACTIONS.authLogout,
     target: "signed out",
     subjectId: session.userId,

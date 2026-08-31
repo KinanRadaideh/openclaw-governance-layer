@@ -408,7 +408,7 @@ export async function promptAgent(
   const policy = await loadPolicy(groupId);
   if (policy.lockedAgents.includes(input.agentId)) {
     await recordAdminAction(groupId, {
-      actor: input.username,
+      actor: { name: input.username },
       action: ADMIN_ACTIONS.agentPrompt,
       agentId: input.agentId,
       subjectId: runId,
@@ -447,7 +447,7 @@ export async function promptAgent(
     )
     .join("; ");
   await recordAdminAction(groupId, {
-    actor: input.username,
+    actor: { name: input.username },
     action: ADMIN_ACTIONS.agentPrompt,
     agentId: input.agentId,
     subjectId: runId,
@@ -480,7 +480,7 @@ export async function promptAgent(
       throw err;
     }
     await recordAdminAction(groupId, {
-      actor: input.username,
+      actor: { name: input.username },
       action: ADMIN_ACTIONS.agentPromptResult,
       agentId: input.agentId,
       subjectId: runId,
@@ -535,7 +535,7 @@ export async function promptAgent(
     ...(outcome.ok ? {} : { error: outcome.error ?? "the run did not complete" }),
   });
   await recordAdminAction(groupId, {
-    actor: input.username,
+    actor: { name: input.username },
     action: ADMIN_ACTIONS.agentPromptResult,
     agentId: input.agentId,
     subjectId: runId,

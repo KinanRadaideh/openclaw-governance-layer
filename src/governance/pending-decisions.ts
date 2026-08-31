@@ -212,7 +212,7 @@ export async function decidePendingDecision(
     return undefined;
   }
   await recordAdminAction(groupId, {
-    actor: params.decidedBy,
+    actor: { name: params.decidedBy },
     action: ADMIN_ACTIONS.pendingDecisionDecide,
     outcome: params.allow ? "allow" : "deny",
     target:

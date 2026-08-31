@@ -276,6 +276,64 @@ export const HITL_ACTOR = "hitl-approval";
 export type AuditActorInput = string | { name: string; role?: GovernanceRole };
 
 /**
+ * **A brand on the labelled arm was built, measured and rejected on 2026-08-31
+ * (T35), and the measurement is why.** Making `LabelledActor` a branded string
+ * meant a bare `"cli"` at a call site stopped compiling, which is finding 149
+ * exactly. It cost eight rewrites in shipped code — **none of which was a
+ * defect**; all eight were legitimate usernames flowing in as plain strings —
+ * and **311 further errors across about thirty test files**, because a bare
+ * string has always been the ordinary way to write "a named account with no
+ * tier" and there is no middle arm between the two.
+ *
+ * Three facts decided it. The brand's only real catch is one historical defect.
+ * The command that would enforce it where the churn lands, `tsgo:test:src`, is
+ * **not in this project's verification set** and already carries **189
+ * pre-existing errors**, so the guarantee would be unenforced exactly where it
+ * was paid for. And the thing that actually caught finding 149 was a test at the
+ * seam between authenticating and recording, which exists and stays.
+ *
+ * Recorded rather than quietly abandoned, because "we tried the stronger type
+ * and here is what it cost" is the kind of claim this project has previously got
+ * wrong by reasoning instead of measuring — see finding 155, whose write-up
+ * asserted a compiler behaviour that reintroducing the bug disproved.
+ */
+
+/**
+ * The names a *named* actor may not use, because they are labelled origins.
+ *
+ * Checked here rather than in the type, for the reason above: the type cannot
+ * separate "a labelled origin" from "a named account with no tier" without
+ * forbidding the second, and the second is legitimate and common.
+ *
+ * **The mistake it catches is finding 161**: `{ name: "cli", role: "root" }`
+ * was passed when repairing accounts that predate groups, so a destructive
+ * account deletion was recorded as the act of a **Root** — a tier no
+ * authenticated account held, on the one code path that runs when nobody can
+ * sign in at all. Inventing an authority is worse than recording none, because
+ * an entry saying `unknown` announces that attribution is missing and invites
+ * the question, while an entry saying `root` answers it wrongly and nothing
+ * downstream can tell it from the real thing.
+ */
+const RESERVED_ACTOR_NAMES: ReadonlySet<string> = new Set([
+  "cli",
+  "bootstrap",
+  "unknown",
+  "unauthenticated",
+  "hitl-approval",
+]);
+
+/** Thrown when a named actor claims a labelled origin's name, with or without a tier. */
+export class FabricatedActorError extends Error {
+  constructor(name: string) {
+    super(
+      `"${name}" is a labelled origin, not an account: pass the exported constant ` +
+        `rather than a named actor, so the entry does not claim a tier nobody held.`,
+    );
+    this.name = "FabricatedActorError";
+  }
+}
+
+/**
  * Splits an actor into the two fields the ledger stores.
  *
  * Tolerates `undefined`, which several callers pass — `lockDownAgent` takes an
@@ -294,6 +352,15 @@ export function splitAuditActor(actor: AuditActorInput | undefined): {
   }
   if (typeof actor === "string") {
     return { name: actor };
+  }
+  // T35 / finding 161. A named actor carrying a labelled origin's name is
+  // always a mistake, and the dangerous half is the tier that comes with it.
+  // Thrown rather than silently normalised: a caller in this position has a
+  // real actor available and is discarding it, and quietly rewriting the value
+  // would hide the bug while producing a plausible entry — which is how finding
+  // 149 survived for six days.
+  if (RESERVED_ACTOR_NAMES.has(actor.name)) {
+    throw new FabricatedActorError(actor.name);
   }
   return { name: actor.name, ...(actor.role ? { role: actor.role } : {}) };
 }

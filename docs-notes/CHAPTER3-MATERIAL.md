@@ -26,7 +26,7 @@ that matters for §4.4 validation.
 | 2   | Secure web dashboard: configure policies, monitor sessions, RBAC | **Met**           | `ui/src/pages/governance/` — policy config ✔, RBAC ✔, live session monitoring ✔ (`active-sessions.ts`), per-agent posture ✔, prompting an assigned agent ✔ (§3.5.11), and Root's deployment/network oversight ✔ (§3.5.14) — the last unimplemented clause of the §1.6 role definitions. The per-agent monitor toggle was **not** reachable from any surface until the eleventh QA pass; a policy tier settable only from code does not satisfy "configure policies" — see §4.x.18                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | 3   | Default-deny over file paths, process execution, network         | **Met**           | The _decision_ was always correct; the _coverage_ was one seventh of the host until the thirteenth pass measured it and the fixes closed it. `src/governance/policy-engine.ts` + `resource-extraction.ts`; path confinement enforced by canonicalisation (`path-normalize.ts`, §3.5.8) rather than pattern filtering — validated §4.x.13. Hostnames canonicalised on the same principle, and coverage extended to `grep`/`find`/`ls` and the `terminal` tool's input channel — see §4.x.18. **The thirteenth pass counted the surface against the host's own `tool-catalog.ts` — 7 of its 52 tools were governed — and closed it: 18 are now governed and the other 34 carry a written reason in `DELIBERATELY_UNGOVERNED` (§4.x.20).** Every control surface that reaches the OS is default-denied: `process` (the second command channel into a running shell), `computer`/`screen`/`browser`/`mobile_ui` (desktop and device control), `nodes`, `gateway`, `automations`, `sessions_spawn`, `subagents`, `code_execution`. Residual: search tools are governed at their root only                                                                                              |
 | 4   | Fine-grained privileges: path, command, network, time-limited    | **Met**           | `policy-types.ts` (`PolicyRule.expiresAt`), `policy-engine.ts`; one path rule now binds every path-taking tool identically (§4.x.13, row 4)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| 5   | Record 100% of agent actions, policy decisions, approvals        | **Met**           | Prompts are now recorded too, with the account that sent them (§3.5.11) — the trail can finally say _who set the agent going_, not only what it did and who wrote its rules. Agent actions ✔ and policy decisions ✔ (`audit-ledger.ts` + `policy-engine.ts`; every invocation recorded, `ungoverned` included — §4.x.10). Administrative approvals ✔ (`admin-audit.ts`, §3.5.9) — policy, account, and approval changes carry a required `actor`, in the same hash chain. Caveat to state: CLI-origin changes are attributed to `cli`, not a person (§3.5.9).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| 5   | Record 100% of agent actions, policy decisions, approvals        | **Met**           | Prompts are now recorded too, with the account that sent them (§3.5.11) — the trail can finally say _who set the agent going_, not only what it did and who wrote its rules. Agent actions ✔ and policy decisions ✔ (`audit-ledger.ts` + `policy-engine.ts`; every invocation recorded, `ungoverned` included — §4.x.10). Administrative approvals ✔ (`admin-audit.ts`, §3.5.9) — policy, account, and approval changes carry a required `actor`, in the same hash chain. ~~Caveat to state: CLI-origin changes are attributed to `cli`, not a person (§3.5.9).~~ **False since T5 on 2026-08-24 — finding 163, found by T36 on 2026-08-31.** Command-line changes resolve the signed-in account through `verifySession` and are recorded by name and tier. `cli` survives only where no account _can_ sign in: the pre-groups repair command and the first-account bootstrap. **Also added since this row was written:** searches reaching a denied path are recorded (T7 audit half), and results withheld from the model are recorded distinctly from reaches (T7 prevention), so the trail now separates _what leaked_ from _what was stopped_.                               |
 | 6   | Tamper-evident audit logging                                     | **Met**           | `audit-ledger.ts` HMAC-SHA256 hash chain, keyed per installation, with an independent checkpoint file (§4.x.2). Evident against an attacker who wants to **alter** the record. The thirteenth pass demonstrated three routes that needed no key and defeated detection by **destroying** rather than forging — deleting the checkpoint made truncation return `ok`, a whole-history rewrite in the pre-key format verified clean, and corrupting `ledger.key` silently yielded a zero-length HMAC key — and closed all three (§4.x.20). Residual, unchanged: an attacker deleting _both_ the key and the checkpoint leaves nothing on the host to contradict a rewritten chain, which needs an off-host anchor (deployment, not code)                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | 7   | Real-time control: suspend/terminate within 1 second             | **Met**           | `kill-switch.ts` + `agent-terminator.ts` + `src/gateway/governance-agent-termination.ts`. Measures **confirmed termination**, not dispatch: the run-activity probe waits for signalled runs to leave the Gateway registry, and reports `dispatchMs`, `elapsedMs` and `stoppedConfirmed` separately (§3.5.10, §4.x.17). Caveat retained: from the CLI no in-flight abort is possible, and that is reported rather than implied. **Three failure modes found and fixed in the thirteenth pass (§4.x.20)**, each of which used to return `200 OK` while stopping nothing: a mistyped agent id (the dashboard now offers known ids and warns when the typed one matches none), a hand-written `agentMode: "off"` (dropped on load), and a call carrying neither `agentId` nor `sessionKey` (refused whenever any agent is locked, recorded under `kill-switch-unattributable`). **Blast radius completed 2026-08-25 (T6, §3.5.38):** a lockdown now reaches a cross-agent child already running, by walking the `spawnedBy` chain the host records on the session entry — finding 96 closed without any upstream change                                                               |
 | 8   | No plaintext secrets in logs                                     | **Met**           | Recorded text is redacted at the ledger boundary by OpenClaw's own `redactToolPayloadText`, so a future caller cannot reintroduce the hole by forgetting. **Restated for attachments (T14, §3.5.28):** redaction is a text operation and an image is not text, so attachment _content_ is never recorded at all — the ledger holds SHA-256, sniffed MIME type, size and the declared name, and the bytes live in a store the governed agent cannot read (inherited from the self-protecting core denial, asserted by test). The claim is therefore "recorded text is redacted; attachment content is never recorded", not "everything is scanned"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -6853,6 +6853,48 @@ denial covers on the in-process runtime (T7). The honest summary is **limits of
 coverage, stated and dated, not defects in what is covered** — and each one is
 re-checkable, which is the property that matters more than the count.
 
+> ### T36 — this table re-derived from the code, 2026-08-31
+>
+> **Every row below was re-checked against the source rather than re-read**, on
+> the argument that a validation table is the one artefact in this project that
+> nothing else audits: it is copied into Chapter 4 and defended in a viva, and
+> until now it had been _written_ carefully and _re-derived_ never.
+>
+> It found **one stale claim (finding 163)** — row 5's caveat that command-line
+> changes are attributed to `cli` rather than to a person, false since
+> 2026-08-24 — which is the **third** location this same sentence was found in
+> during 2026-08-31, after `CLI-REFERENCE.md` §1 (finding 160) and the two
+> citations corrected the day before. **One claim, four places, seven days.** A
+> fact stated once and cited three times becomes four things to maintain, and
+> nothing in this project links a claim to its citations.
+>
+> **What each row now rests on**, so the next pass re-derives rather than re-reads:
+>
+> | #   | Re-derived from                                                                                        | Verdict                    |
+> | --- | ------------------------------------------------------------------------------------------------------ | -------------------------- |
+> | 1   | `node -v` → v22.22.3; `tsgo:core`/`tsgo:ui` clean under `strict`                                       | Met                        |
+> | 2   | `ui/src/pages/governance/`; `requireRole` on every route, the agent listing gated at `viewer`          | Met                        |
+> | 3   | `policy-engine.ts` — the `default-deny` exit is reached when no allow rule matches                     | Met                        |
+> | 4   | `policy-types.ts` `resourceKind` + `PolicyRule.expiresAt`; `isRuleExpired` consulted at evaluation     | Met                        |
+> | 5   | `appendLedgerEntry` on every branch of the gate, `ungoverned` included; `admin-audit.ts` for approvals | Met — **caveat corrected** |
+> | 6   | `audit-ledger.ts` `createHmac` chain + checkpoint                                                      | Met                        |
+> | 7   | `kill-switch.ts` measures `dispatchMs` and `elapsedMs` separately via `process.hrtime.bigint()`        | Met                        |
+> | 8   | `redactToolPayloadText` applied to `resource` and `intent` before storage; strengthened by finding 147 | Met                        |
+> | 9   | Built and started on Ubuntu 24.04 (T33); never deployed to a host (T3)                                 | **Partial**                |
+>
+> **Row 7's caveat was re-derived and survives.** "From the CLI no in-flight
+> abort is possible" is not an accident of the code: `terminateAgentRuns` reads
+> a module-level `registeredTerminator` that the _Gateway_ process registers, so
+> a separate CLI process finds it unset and returns `supported: false`. It is a
+> property of process boundaries and will stay true until the CLI talks to the
+> Gateway. Kept, and now with the reason attached rather than the assertion
+> alone.
+>
+> **Do this again immediately before Chapter 4 is written, not on a schedule.**
+> Re-deriving it now does not stop it going stale; it resets a clock. The value
+> is in the derivation being recent _relative to the writing_, which is why T36
+> was deliberately not done when it was raised.
+
 **Eight of nine fully met; #9 partial for want of a deployment rather than for
 want of code.** Say that sentence plainly and name the partial one, because a
 validation table claiming nine of nine invites the examiner to go looking for
@@ -7955,3 +7997,167 @@ Administrator's per-agent one as two gates in series, with an agent reaching the
 Codex runtime only when both are open, and the in-process runtime always
 available. It makes "they compose in the safe direction" visible in a way the
 table does not._
+
+### 3.5.63 Two ways to record the wrong person, and why only one is a type problem
+
+**Built 2026-08-31 (T35).** `AuditActorInput` is the parameter every
+administrative write in this layer passes through — seventeen store mutators
+forward it unchanged into `recordAdminAction`, which is the single point where
+"who did this" enters the tamper-evident chain. It is therefore the place in the
+codebase where being wrong is **least visible and most consequential**: the
+ledger is what an investigation has instead of memory, and a wrong entry is not
+detectably wrong.
+
+It produced two defects in two days. The design turns on the fact that **they are
+different mistakes**, which the first statement of this task got wrong.
+
+|                 | The defect                                                                                                                   | The mistake                             |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| **Finding 149** | `lockDownAgent(group, agentId, "cli")`, written two lines below a resolved operator and discarding it                        | **Forgetting an authority you hold**    |
+| **Finding 161** | `{ name: "cli", role: "root" }` on the pre-groups repair path, recording a destructive account deletion as the act of a Root | **Inventing an authority nobody holds** |
+
+#### The type as it stood, and why it was that shape
+
+```ts
+type AuditActorInput = string | { name: string; role?: GovernanceRole };
+```
+
+The union is deliberate and its design note explains it: a bare string is a
+**labelled origin** — `cli`, `bootstrap`, `unknown`, `unauthenticated`,
+`hitl-approval` — which is not an account and holds no tier, while the object arm
+is a named account acting at a known tier. Two shapes rather than two fields,
+because widening a _type_ let a caller supply a tier without editing seventeen
+forwarding signatures.
+
+The looseness is that **a bare string means two things at once**: a labelled
+origin, and a named account whose tier simply was not carried this far. Both are
+legitimate and the type cannot tell them apart.
+
+#### What was tried, measured, and rejected
+
+The obvious fix is to brand the labelled arm, so the five constants are the only
+values of that type and a bare `"cli"` stops compiling. **It was built and
+measured.** The result argues against it, and the measurement is the part worth
+carrying into the report:
+
+- **Eight rewrites in shipped code — and not one of them was a defect.** All
+  eight were legitimate usernames (`input.username`, `params.decidedBy`,
+  `created.requestedBy`) flowing in as plain strings, exactly the second meaning
+  the union has always carried.
+- **311 further errors across roughly thirty test files**, because writing a
+  named actor as a bare string is the ordinary idiom throughout the suite.
+- **The command that would enforce it where that churn lands is not run.**
+  `tsgo:test:src` exists upstream and is **absent from this project's five
+  verification commands**, and it already carries **189 pre-existing errors**
+  (finding 162). The guarantee would have been unenforced precisely where it was
+  paid for.
+
+So the brand buys one historical defect and costs 319 edits, most of them in a
+file set no gate checks. **It was reverted, and the measurement recorded in the
+type's own doc comment** rather than in a commit message nobody re-reads.
+
+> **The generalisable point for Chapter 4.** A stronger type is not free, and its
+> cost is paid where the _idiom_ lives rather than where the _defect_ lived. The
+> defect was in two lines of shipped code; the cost was in three hundred lines of
+> tests that were never wrong. Deciding that trade requires running the compiler,
+> not reasoning about it — which is the same lesson as finding 155, whose
+> write-up asserted a compiler behaviour that reintroducing the bug disproved.
+
+#### What was built instead
+
+A runtime guard at the choke point:
+
+```ts
+if (RESERVED_ACTOR_NAMES.has(actor.name)) {
+  throw new FabricatedActorError(actor.name);
+}
+```
+
+A named actor may not claim a labelled origin's name, with or without a tier.
+This catches finding 161 exactly, costs nothing in churn, and lives in
+`splitAuditActor` — the one function every recorded actor passes through, whether
+it arrived from the dashboard, the CLI or an internal path.
+
+**Three design choices inside it are worth stating.**
+
+**It throws rather than normalising.** Rewriting `{ name: "cli", role: "root" }`
+to `CLI_ACTOR` would produce a plausible entry and hide the bug — which is how
+finding 149 survived six days. A caller in this position has a real actor
+available and is discarding it; that is worth stopping.
+
+**It refuses the tier-less form too** (`{ name: "cli" }`), which records no false
+authority. One rule is easier to hold than two, and the caller who genuinely
+wants the label has the exported constant two characters away.
+
+**The message names the remedy**, because a thrown error on an audit path is read
+by whoever is least expecting it — the same reason the gate's refusals name the
+Administrator who can fix them.
+
+#### Why finding 149 is not closed by this, and what actually closed it
+
+Nothing cheap in the type system catches `"cli"` passed where a real actor was
+available, because `"cli"` **is** a legitimate value — it is legitimate on the two
+paths where nobody can sign in. The distinction is not about the value; it is
+about whether the _call site_ had an alternative.
+
+What caught it was a test at the seam between authenticating and recording
+(`kill-switch-cli-attribution.test.ts`), written because `kill-switch.test.ts`
+passed throughout the defect's life by calling the function directly with a good
+actor. **That is the durable control**, and it is worth saying plainly in the
+report: some defects live in the _gap between two correct components_, and only a
+test that spans the gap can see them. A type system sees neither side of it.
+
+---
+
+### 3.5.64 Re-deriving the validation table, and a claim that lived in four places
+
+**Done 2026-08-31 (T36).** §4.x.5's requirements table is the artefact Chapter 4's
+central argument is built from, and it is the one thing in this project that
+**nothing else audits**. Every other claim is checked by a test, a typecheck, a
+lint rule or a later QA round. The table is written by hand, read by an examiner,
+and until this pass had been _re-derived_ never.
+
+**The method was deliberately the inverse of reading it.** Each row was
+re-established from the source — the file, the function, the branch that makes
+the claim true — and only then compared with what the row said. Reading the row
+first is how a stale claim survives: it supplies the conclusion, and the code is
+then skimmed for agreement.
+
+**Eight rows re-derived clean. One caveat was false.** Row 5 carried _"CLI-origin
+changes are attributed to `cli`, not a person"_ — untrue since T5 on 2026-08-24
+(finding 163). Row 5 also under-claimed: since it was written, the ledger gained
+records for searches reaching a denied path and for results withheld from the
+model, so the trail now separates _what leaked_ from _what was stopped_.
+
+> **The number worth putting in Chapter 4 is four.** That single sentence — the
+> CLI has no login — was found and corrected in **four separate documents in
+> seven days**: two citations in `CLI-REFERENCE.md` on 2026-08-30, the section
+> that _defines_ it in the same file on 2026-08-31 (finding 160), and this
+> validation table the same afternoon (finding 163).
+>
+> **A fact stated once and cited three times is four things to maintain, and
+> nothing links them.** The correction pass on the 30th searched for where the
+> claim was _used_ and missed where it was _defined_; T36 then found it in a
+> fourth place that neither pass looked at. This is not carelessness — each pass
+> was thorough within the scope it chose — it is what happens when a claim has no
+> canonical home and every restatement is an independent copy.
+
+**Row 7's caveat was re-derived and survives**, which is the other half of what
+this pass is for: _"from the CLI no in-flight abort is possible"_ is not an
+accident but a property of process boundaries. `terminateAgentRuns` reads a
+module-level `registeredTerminator` that the **Gateway** process registers; a CLI
+process finds it unset and reports `supported: false`. The caveat now carries its
+reason, so the next reader can re-derive it in ten seconds rather than trusting
+it.
+
+**The table now records what each row rests on**, which is the actual deliverable:
+not a fresher set of verdicts, but a set of verdicts that can be re-checked
+without re-deriving the method. A validation table whose evidence is implicit can
+only be re-read; one whose evidence is named can be re-run.
+
+**Scheduling, stated because it was argued about.** T36 was raised on 2026-08-31
+and the recommendation was to do it _immediately before Chapter 4 is written_
+rather than at once — re-deriving early does not prevent staleness, it only resets
+a clock. Kinan directed that it be done now. Both are recorded: the pass is done
+and dated, and the instruction to repeat it against the writing rather than
+against the calendar stands.

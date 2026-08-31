@@ -228,7 +228,7 @@ export async function submitRuleRequest(
     return request;
   });
   await recordAdminAction(groupId, {
-    actor: created.requestedBy,
+    actor: { name: created.requestedBy },
     action: ADMIN_ACTIONS.ruleRequestSubmit,
     target: describeRequest(created),
     subjectId: created.id,
@@ -273,7 +273,7 @@ export async function decideRuleRequest(
   // This is the "administrative approval" of design requirement #5 in its most
   // literal form: one person asked for a permission and another granted it.
   await recordAdminAction(groupId, {
-    actor: params.decidedBy,
+    actor: { name: params.decidedBy },
     action: ADMIN_ACTIONS.ruleRequestDecide,
     outcome: params.approve ? "allow" : "deny",
     target:
