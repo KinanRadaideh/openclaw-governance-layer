@@ -16,6 +16,7 @@ import {
 import { t } from "../../i18n/index.ts";
 import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
 import { agentLabel, isKnownAgentId, knownAgentIds, type AgentSources } from "./agent-directory.ts";
+import { codexIds } from "./agent-directory.ts";
 import {
   GovernanceApi,
   GovernanceApiError,
@@ -40,7 +41,7 @@ import {
   type GovernanceTranscript,
   type GovernanceUserRecord,
 } from "./api.ts";
-import { canAdminister, canManageAnyAgent, isSessionLost } from "./identity.ts";
+import { canAdminister, canManageAnyAgent, isSessionLost, panelCapabilities } from "./identity.ts";
 import type { LedgerFilter } from "./ledger-filter.ts";
 import { MIN_PASSWORD_LENGTH } from "./panels/account-panels.ts";
 import {
@@ -167,6 +168,15 @@ class GovernancePage extends OpenClawLightDomElement {
   /** `""` means both directions. Only meaningful for a `path` rule. */
   @state() private newRuleAccess: "" | "read" | "write" = "";
   @state() private newRulePattern = "";
+  // The folder-grant form (§3.5.66). Its own draft fields rather than reusing
+  // the add-rule ones: an operator often has a half-written rule in one form
+  // while using the other, and sharing state would clear their work.
+  // The folder-grant form. One object rather than four fields: the three draft
+  // fields and the result of the last submission are one control's state, and
+  // splitting them let the page hold two that could disagree. `written` is
+  // widened where it is consumed (`PolicyDrafts`), not here, because annotating
+  // it inline costs five lines against the 700-line limit this file sits on.
+  @state() private folderGrant = { folder: "", exceptions: "", agentId: "", written: null };
   @state() private newRuleTtl = "";
   @state() private killAgentId = "";
   @state() private users: GovernanceUserRecord[] = [];
@@ -373,9 +383,8 @@ class GovernancePage extends OpenClawLightDomElement {
       identity: this.identity,
       busy: this.busy,
       users: this.users,
-      canAdminister: canAdminister(this.identity),
-      canManageAnyAgent: canManageAnyAgent(this.identity),
-      codexBackend: this.codexBackend,
+      ...panelCapabilities(this.identity),
+      codexBackend: this.codexBackend && { ...this.codexBackend, agentIds: codexIds(this.agents) },
       knownAgentIds: knownAgentIds(this.agentSources()),
       agentLabel: (agentId) => agentLabel(this.agents, agentId),
       agentPolicyView: this.agentPolicyView,
@@ -391,6 +400,7 @@ class GovernancePage extends OpenClawLightDomElement {
         newRulePattern: this.newRulePattern,
         newRuleTtl: this.newRuleTtl,
         newRuleAgentId: this.newRuleAgentId,
+        folderGrant: this.folderGrant,
         postureAgentId: this.postureAgentId,
         agentPolicyAgentId: this.agentPolicyAgentId,
         hitlTimeoutDraft: this.hitlTimeoutDraft,

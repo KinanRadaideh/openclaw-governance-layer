@@ -56,6 +56,7 @@ import { handleGovernanceAccountRoutes } from "./governance-dashboard-accounts.j
 import { handleGovernanceAgentControlRoutes } from "./governance-dashboard-agent-control.js";
 import { handleGovernanceAgentRoutes } from "./governance-dashboard-agents.js";
 import { handleGovernanceCodexBackendRoutes } from "./governance-dashboard-backend.js";
+import { handleGovernanceFolderGrantRoutes } from "./governance-dashboard-folder-grant.js";
 import { requireGroup } from "./governance-dashboard-group.js";
 import { handleGovernanceOversightRoutes } from "./governance-dashboard-oversight.js";
 import { handleGovernanceRuleRequestRoutes } from "./governance-dashboard-rule-requests.js";
@@ -963,19 +964,18 @@ export async function handleGovernanceApiRequest(
     return true;
   }
 
-  if (
-    await handleGovernanceAgentControlRoutes(req, res, route, session, {
-      requireRole,
-      readJsonObjectBodyOrError,
-      toActor,
-      auditActor,
-    })
-  ) {
+  const routeCtx = { requireRole, readJsonObjectBodyOrError, toActor, auditActor };
+
+  if (await handleGovernanceAgentControlRoutes(req, res, route, session, routeCtx)) {
     return true;
   }
 
-  // Which backend agents may run on (§3.5.61); its own module for the 700-line
-  // limit the pre-commit gate enforces.
-  const codexCtx = { requireRole, readJsonObjectBodyOrError, auditActor };
-  return await handleGovernanceCodexBackendRoutes(req, res, route, session, codexCtx);
+  // Granting a folder with exceptions as one act, and which backend agents may
+  // run on: each in its own module, on the seam every split here uses — one
+  // file, one statable authorization rule.
+  if (await handleGovernanceFolderGrantRoutes(req, res, route, session, routeCtx)) {
+    return true;
+  }
+
+  return await handleGovernanceCodexBackendRoutes(req, res, route, session, routeCtx);
 }

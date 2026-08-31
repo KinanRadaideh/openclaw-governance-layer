@@ -19,6 +19,7 @@
 import type { Command } from "commander";
 import { coreRules, seedRuleId } from "../../governance/baseline-policy.js";
 import { currentCliIdentity, toCliActor } from "../../governance/cli-identity.js";
+import { grantFolderWithExceptions } from "../../governance/folder-grant.js";
 import {
   canAuthorPolicyForAgent,
   canManageAccounts,
@@ -498,6 +499,77 @@ export function registerGovernancePolicyCommands(governance: Command): void {
         defaultRuntime.log(`escalation timeout set to ${Math.round(value)}s`);
       });
     });
+
+  policy
+    .command("grant-folder <folder>")
+    .description("Allow a folder and forbid named paths inside it, as one act")
+    .option("--except <path...>", "a path inside the folder that stays denied; repeatable")
+    .option(
+      "--access <access>",
+      "narrow the grant to read | write (the exceptions are never narrowed)",
+    )
+    .option(
+      "--agent <agentId>",
+      "scope it to one agent (omit for all agents, which needs Administrator)",
+    )
+    .action(
+      async (folder: string, options: { except?: string[]; access?: string; agent?: string }) => {
+        await runCommandWithRuntime(defaultRuntime, async () => {
+          if (options.access && options.access !== "read" && options.access !== "write") {
+            throw new Error(`Invalid access "${options.access}". Expected read or write.`);
+          }
+          // The same two-part authorization the HTTP route applies: a User may
+          // author for an agent assigned to them, and a rule binding every
+          // agent is the Administrator tier. Asked through the same permission
+          // functions, so the two surfaces cannot answer it differently.
+          const agentId = options.agent?.trim();
+          const actor = await requireCliActor(
+            defaultRuntime,
+            agentId ? `write policy for agent "${agentId}"` : "grant a folder to every agent",
+            (a) => (agentId ? canAuthorPolicyForAgent(a, agentId) : canManageGlobalPolicy(a)),
+          );
+          if (!actor) {
+            return;
+          }
+          const result = await grantFolderWithExceptions(
+            actor.groupId,
+            {
+              folder,
+              exceptions: options.except ?? [],
+              ...(agentId ? { agentId } : {}),
+              ...(options.access ? { access: options.access as "read" | "write" } : {}),
+            },
+            actor,
+          );
+          // Every rule is listed with its id, because the point of this control
+          // is that it writes **ordinary rules** an operator can remove one at a
+          // time. Printing only "done" would hide the thing worth knowing.
+          defaultRuntime.log(`allow  ${result.grant.rule.id}  ${result.grant.rule.pattern}`);
+          for (const entry of result.exceptions) {
+            defaultRuntime.log(`deny   ${entry.rule.id}  ${entry.rule.pattern}`);
+          }
+          defaultRuntime.log("");
+          defaultRuntime.log(
+            `${result.exceptions.length === 1 ? "1 exception" : `${result.exceptions.length} exceptions`} written as separate deny rules; a deny rule beats every allowance.`,
+          );
+          defaultRuntime.log('  Remove any of them with "governance policy remove-rule <id>".');
+          const conflicts = [
+            ...result.grant.conflicts,
+            ...result.exceptions.flatMap((entry) => entry.conflicts),
+          ];
+          if (conflicts.length > 0) {
+            // Surfaced rather than swallowed, for the reason the dashboard
+            // surfaces them: a clash the operator does not see is a restriction
+            // they believe took hold and did not.
+            defaultRuntime.log("");
+            defaultRuntime.log("  Clashes with rules already in the policy:");
+            for (const conflict of conflicts) {
+              defaultRuntime.log(`    ${conflict.existingRuleId}: ${conflict.message}`);
+            }
+          }
+        });
+      },
+    );
 
   // ---------------------------------------------------------------------
   // Talking to an agent (backlog item A1).

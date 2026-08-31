@@ -60,6 +60,7 @@ import {
 import type { PanelEffects } from "./account-panels.ts";
 import { renderRuleTargets } from "./agent-policy-lookup.ts";
 import { type CodexBackendState, renderCodexBackendPanel } from "./codex-backend-panel.ts";
+import { renderFolderGrantPanel } from "./folder-grant-panel.ts";
 import { formatDuration } from "./format.ts";
 import { renderRootPolicySettings } from "./policy-root-settings.ts";
 
@@ -105,6 +106,35 @@ function tierLabel(tier: GovernancePolicyRule["tier"]): string {
       : t("governance.policy.tierAdmin");
 }
 
+/**
+ * Whether this rule's protection is weaker on the Codex backend, for the agents
+ * it binds.
+ *
+ * Three conditions, all required, because a warning shown where it does not
+ * apply is a warning operators learn to skip:
+ *
+ *   1. It is a **path denial**. Allowances are unaffected, and command or
+ *      network rules have nothing to do with search results.
+ *   2. The installation **offers Codex at all**. With the backend off — the
+ *      default — no agent can be on it and there is nothing to say.
+ *   3. An agent it binds is **actually permitted** onto Codex. A global rule
+ *      qualifies if any agent is; an agent-scoped rule only if that agent is.
+ *
+ * Note what it does *not* say: that the rule is unenforced. Opening the file
+ * directly is still refused on Codex. Only the removal of the path from a
+ * search result is unavailable there.
+ */
+function codexSearchCaveatApplies(rule: GovernancePolicyRule, props: PolicyPanelProps): boolean {
+  if (rule.effect !== "deny" || rule.resourceKind !== "path") {
+    return false;
+  }
+  const permitted = props.codexBackend?.agentIds ?? [];
+  if (!props.codexBackend?.enabled || permitted.length === 0) {
+    return false;
+  }
+  return rule.agentId ? permitted.includes(rule.agentId) : true;
+}
+
 /** Fields an operator is part-way through typing in the policy panels. */
 export type PolicyDrafts = {
   newRuleKind: GovernancePolicyRule["resourceKind"];
@@ -113,6 +143,20 @@ export type PolicyDrafts = {
   newRulePattern: string;
   newRuleTtl: string;
   newRuleAgentId: string;
+  /**
+   * The folder-grant form's own fields.
+   *
+   * Separate from the add-rule drafts on purpose: an operator often has a
+   * half-written rule in one form while using the other, and sharing state
+   * would silently clear their work.
+   */
+  folderGrant: {
+    folder: string;
+    exceptions: string;
+    agentId: string;
+    /** What the last grant wrote, listed back so the operator sees the rules. */
+    written: { pattern: string; effect: string }[] | null;
+  };
   postureAgentId: string;
   agentPolicyAgentId: string;
   /** Root-only settings, reachable from the dashboard only since finding 140. */
@@ -396,6 +440,24 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
       drafts: props.drafts,
       onDraft: props.onDraft,
     }),
+    // The same job as the add-rule form above, expressed as an intention rather
+    // than as two regular expressions. Placed immediately after it, because an
+    // operator looking for one is looking at the other, and its explainer says
+    // in as many words that it is a shortcut to rules they could write by hand.
+    canEditRules
+      ? renderFolderGrantPanel({
+          api: props.api,
+          run: props.run,
+          busy: props.busy,
+          canAdminister: props.canAdminister,
+          draft: props.drafts.folderGrant,
+          onDraft: (patch) =>
+            props.onDraft({ folderGrant: { ...props.drafts.folderGrant, ...patch } }),
+          written: props.drafts.folderGrant.written,
+          onWritten: (written) =>
+            props.onDraft({ folderGrant: { ...props.drafts.folderGrant, written } }),
+        })
+      : nothing,
     // Which backend agents may run on, and the gap that comes with one of them.
     // Beside the posture controls because it answers the same question they do —
     // what this installation's governance can enforce — and in its own module
@@ -577,7 +639,24 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
         · ${tierLabel(rule.tier)} ·
         ${rule.agentId
           ? `agent ${rule.agentId}`
-          : t("governance.policy.globalScope")}${formatRuleLifetime(rule.expiresAt)}`,
+          : t("governance.policy.globalScope")}${formatRuleLifetime(rule.expiresAt)}${
+          // **Option A's requirement, and the reason it is on the row rather
+          // than only in a dialog.** A denial on a path is fully enforced
+          // against a direct open on every backend; what Codex cannot do is
+          // remove the file from a *search result*. An operator who wrote this
+          // rule weeks ago, reading the list today, is the person who needs to
+          // know that — the moment of authoring is not where the
+          // misunderstanding happens, which is finding 150's whole lesson.
+          //
+          // Shown only where it is true: a path denial, on an installation that
+          // has Codex enabled, binding an agent actually permitted onto it.
+          // Over-warning would train operators to ignore it.
+          codexSearchCaveatApplies(rule, props)
+            ? html`<br /><span class="settings-row__hint"
+                  >${t("governance.policy.codexSearchCaveat")}</span
+                >`
+            : nothing
+        }`,
         // No delete control on a core rule: the server refuses it, and
         // offering a button that cannot work is worse than offering none.
         //

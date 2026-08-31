@@ -110,3 +110,20 @@ export function agentLabel(agents: readonly GovernanceAgentEntry[], agentId: str
   const registered = agents.find((agent) => agent.agentId === agentId);
   return registered?.displayName ? `${agentId} — ${registered.displayName}` : agentId;
 }
+
+/**
+ * The agents an Administrator has permitted onto the Codex backend.
+ *
+ * Here rather than inline on the page for the reason every other derivation in
+ * this module is: the page assembles props, and deriving a fact from the agent
+ * list is this file's job. It answers one question for the policy panels —
+ * which rules should carry the note that a search on Codex can still return a
+ * denied path — and answering it precisely is what keeps that note off the rules
+ * it does not apply to.
+ */
+export function codexPermittedAgentIds(agents: readonly GovernanceAgentEntry[]): string[] {
+  return agents.filter((agent) => agent.codexAllowed).map((agent) => agent.agentId);
+}
+
+/** Short alias used by the page's props builders, where line budget is tight. */
+export const codexIds = codexPermittedAgentIds;

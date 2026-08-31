@@ -8263,3 +8263,131 @@ contradictory entries that would result. Notes at both ends state the dependency
 comment informs a reader who is already looking; a failing test informs one who
 is not — and the person who reverses that ordering will be working in a different
 repository, on something unrelated, with no reason to look here at all.
+
+### 3.5.66 Granting a folder with exceptions, and what an affordance is allowed to promise
+
+**Built 2026-08-31 (T32).** The last engineering item on the original backlog,
+and the one whose write-up is least about code: **nothing here changes what the
+gate does.**
+
+#### What was already true, and what was missing
+
+A `path` rule is a pattern; `^work(/|$)` binds a subtree; denials are evaluated
+before allowances across every tier. So "allow this folder, forbid this file
+inside it" has always worked, and driving the gate proved it long before this
+task existed:
+
+```
+1. read an allowed file in the granted folder  => ALLOW
+2. read the excepted file directly             => BLOCK
+3. grep rooted at the granted folder           => ALLOW   <-- read the exception
+```
+
+Line 3 was T7, and it closed on 2026-08-30. What remained was **line 1 and 2
+being unsayable**: an operator had to write two regular expressions by hand and
+know that deny beats allow, and nothing in the interface said so.
+
+**T32 is therefore an authoring affordance over behaviour that already exists.**
+That sentence is the design, and every decision below follows from it.
+
+#### The constraint that shaped it
+
+Kinan set it explicitly: **do not remove the ability to write the two rules by
+hand.** The new control is additive. The add-rule form is untouched; deny still
+beats allow; and, most importantly, **everything the control produces is an
+ordinary rule** — its own id, its own row in the list, removable on its own.
+Delete the exception and the folder stays granted; delete the grant and the
+exception stays denied.
+
+A generated pair that could only be deleted together would have traded a
+capability for a convenience, and it would have made "these are ordinary rules"
+a claim rather than a fact. The dashboard lists the rules it wrote immediately
+after writing them, which is what turns the claim into something the operator
+can see.
+
+#### Three decisions inside the implementation
+
+**It composes `addRuleChecked` rather than writing rules itself.** The rule M6
+established for provisioning: compose the mutators that already exist. Every
+rule inherits the write lock, conflict detection, tier validation and the ledger
+entry, and cannot drift from what the ordinary path does. Assembling
+`PolicyRule` objects directly would have been a second way to write policy, and
+two ways to write one thing is how they come to disagree.
+
+**Exceptions are written before the grant.** Evaluation does not depend on it —
+deny beats allow whenever both exist — but _failure_ does. If writing stops
+half-way, having written the denials leaves the agent with **less** access than
+intended; the grant first would leave it with more, for as long as nobody
+noticed. **When a partial result is possible, the safe half goes first.**
+
+**An exception is never narrowed by `access`, even when the grant is.** A
+read-narrowed grant plus a read-narrowed exception would leave the excepted path
+_writable_ — the opposite of what "except this" means to the person who typed
+it. An exception is an exception to the whole folder.
+
+#### The decision that needed the operator: what may it promise?
+
+T32 was blocked for weeks on a decision that **dissolved rather than being
+taken**. It was recorded as waiting on "may a security control silently narrow
+what an operator asked for", because the two routes then believed available for
+T7 both rewrote the request. Both descriptions turned out to be wrong; the route
+that was built narrows nothing.
+
+A **new** decision replaced it, created by T7 closing on one runtime of two. On
+the Codex backend a denied file still cannot be _opened_, but it can still appear
+in a _search result_. So the question became: what does an exception promise for
+an agent that may run there?
+
+Three answers were put to Kinan, and the case for each is worth Chapter 4:
+
+|                                     | What it buys                            | What it costs                                                                      |
+| ----------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------- |
+| **A — author it, state the limit**  | The capability plus an honest interface | Relies on the reader                                                               |
+| **B — refuse the combination**      | "Exception" means one thing everywhere  | Removes a real combination; couples a policy edit to an agent's engine setting     |
+| **C — author it, show it inactive** | Honest without removing the capability  | Introduces rules that exist but do not apply, which every future reader must learn |
+
+**A was chosen**, and one correction moved the recommendation there. The
+shorthand "with Codex on we record but not prevent" had been travelling as a
+general statement; re-reading the code showed it is true only of **searches**.
+A denial still refuses a direct open on Codex, because the gate runs before every
+tool call there and a block is a real refusal. An exception on that backend is
+therefore **mostly enforced with one named hole** — which makes B an
+over-correction: refusing to write a rule that still blocks direct access, and
+pushing operators toward hand-writing the same rules anyway.
+
+**The note goes on the rule row, not only in the dialog**, and that is the part
+worth defending. A policy is written once and read for months, usually by
+somebody who did not write it. A caveat shown only at the moment of authoring
+would be finding 150 again on a delay: a true statement, in a place nobody
+returns to. It is shown only where all three conditions hold — a path denial, an
+installation offering Codex, and an agent actually permitted onto it — because a
+warning that appears where it does not apply is a warning operators learn to
+skip.
+
+#### What QA found in it, and the shape of those findings
+
+Four defects, all in code written the same day, and **three of the four were
+caught by a check that already existed rather than by inspection**:
+
+- **The escape trap (165).** `pattern-match.ts` exports `escapeRegExp`, which
+  does not only escape — it also anchors, because its job is turning a literal
+  into a pattern matching only that value. Used inside a larger expression it
+  produced a doubly-anchored pattern that compiles and matches nothing, so every
+  folder grant would have bound no paths at all. The module's own tests caught it
+  before it shipped. **The lesson is the name**: a function called `escapeRegExp`
+  that also anchors is doing two things, and the second is invisible at the call
+  site.
+- **Unvalidated patterns (166).** `addRuleChecked` does _not_ validate patterns;
+  the HTTP add-rule route calls `validateRulePattern` itself. So this control
+  wrote patterns the dashboard's own form would have refused — two surfaces
+  applying one rule two ways, this project's most-found defect class, introduced
+  by the person who had spent the week cataloguing it. Fixed in the **domain
+  function**, not the route, so the CLI inherits it too.
+- **Unbounded exceptions (167).** Nothing capped them, so one request could write
+  unbounded rules, each taking the write lock and each appended to the ledger.
+- **The explainer promised something unbuilt (168).** The disclosure text said
+  affected agents "are marked in the rule list" — written in the same hour as the
+  panel, and the marking did not exist yet. **Finding 150 exactly, committed by
+  the author of finding 150's write-up, in text about the feature finding 150 was
+  about.** It was fixed by building the marking rather than softening the text,
+  because the text described the design that had been agreed.

@@ -33,7 +33,21 @@ import { html, nothing, type TemplateResult } from "lit";
 import { renderSettingsToggleRow } from "../../../components/settings-ui.ts";
 import type { PanelEffects } from "./account-panels.ts";
 
-export type CodexBackendState = { enabled: boolean; explicit: boolean };
+/**
+ * The backend stance, plus who was let onto it.
+ *
+ * `agentIds` rides here rather than as a separate prop because the two are one
+ * subject — whether Codex is offered, and which agents an Administrator
+ * permitted — and every consumer needing the second already has the first. The
+ * policy panels use it to decide which rules carry the note that a search on
+ * Codex can still return a denied path, which is true only for a rule binding an
+ * agent actually on that backend.
+ */
+export type CodexBackendState = {
+  enabled: boolean;
+  explicit: boolean;
+  agentIds?: readonly string[];
+};
 
 export type CodexBackendPanelProps = PanelEffects & {
   state: CodexBackendState | null;

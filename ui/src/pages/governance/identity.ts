@@ -53,3 +53,22 @@ export function canAdminister(identity: GovernanceIdentity | null): boolean {
 export function canManageAnyAgent(identity: GovernanceIdentity | null): boolean {
   return canAdminister(identity) || identity?.role === "user";
 }
+
+/**
+ * The two capability flags every panel props builder needs, as one spread.
+ *
+ * Both are derived from the same identity and are always passed together, so
+ * asking for them separately is two chances to pass one and forget the other.
+ * Introduced when `governance-page.ts` reached the 700-line limit and the
+ * alternative was suppressing the rule — the same seam T16 used: move a
+ * derivation to where derivations live, rather than raise the ceiling.
+ */
+export function panelCapabilities(identity: GovernanceIdentity | null): {
+  canAdminister: boolean;
+  canManageAnyAgent: boolean;
+} {
+  return {
+    canAdminister: canAdminister(identity),
+    canManageAnyAgent: canManageAnyAgent(identity),
+  };
+}

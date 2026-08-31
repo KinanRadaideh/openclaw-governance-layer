@@ -3479,3 +3479,78 @@ not a measurement nobody re-ran.** Findings 148 and 157 both had the right
 conclusion over a wrong mechanism, and three "blocked on the host" claims were
 the same. The measurements here get re-run constantly; the _explanations_ under
 them do not.
+
+## §39 — 2026-08-31 (continued): T32, and the last engineering item
+
+**T32 closed, and with it every backlog item that was not Kinan's.** What
+remains — T2, T3, T13, T17, T18 — needs a live model, a server, thirty minutes
+of reading, a judgement about the report's look, and the report itself.
+
+### The decision, and the correction that moved it
+
+T32 had been blocked on a decision that **dissolved rather than being taken**:
+both routes it offered for T7 prevention turned out to be wrongly described, and
+the route that was built narrows nothing. A new decision replaced it, created by
+T7 closing on one runtime of two.
+
+Kinan chose **option A** — author it for every agent, state the limit on the rule
+row. The correction that moved the recommendation there is worth carrying into
+the viva: _"with Codex on we record but not prevent"_ is true of **searches** and
+false as a general statement. A denial still refuses a direct file open on that
+backend, because the gate runs before every tool call there. So an exception on
+Codex is mostly enforced with one named hole — which made option B (refuse to
+create the rule at all) an over-correction.
+
+### What was built, and the two constraints on it
+
+Three surfaces, and the control is **purely additive**: the existing two-rule
+authoring is untouched, and everything the new control produces is an ordinary
+rule with its own id and its own row, removable on its own. The dashboard lists
+what it wrote immediately afterwards, which is what makes that a fact rather
+than a claim.
+
+**No task codes in any operator-facing text**, per Kinan's instruction. The
+explainer answers three questions in the order an operator asks them: what does
+this do, why is it not just the rule form, and how does it relate to the search
+protection they have already read about.
+
+### Four defects in one day's code, and the one that stings
+
+Three of the four were caught by checks that already existed rather than by
+reading:
+
+- **165** — the derived pattern was doubly anchored and matched **nothing**,
+  because `escapeRegExp` also anchors. Every folder grant would have allowed
+  exactly nothing while appearing to work. The module's own tests caught it.
+- **166** — patterns were written without the validation the add-rule route
+  applies. _Two surfaces, one rule, two answers_ — this project's most-found
+  defect class, introduced by the person who had spent the week cataloguing it.
+  Fixed in the domain function so the CLI inherits it rather than being split
+  from the dashboard one floor down.
+- **167** — nothing capped the exception count, so one request could write
+  unbounded rules.
+- **168** — the explainer promised affected agents are "marked in the rule list"
+  and the marking did not exist.
+
+**168 is worth a paragraph on its own.** Finding 150, two days earlier, was a
+caveat that had become false and was not noticed; its write-up drew the lesson
+that text beside a feature drifts from it. Eight hours later the same author
+wrote UI text describing a feature that did not exist yet — the same drift, in
+the opposite direction, about the same feature. **Knowing the failure mode did
+not prevent it.** What caught it was the QA round, not the knowledge.
+
+### One failure that did not reproduce
+
+A full run reported `1 failed | 2363 passed`. Two later runs of the same tree
+reported `2364 passed`. **The failing test was never identified**, because the
+output was piped through a summary filter that discarded the name.
+
+Recorded as an open observation (169) rather than closed as a fluke: this project
+has already had three load-sensitive tests, so an intermittent failure here has
+precedent. The honest state is "one unexplained failure, two clean runs" — which
+is not "the suite is green", and keeping that distinction is what finding 148
+exists for.
+
+**Procedural note, the third of its kind this week**: capture full output. The
+name of the test was the whole diagnosis, and a `| tail` that saved nothing threw
+it away.

@@ -225,6 +225,7 @@ the core denial on 2026-08-19, the login on 2026-08-24.
 | `governance policy for-agent <agentId>`                                                                                   | **Agent → policies.** Posture and every rule in force for one agent                                                                       |
 | `governance policy rule-agents <ruleId>`                                                                                  | **Policies → agents.** Which agents a rule binds                                                                                          |
 | `governance policy set-agent-mode <agentId> <mode>`                                                                       | **Administrator:** per-agent posture: enforce / monitor / default                                                                         |
+| `governance policy grant-folder <folder> [--except <path...>] [--access read\|write] [--agent <id>]`                      | Allow a folder and forbid named paths inside it, as one act. Writes ordinary, separately removable rules                                  |
 | `governance policy set-hitl-timeout <seconds>`                                                                            | How long an escalation waits for a human                                                                                                  |
 | `governance agent prompt [--stream] [--attach <path...>] <agentId> <message>`                                             | Send a prompt to an agent and print the reply. `--attach` sends files; the ledger records hash, type, size and name and **never content** |
 | `governance groups unmigrated`                                                                                            | List accounts written before groups existed, which can no longer sign in                                                                  |
@@ -763,6 +764,51 @@ Same control on the dashboard: **Settings → Governance → Observe one agent**
 
 **Exit codes:** `0` set or cleared · `1` invalid posture.
 
+### `governance policy grant-folder <folder>`
+
+Allows a folder and forbids named paths inside it, in one command.
+
+```
+$ openclaw governance policy grant-folder src --except src/secrets --agent support
+allow  rule-1756...  ^src(/|$)
+deny   rule-1756...  ^src/secrets(/|$)
+
+1 exception written as separate deny rules; a deny rule beats every allowance.
+  Remove any of them with "governance policy remove-rule <id>".
+```
+
+**It is a shortcut, not a new mechanism.** The engine has always done this — a
+`path` rule is a pattern, and denials are evaluated before allowances across
+every tier. What this adds is saying it in one act instead of writing two regular
+expressions and knowing which wins. `policy add-rule` is untouched and remains
+the way to write anything this does not express.
+
+**Everything it writes is an ordinary rule**, which is why the ids are printed
+rather than a bare "done". Each has its own row in `policy show`, and each can be
+removed on its own: remove the exception and the folder stays granted; remove the
+grant and the exception stays denied.
+
+**Authorization is the same as `add-rule`'s**, asked through the same permission
+functions so the two cannot answer it differently: a User may grant for an agent
+assigned to them; a grant binding **every** agent (omit `--agent`) is the
+Administrator tier.
+
+**Three things it refuses**, each with the reason named:
+
+- An **exception outside the folder** — writing it would put a denial somewhere
+  the operator was not looking. The message names both paths and says to add it
+  as its own deny rule if that was the intention.
+- **More than 50 exceptions** in one grant.
+- A **path too long to express as a rule**, checked against the same limit the
+  dashboard applies, so the two surfaces cannot accept different things.
+
+**`--access` narrows the grant only, never the exceptions.** A read-narrowed
+grant plus a read-narrowed exception would leave the excepted path _writable_,
+which is the opposite of what "except this" means.
+
+**Exit codes:** `0` the rules were written · `1` the input was refused, with the
+reason on stdout.
+
 ### `governance policy set-hitl-timeout <seconds>`
 
 How long an escalation waits for a human before timing out. Accepts 5–86400.
@@ -1235,6 +1281,7 @@ node --import ./scripts/register-ts-resolver.mjs scripts/governance-linux-check.
 
 | Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-08-31 | Added `governance policy grant-folder <folder> [--except <path...>]` (T32) — allowing a folder and forbidding named paths inside it as one act, on all three surfaces at once. Additive: `add-rule` is unchanged, and everything the new command writes is an ordinary, separately removable rule                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | 2026-08-31 | Added `governance backend status` and `governance backend set-codex <on\|off>` (Root), completing the third surface for the machine-level half of the two-layer Codex control — the dashboard panel and the `backend/codex` route shipped on 2026-08-30 and the CLI did not, leaving the switch reachable from two surfaces while its per-agent counterpart reached three. Documented `governance agents set-codex` at the same time, which had shipped on 2026-08-30 and was never entered here. `agents list` now prints each agent's `engine:` permission, because `set-codex` changes it from this surface and a setting an operator can change but cannot read back is one they have to take on trust. §3.5.62 |
 | 2026-08-30 | No command changed. **Two corrections**, both of the same shape: this document twice explained a real behaviour by an absent CLI login, which T5 added on 2026-08-24. `agent prompt` records the signed-in account, not `cli`; `deployment` requires a login, and the asymmetry it does have — any signed-in tier may read what the dashboard shows only to Root — is now stated as itself                                                                                                                                                                                                                                                                                                                          |
 | 2026-08-25 | No command changed. The tree was split by subject to get under the project's 700-line limit (T16): `register.governance.ts` 848 → 459 code lines, with the whole `policy` group moving to `register.governance.policy.ts`. Recorded here because the file a reader is pointed at changed, and because the criterion narrowed — the route modules each state one _authorization_ rule, but the policy commands span Viewer to Root by design, so what makes that file coherent is its subject. Verified by `governance --help` and `governance policy --help` listing every subcommand, not only by the type checker.                                                                                                |

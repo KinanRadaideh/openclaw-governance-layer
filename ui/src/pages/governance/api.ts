@@ -244,6 +244,12 @@ export type GovernanceLedgerEntry = {
  */
 export type GovernanceRuleWarning = { code: string; message: string };
 
+import type {
+  AddRuleRequest,
+  FolderGrantRequest,
+  FolderGrantResponse,
+} from "./api.policy-writes.ts";
+
 export type GovernanceRuleCreation = GovernancePolicyRule & {
   conflicts?: GovernanceRuleConflict[];
   warnings?: GovernanceRuleWarning[];
@@ -590,26 +596,17 @@ export class GovernanceApi {
     return this.request<GovernancePolicyDocument>("policy/ask", { method: "POST", body: { ask } });
   }
 
-  addRule(rule: {
-    resourceKind: GovernancePolicyRule["resourceKind"];
-    pattern: string;
-    description?: string;
-    ttlMinutes?: number;
-    /** Omit for a global rule (Administrator+); set to scope to one agent. */
-    agentId?: string;
-    /**
-     * Omit for `allow`. A `deny` rule is evaluated before every allowance and
-     * cannot be overridden by one, so it is the only way to express a
-     * restriction that survives a later broad grant.
-     */
-    effect?: "allow" | "deny";
-    /**
-     * Narrows a **path** rule to one direction. Omit for both. The server
-     * refuses this field on command and network rules rather than ignoring it.
-     */
-    access?: "read" | "write";
-  }): Promise<GovernanceRuleCreation> {
+  addRule(rule: AddRuleRequest): Promise<GovernanceRuleCreation> {
     return this.request<GovernanceRuleCreation>("policy/rules", { method: "POST", body: rule });
+  }
+
+  /**
+   * Allows a folder and forbids named paths inside it, as one act.
+   *
+   * Shapes live in `api.folder-grant.ts`; see the note there about the split.
+   */
+  grantFolder(input: FolderGrantRequest): Promise<FolderGrantResponse> {
+    return this.request("policy/folder-grant", { method: "POST", body: input });
   }
 
   removeRule(id: string): Promise<{ ok: boolean }> {

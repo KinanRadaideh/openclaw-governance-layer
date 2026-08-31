@@ -5182,3 +5182,80 @@ We did not change the behaviour — it is right. We wrote a test that fails loud
 if that order ever reverses, including a demonstration of what the log would say
 if it did. A comment would only warn someone already looking here; the person who
 might change that order will be working somewhere else entirely.
+
+## 5.81 The button that writes two rules for you
+
+Until now, saying "this agent can use the project folder, but not the secrets
+folder inside it" meant writing two rules by hand, each as a small pattern, and
+knowing that the forbidding one wins.
+
+Now there is a form: name the folder, list what stays off-limits, done.
+
+**It is a shortcut, not a new mechanism**, and that distinction is the whole
+design. The system has always worked this way — the form just says it for you.
+Everything it creates shows up in your rule list as ordinary rules, each on its
+own line, each removable by itself. Remove the exception and the folder stays
+allowed. Remove the allowance and the exception stays forbidden. You can still
+write both by hand, and many people will.
+
+We were asked not to take that away, and we didn't.
+
+## 5.82 Four things wrong with it, found the same day we built it
+
+**The pattern it wrote matched nothing at all.** We used a helper called "escape
+this text", not noticing it also pins the text to the start and end of whatever
+it is matched against. Used inside a bigger pattern, the result was a pattern
+that is perfectly valid and can never match anything — so every folder grant
+would have allowed exactly nothing, while looking like it worked. The tests we
+wrote for the module caught it before it went anywhere.
+
+The lesson is about the _name_. A function called "escape this text" that also
+does a second thing is a trap for whoever reads the call and sees only the first.
+
+**It skipped a safety check the other form applies.** The existing rule form
+checks a pattern's length and complexity before saving it. We assumed the shared
+save function did that. It doesn't — the form does it itself. So the new control
+could write rules the old form would have rejected: **two ways of doing one
+thing, giving two answers**, which is the single most common mistake this project
+has found. Written, this time, by the person who had spent the week cataloguing
+it.
+
+We fixed it in the shared layer rather than in the web page, so the command line
+gets the check too — otherwise we would have recreated the same split one floor
+down.
+
+**One click could write unlimited rules.** Nothing capped how many exceptions you
+could list. Each becomes a rule, each takes a lock and writes a permanent log
+entry. Capped at fifty.
+
+**The help text promised something that did not exist.** The explainer says
+affected agents are marked in the rule list. They weren't — the marking was part
+of the plan and had not been built yet, and the description of it was written
+first.
+
+That is _exactly_ the mistake we found and wrote up two days ago: text describing
+a feature drifting away from what the feature does. Same author, same week, and
+this time the text ran ahead of the code instead of behind it. **Knowing the
+failure mode did not prevent it.** What caught it was deliberately going back
+over the new work — the review, not the knowledge.
+
+We fixed it by building the marking, not by softening the sentence, because the
+sentence described what had been agreed.
+
+## 5.83 One failure we cannot explain
+
+One run of the test suite reported a single failure out of 2,364. Two later runs
+of exactly the same code reported none.
+
+We do not know which test it was, because the output was filtered down to a
+summary and the name was thrown away.
+
+We are writing this down rather than shrugging it off. This project has already
+had three tests that failed only when the machine was busy, so an occasional
+failure here has precedent and a likely cause. And the honest sentence is _"one
+unexplained failure was seen, and two later runs were clean"_ — which is not the
+same as "everything passes", and the difference is precisely the kind of thing
+this whole document exists to keep straight.
+
+If it happens again: keep the full output. The name of the test is the entire
+diagnosis, and it cost nothing to have kept it.

@@ -66,8 +66,9 @@ to give it. Counted as outstanding here because the remaining work is yours.
 **One is deprioritised:** T1 — not being done. **T13** is drafted and waiting to
 be read.
 
-**Current as of 2026-08-31: 28 done, 7 open, and T1 deprioritised** across
-T1–T37.
+**Current as of 2026-08-31: 29 done, 6 open, and T1 deprioritised** across
+T1–T37. **T32 closed on 2026-08-31, and with it the last engineering item on
+the original backlog: every open T-item is now Kinan's.**
 
 The list grew by four on 2026-08-31 — **T34, T35, T36 and T37**, all raised by
 that day's QA rounds and none of them a security gap — and **three of the four
@@ -93,22 +94,22 @@ makes this line agree with `HANDOFF.md` §1, which had drifted the other way. Th
 list grew by
 four (T29–T32) after two investigations and a request. What is open:
 
-| Open        | Who has to move                                                                                                                                                                                                                                                                                                                                                                                       |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **T2**      | You — one real agent driving one real tool call. Still the highest-value item left                                                                                                                                                                                                                                                                                                                    |
-| **T3**      | You — a Linux host that does not exist yet. The only unmet design requirement                                                                                                                                                                                                                                                                                                                         |
-| **T13**     | You — thirty minutes of reading. The prompt-injection answer is drafted at `CHAPTER3-MATERIAL.md` §4.x.26; the remaining work is being able to give it without notes. **Absent from this table until 2026-08-31** while the count above included it                                                                                                                                                   |
-| **T17**     | You — a judgement about how the report should look                                                                                                                                                                                                                                                                                                                                                    |
-| **T18**     | You — it is your report                                                                                                                                                                                                                                                                                                                                                                               |
-| ~~**T7**~~  | ~~A decision (prevention half). The audit half shipped 2026-08-26.~~ **CLOSED 2026-08-30** — prevention built on the in-process runtime; structurally unclosable on the native Codex harness, stated as a result rather than as a gap. §"T7 prevention — built 2026-08-30"                                                                                                                            |
-| ~~**T31**~~ | ~~Claude — 16 lint errors across 14 test files, mechanical.~~ **DONE 2026-08-28** — all 16 fixed, and `git-hooks/pre-commit` now lints staged files, so the count cannot drift back unnoticed                                                                                                                                                                                                         |
-| **T32**     | **Kinan, then Claude.** The old blocker (decision B) dissolved rather than being taken — both routes it offered were wrong and a third was built. **A new decision replaced it**, created by T7 prevention closing on one runtime of two: what does an exception promise for an agent that may run on Codex? See §"T32's decision, restated 2026-08-31"                                               |
-| **T1**      | Deprioritised, not being done                                                                                                                                                                                                                                                                                                                                                                         |
-| ~~**T33**~~ | ~~Claude — make the fork build and start on Linux at all.~~ **DONE 2026-08-28**, verified on Ubuntu 24.04: installer exit 0, probe 14/14, `openclaw` on PATH. It was listed here as open until 2026-08-31 while §1 and §6 both recorded it closed                                                                                                                                                     |
-| **T34**     | **Kinan, then Claude** — decide what the "three surfaces" rule promises, then make the record match it. Added 2026-08-31 by finding 158                                                                                                                                                                                                                                                               |
-| ~~**T35**~~ | ~~Claude — narrow `AuditActorInput`.~~ **DONE 2026-08-31.** A brand on the labelled arm was built, measured and **rejected** — 8 shipped rewrites finding zero defects, plus 311 test errors, to catch one historical defect, enforced by a command nobody runs. What shipped is a guard at the choke point: a named actor may not claim a labelled origin's name, which catches finding 161. §3.5.63 |
-| ~~**T36**~~ | ~~Claude — re-derive the requirements validation table.~~ **DONE 2026-08-31** at Kinan's direction, earlier than recommended. Eight rows re-derived clean, one caveat false (finding 163), and each row now records the evidence it rests on so the next pass re-derives rather than re-reads. §3.5.64                                                                                                |
-| ~~**T37**~~ | ~~Claude — typecheck the tests.~~ **DONE 2026-08-31.** 189 errors to zero, then added to the verification set in that order. Roughly 140 edits and **no test result changed** (2,338 before and after), which is the evidence it corrected types rather than assertions. Three of the five error classes were tests that were weaker than they looked. §3.5.65                                        |
+| Open        | Who has to move                                                                                                                                                                                                                                                                                                                                                                                        |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **T2**      | You — one real agent driving one real tool call. Still the highest-value item left                                                                                                                                                                                                                                                                                                                     |
+| **T3**      | You — a Linux host that does not exist yet. The only unmet design requirement                                                                                                                                                                                                                                                                                                                          |
+| **T13**     | You — thirty minutes of reading. The prompt-injection answer is drafted at `CHAPTER3-MATERIAL.md` §4.x.26; the remaining work is being able to give it without notes. **Absent from this table until 2026-08-31** while the count above included it                                                                                                                                                    |
+| **T17**     | You — a judgement about how the report should look                                                                                                                                                                                                                                                                                                                                                     |
+| **T18**     | You — it is your report                                                                                                                                                                                                                                                                                                                                                                                |
+| ~~**T7**~~  | ~~A decision (prevention half). The audit half shipped 2026-08-26.~~ **CLOSED 2026-08-30** — prevention built on the in-process runtime; structurally unclosable on the native Codex harness, stated as a result rather than as a gap. §"T7 prevention — built 2026-08-30"                                                                                                                             |
+| ~~**T31**~~ | ~~Claude — 16 lint errors across 14 test files, mechanical.~~ **DONE 2026-08-28** — all 16 fixed, and `git-hooks/pre-commit` now lints staged files, so the count cannot drift back unnoticed                                                                                                                                                                                                          |
+| ~~**T32**~~ | ~~Folder grants with exceptions.~~ **DONE 2026-08-31.** Option A, at Kinan's decision: authorable for every agent, with the limit stated on the rule row rather than only in the dialog. Additive — the two-rule authoring is untouched and everything the control writes is an ordinary, separately removable rule. Three surfaces. QA round thirty-three found four defects in it (165–168). §3.5.66 |
+| **T1**      | Deprioritised, not being done                                                                                                                                                                                                                                                                                                                                                                          |
+| ~~**T33**~~ | ~~Claude — make the fork build and start on Linux at all.~~ **DONE 2026-08-28**, verified on Ubuntu 24.04: installer exit 0, probe 14/14, `openclaw` on PATH. It was listed here as open until 2026-08-31 while §1 and §6 both recorded it closed                                                                                                                                                      |
+| **T34**     | **Kinan, then Claude** — decide what the "three surfaces" rule promises, then make the record match it. Added 2026-08-31 by finding 158                                                                                                                                                                                                                                                                |
+| ~~**T35**~~ | ~~Claude — narrow `AuditActorInput`.~~ **DONE 2026-08-31.** A brand on the labelled arm was built, measured and **rejected** — 8 shipped rewrites finding zero defects, plus 311 test errors, to catch one historical defect, enforced by a command nobody runs. What shipped is a guard at the choke point: a named actor may not claim a labelled origin's name, which catches finding 161. §3.5.63  |
+| ~~**T36**~~ | ~~Claude — re-derive the requirements validation table.~~ **DONE 2026-08-31** at Kinan's direction, earlier than recommended. Eight rows re-derived clean, one caveat false (finding 163), and each row now records the evidence it rests on so the next pass re-derives rather than re-reads. §3.5.64                                                                                                 |
+| ~~**T37**~~ | ~~Claude — typecheck the tests.~~ **DONE 2026-08-31.** 189 errors to zero, then added to the verification set in that order. Roughly 140 edits and **no test result changed** (2,338 before and after), which is the evidence it corrected types rather than assertions. Three of the five error classes were tests that were weaker than they looked. §3.5.65                                         |
 
 **"Blocked on the host" was recorded three times and was true zero times — and
 then a fourth was recorded on 2026-08-30 that is true.** The fourth is T7's
@@ -1497,6 +1498,125 @@ Fixed by rewriting the section around what is still true (**the boundary is
 filesystem permissions**, which a login does not change and never claimed to)
 and striking through what stopped being true, with the correction's own history
 attached.
+
+---
+
+### T32 — built 2026-08-31, and QA round thirty-three on it
+
+**T32 is closed.** The last engineering item on the original backlog. With it,
+**every T-item that is not Kinan's is done.**
+
+**What it is, stated first because the write-up is mostly about what it is
+not:** an authoring affordance over behaviour the engine already had. A `path`
+rule is a pattern, `^work(/|$)` binds a subtree, and denials are evaluated before
+allowances across every tier — so "allow this folder, forbid this file inside it"
+has always worked. What did not exist was a way to _say_ it without writing two
+regular expressions and knowing which one wins. Design: §3.5.66.
+
+**Kinan's two constraints, both binding and both met.** The existing two-rule
+authoring is untouched and still the way most operators will write a denial
+inside a granted folder; and **everything the control produces is an ordinary
+rule** — own id, own row, removable on its own. Delete the exception and the
+folder stays granted; delete the grant and the exception stays denied. The
+dashboard lists the rules it wrote immediately after writing them, which turns
+"these are ordinary rules" from a claim into something visible.
+
+**The decision, and the correction that moved it.** Option **A** was chosen:
+author it for every agent, and state the limit **on the rule row** rather than
+only in the creating dialog, because a policy is written once and read for
+months by somebody who did not write it. What moved the recommendation there was
+re-reading the code: the shorthand "with Codex on we record but not prevent" is
+true of **searches** and false as a general statement. A denial still refuses a
+direct open on that backend. So an exception there is mostly enforced with one
+named hole, which made option B — refusing to create the rule at all — an
+over-correction.
+
+**Three surfaces**: `POST policy/folder-grant`, `governance policy grant-folder`,
+and the dashboard form with its explainer. **No task codes appear in any
+operator-facing text**, per Kinan's instruction: the explainer says what the
+control does, why it is a shortcut rather than a new mechanism, and how it
+differs from the protection on searches, in the operator's words.
+
+---
+
+#### Findings 165–169 — QA round thirty-three (2026-08-31)
+
+**Four defects in code written the same day, and a fifth observation that is not
+yet a defect.** Three of the four were caught by checks that already existed
+rather than by inspection, which is the useful part of the record.
+
+| #       | What                                                                                                  | State                        |
+| ------- | ----------------------------------------------------------------------------------------------------- | ---------------------------- |
+| **165** | `escapeRegExp` also anchors, so the derived pattern was doubly anchored and matched **nothing**       | Fixed before shipping        |
+| **166** | The control wrote patterns without the validation the add-rule route applies — two surfaces, one rule | Fixed in the domain function |
+| **167** | Nothing capped the number of exceptions, so one request could write unbounded rules                   | Fixed — cap of 50            |
+| **168** | The explainer promised affected agents are "marked in the rule list", and the marking did not exist   | Fixed by building it         |
+| **169** | One suite run failed one test; two subsequent runs were clean and the test was never identified       | **Open — observation**       |
+
+**Finding 165 — the helper that does two things.** `pattern-match.ts` exports
+`escapeRegExp`, which does not only escape: it wraps the result in `^…$`, because
+its job is turning a literal into a pattern matching _only_ that value. Used
+inside a larger expression it produced `^^work$(/|$)` — valid, compiling, and
+matching nothing. **Every folder grant would have bound no paths at all**, which
+is the worst possible failure for a control an operator believes granted access.
+
+Caught by this module's own tests before it shipped. **The lesson is the name**:
+a function called `escapeRegExp` that also anchors is doing two things, and the
+second is invisible at the call site.
+
+**Finding 166 — the same defect class this project has found most often, written
+by the person cataloguing it.** `addRuleChecked` does **not** validate patterns;
+the HTTP add-rule route calls `validateRulePattern` itself before reaching it. So
+this control wrote patterns the dashboard's own form would have refused — a
+length cap and a backtracking check, silently skipped.
+
+Fixed **in the domain function rather than in the route**, and the placement is
+the finding. Validating in the callers would have left the CLI — which calls the
+function directly — writing rules the dashboard rejects: _two surfaces applying
+one rule two ways_, which is exactly what the fix had to avoid rather than
+reproduce one layer down.
+
+**Finding 167 — an unbounded write from one click.** Nothing capped the exception
+count. Each exception is a rule, each rule takes the policy write lock and
+appends to the tamper-evident ledger. Capped at 50, which is generous for the use
+this exists for and small enough that the worst case is a rejected request rather
+than a policy nobody can read.
+
+**Finding 168 — finding 150, by the author of finding 150's write-up, in text
+about finding 150's feature.** The explainer written for this control says
+affected agents "are marked in the rule list". **They were not.** The marking was
+part of option A's design, agreed hours earlier, and the prose describing it was
+written before the code that would make it true.
+
+It was fixed by **building the marking**, not by softening the text, because the
+text described what had been agreed. The marking shows only where all three
+conditions hold — a path denial, an installation offering Codex, and an agent
+actually permitted onto it — because a warning that appears where it does not
+apply is a warning operators learn to skip.
+
+> **Worth Chapter 4, and uncomfortable.** Finding 150 was a caveat that became
+> false and was not noticed. Its write-up drew the lesson that _documentation
+> written beside a feature drifts from it_. Eight hours later the same author
+> wrote a UI caveat describing a feature that did not exist yet. **Knowing the
+> failure mode did not prevent it.** What caught it was going back over the new
+> code deliberately — the QA round, not the knowledge.
+
+**Finding 169 — one failure, not reproduced, and recorded rather than
+dismissed.** A full suite run reported `1 failed | 2363 passed`. Two subsequent
+runs of the same tree reported `2364 passed`, and the failing test was never
+identified because the output was piped through a summary filter that discarded
+the name.
+
+This is **recorded as an open observation, not closed as a fluke**, for two
+reasons. This project has already had three load-sensitive tests (findings 145,
+146, and T30's rotation pair), so an intermittent failure here has precedent and
+a known cause family. And the honest state is _"one unexplained failure was
+observed and the tree is otherwise green over two runs"_, which is different from
+"the suite is green" — the distinction finding 148 exists to enforce.
+
+**What to do on the next occurrence**: capture the full output rather than a
+filtered tail. The name of the test is the whole diagnosis, and it was lost to a
+`| tail` that cost nothing to avoid.
 
 ---
 

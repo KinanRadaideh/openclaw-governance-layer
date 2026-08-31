@@ -3562,6 +3562,21 @@ export const en: TranslationMap = {
       filterClear: "Clear",
       addRule: "Add a rule",
       addRuleButton: "Add rule",
+      folderGrantTitle: "Allow a folder, except…",
+      folderGrantHint:
+        "Writes the allow rule and the deny rules for you. Everything it creates appears below as ordinary rules you can edit or remove one at a time.",
+      folderGrantFolderLabel: "Folder to allow",
+      folderGrantFolderPlaceholder: "e.g. src  —  the agent may read and write everything below it",
+      folderGrantExceptionsLabel: "Paths inside it that stay forbidden",
+      folderGrantExceptionsPlaceholder:
+        "One per line, e.g. src/secrets  —  leave empty to allow the whole folder",
+      folderGrantAgentLabel: "Agent",
+      folderGrantAgentPlaceholder: "Agent id, or leave empty for every agent (Administrator only)",
+      folderGrantButton: "Allow folder",
+      folderGrantWrote: "Written as separate rules:",
+      codexSearchCaveat:
+        "On the Codex engine a search can still return this path; opening it directly is refused there as it is everywhere.",
+      folderGrantExplainTitle: "What this does, and how it differs from search protection",
       removeRule: "Remove",
       whichAgents: "Who does this affect?",
       coreRuleDisable: "Switch off",
