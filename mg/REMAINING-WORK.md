@@ -66,10 +66,16 @@ to give it. Counted as outstanding here because the remaining work is yours.
 **One is deprioritised:** T1 — not being done. **T13** is drafted and waiting to
 be read.
 
-**Current as of 2026-08-31: 30 done, 5 open, and T1 deprioritised** across
-T1–T37. **T32 and T34 both closed on 2026-08-31**, and with them the last two
-items that were not purely Kinan’s. **T32 closed on 2026-08-31, and with it the last engineering item on
-the original backlog: every open T-item is now Kinan's.**
+**Current as of 2026-08-31: 30 done, 9 open, and T1 deprioritised** across
+T1–T41. **T32 and T34 both closed on 2026-08-31**, and with them the last two
+items on the original backlog that were not purely Kinan's. **Four new items
+(T38–T41) were added the same evening**, by asking what was outstanding that
+this file did not say — three of them are Claude's and one is a decision.
+
+_(This paragraph carried the same sentence twice, for the second time in one
+day, both times from a scripted edit. Left recorded: a file patched by script
+duplicates exactly where a human editing by hand would have seen it, and this
+one is the count paragraph — the line most often quoted out of this file.)_
 
 The list grew by four on 2026-08-31 — **T34, T35, T36 and T37**, all raised by
 that day's QA rounds and none of them a security gap — and **three of the four
@@ -105,6 +111,10 @@ four (T29–T32) after two investigations and a request. What is open:
 | ~~**T7**~~  | ~~A decision (prevention half). The audit half shipped 2026-08-26.~~ **CLOSED 2026-08-30** — prevention built on the in-process runtime; structurally unclosable on the native Codex harness, stated as a result rather than as a gap. §"T7 prevention — built 2026-08-30"                                                                                                                             |
 | ~~**T31**~~ | ~~Claude — 16 lint errors across 14 test files, mechanical.~~ **DONE 2026-08-28** — all 16 fixed, and `git-hooks/pre-commit` now lints staged files, so the count cannot drift back unnoticed                                                                                                                                                                                                          |
 | ~~**T32**~~ | ~~Folder grants with exceptions.~~ **DONE 2026-08-31.** Option A, at Kinan's decision: authorable for every agent, with the limit stated on the rule row rather than only in the dialog. Additive — the two-rule authoring is untouched and everything the control writes is an ordinary, separately removable rule. Three surfaces. QA round thirty-three found four defects in it (165–168). §3.5.66 |
+| **T38**     | **Claude** — drive the dashboard by hand again. Everything shipped since 2026-08-24 is **unrendered**: the Codex panel and its two dialogs, the folder-grant form and its explainer, and the per-rule Codex note. M1 found five defects by doing exactly this once                                                                                                                                     |
+| **T39**     | **Claude** — the other three test-typecheck configs (`tsgo:test:ui`, `test:root`, `test:packages`), never run here. T37 covered `src/` and said so; this is the rest of its own residue                                                                                                                                                                                                                |
+| **T40**     | **Claude** — a CLI for rule requests. Named in `CLI-REFERENCE.md` §2d as the weakest of T34's four reasons and the first to revisit                                                                                                                                                                                                                                                                    |
+| **T41**     | **Kinan** — the draft supervisor email about T7 asks a question that no longer has a live answer. Rewrite it as "here is what I did instead", or delete it                                                                                                                                                                                                                                             |
 | **T1**      | Deprioritised, not being done                                                                                                                                                                                                                                                                                                                                                                          |
 | ~~**T33**~~ | ~~Claude — make the fork build and start on Linux at all.~~ **DONE 2026-08-28**, verified on Ubuntu 24.04: installer exit 0, probe 14/14, `openclaw` on PATH. It was listed here as open until 2026-08-31 while §1 and §6 both recorded it closed                                                                                                                                                      |
 | ~~**T34**~~ | ~~Decide what the three-surfaces rule promises.~~ **DONE 2026-08-31**, option 3 at Kinan’s decision: the four reasons were written first, two survived and two did not. `agents access`, `agent runs` and `agent cancel` built; accounts and rule requests kept as deliberate, with the reasons in `CLI-REFERENCE.md` §2d. **The rule itself was narrowed**, which matters more than the commands      |
@@ -1499,6 +1509,69 @@ Fixed by rewriting the section around what is still true (**the boundary is
 filesystem permissions**, which a login does not change and never claimed to)
 and striking through what stopped being true, with the correction's own history
 attached.
+
+---
+
+### T38–T41 — four things this file did not say were outstanding (2026-08-31)
+
+**Added by asking what is left that the backlog does not mention**, which is a
+different question from "what is on the backlog" and had not been asked since the
+list was created.
+
+#### T38 — the dashboard has not been looked at since 2026-08-24
+
+**The largest of the four, and the least comfortable.** Every dashboard change
+since M1's second hand-driven pass has been verified by **typecheck, lint and
+jsdom component tests, and by nothing that renders it**:
+
+- the Codex backend panel, its two confirmation dialogs and its disclosure
+- the per-agent Codex toggle on every agent row
+- the folder-grant form, its explainer, and the list of rules it writes back
+- the per-rule note about searches on Codex
+- the policy page's narrowed search caveat (finding 150)
+
+**M1 drove the dashboard by hand once and found five defects in an afternoon**
+(99–103) — a rule list titled by raw regular expression, a role the server always
+refuses offered in a form, an irreversible action with no confirmation, a
+permanent "Loading…", and ten controls with no accessible name. **None of those
+five was the kind of defect a component test catches**, and every one of them was
+in code that passed its tests.
+
+There is no reason to think the last week's work is different in kind. This is a
+genuine gap in what "verified" means for this project, and it is stated in §7's
+caveats for the _prompting_ path but not for the dashboard, which the caveats
+describe as "driven by hand twice" without noting how much has been added since.
+
+#### T39 — the rest of T37's residue
+
+`tsgo:test:src` was brought to zero and added to the verification set. It covers
+`src/`. Upstream also ships `tsgo:test:ui`, `tsgo:test:root` and
+`tsgo:test:packages`, **none of which has ever been run here** and none of which
+has been measured. §3.5.65 states this honestly; nothing tracked it.
+
+The dashboard suite is the one that matters, because `ui/` holds five governance
+test files that are currently typechecked by nothing.
+
+#### T40 — a CLI for rule requests
+
+T34 kept this dashboard-only, and `CLI-REFERENCE.md` §2d records the reason as
+the weakest of the four: the gap costs the **link** between a request and the
+rule it produces, not the capability, because an Administrator can already write
+the rule directly. Recorded here so the "revisit this first" is a task rather
+than a sentence in a reference document.
+
+#### T41 — the supervisor email
+
+`mg/email-to-supervisor-t7.md` asks Dr. Haitham whether forking a second project
+is acceptable, because at the time that looked like the only way to close T7 on
+the Codex backend. **T7 was closed a different way** — filtering results
+in-process, and putting the backend that cannot be reached behind two consent
+switches. The question as written no longer has a live answer.
+
+Either rewrite it as _"here is what I did instead, does the reasoning hold?"_ —
+which is a better email and a fair thing to put in front of a supervisor before
+the viva — or delete it. Leaving it is the one option that misleads, because a
+draft in the repository reads as a draft that was meant to go.
 
 ---
 
