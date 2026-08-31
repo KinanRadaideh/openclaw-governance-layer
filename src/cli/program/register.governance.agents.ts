@@ -1,7 +1,10 @@
 // The agent registry's command-line surface (M4).
 //
-// The third surface, and the project's own rule is that a capability reaching
-// only two of them is unfinished. It is also the surface an operator migrating
+// The third surface. The project's rule, as narrowed by T34 on 2026-08-31:
+// **every capability reaches all three surfaces unless a stated reason says
+// otherwise**, and the reasons live in `CLI-REFERENCE.md` §2d. It previously
+// read "a capability reaching only two of them is unfinished", which was stated
+// universally, audited never, and false of four capability groups (finding 158). It is also the surface an operator migrating
 // an existing installation actually uses: their agents predate the registry, so
 // somebody has to claim them, and doing that through a browser one row at a
 // time is the wrong shape for the job.
@@ -27,9 +30,10 @@ import {
   unregisterAgent,
 } from "../../governance/agent-registry.js";
 import { toCliActor, toCliAuditActor, type CliIdentity } from "../../governance/cli-identity.js";
-import { canAssignAgents, visibleAgents } from "../../governance/permissions.js";
+import { canAssignAgents, canViewAgent, visibleAgents } from "../../governance/permissions.js";
 import { knownAgentIds } from "../../governance/policy-projection.js";
 import { loadPolicy } from "../../governance/policy-store.js";
+import { findUsersForAgent } from "../../governance/user-store.js";
 import { defaultRuntime } from "../../runtime.js";
 import { runCommandWithRuntime } from "../cli-utils.js";
 import { requireCliIdentity } from "./governance-cli-gate.js";
@@ -249,6 +253,43 @@ export function registerGovernanceAgentCommands(governance: Command): void {
         } else {
           defaultRuntime.log(`${agent.id} may no longer run on the Codex backend`);
         }
+      });
+    });
+
+  agents
+    .command("access <agentId>")
+    .description("Which accounts hold this agent by assignment")
+    .action(async (agentId: string) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        // **Viewer, not Administrator**, matching `agents/access`. Seeing who
+        // shares an agent is a visibility question, and a Viewer assigned to it
+        // may already read its unmasked audit entries, which name the accounts
+        // that acted. Refusing them the roster while showing them the trail
+        // would be a distinction with no content.
+        const identity = await requireCliIdentity(defaultRuntime, "see who holds an agent", (a) =>
+          canViewAgent(a, agentId),
+        );
+        if (!identity) {
+          return;
+        }
+        const holders = await findUsersForAgent(agentId, identity.groupId ?? "");
+        if (holders.length === 0) {
+          // In words, not an empty list — the distinction between "nobody" and
+          // "the request failed" is invisible when both render as blank
+          // (finding 117), and "nobody can reach this agent" is a real answer
+          // an operator may be checking for deliberately.
+          defaultRuntime.log(`no account holds "${agentId}" by assignment`);
+        } else {
+          for (const holder of holders) {
+            defaultRuntime.log(`  ${holder}`);
+          }
+        }
+        // Said every time, because the list is otherwise read as "these are the
+        // only people who can act on it", which is false and dangerously so.
+        defaultRuntime.log("");
+        defaultRuntime.log(
+          "  Administrators and Root reach every agent by role and are deliberately not listed.",
+        );
       });
     });
 

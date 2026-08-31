@@ -17,15 +17,11 @@ below. The command tree is `governance` → `login` · `logout` · `whoami` ·
 `policy` · `agent` · `agents` · `groups` · `backend` · `sessions` · `pending` ·
 `audit` · `deployment` · `kill` · `set-policy-authoring`.
 
-~~`no known CLI gaps remain against the dashboard` still holds~~ — **false as of
-2026-08-31, and it was an assertion nobody had ever measured.** Enumerating the
-dashboard routes against the registered commands found **four capability groups
-that reach the dashboard and the HTTP API but not the CLI**: accounts, rule
-requests, who can reach an agent, and a run in flight. Some of those gaps are
-probably deliberate — creating Root accounts from a terminal may be exactly the
-wrong idea — but **not one of them had a reason written anywhere**. Tracked as
-**T34**; until it is decided, read this file as a reference to what the CLI does
-and **not** as evidence that the CLI does everything.
+~~`no known CLI gaps remain against the dashboard` still holds~~ — **that was an
+assertion nobody had measured (finding 158).** Measuring it found four capability
+groups reaching the dashboard and the HTTP API but not the CLI. **T34 closed on
+2026-08-31**: two were built, two were kept with the reason written down, and the
+rule was narrowed to match. **§2d names what is deliberately not here.**
 
 ---
 
@@ -235,11 +231,14 @@ the core denial on 2026-08-19, the login on 2026-08-24.
 | `governance agents rename <agentId> <displayName>`                                                                        | Rename an agent you own. The id never changes                                                                                             |
 | `governance agents set-owner <agentId> <accountId>`                                                                       | Hand an agent to another Administrator, releasing its previous holders                                                                    |
 | `governance agents set-codex <agentId> <on\|off>`                                                                         | **Administrator:** permit or refuse this agent on the Codex backend, where a denied search's results cannot be withheld                   |
+| `governance agents access <agentId>`                                                                                      | Which accounts hold this agent by assignment. Readable by any tier that can see the agent                                                 |
 | `governance agents unregister <agentId>`                                                                                  | Remove the record. The agent, its rules and its posture are untouched                                                                     |
 | `governance agents provision <displayName> [--id <agentId>] [--owner <accountId>] [--workspace <path>] [--model <model>]` | **Administrator:** create a real OpenClaw agent **and** record it, as one act or none (M6)                                                |
 | `governance agents delete <agentId> --yes`                                                                                | **Administrator:** remove the record **and** delete the agent from OpenClaw. Irreversible; refuses without `--yes`                        |
 | `governance backend status`                                                                                               | **Root:** whether this installation offers the Codex backend, and whether anybody chose it                                                |
 | `governance backend set-codex <on\|off>`                                                                                  | **Root:** offer or withdraw the Codex backend for the whole installation                                                                  |
+| `governance agent runs`                                                                                                   | Prompt runs in flight, and who started them                                                                                               |
+| `governance agent cancel <runId>`                                                                                         | Stop one run without locking the agent down                                                                                               |
 | `governance agent transcript <agentId>`                                                                                   | Print this machine's conversation with an agent                                                                                           |
 | `governance sessions`                                                                                                     | List currently-running agent sessions                                                                                                     |
 | `governance deployment`                                                                                                   | Verify the deployment and network posture                                                                                                 |
@@ -475,6 +474,32 @@ Both directions are recorded, **including a restatement** — permitting an agen
 that is already permitted writes an `enabled -> enabled` entry, so the ledger can
 answer "who last confirmed this?" and not only "who changed it?".
 
+### `governance agents access <agentId>`
+
+Which accounts hold this agent **by assignment**.
+
+```
+$ openclaw governance agents access support-triage
+  malek
+  watcher
+
+  Administrators and Root reach every agent by role and are deliberately not listed.
+```
+
+**The closing line is printed every time, including when the list is empty**, and
+it is the point of the command rather than a footnote. Without it the list reads
+as "these are the only people who can act on this agent", which is false: every
+Administrator reaches every agent by role. Listing them would make every agent
+look identically staffed and hide the distinction the command exists to show.
+
+**Readable by any tier that can see the agent**, including a Viewer — matching
+the route rather than tightening it. A Viewer assigned to an agent already reads
+its unmasked audit entries, which name the accounts that acted; refusing them the
+roster while showing them the trail would be a distinction with no content.
+
+"No account holds this agent" is printed in words rather than left blank, because
+that is a real answer an operator may be checking for deliberately.
+
 ### `governance agents unregister <agentId>`
 
 Removes the record only. The agent's rules, posture and lockdown all survive,
@@ -508,6 +533,60 @@ refused at the gate and at assignment, so there is no unowned agent left to
 assign. It did not need M6 — the claim rested on reading _registering_ an agent
 and _provisioning_ one as one act, and registration had been on every surface
 since the registry shipped.
+
+---
+
+## 2d. What is deliberately **not** on the command line
+
+**Read this before concluding a capability is missing.** The project's rule used
+to read _"a capability reaching only two of the three surfaces is unfinished"_.
+It was stated universally and never audited, and it was false of four capability
+groups. The rule now reads:
+
+> **Every capability reaches all three surfaces unless a stated reason says
+> otherwise, and the reasons are here.**
+
+Two capabilities are deliberately dashboard-only. Both reasons are narrower than
+the ones you would reach for first, and that is why they are written down.
+
+### Accounts — create, delete, re-role, reset a password
+
+**Not the argument you expect.** "Anyone who can run the CLI could edit
+`users.json` anyway" is void since T5: every command requires a signed-in
+account, so the tier bar is the same as the dashboard's.
+
+**The reason that holds is divergence cost.** The dashboard's account form
+carries guards that QA rounds put there — a confirmation field on the one
+irreversible step (creating Root, which has no password reset), the password
+length rule stated up front, and no `root` option the server will refuse.
+A second implementation of those guards is exactly where two surfaces come to
+disagree, and account creation is the worst place in this system for that to
+happen.
+
+**What you can still do from here:** `governance set-policy-authoring`
+withholds or restores a User's ability to write policy, and
+`governance groups migrate --delete` removes accounts that predate groups.
+
+### Rule requests — submitting one, and deciding it
+
+**The weakest of the reasons, and flagged as such.** The obvious argument — a
+rule request is a conversation between two people, which a scriptable surface
+serves badly — is contradicted by `governance pending list` and
+`pending decide`, which do exactly that shape for timed-out escalations.
+
+**What survives is narrower.** An Administrator at a terminal who wants to act on
+a request can already write the rule with `policy add-rule` or
+`policy grant-folder`. The gap costs the **link** between the request and
+the rule it produced, not the capability. That is a real cost and a small one,
+and it is the first thing to build if this list is revisited.
+
+### Everything else reaches all three
+
+Including the two built on 2026-08-31 because no reason could be written for
+them: `governance agents access` (a read-only lookup already visible to a
+Viewer on the dashboard) and `governance agent runs` /
+`agent cancel` (an operator over SSH had the blunt instrument — stop the
+agent and keep it stopped — and not the precise one).
 
 ---
 
@@ -918,6 +997,31 @@ instance of it.
 was not `on` or `off`. A refusal on tier prints the reason and exits `0`, like
 every other gated command here.
 
+### `governance agent runs` and `governance agent cancel <runId>`
+
+Prompt runs in flight, and stopping one of them.
+
+```
+$ openclaw governance agent runs
+  run-1756...  support-triage  by malek  42s
+
+$ openclaw governance agent cancel run-1756...
+cancelled run-1756...
+```
+
+**`cancel` is deliberately narrower than the kill switch.**
+`governance kill` stops an agent and keeps it stopped until released;
+this ends one run and leaves the agent working. During an incident an operator
+wants both, and until 2026-08-31 this surface had only the blunt one — which
+pushes people toward it.
+
+**Scoped twice, as the route is.** Whether you see runs other accounts started is
+the Administrator tier; which agents you may see at all is the ordinary agent
+scope. Cancelling somebody else's run is likewise an operator act.
+
+A run id that does not exist is reported as such rather than answered with
+success.
+
 ### `governance agent transcript <agentId>`
 
 Prints the conversation this machine has had with an agent, oldest turn first.
@@ -1281,6 +1385,7 @@ node --import ./scripts/register-ts-resolver.mjs scripts/governance-linux-check.
 
 | Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-08-31 | Added `governance agents access`, `governance agent runs` and `governance agent cancel` (T34), closing three of the four surface gaps finding 158 measured — and added **§2d**, which names the two that stay dashboard-only and why. The project's rule changed with it: from "a capability reaching only two surfaces is unfinished" to "every capability reaches all three unless a stated reason says otherwise"                                                                                                                                                                                                                                                                                                |
 | 2026-08-31 | Added `governance policy grant-folder <folder> [--except <path...>]` (T32) — allowing a folder and forbidding named paths inside it as one act, on all three surfaces at once. Additive: `add-rule` is unchanged, and everything the new command writes is an ordinary, separately removable rule                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | 2026-08-31 | Added `governance backend status` and `governance backend set-codex <on\|off>` (Root), completing the third surface for the machine-level half of the two-layer Codex control — the dashboard panel and the `backend/codex` route shipped on 2026-08-30 and the CLI did not, leaving the switch reachable from two surfaces while its per-agent counterpart reached three. Documented `governance agents set-codex` at the same time, which had shipped on 2026-08-30 and was never entered here. `agents list` now prints each agent's `engine:` permission, because `set-codex` changes it from this surface and a setting an operator can change but cannot read back is one they have to take on trust. §3.5.62 |
 | 2026-08-30 | No command changed. **Two corrections**, both of the same shape: this document twice explained a real behaviour by an absent CLI login, which T5 added on 2026-08-24. `agent prompt` records the signed-in account, not `cli`; `deployment` requires a login, and the asymmetry it does have — any signed-in tier may read what the dashboard shows only to Root — is now stated as itself                                                                                                                                                                                                                                                                                                                          |

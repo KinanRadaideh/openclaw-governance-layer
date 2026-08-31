@@ -15,7 +15,11 @@ import {
 } from "../../governance/cli-identity.js";
 import { lockDownAgent, releaseAgentLockdown } from "../../governance/kill-switch.js";
 import { decidePendingDecision, listPendingDecisions } from "../../governance/pending-decisions.js";
-import { canManageAccounts, canManageAgent } from "../../governance/permissions.js";
+import {
+  canManageAccounts,
+  canManageAgent,
+  canManageGlobalPolicy,
+} from "../../governance/permissions.js";
 import { loadPolicy } from "../../governance/policy-store.js";
 import { updateSessionsPolicyAuthoring } from "../../governance/session-tokens.js";
 import { issueSession } from "../../governance/session-tokens.js";
@@ -28,7 +32,7 @@ import { authenticate } from "../../governance/user-store.js";
 import { defaultRuntime } from "../../runtime.js";
 import { runCommandWithRuntime } from "../cli-utils.js";
 import { promptSecret, promptText } from "../prompt.js";
-import { requireCliActor } from "./governance-cli-gate.js";
+import { requireCliActor, requireCliIdentity } from "./governance-cli-gate.js";
 import { registerGovernanceAgentCommands } from "./register.governance.agents.js";
 import { registerGovernanceBackendCommands } from "./register.governance.backend.js";
 import { registerGovernancePolicyCommands } from "./register.governance.policy.js";
@@ -362,6 +366,69 @@ export function registerGovernanceCommands(program: Command): void {
         });
       },
     );
+
+  agent
+    .command("runs")
+    .description("Prompt runs in flight, and who started them")
+    .action(async () => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        // Tier floor User, matching `agent/runs`. The scoping is done twice and
+        // both halves are needed: `includeOthers` decides whether an account
+        // sees runs other people started, and the agent filter decides which
+        // agents it may see at all.
+        const identity = await requireCliIdentity(defaultRuntime, "list runs", () => true);
+        if (!identity) {
+          return;
+        }
+        const { listPromptRuns } = await import("../../governance/prompt-runs.js");
+        const scope = toCliActor(identity);
+        const runs = listPromptRuns({
+          username: identity.username,
+          includeOthers: canManageGlobalPolicy(scope),
+        }).filter((run) => canManageAgent(scope, run.agentId));
+        if (runs.length === 0) {
+          // In words, for the reason `agents list` gives: an empty list and a
+          // failed request look identical when both render as nothing.
+          defaultRuntime.log("no runs are in flight that you can see");
+          return;
+        }
+        for (const run of runs) {
+          const age = Math.round((Date.now() - run.startedAt) / 1000);
+          defaultRuntime.log(`  ${run.runId}  ${run.agentId}  by ${run.username}  ${age}s`);
+        }
+      });
+    });
+
+  agent
+    .command("cancel <runId>")
+    .description("Stop one prompt run without locking the agent down")
+    .action(async (runId: string) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        // **Narrower than the kill switch on purpose.** `governance kill` stops
+        // an agent and keeps it stopped; this ends one run and leaves the agent
+        // working. During an incident an operator wants both, and having only
+        // the blunt one on this surface pushed them toward it.
+        const identity = await requireCliIdentity(defaultRuntime, "cancel a run", () => true);
+        if (!identity) {
+          return;
+        }
+        const { cancelPromptRun } = await import("../../governance/prompt-runs.js");
+        const outcome = cancelPromptRun({
+          runId: runId.trim(),
+          username: identity.username,
+          // Cancelling somebody else's run is an operator act, not an ordinary
+          // one — the same split the HTTP route draws.
+          mayCancelOthers: canManageGlobalPolicy(toCliActor(identity)),
+        });
+        defaultRuntime.log(
+          outcome.cancelled
+            ? `cancelled ${runId}`
+            : outcome.reason === "not-found"
+              ? `no run "${runId}" is in flight`
+              : `run "${runId}" belongs to another account`,
+        );
+      });
+    });
 
   agent
     .command("transcript <agentId>")

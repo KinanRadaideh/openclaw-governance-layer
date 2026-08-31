@@ -66,8 +66,9 @@ to give it. Counted as outstanding here because the remaining work is yours.
 **One is deprioritised:** T1 — not being done. **T13** is drafted and waiting to
 be read.
 
-**Current as of 2026-08-31: 29 done, 6 open, and T1 deprioritised** across
-T1–T37. **T32 closed on 2026-08-31, and with it the last engineering item on
+**Current as of 2026-08-31: 30 done, 5 open, and T1 deprioritised** across
+T1–T37. **T32 and T34 both closed on 2026-08-31**, and with them the last two
+items that were not purely Kinan’s. **T32 closed on 2026-08-31, and with it the last engineering item on
 the original backlog: every open T-item is now Kinan's.**
 
 The list grew by four on 2026-08-31 — **T34, T35, T36 and T37**, all raised by
@@ -106,7 +107,7 @@ four (T29–T32) after two investigations and a request. What is open:
 | ~~**T32**~~ | ~~Folder grants with exceptions.~~ **DONE 2026-08-31.** Option A, at Kinan's decision: authorable for every agent, with the limit stated on the rule row rather than only in the dialog. Additive — the two-rule authoring is untouched and everything the control writes is an ordinary, separately removable rule. Three surfaces. QA round thirty-three found four defects in it (165–168). §3.5.66 |
 | **T1**      | Deprioritised, not being done                                                                                                                                                                                                                                                                                                                                                                          |
 | ~~**T33**~~ | ~~Claude — make the fork build and start on Linux at all.~~ **DONE 2026-08-28**, verified on Ubuntu 24.04: installer exit 0, probe 14/14, `openclaw` on PATH. It was listed here as open until 2026-08-31 while §1 and §6 both recorded it closed                                                                                                                                                      |
-| **T34**     | **Kinan, then Claude** — decide what the "three surfaces" rule promises, then make the record match it. Added 2026-08-31 by finding 158                                                                                                                                                                                                                                                                |
+| ~~**T34**~~ | ~~Decide what the three-surfaces rule promises.~~ **DONE 2026-08-31**, option 3 at Kinan’s decision: the four reasons were written first, two survived and two did not. `agents access`, `agent runs` and `agent cancel` built; accounts and rule requests kept as deliberate, with the reasons in `CLI-REFERENCE.md` §2d. **The rule itself was narrowed**, which matters more than the commands      |
 | ~~**T35**~~ | ~~Claude — narrow `AuditActorInput`.~~ **DONE 2026-08-31.** A brand on the labelled arm was built, measured and **rejected** — 8 shipped rewrites finding zero defects, plus 311 test errors, to catch one historical defect, enforced by a command nobody runs. What shipped is a guard at the choke point: a named actor may not claim a labelled origin's name, which catches finding 161. §3.5.63  |
 | ~~**T36**~~ | ~~Claude — re-derive the requirements validation table.~~ **DONE 2026-08-31** at Kinan's direction, earlier than recommended. Eight rows re-derived clean, one caveat false (finding 163), and each row now records the evidence it rests on so the next pass re-derives rather than re-reads. §3.5.64                                                                                                 |
 | ~~**T37**~~ | ~~Claude — typecheck the tests.~~ **DONE 2026-08-31.** 189 errors to zero, then added to the verification set in that order. Roughly 140 edits and **no test result changed** (2,338 before and after), which is the evidence it corrected types rather than assertions. Three of the five error classes were tests that were weaker than they looked. §3.5.65                                         |
@@ -1498,6 +1499,72 @@ Fixed by rewriting the section around what is still true (**the boundary is
 filesystem permissions**, which a login does not change and never claimed to)
 and striking through what stopped being true, with the correction's own history
 attached.
+
+---
+
+### T34 — the three-surfaces rule, audited and narrowed (2026-08-31)
+
+**Option 3, at Kinan's decision: write the four reasons first, build only what
+cannot be argued away.** Doing it in that order was the whole value, because
+**two of my four predictions were wrong**, and I would have built the wrong two.
+
+**The rule as it stood**, asserted in `register.governance.agents.ts` and
+repeated in `CHAPTER3-MATERIAL.md`: _a capability reaching only two of the three
+surfaces is unfinished._ Stated universally, audited never, and false of four
+capability groups (finding 158).
+
+#### The four reasons, written out
+
+| Capability                                             | Reason it is dashboard-only                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Verdict                                          |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| **Accounts** — create, delete, re-role, reset password | **Holds, and not for the reason expected.** The obvious argument — "anyone with a shell could edit `users.json` anyway" — is _weaker_ than it looks, because T5 made every CLI command require a signed-in account, so the tier bar is the same as the dashboard's. The reason that does hold is divergence cost: the account form carries guards found by QA (a confirmation field on the one irreversible step, the length rule, no `root` option the server refuses). A second implementation of those is where two surfaces come to disagree, and account creation is the worst place for that | **Kept, with the reason recorded**               |
+| **Rule requests** — submit, and decide                 | **Holds narrowly, and less than expected.** The "it is a conversation between two people" argument is contradicted by this project's own `governance pending list` / `pending decide`, which does exactly this shape for timed-out escalations. What survives is narrower: an Administrator at a terminal who wants to act on a request can already write the rule with `policy add-rule`, so the CLI gap costs the _link_ between request and rule rather than the capability. That is a real cost and a small one                                                                                | **Kept, and flagged as the weakest of the four** |
+| **Who can reach an agent** — `agents/access`           | **None.** A read-only visibility query, already readable by a Viewer on the dashboard, and `governance agents list` already exists beside it. There is no argument at all                                                                                                                                                                                                                                                                                                                                                                                                                          | **Built**                                        |
+| **A run in flight** — `agent/runs`, `agent/cancel`     | **None, and the gap was actively harmful.** `governance sessions` and `governance kill` both exist, so an operator over SSH during an incident had the _blunt_ instrument (stop the agent and keep it stopped) and not the precise one (end this run, leave the agent working). Having only the blunt tool on that surface pushes people toward it                                                                                                                                                                                                                                                 | **Built**                                        |
+
+#### What was built
+
+- **`governance agents access <agentId>`** — Viewer tier, matching the route
+  rather than tightening it. Says "no account holds this" in words rather than
+  printing nothing, and **always** states that Administrators and Root reach
+  every agent by role and are deliberately absent, because without that the list
+  reads as "these are the only people who can act on it", which is false.
+- **`governance agent runs`** — scoped twice, as the route is: whether you see
+  other people's runs, and which agents you may see at all.
+- **`governance agent cancel <runId>`** — narrower than the kill switch on
+  purpose, and cancelling somebody else's run is an operator act.
+
+Eight tests in `cli-surface-parity.test.ts`, pinning what a domain test cannot
+see: that each command asks the **same authorization question** its HTTP
+counterpart asks. A parity task that introduced a surface disagreement would be
+self-defeating.
+
+#### The rule, restated
+
+> ~~A capability reaching only two of the three surfaces is unfinished.~~
+>
+> **Every capability reaches all three surfaces unless a stated reason says
+> otherwise, and the reasons live in `CLI-REFERENCE.md` §2d.**
+
+**That change is the point of the task, more than the two commands.** A rule
+stated universally and never audited does the opposite of its job: it makes real
+gaps invisible, because a reader who believes it does not go looking. Two of
+these had been open since the surfaces existed and neither was noticed by anyone
+using the system — they were found by enumerating routes against commands, which
+nobody had done.
+
+#### What I got wrong, recorded because it is the argument for option 3
+
+I predicted accounts and rule requests would justify themselves and the other two
+would not. **The verdicts came out that way; the reasoning did not.** The
+account argument I expected to use (filesystem boundary) is void post-T5, and the
+rule-request argument I expected to use (it is a conversation) is contradicted by
+a command this project already ships. Both survive on narrower grounds than I
+would have written down without checking.
+
+Had the task been "build what seems unjustified", the reasons would never have
+been written, and the two that were kept would have been kept for reasons that
+are not true.
 
 ---
 
