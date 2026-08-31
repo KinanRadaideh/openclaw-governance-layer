@@ -55,6 +55,44 @@ export function canManageAnyAgent(identity: GovernanceIdentity | null): boolean 
 }
 
 /**
+ * Whether this operator may act on **this** agent — stop it, release it, write
+ * its rules.
+ *
+ * The browser-side twin of `permissions.ts`'s `canManageAgent`, and it has to
+ * exist for the same reason that one does: `canManageAnyAgent` answers *does
+ * this tier act on agents at all*, which is not the same question. An
+ * Administrator's scope is every agent in their organisation; a User's is the
+ * agents assigned to them, and nothing else.
+ *
+ * **Added for T42 (2026-09-01), when the emergency stop was found to be
+ * described three different ways by three surfaces**: the route admitted User
+ * plus `canManageAgent`, the kill-switch panel was shown only to Administrator
+ * and above, and the hint printed on it said "Root only". The decision was to
+ * make the dashboard match the route — so the panel needs the per-agent
+ * question, not just the per-tier one.
+ *
+ * Still a convenience and never the control: the server refuses regardless, and
+ * this only decides what is worth rendering.
+ */
+export function canManageAgent(identity: GovernanceIdentity | null, agentId: string): boolean {
+  if (!canManageAnyAgent(identity)) {
+    return false;
+  }
+  if (canAdminister(identity)) {
+    return true;
+  }
+  return (identity?.assignedAgents ?? []).includes(agentId);
+}
+
+/** The subset of `ids` this operator may act on, in the order given. */
+export function manageableAgentIds(
+  identity: GovernanceIdentity | null,
+  ids: readonly string[],
+): string[] {
+  return ids.filter((agentId) => canManageAgent(identity, agentId));
+}
+
+/**
  * The two capability flags every panel props builder needs, as one spread.
  *
  * Both are derived from the same identity and are always passed together, so

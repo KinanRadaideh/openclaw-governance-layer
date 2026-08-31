@@ -3889,22 +3889,32 @@ were written into `mg/REMAINING-WORK.md`, `mg/HANDOFF.md`,
 This is recorded rather than quietly backfilled, because several documents
 describe findings as being "written up in all three registers" and that phrase
 has not been true since 2026-08-27. Anyone auditing the QA history from this file
-alone will be **fifteen findings short** and will not be told so.
+alone will be **forty-eight findings short** — 135 through 182 — and will not be
+told so. _(This sentence said "fifteen findings short" when the count was 149;
+the number is now derived from the table below rather than edited in place, which
+is the same correction the backlog count needed.)_
 
-| Findings    | Where the write-up actually is                                                                                    |
-| ----------- | ----------------------------------------------------------------------------------------------------------------- |
-| 1–134       | This document, by round                                                                                           |
-| 135–136     | `REMAINING-WORK.md` §"QA round twenty-two"                                                                        |
-| 137–140     | `REMAINING-WORK.md` §"Lane A is finished"                                                                         |
-| 141–143     | `REMAINING-WORK.md` §"QA round twenty-six"                                                                        |
-| 144–146     | `REMAINING-WORK.md`, and `HANDOFF.md` §1's 2026-08-29 entry                                                       |
-| **147–149** | `REMAINING-WORK.md` §"Finding 147"/§"Finding 148"/§"Finding 149"; design in §3.5.60; plain language in §5.62–5.64 |
-| **150**     | `REMAINING-WORK.md` §"Finding 150"; design in §3.5.62; plain language in §5.68                                    |
-| **170–171** | `REMAINING-WORK.md` §"QA round thirty-four"                                                                       |
-| **165–169** | `REMAINING-WORK.md` §"T32 — built 2026-08-31, and QA round thirty-three"; design in §3.5.66                       |
-| **164**     | `REMAINING-WORK.md` §"Finding 164 and T37"; design in §3.5.65                                                     |
-| **161–163** | `REMAINING-WORK.md` §"Findings 161–163"; design in §3.5.63 and §3.5.64                                            |
-| **151–160** | `REMAINING-WORK.md` §"QA rounds twenty-nine to thirty-two"; design corrections in §3.5.62 and §4.x.5              |
+**Five of the missing forty-eight are security findings and four are in one
+place**: `REMAINING-WORK.md` §"The universal QA sweep — 2026-09-01". If you are
+auditing this project's security history from one document, that is the section
+you cannot skip — 174 in particular, which is finding 144 found live on a second
+surface a week after it was closed on the first.
+
+| Findings    | Where the write-up actually is                                                                                         |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 1–134       | This document, by round                                                                                                |
+| 135–136     | `REMAINING-WORK.md` §"QA round twenty-two"                                                                             |
+| 137–140     | `REMAINING-WORK.md` §"Lane A is finished"                                                                              |
+| 141–143     | `REMAINING-WORK.md` §"QA round twenty-six"                                                                             |
+| 144–146     | `REMAINING-WORK.md`, and `HANDOFF.md` §1's 2026-08-29 entry                                                            |
+| **147–149** | `REMAINING-WORK.md` §"Finding 147"/§"Finding 148"/§"Finding 149"; design in §3.5.60; plain language in §5.62–5.64      |
+| **150**     | `REMAINING-WORK.md` §"Finding 150"; design in §3.5.62; plain language in §5.68                                         |
+| **170–171** | `REMAINING-WORK.md` §"QA round thirty-four"                                                                            |
+| **165–169** | `REMAINING-WORK.md` §"T32 — built 2026-08-31, and QA round thirty-three"; design in §3.5.66                            |
+| **164**     | `REMAINING-WORK.md` §"Finding 164 and T37"; design in §3.5.65                                                          |
+| **161–163** | `REMAINING-WORK.md` §"Findings 161–163"; design in §3.5.63 and §3.5.64                                                 |
+| **151–160** | `REMAINING-WORK.md` §"QA rounds twenty-nine to thirty-two"; design corrections in §3.5.62 and §4.x.5                   |
+| **172–182** | `REMAINING-WORK.md` §"The universal QA sweep — 2026-09-01"; 181 and 182 became `T42` and `T43` and closed the same day |
 
 **Finding 147 in one paragraph**, because it is the one that changes a security
 claim: every component-prefixed credential flag — `--db-password=`,

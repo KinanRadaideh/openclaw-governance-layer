@@ -1268,24 +1268,6 @@ export const en: TranslationMap = {
       browserEnabled: "Browser enabled",
       toolProfile: "Tool profile",
     },
-    deployment: {
-      title: "Deployment and network posture",
-      hint: "How this installation is actually deployed, checked against the architecture the design specifies. Read-only — these are changed in the gateway configuration on the host, not from here.",
-      summary: "Overall",
-      counts: "{fail} failed · {warn} warnings · {unknown} not determined here · {pass} passed",
-      note: "note",
-      status: {
-        pass: "pass",
-        warn: "warn",
-        fail: "fail",
-        unknown: "not determined here",
-      },
-      facts: {
-        gateway: "Gateway",
-        dir: "Governance directory",
-        relocated: "Relocated by OPENCLAW_GOVERNANCE_DIR.",
-      },
-    },
     system: {
       gatewayHost: "Gateway Host",
       up: "Up {duration}",
@@ -3498,6 +3480,41 @@ export const en: TranslationMap = {
     pendingApprovals: "{count} pending approvals",
   },
   governance: {
+    /**
+     * The deployment and network report (A7).
+     *
+     * **These strings lived under `quickSettings` until 2026-08-31 and nothing
+     * ever read them there.** `oversight-panels.ts` looks them up as
+     * `governance.deployment.*`, so every one of the panel's fifteen lookups
+     * fell through to its own key and the Root-only report rendered as
+     * `GOVERNANCE.DEPLOYMENT.TITLE` above a column of
+     * `governance.deployment.status.pass`.
+     *
+     * Found by T38 — opening the page — and by nothing else. A component test
+     * cannot see it: `t()` returning the key is a perfectly good string, so the
+     * panel renders, the assertions about *which checks appear* still pass, and
+     * only a reader notices that none of it is English. The raw-copy verifier
+     * cannot see it either; it looks for hard-coded strings, which is the
+     * opposite mistake.
+     */
+    deployment: {
+      title: "Deployment and network posture",
+      hint: "How this installation is actually deployed, checked against the architecture the design specifies. Read-only — these are changed in the gateway configuration on the host, not from here.",
+      summary: "Overall",
+      counts: "{fail} failed · {warn} warnings · {unknown} not determined here · {pass} passed",
+      note: "note",
+      status: {
+        pass: "pass",
+        warn: "warn",
+        fail: "fail",
+        unknown: "not determined here",
+      },
+      facts: {
+        gateway: "Gateway",
+        dir: "Governance directory",
+        relocated: "Relocated by OPENCLAW_GOVERNANCE_DIR.",
+      },
+    },
     intro:
       "Default-deny policy for autonomous agent actions, a tamper-evident audit ledger, and an emergency kill switch.",
     loading: "Loading governance state…",
@@ -3880,7 +3897,21 @@ export const en: TranslationMap = {
       noticeNoTermination:
         "Lockdown engaged, but in-flight termination is unavailable here — anything the agent is doing right now continues until it finishes. Further actions are blocked.",
       engage: "Lock down an agent",
-      hint: "Immediately denies every future governed action from this agent. Root only.",
+      /**
+       * ~~"Root only."~~ **Wrong on every surface, and wrong for the life of the
+       * panel (T42, 2026-09-01).** The route admits a User with
+       * `canManageAgent`; the panel itself was shown to Administrator and above;
+       * and this string said Root. Two strings now, because the two tiers are
+       * making different promises — and neither says "only", because the word
+       * was doing the damage: it told a User the one emergency control was not
+       * theirs.
+       */
+      hintAdmin:
+        "Immediately denies every future governed action from this agent. You can stop any agent in your organisation.",
+      hintUser:
+        "Immediately denies every future governed action from this agent. You can stop the agents assigned to you.",
+      notYourAgent:
+        "That agent is not assigned to you, so you cannot stop it. Ask an Administrator, or pick one of your own agents from the list.",
       agentIdPlaceholder: "Agent id",
       unknownAgent:
         "No agent with this id is running, locked down, or assigned to an account. Locking it down will still succeed and record an entry — but if you have mistyped the id, the agent you meant will keep running.",

@@ -4,7 +4,14 @@ What was done across the August 2026 working sessions, what changed as a result,
 and what is left. Written for someone picking the project up cold, or for the
 same person after a break.
 
-**Thirty-three entries, ending 2026-08-27.** The last three cover the verification pass
+**Forty-two entries, ending 2026-09-01** — counted from the `##` headings rather
+than carried forward, which is how this line went wrong twice. The last one
+covers T38–T40 and the universal QA sweep that followed them; it is the entry to
+read if you want to know why "the engineering is finished" is a statement about
+a backlog and not about the code. _(This line read "Thirty-three entries, ending
+2026-08-27" until 2026-09-01, while the file held forty.)_
+
+**Historic, kept for the correction it records: thirty-three entries, ending 2026-08-27.** The last three cover the verification pass
 that found finding 120 and audited the last two "blocked on the host" claims,
 **M5, per-group storage isolation**, **M6, which completed the M-series**, and **QA round nineteen**, which audited the whole M-series and found three defects in it. (This line said "Seventeen entries, ending 2026-08-24" until
 2026-08-27; twelve entries had been added without it moving.)
@@ -3622,3 +3629,264 @@ catches.
 repository with a header saying it is cancelled and why — it is an honest record
 of what T7 looked like before the third route was found, which Chapter 4 uses.
 What it must not read as is a draft still waiting to go.
+
+---
+
+## §41 — 2026-09-01: the three Claude items, and a universal QA sweep
+
+**This entry runs past the end of August**, and the file keeps its name rather
+than being split: the work is one continuous session that started on the evening
+of the 31st. A `SESSION-LOG-2026-09.md` should start with the next session, not
+with the calendar.
+
+### The prediction the previous entry made, and what happened
+
+The entry above ends by saying T38 "is the item most likely to find real defects,
+because M1's one hand-driven pass found five and not one of them was a kind a
+component test catches."
+
+That was right, and it undersold the case. Doing T38, T39 and T40 — three items
+described as small — produced **eleven defects, five of them security-relevant**,
+and the largest was not found by the dashboard at all. It was found by the
+question the three tasks made it natural to ask: _for every governance command
+that exists, does it check what its route checks?_
+
+### T39 first, because it is the shortest
+
+Three configs upstream ships that had never been run here. `test:ui` reported
+**5 errors**, all in the dashboard's own governance test file — its local
+`PageState` type omitted `policy`, and `mount` takes a `Partial`, so five call
+sites passing a policy document were excess properties nothing checked.
+`test:root` and `test:packages` were already clean and hold no governance code.
+
+**The finding above the task is the one to keep.** `tsgo:core:test` is a single
+program covering `src/` **and** `ui/` **and** `packages/` tests — a strict
+superset of the `tsgo:test:src` that T37 added to the verification set a day
+earlier — and it had never been run either. It catches all five, proved by
+reverting the fix and re-running it rather than by comparing two `include` lists.
+So T37 added the narrower of two available commands on the same day the wider one
+would have found five more errors. The verification set's sixth command is now
+`tsgo:core:test`.
+
+### T40, and a reason that did not survive being acted on
+
+`CLI-REFERENCE.md` §2d had recorded rule requests as deliberately
+dashboard-only, flagged its own reason as the weakest of four, and concluded that
+the gap "costs the **link** between the request and the rule it produced, not the
+capability. That is a real cost and a small one."
+
+Every sentence true; the last clause wrong. **The link is the feature.** A queue
+whose approvals are not joined to the rules they produced is a list of things
+people asked for. `governance requests list / submit / decide` now exist, in their
+own module, each asking the question its route asks — Viewer reads, User
+proposes, Administrator decides. §2d now names one dashboard-only capability
+rather than two.
+
+### T38 — opening the page
+
+Run against the real gateway built from this tree, pointed at an **isolated state
+tree and governance directory** so a hand-driven pass could not touch the
+operator's real accounts, policy or ledger; loopback with no gateway auth, so no
+credential was handled anywhere; Root and fixtures seeded through the project's
+own store functions, so the fixture cannot drift from the shapes production
+writes.
+
+Three defects, and two of them nothing else could have found:
+
+- **179** — the Root-only deployment report rendered as **raw i18n keys**.
+  `oversight-panels.ts` looks its strings up as `governance.deployment.*`; they
+  had been written into `quickSettings.deployment.*`, referenced by nothing. A
+  component test cannot see this, because `t()` returning its own key is a
+  perfectly good string: the panel renders, every assertion about _which checks
+  appear_ passes, and only a reader notices that none of it is English.
+- **180** — both per-agent override rows rendered the mode name **one letter per
+  line**, 11px wide and 112px tall. `.settings-row__control` carries
+  `min-width: 0`, right for a row's own control cell and wrong for a second one
+  nested inside it. jsdom does no layout, so "the row says Monitor" was true of a
+  vertical column of seven letters.
+- **178** — found by reading the audit ledger on screen after using the
+  folder-grant form. See below; it is the best finding of the day.
+
+And a measurement worth recording because it is good news: of **109 interactive
+controls** on the page, **none is without an accessible name**. Finding 103's
+class is closed.
+
+### The sweep, and the sentence for Chapter 4
+
+The sweep read one question across every surface, using the route-floor table in
+`governance-privilege-matrix.test.ts` — which is transcribed from the
+`requireRole` calls rather than from memory, and for which **there is no
+command-line equivalent**. That is why the comparison had never been made.
+
+**Four findings came straight out of it, and all four are the same shape: the
+route grew a check, the write-up recorded the check, and the command that does
+the same job was never revisited.**
+
+The worst is **174**. `governance kill` — the emergency stop, design requirement
+#7 — had no tier check, no `canManageAgent`, and no organisation check. The
+third exists because of **finding 144**, which established that the kill switch
+terminates from the Gateway's installation-wide run registry and
+`terminateAgentRuns` matches on agent id alone. Finding 144 was diagnosed
+precisely, fixed on the route, and written up in a paragraph in
+`governance-dashboard-group.ts` that still explains exactly why the check is
+needed — and the same hole stayed open one file away for a week. A **Viewer**
+could stop any agent and keep it stopped; an operator of one organisation could
+stop another organisation's agents.
+
+> **A fix has a blast radius, and nobody was measuring it.** Closing a finding
+> meant closing it where it was found. That is the sentence, and it is a better
+> Chapter 4 lesson than "test both surfaces", because the project _did_ test both
+> surfaces — it just never asked whether a fix to one implied a fix to the other.
+
+**178 is the one to show a supervisor.** The folder-grant form writes an allow
+rule and a deny rule as a single act. On screen the two ledger entries were:
+
+```
+#13 governance.policy.rule.add path ^C:/srv/app(/|$)         (all agents, indefinite)
+#12 governance.policy.rule.add path ^C:/srv/app/secrets(/|$) (all agents, indefinite)
+```
+
+Identical in form, opposite in meaning. `describeRule` recorded kind, pattern,
+scope and expiry and omitted `effect`, so **the tamper-evident record of policy
+changes could not distinguish granting from forbidding**. Nothing caught it
+because every existing assertion checks that the _pattern_ reaches the entry,
+which it always did; the direction was never asserted because it was never
+written, and a test written from the same understanding as the code tests the
+same misunderstanding. The folder grant made it visible only because it is the
+one feature that puts an allow and a deny adjacent in the trail.
+
+### What was left undone, deliberately
+
+**T42 is a decision and it is Kinan's.** Three surfaces describe who may operate
+the emergency stop three different ways: the route admits **User** plus
+`canManageAgent`, the dashboard panel is shown only to **Administrator and
+above**, and the hint printed on that panel says **"Root only"**. At most one is
+right, and today a User assigned an agent can stop it from the API and the
+command line while the dashboard shows them no button. Nothing was changed for
+it — a security control's tier is not something to adjust on inference.
+_(Decided and built later the same day; see §42.)_
+
+**T43** is mechanical: `lint:ui:i18n` is red with 59 raw-copy deltas and is not
+in the verification set. The tool prints the first 20 — every one of those is in
+the governance panels — and then says "39 more", so "all in the governance
+panels" is what the visible fifth shows and not what was measured. _(Measured in
+§42, later the same day: all 59 were.)_ Worth doing for a reason
+beyond tidiness — it is the check nearest to finding 179, and it did not catch
+it, because it looks for **strings that should be keys** and 179 was **a key that
+should have been a string**.
+
+### Verification after all of it
+
+`2,498 passed across 128 files` at that point, and **2,516 / 129 after T42 and
+T43** (was 2,372/119 the previous day) · `tsgo:core` and `tsgo:ui`
+clean · host suites `263 passed, 0 failed` · oxlint **zero** errors over
+`src ui/src` — which also retires the "16 errors across 14 files" that
+`HANDOFF.md` §4 was still quoting three days after T31 fixed all sixteen ·
+`tsgo:core:test` clean.
+
+---
+
+## §42 — 2026-09-01 (later): the emergency stop's tier, and the i18n check read properly
+
+The two items the previous entry left open, both closed the same day.
+
+### T42 — decided, and the decision was already written down twice
+
+Kinan chose **option 1: make the dashboard match the route.** Administrator and
+above stop any agent in their organisation; a User stops the agents assigned to
+them; a Viewer stops nothing. Agent **creation** stays the Administrator's, and
+assignment is how a User or Viewer comes to hold one.
+
+**The interesting part is that the argument existed already, in two places, and
+neither had been applied to the panel that was wrong.** `PROJECT-SUMMARY` item 11
+records that withholding a User's policy-authoring rights had once also removed
+their ability to stop their own agent, and calls that "a regression dressed as a
+permission". And the **active-sessions panel, two hundred lines above the
+kill-switch panel in the same file**, has offered a User a Stop button for their
+own sessions since the release control moved there, under a comment reading
+_"whoever is trusted to stop an agent is trusted to undo that."_
+
+So the project had decided this twice and implemented it once. The dedicated
+emergency-stop panel kept an Administrator gate and a hint reading "Root only" —
+a third answer that nothing in the codebase supported.
+
+What shipped: `canManageAgent` and `manageableAgentIds` in `identity.ts` (the
+browser twin of `permissions.ts`), the panel regated on `canManageAnyAgent`, its
+picker and locked list scoped per agent, and the "Root only" string replaced by
+one string per tier. Neither new string says "only" — that word was doing the
+damage.
+
+**Verified by rendering it in both tiers**, which is the lesson of T38 applied on
+the day it was learned: `kinan (root)` sees "any agent in your organisation" and
+both agents in the picker; `malek (user)` sees "the agents assigned to you" and
+only `build-agent`; a Viewer sees no panel.
+
+### An honest finding about the fix
+
+**Checked against a running gateway, the client-side scoping is redundant.**
+Every source the page reads is already filtered per caller — `GET agents` returns
+only the caller's agents, and `GET policy` filters `agentMode`, `agentAsk`, the
+agent-scoped rules **and `lockedAgents`**. Signing in as the User and reading both
+routes back gave `agents: [build-agent]`, `agentMode: []` and `lockedAgents: []`
+while an Administrator had `ops-agent` locked.
+
+Kept anyway — a page that would offer a refused control the moment a route
+widened is a page waiting to be wrong — but the comment and the test now say
+plainly that it is redundancy and not the protection. A reader who finds a test
+for an unreachable state deserves to be told it is unreachable and why.
+
+### The second half of the instruction was already true
+
+_"Make sure a User can't create an agent"_ — it already held on all three
+surfaces: the privilege matrix puts `agents/register`, `agents/provision` and
+`agents/deprovision` at the Administrator floor, the CLI gates them on
+`canAssignAgents`, and the registry panel renders nothing below Administrator.
+`permissions.test.ts` already pinned the other half: `canManageAgent(viewer,
+assignedAgent)` is **false even when the Viewer is assigned that agent**.
+
+**The command line was the only surface with no test for it**, which is where
+this sweep found four holes, so that is what was added rather than duplicating
+what existed.
+
+### T43 — and the check was mostly not telling us what it said
+
+`lint:ui:i18n` had been red with 59 raw-copy deltas. The first move was to stop
+guessing: the tool prints twenty and counts the rest, so widening that slice gave
+the full list. **All 59 were in the governance panels** — the previous entry's
+hedge about "the other 39 are not named" was replaced by a measurement, which
+cost one command.
+
+**Two of the fifty-nine were a real defect, of a kind the check does not
+describe.** They were a twelve-line **HTML comment inside a lit template**,
+documenting finding 118's keyboard trap. An HTML comment inside `html``` is part
+of the rendered document: it was being shipped into every operator's browser, and
+the extractor was reading its prose as two user-facing strings. Moved to a `//`
+comment above the template.
+
+**The other fifty-seven should not be keyed.** Forty-one are sentence _fragments_
+— `"and"`, `"one"`, `"prevents"`, `"rather than"`, `"grep"` — because the Codex
+and folder-grant disclosures are prose assembled from inline `<strong>` and
+`<code>` spans. Keying them individually would produce a catalogue no translator
+could use and a sentence no locale could reorder. Sixteen are literal wire values
+shown as labels (`command`, `viewer`, …), written as
+`{ value: "viewer", label: "viewer" }` on purpose so the operator sees the string
+the API takes. And the English-only dashboard is a recorded deliberate
+divergence. So they are baselined — which is exactly what the tool's own failure
+message offers — and the gate is now green and useful: new raw copy shows as
+drift against a baseline that means something.
+
+### The sentence worth keeping from T43
+
+**The check and finding 179 are opposite mistakes, and only one of them is tooled
+for.** The verifier hunts for _a string that should have been a key_. 179 was _a
+key that should have been a string_ — `governance.deployment.*` resolving to
+nothing, so a Root-only report rendered its own key names at an operator. Nothing
+looks for that, and nothing would have: a missing key resolves to a perfectly
+valid string, which is why a component test, a typecheck and a lint run all
+passed over it.
+
+### The backlog after this
+
+**38 done, 5 open, and every open item is Kinan's**: the live run (T2), a Linux
+host (T3), the prompt-injection read (T13), the figures (T17) and the report
+(T18). Nothing is waiting on Claude.

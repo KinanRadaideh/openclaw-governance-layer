@@ -55,6 +55,7 @@ import type {
   GovernancePolicyDocument,
   GovernanceTranscript,
 } from "../api.ts";
+import { canManageAgent, manageableAgentIds } from "../identity.ts";
 import type { PanelEffects } from "./account-panels.ts";
 import { formatAttachmentSize, formatDuration } from "./format.ts";
 
@@ -331,17 +332,55 @@ export function renderActiveSessionsSection(
 }
 
 export function renderKillSwitchSection(props: KillSwitchProps): TemplateResult | typeof nothing {
-  // Administrator tier and above — see the server-side note in
-  // governance-dashboard-api.ts: stopping a runaway agent is agent
-  // management, which is the Administrator's domain.
-  if (!props.canAdminister) {
+  // **User tier and above, over the agents they hold (T42, 2026-09-01).**
+  //
+  // This was `canAdminister`, and the hint beside it said "Root only", while
+  // the `POST kill` route admitted a User and checked `canManageAgent`. Three
+  // surfaces, three answers, on the one control the design calls an emergency
+  // stop — and the panel was the strictest of the three, so the person most
+  // likely to be watching their own agent misbehave was the one without a
+  // button, on the surface they were most likely to be looking at.
+  //
+  // The decision (Kinan, 2026-09-01) was to make the dashboard match the route.
+  // It also makes this section agree with the **active-sessions panel two
+  // hundred lines up**, which has offered a User a Stop button for their own
+  // sessions since the release control moved there — with a comment saying
+  // "whoever is trusted to stop an agent is trusted to undo that". That comment
+  // was already the argument for this change; nobody had applied it here.
+  if (!props.canManageAnyAgent) {
     return nothing;
   }
-  const locked = props.policy?.lockedAgents ?? [];
+  // Every list below is the agents this operator may act on, not the agents the
+  // page happens to know about.
+  //
+  // **Checked against a running server on 2026-09-01, and the honest finding is
+  // that this is redundancy rather than the control.** Every source
+  // `knownAgentIds` reads is already scoped per caller: `GET agents` returns
+  // only the caller's agents, and `GET policy` filters `agentMode`, `agentAsk`,
+  // the agent-scoped rules **and `lockedAgents`** before it answers. A User is
+  // therefore never told an agent they cannot act on exists, which is
+  // deliberate — it is what stops this page becoming an enumeration oracle for
+  // the rest of the organisation.
+  //
+  // Kept anyway, as the header of `identity.ts` argues: these helpers decide
+  // what is worth rendering, the server decides what is allowed, and a page
+  // that would offer a refused control the moment a route widened is a page
+  // waiting to be wrong. What it must not do is *claim* to be the protection.
+  const manageable = manageableAgentIds(props.identity, props.knownAgentIds);
+  const locked = (props.policy?.lockedAgents ?? []).filter((agentId) =>
+    canManageAgent(props.identity, agentId),
+  );
+  const typed = props.killAgentId.trim();
   return renderSettingsSection({ title: t("governance.kill.title") }, [
     renderSettingsRow({
       title: t("governance.kill.engage"),
-      description: t("governance.kill.hint"),
+      // The hint states the tier, and stated the wrong one for as long as the
+      // panel has existed. Two strings rather than one, because "every agent in
+      // your organisation" and "the agents assigned to you" are different
+      // promises and a reader in either tier should be told theirs.
+      description: props.canAdminister
+        ? t("governance.kill.hintAdmin")
+        : t("governance.kill.hintUser"),
       stacked: true,
       control: html`
         <div class="settings-row__control" style="gap:0.5rem;flex-wrap:wrap">
@@ -371,11 +410,19 @@ export function renderKillSwitchSection(props: KillSwitchProps): TemplateResult 
             // where the operator means an agent that is real but idle, which
             // is legitimate and must stay possible — so this informs rather
             // than blocks.
-            props.killAgentId.trim() && !props.isKnownAgentId(props.killAgentId.trim())
+            typed && !props.isKnownAgentId(typed)
               ? html`<div class="settings-empty" role="status" style="flex-basis:100%">
                   ${t("governance.kill.unknownAgent")}
                 </div>`
-              : nothing
+              : // Known to the page, and not this operator's to stop. Said here
+                // rather than left to the server's 403, because the field is
+                // free text and an emergency control that fails after you press
+                // it is the wrong place to learn you typed someone else's agent.
+                typed && !canManageAgent(props.identity, typed)
+                ? html`<div class="settings-empty" role="status" style="flex-basis:100%">
+                    ${t("governance.kill.notYourAgent")}
+                  </div>`
+                : nothing
           }
           <datalist id="governance-known-agents">
             ${
@@ -383,17 +430,17 @@ export function renderKillSwitchSection(props: KillSwitchProps): TemplateResult 
               // a registered name helps the operator find the right agent
               // while what lands in the field is still the id every rule and
               // ledger entry uses (M4).
-              props.knownAgentIds.map(
+              manageable.map(
                 (agentId) => html`<option value=${agentId}>${props.agentLabel(agentId)}</option>`,
               )
             }
           </datalist>
           <button
             class="btn btn--danger"
-            ?disabled=${props.busy || !props.killAgentId.trim()}
+            ?disabled=${props.busy || !typed || !canManageAgent(props.identity, typed)}
             @click=${() =>
               props.run(async () => {
-                await props.engageKillSwitch(props.killAgentId.trim());
+                await props.engageKillSwitch(typed);
                 props.killAgentId = "";
               })}
           >
@@ -529,21 +576,27 @@ export function renderConversation(
                 }
               }}
             />
-            <!--
-              A real button that opens a hidden input, rather than a label
-              wrapping one (QA round 18, finding 118).
-
-              The first version was \`<label class="btn"><input type="file"
-              style="display:none">\`, which looks identical and **cannot be
-              reached by keyboard at all**: \`display:none\` takes the input
-              out of the tab order however its \`tabindex\` reads, and a
-              \`<label>\` is not focusable, so there was nothing left to tab
-              to. Every other control in this composer is a \`<button>\`; this
-              one only looked like one.
-
-              Same class as finding 103, and found the same way — by driving
-              the page rather than by reading it.
-            -->
+            ${
+              // The attach control below is a real <button> that opens a hidden
+              // input, rather than a <label> wrapping one (QA round 18, finding
+              // 118). The first version was `<label class="btn"><input
+              // type="file" style="display:none">`, which looks identical and
+              // **cannot be reached by keyboard at all**: `display:none` takes
+              // the input out of the tab order however its `tabindex` reads,
+              // and a `<label>` is not focusable, so there was nothing left to
+              // tab to. Every other control in this composer is a `<button>`;
+              // this one only looked like one.
+              //
+              // Same class as finding 103, and found the same way — by driving
+              // the page rather than by reading it.
+              //
+              // **Moved out of the template on 2026-09-01 (T43.)** It was an
+              // HTML comment inside the `html` tag, which put it in the
+              // rendered DOM of every operator's browser and made the i18n
+              // raw-copy extractor read its prose as two user-facing strings.
+              // A note for the next maintainer does not belong in the document.
+              nothing
+            }
             <button
               class="btn"
               type="button"

@@ -6,8 +6,14 @@ or picking it up after a break.
 
 **Companion documents:**
 
-- `mg/REMAINING-WORK.md` — everything still outstanding. **§"The numbered backlog" (T1–T41) is the authoritative list** — 30 done, 8 open as of 2026-08-31; the sections below it are history. A second backlog, §"The M-series" (M1–M6), holds the multi-tenancy feature — **complete as of 2026-08-27**
+- `mg/REMAINING-WORK.md` — everything still outstanding. **§"The numbered backlog" (T1–T43) is the authoritative list** — 38 done, 5 open as of 2026-09-01, counted from the rows; the sections below it are history. A second backlog, §"The M-series" (M1–M6), holds the multi-tenancy feature — **complete as of 2026-08-27**
 - `mg/SESSION-LOG-2026-08.md` — what the August 2026 session changed, and why
+
+**The emergency stop's tier was settled on 2026-09-01** (`T42`): Administrator
+and above stop any agent in their organisation, a User stops the agents assigned
+to them, a Viewer stops nothing — and agent creation stays the Administrator's,
+with assignment the way a User or Viewer comes to hold one. Three surfaces had
+described it three different ways.
 
 ---
 
@@ -203,7 +209,7 @@ C:\Users\kinan\openclaw\          (the fork; branch: governance-layer)
 | `UPSTREAM-BUG-REPORT.md`            | A bug found in OpenClaw itself (written, not yet filed)                                                                                                                                                                 |
 | `Kimi_QA_1.md`                      | An independent review comparing the code against the PDF                                                                                                                                                                |
 | `mg/PROJECT-SUMMARY.md`             | This file — what the project is and where everything lives                                                                                                                                                              |
-| `mg/REMAINING-WORK.md`              | The backlog. **§"The numbered backlog" (T1–T41) is authoritative** — 30 done, 8 open; §"The M-series" (M1–M6) is the multi-tenancy feature, **complete**. Everything beneath them is kept as history and marked as such |
+| `mg/REMAINING-WORK.md`              | The backlog. **§"The numbered backlog" (T1–T43) is authoritative** — 38 done, 5 open; §"The M-series" (M1–M6) is the multi-tenancy feature, **complete**. Everything beneath them is kept as history and marked as such |
 | `mg/SESSION-LOG-2026-08.md`         | What the August 2026 session changed, and why                                                                                                                                                                           |
 
 ### Runtime state (created on first use, not in the repo)
@@ -567,14 +573,20 @@ conclusion.
 > paragraph, what to do before anything else, and how to verify nothing is
 > broken. This file is the reference beneath it.
 >
-> **The state in one line, as of 2026-08-31:** built and verified, never
-> demonstrated; **the engineering on the backlog is finished** (T32 and T34 were
-> the last two, both closed that day); **171 findings, 169 fixed**; and what
-> remains is a live run, a Linux host, the figures, the report, and three small
-> items of Claude's (T38–T40).
+> **The state in one line, as of 2026-09-01:** built and verified, never
+> demonstrated; **the engineering on the backlog is finished** (T38–T40, T42 and
+> T43 closed on 2026-09-01, T32 and T34 the day before); **182 findings, 180
+> fixed**; and what remains is a live run, a Linux host, a read, the figures and
+> the report — **all of them Kinan's**.
+>
+> **And a warning about the line above.** It said exactly this on 2026-08-31,
+> minus the last clause, and doing the three remaining items found **eleven more
+> defects, five of them security-relevant** — including a cross-tenant hole an
+> earlier round had already found and fixed on one surface only. "The backlog is
+> finished" is a statement about the backlog.
 
-- **2,372 governance tests pass across 119 files** (2026-08-31), plus 92 across 5 in the
-  dashboard suite, which is a separate command — file _runs_, not files;
+- **2,516 governance tests pass across 129 files** (2026-09-01, after T38–T40,
+  T42, T43 and the universal QA sweep; 2,372/119 on 2026-08-31) — file _runs_, not files;
   roughly 1,469 distinct tests across 81 distinct files, because the thirteen
   gateway files each run under three Vitest projects (measured 2026-08-29, after
   finding 147; the distinct figure was 1,467 on 2026-08-27 and has not been
@@ -583,24 +595,28 @@ conclusion.
   **fully green — 263 passed, 0 failed** (192 in `native-hook-relay.test.ts`
   plus 71 in `host-hooks.contract.test.ts`) since T25 closed on 2026-08-25; the
   relay file had been 18 failed / 174 passed for the life of the project.
-- **The verification set is six commands as of 2026-08-31**, not five. The sixth
-  is `tsgo:test:src`, which typechecks every test file under `src/` and had
-  **never been run in this fork** — so until that day a test could reference a
+- **The verification set is six commands**, not five. The sixth typechecks the
+  test files, which nothing did until 2026-08-31 — so a test could reference a
   symbol that does not exist and pass, with the assertion silently reading
-  `undefined` (finding 162). It reported 189 errors; T37 took it to zero and
+  `undefined` (finding 162). T37 took `tsgo:test:src` from 189 errors to zero and
   then added it, in that order, because a gate that is red on arrival teaches
-  everyone to skip it.
+  everyone to skip it. **On 2026-09-01 the sixth command became `tsgo:core:test`
+  instead** (T39): it is a strict superset covering `src/` **and** `ui/` **and**
+  `packages/` tests, it had never been run either, and it found 5 errors in the
+  dashboard's own governance test file that `test:src` structurally cannot reach.
 - ~~Two tests outside the verification commands fail on Windows and always
   have.~~ **Fixed 2026-08-31** (finding 148), once the recorded reason for not
   fixing them — that it edits two upstream test files — was questioned and did
   not survive: T25 had already paid exactly that cost for eight files of the
   same class. **The caveat it taught outlives its own fix and must not be
-  deleted with it:** the six commands are not the repository, and
-  `tsgo:test:src` covers `src/` and not `ui/`, `test/` or `packages/` (T39).
-  No document should claim the repository is green; the claim that holds is that
-  the six documented commands are.
-- **Branch:** `governance-layer`, **clean as of 2026-08-31**, and everything is
-  pushed — `git log --oneline personal/governance-layer..HEAD` is empty. The
+  deleted with it:** the six commands are not the repository. T39 narrowed the
+  gap on 2026-09-01 — the sixth command is now `tsgo:core:test`, which does
+  cover `ui/` and `packages/` — and the gap is still real: `test/` is outside it,
+  and so is every check the six do not name. No document should claim the
+  repository is green; the claim that holds is that the six documented commands
+  are.
+- **Branch:** `governance-layer`, **clean as of 2026-09-01 before the commit
+  below**, and everything is pushed — `git log --oneline personal/governance-layer..HEAD` is empty. The
   commit count ahead of `main` is deliberately not stated here any more: it has
   been wrong in this line three times, and `git rev-list --count main..HEAD` is
   one command. **Historic detail follows, and its numbers are dated.** ~~**59** commits ahead
@@ -682,8 +698,14 @@ the Root account.
 node node_modules/vitest/vitest.mjs run src/governance/ src/gateway/governance-*.test.ts ui/src/pages/governance/
 node scripts/run-tsgo.mjs -p tsconfig.core.json
 node scripts/run-tsgo.mjs -p tsconfig.ui.json
-node node_modules/vitest/vitest.mjs run src/agents/harness/native-hook-relay.test.ts
+node node_modules/vitest/vitest.mjs run src/agents/harness/native-hook-relay.test.ts src/plugins/contracts/host-hooks.contract.test.ts
+node node_modules/oxlint/bin/oxlint --config .oxlintrc.json src ui/src
+node scripts/run-tsgo.mjs -p test/tsconfig/tsconfig.core.test.json
 ```
+
+**Six commands, and `HANDOFF.md` §4 is where their expected values live.**
+Measured 2026-09-01: 2,516 / 129 · both typechecks clean · 263 / 0 host ·
+oxlint zero · `core:test` clean.
 
 A fifth check exists as of A7 and is worth running on any host you deploy to:
 

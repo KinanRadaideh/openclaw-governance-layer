@@ -13,12 +13,15 @@ Nothing here is speculative — every item was found by one of those two reviews
 up cold; `mg/PROJECT-SUMMARY.md` — what the project is and what has been built.
 
 **The authoritative outstanding list is §"The numbered backlog" immediately
-below — **forty-one tasks, T1–T41, of which 30 are done and 8 open** (T1 and T41
-are not being done), current as of 2026-08-31. The sentence that stood here said
+below — **forty-three tasks, T1–T43, of which 38 are done and 5 open** (T1 and T41
+are not being done), **current as of 2026-09-01**, with a
+§"Who can do what" triage in front of it. _(This sentence has been stale three
+times and was also ungrammatical, having been patched mid-clause: it read
 "thirty-two tasks, T1–T32, of which 24 are done and 8 open, current as of
-2026-08-27**, with a
-§"Who can do what" triage in front of it. **A second backlog, §"The M-series"
-(M1–M6), holds the multi-tenancy feature: five done, M6 left.** The older §"What is actually left" is
+2026-08-27", and then a correction was inserted into the middle of it rather
+than replacing it. Replaced whole this time.)_ **A second backlog, §"The
+M-series" (M1–M6), holds the multi-tenancy feature: complete since
+2026-08-27.** The older §"What is actually left" is
 kept unedited beneath them as of 2026-08-19.
 Everything else is history kept for the report: each item records what was
 wrong, why it mattered, and how it was fixed, because that narrative is
@@ -42,14 +45,14 @@ remains in `Kimi_QA_1.md` §7 and `docs-notes/QA-IN-PLAIN-TERMS.md` §3.
 
 ---
 
-## The numbered backlog — current as of 2026-08-27
+## The numbered backlog — current as of 2026-09-01
 
 **This is the authoritative outstanding list.** It supersedes §"What is actually
 left" further down, which was accurate on 2026-08-19 and is kept unedited
 because the report's Chapter 4 argument is partly about how a confident summary
 survives twelve reviews and does not survive the thirteenth.
 
-**Forty-one tasks, numbered T1–T41** (the paragraph below this one was written
+**Forty-three tasks, numbered T1–T43** (the paragraph below this one was written
 when the list was T1–T28 and is kept as history — see the dated count above it),
 grouped by what blocks them rather than
 by severity. (The paragraphs immediately below were written when the list was
@@ -70,8 +73,26 @@ to give it. Counted as outstanding here because the remaining work is yours.
 **One is deprioritised:** T1 — not being done. **T13** is drafted and waiting to
 be read.
 
-**Current as of 2026-08-31: 30 done, 8 open; T1 and T41 are not being done** across
-T1–T41. **T32 and T34 both closed on 2026-08-31**, and with them the last two
+**Current as of 2026-09-01: 38 done, 5 open; T1 and T41 are not being done** across
+T1–T43. **T38, T39, T40, T42 and T43 all closed on 2026-09-01.** T38 opened T42
+and T43 by being done at all — driving the dashboard by hand is how you find what
+nothing else looks at — and both were closed the same day, T42 by Kinan's
+decision and T43 by measuring what the check was actually complaining about.
+**Counted from the rows below rather than carried forward**, which is the rule
+this paragraph exists to enforce and has broken twice.
+
+_(The line above read "30 done, 8 open" across T1–T41 on 2026-08-31.)_
+
+**Everything still open is Kinan's** — a live run, a Linux host, a read, the
+figures, the report. Nothing is waiting on Claude.
+
+That is a different sentence from "the engineering is finished", which was true
+on 2026-08-31 and stopped being true within a day: the QA sweep on 2026-09-01
+found **eleven defects, five of them security-relevant**. All eleven are now
+closed — nine fixed on the day, and 181 and 182 closed as T42 and T43. See
+§"The universal QA sweep — 2026-09-01".
+
+**T32 and T34 both closed on 2026-08-31**, and with them the last two
 items on the original backlog that were not purely Kinan's. **Four new items
 (T38–T41) were added the same evening**, by asking what was outstanding that
 this file did not say — three of them are Claude's and one is a decision.
@@ -86,7 +107,11 @@ that day's QA rounds and none of them a security gap — and **three of the four
 closed the same day** (T35, T36, T37). T33 closed 2026-08-28; T7 closed
 2026-08-30, which partly unblocked T32.
 
-**The seven open are T2, T3, T13, T17, T18, T32 and T34.** T13 was missing from
+**The five open are T2, T3, T13, T17 and T18 — every one of them Kinan's.** _(This sentence read
+"T2, T3, T13, T17, T18, T32 and T34" until 2026-09-01, naming two items that had
+closed the previous day — the third time this exact line has gone stale, and the
+reason the count above is now derived from the rows rather than edited in place.)_
+T13 was missing from
 the table below until 2026-08-31 while the count above included it, which is the
 same shape as the two stale rows corrected earlier the same day: **the count and
 the rows are two records of one fact, and nothing checks them against each
@@ -105,26 +130,28 @@ makes this line agree with `HANDOFF.md` §1, which had drifted the other way. Th
 list grew by
 four (T29–T32) after two investigations and a request. What is open:
 
-| Open        | Who has to move                                                                                                                                                                                                                                                                                                                                                                                        |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **T2**      | You — one real agent driving one real tool call. Still the highest-value item left                                                                                                                                                                                                                                                                                                                     |
-| **T3**      | You — a Linux host that does not exist yet. The only unmet design requirement                                                                                                                                                                                                                                                                                                                          |
-| **T13**     | You — thirty minutes of reading. The prompt-injection answer is drafted at `CHAPTER3-MATERIAL.md` §4.x.26; the remaining work is being able to give it without notes. **Absent from this table until 2026-08-31** while the count above included it                                                                                                                                                    |
-| **T17**     | You — a judgement about how the report should look                                                                                                                                                                                                                                                                                                                                                     |
-| **T18**     | You — it is your report                                                                                                                                                                                                                                                                                                                                                                                |
-| ~~**T7**~~  | ~~A decision (prevention half). The audit half shipped 2026-08-26.~~ **CLOSED 2026-08-30** — prevention built on the in-process runtime; structurally unclosable on the native Codex harness, stated as a result rather than as a gap. §"T7 prevention — built 2026-08-30"                                                                                                                             |
-| ~~**T31**~~ | ~~Claude — 16 lint errors across 14 test files, mechanical.~~ **DONE 2026-08-28** — all 16 fixed, and `git-hooks/pre-commit` now lints staged files, so the count cannot drift back unnoticed                                                                                                                                                                                                          |
-| ~~**T32**~~ | ~~Folder grants with exceptions.~~ **DONE 2026-08-31.** Option A, at Kinan's decision: authorable for every agent, with the limit stated on the rule row rather than only in the dialog. Additive — the two-rule authoring is untouched and everything the control writes is an ordinary, separately removable rule. Three surfaces. QA round thirty-three found four defects in it (165–168). §3.5.66 |
-| **T38**     | **Claude** — drive the dashboard by hand again. Everything shipped since 2026-08-24 is **unrendered**: the Codex panel and its two dialogs, the folder-grant form and its explainer, and the per-rule Codex note. M1 found five defects by doing exactly this once                                                                                                                                     |
-| **T39**     | **Claude** — the other three test-typecheck configs (`tsgo:test:ui`, `test:root`, `test:packages`), never run here. T37 covered `src/` and said so; this is the rest of its own residue                                                                                                                                                                                                                |
-| **T40**     | **Claude** — a CLI for rule requests. Named in `CLI-REFERENCE.md` §2d as the weakest of T34's four reasons and the first to revisit                                                                                                                                                                                                                                                                    |
-| ~~**T41**~~ | ~~The supervisor email about T7.~~ **CANCELLED 2026-08-31 by Kinan — not being sent.** The draft stays in the repository as the record of the question as it stood before T7 was closed a different way, with a header saying so. Counted as neither done nor open, like T1                                                                                                                            |
-| **T1**      | Deprioritised, not being done                                                                                                                                                                                                                                                                                                                                                                          |
-| ~~**T33**~~ | ~~Claude — make the fork build and start on Linux at all.~~ **DONE 2026-08-28**, verified on Ubuntu 24.04: installer exit 0, probe 14/14, `openclaw` on PATH. It was listed here as open until 2026-08-31 while §1 and §6 both recorded it closed                                                                                                                                                      |
-| ~~**T34**~~ | ~~Decide what the three-surfaces rule promises.~~ **DONE 2026-08-31**, option 3 at Kinan’s decision: the four reasons were written first, two survived and two did not. `agents access`, `agent runs` and `agent cancel` built; accounts and rule requests kept as deliberate, with the reasons in `CLI-REFERENCE.md` §2d. **The rule itself was narrowed**, which matters more than the commands      |
-| ~~**T35**~~ | ~~Claude — narrow `AuditActorInput`.~~ **DONE 2026-08-31.** A brand on the labelled arm was built, measured and **rejected** — 8 shipped rewrites finding zero defects, plus 311 test errors, to catch one historical defect, enforced by a command nobody runs. What shipped is a guard at the choke point: a named actor may not claim a labelled origin's name, which catches finding 161. §3.5.63  |
-| ~~**T36**~~ | ~~Claude — re-derive the requirements validation table.~~ **DONE 2026-08-31** at Kinan's direction, earlier than recommended. Eight rows re-derived clean, one caveat false (finding 163), and each row now records the evidence it rests on so the next pass re-derives rather than re-reads. §3.5.64                                                                                                 |
-| ~~**T37**~~ | ~~Claude — typecheck the tests.~~ **DONE 2026-08-31.** 189 errors to zero, then added to the verification set in that order. Roughly 140 edits and **no test result changed** (2,338 before and after), which is the evidence it corrected types rather than assertions. Three of the five error classes were tests that were weaker than they looked. §3.5.65                                         |
+| Open        | Who has to move                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **T2**      | You — one real agent driving one real tool call. Still the highest-value item left                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| **T3**      | You — a Linux host that does not exist yet. The only unmet design requirement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| **T13**     | You — thirty minutes of reading. The prompt-injection answer is drafted at `CHAPTER3-MATERIAL.md` §4.x.26; the remaining work is being able to give it without notes. **Absent from this table until 2026-08-31** while the count above included it                                                                                                                                                                                                                                                                                                                          |
+| **T17**     | You — a judgement about how the report should look                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| **T18**     | You — it is your report                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ~~**T7**~~  | ~~A decision (prevention half). The audit half shipped 2026-08-26.~~ **CLOSED 2026-08-30** — prevention built on the in-process runtime; structurally unclosable on the native Codex harness, stated as a result rather than as a gap. §"T7 prevention — built 2026-08-30"                                                                                                                                                                                                                                                                                                   |
+| ~~**T31**~~ | ~~Claude — 16 lint errors across 14 test files, mechanical.~~ **DONE 2026-08-28** — all 16 fixed, and `git-hooks/pre-commit` now lints staged files, so the count cannot drift back unnoticed                                                                                                                                                                                                                                                                                                                                                                                |
+| ~~**T32**~~ | ~~Folder grants with exceptions.~~ **DONE 2026-08-31.** Option A, at Kinan's decision: authorable for every agent, with the limit stated on the rule row rather than only in the dialog. Additive — the two-rule authoring is untouched and everything the control writes is an ordinary, separately removable rule. Three surfaces. QA round thirty-three found four defects in it (165–168). §3.5.66                                                                                                                                                                       |
+| ~~**T38**~~ | ~~Claude — drive the dashboard by hand again.~~ **DONE 2026-09-01.** The real gateway, an isolated governance directory, every panel added since 2026-08-24 exercised by hand. **Four defects, and the two worst were invisible to every other check**: the Root-only deployment report rendered as raw i18n keys (179), and both per-agent override rows rendered the mode name one letter per line (180). Also **finding 178**, found by reading the ledger on screen. **Zero unnamed controls** — M1's finding-103 class is clean. §"T38 — the dashboard, driven by hand" |
+| ~~**T39**~~ | ~~Claude — the other three test-typecheck configs.~~ **DONE 2026-09-01.** `test:ui` reported **5 errors**, all in `governance-panels.test.ts`; `test:root` and `test:packages` were already clean and hold no governance code. **The useful finding is a fourth command nobody had run**: `tsgo:core:test` is one program covering `src/` + `ui/` + `packages/` tests, a superset of the `tsgo:test:src` T37 added, and it catches all five. The verification set's sixth command is now that one. §"T39 — the rest of T37's residue, and the command above it"              |
+| ~~**T40**~~ | ~~Claude — a CLI for rule requests.~~ **DONE 2026-09-01.** `governance requests list / submit / decide`, in their own module, each asking the question its route asks — Viewer reads, User proposes, Administrator decides. What it buys is the **link**: approving from a terminal now sets `createdRuleId`, which writing the rule by hand never did. §2d rewritten: accounts stay dashboard-only, rule requests no longer do                                                                                                                                              |
+| ~~**T41**~~ | ~~The supervisor email about T7.~~ **CANCELLED 2026-08-31 by Kinan — not being sent.** The draft stays in the repository as the record of the question as it stood before T7 was closed a different way, with a header saying so. Counted as neither done nor open, like T1                                                                                                                                                                                                                                                                                                  |
+| **T1**      | Deprioritised, not being done                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ~~**T42**~~ | ~~A decision: three surfaces describe the emergency stop three different ways.~~ **DECIDED AND BUILT 2026-09-01, option 1 at Kinan's instruction:** the dashboard matches the route. Administrator and above stop any agent in their organisation; a User stops the agents assigned to them; a Viewer stops nothing. The "Root only" hint is gone, replaced by one string per tier. Verified in a browser in both tiers, not only in jsdom. §"T42 — who may operate the emergency stop"                                                                                      |
+| ~~**T43**~~ | ~~`pnpm lint:ui:i18n` is red — 59 raw-copy deltas.~~ **DONE 2026-09-01.** All 59 measured, and all 59 were in the governance panels. Two were an HTML comment inside a lit template — shipped into every operator's DOM and read by the extractor as user-facing prose — fixed by moving it out. The remaining 57 are intentional under the recorded English-only decision and are baselined, which is what the tool's own message prescribes. §"T43 — the raw-copy check, and what it was really telling us"                                                                |
+| ~~**T33**~~ | ~~Claude — make the fork build and start on Linux at all.~~ **DONE 2026-08-28**, verified on Ubuntu 24.04: installer exit 0, probe 14/14, `openclaw` on PATH. It was listed here as open until 2026-08-31 while §1 and §6 both recorded it closed                                                                                                                                                                                                                                                                                                                            |
+| ~~**T34**~~ | ~~Decide what the three-surfaces rule promises.~~ **DONE 2026-08-31**, option 3 at Kinan’s decision: the four reasons were written first, two survived and two did not. `agents access`, `agent runs` and `agent cancel` built; accounts and rule requests kept as deliberate, with the reasons in `CLI-REFERENCE.md` §2d. **The rule itself was narrowed**, which matters more than the commands                                                                                                                                                                            |
+| ~~**T35**~~ | ~~Claude — narrow `AuditActorInput`.~~ **DONE 2026-08-31.** A brand on the labelled arm was built, measured and **rejected** — 8 shipped rewrites finding zero defects, plus 311 test errors, to catch one historical defect, enforced by a command nobody runs. What shipped is a guard at the choke point: a named actor may not claim a labelled origin's name, which catches finding 161. §3.5.63                                                                                                                                                                        |
+| ~~**T36**~~ | ~~Claude — re-derive the requirements validation table.~~ **DONE 2026-08-31** at Kinan's direction, earlier than recommended. Eight rows re-derived clean, one caveat false (finding 163), and each row now records the evidence it rests on so the next pass re-derives rather than re-reads. §3.5.64                                                                                                                                                                                                                                                                       |
+| ~~**T37**~~ | ~~Claude — typecheck the tests.~~ **DONE 2026-08-31.** 189 errors to zero, then added to the verification set in that order. Roughly 140 edits and **no test result changed** (2,338 before and after), which is the evidence it corrected types rather than assertions. Three of the five error classes were tests that were weaker than they looked. §3.5.65                                                                                                                                                                                                               |
 
 **"Blocked on the host" was recorded three times and was true zero times — and
 then a fourth was recorded on 2026-08-30 that is true.** The fourth is T7's
@@ -182,6 +209,24 @@ alone. _Nothing_ means it can be picked up and finished as it stands.
 > question the §"Who can do what" triage below exists to make explicit.
 
 ### Who can do what — triage, 2026-08-25
+
+> **Current answer, 2026-09-01, before the history below.** The three categories
+> now sort as:
+>
+> - **Claude can finish alone: nothing.** T38, T39, T40 and T43 were the last
+>   four and all closed on 2026-09-01.
+> - **Needs a decision from Kinan, then Claude builds it: nothing.** T42 was the
+>   last, decided and built the same day.
+> - **Only Kinan can do it: all five open items** — T2 (a live run), T3 (a Linux
+>   host), T13 (a read), T17 (the figures), T18 (the report).
+>
+> **This category has emptied three times and refilled twice**, which is the
+> reason the paragraphs below are kept rather than rewritten: on 2026-08-26,
+> on 2026-08-27 ("no substantial engineering is left in the project"), and on
+> 2026-08-31. Each time it refilled because somebody asked what was outstanding
+> that the backlog did not _say_ was outstanding, and the last time that question
+> produced eleven defects, five of them security. **An empty list here is
+> evidence about how recently anyone looked, not about the code.**
 
 Added because "Blocked: Nothing" answers the wrong question. It says nothing
 stops the work; it does not say **who has to do it**, and on this project those
@@ -1576,6 +1621,565 @@ Either rewrite it as _"here is what I did instead, does the reasoning hold?"_ �
 which is a better email and a fair thing to put in front of a supervisor before
 the viva — or delete it. Leaving it is the one option that misleads, because a
 draft in the repository reads as a draft that was meant to go.
+
+---
+
+---
+
+### The universal QA sweep — 2026-09-01
+
+**Kinan asked for a complete pass over the whole project: bugs, edge cases never
+looked at, edge cases whose code has changed since they were, and security.**
+Run immediately after T38–T40, and the three tasks fed it — two of the eleven
+findings came out of doing T40, and three out of doing T38.
+
+**Eleven defects, numbered 172–182, and all eleven are closed** — nine fixed the
+same day, and 181 and 182 raised as `T42` and `T43` and closed on 2026-09-01.
+Five are security-relevant and one of those is a live cross-tenant hole that a
+previous round had already found, fixed on one surface, and not looked for on the
+other.
+
+#### The method, and why it found what twenty-eight earlier rounds did not
+
+Earlier rounds mostly read one feature at a time. This one read **one question
+across every surface**: for each governance capability, _what does the HTTP
+route check, and does the command line check the same things?_ The privilege
+matrix in `governance-privilege-matrix.test.ts` gave an authoritative table of
+route floors — transcribed from the `requireRole` calls rather than from memory
+— and there is no such table for the command line, so the comparison had never
+been made mechanically.
+
+**Four of the eleven came straight out of that comparison**, and the pattern in
+all four is the same: the route grew a check, the write-up recorded the check,
+and the command that does the same job was never revisited. This is the
+project's own most-found defect class — _two surfaces answering one question two
+ways_ — appearing again in the place the project had least instrumentation for.
+
+**The lesson worth putting in Chapter 4** is narrower than "test both surfaces".
+It is that **a fix has a blast radius, and nobody was measuring it.** Finding 144
+was diagnosed precisely, fixed correctly, and written up in the header of
+`governance-dashboard-group.ts` in a paragraph that explains exactly why the
+check is needed. That paragraph was true and the hole stayed open one file away
+for a week, because closing a finding meant closing it where it was found.
+
+#### 172 — the emergency escalation decision changed state and lost its ledger entry
+
+`governance pending decide` passed `decidedBy: "cli"` into `recordAdminAction`
+as a **named** actor. T35's guard rejects exactly that shape — `splitAuditActor`
+throws `FabricatedActorError` when a named actor claims a labelled origin's name
+— and the decision is written under a file lock **before** the ledger append.
+
+So the command wrote the decision to disk and then threw: **a decided escalation
+with no audit record at all**, against requirement #5's "record 100% of … policy
+decisions and administrative approvals". `runCommandWithRuntime` swallowed the
+throw, so it failed silently and reported nothing.
+
+**Three earlier findings meet in this one command.** 149 is the attribution
+(`"cli"` where a person was available). 152 is the ordering (state written before
+the entry that records it). T35's guard is what turned a quiet attribution bug
+into a loud one — and the guard shipped on 2026-08-31, so this command had been
+**broken for a day and nothing noticed**, because no test drove it.
+
+#### 173 — the same two commands asked none of the questions their routes ask
+
+`pending list` and `pending decide` were the last two governance commands gated
+on `() => true` — any signed-in account. Their routes ask two more:
+
+- a **User** floor, not a Viewer one; and
+- `canManageAgent` against the **stored** entry's agent, never one the caller
+  named.
+
+The read had the matching gap: `pending-decisions` GET filters by
+`canViewAgent`, and the command printed the whole organisation's stack — agent
+ids, tool names, and the resources they were blocked on. That is the leak the
+rule-request queue carries a paragraph about, one file over.
+
+So: a **Viewer** could record an allow on any agent, and a User could record one
+on an agent they had never been assigned.
+
+#### 174 — finding 144 was still live on the command line
+
+**The worst of the eleven.** `governance kill <agentId>` — the emergency stop,
+design requirement #7 — was gated `() => true`, with **no tier check, no
+`canManageAgent`, and no organisation check**. Its route makes all three.
+
+The third one exists for a reason this file already records. From the header of
+`governance-dashboard-group.ts`:
+
+> **Finding 144** — the kill switch _terminates_ from that same registry.
+> `terminateAgentRuns` matches on agent id alone, so an Administrator of one
+> organisation could stop another's running work by naming its agent. A
+> cross-tenant denial of service, through the emergency-stop control.
+
+That was found, fixed on the route with `requireAgentInGroup`, and written up.
+**The command was never touched.** So on 2026-09-01 an operator of one
+organisation could still stop another organisation's agents from a terminal —
+and so could a Viewer, whom §1.6 defines as strictly read-only oversight. The
+release path had the same three holes, which matters independently: an account
+that may not stop an agent must not be able to restart one somebody else
+stopped.
+
+Closed with `requireManagedAgent` in `governance-cli-gate.ts`, which asks all
+three questions in the order the route asks them, and refuses an unregistered id
+for the reason M5 already set at the gate.
+
+#### 175 — the deployment report was Root-only on one surface only
+
+`GET deployment` is Root, and the privilege matrix writes the argument out:
+
+> Root, not viewer like its neighbour `system`: this route reports the bind
+> mode, port, gateway auth mode and governance directory — a map of how to reach
+> and attack the installation.
+
+`governance deployment` asked no tier question at all, so any signed-in account
+could read that map. **The command's own comment is the interesting part**: it
+argues at length that this capability must exist on the command line, because
+§1.6 expects the dashboard to be reachable only through an SSH tunnel and this
+is what you run _before_ the tunnel exists. That argument is sound and it is
+about the **surface**. It says nothing about the tier, and the tier was quietly
+taken to follow from it.
+
+New `canReadDeploymentReport`, named separately from `canManageAccounts` and
+`canManageBackends` for the reason those two are named separately from each
+other.
+
+#### 176 — prompting had no organisation check
+
+`agent prompt` checked `canManageAgent` and stopped there. That predicate cannot
+answer the group question: an Administrator's scope is unlimited _within their
+own organisation_, so it returns true for any id at all. The route pairs it with
+`requireAgentInGroup` for precisely this reason.
+
+#### 177 — three administrative actions recorded who, but not the authority
+
+`decidePendingDecision`, `decideRuleRequest` and `submitRuleRequest` each built
+`{ name }` with no role, so `actorRole` was absent from every entry they wrote —
+on **both** surfaces, not only the command line.
+
+The project's own claim, from T5 Part B and repeated in `PROJECT-SUMMARY.md`, is
+"a ledger that records the authority an action was taken under, not merely who
+took it". Three of roughly thirty administrative actions quietly did not meet
+it. Optional `decidedByRole` / `requestedByRole`, carried beside the name rather
+than folded into it because the two have different destinations: the stored
+record keeps a name, the ledger keeps the pair.
+
+#### 178 — the ledger could not tell granting from forbidding
+
+**The best finding of the sweep, and it came from looking at a screen.** After
+using the folder-grant form during T38, the ledger showed:
+
+```
+#13 governance.policy.rule.add path ^C:/srv/app(/|$)         (all agents, indefinite)
+#12 governance.policy.rule.add path ^C:/srv/app/secrets(/|$) (all agents, indefinite)
+```
+
+Identical in form. Opposite in meaning. `describeRule` recorded kind, pattern,
+scope and expiry and **omitted `effect`**, so the tamper-evident record of
+policy changes could not distinguish _an operator granted access to this path_
+from _an operator forbade it_. `access` was missing too, which makes an allowance
+to **write** indistinguishable from one to **read**.
+
+Requirement #5 asks the log to record policy decisions. A decision whose
+direction cannot be recovered from its entry is not recorded — the pattern is,
+and the pattern is not the decision.
+
+**Why nothing caught it.** Every existing assertion checks that the pattern
+reaches the entry, and it always did. The direction was never asserted because
+it was never written, and a test written from the same understanding as the code
+tests the same misunderstanding. The folder grant is what made it visible: it is
+the only feature that writes an allow and a deny **as one act**, so the two
+entries land adjacent and the reader's eye does the comparison no test was doing.
+
+The effect is now stated in **both** directions rather than only for denials.
+Leaving allowances silent would require an auditor to know that absence means
+allow — a convention that cannot be checked from the entry, and one that a
+truncated or partially-read trail gets backwards.
+
+#### 179 — the Root-only deployment report rendered as raw i18n keys
+
+See §"T38". `oversight-panels.ts` looks its strings up as
+`governance.deployment.*`; they had been written into `quickSettings.deployment.*`,
+where **nothing referenced them**. Every one of the panel's fifteen lookups fell
+through to its own key, so a headline feature rendered as
+`GOVERNANCE.DEPLOYMENT.TITLE` above a column of
+`governance.deployment.status.pass`.
+
+#### 180 — both per-agent override rows rendered one letter per line
+
+See §"T38". `.settings-row__control` carries `min-width: 0`, which is right for a
+row's own control cell and wrong for a second one nested inside it. The mode name
+collapsed to **11px wide and 112px tall**.
+
+#### 181 — three surfaces describe the emergency stop three different ways
+
+**Raised as `T42`, decided by Kinan the same day, and built.** The dashboard now
+matches the route: Administrator and above stop any agent in their organisation,
+a User stops the agents assigned to them, a Viewer stops nothing, and the "Root
+only" hint is gone. See §"T42".
+
+#### 182 — the raw-copy i18n check is red and nobody runs it
+
+**Raised as `T43` and closed the same day.** `pnpm lint:ui:i18n` reported **59
+baseline deltas**, and the first thing done was to stop guessing at them: the
+tool prints twenty and counts the rest, so widening that slice gave the list.
+**All 59 were in `ui/src/pages/governance/panels/`** — the earlier hedge here was
+unnecessary. Two were a real defect of a different kind (an HTML comment inside a
+lit template, shipped into the rendered DOM) and were fixed; the other 57 are
+intentional under the recorded English-only decision and are baselined. See
+§"T43", including why keying the 41 sentence fragments would have made the i18n
+worse rather than better.
+
+Worth doing for a reason beyond tidiness: it is the check that lives nearest to
+finding 179, and it did not catch it. It looks for **strings that should be
+keys**; 179 was **a key that should have been a string**. Recording that the two
+are different mistakes, and that the tooling only looks for one of them, is the
+part that belongs in Chapter 4.
+
+#### What the sweep cleared
+
+Recorded because a round that only lists what it broke is not a measurement.
+
+- **Every other CLI command's gate was compared against its route's floor** and
+  the rest agree. `agent runs` and `agent cancel` are gated `() => true` and then
+  filter by `canManageAgent` per run, which reaches the same answer; `policy
+show`, `core-rules`, `for-agent`, `rule-agents`, `audit tail` and `audit
+verify` are Viewer-tier reads and their routes agree; the whole agent registry
+  goes through `requireOwnedAgent`, which already checks the group.
+- **Zero unnamed interactive controls on the dashboard** across 109 of them —
+  M1's finding-103 class is clean.
+- **The folder grant, the Codex backend dialog, the per-agent Codex toggle and
+  the rule-request approval all work end to end**, and each writes the ledger
+  entry it should.
+- **`tsgo:test:root` and `tsgo:test:packages` were already clean**, and hold no
+  governance code at all.
+
+#### Observations that are not defects here
+
+Recorded rather than fixed, because all three are in **shared upstream
+components** and changing them widens this fork's merge surface for no
+governance benefit. They affect the governance screens along with every other
+one:
+
+- `openclaw-modal-dialog` has no `role="dialog"`, no `aria-modal` and no
+  `aria-labelledby`. It does move focus into the dialog and lock scrolling.
+- One press of **Escape** both closes a confirmation dialog and navigates off the
+  settings page — the dialog does not stop the key reaching the settings shell.
+- Repeated per-row controls share accessible names with nothing naming the
+  subject: 13× "Who does this affect?", 5× "Switch off", 3× "Delete", 3× "Set
+  password", 2× "Allow Codex". The per-agent Codex **dialog** does name its
+  subject, so the confirmation step is unambiguous even where the button is not.
+
+And two that are ours and were checked rather than assumed:
+
+- A POSIX path typed into the folder-grant form on Windows silently gains a
+  drive letter (`/srv/app` becomes `^C:/srv/app(/|$)`). Correct behaviour for a
+  Windows host, and requirement #9's target is Linux.
+- **Unregistering an agent while it is locked down** now means the lockdown can
+  be released from neither surface, because both refuse an id with no registry
+  record. Checked and left alone: the gate already refuses an unregistered agent
+  outright (`policy-engine.ts` — "unresolvable means unregistered, and the gate
+  has already refused it"), so the stranded lockdown protects an agent that
+  cannot act anyway. Recorded because the reasoning is what makes it safe, and a
+  later change that lets unregistered agents run would turn it into a defect.
+
+---
+
+### T43 — the raw-copy check, and what it was really telling us (2026-09-01)
+
+`pnpm lint:ui:i18n` had been red with **59 raw-copy baseline deltas**. The check
+looks for user-facing English written into a component instead of into the locale
+file, and it is not in the verification set, which is why nobody had seen it go
+red.
+
+**First, the count was measured rather than assumed.** The tool prints twenty
+deltas and then says "39 more baseline delta(s)", so the earlier write-up of this
+item recorded only that _the twenty it names_ were governance panels and said the
+other 39 were unknown. Temporarily widening that slice gave the full list:
+**all 59 are in `ui/src/pages/governance/panels/`** — 27 in `codex-backend-panel`,
+14 in `folder-grant-panel`, 6 each in `policy-panels` and `account-panels`, 4 in
+`agent-registry-panels`, 2 in `agent-panels`. So the original hedge was
+unnecessary, and it cost one command to replace with a fact.
+
+#### Two of the fifty-nine were a real defect, and not the one the check names
+
+The two in `agent-panels.ts` were not user-facing copy at all. They were a
+**twelve-line HTML comment sitting inside a lit template**, documenting finding
+118's keyboard trap:
+
+```
+<!--
+  A real button that opens a hidden input, rather than a label wrapping one …
+-->
+```
+
+An HTML comment inside `html\`\``is part of the rendered document. It was being
+shipped into every operator's browser on every render, and the extractor was
+reading the prose between its backticks as two user-facing strings. Moved to a`//` comment above the template: the note survives for the next maintainer, the
+DOM loses twelve lines of internal history, and the two deltas disappear.
+
+**That is the whole yield of the check, and it is worth saying plainly.** A lint
+rule that flags 59 things and is right about 2 is still worth running — but only
+if somebody reads the 59 rather than obeying the count.
+
+#### The other fifty-seven are intentional, and keying them would be worse
+
+The remaining 57 divide in two, and neither half should be moved into `en.ts`.
+
+**Forty-one are sentence fragments, not strings.** The Codex and folder-grant
+disclosures are long explanatory prose assembled from inline `<strong>` and
+`<code>` spans, so the extractor sees each fragment separately: `"and"`,
+`"one"`, `"prevents"`, `"rather than"`, `"grep"`, `"find"`,
+`"What this does."`, `"what an agent gets back"`. Keying those individually
+would produce a catalogue no translator could use and a sentence no locale could
+reorder — it would satisfy the rule and make the i18n materially worse. Doing it
+properly means restructuring each disclosure into one interpolated key, which
+means rewriting prose that several QA rounds tuned.
+
+**Sixteen are literal wire values shown as labels** — `command`, `path`,
+`network`, `viewer`, `user`, `administrator`. They are written as
+`{ value: "viewer", label: "viewer" }` on purpose: the operator sees exactly the
+string the API takes and the ledger records. Adding sixteen keys whose values
+equal their literals is ceremony.
+
+**And the dashboard is English-only by a recorded decision** — one of the
+deliberate divergences this project keeps a list of and does not "fix".
+
+So the 57 are **baselined**, which is precisely what the tool's own failure
+message offers: _"Move user-facing strings into ui/src/i18n/locales/en.ts, or run
+`pnpm ui:i18n:baseline` when the raw string is intentional."_ The baseline grew
+from 98 entries to 155. The check is green, and it is now useful: any _new_ raw
+copy in these panels shows as drift against a baseline that means something,
+instead of being lost in a count nobody could read.
+
+#### The part that belongs in Chapter 4
+
+**This check and finding 179 are opposite mistakes, and only one of them is
+tooled for.** The verifier hunts for _a string that should have been a key_. 179
+was _a key that should have been a string_ — `governance.deployment.title`
+resolving to nothing, so the panel rendered its own key names at an operator.
+Nothing looks for that, and nothing would have: a missing key resolves to a
+perfectly valid string, which is why a component test, a typecheck and a lint run
+all passed over it. **The tooling covers the direction that produces untranslated
+English, and not the direction that produces no English at all.**
+
+---
+
+### T42 — who may operate the emergency stop (decided and built, 2026-09-01)
+
+**Kinan chose option 1: the dashboard matches the route.** Recorded with the
+instruction as given — _"Admin and above can do emergency stop, and User can do
+it for their own agents that have been assigned to them by Admin"_ — and with the
+second half of the same instruction, that agent **creation** stays the
+Administrator's and assignment is how a User or Viewer comes to hold one.
+
+#### What the three surfaces said before
+
+| Surface                    | Who it admitted                               |
+| -------------------------- | --------------------------------------------- |
+| `POST kill` route          | **User** and above, plus `canManageAgent`     |
+| Dashboard panel visibility | **Administrator** and above (`canAdminister`) |
+| The hint printed on it     | **"Root only"**                               |
+
+The route was right and the other two were wrong, which is what option 1
+formalises. The argument was already in this project's own code twice over:
+`PROJECT-SUMMARY` item 11 calls removing a User's ability to stop their own agent
+"a regression dressed as a permission", and the **active-sessions panel two
+hundred lines above the one that was wrong** has offered a User a Stop button for
+their own sessions since the release control moved there, under a comment reading
+_"whoever is trusted to stop an agent is trusted to undo that."_ Nobody had
+applied that comment to the panel below it.
+
+#### What was built
+
+- `identity.ts` gains **`canManageAgent(identity, agentId)`** and
+  `manageableAgentIds` — the browser-side twin of `permissions.ts`'s function of
+  the same name. `canManageAnyAgent` answers _does this tier act on agents at
+  all_, which is a different question and is why the panel could not simply be
+  regated on the flag it already had.
+- The kill-switch panel is gated on **`canManageAnyAgent`**, and its picker, its
+  locked-agent list and its button are all scoped by `canManageAgent`.
+- **The "Root only" string is gone.** Two strings replace it, one per tier —
+  "any agent in your organisation" and "the agents assigned to you" — because the
+  two tiers make different promises and a reader in either should be told theirs.
+  Neither says "only": that word was doing the damage, telling a User the one
+  emergency control was not theirs.
+
+#### An honest finding about the fix itself
+
+**Checked against a running gateway, the client-side scoping turns out to be
+redundant.** Every source the page reads is already filtered per caller: `GET
+agents` returns only the caller's agents, and `GET policy` filters `agentMode`,
+`agentAsk`, the agent-scoped rules **and `lockedAgents`** before answering. A
+User is never told that an agent they cannot act on exists — which is deliberate,
+and is what stops the page becoming an enumeration oracle for the rest of the
+organisation.
+
+That was measured, not assumed: signing in as the User and reading both routes
+back showed `agents: [build-agent]`, `agentMode: []`, and `lockedAgents: []`
+while an Administrator had ops-agent locked.
+
+The scoping is kept anyway, for the reason `identity.ts`'s own header gives —
+these helpers decide what is worth rendering, the server decides what is allowed,
+and a page that would offer a refused control the moment a route widened is a
+page waiting to be wrong. **What it must not do is claim to be the protection**,
+and the comment now says so. The test that covers the branch says the same thing
+in its own header, because a reader who finds a test for an unreachable state
+deserves to be told it is unreachable and why.
+
+#### Verified by rendering it, not only by asserting it
+
+The lesson of T38, applied on the same day it was learned. Both tiers were
+checked in a real browser against the real gateway:
+
+| Signed in as   | Panel   | Hint                             | Picker offers          |
+| -------------- | ------- | -------------------------------- | ---------------------- |
+| `kinan (root)` | present | "any agent in your organisation" | build-agent, ops-agent |
+| `malek (user)` | present | "the agents assigned to you"     | build-agent            |
+
+Neither says "Root only". A Viewer gets no panel at all.
+
+#### The second half of the instruction, confirmed rather than changed
+
+_"Make sure that User can't create an agent, only Admin and above can, and they
+assign agents to User or Viewer (to view only)."_ All three already held, on all
+three surfaces:
+
+- **Creation** — `agents/register`, `agents/provision` and `agents/deprovision`
+  sit at the Administrator floor in the privilege matrix; the CLI gates them on
+  `canAssignAgents`; and `renderAgentRegistrySection` returns nothing for any
+  role below Administrator.
+- **Assignment** — `users/agents` is Administrator-floor plus `canAssignAgents`.
+- **View only** — `canManageAgent(viewer, assignedAgent)` is **false even when
+  the Viewer is assigned that agent**, which `permissions.test.ts` already
+  pinned: assignment grants visibility, the role grants authority, and both are
+  required.
+
+**What had no test was the command line**, which is the surface this sweep found
+four holes in, so that is what was added: a User and a Viewer are refused
+`agents register` and `agents provision`, an Administrator is not, and an
+assigned Viewer still cannot stop the agent they can see.
+
+---
+
+### T38 — the dashboard, driven by hand (2026-09-01)
+
+**The whole task was to open the page**, which had not been done since
+2026-08-24. Everything shipped after that date had been verified by typecheck,
+lint and jsdom component tests, and by nothing that renders it.
+
+**How it was run.** The real gateway, built from this tree, against an
+**isolated state tree and an isolated governance directory** in the scratchpad —
+so a hand-driven pass could not touch the operator's real accounts, policy
+document or ledger. That instance ran with `auth.mode = "none"` on loopback, so
+no gateway credential was handled anywhere, and its Root account and fixture data
+were seeded through the project's **own store functions** rather than by writing
+JSON, so the fixture cannot drift from the shapes production writes.
+
+**What it found: three defects, two of which nothing else could have found.**
+
+- **179**, the deployment panel rendering raw i18n keys. A component test cannot
+  see this: `t()` returning its own key is a perfectly good string, so the panel
+  renders, every assertion about _which checks appear_ still passes, and only a
+  reader notices that none of it is English.
+- **180**, the two per-agent override rows collapsing to one letter per line.
+  jsdom performs no layout, so "the row says Monitor" is true of a vertical
+  column of seven letters.
+- **178**, the ledger not recording a rule's direction — found by reading the
+  audit trail on screen after using the folder-grant form.
+
+**The pattern across all three is worth Chapter 4.** Each is a defect in
+something the tests assert _the presence of_ and cannot assert _the legibility
+of_. That is not a gap in this project's test discipline; it is the boundary of
+what an assertion is. The counter-measure is not more tests, it is somebody
+looking — and the honest form of that claim is that the last week's work had
+nobody looking for seven days.
+
+**What was exercised and works**: the folder-grant form and the two rules it
+writes back; the Codex backend confirmation dialog and its disclosure; the
+per-agent Codex toggle, its dialog (which names the agent) and the ledger entry
+it writes with the actor's tier; approving a rule request end to end — rule
+created, `createdRuleId` set, both entries in the trail; the pending-decision
+panel; the ledger filters; the accounts panel; and the deployment report itself,
+reporting 2 failed, 3 warnings, 2 not determined and 14 passed against a
+deliberately unauthenticated loopback gateway.
+
+**And the good news, stated because it is a measurement**: of 109 interactive
+controls on the page, **none is without an accessible name**. Finding 103's class
+is closed.
+
+---
+
+### T39 — the rest of T37's residue, and the command above it (2026-09-01)
+
+The task as written was three configs upstream ships that had never been run
+here. Measured:
+
+| Command              | Result                                                    |
+| -------------------- | --------------------------------------------------------- |
+| `tsgo:test:ui`       | **5 errors**, all in `governance-panels.test.ts`          |
+| `tsgo:test:root`     | clean, and covers `test/`, which holds no governance code |
+| `tsgo:test:packages` | clean, and covers `packages/`, likewise                   |
+
+The five were one omission. The test's own local `PageState` type left out
+`policy`, and `mount` takes `Partial<PageState>` — so five call sites passing a
+policy document were typed as excess properties that no command in the
+verification set ever checked. `governance-page.test.ts` has always declared it.
+
+**The finding above the task.** `tsgo:core:test` is a single program covering
+`src/` **and** `ui/` **and** `packages/` tests together — a superset of the
+`tsgo:test:src` that T37 added to the verification set — and it had never been
+run here either. It was proved to catch all five by reverting the fix and
+re-running it. So T37 added the narrower of two available commands, and the five
+`ui/` errors it did not cover were sitting there the same day.
+
+The verification set's sixth command is now `tsgo:core:test`. `test:root` and
+`test:packages` are **not** added: both are clean, both hold no governance code,
+and a verification set is a claim about this project rather than about the
+repository — which is the caveat finding 148 taught and it still holds.
+
+---
+
+### T40 — the rule-request queue reaches the command line (2026-09-01)
+
+The last capability `CLI-REFERENCE.md` §2d listed as deliberately
+dashboard-only, and the one that document itself flagged as the weakest of
+T34's four reasons.
+
+**The reason as recorded did not survive being acted on.** It read: an
+Administrator at a terminal can already write the rule with `policy add-rule`, so
+the gap costs the **link** between a request and the rule it produced, not the
+capability. That is exactly right, and the link is the whole audit value of the
+queue. Granting by hand leaves `createdRuleId` unset, the requester's row
+pending for ever, and two ledger entries — a submit and an unrelated rule-add —
+that nothing joins. So the "small cost" is the feature.
+
+**What shipped.** `governance requests list`, `requests submit` and
+`requests decide`, in `register.governance.requests.ts` — its own module, on the
+same one-file-one-subject seam as the other three command modules, and the only
+one whose three commands sit at three different tiers:
+
+- **list** — Viewer and above, filtered by `canViewAgent`, matching the GET
+  route. An unscoped queue lets an account limited to one agent enumerate every
+  other agent's id and the free-text reasons, which routinely name internal
+  hosts and paths.
+- **submit** — User and above, and `canManageAgent` for an agent-scoped request.
+  `canManageAgent` rather than `canAuthorPolicyForAgent`, because requesting is
+  not authoring: a User whose Root has withheld authoring may still ask, and
+  asking is precisely the fallback withholding leaves them.
+- **decide** — Administrator and above, which is the floor that keeps the
+  security property intact: no privilege is ever created by a non-Administrator.
+
+Approving claims the decision **before** creating the rule, and reopens the
+request if the rule cannot be written — both for the reasons the route's own
+comments give. The rule is built from the **stored** request, never from
+anything typed at the approving terminal.
+
+`policy request-setting` stays where it is. It is a submit on the same queue and
+would be tidier under `requests`, but moving it would change a shipped command's
+path for tidiness alone.
+
+**§2d now names one deliberately dashboard-only capability, not two**: accounts,
+whose reason is divergence cost and still holds.
 
 ---
 

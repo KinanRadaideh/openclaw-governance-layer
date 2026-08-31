@@ -1,5 +1,6 @@
+import { findAgent } from "../../governance/agent-registry.js";
 import { currentCliIdentity, toCliActor, type CliIdentity } from "../../governance/cli-identity.js";
-import type { GovernanceActor } from "../../governance/permissions.js";
+import { canManageAgent, type GovernanceActor } from "../../governance/permissions.js";
 // The command line's authorization gate (T5), shared by the governance command
 // modules.
 //
@@ -89,4 +90,50 @@ export async function requireCliActor(
   // is a union with a bare `string` arm, so it cannot be spread. This shape is
   // assignable to it, which is what every caller needs.
   return { name: identity.username, role: identity.role, groupId };
+}
+
+/**
+ * The command line's half of `requireAgentInGroup` — *may this operator act on
+ * this named agent, and is it even theirs?*
+ *
+ * Two questions, because `canManageAgent` cannot answer the second. An
+ * Administrator has **unlimited agent scope**, which is scope within their own
+ * organisation; the predicate takes an id and knows nothing about groups, so it
+ * returns true for any id at all — including one belonging to somebody else
+ * entirely. That is why the HTTP surface needs a second check beside it, and it
+ * is why this exists.
+ *
+ * **The gap it closes is finding 144 on a second surface.** The kill switch
+ * terminates from the Gateway's installation-wide run registry, and
+ * `terminateAgentRuns` matches on agent id alone, so naming another
+ * organisation's agent stopped their running work: a cross-tenant denial of
+ * service through the emergency stop. The route was closed with
+ * `requireAgentInGroup`; the command was not, and it was missing the tier check
+ * and the per-agent check above it as well.
+ *
+ * **An unregistered id is refused**, which is the rule M5 already set at the
+ * gate: registration is mandatory, so an agent that can run has a record, and an
+ * id with no record belongs to no organisation.
+ *
+ * The refusal says the same thing for "not yours" and "not in your
+ * organisation", exactly as the route does — separating them would make this an
+ * existence oracle for other organisations' agent ids.
+ */
+export async function requireManagedAgent(
+  runtime: typeof defaultRuntime,
+  what: string,
+  agentId: string,
+): Promise<{ name: string; role: GovernanceRole; groupId: string } | undefined> {
+  const actor = await requireCliActor(runtime, what, (candidate) =>
+    canManageAgent(candidate, agentId),
+  );
+  if (!actor) {
+    return undefined;
+  }
+  const record = await findAgent(agentId);
+  if (record?.groupId !== actor.groupId) {
+    runtime.log(`You do not manage agent "${agentId}".`);
+    return undefined;
+  }
+  return actor;
 }

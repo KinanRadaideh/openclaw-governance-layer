@@ -320,10 +320,43 @@ export async function pruneExpiredPolicyRules(groupId: string): Promise<number> 
  * in an hour or never. Those are exactly the details someone reviewing a change
  * after an incident is trying to establish.
  */
+/**
+ * One line describing a rule, for the ledger entry that records its creation or
+ * removal.
+ *
+ * **`effect` and `access` were missing until 2026-08-31 (T38)**, and the
+ * omission was found by reading the ledger on screen rather than by any test.
+ * The folder-grant form writes an allow rule and a deny rule as a single act,
+ * and the two entries it produced were identical in form and opposite in
+ * meaning:
+ *
+ *     governance.policy.rule.add path ^C:/srv/app(/|$)         (all agents, indefinite)
+ *     governance.policy.rule.add path ^C:/srv/app/secrets(/|$) (all agents, indefinite)
+ *
+ * A tamper-evident record of policy changes that cannot say whether a change
+ * *granted* or *forbade* is not recording the decision — and requirement #5
+ * asks for policy decisions, not for the patterns they mention. `access` is
+ * here for the same reason: allowing **write** and allowing **read** on a path
+ * are different grants, and the difference is invisible in the pattern.
+ *
+ * **The effect is stated in both directions rather than only for denials.**
+ * Leaving an allowance silent would mean an auditor has to know that absence
+ * means allow — a convention that cannot be checked from the entry, and one an
+ * entry truncated or partially read would get backwards.
+ *
+ * Existing entries are untouched and still verify: this changes the text of the
+ * `resource` field, which was already covered by the hash, not the field list
+ * the chain is computed over.
+ */
 function describeRule(rule: PolicyRule): string {
   const scope = rule.agentId ? `agent ${rule.agentId}` : "all agents";
   const expiry = rule.expiresAt ? `expires ${rule.expiresAt}` : "indefinite";
-  return `${rule.resourceKind} ${rule.pattern} (${scope}, ${expiry})`;
+  const effect = rule.effect === "deny" ? "deny" : "allow";
+  // Only meaningful on path rules, and omitted elsewhere rather than printed as
+  // a default: the engine ignores it for command and network rules, and an
+  // entry naming a direction the gate never consults would be a false record.
+  const access = rule.resourceKind === "path" && rule.access ? ` ${rule.access}` : "";
+  return `${effect} ${rule.resourceKind}${access} ${rule.pattern} (${scope}, ${expiry})`;
 }
 
 /**

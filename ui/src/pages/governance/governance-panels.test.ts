@@ -40,6 +40,7 @@ import type {
   GovernanceLedgerEntry,
   GovernanceLedgerVerification,
   GovernancePendingDecision,
+  GovernancePolicyDocument,
   GovernanceRuleRequest,
   GovernanceSystemStatus,
   GovernanceUserRecord,
@@ -49,6 +50,13 @@ import "./governance-page.ts";
 type PageState = {
   identity: GovernanceIdentity | null;
   loading: boolean;
+  /**
+   * Omitted until 2026-08-31 (T39), and the omission was invisible: `mount`
+   * takes `Partial<PageState>`, so five call sites passing `policy` were
+   * silently typed as excess properties that no command in the verification set
+   * ever checked. `governance-page.test.ts` has always declared it.
+   */
+  policy: GovernancePolicyDocument | null;
   users: GovernanceUserRecord[];
   ledger: GovernanceLedgerEntry[];
   verification: GovernanceLedgerVerification | null;

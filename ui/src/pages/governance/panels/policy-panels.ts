@@ -475,7 +475,18 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
         title: `${t("governance.policy.agentOverride")}: ${agentId}`,
         description: t("governance.policy.agentOverrideHint"),
         control: html`
-          <div class="settings-row__control" style="gap:0.5rem">
+          <!--
+            The min-width is load-bearing, and T38 found out why by opening the
+            page. settings-row__control carries min-width:0, which is right for
+            the row's own control cell and wrong for a second one nested inside
+            it: the inner box shrank below its contents, and the mode name
+            rendered one letter per line, 11px wide and 112px tall. Both
+            per-agent override rows have this shape and both were broken.
+            Typecheck, lint and the jsdom component tests all passed, because
+            jsdom does no layout: the assertion "the row says Monitor" is true
+            of a column of seven letters.
+          -->
+          <div class="settings-row__control" style="gap:0.5rem;min-width:max-content">
             ${renderSettingsValue(
               ask === "off" ? t("governance.policy.askOff") : t("governance.policy.askOnMiss"),
             )}
@@ -503,7 +514,18 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
         title: `${t("governance.policy.agentPosture")}: ${agentId}`,
         description: t("governance.policy.agentPostureHint"),
         control: html`
-          <div class="settings-row__control" style="gap:0.5rem">
+          <!--
+            The min-width is load-bearing, and T38 found out why by opening the
+            page. settings-row__control carries min-width:0, which is right for
+            the row's own control cell and wrong for a second one nested inside
+            it: the inner box shrank below its contents, and the mode name
+            rendered one letter per line, 11px wide and 112px tall. Both
+            per-agent override rows have this shape and both were broken.
+            Typecheck, lint and the jsdom component tests all passed, because
+            jsdom does no layout: the assertion "the row says Monitor" is true
+            of a column of seven letters.
+          -->
+          <div class="settings-row__control" style="gap:0.5rem;min-width:max-content">
             ${renderSettingsValue(
               mode === "monitor"
                 ? t("governance.policy.modeMonitor")

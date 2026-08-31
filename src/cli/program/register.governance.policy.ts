@@ -123,6 +123,7 @@ export function registerGovernancePolicyCommands(governance: Command): void {
             value,
             reason: options.reason,
             requestedBy: requester.username,
+            requestedByRole: requester.role,
           });
           defaultRuntime.log(`submitted ${request.id}: ${describeRequest(request)}`);
           defaultRuntime.log("An Administrator must approve it before it takes effect.");

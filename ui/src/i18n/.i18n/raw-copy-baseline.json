@@ -600,6 +600,405 @@
       "count": 1,
       "kind": "html-text",
       "name": "text",
+      "path": "ui/src/pages/governance/panels/account-panels.ts",
+      "text": "command"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/account-panels.ts",
+      "text": "network"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/account-panels.ts",
+      "text": "path"
+    },
+    {
+      "count": 1,
+      "kind": "object-property",
+      "name": "label",
+      "path": "ui/src/pages/governance/panels/account-panels.ts",
+      "text": "administrator"
+    },
+    {
+      "count": 1,
+      "kind": "object-property",
+      "name": "label",
+      "path": "ui/src/pages/governance/panels/account-panels.ts",
+      "text": "user"
+    },
+    {
+      "count": 1,
+      "kind": "object-property",
+      "name": "label",
+      "path": "ui/src/pages/governance/panels/account-panels.ts",
+      "text": "viewer"
+    },
+    {
+      "count": 1,
+      "kind": "html-attribute",
+      "name": "title",
+      "path": "ui/src/pages/governance/panels/agent-registry-panels.ts",
+      "text": "On the Codex backend a search reaching a denied path is recorded but not prevented."
+    },
+    {
+      "count": 1,
+      "kind": "html-attribute",
+      "name": "title",
+      "path": "ui/src/pages/governance/panels/agent-registry-panels.ts",
+      "text": "Whether this agent may run on the Codex backend"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/agent-registry-panels.ts",
+      "text": "(denied search results are not withheld on Codex)"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/agent-registry-panels.ts",
+      "text": "engine: built-in or Codex"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "— Codex sessions started somewhere else, from a terminal, an editor or ChatGPT, which this installation can adopt so they are governed and recorded like any other agent activity. With Codex off, those sessions are not reachable from here."
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "A deny rule still"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "a file being opened: the gate runs before every tool call on that backend and refuses the ones your policy forbids. The kill switch works. The audit ledger records everything. The gap is"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "A managed model catalogue, media understanding, prompt overlays, and"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "and"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "find"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "grep"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "name a starting directory and then walk everything below it, so a rule denying a credential file is honoured when the file is opened directly and bypassed when a search rooted in a permitted directory returns it. The gate judged the directory; the file was found afterwards."
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "On the Codex backend that is not possible. Codex executes its own tools in its own process and reports afterwards. Its hook protocol carries a permission decision before a tool runs and has no field for substituting a result, so a corrected result can reach observers inside this application but never the model. This is a property of that program's interface, not of this installation's configuration, and it is documented in the host's own source."
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "On the in-process runtime the layer closes this by removing the covered entries from the result before the model sees them, and telling the agent that results were withheld. The file is still read from disk; its contents do not reach the model."
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "one"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "One specific enforcement gap, described below. It is narrow, it is permanent, and it is the only reason this is off by default."
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "prevents"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "rather than"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "Recursive searches are different."
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "search-reached-denied"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "search-withheld"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "so the two can be counted apart."
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "supervised chats"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "thing — what a recursive search hands back — not denials in general."
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "This layer decides whether an agent may perform an action, and records what happened. For most tools that is enough, because a tool touches exactly what it names."
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "What it costs."
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "What still applies on Codex: the policy gate refuses denied tool calls before they run, every action reaches the tamper-evident ledger, and the kill switch works. What does not: the removal of denied search results, which is recorded as"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "What still works on Codex, and this is the part most easily misread."
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "What the Codex backend gives you."
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "Why this is off by default"
+    },
+    {
+      "count": 1,
+      "kind": "object-property",
+      "name": "title",
+      "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
+      "text": "Enable use of Codex?"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/folder-grant-panel.ts",
+      "text": "— the limit is about search results, not about your rules generally. Agents affected by it are marked in the rule list."
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/folder-grant-panel.ts",
+      "text": ": when a search runs across a folder it is allowed to read, anything inside it that your rules forbid is removed from the results before the model sees it. You need both, because a rule that forbids a file is worth little if a search can hand its contents over anyway."
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/folder-grant-panel.ts",
+      "text": ": which folders an agent may reach, and what is carved out of them. The search protection is about"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/folder-grant-panel.ts",
+      "text": "How this differs from the protection on searches."
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/folder-grant-panel.ts",
+      "text": "It is a shortcut, not a new mechanism."
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/folder-grant-panel.ts",
+      "text": "It writes two kinds of rule for you: one allowing the folder you name, and one forbidding each path you list as an exception. A forbidding rule is always checked first, so an exception holds even though the folder around it is allowed."
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/folder-grant-panel.ts",
+      "text": "One limit worth knowing."
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/folder-grant-panel.ts",
+      "text": "Opening a forbidden file directly is still refused on both engines"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/folder-grant-panel.ts",
+      "text": "Removing forbidden results from a search works on the built-in engine. On the Codex engine it cannot: that program runs its own tools and gives no way to correct what they return, so a search there is recorded but not trimmed."
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/folder-grant-panel.ts",
+      "text": "They answer two different questions and are easy to confuse. This control is about"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/folder-grant-panel.ts",
+      "text": "what an agent gets back"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/folder-grant-panel.ts",
+      "text": "What this does."
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/folder-grant-panel.ts",
+      "text": "what you have written down"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/folder-grant-panel.ts",
+      "text": "You can write exactly the same rules by hand in the form above, and many people will — this exists because doing it by hand means writing two regular expressions and knowing which one wins. Everything created here appears in the rule list below as ordinary rules, each with its own entry, each removable on its own. Delete the exception and the folder stays allowed; delete the allowance and the exception stays forbidden."
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/policy-panels.ts",
+      "text": "command"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/policy-panels.ts",
+      "text": "network"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/policy-panels.ts",
+      "text": "path"
+    },
+    {
+      "count": 1,
+      "kind": "object-property",
+      "name": "label",
+      "path": "ui/src/pages/governance/panels/policy-panels.ts",
+      "text": "command"
+    },
+    {
+      "count": 1,
+      "kind": "object-property",
+      "name": "label",
+      "path": "ui/src/pages/governance/panels/policy-panels.ts",
+      "text": "network"
+    },
+    {
+      "count": 1,
+      "kind": "object-property",
+      "name": "label",
+      "path": "ui/src/pages/governance/panels/policy-panels.ts",
+      "text": "path"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
       "path": "ui/src/pages/nodes/view-exec-approvals.ts",
       "text": "exec host=gateway/node"
     },

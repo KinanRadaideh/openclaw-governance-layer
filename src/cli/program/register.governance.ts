@@ -19,8 +19,11 @@ import {
   canManageAccounts,
   canManageAgent,
   canManageGlobalPolicy,
+  canReadDeploymentReport,
+  canViewAgent,
 } from "../../governance/permissions.js";
 import { loadPolicy } from "../../governance/policy-store.js";
+import { roleAtLeast } from "../../governance/roles.js";
 import { updateSessionsPolicyAuthoring } from "../../governance/session-tokens.js";
 import { issueSession } from "../../governance/session-tokens.js";
 import {
@@ -32,10 +35,11 @@ import { authenticate } from "../../governance/user-store.js";
 import { defaultRuntime } from "../../runtime.js";
 import { runCommandWithRuntime } from "../cli-utils.js";
 import { promptSecret, promptText } from "../prompt.js";
-import { requireCliActor, requireCliIdentity } from "./governance-cli-gate.js";
+import { requireCliActor, requireCliIdentity, requireManagedAgent } from "./governance-cli-gate.js";
 import { registerGovernanceAgentCommands } from "./register.governance.agents.js";
 import { registerGovernanceBackendCommands } from "./register.governance.backend.js";
 import { registerGovernancePolicyCommands } from "./register.governance.policy.js";
+import { registerGovernanceRuleRequestCommands } from "./register.governance.requests.js";
 
 export function registerGovernanceCommands(program: Command): void {
   const governance = program
@@ -219,6 +223,13 @@ export function registerGovernanceCommands(program: Command): void {
   // the installation, and its own module for the same reason theirs is.
   registerGovernanceBackendCommands(governance);
 
+  // The rule-request queue (T40) — the User tier's escalation path, and the
+  // last capability `CLI-REFERENCE.md` §2d listed as deliberately
+  // dashboard-only. Its own module for the same reason as the three above: the
+  // queue is one subject, and it is the only one whose three commands sit at
+  // three different tiers.
+  registerGovernanceRuleRequestCommands(governance);
+
   // ---------------------------------------------------------------------
   const agent = governance.command("agent").description("Interact with a governed agent");
 
@@ -251,14 +262,13 @@ export function registerGovernanceCommands(program: Command): void {
 
           // Ctrl-C cancels the run rather than only killing the printout.
           //
-          // There is no `governance agent cancel` command, and that is a fact
-          // about the architecture rather than an omission: the in-flight run
-          // table is per **process**, and the CLI runs the agent in its own. A
-          // command that could only ever cancel a run in the same terminal it was
-          // typed into is not a control, and one that appeared to reach the
-          // Gateway's runs but could not would be a control surface reporting
-          // success it did not achieve — which this layer refuses to do. The
-          // dashboard is the surface for stopping somebody else's run.
+          // **This is the only way to stop a run started here**, and the reason
+          // is architectural: the in-flight run table is per **process**, and
+          // this command runs the agent in its own. `governance agent cancel`
+          // exists as of T34, but it reaches the *Gateway's* run registry — it
+          // can stop a run somebody started from the dashboard and cannot see
+          // this one at all. (This comment said "there is no
+          // `governance agent cancel` command" for a day after T34 added one.)
           const interrupted = new AbortController();
           const onSigint = () => interrupted.abort();
           process.once("SIGINT", onSigint);
@@ -280,6 +290,17 @@ export function registerGovernanceCommands(program: Command): void {
           }
           if (!canManageAgent(toCliActor(promptIdentity), agentId)) {
             defaultRuntime.log(`You do not manage agent "${agentId}".`);
+            return;
+          }
+          // And that it is this organisation's agent, which `canManageAgent`
+          // cannot answer: an Administrator's scope is unlimited *within their
+          // own group*, so the predicate returns true for any id at all. The
+          // route pairs it with `requireAgentInGroup` for exactly this reason.
+          const { findAgent: findRegisteredAgent } =
+            await import("../../governance/agent-registry.js");
+          if ((await findRegisteredAgent(agentId))?.groupId !== actor.groupId) {
+            defaultRuntime.log(`You do not manage agent "${agentId}".`);
+            defaultRuntime.exit(1);
             return;
           }
           // Stored before the run, so a prompt that fails still leaves the
@@ -483,10 +504,16 @@ export function registerGovernanceCommands(program: Command): void {
     .option("--strict", "exit non-zero when any check fails")
     .action(async (options: { json?: boolean; strict?: boolean }) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
-        const actor = await requireCliActor(
-          defaultRuntime,
-          "read the deployment report",
-          () => true,
+        // **Root, as the route is.** `governance-privilege-matrix.test.ts` writes
+        // the reason out: this report gives the bind mode, port, gateway auth
+        // mode and governance directory — a map of how to reach and attack the
+        // installation. The command's own comment above argues that the
+        // *surface* must exist here, because §1.6 expects the dashboard to be
+        // reachable only through an SSH tunnel and this is what you run before
+        // one exists. That argument says nothing about the tier, and until
+        // 2026-08-31 the command handed the map to any signed-in account.
+        const actor = await requireCliActor(defaultRuntime, "read the deployment report", (a) =>
+          canReadDeploymentReport(a),
         );
         if (!actor) {
           return;
@@ -596,16 +623,53 @@ export function registerGovernanceCommands(program: Command): void {
     .command("pending")
     .description("Escalations that timed out waiting for a human decision");
 
+  // **Both commands ask what their routes ask, and did not until 2026-08-31.**
+  //
+  // They were the last two governance commands gated on `() => true` — any
+  // signed-in account — while `pending-decisions` GET and
+  // `pending-decisions/decide` each ask two further questions: a **User** floor
+  // rather than a Viewer one, and, for the write, `canManageAgent` against the
+  // **stored** entry's agent. Two surfaces answering one question two ways is
+  // this project's most-found defect, and here it had three separate costs: a
+  // Viewer could record a decision, a User could record one on an agent they do
+  // not hold, and the read printed the whole organisation's stack — agent ids,
+  // tool names and the resources they were blocked on — to accounts that cannot
+  // see those agents anywhere else.
+
   pending
     .command("list")
     .description("Show the pending-decision stack, newest first")
     .action(async () => {
       await runCommandWithRuntime(defaultRuntime, async () => {
-        const actor = await requireCliActor(defaultRuntime, "list pending decisions", () => true);
-        if (!actor) {
+        const identity = await requireCliIdentity(
+          defaultRuntime,
+          "list pending decisions",
+          (candidate) => roleAtLeast(candidate.role, "user"),
+        );
+        if (!identity) {
           return;
         }
-        defaultRuntime.log(JSON.stringify(await listPendingDecisions(actor.groupId), null, 2));
+        const groupId = identity.groupId?.trim();
+        if (!groupId) {
+          defaultRuntime.log(
+            "Your account does not belong to an organisation, so it cannot read " +
+              "governance data. Ask a Root to assign it to one.",
+          );
+          return;
+        }
+        // Scoped exactly as the GET route scopes it. An unscoped stack is the
+        // leak the rule-request queue carries a paragraph about, one file over.
+        const actor = toCliActor(identity);
+        const visible = (await listPendingDecisions(groupId)).filter((entry) =>
+          canViewAgent(actor, entry.agentId),
+        );
+        if (visible.length === 0) {
+          // "Nothing is waiting" is a real answer an operator checks for, and
+          // an empty array is indistinguishable from a failed read (finding 117).
+          defaultRuntime.log("No escalations are waiting for a decision.");
+          return;
+        }
+        defaultRuntime.log(JSON.stringify(visible, null, 2));
       });
     });
 
@@ -619,20 +683,51 @@ export function registerGovernanceCommands(program: Command): void {
         if (options.allow === options.deny) {
           throw new Error("specify exactly one of --allow or --deny");
         }
-        const actor = await requireCliActor(
+        const identity = await requireCliIdentity(
           defaultRuntime,
           "decide a pending decision",
-          () => true,
+          (candidate) => roleAtLeast(candidate.role, "user"),
         );
-        if (!actor) {
+        if (!identity) {
           return;
         }
-        const decided = await decidePendingDecision(actor.groupId, {
+        const groupId = identity.groupId?.trim();
+        if (!groupId) {
+          defaultRuntime.log(
+            "Your account does not belong to an organisation, so it cannot decide " +
+              "an escalation. Ask a Root to assign it to one.",
+          );
+          return;
+        }
+        // Read the entry *before* deciding, so the agent authorised against is
+        // the stored one rather than anything the operator named. The route
+        // states the same rule in its own comment.
+        const target = (await listPendingDecisions(groupId)).find((entry) => entry.id === id);
+        if (!target || target.status !== "pending") {
+          defaultRuntime.log(`no pending decision with id ${id}`);
+          defaultRuntime.exit(1);
+          return;
+        }
+        if (!canManageAgent(toCliActor(identity), target.agentId)) {
+          defaultRuntime.log(`You do not manage agent "${target.agentId}".`);
+          defaultRuntime.exit(1);
+          return;
+        }
+        const decided = await decidePendingDecision(groupId, {
           id,
           allow: Boolean(options.allow),
-          decidedBy: "cli",
+          // The signed-in operator, not the literal `cli` — finding 149 in a
+          // second place, and here it did not merely lose the attribution. T35's
+          // guard rejects a *named* actor called `cli`, and the decision is
+          // written under a file lock before the ledger entry is appended, so
+          // the command changed the state and then threw: a decided escalation
+          // with no audit record at all, against requirement #5's "100% of …
+          // administrative approvals".
+          decidedBy: identity.username,
+          decidedByRole: identity.role,
         });
         if (!decided) {
+          // Lost a race with another operator between the read and the claim.
           defaultRuntime.log(`no pending decision with id ${id}`);
           defaultRuntime.exit(1);
           return;
@@ -689,8 +784,30 @@ export function registerGovernanceCommands(program: Command): void {
       await runCommandWithRuntime(defaultRuntime, async () => {
         // The kill switch acts on one organisation's agent, so the lockdown and
         // the administrative entry recording it both land in that organisation.
-        const killActor = await requireCliActor(defaultRuntime, "stop an agent", () => true);
+        //
+        // **Three checks, and until 2026-08-31 this command made none of them**
+        // while its route made all three. A Viewer — strictly read-only
+        // oversight in §1.6 — could stop any agent and keep it stopped; a User
+        // could stop one they were never assigned; and an operator of one
+        // organisation could stop another's, which is **finding 144 on a second
+        // surface**: the lockdown terminates from the Gateway's
+        // installation-wide run registry and `terminateAgentRuns` matches on
+        // agent id alone. `requireManagedAgent` asks all three, in the order the
+        // route asks them.
+        //
+        // The release takes the same gate as the lockdown deliberately: an
+        // operator who may not stop an agent must not be able to restart one
+        // somebody else stopped.
+        const killActor = await requireManagedAgent(
+          defaultRuntime,
+          // The agent is named in the refusal, as the route names it: "you are
+          // not permitted" without saying to what leaves an operator guessing
+          // whether they typed the wrong id or hold the wrong tier.
+          options.release ? `release the lockdown on "${agentId}"` : `stop agent "${agentId}"`,
+          agentId,
+        );
         if (!killActor) {
+          defaultRuntime.exit(1);
           return;
         }
         // Finding 149 — both calls passed the literal `"cli"` and threw away the

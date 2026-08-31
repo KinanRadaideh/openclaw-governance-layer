@@ -180,6 +180,7 @@ export async function handleGovernanceRuleRequestRoutes(
             value: value as string,
             reason: reason.slice(0, 500),
             requestedBy: session.username,
+            requestedByRole: session.role,
           }),
         );
       } catch (err) {
@@ -210,6 +211,7 @@ export async function handleGovernanceRuleRequestRoutes(
           pattern: validatedPattern.pattern,
           reason: reason.slice(0, 500),
           requestedBy: session.username,
+          requestedByRole: session.role,
           ...(typeof requestedAgentId === "string" && requestedAgentId.trim()
             ? { agentId: requestedAgentId.trim() }
             : {}),
@@ -253,7 +255,12 @@ export async function handleGovernanceRuleRequestRoutes(
     // installation ended up with a duplicate permission, an orphaned rule
     // nothing referenced, and a `200` telling the loser their approval had
     // worked. Claiming first makes the decision the single point of contention.
-    const decided = await decideRuleRequest(groupId, { id, approve, decidedBy: session.username });
+    const decided = await decideRuleRequest(groupId, {
+      id,
+      approve,
+      decidedBy: session.username,
+      decidedByRole: session.role,
+    });
     if (!decided) {
       sendJson(res, 409, {
         error: {

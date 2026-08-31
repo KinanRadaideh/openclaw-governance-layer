@@ -158,6 +158,25 @@ export function canManageBackends(actor: GovernanceActor): boolean {
 }
 
 /**
+ * True when this actor may read the deployment and network report.
+ *
+ * Root, and named separately from `canManageAccounts` and `canManageBackends`
+ * despite testing the same tier, for the reason those two are named separately
+ * from each other: they answer different questions, and a later decision to
+ * move one must not silently move the others.
+ *
+ * The tier is argued rather than inherited from its neighbour `system`. The
+ * report gives the bind mode, port, gateway auth mode and governance directory
+ * — a map of how to reach and attack the installation — which is why the route
+ * is Root while the status beside it is Viewer. Until 2026-08-31 the command
+ * line asked no tier question here at all, so the map was readable by any
+ * signed-in account.
+ */
+export function canReadDeploymentReport(actor: GovernanceActor): boolean {
+  return roleAtLeast(actor.role, "root");
+}
+
+/**
  * True when audit detail must be masked for this actor.
  *
  * Viewer is "strictly read-only" oversight in the design doc and reads

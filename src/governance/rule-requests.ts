@@ -16,6 +16,7 @@ import { ADMIN_ACTIONS, recordAdminAction } from "./admin-audit.js";
 import { withFileLock } from "./file-lock.js";
 import { ruleRequestsFilePath, ensureGroupDir } from "./paths.js";
 import type { ResourceKind } from "./policy-types.js";
+import type { GovernanceRole } from "./roles.js";
 
 export type RuleRequestStatus = "pending" | "approved" | "rejected";
 
@@ -152,24 +153,40 @@ export async function listRuleRequests(groupId: string): Promise<RuleRequest[]> 
   return (await readFileOrEmpty(groupId)).requests;
 }
 
-export type SubmitRuleRequestInput =
-  | {
-      kind?: "rule";
-      resourceKind: ResourceKind;
-      pattern: string;
-      reason: string;
-      requestedBy: string;
-      agentId?: string;
-    }
-  | {
-      kind: "agent-setting";
-      /** Required: a setting request always concerns one named agent. */
-      agentId: string;
-      setting: "ask" | "mode";
-      value: string;
-      reason: string;
-      requestedBy: string;
-    };
+/**
+ * The tier the requester or decider held when they acted.
+ *
+ * Beside the name rather than inside it, because the two go to different
+ * places: the stored request keeps a name, and the ledger keeps the authority
+ * the action was taken under (`actorRole`, T5 Part B). Submitting and deciding
+ * a request recorded only the name until 2026-08-31, which made them two of the
+ * three administrative actions that did not meet that claim.
+ *
+ * Optional, so a caller with no authenticated tier records none rather than
+ * inventing one — the rule `splitAuditActor` enforces.
+ */
+type ActorTier = { requestedByRole?: GovernanceRole };
+
+export type SubmitRuleRequestInput = ActorTier &
+  (
+    | {
+        kind?: "rule";
+        resourceKind: ResourceKind;
+        pattern: string;
+        reason: string;
+        requestedBy: string;
+        agentId?: string;
+      }
+    | {
+        kind: "agent-setting";
+        /** Required: a setting request always concerns one named agent. */
+        agentId: string;
+        setting: "ask" | "mode";
+        value: string;
+        reason: string;
+        requestedBy: string;
+      }
+  );
 
 /**
  * One sentence naming what a request asks for.
@@ -228,7 +245,10 @@ export async function submitRuleRequest(
     return request;
   });
   await recordAdminAction(groupId, {
-    actor: { name: created.requestedBy },
+    actor: {
+      name: created.requestedBy,
+      ...(input.requestedByRole ? { role: input.requestedByRole } : {}),
+    },
     action: ADMIN_ACTIONS.ruleRequestSubmit,
     target: describeRequest(created),
     subjectId: created.id,
@@ -248,6 +268,8 @@ export async function decideRuleRequest(
     id: string;
     approve: boolean;
     decidedBy: string;
+    /** The tier the approver held; see `ActorTier` for why it rides alongside. */
+    decidedByRole?: GovernanceRole;
     createdRuleId?: string;
   },
 ): Promise<RuleRequest | undefined> {
@@ -273,7 +295,10 @@ export async function decideRuleRequest(
   // This is the "administrative approval" of design requirement #5 in its most
   // literal form: one person asked for a permission and another granted it.
   await recordAdminAction(groupId, {
-    actor: { name: params.decidedBy },
+    actor: {
+      name: params.decidedBy,
+      ...(params.decidedByRole ? { role: params.decidedByRole } : {}),
+    },
     action: ADMIN_ACTIONS.ruleRequestDecide,
     outcome: params.approve ? "allow" : "deny",
     target:

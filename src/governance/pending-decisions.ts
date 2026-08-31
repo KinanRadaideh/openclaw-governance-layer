@@ -20,6 +20,7 @@ import { ADMIN_ACTIONS, recordAdminAction } from "./admin-audit.js";
 import { withFileLock } from "./file-lock.js";
 import { pendingDecisionsFilePath, ensureGroupDir } from "./paths.js";
 import type { ResourceKind } from "./policy-types.js";
+import type { GovernanceRole } from "./roles.js";
 
 export type PendingDecisionStatus = "pending" | "allowed" | "denied";
 
@@ -193,6 +194,21 @@ export async function decidePendingDecision(
     id: string;
     allow: boolean;
     decidedBy: string;
+    /**
+     * The tier the decider held at the moment they decided.
+     *
+     * Carried beside the name rather than folded into it because the two have
+     * different destinations: the stored record keeps a name, and the ledger
+     * keeps the **authority the action was taken under** — the claim T5 Part B
+     * added `actorRole` for. Recording only the name made this one of three
+     * administrative actions that quietly did not meet it (2026-08-31); the
+     * other two are in `rule-requests.ts`.
+     *
+     * Optional so that a caller with genuinely no tier — a test, or a path with
+     * no authenticated account — records none rather than inventing one, which
+     * is the rule `splitAuditActor` enforces.
+     */
+    decidedByRole?: GovernanceRole;
   },
 ): Promise<PendingDecision | undefined> {
   await ensureHomeDir(groupId);
@@ -212,7 +228,10 @@ export async function decidePendingDecision(
     return undefined;
   }
   await recordAdminAction(groupId, {
-    actor: { name: params.decidedBy },
+    actor: {
+      name: params.decidedBy,
+      ...(params.decidedByRole ? { role: params.decidedByRole } : {}),
+    },
     action: ADMIN_ACTIONS.pendingDecisionDecide,
     outcome: params.allow ? "allow" : "deny",
     target:

@@ -241,13 +241,16 @@ the core denial on 2026-08-19, the login on 2026-08-24.
 | `governance agent cancel <runId>`                                                                                         | Stop one run without locking the agent down                                                                                               |
 | `governance agent transcript <agentId>`                                                                                   | Print this machine's conversation with an agent                                                                                           |
 | `governance sessions`                                                                                                     | List currently-running agent sessions                                                                                                     |
-| `governance deployment`                                                                                                   | Verify the deployment and network posture                                                                                                 |
+| `governance deployment`                                                                                                   | **Root:** verify the deployment and network posture                                                                                       |
+| `governance requests list [--pending]`                                                                                    | The rule-request queue, scoped to the agents you can see                                                                                  |
+| `governance requests submit --kind --pattern --reason [--agent]`                                                          | **User:** ask an Administrator to allow something                                                                                         |
+| `governance requests decide <id> --approve\|--reject`                                                                     | **Administrator:** grant it (writing the rule) or refuse it                                                                               |
 | `governance pending list`                                                                                                 | Show timed-out escalations awaiting a decision                                                                                            |
 | `governance pending decide <id> --allow\|--deny`                                                                          | Record a late decision                                                                                                                    |
 | `governance audit tail`                                                                                                   | Print recent ledger entries                                                                                                               |
 | `governance audit verify`                                                                                                 | Verify the hash chain                                                                                                                     |
-| `governance kill <agentId>`                                                                                               | Engage the kill switch                                                                                                                    |
-| `governance kill <agentId> --release`                                                                                     | Release a lockdown                                                                                                                        |
+| `governance kill <agentId>`                                                                                               | **User, over an agent you manage:** engage the kill switch                                                                                |
+| `governance kill <agentId> --release`                                                                                     | **User, over an agent you manage:** release a lockdown                                                                                    |
 
 ---
 
@@ -546,8 +549,10 @@ groups. The rule now reads:
 > **Every capability reaches all three surfaces unless a stated reason says
 > otherwise, and the reasons are here.**
 
-Two capabilities are deliberately dashboard-only. Both reasons are narrower than
-the ones you would reach for first, and that is why they are written down.
+**One capability is deliberately dashboard-only as of 2026-09-01**, down from
+two. Its reason is narrower than the one you would reach for first, and that is
+why it is written down. The second — rule requests — was built (`T40`), because
+when somebody sat down to act on the reason it did not survive: see below.
 
 ### Accounts — create, delete, re-role, reset a password
 
@@ -567,18 +572,50 @@ happen.
 withholds or restores a User's ability to write policy, and
 `governance groups migrate --delete` removes accounts that predate groups.
 
-### Rule requests — submitting one, and deciding it
+### ~~Rule requests — submitting one, and deciding it~~ — **BUILT 2026-09-01 (T40)**
 
-**The weakest of the reasons, and flagged as such.** The obvious argument — a
-rule request is a conversation between two people, which a scriptable surface
-serves badly — is contradicted by `governance pending list` and
-`pending decide`, which do exactly that shape for timed-out escalations.
+**Kept here in full, because the reason failing is more instructive than the
+commands.** It read:
 
-**What survives is narrower.** An Administrator at a terminal who wants to act on
-a request can already write the rule with `policy add-rule` or
-`policy grant-folder`. The gap costs the **link** between the request and
-the rule it produced, not the capability. That is a real cost and a small one,
-and it is the first thing to build if this list is revisited.
+> **The weakest of the reasons, and flagged as such.** The obvious argument — a
+> rule request is a conversation between two people, which a scriptable surface
+> serves badly — is contradicted by `governance pending list` and
+> `pending decide`, which do exactly that shape for timed-out escalations.
+>
+> **What survives is narrower.** An Administrator at a terminal who wants to act
+> on a request can already write the rule with `policy add-rule` or
+> `policy grant-folder`. The gap costs the **link** between the request and the
+> rule it produced, not the capability. That is a real cost and a small one, and
+> it is the first thing to build if this list is revisited.
+
+Every sentence of that is true. The mistake is the last clause of the second
+paragraph: **the link is not a small cost, it is the feature.** A rule-request
+queue whose approvals are not joined to the rules they produced is a list of
+things people asked for. Granting by hand leaves `createdRuleId` unset, the
+requester's row pending for ever, and two ledger entries — a submit and an
+unrelated rule-add — that nothing ties together.
+
+The commands are `governance requests list`, `requests submit` and
+`requests decide` (§3f). Each asks the question its HTTP counterpart asks:
+Viewer reads the queue scoped by `canViewAgent`, User proposes, Administrator
+decides. `policy request-setting` is unchanged and still files into the same
+queue.
+
+### Everything else reaches all three, and four gaps were found the other way
+
+**On 2026-09-01 the audit was run in the opposite direction** — not _which
+capabilities are missing from the command line_, but _for each command that does
+exist, does it ask what its route asks?_ That had never been done, and it found
+four commands that reached the surface and did not reach the same answer
+(findings 173–176). Three were security gaps and one, `governance kill`, left a
+known cross-tenant hole open on this surface a week after it was closed on the
+other.
+
+**The rule this adds to the one above:** a capability reaching all three surfaces
+is not the same as a capability _behaving_ the same on all three, and only the
+first of those had ever been measured. There is an authoritative table of route
+floors in `governance-privilege-matrix.test.ts`; there is no such table for the
+commands in this document.
 
 ### Everything else reaches all three
 
@@ -988,10 +1025,14 @@ a reading of upstream's default: the layer declines to treat a backend it cannot
 fully enforce as available until somebody says so.
 
 `status` is Root-gated to match the `GET backend/codex` route rather than to
-protect the value, which is not a secret. The asymmetry recorded against
+protect the value, which is not a secret. ~~The asymmetry recorded against
 `governance deployment` below — any signed-in tier may read what the dashboard
 shows only to Root — is real, and these commands decline to add a second
-instance of it.
+instance of it.~~ **That asymmetry was closed on 2026-09-01 (finding 175):
+`governance deployment` is Root now, as its route always was.** These commands
+were right to decline to copy it, and the paragraph is kept because "we noticed
+the inconsistency and matched the stricter side" is the decision worth recording
+— what nobody did was go back and fix the side that was wrong.
 
 **Exit codes:** `0` the change was made or the state was printed · `1` the value
 was not `on` or `off`. A refusal on tier prints the reason and exits `0`, like
@@ -1054,12 +1095,23 @@ openclaw governance deployment --strict
 | `--json`   | Print the whole report as JSON, for a provisioning script  |
 | `--strict` | Exit 1 when any check has failed. Default is always exit 0 |
 
+**Root only, since 2026-09-01 (finding 175).** The report gives the bind mode,
+port, gateway auth mode and governance directory — a map of how to reach and
+attack the installation, which is why `GET deployment` is the one read route
+above Viewer. This command asked no tier question at all until that date, so any
+signed-in account could read it.
+
 **Why this exists on the command line and not only on the dashboard.** The
 design has the dashboard reachable only through an SSH local port forward. So
 the moment you most need to know whether the listener is exposed is over a plain
 SSH session _before_ any tunnel exists — exactly when the dashboard is, by
 design, unreachable. This is the surface that works then, and it is the one to
 run first on a new VPS.
+
+**That argument is about the surface, and it was quietly read as covering the
+tier too.** It does not: needing the report over SSH before a tunnel exists says
+nothing about which accounts may read it. Finding 175 is the cost of the gap
+between what an argument establishes and what it gets used for.
 
 **Why `--strict` is opt-in.** On a developer machine the platform check warns
 (it is not Linux) and the permission checks report that POSIX mode bits are not
@@ -1136,6 +1188,11 @@ Shows escalations that timed out before anyone answered, newest first.
 openclaw governance pending list
 ```
 
+**User and above**, and **scoped to the agents you can see** — an escalation for
+an agent you do not hold is not listed. Prints "No escalations are waiting for a
+decision." rather than an empty array, because an empty list and a failed read
+look identical.
+
 ### `governance pending decide <id> --allow|--deny`
 
 Records a late judgement on a timed-out escalation.
@@ -1144,12 +1201,103 @@ Records a late judgement on a timed-out escalation.
 openclaw governance pending decide pend-1786402739895-4p17nn --allow
 ```
 
+**User and above, and you must manage the agent the escalation concerns** —
+authorised against the **stored** entry, never against an agent named on the
+command line.
+
 **This does not resurrect the blocked action** — that turn finished long ago.
 It records your judgement, and an `--allow` is your cue to add a rule so the
 next attempt succeeds. The command says so explicitly rather than implying the
 agent resumed.
 
-**Exit codes:** `0` recorded · `1` no pending decision with that id.
+**Exit codes:** `0` recorded · `1` no such pending decision, or you do not
+manage its agent.
+
+> **Both commands changed on 2026-09-01 (findings 172 and 173).** They were the
+> last two gated on "any signed-in account", while their routes asked a User
+> floor and, for the write, `canManageAgent` against the stored entry. A Viewer
+> could record decisions, a User could record them for agents they never held,
+> and the list printed the whole organisation's stack — agent ids, tool names,
+> and the resources they were blocked on.
+>
+> `decide` also recorded the literal actor `cli` **as a named actor**, which
+> T35's guard rejects — and because the decision is written under a file lock
+> before the ledger entry is appended, the command changed the state and then
+> threw. **A decided escalation with no audit record at all**, and the throw was
+> swallowed, so it reported nothing.
+
+---
+
+## 4b. Rule-request commands (T40)
+
+The User tier's escalation path, on the command line since 2026-09-01. One
+queue, read by Viewers, added to by Users, decided by Administrators — the same
+three floors the dashboard and the HTTP routes use.
+
+### `governance requests list [--pending]`
+
+Shows the queue, **scoped to the agents you can see**. A request with no agent is
+installation-wide and visible to anyone who can read the queue at all.
+
+```bash
+openclaw governance requests list --pending
+```
+
+```
+req-1788209261-4kd8x1  [pending]  malek → agent build-agent
+    requested command ^docker ps$: I need to see which containers the build left running
+```
+
+An approved row also prints `granted as rule <id>`, which is the link the
+command set exists for.
+
+**Viewer and above.** Says "No requests are waiting for a decision." in words
+when there are none.
+
+### `governance requests submit --kind <k> --pattern <re> --reason <why> [--agent <id>]`
+
+Asks an Administrator to allow something you are currently denied.
+
+```bash
+openclaw governance requests submit --kind command --pattern '^docker ps$'   --reason 'I need to see which containers the build left running' --agent build-agent
+```
+
+**User and above**, and `canManageAgent` for an agent-scoped request —
+`canManageAgent` rather than `canAuthorPolicyForAgent`, because requesting is not
+authoring: a User whose Root has withheld authoring may still ask, and asking is
+precisely the fallback withholding leaves them. Omitting `--agent` asks for a
+rule binding every agent.
+
+The pattern goes through the **same validator** the dashboard and
+`policy add-rule` use, so a request that could never become a rule is refused
+here rather than discovered by the Administrator at approval. The reason is
+clamped to 500 characters, as the route clamps it.
+
+**Exit codes:** `0` submitted · `1` refused, invalid, or you already hold the
+maximum of 20 pending requests.
+
+### `governance requests decide <id> --approve|--reject`
+
+**Administrator and above.** Approving writes the rule — or applies the setting,
+for the `agent-setting` arm — and joins it to the request.
+
+```bash
+openclaw governance requests decide req-1788209261-4kd8x1 --approve
+```
+
+```
+approved req-1788209261-4kd8x1, granted as rule command-1788209812345-9x2mqr
+```
+
+**The rule is built from the stored request, never from anything typed here**, so
+an Administrator grants what was reviewed. The decision is claimed **before** the
+rule is created — the reverse order let two Administrators both pass the pending
+check and both create a rule — and the request is reopened if the rule cannot be
+written, because "approved, and the requester still cannot act, and nobody sees
+it in the queue" is the one state that is never true.
+
+**Exit codes:** `0` decided · `1` no pending request with that id, it was
+decided by someone else first, or the ruleset is full.
 
 ---
 
@@ -1288,6 +1436,22 @@ openclaw governance kill main
 governance lockdown engaged for agent "main" in 12.4ms
 no in-flight termination available from the CLI (the Gateway owns the run registry)
 ```
+
+**Who may run it: User and above, over an agent you manage, in your own
+organisation** — the tier settled by `T42` on 2026-09-01, and now the same on all
+three surfaces. All three are checked, and **none of them was, until 2026-09-01
+(finding 174)** — while the `POST kill` route had checked all three for a week.
+The third is the one that matters most: the lockdown's termination half reaches
+the Gateway's **installation-wide** run registry and matches on agent id alone,
+so before this fix an operator of one organisation could stop another
+organisation's agents by naming one. That is finding 144, which was found,
+fixed on the route, and written up — and then left open here. `--release` takes
+the same gate, because an account that may not stop an agent must not be able to
+restart one somebody else stopped.
+
+**An unregistered agent id is refused.** Registration has been mandatory at the
+gate since M5, so an agent that can run has a record; an id with no record
+belongs to no organisation.
 
 Two things happen, in this order:
 

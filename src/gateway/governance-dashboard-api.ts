@@ -439,6 +439,7 @@ export async function handleGovernanceApiRequest(
       id,
       allow,
       decidedBy: session.username,
+      decidedByRole: session.role,
     });
     sendJson(res, 200, decided ?? { ok: true });
     return true;
