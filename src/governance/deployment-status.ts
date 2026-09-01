@@ -59,6 +59,7 @@ import type { SecurityAuditFinding } from "../security/audit.types.js";
 import { shortenHomePath } from "../utils.js";
 import { attachmentStoreStats } from "./attachment-store.js";
 import { hasCheckpointForGroup } from "./audit-ledger.js";
+import { MIN_SUPPLIED_KEY_LENGTH } from "./ledger-key.js";
 import {
   governanceHomeDir,
   ledgerFilePath,
@@ -615,21 +616,37 @@ export async function readDeploymentStatus(
   }
 
   const ledgerKeyFromEnv = env.OPENCLAW_GOVERNANCE_LEDGER_KEY?.trim();
+  // **A pass on the presence of a variable is measuring configuration, not
+  // security (2026-09-01).** This reported "held off-host — pass" for any
+  // non-empty value, so an installation running on a one-character key was told
+  // it had *improved* on the default. The key's length is checked here for the
+  // same reason `ledger-key.ts` now refuses one below the floor: the report is
+  // read by an operator deciding whether they are done.
+  const suppliedKeyLength = ledgerKeyFromEnv?.length ?? 0;
+  const suppliedKeyTooShort = suppliedKeyLength > 0 && suppliedKeyLength < MIN_SUPPLIED_KEY_LENGTH;
   checks.push(
-    ledgerKeyFromEnv
+    suppliedKeyTooShort
       ? check(
           "deployment.ledger_key_source",
           "Ledger key is held off-host",
-          "pass",
-          "The ledger key is supplied through OPENCLAW_GOVERNANCE_LEDGER_KEY rather than read from this disk.",
+          "fail",
+          `The ledger key is supplied through OPENCLAW_GOVERNANCE_LEDGER_KEY but is only ${suppliedKeyLength} characters, below the ${MIN_SUPPLIED_KEY_LENGTH} required. A key this short can be guessed, and a chain whose key can be guessed can be rewritten by anyone who can read it — which is weaker than the on-disk default it replaced.`,
+          `Supply at least ${MIN_SUPPLIED_KEY_LENGTH} characters from a secret store, or unset the variable to use the generated 32-byte key on disk.`,
         )
-      : check(
-          "deployment.ledger_key_source",
-          "Ledger key is held off-host",
-          "warn",
-          "The ledger key is stored on the same host as the ledger it protects, so an attacker with full filesystem access can still forge the chain.",
-          "Supply the key through OPENCLAW_GOVERNANCE_LEDGER_KEY from a secret store, so reading the ledger is not enough to rewrite it.",
-        ),
+      : ledgerKeyFromEnv
+        ? check(
+            "deployment.ledger_key_source",
+            "Ledger key is held off-host",
+            "pass",
+            "The ledger key is supplied through OPENCLAW_GOVERNANCE_LEDGER_KEY rather than read from this disk.",
+          )
+        : check(
+            "deployment.ledger_key_source",
+            "Ledger key is held off-host",
+            "warn",
+            "The ledger key is stored on the same host as the ledger it protects, so an attacker with full filesystem access can still forge the chain.",
+            "Supply the key through OPENCLAW_GOVERNANCE_LEDGER_KEY from a secret store, so reading the ledger is not enough to rewrite it.",
+          ),
   );
 
   const ledgerPresent = (await statAt(ledgerFilePath(groupId))).exists;

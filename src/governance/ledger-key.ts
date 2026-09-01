@@ -26,6 +26,57 @@ import { governanceHomeDir, ledgerKeyFilePath } from "./paths.js";
 /** 256 bits, matching the HMAC's output size. */
 const KEY_BYTES = 32;
 
+/**
+ * Shortest key this installation will accept from
+ * `OPENCLAW_GOVERNANCE_LEDGER_KEY`.
+ *
+ * **The override validated nothing until 2026-09-01**, so
+ * `OPENCLAW_GOVERNANCE_LEDGER_KEY=x` produced a one-byte HMAC key and the
+ * chain's entire claim — *recomputing the forward hashes requires the key* —
+ * became a claim about guessing one character. Entries were still written
+ * `keyed: true`, which is finding 78's outcome reached by a different road: the
+ * file path was hardened against exactly this and the environment path was not.
+ *
+ * **The asymmetry is what makes it worth refusing rather than warning.** The
+ * file is the default and is validated to exactly 32 bytes; the override is the
+ * path this module's own header recommends for hardening, and it is the one an
+ * operator takes *because they are being careful*. A floor under the careful
+ * path is the minimum this module can offer without contradicting itself.
+ *
+ * Sixteen characters rather than thirty-two, deliberately. The generated key is
+ * 32 random bytes and nothing supplied by hand will match that, so the number
+ * has to be a floor under *brute force* rather than a demand for parity: 16
+ * characters of anything unpredictable is far out of reach, and asking for 32
+ * would push operators toward a shorter value in a config file instead of a
+ * longer one in a secret manager. The existing deployments this must not break
+ * — the passphrase-from-a-vault shape — clear it comfortably.
+ */
+export const MIN_SUPPLIED_KEY_LENGTH = 16;
+
+/**
+ * Validates a key handed in through the environment.
+ *
+ * Shared by both entry points on purpose. `loadLedgerKey` writes and
+ * `readLedgerKeyIfPresent` verifies, and a key too weak to write with is too
+ * weak to verify against — the two must never disagree about whether this
+ * installation is keyed.
+ */
+function decodeSuppliedKey(override: string): Buffer {
+  if (override.length < MIN_SUPPLIED_KEY_LENGTH) {
+    throw new LedgerKeyUnusableError(
+      `the key supplied through OPENCLAW_GOVERNANCE_LEDGER_KEY is ${override.length} ` +
+        `character${override.length === 1 ? "" : "s"} long, and at least ` +
+        `${MIN_SUPPLIED_KEY_LENGTH} are required. A short key can be guessed, and a chain ` +
+        `whose key can be guessed can be rewritten by anyone who can read it — which is the ` +
+        `property this key exists to provide`,
+    );
+  }
+  // Raw text rather than hex, so an operator can supply a passphrase from a
+  // secret manager without an encoding step. HMAC accepts a key of any length;
+  // the floor above is about guessability, not about the algorithm.
+  return Buffer.from(override, "utf8");
+}
+
 let cachedKey: Buffer | undefined;
 
 /**
@@ -108,10 +159,7 @@ export async function loadLedgerKey(): Promise<Buffer> {
   }
   const override = process.env.OPENCLAW_GOVERNANCE_LEDGER_KEY?.trim();
   if (override) {
-    // Accepted as raw text rather than requiring hex, so an operator can supply
-    // a passphrase from a secret manager without an encoding step. HMAC accepts
-    // a key of any length.
-    cachedKey = Buffer.from(override, "utf8");
+    cachedKey = decodeSuppliedKey(override);
     return cachedKey;
   }
   await mkdir(governanceHomeDir(), { recursive: true, mode: 0o700 });
@@ -179,7 +227,7 @@ export async function readLedgerKeyIfPresent(): Promise<Buffer | undefined> {
   }
   const override = process.env.OPENCLAW_GOVERNANCE_LEDGER_KEY?.trim();
   if (override) {
-    cachedKey = Buffer.from(override, "utf8");
+    cachedKey = decodeSuppliedKey(override);
     return cachedKey;
   }
   let text: string;

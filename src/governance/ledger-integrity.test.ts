@@ -204,10 +204,15 @@ describe("the chain is keyed (B3)", () => {
   });
 
   it("fails verification when the key is wrong", async () => {
-    process.env.OPENCLAW_GOVERNANCE_LEDGER_KEY = "the-right-key";
+    // Both fixtures lengthened on 2026-09-01: a supplied key now has a
+    // 16-character floor (finding 190), and these were thirteen. The property
+    // under test — a chain written under one key does not verify under another
+    // — has nothing to do with length, so the fixture moved rather than the
+    // floor.
+    process.env.OPENCLAW_GOVERNANCE_LEDGER_KEY = "the-right-key-from-the-vault";
     resetLedgerKeyCacheForTests();
     await writeEntries(3);
-    process.env.OPENCLAW_GOVERNANCE_LEDGER_KEY = "the-wrong-key";
+    process.env.OPENCLAW_GOVERNANCE_LEDGER_KEY = "the-wrong-key-from-the-vault";
     resetLedgerKeyCacheForTests();
     expect((await verifyLedgerChain(TEST_GROUP)).ok).toBe(false);
   });

@@ -332,13 +332,13 @@ write through one `writeGovernanceJson` that states both modes.
 
 **After both fixes the suite is green on Linux for the first time:**
 
-| Step (Ubuntu 24.04, Node v22.23.2, 2026-09-01) | Result                                 |
-| ---------------------------------------------- | -------------------------------------- |
-| `git clone` into a Linux filesystem            | ok                                     |
-| `pnpm install --frozen-lockfile`               | **ok, 12s**                            |
-| `pnpm build`                                   | ok — `dist/entry.js` produced          |
-| **Governance suite**                           | **2,536 passed / 132 files, 0 failed** |
-| Governance directory and file modes            | **0700 / 0600**, checked by `stat`     |
+| Step (Ubuntu 24.04, Node v22.23.2, 2026-09-01) | Result                                                                                                          |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `git clone` into a Linux filesystem            | ok                                                                                                              |
+| `pnpm install --frozen-lockfile`               | **ok, 12s**                                                                                                     |
+| `pnpm build`                                   | ok — `dist/entry.js` produced                                                                                   |
+| **Governance suite**                           | **2,548 passed / 133 files, 0 failed** (re-run after the third segment sweep; 2,536 / 132 earlier the same day) |
+| Governance directory and file modes            | **0700 / 0600**, checked by `stat`                                                                              |
 
 That is a stronger statement than the one this document could make on
 2026-08-28, and it is the one to quote: the layer's own tests now pass **on the

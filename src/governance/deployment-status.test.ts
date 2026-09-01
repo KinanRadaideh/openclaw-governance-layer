@@ -149,6 +149,22 @@ describe("A7 — the report's shape", () => {
     expect(status.summary.warn).toBe(0);
   });
 
+  it("fails a supplied key too short to be worth supplying", async () => {
+    // **This reported `pass` for any non-empty value until 2026-09-01.** The
+    // check asked whether the variable was set, which is a question about
+    // configuration; an installation running on a one-character key was told it
+    // had improved on the 32 random bytes it replaced.
+    process.env.OPENCLAW_GOVERNANCE_LEDGER_KEY = "x";
+    const check = checkFor(await statusOf(), "deployment.ledger_key_source");
+    expect(check.status).toBe("fail");
+    expect(check.detail).toContain("guessed");
+  });
+
+  it("passes a supplied key that clears the floor", async () => {
+    process.env.OPENCLAW_GOVERNANCE_LEDGER_KEY = "a-secret-from-a-vault";
+    expect(checkFor(await statusOf(), "deployment.ledger_key_source").status).toBe("pass");
+  });
+
   it("warns — not fails — on an otherwise conforming deployment holding its key on disk", async () => {
     const status = await statusOf();
     expect(status.overall).toBe("warn");

@@ -260,3 +260,67 @@ describe("finding 120 — lineage that cannot be read is refused, not waved thro
     expect(lineageUnknown("agent:agent-c:leaf", ["agent-a"])).toBe(true);
   });
 });
+
+describe("a lineage chain that loops", () => {
+  // **Found by the second 20% segment draw, 2026-09-01, and the comment is the
+  // finding.** `resolveLineage` handled "no parent recorded" and "a cycle" in
+  // one branch and returned `clear` for both, under a comment reading: *"a
+  // cycle, which is not a shape the host writes; the store is on disk and this
+  // is a security path, so stopping is the only safe response to a shape that
+  // should not exist."*
+  //
+  // Stopping the **walk** is right. Returning **clear** is the fail-*open*
+  // answer, and it is the opposite of what that sentence argues for. The two
+  // cases are not alike: a chain that ends because a row we read has no parent
+  // is proof the lineage is complete, and a chain that ends because it bit its
+  // own tail is proof of nothing at all — the locked ancestor may sit beyond
+  // the loop and never be visited.
+  //
+  // The module already answers this correctly one branch away. Reaching the
+  // depth cap returns `unreadable`, on the reasoning that *"what lies above it
+  // is unread rather than absent — and during an incident that is exactly the
+  // shape this verdict exists to name."* A cycle is the same situation arriving
+  // sooner, and finding 120 settled the principle: a lockdown whose lineage
+  // cannot be established must fail closed.
+
+  it("reports unreadable rather than clear when the chain bites its own tail", async () => {
+    await record("agent:agent-a:one", "agent:agent-b:two");
+    await record("agent:agent-b:two", "agent:agent-a:one");
+
+    expect(lineageUnknown("agent:agent-a:one", ["agent-z"])).toBe(true);
+  });
+
+  it("refuses a call whose lineage loops while an incident is in force", async () => {
+    // The behaviour that matters. `findLockedAncestor` returns nothing — there
+    // is no *proven* locked ancestor — and the gate refuses anyway, because
+    // `lineageUnknown` says the walk could not establish one.
+    await record("agent:agent-a:one", "agent:agent-b:two");
+    await record("agent:agent-b:two", "agent:agent-a:one");
+
+    expect(findLockedAncestor("agent:agent-a:one", ["agent-z"])).toBeUndefined();
+    expect(lineageUnknown("agent:agent-a:one", ["agent-z"])).toBe(true);
+  });
+
+  it("still finds a locked ancestor reached before the loop closes", async () => {
+    // The cap must not swallow an answer the walk actually had. The locked
+    // parent is one hop away and is returned as `locked`, not as unreadable.
+    await record("agent:agent-a:main", "agent:agent-b:child");
+    await record("agent:agent-b:child", "agent:agent-a:main");
+
+    expect(findLockedAncestor("agent:agent-b:child", ["agent-a"])).toMatchObject({
+      agentId: "agent-a",
+      depth: 1,
+    });
+  });
+
+  it("leaves an ordinary terminating chain clear", async () => {
+    // The half that was already right, and the reason the two cases had to be
+    // separated rather than both made strict: a chain that ends in a row we
+    // read is complete, and calling that unreadable would refuse every governed
+    // call during an incident.
+    await record("agent:agent-a:main");
+    await record("agent:agent-b:child", "agent:agent-a:main");
+
+    expect(lineageUnknown("agent:agent-b:child", ["agent-z"])).toBe(false);
+  });
+});

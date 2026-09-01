@@ -163,12 +163,31 @@ export function resolveLineage(
         return currentAgentId && !storeReadableFor(currentAgentId, checked) ? UNREADABLE : CLEAR;
       }
       const parent = entry.spawnedBy;
-      if (!parent || seen.has(parent)) {
-        // No parent recorded — the chain ends here, and it ended in a row we
-        // actually read. Or a cycle, which is not a shape the host writes; the
-        // store is on disk and this is a security path, so stopping is the only
-        // safe response to a shape that should not exist.
+      if (!parent) {
+        // The chain ends here, and it ended in a row we actually read. That is
+        // proof the lineage is complete, which is what makes `clear` the honest
+        // answer and keeps the refusal narrow.
         return CLEAR;
+      }
+      if (seen.has(parent)) {
+        // **A cycle, and it is not the same case (2026-09-01).** These two
+        // branches used to be one, returning `clear` for both under a comment
+        // arguing that "stopping is the only safe response to a shape that
+        // should not exist". Stopping the *walk* is right; returning `clear`
+        // was the fail-**open** answer and the opposite of what that sentence
+        // argues for.
+        //
+        // A chain that bites its own tail proves nothing about what lies beyond
+        // it: the locked ancestor may sit past the loop and never be visited.
+        // The depth cap ten lines down already answers the identical situation
+        // with `unreadable` — "what lies above it is unread rather than absent"
+        // — and finding 120 settled the principle that a lockdown whose lineage
+        // cannot be established must fail closed.
+        //
+        // `spawnedBy` is not a shape the host writes, so reaching here means
+        // corruption or a hand-edited store. During an incident, either is a
+        // reason to refuse rather than to proceed.
+        return UNREADABLE;
       }
       seen.add(parent);
       const parentAgentId = parseAgentSessionKey(parent)?.agentId;

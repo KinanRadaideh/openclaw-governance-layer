@@ -252,6 +252,47 @@ export function registerGovernanceCommands(program: Command): void {
           if (!actor) {
             return;
           }
+          // ---------------------------------------------------------------
+          // **Authorization before anything expensive (2026-09-01).**
+          //
+          // These four checks used to sit *below* the agent-stack import, so a
+          // caller who was about to be refused still paid for loading the whole
+          // agent runtime first. Wrong on its own terms — a cheap check belongs
+          // before costly work, and an authorization check especially — and it
+          // had a measurable cost: the refusal tests in
+          // `cli-agent-control-parity.test.ts` each imported the agent stack to
+          // reach a decision made without it, and one of them timed out at 120
+          // seconds under load. That is this project's fourth load-sensitive
+          // test (findings 145, 146 and T30's rotation pair are the others),
+          // and T30 settled how to answer them: fix the seam, do not widen the
+          // timeout.
+          //
+          // The conversation belongs to the account, not to the machine. Before
+          // T5 every CLI prompt was owned by `cli`, so two operators on one host
+          // shared a transcript and the ledger could not say which of them set
+          // the agent going.
+          // ---------------------------------------------------------------
+          const promptIdentity = await currentCliIdentity();
+          if (!promptIdentity) {
+            defaultRuntime.log("Not signed in. Run `openclaw governance login` first.");
+            return;
+          }
+          if (!canManageAgent(toCliActor(promptIdentity), agentId)) {
+            defaultRuntime.log(`You do not manage agent "${agentId}".`);
+            return;
+          }
+          // And that it is this organisation's agent, which `canManageAgent`
+          // cannot answer: an Administrator's scope is unlimited *within their
+          // own group*, so the predicate returns true for any id at all. The
+          // route pairs it with `requireAgentInGroup` for exactly this reason.
+          const { findAgent: findRegisteredAgent } =
+            await import("../../governance/agent-registry.js");
+          if ((await findRegisteredAgent(agentId))?.groupId !== actor.groupId) {
+            defaultRuntime.log(`You do not manage agent "${agentId}".`);
+            defaultRuntime.exit(1);
+            return;
+          }
+
           // Registered lazily, on use. Importing the agent stack at module load
           // would make every `openclaw governance ...` invocation — including
           // `policy show` — pay for a capability almost none of them need.
@@ -279,30 +320,6 @@ export function registerGovernanceCommands(program: Command): void {
           // snapshots would be written repeatedly and the output would no longer
           // be the reply. Printing once at the end is the correct default for a
           // command; `--stream` is for watching a long task by hand.
-          // The conversation belongs to the account, not to the machine. Before
-          // T5 every CLI prompt was owned by `cli`, so two operators on one host
-          // shared a transcript and the ledger could not say which of them set
-          // the agent going.
-          const promptIdentity = await currentCliIdentity();
-          if (!promptIdentity) {
-            defaultRuntime.log("Not signed in. Run `openclaw governance login` first.");
-            return;
-          }
-          if (!canManageAgent(toCliActor(promptIdentity), agentId)) {
-            defaultRuntime.log(`You do not manage agent "${agentId}".`);
-            return;
-          }
-          // And that it is this organisation's agent, which `canManageAgent`
-          // cannot answer: an Administrator's scope is unlimited *within their
-          // own group*, so the predicate returns true for any id at all. The
-          // route pairs it with `requireAgentInGroup` for exactly this reason.
-          const { findAgent: findRegisteredAgent } =
-            await import("../../governance/agent-registry.js");
-          if ((await findRegisteredAgent(agentId))?.groupId !== actor.groupId) {
-            defaultRuntime.log(`You do not manage agent "${agentId}".`);
-            defaultRuntime.exit(1);
-            return;
-          }
           // Stored before the run, so a prompt that fails still leaves the
           // evidence of what was handed over. The bytes go to the governed store;
           // only hash, type, size and the declared name travel onward.

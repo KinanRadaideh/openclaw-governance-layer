@@ -579,7 +579,7 @@ conclusion.
 >
 > **The state in one line, as of 2026-09-01:** built and verified, never
 > demonstrated; **the engineering on the backlog is finished** (T38–T40, T42 and
-> T43 closed on 2026-09-01, T32 and T34 the day before); **189 findings, 187
+> T43 closed on 2026-09-01, T32 and T34 the day before); **193 findings, 191
 > fixed**; and what remains is a live run, a Linux host, a read, the figures and
 > the report — **all of them Kinan's**.
 >
@@ -589,7 +589,7 @@ conclusion.
 > earlier round had already found and fixed on one surface only. "The backlog is
 > finished" is a statement about the backlog.
 
-- **2,536 governance tests pass across 132 files, on Windows _and_ on Ubuntu 24.04** (2026-09-01, after T38–T40,
+- **2,548 governance tests pass across 133 files, on Windows _and_ on Ubuntu 24.04** (2026-09-01, after T38–T40,
   T42, T43 and the universal QA sweep; 2,372/119 on 2026-08-31) — file _runs_, not files;
   roughly 1,469 distinct tests across 81 distinct files, because the thirteen
   gateway files each run under three Vitest projects (measured 2026-08-29, after
@@ -645,7 +645,7 @@ conclusion.
 - **Requirement status** is tabulated in `docs-notes/CHAPTER3-MATERIAL.md` §3.1
   and validated in §4.x.5: **eight of nine fully met**, #9 (Linux) partial
   because the suite is **green on Ubuntu 24.04 from a clean clone, install and
-  build (2,536 / 132, 2026-09-01)** but has never been deployed to a
+  build (2,548 / 133, 2026-09-01)** but has never been deployed to a
   VPS. Requirements #3, #6 and #7 spent one round marked _partially met_ after
   the thirteenth review measured them properly, and were returned to met by the
   fixes rather than by rewording.
@@ -709,7 +709,7 @@ node scripts/run-tsgo.mjs -p test/tsconfig/tsconfig.core.test.json
 ```
 
 **Six commands, and `HANDOFF.md` §4 is where their expected values live.**
-Measured 2026-09-01: 2,536 / 132 (both platforms) · both typechecks clean · 263 / 0 host ·
+Measured 2026-09-01: 2,548 / 133 (both platforms) · both typechecks clean · 263 / 0 host ·
 oxlint zero · `core:test` clean.
 
 A fifth check exists as of A7 and is worth running on any host you deploy to:

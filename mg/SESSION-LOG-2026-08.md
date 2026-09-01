@@ -4,7 +4,7 @@ What was done across the August 2026 working sessions, what changed as a result,
 and what is left. Written for someone picking the project up cold, or for the
 same person after a break.
 
-**Forty-three entries, ending 2026-09-01** — counted from the `##` headings rather
+**Forty-four entries, ending 2026-09-01** — counted from the `##` headings rather
 than carried forward, which is how this line went wrong twice. The last one
 covers T38–T40 and the universal QA sweep that followed them; it is the entry to
 read if you want to know why "the engineering is finished" is a statement about
@@ -4018,3 +4018,101 @@ data that needs no judgement.
 **Ubuntu 24.04: 2,536 passed across 132 files, zero failures** — the first time
 the governance suite has been green on the deployment platform. Windows: the same
 tree, re-run. Both typechecks, oxlint and the host suites unchanged.
+
+---
+
+## §44 — 2026-09-01 (late): a third segment, drawn from a different seed
+
+**Asked for another random 20% and drew it mechanically again**, from a
+different seed over the same 77 governance modules: 15 modules, 5,288 lines, 11
+of them not in the previous draw. The draw landed on the parts that carry the
+security claims outright — the gate, the ledger key, the lineage walk, the search
+audit, the file lock.
+
+**Three findings, 190–192, all fixed. Two are security, and they share a shape.**
+
+### 190 — the careful route was the unvalidated one
+
+`ledger-key.ts` validates the key it reads from disk down to the byte: finding 78
+established that a damaged key must stop the process rather than quietly degrade
+the chain to an unkeyed one. **The environment override validated nothing.**
+`OPENCLAW_GOVERNANCE_LEDGER_KEY=x` gave a one-byte HMAC key, and entries were
+still written `keyed: true`.
+
+The asymmetry is the finding. The file is the default and is checked; the
+override is the path the module's own header recommends for hardening, and it is
+the one an operator takes **because they are being careful**.
+
+And the deployment report actively rewarded it: **"pass — Ledger key is held
+off-host"** for any non-empty value, so an installation on a one-character key
+was told it had improved on the 32 random bytes it replaced. A check that
+upgrades a warning to a pass on the presence of an environment variable is
+measuring configuration, not security.
+
+### 191 — a lineage that loops was reported as clear
+
+`resolveLineage` handled "no parent recorded" and "a cycle" in one branch and
+returned `clear` for both — under a comment reading _"stopping is the only safe
+response to a shape that should not exist."_ Stopping the walk is right;
+returning `clear` is the fail-**open** answer and the opposite of what that
+sentence argues for.
+
+The two are not alike. A chain that ends in a row we actually read is proof the
+lineage is complete. A chain that ends because it bit its own tail is proof of
+nothing — the locked ancestor may sit beyond the loop and never be visited. The
+module answers the identical question correctly ten lines further down, where
+the depth cap returns `unreadable`, and finding 120 already settled the
+principle: a lockdown whose lineage cannot be established must fail closed.
+
+### 192 — three ids described as four
+
+Two comments were stacked on the kill-switch `ruleId` and the survivor claimed
+four ids where the code has three. The fourth was
+`kill-switch-unattributable`, and the comment two hundred lines above records
+deleting it.
+
+### The pattern, and it is the one for Chapter 4
+
+**Both security findings are the safe-looking branch being the unsafe one, and
+in both the correct reasoning was already written down within twenty lines of the
+defect.** 190's file path validates and its environment path does not, in a
+module whose header explains why the environment path is the better one. 191's
+cycle branch fails open under a comment arguing for failing closed, ten lines
+above a branch that fails closed for the same situation.
+
+Neither is a gap in knowledge. Both are **a gap between a paragraph and the line
+beneath it** — which is now the most-found defect class in this project, ahead
+of the surface-disagreement class it used to lead.
+
+### What the segment cleared
+
+`search-audit.ts` — findings 131 and 156 both intact, and the grep extractor
+still refuses to treat matched content as a path. `file-lock.ts` — heartbeat,
+randomised backoff, ownership-checked release, and two invariants asserted at
+module load. `policy-engine.ts` — the ordering holds, including finding 152's
+fix putting the lockdown ahead of the Codex permission.
+
+### A fourth finding, and I caused the conditions for it
+
+**193.** `governance agent prompt` imported and installed the entire agent
+runtime _before_ resolving the caller's identity or checking whether they may
+prompt the agent at all. A caller about to be refused paid the full cost of
+loading the agent stack in order to be told no.
+
+It surfaced as one of my own tests timing out at 120 seconds — **while I was
+running the Windows and Linux suites concurrently on one machine**, which is the
+exact condition `HANDOFF.md` §4 warns about under the heading _"Run the suite
+alone"_, recorded there since 2026-08-29 after two runs reported failures that
+did not exist.
+
+So the load was my fault and the defect was real. T30 settled how to answer a
+load-sensitive test: fix the seam, do not widen the timeout. Moving the four
+checks above the import took the file from **48.9s to 14.3s**, and the time
+actually spent in tests from **39.2s to 6.5s**.
+
+**Two process mistakes in one evening, both of them things this project had
+already written down**: piping a suite through `tail` and losing a failing test's
+name (finding 169's exact lesson), and running two suites at once. Both are
+recorded rather than tidied away, because the pattern they belong to is the one
+this session keeps finding in the code as well — _the warning was correct, it was
+in the right place, and it did not work._

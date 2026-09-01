@@ -83,9 +83,9 @@ by the same method it warns about: the previous figure was **incremented** by th
 number of tasks closed instead of being **derived** from the list. Deriving it is
 one subtraction — 43 total, minus the 2 not being done, minus the 5 open. Earlier
 figures on this line were off the same way: "30 done, 8 open" across T1–T41
-should have been 31, and "33 done, 7 open" should have been 34.)_ **T38, T39, T40, T42 and T43 all closed on 2026-09-01**, and a second
-universal sweep the same night found **seven more defects (183–189), all fixed** —
-two of them security, and one of those certain to fire on the first VPS run. T38 opened T42
+should have been 31, and "33 done, 7 open" should have been 34.)_ **T38, T39, T40, T42 and T43 all closed on 2026-09-01**, and two further
+sweeps the same night found **eleven more defects (183–193), all fixed** — four of
+them security, and one certain to fire on the first VPS run.
 and T43 by being done at all — driving the dashboard by hand is how you find what
 nothing else looks at — and both were closed the same day, T42 by Kinan's
 decision and T43 by measuring what the check was actually complaining about.
@@ -105,9 +105,10 @@ closed — nine fixed on the day, and 181 and 182 closed as T42 and T43. A
 deployed to, found **seven more (183–189)**. See §"The universal QA sweep —
 2026-09-01" and §"The second universal QA sweep, and a 20% segment".
 
-**The count of findings is now 189**, and the shape of the last eighteen is the
-argument: they were found by _doing the small remaining items_ and by _running
-the layer on the platform it targets_, not by reading more code.
+**The count of findings is now 193**, and the shape of the last twenty-two is the
+argument: they were found by _doing the small remaining items_, by _running the
+layer on the platform it targets_, and by _drawing a fifth of the modules at
+random, twice_ — not by reading more code in the places already read.
 
 **T32 and T34 both closed on 2026-08-31**, and with them the last two
 items on the original backlog that were not purely Kinan's. **Four new items
@@ -1244,10 +1245,17 @@ four are T25's 18-versus-9 baseline, T19's "re-measured every row", T29's two
 findings numbered 104, and finding 136's compliance claim written in the commit
 that broke it.
 
-**Recorded, not fixed.** Fixing them means editing two upstream test files to be
-platform-aware, which grows the fork diff for no governance benefit. The honest
-resolution is that §1 and §4 now say what is actually true, and name the boundary
-of what the five commands cover.
+~~**Recorded, not fixed.** Fixing them means editing two upstream test files to be
+platform-aware, which grows the fork diff for no governance benefit.~~ **Both
+were fixed on 2026-08-31**, once that reason was questioned and did not survive:
+T25 had already paid exactly that cost for eight files of the same class. This
+paragraph is kept because the _argument_ was wrong in an instructive way, but it
+must not be read as the current state — see §"What changed on 2026-08-31" in
+`HANDOFF.md` §1.
+
+The honest resolution at the time was that §1 and §4 now say what is actually
+true, and name the boundary of what the verification commands cover. **That half
+outlived the fix and still holds**: the commands are not the repository.
 
 ### Finding 149 — the emergency stop was the one CLI action that could not say who took it (2026-08-30)
 
@@ -1640,6 +1648,193 @@ the viva — or delete it. Leaving it is the one option that misleads, because a
 draft in the repository reads as a draft that was meant to go.
 
 ---
+
+---
+
+### A third 20% segment — 2026-09-01 (late)
+
+**Drawn from a different seed than the previous segment**, over the same 77
+governance modules: **15 modules, 5,288 lines, 11 of them new ground.** The draw
+was mechanical for the same reason as before — a segment chosen by hand is a
+segment chosen to be clean.
+
+The draw was a good one. It contained the parts of the layer that carry the
+security claims outright: `policy-engine.ts` (the gate), `ledger-key.ts` (the
+secret the tamper-evidence rests on), `session-lineage.ts` (T6's fail-closed
+lockdown walk), `search-audit.ts` (requirement 8), and `file-lock.ts`.
+
+**Four findings, 190–193. All fixed.** Two are security; the fourth arrived by
+way of a test of mine timing out and turned out to be an ordering defect in the
+prompt command.
+
+#### 190 — the hardening path was the unvalidated one
+
+`ledger-key.ts` is careful about the key it reads from disk. Finding 78
+established that a damaged key file must stop the process rather than silently
+degrade the chain to an unkeyed one, and `decodeStoredKey` checks the text is
+hexadecimal, of even length, and decodes to exactly 32 bytes.
+
+**The environment override validated nothing.** Any non-empty value became the
+HMAC key, so
+
+```
+OPENCLAW_GOVERNANCE_LEDGER_KEY=x
+```
+
+gave a one-byte key, and the chain's whole claim — _recomputing the forward
+hashes requires the key_ — became a claim about guessing one character. Entries
+were still written `keyed: true`, which is finding 78's outcome reached by a
+different road.
+
+**The asymmetry is the finding rather than the missing check.** The file path is
+the default and is validated. The override is the path this module's own header
+recommends for hardening — _"supplied from outside the machine … which is what
+makes the separation meaningful rather than notional"_ — and it is the one an
+operator takes **because they are being careful**. The careful route had no floor
+under it.
+
+And the deployment report made it worse rather than catching it. It reported
+**"pass — Ledger key is held off-host"** for any non-empty value, so an
+installation running on a one-character key was told it had _improved_ on the 32
+random bytes it replaced. **A check that upgrades a warning to a pass on the
+presence of an environment variable is measuring configuration, not security.**
+
+Fixed in both places: a floor of 16 characters, refused rather than warned about
+(the module's own stated position on a weakened key), and the report now fails a
+key below the floor and says why. Sixteen rather than thirty-two deliberately —
+the number has to be a floor under brute force rather than a demand for parity
+with a generated key, and asking for 32 would push operators toward a shorter
+value in a config file instead of a longer one in a secret manager.
+
+#### 191 — a lineage that loops was reported as clear
+
+`resolveLineage` walks the `spawnedBy` chain so a lockdown reaches what the
+locked agent started (T6). It handled two cases in one branch:
+
+```ts
+if (!parent || seen.has(parent)) {
+  // … a cycle, which is not a shape the host writes; the store is on disk and
+  // this is a security path, so stopping is the only safe response to a shape
+  // that should not exist.
+  return CLEAR;
+}
+```
+
+**The comment argues for failing closed and the code fails open.** Stopping the
+walk is right; returning `clear` is not. The two cases are not alike: a chain
+that ends because a row we actually read has no parent is _proof the lineage is
+complete_, and a chain that ends because it bit its own tail is proof of nothing
+— the locked ancestor may sit beyond the loop and never be visited.
+
+The module already answers the identical question correctly ten lines below.
+Reaching the depth cap returns `unreadable`, on the reasoning that _"what lies
+above it is unread rather than absent — and during an incident that is exactly
+the shape this verdict exists to name."_ A cycle is that situation arriving
+sooner, and **finding 120 settled the principle**: a lockdown whose lineage
+records cannot be read must fail closed.
+
+`spawnedBy` is not a shape the host writes, so reaching that branch means
+corruption or a hand-edited store. During an incident, either is a reason to
+refuse. The two conditions are now separate branches.
+
+#### 192 — the gate's ledger-id comment counted four where the code has three
+
+Two comments were stacked on the kill-switch `ruleId`, the older describing two
+ids and the survivor claiming **four**. The code has three:
+`kill-switch-lineage`, `kill-switch-lineage-unknown`, `kill-switch`. The fourth
+was `kill-switch-unattributable`, and **the comment two hundred lines above
+records deleting it** — this one was not updated with it.
+
+Small, and in the one function where an auditor is told what the ledger ids mean.
+
+#### 193 — the prompt command loaded the agent runtime before deciding who may prompt
+
+**Found by a test of my own timing out**, which is the least dignified route to
+a finding and produced a real one.
+
+`governance agent prompt` imported and installed the **entire agent runtime**
+— `installGovernanceAgentRunner()` and the conversation module — and only then
+resolved the caller's identity, checked `canManageAgent`, and checked the
+organisation. So a caller who was about to be refused paid the full cost of
+loading the agent stack in order to be told no.
+
+Wrong on its own terms: a cheap check belongs before costly work, and an
+authorization check especially. It also had a measurable cost — the three
+refusal tests in `cli-agent-control-parity.test.ts` each loaded the agent stack
+to reach a decision that needs none of it, and one timed out at 120 seconds
+while the Windows and Linux suites were running concurrently on one machine.
+
+**This project's fourth load-sensitive test**, after findings 145, 146 and T30's
+rotation pair — and T30 settled how to answer them: _fix the seam, do not widen
+the timeout_. The four checks moved above the import. Measured on the file alone:
+
+|               | before |     after |
+| ------------- | -----: | --------: |
+| file total    |  48.9s | **14.3s** |
+| time in tests |  39.2s |  **6.5s** |
+
+**And the failure was my own doing twice over.** I ran the two platform suites
+concurrently on one machine, which is the exact condition
+`HANDOFF.md` §4 warns about in a paragraph headed _"Run the suite alone"_ —
+recorded there since 2026-08-29, after two runs reported failures that did not
+exist. The suites are now run sequentially, and the ordering defect they exposed
+is fixed rather than excused by the load that revealed it.
+
+#### A note on how the earlier failure was found, because it repeats finding 169
+
+The first full run after these fixes reported **1 failed / 2,542 passed** and the
+output had been piped through `tail -8`, **so the name of the failing test was
+discarded** — which is finding 169 exactly, and its recorded remedy is _"capture
+the full output rather than a filtered tail. The name of the test is the whole
+diagnosis, and it was lost to a `| tail` that cost nothing to avoid."_
+
+The cause was found without a second run, by asking which fixtures the new floor
+could have invalidated: `ledger-integrity.test.ts` supplied `"the-right-key"` and
+`"the-wrong-key"`, both thirteen characters. **The fixture moved rather than the
+floor** — the property under test is that a chain written under one key does not
+verify under another, which has nothing to do with length.
+
+Recorded because the recovery does not excuse the habit. A grep found it in
+thirty seconds _this time_; finding 169 is still open precisely because the same
+`| tail` lost a name that no grep could reconstruct.
+
+#### What the segment cleared
+
+Recorded because a sweep that only lists what it broke is not a measurement.
+
+- **`search-audit.ts`** — finding 131's fix is intact and correct. A `grep` line
+  is `path:line:text`, and the extractor **requires** the path prefix for grep
+  rather than falling back to the whole line, so matched file content cannot
+  reach the ledger as a resource. Finding 156's fix is also intact: the result is
+  split whole and _then_ bounded, so "there was no more" and "we stopped looking"
+  stay distinguishable, and unchecked lines are withheld and announced to the
+  agent rather than passed through.
+- **`file-lock.ts`** — heartbeat refresh, randomised bounded backoff, release
+  only if the lock is still ours, and two invariants asserted at module load
+  (`STALE_LOCK_MS` below the timeout and well above the heartbeat). The stale
+  bound is derived from the heartbeat rather than from a guess at the longest
+  critical section.
+- **`policy-engine.ts`** — the ordering holds. Lockdown is evaluated before tool
+  resolution and before the Codex permission (finding 152's fix), and the two
+  branches that must ignore monitor mode both say so, which finding 151 added.
+- **`active-sessions.ts`, `password.ts`, `rule-conflicts.ts`,
+  `agent-registry-panels.ts`** — re-read as part of a second draw; nothing new.
+  The two robustness notes on `password.ts` from the previous segment still
+  stand as notes rather than defects, for the same reason: both need write access
+  to `users.json`, which the threat model already concedes.
+
+#### The pattern in 190 and 191, which is worth Chapter 4
+
+Both are **the safe-looking branch being the unsafe one**, and in both the
+correct reasoning was already written down within twenty lines of the defect.
+190's file path validates and its environment path does not, in a module whose
+header explains why the environment path is better. 191's cycle branch returns
+`clear` under a comment arguing that stopping is the only safe response, ten
+lines above a branch that returns `unreadable` for the same situation.
+
+**Neither is a gap in knowledge. Both are a gap between a paragraph and the line
+beneath it** — which is the failure this project has now catalogued more than any
+other, and the reason the QA rounds keep paying.
 
 ---
 
@@ -2654,6 +2849,38 @@ observed and the tree is otherwise green over two runs"_, which is different fro
 **What to do on the next occurrence**: capture the full output rather than a
 filtered tail. The name of the test is the whole diagnosis, and it was lost to a
 `| tail` that cost nothing to avoid.
+
+#### Updated 2026-09-01 — a probable cause, and the class narrowed by one
+
+**It stays open, because the name is still lost and a guess is not a
+diagnosis.** But there is now a specific candidate rather than a family.
+
+On 2026-09-01 the exact symptom was reproduced, twice, under conditions that were
+recorded rather than mysterious. The second time,
+`cli-agent-control-parity.test.ts` **timed out at 120 seconds** during a run made
+while a second suite was running concurrently on the same machine. Alone, the
+same file finishes in 49 seconds. That is precisely the shape 169 describes: one
+failure, on one run, not reproduced afterwards.
+
+The cause was real and is now fixed — **finding 193**, `governance agent prompt`
+loading the entire agent runtime before checking whether the caller may prompt at
+all, which made three refusal tests slow enough to be at risk. The file now runs
+in 14 seconds, with 6.5 of those in tests.
+
+**So the load-sensitive family is four, not three**, and the fourth was live in
+the tree on the day 169 was observed. That does not prove 169 _was_ it — the
+observed run was on 2026-08-31, before `cli-agent-control-parity.test.ts`
+existed, so it cannot have been this file. What it does establish is that the
+family was still growing while 169 was being called a fluke, which is the reason
+it was not closed as one.
+
+**And the remedy has been moved to where it is read.** It lived here, in the
+write-up of the finding it came from — and on 2026-09-01 the same `| tail`
+discarded another failing test's name, twenty minutes after that paragraph had
+been re-read. It is now stated in `HANDOFF.md` §4, beside the commands it applies
+to, along with the rule about not running two suites at once. _A remedy filed
+under the incident that produced it is a remedy nobody meets before repeating
+it._
 
 ---
 

@@ -473,14 +473,18 @@ export async function evaluateGovernancePolicy(
       toolName: event.toolName,
       resourceKind: spec?.resourceKind ?? "unknown",
       resource: "*",
-      // A distinct rule id, so the ledger separates "we stopped the agent you
-      // named" from "we stopped a call we could not attribute while a lockdown
-      // was in force". The second is a coverage gap being handled safely, and
-      // an auditor should be able to count them rather than read them as
-      // ordinary kill-switch hits.
-      // Four distinct ids, because an auditor counting kill-switch hits should
-      // be able to separate "we stopped the agent you named" from the three
-      // ways a call is stopped *because of* that agent without being it.
+      // **Three distinct ids**, so an auditor counting kill-switch hits can
+      // separate "we stopped the agent you named" from the two ways a call is
+      // stopped *because of* that agent without being it: a proven locked
+      // ancestor, and a lineage that could not be read while the incident was
+      // in force. The second is a coverage gap being handled safely, and it
+      // should be countable rather than read as an ordinary hit.
+      //
+      // _(Two comments were stacked here and the surviving one said "Four
+      // distinct ids", which the code has never had since
+      // `kill-switch-unattributable` was deleted — the comment two hundred
+      // lines above records that deletion and this one was not updated with it.
+      // Corrected 2026-09-01.)_
       ruleId: lockedAncestor
         ? "kill-switch-lineage"
         : lineageUnreadable
