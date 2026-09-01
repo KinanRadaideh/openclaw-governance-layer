@@ -114,8 +114,15 @@ function canonicalIpv4(host: string): string | undefined {
     }
     values.push(value);
   }
-  // The last part absorbs every remaining byte: `169.11010558` is a valid
-  // spelling of `169.254.169.254`.
+  // The last part absorbs every remaining byte: `169.16689662` is a valid
+  // spelling of `169.254.169.254`, because
+  // 16689662 === (254 << 16) | (169 << 8) | 254.
+  //
+  // _(This example read `169.11010558` until 2026-09-01, which decodes to
+  // `169.168.1.254` — an ordinary private address and not the metadata
+  // endpoint at all. The algorithm was right and its worked example was not,
+  // which is the more dangerous way round: a reader checking the comment
+  // against the code would have concluded the code was broken.)_
   const trailing = values.at(-1);
   if (trailing === undefined) {
     return undefined;

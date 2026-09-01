@@ -134,7 +134,8 @@ export function registerGovernancePolicyCommands(governance: Command): void {
   policy
     .command("core-rule <ruleId> <enabled>")
     .description("Root: switch a shipped core denial off or back on (self-protecting ones refuse)")
-    .action(async (ruleId: string, enabled: string) => {
+    .option("--yes", "Required to switch a core denial off; ignored when switching one back on")
+    .action(async (ruleId: string, enabled: string, options: { yes?: boolean }) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
         if (enabled !== "true" && enabled !== "false") {
           defaultRuntime.log("enabled must be true or false");
@@ -145,6 +146,26 @@ export function registerGovernancePolicyCommands(governance: Command): void {
             canManageAccounts(a),
           );
           if (!actor) {
+            return;
+          }
+          // Off asks, on does not — the same asymmetry as `set-mode`, and the
+          // same one the dashboard already draws for this control.
+          if (enabled === "false" && !options.yes) {
+            const rule = coreRules().find((candidate) => seedRuleId(candidate) === ruleId);
+            defaultRuntime.log(
+              `This switches off the shipped core denial "${ruleId}", which is part of the ` +
+                "security floor every installation starts with.",
+            );
+            if (rule?.description) {
+              defaultRuntime.log(`  It currently denies: ${rule.description}`);
+            }
+            defaultRuntime.log(
+              "It stays declared and can be switched back on, the change is recorded against " +
+                "your account and tier, and the deployment report will report this installation " +
+                "as failing while it is off.",
+            );
+            defaultRuntime.log("Re-run with --yes to proceed.");
+            defaultRuntime.exit(1);
             return;
           }
           await setCoreRuleEnabled(actor.groupId, ruleId, enabled === "true", actor);
@@ -269,7 +290,8 @@ export function registerGovernancePolicyCommands(governance: Command): void {
   policy
     .command("set-mode <mode>")
     .description("Set posture: enforce | monitor | off")
-    .action(async (mode: string) => {
+    .option("--yes", "Required to switch the gate off; ignored for enforce and monitor")
+    .action(async (mode: string, options: { yes?: boolean }) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
         assertGovernanceMode(mode);
         const actor = await requireCliActor(
@@ -278,6 +300,36 @@ export function registerGovernancePolicyCommands(governance: Command): void {
           (a) => canManageGlobalPolicy(a),
         );
         if (!actor) {
+          return;
+        }
+        // **`off` asks; `enforce` and `monitor` do not.**
+        //
+        // The dashboard has required a confirmation here since finding 87, and
+        // it spells out the two consequences a reader would not guess from
+        // "disables the gate": the shipped **core denials** go with it, and so
+        // does the **kill switch**. The command line said `mode set to off` and
+        // nothing else — and this is the surface where it matters more, because
+        // it is reached through shell history, autocomplete and runbook
+        // copy-paste rather than through a form somebody is looking at.
+        //
+        // Only the destructive direction is gated. `monitor` still records
+        // every decision and `enforce` is the safe end; confirming those too
+        // would teach an operator to type `--yes` reflexively, which is finding
+        // 87's own lesson and would cost exactly the protection this adds.
+        // `governance agents delete` established the shape.
+        if (mode === "off" && !options.yes) {
+          defaultRuntime.log(
+            "This switches governance off for EVERY agent in the installation, not just one.",
+          );
+          defaultRuntime.log(
+            "Nothing will be checked, blocked, or recorded — including the shipped core denials " +
+              "on credentials and the governance directory, and including the kill switch.",
+          );
+          defaultRuntime.log(
+            'To observe without blocking, run "governance policy set-mode monitor" instead.',
+          );
+          defaultRuntime.log("Re-run with --yes to proceed.");
+          defaultRuntime.exit(1);
           return;
         }
         await setMode(actor.groupId, mode, actor);

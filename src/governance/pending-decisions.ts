@@ -15,12 +15,13 @@
 //
 // Stored newest-first ("a stack", per the design doc) because the most recent
 // block is usually the one an operator is being asked about.
-import { readJsonIfExists, writeJsonAtomic } from "../infra/json-files.js";
+import { readJsonIfExists } from "../infra/json-files.js";
 import { ADMIN_ACTIONS, recordAdminAction } from "./admin-audit.js";
 import { withFileLock } from "./file-lock.js";
 import { pendingDecisionsFilePath, ensureGroupDir } from "./paths.js";
 import type { ResourceKind } from "./policy-types.js";
 import type { GovernanceRole } from "./roles.js";
+import { writeGovernanceJson } from "./state-file.js";
 
 export type PendingDecisionStatus = "pending" | "allowed" | "denied";
 
@@ -164,12 +165,12 @@ export async function recordTimedOutEscalation(
     if (existing) {
       existing.occurrences = (existing.occurrences ?? 1) + 1;
       existing.lastTimedOutAt = decision.timedOutAt;
-      await writeJsonAtomic(pendingDecisionsFilePath(groupId), file, { mode: 0o600 });
+      await writeGovernanceJson(pendingDecisionsFilePath(groupId), file);
       return existing;
     }
     // Newest first: a stack, as the design doc specifies.
     file.decisions = pruneDecided([decision, ...file.decisions]);
-    await writeJsonAtomic(pendingDecisionsFilePath(groupId), file, { mode: 0o600 });
+    await writeGovernanceJson(pendingDecisionsFilePath(groupId), file);
     return decision;
   });
 }
@@ -221,7 +222,7 @@ export async function decidePendingDecision(
     entry.status = params.allow ? "allowed" : "denied";
     entry.decidedBy = params.decidedBy;
     entry.decidedAt = new Date().toISOString();
-    await writeJsonAtomic(pendingDecisionsFilePath(groupId), file, { mode: 0o600 });
+    await writeGovernanceJson(pendingDecisionsFilePath(groupId), file);
     return entry;
   });
   if (!decided) {

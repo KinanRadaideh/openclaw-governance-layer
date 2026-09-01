@@ -24,13 +24,14 @@
 // would break installations whose agents predate this file for no security
 // gain. The honest cost is stated on `assertAssignable` rather than hidden.
 import { mkdir } from "node:fs/promises";
-import { readJsonIfExists, writeJsonAtomic } from "../infra/json-files.js";
+import { readJsonIfExists } from "../infra/json-files.js";
 import { normalizeAgentId } from "../routing/session-key.js";
 import { ADMIN_ACTIONS, recordAdminAction, type AuditActorInput } from "./admin-audit.js";
 import { invalidateAgentGroupCache } from "./agent-group.js";
 import { withFileLock } from "./file-lock.js";
 import { agentsFilePath, governanceHomeDir } from "./paths.js";
 import { updateSessionsAssignedAgents } from "./session-tokens.js";
+import { writeGovernanceJson } from "./state-file.js";
 import { listUsers, setUserAssignedAgents, type GovernanceUserRecord } from "./user-store.js";
 
 /**
@@ -397,7 +398,7 @@ export async function registerAgent(
       createdAt: new Date().toISOString(),
     };
     file.agents.push(agent);
-    await writeJsonAtomic(agentsFilePath(), file, { mode: 0o600 });
+    await writeGovernanceJson(agentsFilePath(), file);
     // Every write drops the group cache the gate reads on each tool call (M5).
     // Placed next to the write rather than in the callers so a future mutation
     // cannot forget it: the invalidation is part of writing this file.
@@ -451,7 +452,7 @@ export async function renameAgent(
     }
     const previous = agent.displayName;
     agent.displayName = name;
-    await writeJsonAtomic(agentsFilePath(), file, { mode: 0o600 });
+    await writeGovernanceJson(agentsFilePath(), file);
     // Every write drops the group cache the gate reads on each tool call (M5).
     // Placed next to the write rather than in the callers so a future mutation
     // cannot forget it: the invalidation is part of writing this file.
@@ -499,7 +500,7 @@ export async function setAgentCodexAllowed(
     }
     const previous = agent.codexAllowed === true;
     agent.codexAllowed = allowed;
-    await writeJsonAtomic(agentsFilePath(), file, { mode: 0o600 });
+    await writeGovernanceJson(agentsFilePath(), file);
     invalidateAgentGroupCache();
     return { agent: { ...agent }, previous };
   });
@@ -544,7 +545,7 @@ export async function setAgentOwner(
     assertOwnerEligible(accounts, adminId, groupId);
     const previous = agent.adminId;
     agent.adminId = adminId;
-    await writeJsonAtomic(agentsFilePath(), file, { mode: 0o600 });
+    await writeGovernanceJson(agentsFilePath(), file);
     // Every write drops the group cache the gate reads on each tool call (M5).
     // Placed next to the write rather than in the callers so a future mutation
     // cannot forget it: the invalidation is part of writing this file.
@@ -588,7 +589,7 @@ export async function unregisterAgent(
       throw new UnknownAgentError(agentId);
     }
     file.agents = file.agents.filter((entry) => entry.id !== agent.id);
-    await writeJsonAtomic(agentsFilePath(), file, { mode: 0o600 });
+    await writeGovernanceJson(agentsFilePath(), file);
     // Every write drops the group cache the gate reads on each tool call (M5).
     // Placed next to the write rather than in the callers so a future mutation
     // cannot forget it: the invalidation is part of writing this file.

@@ -3,7 +3,7 @@
 // project moved from a plugin to a direct fork (this file now uses core's
 // own JSON helpers, ../infra/json-files.js, instead of the plugin SDK facade
 // that wrapped them).
-import { readJsonIfExists, writeJsonAtomic } from "../infra/json-files.js";
+import { readJsonIfExists } from "../infra/json-files.js";
 import { canonicalAccountName } from "./account-name.js";
 import { ADMIN_ACTIONS, recordAdminAction, type AuditActorInput } from "./admin-audit.js";
 import { BASELINE_RULES, coreRules, seedRuleId, type SeedRule } from "./baseline-policy.js";
@@ -19,6 +19,7 @@ import {
   type PolicyRule,
 } from "./policy-types.js";
 import { detectRuleConflicts, type RuleConflict } from "./rule-conflicts.js";
+import { writeGovernanceJson } from "./state-file.js";
 
 /**
  * The installation root **and** this group's directory (M5).
@@ -272,7 +273,7 @@ export async function setCoreRuleEnabled(
 
 export async function savePolicy(groupId: string, doc: PolicyDocument): Promise<void> {
   await ensureGroup(groupId);
-  await writeJsonAtomic(policyFilePath(groupId), doc, { mode: 0o600 });
+  await writeGovernanceJson(policyFilePath(groupId), doc);
 }
 
 /**

@@ -6,7 +6,7 @@ or picking it up after a break.
 
 **Companion documents:**
 
-- `mg/REMAINING-WORK.md` — everything still outstanding. **§"The numbered backlog" (T1–T43) is the authoritative list** — 38 done, 5 open as of 2026-09-01, counted from the rows; the sections below it are history. A second backlog, §"The M-series" (M1–M6), holds the multi-tenancy feature — **complete as of 2026-08-27**
+- `mg/REMAINING-WORK.md` — everything still outstanding. **§"The numbered backlog" (T1–T43) is the authoritative list** — 36 done, 5 open as of 2026-09-01, derived as 43 − 2 not-being-done − 5 open; the sections below it are history. A second backlog, §"The M-series" (M1–M6), holds the multi-tenancy feature — **complete as of 2026-08-27**
 - `mg/SESSION-LOG-2026-08.md` — what the August 2026 session changed, and why
 
 **The emergency stop's tier was settled on 2026-09-01** (`T42`): Administrator
@@ -195,22 +195,22 @@ C:\Users\kinan\openclaw\          (the fork; branch: governance-layer)
 
 ### Project documentation (in-repo)
 
-| File                                | Purpose                                                                                                                                                                                                                 |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GOVERNANCE.md`                     | Operator overview + the full engineering defect table from all six QA rounds                                                                                                                                            |
-| `docs-notes/CHAPTER3-MATERIAL.md`   | **Source material for Chapters 3–4**, organised by section number. Not prose — decisions, rationale, diagrams, and code snippets ready to be written up.                                                                |
-| `docs-notes/ROLE-MODEL.md`          | What each of the four roles can do, and why                                                                                                                                                                             |
-| `docs-notes/WRITING-PERMISSIONS.md` | Teaching guide for writing rules; assumes no regex knowledge                                                                                                                                                            |
-| `docs-notes/PERMISSION-SPEC.md`     | Technical reference: grammar, evaluation order, limits, wire format                                                                                                                                                     |
-| `docs-notes/CLI-REFERENCE.md`       | Every command, its syntax, and how it works                                                                                                                                                                             |
-| `docs-notes/CHAT-DEPLOYMENTS.md`    | Running the fork through Discord/Telegram/Slack/WhatsApp — what the gate does there, and the limits it does not cover                                                                                                   |
-| `docs-notes/BASELINE-RULES.md`      | **The rules an installation ships with**, and why each core denial and baseline allowance was chosen. Also states what the core denials do _not_ protect against                                                        |
-| `docs-notes/QA-IN-PLAIN-TERMS.md`   | Plain-language walkthrough of the QA findings                                                                                                                                                                           |
-| `UPSTREAM-BUG-REPORT.md`            | A bug found in OpenClaw itself (written, not yet filed)                                                                                                                                                                 |
-| `Kimi_QA_1.md`                      | An independent review comparing the code against the PDF                                                                                                                                                                |
-| `mg/PROJECT-SUMMARY.md`             | This file — what the project is and where everything lives                                                                                                                                                              |
-| `mg/REMAINING-WORK.md`              | The backlog. **§"The numbered backlog" (T1–T43) is authoritative** — 38 done, 5 open; §"The M-series" (M1–M6) is the multi-tenancy feature, **complete**. Everything beneath them is kept as history and marked as such |
-| `mg/SESSION-LOG-2026-08.md`         | What the August 2026 session changed, and why                                                                                                                                                                           |
+| File                                | Purpose                                                                                                                                                                                                                                   |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GOVERNANCE.md`                     | Operator overview + the full engineering defect table from all six QA rounds                                                                                                                                                              |
+| `docs-notes/CHAPTER3-MATERIAL.md`   | **Source material for Chapters 3–4**, organised by section number. Not prose — decisions, rationale, diagrams, and code snippets ready to be written up.                                                                                  |
+| `docs-notes/ROLE-MODEL.md`          | What each of the four roles can do, and why                                                                                                                                                                                               |
+| `docs-notes/WRITING-PERMISSIONS.md` | Teaching guide for writing rules; assumes no regex knowledge                                                                                                                                                                              |
+| `docs-notes/PERMISSION-SPEC.md`     | Technical reference: grammar, evaluation order, limits, wire format                                                                                                                                                                       |
+| `docs-notes/CLI-REFERENCE.md`       | Every command, its syntax, and how it works                                                                                                                                                                                               |
+| `docs-notes/CHAT-DEPLOYMENTS.md`    | Running the fork through Discord/Telegram/Slack/WhatsApp — what the gate does there, and the limits it does not cover                                                                                                                     |
+| `docs-notes/BASELINE-RULES.md`      | **The rules an installation ships with**, and why each core denial and baseline allowance was chosen. Also states what the core denials do _not_ protect against                                                                          |
+| `docs-notes/QA-IN-PLAIN-TERMS.md`   | Plain-language walkthrough of the QA findings                                                                                                                                                                                             |
+| `UPSTREAM-BUG-REPORT.md`            | A bug found in OpenClaw itself (written, not yet filed)                                                                                                                                                                                   |
+| `Kimi_QA_1.md`                      | An independent review comparing the code against the PDF                                                                                                                                                                                  |
+| `mg/PROJECT-SUMMARY.md`             | This file — what the project is and where everything lives                                                                                                                                                                                |
+| `mg/REMAINING-WORK.md`              | The backlog. **§"The numbered backlog" (T1–T43) is authoritative** — 36 done, 5 open (36 + 5 + 2 = 43); §"The M-series" (M1–M6) is the multi-tenancy feature, **complete**. Everything beneath them is kept as history and marked as such |
+| `mg/SESSION-LOG-2026-08.md`         | What the August 2026 session changed, and why                                                                                                                                                                                             |
 
 ### Runtime state (created on first use, not in the repo)
 
@@ -227,7 +227,11 @@ C:\Users\kinan\openclaw\          (the fork; branch: governance-layer)
     pending-decisions.json   escalations nobody answered in time
 ```
 
-Permissions are `0700` on the directory and `0600` on every file. `ledger.key`
+Permissions are `0700` on the directory and `0600` on every file. **Both halves
+are true as of 2026-09-01 and the first was not before it:** every governance
+write reset its parent directory to `0755` under an ordinary umask, and Windows
+reports POSIX modes as "unknown", so the claim had never been tested anywhere.
+`writeGovernanceJson` now states both modes in one place. `ledger.key`
 and `sessions.json` are the two that would most reward an attacker, and both are
 deliberately separable: the key can be supplied from outside the machine via
 `OPENCLAW_GOVERNANCE_LEDGER_KEY`, and session records hold fingerprints rather
@@ -575,7 +579,7 @@ conclusion.
 >
 > **The state in one line, as of 2026-09-01:** built and verified, never
 > demonstrated; **the engineering on the backlog is finished** (T38–T40, T42 and
-> T43 closed on 2026-09-01, T32 and T34 the day before); **182 findings, 180
+> T43 closed on 2026-09-01, T32 and T34 the day before); **189 findings, 187
 > fixed**; and what remains is a live run, a Linux host, a read, the figures and
 > the report — **all of them Kinan's**.
 >
@@ -585,7 +589,7 @@ conclusion.
 > earlier round had already found and fixed on one surface only. "The backlog is
 > finished" is a statement about the backlog.
 
-- **2,516 governance tests pass across 129 files** (2026-09-01, after T38–T40,
+- **2,536 governance tests pass across 132 files, on Windows _and_ on Ubuntu 24.04** (2026-09-01, after T38–T40,
   T42, T43 and the universal QA sweep; 2,372/119 on 2026-08-31) — file _runs_, not files;
   roughly 1,469 distinct tests across 81 distinct files, because the thirteen
   gateway files each run under three Vitest projects (measured 2026-08-29, after
@@ -640,7 +644,8 @@ conclusion.
   repository. The work now exists in three independent places rather than one.
 - **Requirement status** is tabulated in `docs-notes/CHAPTER3-MATERIAL.md` §3.1
   and validated in §4.x.5: **eight of nine fully met**, #9 (Linux) partial
-  because the suite runs on Ubuntu under WSL2 but has never been deployed to a
+  because the suite is **green on Ubuntu 24.04 from a clean clone, install and
+  build (2,536 / 132, 2026-09-01)** but has never been deployed to a
   VPS. Requirements #3, #6 and #7 spent one round marked _partially met_ after
   the thirteenth review measured them properly, and were returned to met by the
   fixes rather than by rewording.
@@ -704,7 +709,7 @@ node scripts/run-tsgo.mjs -p test/tsconfig/tsconfig.core.test.json
 ```
 
 **Six commands, and `HANDOFF.md` §4 is where their expected values live.**
-Measured 2026-09-01: 2,516 / 129 · both typechecks clean · 263 / 0 host ·
+Measured 2026-09-01: 2,536 / 132 (both platforms) · both typechecks clean · 263 / 0 host ·
 oxlint zero · `core:test` clean.
 
 A fifth check exists as of A7 and is worth running on any host you deploy to:

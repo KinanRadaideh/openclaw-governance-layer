@@ -3,10 +3,11 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 // + expiry. Persisted to disk (not just in-memory) so a Gateway restart
 // doesn't silently log everyone out; a background sweep drops expired rows.
 import { mkdir } from "node:fs/promises";
-import { readJsonIfExists, writeJsonAtomic } from "../infra/json-files.js";
+import { readJsonIfExists } from "../infra/json-files.js";
 import { withFileLock } from "./file-lock.js";
 import { governanceHomeDir, sessionsFilePath } from "./paths.js";
 import type { GovernanceRole } from "./roles.js";
+import { writeGovernanceJson } from "./state-file.js";
 
 export type GovernanceSession = {
   token: string;
@@ -106,7 +107,7 @@ export async function issueSession(user: {
     // The stored record holds the fingerprint; the caller gets the real token,
     // which from here on exists only in the operator's cookie.
     file.sessions.push({ ...session, token: fingerprintToken(token) });
-    await writeJsonAtomic(sessionsFilePath(), file, { mode: 0o600 });
+    await writeGovernanceJson(sessionsFilePath(), file);
     return session;
   });
 }
@@ -152,7 +153,7 @@ export async function revokeSession(token: string): Promise<void> {
     const file = await readSessionsFile();
     const presented = fingerprintToken(token);
     file.sessions = file.sessions.filter((s) => s.token !== presented);
-    await writeJsonAtomic(sessionsFilePath(), file, { mode: 0o600 });
+    await writeGovernanceJson(sessionsFilePath(), file);
   });
 }
 
@@ -169,7 +170,7 @@ export async function revokeSessionsForUser(userId: string): Promise<number> {
     const file = await readSessionsFile();
     const before = file.sessions.length;
     file.sessions = file.sessions.filter((s) => s.userId !== userId);
-    await writeJsonAtomic(sessionsFilePath(), file, { mode: 0o600 });
+    await writeGovernanceJson(sessionsFilePath(), file);
     return before - file.sessions.length;
   });
 }
@@ -187,7 +188,7 @@ export async function updateSessionsAssignedAgents(
         session.assignedAgents = [...assignedAgents];
       }
     }
-    await writeJsonAtomic(sessionsFilePath(), file, { mode: 0o600 });
+    await writeGovernanceJson(sessionsFilePath(), file);
   });
 }
 
@@ -204,7 +205,7 @@ export async function updateSessionsPolicyAuthoring(
         session.canAuthorPolicy = canAuthorPolicy;
       }
     }
-    await writeJsonAtomic(sessionsFilePath(), file, { mode: 0o600 });
+    await writeGovernanceJson(sessionsFilePath(), file);
   });
 }
 
@@ -221,6 +222,6 @@ export async function updateSessionsRoleForUser(
         session.role = role;
       }
     }
-    await writeJsonAtomic(sessionsFilePath(), file, { mode: 0o600 });
+    await writeGovernanceJson(sessionsFilePath(), file);
   });
 }

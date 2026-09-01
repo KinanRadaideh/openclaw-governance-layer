@@ -358,6 +358,42 @@ describe("qa round 11 — one host, several spellings", () => {
     expect(verdict(decision)).toBe("block");
   });
 
+  // The three spellings the 2026-09-01 segment sweep found untested. The
+  // extractor handles all of them and always did; nothing asserted it, and the
+  // one worked example in `canonicalIpv4`'s own comment was arithmetically
+  // wrong — `169.11010558` is `169.168.1.254`, not the metadata endpoint. A
+  // wrong example beside a correct algorithm is how a later reader "fixes" the
+  // algorithm.
+
+  it("denies the metadata endpoint written as a single hex integer", async () => {
+    await enforceStrictly();
+    const decision = await evaluateGovernancePolicy(
+      { toolName: "web_fetch", params: { url: "http://0xa9fea9fe/latest/meta-data/" } },
+      ctx(),
+    );
+    expect(verdict(decision)).toBe("block");
+  });
+
+  it("denies the metadata endpoint written in octal", async () => {
+    await enforceStrictly();
+    const decision = await evaluateGovernancePolicy(
+      { toolName: "web_fetch", params: { url: "http://0251.0376.0251.0376/" } },
+      ctx(),
+    );
+    expect(verdict(decision)).toBe("block");
+  });
+
+  it("denies the two-part form, where the last part absorbs three bytes", async () => {
+    // 16689662 === (254 << 16) | (169 << 8) | 254. This is the case the wrong
+    // comment was reaching for.
+    await enforceStrictly();
+    const decision = await evaluateGovernancePolicy(
+      { toolName: "web_fetch", params: { url: "http://169.16689662/latest/meta-data/" } },
+      ctx(),
+    );
+    expect(verdict(decision)).toBe("block");
+  });
+
   it("leaves an ordinary hostname alone", async () => {
     await enforceStrictly();
     await addRule(

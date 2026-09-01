@@ -21,6 +21,28 @@ understands something faster from the picture than from the paragraph.
 
 ---
 
+### Reviewed against the code, 2026-09-01
+
+Every figure re-read against what the system now does. **Where a recommendation
+changed, the new one is added beside the old rather than replacing it** — F2 and
+F17 carry an "Updated suggestion" block, and the reasoning in each is written in
+plain terms.
+
+|                                               |                                                                                                                                                                                                                                                                                                                                                                                                                |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **F2 corrected, and it is the important one** | It put the emergency stop at **Root**. The route has admitted a **User** acting on their own agents since T5 — `T42` exists because three surfaces described that tier three ways, and this figure was a **fourth**, the only one bound for the report. It also said one machine "may hold several Roots", which stopped being true when the one-organisation cap landed on 2026-08-30. All three forms fixed. |
+| **F2's recommendation reversed**              | From _cut_ to _keep it, and keep it small_ — because it was wrong, and a four-box picture is where that class of error gets noticed                                                                                                                                                                                                                                                                            |
+| **F17's recommendation reversed**             | From _keep_ to _cut and replace_: its data table is still empty after months, because no register records how old code was when a defect was found. The replacement it now proposes is computable from data the project already has                                                                                                                                                                            |
+| **F14 and F17 gained real Mermaid**           | Both said "Mermaid has no bar chart". True when written; `xychart-beta` exists now                                                                                                                                                                                                                                                                                                                             |
+| **F22 added**                                 | The folder grant (T32) had no figure at all — the newest operator-facing feature, and the only control that writes an allow and a deny as one act, which is exactly the confusion that produced finding 178                                                                                                                                                                                                    |
+| **Everything else verified accurate**         | 21 figures, each with prose, Mermaid and TikZ. F18 is a cross-reference and correctly has none                                                                                                                                                                                                                                                                                                                 |
+
+**Counts in figure captions and cautions were re-derived rather than trusted.**
+F17's own warning about stale numbers said "148 findings" when there were 182 —
+a stale count inside a caution about stale counts.
+
+---
+
 ## What to add to the LaTeX preamble
 
 The PSUT template loads no drawing package, so add these to `main.tex` after
@@ -198,28 +220,63 @@ material says everything the figure says and a great deal more. A four-node chai
 is one of the clearest signs of a figure included because a figure felt expected.
 Spend the page on the table instead. The forms are here in case you disagree.
 
+> **Updated suggestion, 2026-09-01 — KEEP it, and keep it small.** _(Added
+> beside the original, not replacing it.)_
+>
+> **Why I changed my mind: this figure was wrong, and being wrong is the
+> argument for drawing it.** It said the kill switch belongs to Root. It does
+> not — the route has admitted a **User** acting on their own agents since T5,
+> and `T42` (2026-09-01) had to be raised because _three separate surfaces_ were
+> each describing that tier differently. This figure was a fourth, and the only
+> one bound for the report.
+>
+> In lay terms: the thing this project got wrong more than once is **who is
+> allowed to do what**, and a table of thirty rows is where that kind of error
+> hides. Four boxes with the interesting capability written on the right box is
+> where a supervisor notices it in two seconds. The table is better reference;
+> the figure is better _review_, and this project's own history says review is
+> what the tier model needed.
+>
+> Keep both, and put the figure first — one column wide, no more than the four
+> boxes and one capability each.
+
 ### Prose form
 
-The four tiers are strictly cumulative. A Viewer may read the policy and the
-sanitised ledger and verify the chain's integrity. A User inherits all of that
-and additionally sees unmasked resources for the agents assigned to it. An
-Administrator inherits both and may edit rules and change the posture. Root
-inherits everything and adds account management and the emergency stop. Because
-each tier is a superset of the one below, no capability needs to be listed twice,
-and the only question at any endpoint is which tier it requires. Two scope
-qualifications apply now that the layer is multi-tenant: every capability above
-is bounded by the organisation the account belongs to, and the one-Root rule is
-enforced per organisation rather than per installation, so one machine may hold
-several Roots who are invisible to one another.
+The four tiers are strictly cumulative. A **Viewer** may read the policy and the
+sanitised ledger and verify the chain's integrity; it is oversight only and
+writes nothing. A **User** inherits all of that and gains the capabilities that
+concern _the agents assigned to it_: unmasked ledger resources, prompting those
+agents, asking an Administrator for a rule through the request queue, and —
+the one most often misstated — **stopping and releasing those agents with the
+emergency kill switch**. An **Administrator** inherits both and manages agents
+rather than one agent: creating and registering them, assigning them to accounts,
+editing rules, changing the posture, and deciding rule requests. **Root**
+inherits everything and adds the capabilities that concern the installation
+itself: account management, the approval timeout, switching a shipped core denial
+off, the agent backend, and the deployment report. Because each tier is a
+superset of the one below, no capability needs to be listed twice, and the only
+question at any endpoint is which tier it requires.
+
+Two scope qualifications apply. Every capability above is bounded by the
+organisation the account belongs to. And an installation holds **one
+organisation and therefore one Root**: the Root cap is enforced per organisation,
+and a second organisation cannot be created on one installation, so the two rules
+together make Root unique per machine.
+
+_(Corrected 2026-09-01. This paragraph placed the kill switch at Root, which the
+route has never required — `T42` exists because three surfaces disagreed about
+that same tier, and this was a fourth. It also said one machine "may hold several
+Roots who are invisible to one another", which stopped being true on 2026-08-30
+when the one-organisation-per-installation cap landed.)_
 
 ### Mermaid form
 
 ```mermaid
 flowchart BT
   V["Viewer<br/>read policy · read sanitised ledger · verify chain"]
-  U["User<br/>+ unmasked ledger resources"]
-  A["Administrator<br/>+ edit rules · change posture"]
-  R["Root<br/>+ manage accounts · kill switch"]
+  U["User<br/>+ prompt, request rules, and stop<br/>the agents assigned to me"]
+  A["Administrator<br/>+ create and assign agents · edit rules<br/>change posture · decide requests"]
+  R["Root<br/>+ manage accounts · core denials<br/>backend · deployment report"]
   V --> U --> A --> R
 ```
 
@@ -229,16 +286,16 @@ flowchart BT
 \begin{figure}[htbp]
 \centering
 \begin{tikzpicture}[node distance=5mm]
-  \node[gbox, minimum width=78mm] (v) {\textbf{Viewer} — read policy, read sanitised ledger, verify chain};
-  \node[gbox, minimum width=78mm, above=of v] (u) {\textbf{User} — \textit{and} unmasked ledger resources};
-  \node[gbox, minimum width=78mm, above=of u] (a) {\textbf{Administrator} — \textit{and} edit rules, change posture};
-  \node[gbox, minimum width=78mm, above=of a] (r) {\textbf{Root} — \textit{and} manage accounts, kill switch};
+  \node[gbox, minimum width=86mm] (v) {\textbf{Viewer} — read policy, read sanitised ledger, verify chain};
+  \node[gbox, minimum width=86mm, above=of v] (u) {\textbf{User} — \textit{and} prompt, request rules, and stop \emph{my} agents};
+  \node[gbox, minimum width=86mm, above=of u] (a) {\textbf{Administrator} — \textit{and} create and assign agents, edit rules, decide requests};
+  \node[gbox, minimum width=86mm, above=of a] (r) {\textbf{Root} — \textit{and} manage accounts, core denials, backend, deployment report};
   \draw[gflow] (v) -- (u);
   \draw[gflow] (u) -- (a);
   \draw[gflow] (a) -- (r);
   \node[gnote, right=3mm of u, rotate=90, anchor=south] {inherits};
 \end{tikzpicture}
-\caption{Role hierarchy. Each tier inherits every capability below it.}
+\caption{Role hierarchy. Each tier inherits every capability below it. The emergency stop sits at \textbf{User}, scoped to the agents assigned to that account, not at Root.}
 \label{fig:rbac}
 \end{figure}
 ```
@@ -1166,8 +1223,22 @@ which is what made the earlier gap one of coverage rather than of mechanism.
 
 ### Mermaid form
 
-Mermaid has no stacked bar chart. Use a table when drafting, and the TikZ or
-prose form in the report:
+**Mermaid can draw this now** — `xychart-beta` post-dates the note that used to
+sit here saying it could not. It has no _stacked_ bar, so the honest rendering is
+the governed count against the constant catalogue size, which is the comparison
+the figure is actually making:
+
+```mermaid
+xychart-beta
+  title "Tool coverage, before and after"
+  x-axis ["Before", "After"]
+  y-axis "Tools in the catalogue" 0 --> 52
+  bar [7, 18]
+  line [52, 52]
+```
+
+The bar is _governed_; the flat line is the catalogue. Use the table below when
+drafting the composition, and the TikZ or prose form in the report:
 
 | Stage  | Governed | Ungoverned, with reason | Unexamined | Catalogue |
 | ------ | -------: | ----------------------: | ---------: | --------: |
@@ -1319,7 +1390,9 @@ makes itself.
 
 **One caution, and it is the reason this figure is dangerous as well as
 valuable.** Your note says "across all seventeen rounds". There are now
-**twenty-eight rounds and 148 findings**, so the figure would misreport the
+**182 findings** _(this sentence said 148 until 2026-09-01 — a stale count
+inside the caution about stale counts, which is the joke this project keeps
+making at its own expense)_, so the figure would misreport the
 project if drawn from the old note. Worse, the classification is not mechanically
 derivable: no field in the registers records how old the code was when a defect
 was found, so the four buckets have to be assigned by reading each finding.
@@ -1327,6 +1400,33 @@ was found, so the four buckets have to be assigned by reading each finding.
 they are, do not put this figure in a draft anyone else reads. A chart carries
 more apparent authority than a sentence, which is exactly why an unverified one
 is worse than none.
+
+> **Updated suggestion, 2026-09-01 — CUT, and replace it with a claim you can
+> actually compute.** _(Added beside the original, not replacing it.)_
+>
+> The original recommendation has now stood unfilled for the life of the
+> document: the table below is still **empty**, across two rounds of editing and
+> 182 findings. That is information. A figure nobody has been able to fill in
+> during months of work is not waiting on effort, it is waiting on data that
+> does not exist — no register records how old the code was when a defect was
+> found, so every one of the 182 would have to be re-read and judged, by hand,
+> under deadline, to produce four numbers.
+>
+> In lay terms: you would be spending a day of the last week manufacturing a
+> statistic, and a reader who asks "how did you classify these?" gets "I decided,
+> afterwards" — which is the weakest possible footing for the one chart in the
+> chapter.
+>
+> **What to draw instead, from data the project already has:** findings per QA
+> round, over time. It is mechanically derivable from `REMAINING-WORK.md` — the
+> rounds are numbered and the findings are numbered — it needs no judgement, and
+> it supports the same argument better. It shows review finding defects _at a
+> steady rate that does not fall off_, which is the actual claim: the reviews
+> never stopped paying. The last four rounds alone found 21, 11 and 2 defects in
+> code that was days old.
+>
+> Keep the prose version of the age argument in the text, where "I judged these
+> by reading them" is an honest thing to write and a chart cannot say it.
 
 ### Prose form
 
@@ -1345,7 +1445,19 @@ review of older code could ever have caught.
 
 ### Mermaid form
 
-Mermaid has no bar chart. Draft as a table:
+**Mermaid can draw this now** — `xychart-beta` post-dates the note that used to
+sit here. The shape, once the counts exist:
+
+```mermaid
+xychart-beta
+  title "Defects by the age of the code containing them"
+  x-axis ["Same day", "Same week", "Earlier", "Inherited from the host"]
+  y-axis "Findings" 0 --> 100
+  bar [0, 0, 0, 0]
+```
+
+**The counts are zero because they have never been compiled.** Draft as a table
+first:
 
 | Age of the code when the defect was found | Findings |
 | ----------------------------------------- | -------: |
@@ -1627,5 +1739,105 @@ flowchart LR
 \caption{The two-layer Codex permission. Both gates must be open; the in-process
 runtime needs neither.}
 \label{fig:codexgates}
+\end{figure}
+```
+
+---
+
+## F22 — Grant a folder, except… (added 2026-09-01)
+
+**Source:** §3.5.66 · **Proposed number:** Figure 3.10
+
+**New figure, not a revision.** T32 shipped on 2026-08-31 and this document was
+last touched the same day without gaining a candidate for it, so the newest
+operator-facing feature had no figure at all.
+
+**Recommendation: KEEP.** This is the only control in the layer that writes
+**two opposite kinds of rule as a single act**, and that is precisely what a
+reader gets wrong. In lay terms: an operator types "let the agent have `/srv/app`
+but not `/srv/app/secrets`", and what actually lands in the policy is one
+_allow_ and one _deny_ — after which the deny wins wherever the two overlap,
+because forbid always beats allow regardless of the order the rules are in. Three
+sentences of prose, or one picture of a box with a hole in it.
+
+There is a second reason to draw it, and it is evidence rather than taste. On
+2026-09-01 this exact feature produced **finding 178**: the two rules it writes
+appeared in the audit ledger as two entries that were _identical in form and
+opposite in meaning_, because the entry never recorded which direction a rule
+went. The confusion the figure removes is the confusion that already cost a
+defect.
+
+**If you are short of pages, this is a better cut than F5 or F11** — but do not
+cut it in favour of F16, which is a screenshot of a table row.
+
+### Prose form
+
+A folder grant is a shortcut, not a new mechanism. The operator names one folder
+and any number of paths inside it that must stay out of reach. The layer writes
+ordinary rules: one **allow** rule binding the named folder and everything
+beneath it, and one **deny** rule for each exception, likewise covering
+everything beneath it. Nothing else is created, and every rule it writes appears
+in the ordinary rule list where it can be read, edited or removed one at a time.
+
+Two properties make the result behave the way the operator meant. First,
+**forbid beats allow whatever the order**, so an exception carves a hole in the
+grant rather than racing it. Second, a path pattern binds the folder _and its
+subtree_ by ending in "either a separator or the end of the string", so a grant
+on `work` cannot accidentally cover a sibling called `work-other`.
+
+Two deliberate asymmetries are worth stating because they surprise people. The
+denials are written **before** the allow, so that a failure part-way through
+leaves less access than intended rather than more. And an exception is never
+narrowed to reads or writes even when the grant is: "except this" means the whole
+path is out, and a read-only exception inside a read-only grant would leave the
+excepted path writable — the opposite of what was typed.
+
+Finally, the exception must lie inside the folder being granted. One outside it
+is almost always a typo, and its effect would be to write a denial somewhere the
+operator was not looking, so it is refused with both paths named and nothing is
+written.
+
+### Mermaid form
+
+```mermaid
+flowchart TB
+  IN["Operator types:<br/>folder = /srv/app<br/>except = /srv/app/secrets"]
+  CHK{"Is every exception<br/>inside the folder?"}
+  REF["Refused — nothing written<br/><small>a denial outside the grant is a typo</small>"]
+  D["1 · DENY  ^/srv/app/secrets(/|$)<br/><small>written first: a partial failure leaves less access</small>"]
+  A["2 · ALLOW ^/srv/app(/|$)<br/><small>narrowable to read or write</small>"]
+  OUT["Two ordinary rules in the policy<br/><small>editable and removable one at a time</small>"]
+  GATE["At evaluation: forbid beats allow,<br/>whatever the order"]
+
+  IN --> CHK
+  CHK -->|no| REF
+  CHK -->|yes| D --> A --> OUT --> GATE
+```
+
+### TikZ form
+
+```latex
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[node distance=7mm and 12mm]
+  \node[gbox] (in) {Operator types\\\scriptsize folder \texttt{/srv/app}, except \texttt{/srv/app/secrets}};
+  \node[gdec, below=of in] (chk) {every exception\\inside the folder?};
+  \node[gbox, right=of chk] (ref) {Refused\\\scriptsize nothing is written};
+  \node[gbox, below=of chk] (d) {\textbf{1 · DENY} \texttt{\^{}/srv/app/secrets(/\textbar\$)}\\\scriptsize written first, so a partial failure leaves \emph{less} access};
+  \node[gbox, below=of d]   (a) {\textbf{2 · ALLOW} \texttt{\^{}/srv/app(/\textbar\$)}\\\scriptsize narrowable to read or write};
+  \node[gbox, below=of a]   (out) {Two ordinary rules in the policy\\\scriptsize editable and removable one at a time};
+  \node[gnote, below=6mm of out] (gate) {at evaluation: \textbf{forbid beats allow}, whatever the order};
+
+  \draw[gflow] (in)  -- (chk);
+  \draw[gflow] (chk) -- node[glab, above] {no} (ref);
+  \draw[gflow] (chk) -- node[glab, right] {yes} (d);
+  \draw[gflow] (d)   -- (a);
+  \draw[gflow] (a)   -- (out);
+  \draw[gdash] (out) -- (gate);
+\end{tikzpicture}
+\caption{A folder grant writes one allow and one deny per exception, denials
+first. The exception carves a hole in the grant because forbid beats allow
+independently of order.}
+\label{fig:foldergrant}
 \end{figure}
 ```

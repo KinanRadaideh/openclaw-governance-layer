@@ -72,8 +72,26 @@ describe("path normalization (B5: which form rules match)", () => {
     expect(await normalizeGovernedPath("src/app.ts", workspace)).toBe("src/app.ts");
   });
 
-  it("uses forward slashes for a Windows-style separator", async () => {
-    expect(await normalizeGovernedPath("src\\app.ts", workspace)).toBe("src/app.ts");
+  it("uses forward slashes for a Windows-style separator, and only where one exists", async () => {
+    // **Platform-dependent on purpose, and asserting only the Windows half was
+    // a defect this suite carried until 2026-09-01** — found by running the
+    // governance suite on Linux for the first time, the night before the first
+    // VPS deployment. Finding 148's class exactly, in a governance file rather
+    // than an upstream one.
+    //
+    // The behaviour under test is not "convert backslashes". On Windows a
+    // backslash **is** a separator, so the two spellings name one file and must
+    // normalise together. On POSIX a backslash is an ordinary, legal character
+    // in a filename, so it names a single component and a *different* file —
+    // and converting it there would be a real bypass rather than a tidy-up: a
+    // rule reading `^src/allowed[.]ts$` would match a tool call for the
+    // backslash spelling, and the gate would allow a file the operator never
+    // granted. That is T23's property — the path judged must be the path
+    // opened — so the correct POSIX answer is to leave it alone, which is what
+    // the code does. Verified by character code on Ubuntu: 92 in, 92 out.
+    const input = "src\\app.ts";
+    const normalised = await normalizeGovernedPath(input, workspace);
+    expect(normalised).toBe(process.platform === "win32" ? "src/app.ts" : input);
   });
 
   it("renders a file outside the workspace as an absolute path", async () => {

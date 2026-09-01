@@ -11,12 +11,13 @@
 // action was denied had no in-product way to ask for access — the "silent
 // failure with no path forward" that the design doctrine treats as the worst
 // outcome.
-import { readJsonIfExists, writeJsonAtomic } from "../infra/json-files.js";
+import { readJsonIfExists } from "../infra/json-files.js";
 import { ADMIN_ACTIONS, recordAdminAction } from "./admin-audit.js";
 import { withFileLock } from "./file-lock.js";
 import { ruleRequestsFilePath, ensureGroupDir } from "./paths.js";
 import type { ResourceKind } from "./policy-types.js";
 import type { GovernanceRole } from "./roles.js";
+import { writeGovernanceJson } from "./state-file.js";
 
 export type RuleRequestStatus = "pending" | "approved" | "rejected";
 
@@ -241,7 +242,7 @@ export async function submitRuleRequest(
       status: "pending",
     };
     file.requests = pruneDecided([...file.requests, request]);
-    await writeJsonAtomic(ruleRequestsFilePath(groupId), file, { mode: 0o600 });
+    await writeGovernanceJson(ruleRequestsFilePath(groupId), file);
     return request;
   });
   await recordAdminAction(groupId, {
@@ -286,7 +287,7 @@ export async function decideRuleRequest(
     if (params.createdRuleId) {
       request.createdRuleId = params.createdRuleId;
     }
-    await writeJsonAtomic(ruleRequestsFilePath(groupId), file, { mode: 0o600 });
+    await writeGovernanceJson(ruleRequestsFilePath(groupId), file);
     return request;
   });
   if (!decided) {
@@ -330,7 +331,7 @@ export async function attachCreatedRule(
       return;
     }
     request.createdRuleId = createdRuleId;
-    await writeJsonAtomic(ruleRequestsFilePath(groupId), file, { mode: 0o600 });
+    await writeGovernanceJson(ruleRequestsFilePath(groupId), file);
   });
 }
 
@@ -354,7 +355,7 @@ export async function reopenRuleRequest(groupId: string, id: string): Promise<vo
     delete request.decidedBy;
     delete request.decidedAt;
     delete request.createdRuleId;
-    await writeJsonAtomic(ruleRequestsFilePath(groupId), file, { mode: 0o600 });
+    await writeGovernanceJson(ruleRequestsFilePath(groupId), file);
   });
 }
 

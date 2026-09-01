@@ -21,6 +21,22 @@ const ALLOWED: GuardResult = { allowed: true };
  * The Root invariant, in one place: **an installation has exactly one Root, and
  * it is permanent.**
  *
+ * **That sentence is still true and it is no longer one rule (noted 2026-09-01).**
+ * It now rests on two independent caps that were added for different reasons:
+ * `wouldCreateSecondRoot` caps Roots **per group** (moved there by M3, whose own
+ * argument was that the cap belongs to "one Root per *thing a Root is
+ * responsible for*", which became a group), and `wouldCreateSecondOrganisation`
+ * caps groups at **one per installation** (added 2026-08-30). One Root per
+ * group times one group per installation is one Root per installation.
+ *
+ * Recorded because M3's own lesson was "a correct rule attached to the wrong
+ * noun", and this is the same shape one level up: a reader who lifts the
+ * one-organisation cap will not find anything here telling them this sentence
+ * depended on it. The guards below stay correct either way — both production
+ * callers pass a **group-scoped** user list, so "another Root exists" has always
+ * meant "in this group" — but the header would silently stop describing the
+ * installation.
+ *
  * Two guards used to state the two halves of this separately — `LastRootError`
  * capped it below, `DuplicateRootError` capped it above — and each read
  * correctly on its own. Together they meant something neither said: since a

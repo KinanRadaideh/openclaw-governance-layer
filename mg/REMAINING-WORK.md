@@ -13,7 +13,7 @@ Nothing here is speculative — every item was found by one of those two reviews
 up cold; `mg/PROJECT-SUMMARY.md` — what the project is and what has been built.
 
 **The authoritative outstanding list is §"The numbered backlog" immediately
-below — **forty-three tasks, T1–T43, of which 38 are done and 5 open** (T1 and T41
+below — **forty-three tasks, T1–T43, of which 36 are done and 5 open** (T1 and T41
 are not being done), **current as of 2026-09-01**, with a
 §"Who can do what" triage in front of it. _(This sentence has been stale three
 times and was also ungrammatical, having been patched mid-clause: it read
@@ -73,8 +73,19 @@ to give it. Counted as outstanding here because the remaining work is yours.
 **One is deprioritised:** T1 — not being done. **T13** is drafted and waiting to
 be read.
 
-**Current as of 2026-09-01: 38 done, 5 open; T1 and T41 are not being done** across
-T1–T43. **T38, T39, T40, T42 and T43 all closed on 2026-09-01.** T38 opened T42
+**Current as of 2026-09-01: 36 done, 5 open; T1 and T41 are not being done** across
+T1–T43. **36 + 5 + 2 = 43**, and the arithmetic is written out because without it
+this line was wrong again within the hour.
+
+_(It read "38 done, 5 open" for part of 2026-09-01, which sums to 45 against a
+list of 43. The error is the one this paragraph exists to prevent and it was made
+by the same method it warns about: the previous figure was **incremented** by the
+number of tasks closed instead of being **derived** from the list. Deriving it is
+one subtraction — 43 total, minus the 2 not being done, minus the 5 open. Earlier
+figures on this line were off the same way: "30 done, 8 open" across T1–T41
+should have been 31, and "33 done, 7 open" should have been 34.)_ **T38, T39, T40, T42 and T43 all closed on 2026-09-01**, and a second
+universal sweep the same night found **seven more defects (183–189), all fixed** —
+two of them security, and one of those certain to fire on the first VPS run. T38 opened T42
 and T43 by being done at all — driving the dashboard by hand is how you find what
 nothing else looks at — and both were closed the same day, T42 by Kinan's
 decision and T43 by measuring what the check was actually complaining about.
@@ -89,8 +100,14 @@ figures, the report. Nothing is waiting on Claude.
 That is a different sentence from "the engineering is finished", which was true
 on 2026-08-31 and stopped being true within a day: the QA sweep on 2026-09-01
 found **eleven defects, five of them security-relevant**. All eleven are now
-closed — nine fixed on the day, and 181 and 182 closed as T42 and T43. See
-§"The universal QA sweep — 2026-09-01".
+closed — nine fixed on the day, and 181 and 182 closed as T42 and T43. A
+**second** sweep that night, aimed at the platform the project is about to be
+deployed to, found **seven more (183–189)**. See §"The universal QA sweep —
+2026-09-01" and §"The second universal QA sweep, and a 20% segment".
+
+**The count of findings is now 189**, and the shape of the last eighteen is the
+argument: they were found by _doing the small remaining items_ and by _running
+the layer on the platform it targets_, not by reading more code.
 
 **T32 and T34 both closed on 2026-08-31**, and with them the last two
 items on the original backlog that were not purely Kinan's. **Four new items
@@ -1623,6 +1640,181 @@ the viva — or delete it. Leaving it is the one option that misleads, because a
 draft in the repository reads as a draft that was meant to go.
 
 ---
+
+---
+
+### The second universal QA sweep, and a 20% segment — 2026-09-01 (later)
+
+**Run the night before the project's first VPS deployment**, which decided its
+shape: the angle chosen was **the platform the project is about to be deployed
+to and has never run on**. That turned out to be worth more than any code-reading
+angle, and the reason is a single sentence — _this project was written on
+Windows, and Windows cannot check half of what the layer promises._
+
+**Findings 183–189. All fixed.** Two are security-relevant and one of those was
+guaranteed to fire on the VPS.
+
+#### The method: install it on Linux and run it
+
+WSL2 Ubuntu 24.04 was available on the development machine and had never been
+used for more than unit tests. A **clean clone into a Linux filesystem**, a real
+`pnpm install --frozen-lockfile` (12 seconds), a real `pnpm build`, and then the
+governance suite — which had never been run there from a complete install.
+
+That single step produced findings 183, 184 and 185 and would not have been
+reached by reading code, because two of the three are **absences on one platform
+and not the other**.
+
+#### 183 — every governance write widened its own directory to 0755
+
+**The one that would have fired tomorrow.** `ensureGroupDir` creates the tree
+`0700` and its own comment argues for it. Then the first write to any state file
+put the parent directory back to `0755`, because `writeJsonAtomic` creates a
+missing parent with its own default mode and **none of the 28 governance call
+sites passed `dirMode`**. Measured on Ubuntu with the ordinary umask of 022:
+
+```
+after ensureGroupDir : home 0700, groups 0700, group 0700
+after createUser     : home 0755, groups 0700, group 0700
+```
+
+So one write to `users.json` opened the installation's governance directory to
+every account on the host, and writing `policy.json` did the same to the group
+directory. The files themselves stayed `0600`, so this was not a read of the
+ledger key — what leaked was the directory listing, the file names and the group
+ids, and the property the layer states.
+
+**Why nobody had seen it.** POSIX mode bits are not meaningful on Windows, so
+`readDeploymentStatus` reports both of its permission checks as **unknown**
+there. The checks are correct and had never executed. On a fresh VPS,
+`openclaw governance deployment` would have reported _"Mode is 0755; expected
+0700"_ against a `PROJECT-SUMMARY` promising 0700 — in front of the supervisor,
+on the first run.
+
+Fixed with `state-file.ts`: one `writeGovernanceJson` that states both modes, and
+28 call sites routed through it. The argument is `ensureGroupDir`'s own, which
+had already won half of it — _"four copies of a permission is four chances for
+one of them to be 0755"_. It was twenty-eight, and the mode that went wrong was
+the one nobody was writing down at all.
+
+#### 184 and 185 — the suite was never green on Linux, and the docs said it was
+
+Running it there gave **2,528 passed, 2 failed**. Both failures were tests
+asserting **Windows separator behaviour unconditionally** — `path-normalize.test.ts`
+and `resource-extraction.test.ts`.
+
+**The product was right on both platforms and the tests were wrong on one.** On
+Windows a backslash is a separator, so `src\app.ts` and `src/app.ts` are one
+file. On POSIX a backslash is a legal filename character, so they are two — and
+converting there would be a **bypass**, not a tidy-up: a rule reading
+`^src/allowed[.]ts$` would match a tool call for a different file, which is
+exactly the property T23 exists to hold. Verified by character code on Ubuntu:
+92 in, 92 out.
+
+Both now state what each platform does. And the documentation claim they falsify
+is the one worth recording: **five documents said "the full suite runs on Ubuntu
+under WSL2"**. It was true when written, at 213 tests. Nobody re-ran it as the
+suite grew to 2,530, and it had stopped being true.
+
+**After the fixes: 2,536 passed across 132 files, zero failures, on Ubuntu
+24.04.** First time in the project's history.
+
+#### 186 — the gate could be switched off from the command line without being asked
+
+`policy set-mode off` printed `mode set to off`. The dashboard has required a
+confirmation since finding 87, and that confirmation spells out the two things a
+reader would not guess from "disables the gate": the shipped **core denials** go
+with it, and so does the **kill switch**. `policy core-rule <id> false` had the
+same gap.
+
+**The command line is where this matters more, not less** — it is reached through
+shell history, autocomplete and runbook copy-paste rather than through a form
+somebody is looking at. Both now refuse without `--yes` and say what is lost,
+following the shape `governance agents delete` already established.
+
+Only the destructive direction is gated. `set-mode monitor`, `set-ask off` and
+re-enabling a core rule are untouched: confirming safe changes is how an operator
+learns to type `--yes` without reading, which is finding 87's own lesson.
+
+**The angle that found it is new and worth naming.** The first sweep compared
+**authorization** across surfaces and found four gaps. This one compared
+**caution** — _the dashboard confirms this; does the command line?_ — which is a
+different property and had never been looked at.
+
+#### 187 and 188 — two more panels rendering their own key names
+
+Finding 179 was one instance. This sweep closed **the class**, by resolving all
+**317** `t("…")` keys the governance UI uses against the English catalogue.
+Two more did not exist:
+
+- `governance.kill.engaged` — the status beside "Emergency stop" in the
+  per-agent policy view, rendering the literal text `governance.kill.engaged`
+- `governance.rules.expires` — the word before a rule's expiry date; the
+  `governance.rules` block did not exist at all
+
+Both are in **the panel an operator opens to ask why an agent is blocked**, and
+the T38 hand-driven pass walked past both because neither state was on screen: one
+needs a locked-down agent, the other a rule with an expiry.
+
+`i18n-keys-resolve.test.ts` now makes it a standing check, reading the keys out
+of the source rather than out of a rendered page — which is what covers the keys
+no fixture reaches. **This is the check T43 identified as missing**: the raw-copy
+verifier hunts for a string that should be a key, and nothing looked for a key
+that should be a string.
+
+#### 189 — the SSRF worked example was arithmetically wrong
+
+In `canonicalIpv4`, the comment justifying the "last part absorbs the remaining
+bytes" rule read: _"`169.11010558` is a valid spelling of `169.254.169.254`"_.
+It is not — `169.11010558` is `169.168.1.254`, an ordinary private address. The
+correct spelling is `169.16689662`.
+
+**The algorithm was right and its example was wrong, which is the more dangerous
+way round**: a reader checking the comment against the code concludes the code is
+broken. Corrected, and the three spellings that had no test — single hex integer,
+octal, and the two-part form the comment was reaching for — are now asserted
+against the metadata-endpoint denial. All three were already blocked.
+
+#### The 20% segment
+
+Drawn **mechanically** from a seeded shuffle over all 77 governance modules so
+the selection could not be chosen to look good: **15 modules, 3,762 lines**,
+including `password.ts`, `baseline-policy.ts`, `resource-extraction.ts`,
+`account-guards.ts`, `folder-grant.ts` and `rule-conflicts.ts`.
+
+Finding 189 came out of it. The rest of the segment **cleared**, and two results
+are worth recording because a sweep that only lists what it broke is not a
+measurement:
+
+- **`folder-grant.ts`** — denials written before the grant so a partial failure
+  leaves _less_ access; exceptions refused unless inside the granted folder;
+  exceptions never narrowed by `access`, because a read-only exception inside a
+  read-only grant would leave the excepted path writable. All three are correct
+  and all three are commented with the reason.
+- **`password.ts`** — parameters recorded per hash, `timingSafeEqual`, upgrade on
+  sign-in. Two robustness notes rather than defects: a stored hash truncated by
+  file corruption would shorten the comparison, and a malformed cost parameter
+  makes `verifyPassword` throw rather than refuse. Both need write access to
+  `users.json`, which the project's stated threat model already concedes — _"the
+  boundary is the filesystem's, and always was."_
+
+And one documentation correction in `account-guards.ts`: its header says **"an
+installation has exactly one Root"**, which is still true and is no longer one
+rule. It now rests on two independent caps added for different reasons — one Root
+per _group_ (moved there by M3) times one group per _installation_ (added
+2026-08-30). Recorded because M3's own lesson was "a correct rule attached to the
+wrong noun", and this is the same shape one level up.
+
+#### What the sweep cleared
+
+- **The full verification set, on two platforms.** Windows and Ubuntu 24.04.
+- **The gate's ordering** — lockdown is checked before tool resolution, and the
+  one path that skips it (`mode: off`) is the documented one, confirmed by the
+  dashboard's own confirmation text naming the kill switch explicitly.
+- **`active-sessions.ts`** — both filters present, group then agent scope.
+- **`cli-identity.ts`** — session file `0600` inside a `0700` directory, and it
+  was already right because it never used the shared writer.
+- **All 317 governance i18n keys resolve**, and a test keeps it that way.
 
 ---
 

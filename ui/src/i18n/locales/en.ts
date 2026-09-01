@@ -3676,6 +3676,17 @@ export const en: TranslationMap = {
       expiresIn: "expires in",
       expired: "expired",
     },
+    /**
+     * Rule display, shared by the panels that list rules.
+     *
+     * **This block did not exist until 2026-09-01**, so
+     * `governance.rules.expires` resolved to nothing and an expiring rule read
+     * `path · ^/srv/… · governance.rules.expires 2026-09-10T…` on the one panel
+     * an operator opens to find out why an agent is blocked.
+     */
+    rules: {
+      expires: "expires",
+    },
     agentPolicy: {
       access: "Who can reach this agent",
       accessHint:
@@ -3912,6 +3923,14 @@ export const en: TranslationMap = {
         "Immediately denies every future governed action from this agent. You can stop the agents assigned to you.",
       notYourAgent:
         "That agent is not assigned to you, so you cannot stop it. Ask an Administrator, or pick one of your own agents from the list.",
+      /**
+       * The status beside the "Emergency stop" row in the per-agent policy
+       * view. **Missing until 2026-09-01**, so that row rendered the literal
+       * text `governance.kill.engaged` next to "Emergency stop" — finding 179's
+       * class, found by resolving all 317 keys the governance UI uses against
+       * this catalogue rather than by reading the panel.
+       */
+      engaged: "Engaged — this agent is locked down",
       agentIdPlaceholder: "Agent id",
       unknownAgent:
         "No agent with this id is running, locked down, or assigned to an account. Locking it down will still succeed and record an entry — but if you have mistyped the id, the agent you meant will keep running.",

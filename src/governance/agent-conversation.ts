@@ -33,7 +33,7 @@ import { randomUUID } from "node:crypto";
 // still passes through the governance gate exactly as it always did. That is
 // the property that makes this safe to add: prompting grants no new capability
 // to the agent, only a new way for an authorised person to ask.
-import { readJsonIfExists, writeJsonAtomic } from "../infra/json-files.js";
+import { readJsonIfExists } from "../infra/json-files.js";
 import { redactToolPayloadText } from "../logging/redact.js";
 import { canonicalAccountName } from "./account-name.js";
 import { ADMIN_ACTIONS, recordAdminAction } from "./admin-audit.js";
@@ -48,6 +48,7 @@ import {
   PROMPT_TIMEOUT_MS,
   type PromptRunEnding,
 } from "./prompt-runs.js";
+import { writeGovernanceJson } from "./state-file.js";
 
 /**
  * Longest prompt accepted.
@@ -273,7 +274,7 @@ async function appendTurn(
     if (file.conversations.length > MAX_CONVERSATIONS) {
       file.conversations = file.conversations.slice(-MAX_CONVERSATIONS);
     }
-    await writeJsonAtomic(conversationsFilePath(groupId), file, { mode: 0o600 });
+    await writeGovernanceJson(conversationsFilePath(groupId), file);
   });
 }
 

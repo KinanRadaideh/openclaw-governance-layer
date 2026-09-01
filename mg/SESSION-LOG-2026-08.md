@@ -4,7 +4,7 @@ What was done across the August 2026 working sessions, what changed as a result,
 and what is left. Written for someone picking the project up cold, or for the
 same person after a break.
 
-**Forty-two entries, ending 2026-09-01** — counted from the `##` headings rather
+**Forty-three entries, ending 2026-09-01** — counted from the `##` headings rather
 than carried forward, which is how this line went wrong twice. The last one
 covers T38–T40 and the universal QA sweep that followed them; it is the entry to
 read if you want to know why "the engineering is finished" is a statement about
@@ -3887,6 +3887,134 @@ passed over it.
 
 ### The backlog after this
 
-**38 done, 5 open, and every open item is Kinan's**: the live run (T2), a Linux
+### One more, and I made it myself
+
+The backlog count read **"38 done, 5 open"** across a list of 43 with 2 not being
+done. 38 + 5 + 2 = 45. I had **incremented** the previous figure by the number of
+tasks closed instead of **deriving** it — which is precisely the method the count
+paragraph in `REMAINING-WORK.md` warns about, in a paragraph I had edited twice
+the same day. Checking it took one subtraction: 43 − 2 − 5 = **36**.
+
+Recorded rather than quietly fixed, because it is the cleanest example this
+project has of the failure it keeps cataloguing: **the warning was correct, it
+was in the right place, it was written by someone who had just re-read it, and it
+did not work.** What works is the arithmetic being written out on the line, which
+it now is. Two earlier figures on that line were wrong the same way and are
+corrected with it.
+
+**36 done, 5 open, and every open item is Kinan's**: the live run (T2), a Linux
 host (T3), the prompt-injection read (T13), the figures (T17) and the report
 (T18). Nothing is waiting on Claude.
+
+---
+
+## §43 — 2026-09-01 (night): the layer run on Linux, the night before the VPS
+
+**The most productive single decision in this session was not a code-reading
+angle.** Asked for another universal sweep, and knowing the first VPS deployment
+was the next morning, the angle chosen was _the platform this project has never
+run on_. WSL2 Ubuntu 24.04 was sitting on the development machine and had been
+used for unit tests and nothing else.
+
+A clean clone into a Linux filesystem, `pnpm install --frozen-lockfile` (12
+seconds), `pnpm build`, and then the governance suite — which had never been run
+there from a complete install.
+
+### What that one step found
+
+**The suite was not green.** 2,528 passed, **2 failed**, both tests asserting
+Windows separator behaviour unconditionally. The product was right on both
+platforms; the tests were right on one. Five documents said "the full suite runs
+on Ubuntu under WSL2" — true when written at 213 tests, and quietly false by
+2,530.
+
+**And the governance directory was `0755`.** `ensureGroupDir` creates the tree
+`0700`, correctly, and then the first write to any state file put its parent back
+to `0755`, because `writeJsonAtomic` creates a missing parent with its own
+default mode and none of the **28** governance call sites passed `dirMode`:
+
+```
+after ensureGroupDir : home 0700, groups 0700, group 0700
+after createUser     : home 0755, groups 0700, group 0700
+```
+
+**Windows cannot see this.** POSIX mode bits are not meaningful there, so the
+deployment report's two permission checks return "unknown" — they are correct,
+and they had never executed anywhere. On a fresh VPS,
+`openclaw governance deployment` would have reported _"Mode is 0755; expected
+0700"_ against a `PROJECT-SUMMARY` promising 0700, on the first run, in front of
+the supervisor.
+
+> **The sentence for Chapter 4:** _a system developed on one platform cannot
+> verify the promises that only the other platform can express._ This project
+> had the check, had it right, and had never run it — and the claim it protects
+> had been in the documentation, unqualified, for weeks.
+
+### The rest of the sweep
+
+**186** — `policy set-mode off` and `policy core-rule <id> false` printed a
+success line and nothing else, while the dashboard has required a confirmation
+naming the core denials and the kill switch since finding 87. The command line is
+where that matters more, not less: shell history, autocomplete, runbook
+copy-paste. Both now refuse without `--yes`. The angle is new and worth naming —
+the first sweep compared **authorization** across surfaces, this one compared
+**caution**.
+
+**187 and 188** — finding 179 was one instance of a class, and the class is now
+closed: all **317** `t("…")` keys the governance UI uses were resolved against
+the catalogue, and two more did not exist. Both were in the panel an operator
+opens to ask _why is my agent blocked_, and the T38 hand-driven pass walked past
+both because neither state was on screen. `i18n-keys-resolve.test.ts` keeps it
+closed, and it is exactly the check T43 identified as missing: the raw-copy
+verifier hunts for a string that should be a key; nothing looked for a key that
+should be a string.
+
+**189**, from the segment draw — `canonicalIpv4`'s worked example was
+arithmetically wrong. `169.11010558` is `169.168.1.254`, not the metadata
+endpoint; the correct spelling is `169.16689662`. **The algorithm was right and
+its example was wrong, which is the more dangerous way round**: a reader checking
+the comment against the code concludes the code is broken. Three untested
+spellings — hex, octal, two-part — now assert against the denial. All were
+already blocked.
+
+### The 20% segment
+
+Drawn from a seeded shuffle over all 77 governance modules, so it could not be
+chosen to flatter: 15 modules, 3,762 lines. It cleared, apart from 189.
+`folder-grant.ts` and `password.ts` are both worth reading as examples of the
+standard this codebase holds — every asymmetry in them is deliberate and
+commented with its reason.
+
+### Documentation and figures
+
+The claims this night's work falsified were corrected with measurements rather
+than softened: the `0700` promise, the "suite runs on Ubuntu" claim in five
+places, and `LINUX-INSTALL`'s recorded `governance --help` output, which listed
+nine subcommands when there are fifteen.
+
+**The figures needed one substantive fix and it is the same defect as `T42`.**
+F2, the RBAC hierarchy, put the emergency stop at **Root**. The route has
+admitted a User acting on their own agents since T5; `T42` existed because three
+surfaces disagreed about that tier, and **this figure was a fourth — the only one
+bound for the report.** It also claimed one machine "may hold several Roots",
+which stopped being true when the one-organisation cap landed on 2026-08-30. All
+three forms corrected.
+
+Two figures said "Mermaid has no bar chart", which was true when written and is
+not now (`xychart-beta`); both have a real Mermaid form. **F22 was added** for the
+folder grant — the newest operator-facing feature, and the only control that
+writes an allow and a deny as one act, which is exactly the confusion that
+produced finding 178.
+
+And **F17 was given an updated suggestion rather than left alone**: its data
+table is still empty after months, because no register records how old code was
+when a defect was found, so the four numbers would have to be manufactured by
+hand under deadline. The recommendation now offers a chart the project can
+actually compute — findings per QA round — which supports the same argument on
+data that needs no judgement.
+
+### Verification
+
+**Ubuntu 24.04: 2,536 passed across 132 files, zero failures** — the first time
+the governance suite has been green on the deployment platform. Windows: the same
+tree, re-run. Both typechecks, oxlint and the host suites unchanged.

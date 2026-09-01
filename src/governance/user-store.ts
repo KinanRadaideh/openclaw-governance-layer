@@ -7,7 +7,7 @@ import { randomBytes } from "node:crypto";
 // migrating to the state SQLite database is a documented option if that
 // changes, not a correctness requirement today.
 import { mkdir } from "node:fs/promises";
-import { readJsonIfExists, writeJsonAtomic } from "../infra/json-files.js";
+import { readJsonIfExists } from "../infra/json-files.js";
 import { canonicalAccountName } from "./account-name.js";
 import { ADMIN_ACTIONS, recordAdminAction, type AuditActorInput } from "./admin-audit.js";
 import { withFileLock } from "./file-lock.js";
@@ -15,6 +15,7 @@ import { hashPassword, needsRehash, verifyPassword } from "./password.js";
 import { INSTALLATION_LEDGER_GROUP } from "./paths.js";
 import { governanceHomeDir, usersFilePath } from "./paths.js";
 import type { GovernanceRole } from "./roles.js";
+import { writeGovernanceJson } from "./state-file.js";
 
 export type GovernanceUser = {
   id: string;
@@ -228,7 +229,7 @@ export async function deleteUnmigratedAccounts(actor: AuditActorInput): Promise<
       return [];
     }
     file.users = file.users.filter((u) => Boolean(u.groupId));
-    await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });
+    await writeGovernanceJson(usersFilePath(), file);
     return orphans.map((u) => ({ id: u.id, username: u.username, role: u.role }));
   });
   for (const orphan of removed) {
@@ -381,7 +382,7 @@ export async function createUser(
       ...(needsManager && input.managedBy ? { managedBy: input.managedBy } : {}),
     };
     file.users.push(user);
-    await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });
+    await writeGovernanceJson(usersFilePath(), file);
     return toRecord(user);
   });
   await recordAdminAction(created.groupId ?? INSTALLATION_LEDGER_GROUP, {
@@ -637,7 +638,7 @@ export async function setUserRole(
     }
     const previous = user.role;
     user.role = role;
-    await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });
+    await writeGovernanceJson(usersFilePath(), file);
     return { username: user.username, previous, groupId: user.groupId };
   });
   if (!changed) {
@@ -688,7 +689,7 @@ export async function setUserPolicyAuthoring(
     }
     const previous = accountMayAuthorPolicy(user);
     user.canAuthorPolicy = allowed;
-    await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });
+    await writeGovernanceJson(usersFilePath(), file);
     return {
       username: user.username,
       role: user.role,
@@ -732,7 +733,7 @@ export async function setUserAssignedAgents(
     }
     const previous = user.assignedAgents;
     user.assignedAgents = normalizeAgentIds(agentIds);
-    await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });
+    await writeGovernanceJson(usersFilePath(), file);
     return { username: user.username, previous, next: user.assignedAgents, groupId: user.groupId };
   });
   if (!changed) {
@@ -761,7 +762,7 @@ export async function deleteUser(userId: string, actor: AuditActorInput): Promis
       return undefined;
     }
     file.users = file.users.filter((u) => u.id !== userId);
-    await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });
+    await writeGovernanceJson(usersFilePath(), file);
     return { username: user.username, role: user.role, groupId: user.groupId };
   });
   if (!deleted) {
@@ -869,7 +870,7 @@ async function upgradeStoredPassword(
         return;
       }
       user.passwordHash = rehashed;
-      await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });
+      await writeGovernanceJson(usersFilePath(), file);
     });
   } catch {
     // Deliberately swallowed; see above.
@@ -902,7 +903,7 @@ export async function setUserPassword(
       return undefined;
     }
     user.passwordHash = hashed;
-    await writeJsonAtomic(usersFilePath(), file, { mode: 0o600 });
+    await writeGovernanceJson(usersFilePath(), file);
     return { username: user.username, groupId: user.groupId };
   });
   if (!changed) {

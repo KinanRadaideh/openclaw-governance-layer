@@ -82,7 +82,13 @@ describe("resource extraction edge cases", () => {
       { toolName: "write", params: { path: "src\\allowed.ts" } },
       ctx,
     );
-    expect(verdict(decision)).toBe("allow");
+    // On Windows the two spellings name one file, so a rule written the
+    // documented way must match either. **On POSIX they name two files** — a
+    // backslash is a legal filename character there — so the allow must NOT
+    // match, and a gate that let it through would be granting access to a file
+    // nobody wrote a rule for. Asserting only the Windows half is what kept
+    // this suite red on Linux until 2026-09-01.
+    expect(verdict(decision)).toBe(process.platform === "win32" ? "allow" : "block");
   });
 
   it("reads a path from either path or file_path", async () => {

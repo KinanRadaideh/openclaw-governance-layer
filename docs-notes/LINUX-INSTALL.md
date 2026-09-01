@@ -106,7 +106,9 @@ The installer is idempotent, so after a `git pull` just run it again. Options:
 
 It finishes by running the governance layer's own platform probe —
 `pnpm exec tsx scripts/governance-linux-check.mjs` — which covers file locks,
-`0700`/`0600` permissions (advisory on Windows, **enforced** here), POSIX path
+`0700`/`0600` permissions (advisory on Windows, **enforced** here — and see the
+2026-09-01 note under "What has actually been verified": the directory half of
+that pair was **not** holding on Linux until it was measured there), POSIX path
 production, scrypt, the role ladder, Viewer masking and load average.
 **14 checks, and the install fails if any of them do.**
 
@@ -282,21 +284,66 @@ assumptions here have not held automatically before, which is why
 **On Ubuntu 24.04.4 LTS, Node v22.23.2, 2026-08-28**, from a clean tree with no
 `node_modules` and no `dist`:
 
-| Step                                      | Result                                                                                                                              |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm install` (workspace, 1397 packages) | **ok**                                                                                                                              |
-| `pnpm build`                              | **ok** — `dist/entry.js` produced                                                                                                   |
-| `pnpm ui:build`                           | **ok** — `dist/control-ui` produced                                                                                                 |
-| Platform probe                            | **14 / 14 passed**                                                                                                                  |
-| `openclaw --version`                      | **OpenClaw 2026.8.1**                                                                                                               |
-| `openclaw governance --help`              | Lists `agent`, `agents`, `audit`, `deployment`, `groups`, `kill`, `login`, `logout`, `pending` — the layer is present and answering |
-| The 8 GB check                            | Correctly **warned** at 7 GB rather than refusing                                                                                   |
+| Step                                      | Result                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install` (workspace, 1397 packages) | **ok**                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `pnpm build`                              | **ok** — `dist/entry.js` produced                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `pnpm ui:build`                           | **ok** — `dist/control-ui` produced                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Platform probe                            | **14 / 14 passed**                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `openclaw --version`                      | **OpenClaw 2026.8.1**                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `openclaw governance --help`              | **Re-measured 2026-09-01**: `agent agents audit backend deployment groups kill login logout pending policy requests sessions set-policy-authoring whoami` — fifteen subcommands. _(The row recorded nine on 2026-08-28 and did not list `policy`, which certainly existed then; it has been stale since T34 and T40 added `backend` and `requests`. A list used to confirm "the layer is present" has to be re-derived, not remembered.)_ |
+| The 8 GB check                            | Correctly **warned** at 7 GB rather than refusing                                                                                                                                                                                                                                                                                                                                                                                         |
 
 **Not yet verified, and both need a real host — that is T3:** the dashboard
 loaded through an SSH tunnel, and the systemd unit surviving a reboot. The tree
 was also taken from a local mirror of the pushed commit rather than cloned over
 the network, so the GitHub hop itself — ordinary `git` over SSH — is the one
 step in this runbook not exercised end to end.
+
+### 2026-09-01 — the install rehearsed again, and it found two things
+
+Repeated the night before the first VPS deployment, from a clean clone of the
+pushed tip into a Linux filesystem: `pnpm install --frozen-lockfile` **12s**,
+`pnpm build` ok, and then the thing the 2026-08-28 pass did not do — **the
+governance suite run on Linux**.
+
+**It was not green.** 2,528 passed and **2 failed**, and both failures were
+tests asserting Windows separator behaviour unconditionally
+(`path-normalize.test.ts` and `resource-extraction.test.ts`). The product was
+right on both platforms and the tests were wrong on one — finding 148's class,
+in governance files this time. Both now state what each platform does, and the
+POSIX half is the security-relevant one: a backslash is a legal filename
+character there, so converting it would let a rule reading `^src/allowed[.]ts$`
+match a tool call for a **different file**.
+
+**The `0700` claim above was false on Linux, and this is where it would have
+shown.** `ensureGroupDir` created the tree owner-only and then the first write
+to any state file widened its parent directory back to `0755`, because none of
+the 28 governance write sites passed `dirMode`. Windows reports both permission
+checks as "unknown", so the path had never executed anywhere. On a fresh VPS
+`openclaw governance deployment` would have reported **"Mode is 0755; expected
+0700"** against documentation promising 0700. Fixed by routing every governance
+write through one `writeGovernanceJson` that states both modes.
+
+> **If you are upgrading an installation that has already run**, the fix stops
+> the widening but does not repair a directory that is already `0755`. The
+> deployment report tells you: `chmod 700` the governance directory. A fresh
+> install needs nothing.
+
+**After both fixes the suite is green on Linux for the first time:**
+
+| Step (Ubuntu 24.04, Node v22.23.2, 2026-09-01) | Result                                 |
+| ---------------------------------------------- | -------------------------------------- |
+| `git clone` into a Linux filesystem            | ok                                     |
+| `pnpm install --frozen-lockfile`               | **ok, 12s**                            |
+| `pnpm build`                                   | ok — `dist/entry.js` produced          |
+| **Governance suite**                           | **2,536 passed / 132 files, 0 failed** |
+| Governance directory and file modes            | **0700 / 0600**, checked by `stat`     |
+
+That is a stronger statement than the one this document could make on
+2026-08-28, and it is the one to quote: the layer's own tests now pass **on the
+platform it will be deployed to**, from a clean clone, rather than only on the
+developer's Windows machine.
 
 ---
 
