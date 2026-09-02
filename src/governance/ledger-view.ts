@@ -23,6 +23,7 @@
 // recompute the chain from what they were shown, which is exactly why
 // verification is a server-side endpoint returning a verdict rather than
 // something a client does for itself.
+import { canonicalAccountName } from "./account-name.js";
 import { ADMIN_ACTIONS } from "./admin-audit.js";
 import type { LedgerEntry } from "./audit-ledger.js";
 import {
@@ -200,7 +201,22 @@ export function projectLedgerForActor(
   if (hasUnlimitedAgentScope(actor.role)) {
     return [...visible];
   }
+  // **Folded, because this is an identity comparison** (finding 198).
+  // `account-name.ts` states the rule: the canonical form anywhere an account is
+  // a key, the stored spelling only for display — and "is this entry mine?" is a
+  // key comparison wearing an `===`.
+  //
+  // It happened to be right, and only by coincidence: both sides are the stored
+  // spelling from the same `users.json` record, so they agree today. Recorded
+  // rather than left alone because the coincidence is the problem — the two
+  // sides have different provenances (a ledger entry written at some point in
+  // the past, and a live session) and nothing keeps them in step. The failure
+  // would at least be safe rather than leaking: a mismatch masks an author's
+  // own prompt from them instead of showing somebody else's.
+  const reader = canonicalAccountName(actor.username);
   return visible.map((entry) =>
-    isPromptEntry(entry) && entry.actor !== actor.username ? sanitizePromptEntry(entry) : entry,
+    isPromptEntry(entry) && canonicalAccountName(entry.actor ?? "") !== reader
+      ? sanitizePromptEntry(entry)
+      : entry,
   );
 }

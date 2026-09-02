@@ -708,6 +708,11 @@ export async function handleGovernanceAgentControlRoutes(
       stoppedConfirmed: outcome.termination.stoppedConfirmed,
       abortedRunIds: outcome.termination.abortedRunIds,
       inFlightTerminationSupported: outcome.termination.supported,
+      // The stop landed and its ledger entry did not (finding 195). Reported
+      // beside the success rather than as a failure: the agent *is* stopped,
+      // and telling the operator otherwise during an incident is the reading
+      // that makes them escalate. Absent on the ordinary path.
+      ...(outcome.auditError ? { auditError: outcome.auditError } : {}),
     });
     return true;
   }

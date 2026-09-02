@@ -34,7 +34,7 @@
 //
 // Usage:  pnpm exec tsx scripts/governance-linux-check.mjs
 
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import process from "node:process";
@@ -95,7 +95,9 @@ await check("file lock serializes overlapping critical sections", async () => {
       withFileLock(target, async () => {
         inside += 1;
         maxConcurrent = Math.max(maxConcurrent, inside);
-        await new Promise((resolve) => setTimeout(resolve, 2));
+        await new Promise((resolve) => {
+          setTimeout(resolve, 2);
+        });
         inside -= 1;
       }),
     ),
@@ -247,7 +249,7 @@ await check("ReDoS-prone patterns are rejected, ordinary ones accepted", async (
 await check("system status reports Linux load average as supported", async () => {
   const status = readSystemStatus();
   assertEqual(status.platform, "linux", "unexpected platform");
-  assert(status.loadAverageSupported === true, "load average should be supported on Linux");
+  assert(status.loadAverageSupported, "load average should be supported on Linux");
   assert(status.cpuCount > 0, "cpu count not reported");
   assert(status.totalMemoryBytes > 0, "memory not reported");
   assert(

@@ -181,12 +181,14 @@ describe("the Root account is permanent — the lower bound", () => {
   it("refuses the demotion with advice the operator can actually follow", async () => {
     const rootId = await seedRoot();
     const guard = guardRoleChange(await listUsers(), rootId, "administrator");
-    expect(guard.allowed).toBe(false);
+    if (guard.allowed) {
+      throw new Error("expected a refusal, and the guard allowed it");
+    }
     // The old message said "promote another account to Root before demoting
     // it", which the upper bound refuses — two guards each right, together
     // telling the operator to do something impossible.
-    expect(guard.allowed === false && guard.reason).not.toMatch(/promote another account to Root/);
-    expect(guard.allowed === false && guard.reason).toMatch(/permanent/);
+    expect(guard.reason).not.toMatch(/promote another account to Root/);
+    expect(guard.reason).toMatch(/permanent/);
   });
 });
 

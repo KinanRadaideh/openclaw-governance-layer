@@ -65,7 +65,6 @@ function isFullyAnchored(pattern: string): boolean {
 }
 
 /**
-/**
  * A pattern that is only wildcards between its anchors — `^.*$` and its
  * spellings. Extracted to a named constant so the check and the warning text
  * cannot drift apart, and so it reads as a rule rather than as punctuation.

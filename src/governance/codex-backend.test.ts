@@ -28,7 +28,8 @@ let refreshed: string[][];
 let failNextWrite: Error | undefined;
 
 vi.mock("../config/config.js", () => ({
-  loadConfig: async () => fakeConfig,
+  // Synchronous, matching the real `loadConfig` — see finding 221.
+  loadConfig: () => fakeConfig,
   readConfigFileSnapshot: async () => ({ config: fakeConfig, sourceConfig: fakeConfig }),
   replaceConfigFile: async (params: { nextConfig: Record<string, unknown> }) => {
     if (failNextWrite) {
@@ -149,9 +150,46 @@ describe("what the ledger says about it", () => {
     ).rejects.toThrow("config is read-only");
 
     const entry = (await tailLedger(TEST_GROUP)).find(
-      (e) => e.toolName === ADMIN_ACTIONS.codexBackendToggle,
+      (e) => e.toolName === ADMIN_ACTIONS.codexBackendToggleRequest,
     );
     expect(entry).toBeDefined();
     expect(entry?.actor).toBe("malek");
+  });
+
+  it("does not claim the change happened when the write failed (finding 217)", async () => {
+    // **This test is the one the assertion above was missing.** It proved an
+    // entry existed and never asked what it said — and what it said was
+    // `codex backend disabled -> enabled`, in the tamper-evident trail, for an
+    // installation whose backend was still disabled. `replaceConfigFile` takes
+    // a base hash and throws when the config moved underneath, so this is a
+    // reachable state rather than a hypothetical one.
+    failNextWrite = new Error("config is read-only");
+    await expect(
+      setCodexBackendEnabled(TEST_GROUP, true, { name: "malek", role: "administrator" }),
+    ).rejects.toThrow("config is read-only");
+
+    const entries = await tailLedger(TEST_GROUP);
+    // The request is recorded, and reads as a request.
+    const requested = entries.filter((e) => e.toolName === ADMIN_ACTIONS.codexBackendToggleRequest);
+    expect(requested).toHaveLength(1);
+    expect(requested[0]?.resource).toContain("requested");
+    // And nothing asserts the stance changed, because it did not.
+    expect(entries.filter((e) => e.toolName === ADMIN_ACTIONS.codexBackendToggle)).toHaveLength(0);
+    expect(await readCodexBackendState()).toEqual({ enabled: false, explicit: false });
+  });
+
+  it("records the completion separately once the config holds the new stance", async () => {
+    await setCodexBackendEnabled(TEST_GROUP, true, { name: "malek", role: "administrator" });
+    const entries = await tailLedger(TEST_GROUP);
+    // Both halves, so an investigation can tell "who asked" from "and it took"
+    // — the pair `organisationDeleteRequest` / `organisationDelete` already
+    // uses for the same reason.
+    expect(
+      entries.filter((e) => e.toolName === ADMIN_ACTIONS.codexBackendToggleRequest),
+    ).toHaveLength(1);
+    const done = entries.filter((e) => e.toolName === ADMIN_ACTIONS.codexBackendToggle);
+    expect(done).toHaveLength(1);
+    expect(done[0]?.resource).toContain("disabled -> enabled");
+    expect(done[0]?.resource).not.toContain("requested");
   });
 });

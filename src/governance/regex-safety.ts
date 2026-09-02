@@ -124,7 +124,40 @@ function isQuantified(pattern: string, index: number): boolean {
   return Number.isFinite(exact) && exact > 1;
 }
 
-/** True when the group body contains a quantifier outside a character class. */
+/**
+ * True when the group body contains a quantifier outside a character class.
+ *
+ * ## `?` counts, and its absence was a live bypass (finding 207)
+ *
+ * This modelled `*`, `+` and `{n,m}` and **not `?`**, so a repeated group whose
+ * body was merely *optional* was waved through. Measured, on the checker as it
+ * stood:
+ *
+ * | pattern           | verdict  | time against a non-matching input |
+ * | ----------------- | -------- | ---------------------------------- |
+ * | `^(a+)+$`         | refused  | —                                  |
+ * | `^(a?){18}$`      | ACCEPTED | 176 ms                             |
+ * | `^(a?){22}$`      | ACCEPTED | 2,718 ms                           |
+ * | `^(a?){26}$`      | ACCEPTED | **44,513 ms**                      |
+ *
+ * Doubling per increment of `n` — textbook exponential — and `n` is a number the
+ * rule's author picks. This module's own header states exactly why that matters:
+ * the pattern "is written by the least-privileged tier that can author a rule
+ * and is then run, on the Gateway's only thread, against agent-controlled text",
+ * so **a User with one assigned agent could hang the whole installation** with a
+ * rule the checker called safe. `([a-z]?){24}`, `((ab)?){24}` and `(a?a?){12}`
+ * were all accepted too.
+ *
+ * The gap is the same shape finding 79 found on the sibling function: what makes
+ * a repeated group dangerous is a body that can match a **variable-length** span,
+ * and `?` makes a body variable-length exactly as `*` does. `isQuantified` had
+ * already been taught that lesson for `{n}`; this half had not.
+ *
+ * **`{n}` is deliberately still not counted here**, and that is not the same
+ * omission: a fixed count of a fixed-length body is fixed-length, so `(a{3})+`
+ * gives the engine nothing to choose between. `{n,}` and `{n,m}` are variable
+ * and are counted.
+ */
 function containsQuantifier(body: string): boolean {
   let inClass = false;
   for (let index = 0; index < body.length; index += 1) {
@@ -143,6 +176,14 @@ function containsQuantifier(body: string): boolean {
       continue;
     }
     if (char === "*" || char === "+") {
+      return true;
+    }
+    // A `?` directly after an unescaped `(` opens a non-capturing group or a
+    // lookaround — `(?:`, `(?=`, `(?!`, `(?<` — and quantifies nothing. Reading
+    // it as a quantifier would refuse `((?:ab))+`, which is fixed-length and
+    // harmless, and this module's stated policy is that over-rejecting pushes
+    // operators toward catch-alls.
+    if (char === "?" && !(body[index - 1] === "(" && !isEscaped(body, index - 1))) {
       return true;
     }
     if (char === "{" && body.slice(index).match(/^\{\d+,\d*\}/)) {

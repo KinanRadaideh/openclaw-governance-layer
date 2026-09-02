@@ -43,7 +43,8 @@ let written: Array<Record<string, unknown>>;
 let printed: string[];
 
 vi.mock("../config/config.js", () => ({
-  loadConfig: async () => fakeConfig,
+  // Synchronous, matching the real `loadConfig` — see finding 221.
+  loadConfig: () => fakeConfig,
   readConfigFileSnapshot: async () => ({ config: fakeConfig, sourceConfig: fakeConfig }),
   replaceConfigFile: async (params: { nextConfig: Record<string, unknown> }) => {
     written.push(params.nextConfig);

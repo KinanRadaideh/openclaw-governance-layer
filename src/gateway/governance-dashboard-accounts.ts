@@ -15,6 +15,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { guardDeletion, guardRoleChange } from "../governance/account-guards.js";
 import { AgentNotAssignableError, assignAgentsToAccount } from "../governance/agent-registry.js";
+import { deleteOrganisation } from "../governance/organisation-deletion.js";
 import { canAssignAgents, type GovernanceActor } from "../governance/permissions.js";
 import { isGovernanceRole, type GovernanceRole } from "../governance/roles.js";
 import {
@@ -30,10 +31,14 @@ import {
   DuplicateRootError,
   LastRootError,
   listUsers,
+  ManagedAccountsRemainError,
+  MissingManagerError,
+  normalizeAgentIds,
   setUserPassword,
   setUserPolicyAuthoring,
   setUserRole,
 } from "../governance/user-store.js";
+import { requireGroup } from "./governance-dashboard-group.js";
 import { sendInvalidRequest, sendJson } from "./http-common.js";
 
 /**
@@ -246,6 +251,25 @@ export async function handleGovernanceAccountRoutes(
         sendInvalidRequest(res, err.message);
         return true;
       }
+      // ------------------------------------------------------------------
+      // The two management-link refusals, which reached the client as **500**
+      // until finding 197.
+      //
+      // `MissingManagerError` is the reachable one and it was not an edge case:
+      // the dashboard's role control sends no `managedBy`, so *every* demotion
+      // of an Administrator to User or Viewer produced a server error rather
+      // than the store's own sentence explaining what to supply. The store had
+      // added that parameter specifically to close a dead end where "an
+      // Administrator could never be demoted at all" — and the dead end moved
+      // to the surface instead of closing.
+      //
+      // `ManagedAccountsRemainError` is the refusal finding 196 added. Both are
+      // conflicts of state with a named way forward, which is what 409 is for.
+      // ------------------------------------------------------------------
+      if (err instanceof MissingManagerError || err instanceof ManagedAccountsRemainError) {
+        sendJson(res, 409, { error: { message: err.message, type: "conflict" } });
+        return true;
+      }
       throw err;
     }
     // A role change must bind immediately, not at next login: an operator
@@ -328,7 +352,11 @@ export async function handleGovernanceAccountRoutes(
       sendInvalidRequest(res, "agentIds must be an array of strings");
       return true;
     }
-    const normalized = (agentIds as string[]).map((id) => id.trim()).filter(Boolean);
+    // Folded, not merely trimmed. The store folds on the way in regardless
+    // (finding 200), so trimming here left this surface reporting a spelling
+    // the installation does not hold — and handing the same unfolded list to
+    // the session mirror below, which is finding 210.
+    const normalized = normalizeAgentIds(agentIds as string[]);
     // Through the registry, not straight to the account file (M4). The rule it
     // adds — an account may only hold agents its own Administrator owns — joins
     // two stores, and `agent-registry.ts` is the one that owns the join. The
@@ -388,11 +416,93 @@ export async function handleGovernanceAccountRoutes(
         sendJson(res, 409, { error: { message: err.message, type: "would_lock_out" } });
         return true;
       }
+      // Deleting an Administrator who still has people answering to them
+      // (finding 196). A conflict with a named way forward, not a 500.
+      if (err instanceof ManagedAccountsRemainError) {
+        sendJson(res, 409, { error: { message: err.message, type: "conflict" } });
+        return true;
+      }
       throw err;
     }
     // Sessions outlive the account otherwise, for up to the session TTL.
     await revokeSessionsForUser(userId);
     sendJson(res, 200, { ok: true });
+    return true;
+  }
+
+  // ---------------------------------------------------------------------
+  // Deleting the organisation.
+  //
+  // **In this file rather than a new one**, because it does not break the
+  // single authorization rule the header claims: it is Root-only account
+  // administration, and it is the widest instance of it — the act that removes
+  // every account this file's other routes create, rename and assign. A reader
+  // asking "who can delete an account?" should not have to find a second file
+  // to learn that "all of them at once" has a different answer.
+  //
+  // **It is a route rather than a wider `users/delete`.** Root asking to delete
+  // its own row and Root asking to delete the organisation are different
+  // requests: one is refused (`guardDeletion`) because it strands everybody
+  // below, the other is granted because it takes everybody below with it. Two
+  // meanings behind one path, separated by which id happened to be posted, is
+  // how a mis-click becomes an unrecoverable installation.
+  //
+  // The confirmation is checked in the domain module, not here, so the command
+  // line asks for the same word.
+  // ---------------------------------------------------------------------
+  if (route === "organisation/delete" && req.method === "POST") {
+    if (!requireRole(res, session, "root")) {
+      return true;
+    }
+    const body = await readJsonObjectBodyOrError(req, res);
+    if (body === undefined) {
+      return true;
+    }
+    const confirm = (body as { confirm?: unknown }).confirm;
+    if (typeof confirm !== "string") {
+      sendInvalidRequest(res, "confirm is required and must be the Root username");
+      return true;
+    }
+    // The group comes from the session and never from the body — the one write
+    // `requireGroup` exists to prevent, and the one where naming another
+    // organisation would be worst. Through the helper rather than reading
+    // `session.groupId` directly: an absent group must refuse here, where the
+    // alternative is a `groupDir("")` throw reported as a 500.
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
+    const result = await deleteOrganisation(
+      { groupId, actingUserId: session.userId, confirmation: confirm },
+      auditActor(session),
+    );
+    if (!result.ok) {
+      // 409 rather than 403: every refusal here is about the state of the
+      // organisation or the word that was typed, not about the caller's tier —
+      // that was already settled by `requireRole`.
+      sendJson(res, 409, {
+        error: {
+          message: result.message,
+          type: "conflict",
+          stage: result.stage,
+          remedy: result.remedy,
+          agentsDeleted: result.agentsDeleted,
+        },
+      });
+      return true;
+    }
+    // No cookie is cleared here. The session record is already gone — every
+    // account in the group was revoked — so the cookie names nothing, and
+    // `verifySession` rejects it on the next request. Clearing it as well would
+    // add a second thing to keep true about a session that no longer exists.
+    sendJson(res, 200, {
+      ok: true,
+      accountsDeleted: result.accountsDeleted,
+      agentsDeleted: result.agentsDeleted,
+      ledgerRetainedAt: result.ledgerRetainedAt,
+      attachmentsRetained: result.attachmentsRetained,
+      residue: result.residue,
+    });
     return true;
   }
   return false;

@@ -61,7 +61,9 @@ let adminId: string;
 
 /** Sets what the host's roster currently contains. */
 function hostRoster(ids: readonly string[]): void {
-  loadConfigMock.mockResolvedValue({
+  // `mockReturnValue`, not `mockResolvedValue`: the real `loadConfig` is
+  // synchronous (finding 221).
+  loadConfigMock.mockReturnValue({
     agents: { entries: Object.fromEntries(ids.map((id) => [id, {}])) },
   });
 }

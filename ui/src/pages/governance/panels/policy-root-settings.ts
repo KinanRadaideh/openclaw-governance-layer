@@ -73,7 +73,7 @@ export function renderRootPolicySettings(
                   if (!Number.isFinite(seconds)) {
                     return;
                   }
-                  props.run(async () => {
+                  void props.run(async () => {
                     await props.api().setHitlTimeout(Math.round(seconds));
                     props.onDraft({ hitlTimeoutDraft: "" });
                   });
@@ -112,7 +112,7 @@ export function renderRootPolicySettings(
                   class="btn"
                   ?disabled=${props.busy || !props.drafts.userAskUsername.trim()}
                   @click=${() => {
-                    props.run(async () => {
+                    void props.run(async () => {
                       await props.api().setUserAsk(props.drafts.userAskUsername.trim(), ask);
                       props.onDraft({ userAskUsername: "" });
                     });

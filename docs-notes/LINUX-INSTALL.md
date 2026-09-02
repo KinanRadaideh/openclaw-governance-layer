@@ -257,6 +257,102 @@ plain SSH session, before any tunnel exists.
 
 ---
 
+## 6b. Give it a model — Kimi (Moonshot)
+
+`openclaw onboard` will ask for a provider. If you are bringing a Kimi
+subscription and API key, this is the whole configuration.
+
+**The provider id is `moonshot`.** `moonshotai` and `moonshot-ai` are accepted
+aliases; the display name is "Moonshot AI". The base URL is
+`https://api.moonshot.ai/v1`, and the models are the `kimi-*` family
+(`kimi-k2`, `kimi-k2.5`, `kimi-k3`, …).
+
+Two ways in, and they are equivalent:
+
+```bash
+# Interactive — pastes the key into auth-profiles.json and updates the config.
+openclaw models auth paste-api-key --provider moonshot
+
+# Or by environment, which the service unit can carry.
+export KIMI_API_KEY=sk-...        # MOONSHOT_API_KEY works too; either is read
+```
+
+Then pick the model and confirm the host agrees with you:
+
+```bash
+openclaw models list              # what this installation can actually reach
+openclaw models set moonshot/kimi-k2
+openclaw models status
+```
+
+> **Put the key in the service environment, not just your shell.** The Gateway
+> runs under systemd, which does not read your shell profile — the same reason
+> the installer symlinks into `/usr/local/bin` rather than using pnpm's global
+> bin. If you export `KIMI_API_KEY` in `~/.bashrc` and then `systemctl restart`,
+> the daemon will not see it. Use `systemctl edit --user openclaw` and add an
+> `Environment=` line, or the `paste-api-key` route above, which writes it into
+> the config where the daemon reads it.
+
+### Why the governance layer covers this without any extra step
+
+Worth stating explicitly, because it is the question a supervisor asks and the
+answer is structural rather than incidental.
+
+**The gate sits at `runBeforeToolCallHook`, which is provider-agnostic.** It
+inspects a tool call — a command, a path, a hostname — and knows nothing about
+which model produced it. Swapping Anthropic for Moonshot changes who decides
+_what to attempt_; it changes nothing about who decides _whether it is allowed_.
+
+There is exactly one deployment shape where that is not automatically true, and
+it is not this one. OpenClaw can run an agent inside a **separate helper
+process** — the Codex native harness — which executes tools itself and only
+reaches the gate if the host writes a relay hook into that helper's
+configuration. That was finding B1. Kimi over an API key does **not** use the
+native harness: it runs through the ordinary in-process agent runner, where the
+gate is unavoidable.
+
+The Codex backend is **off unless Root turns it on** (`governance backend
+status` will say `disabled (nobody has decided; the safe default stands)`), so
+the one path with a stated enforcement gap is not reachable by accident. Leave
+it off for the demonstration.
+
+### Before you drive it: rehearse the sequence
+
+```bash
+pnpm exec tsx scripts/governance-demo-rehearsal.mjs
+```
+
+**20 checks, and it exits non-zero if any fail.** It walks the exact sequence a
+demonstration walks, against real modules and a real governance directory it
+creates and removes: bootstrap the organisation and its Root, create the
+Administrator that owns agents, register the agent, watch the gate refuse an
+unregistered one, refuse an unlisted command, refuse a credential path outright,
+allow exactly what a rule names, stop the agent and confirm the stop outranks
+the allow rule, release it, then verify the ledger — including **tampering with
+an entry and confirming verification fails**, and confirming a bearer token
+never reaches the trail.
+
+Run it after the install and before the demonstration. It is the difference
+between "the tests pass" and "the thing I am about to show works".
+
+### What has not been verified
+
+**No live call has been made to Kimi from this fork.** The provider is supported
+by the host (it ships the id, the base URL, the env-key mapping and a streaming
+adapter for it), and the governance argument above is structural — but the
+sentence "we drove Kimi through the gate and watched it refuse a command" cannot
+be written until somebody does it. That is the first thing to do on the VPS, and
+the ledger is where the evidence will be:
+
+```bash
+openclaw governance audit tail
+```
+
+An entry naming the agent, the command it attempted and the decision is the
+demonstration. Take a copy of that output — it is Chapter 4 evidence.
+
+---
+
 ## Troubleshooting
 
 | Symptom                                             | Cause                                                                                                                  |
@@ -332,13 +428,13 @@ write through one `writeGovernanceJson` that states both modes.
 
 **After both fixes the suite is green on Linux for the first time:**
 
-| Step (Ubuntu 24.04, Node v22.23.2, 2026-09-01) | Result                                                                                                          |
-| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `git clone` into a Linux filesystem            | ok                                                                                                              |
-| `pnpm install --frozen-lockfile`               | **ok, 12s**                                                                                                     |
-| `pnpm build`                                   | ok — `dist/entry.js` produced                                                                                   |
-| **Governance suite**                           | **2,548 passed / 133 files, 0 failed** (re-run after the third segment sweep; 2,536 / 132 earlier the same day) |
-| Governance directory and file modes            | **0700 / 0600**, checked by `stat`                                                                              |
+| Step (Ubuntu 24.04, Node v22.23.2, 2026-09-01) | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `git clone` into a Linux filesystem            | ok                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `pnpm install --frozen-lockfile`               | **ok, 12s**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `pnpm build`                                   | ok — `dist/entry.js` produced                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **Governance suite**                           | **2,548 passed / 133 files, 0 failed** (re-run after the third segment sweep; 2,536 / 132 earlier the same day). **This is the last figure measured _on Linux_.** The suite has since grown to 2,679 / 143 on Windows, after T44 and the fourth through eighth segment sweeps — nothing in those is platform-specific, but the number here is not a Linux measurement of them and should not be quoted as one. **Re-run this on Linux before quoting a Linux figure**: findings 209–220 changed session issuance, agent-id folding, organisation deletion and the CLI's transcript gate, none of which is platform-dependent, and none of which has been measured on Ubuntu |
+| Governance directory and file modes            | **0700 / 0600**, checked by `stat`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 That is a stronger statement than the one this document could make on
 2026-08-28, and it is the one to quote: the layer's own tests now pass **on the

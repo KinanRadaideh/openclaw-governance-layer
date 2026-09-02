@@ -86,8 +86,10 @@ async function get(
     end(chunk?: unknown) {
       if (typeof chunk === "string") {
         payload = chunk;
-      } else if (chunk) {
-        payload = String(chunk);
+      } else if (chunk instanceof Uint8Array) {
+        payload = Buffer.from(chunk).toString("utf8");
+      } else if (chunk !== undefined && chunk !== null) {
+        payload = JSON.stringify(chunk);
       }
       return this;
     },

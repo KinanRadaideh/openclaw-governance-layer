@@ -14,6 +14,7 @@
 import { readJsonIfExists } from "../infra/json-files.js";
 import { ADMIN_ACTIONS, recordAdminAction } from "./admin-audit.js";
 import { withFileLock } from "./file-lock.js";
+import { newGovernanceId } from "./ids.js";
 import { ruleRequestsFilePath, ensureGroupDir } from "./paths.js";
 import type { ResourceKind } from "./policy-types.js";
 import type { GovernanceRole } from "./roles.js";
@@ -220,7 +221,7 @@ export async function submitRuleRequest(
       );
     }
     const request: RuleRequest = {
-      id: `req-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: newGovernanceId("req"),
       // `kind` is written only for the new shape, so a rule request on disk is
       // byte-identical to one written before T4 and every existing reader keeps
       // working without a version check.
@@ -302,9 +303,21 @@ export async function decideRuleRequest(
     },
     action: ADMIN_ACTIONS.ruleRequestDecide,
     outcome: params.approve ? "allow" : "deny",
-    target:
-      `${params.approve ? "approved" : "rejected"} ${decided.requestedBy}'s request for ` +
-      `${decided.resourceKind} ${decided.pattern}`,
+    // **Through `describeRequest`, which exists for exactly this** (finding
+    // 201). This sentence was hand-rolled from `resourceKind` and `pattern` —
+    // two fields the `agent-setting` arm of `RuleRequest` does not have. So
+    // approving a posture or escalation request, the kind that changes what the
+    // gate *enforces* for an agent, wrote:
+    //
+    //     approved malek's request for undefined undefined
+    //
+    // into the tamper-evident trail, while the submission entry three functions
+    // above described it correctly, because that one goes through the helper.
+    // `describeRequest`'s own doc says why it exists: "an Administrator reading
+    // the ledger and an Administrator reading the review list see the same
+    // words. Two descriptions of one request is how the two drift." There were
+    // two descriptions, and one of them had drifted into nonsense.
+    target: `${params.approve ? "approved" : "rejected"} ${decided.requestedBy}'s request: ${describeRequest(decided)}`,
     subjectId: decided.id,
     ...(decided.agentId ? { agentId: decided.agentId } : {}),
   });

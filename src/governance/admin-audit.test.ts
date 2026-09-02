@@ -156,7 +156,7 @@ describe("account changes are attributable", () => {
     const entry = (await adminEntries()).find(
       (candidate) =>
         candidate.toolName === ADMIN_ACTIONS.userCreate &&
-        candidate.resource?.includes("malek") === true,
+        (candidate.resource?.includes("malek") ?? false),
     );
     expect(entry?.actor).toBe("root");
     expect(entry?.resource).toContain("malek");

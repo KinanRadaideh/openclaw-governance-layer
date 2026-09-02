@@ -41,6 +41,28 @@ plain terms.
 F17's own warning about stale numbers said "148 findings" when there were 182 —
 a stale count inside a caution about stale counts.
 
+### Re-checked against the seventh and eighth segment sweeps, 2026-09-02
+
+Findings 209–219 changed authorization, session state, organisation deletion and
+the Codex ledger entries, so every figure touching those was read again.
+**Nothing needed redrawing**, and the two near misses are worth recording
+because they are the figures that _would_ have been wrong under a slightly
+different fix:
+
+|                                     |                                                                                                                                                                                                                                                                                                  |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **F2 stayed correct — narrowly**    | Its User box reads "prompt, request rules, and stop **my** agents", which is right and does **not** claim posture. `permissions.ts` and `GOVERNANCE.md` both did claim it (finding 218). The figure corrected on 2026-09-01 was therefore the artefact that stayed true while two others drifted |
+| **F21 unaffected**                  | It draws the two runtime gates, not the ledger. Finding 217 split `governance.backend.codex` into a request/completion pair, which is a record shape rather than a decision path                                                                                                                 |
+| **F10 (prompt lifecycle) verified** | It shows the four checks the prompt path makes. Finding 216 was that the **transcript** command made two of them; the figure was already drawing the route's behaviour, which is what both surfaces now do                                                                                       |
+| **F19 (tenant model) verified**     | Finding 211 changed what survives a deletion — the ledger **and the attachments its entries name** — which the figure does not enumerate                                                                                                                                                         |
+
+**One caption is worth adding if F2 is used**: the emergency stop sits at User,
+_scoped to the agents assigned to that account_ — and finding 215 was the
+dashboard disabling that very button for an agent the operator does hold,
+because it compared the typed id without folding it. The figure's claim was
+right and the implementation of it was not, which is the case a reviewer looking
+at four boxes is placed to catch.
+
 ---
 
 ## What to add to the LaTeX preamble
@@ -253,8 +275,9 @@ rather than one agent: creating and registering them, assigning them to accounts
 editing rules, changing the posture, and deciding rule requests. **Root**
 inherits everything and adds the capabilities that concern the installation
 itself: account management, the approval timeout, switching a shipped core denial
-off, the agent backend, and the deployment report. Because each tier is a
-superset of the one below, no capability needs to be listed twice, and the only
+off, the agent backend, the deployment report, and — since T44 — **deleting the
+organisation**, the one act that removes Root's own account. Because each tier is
+a superset of the one below, no capability needs to be listed twice, and the only
 question at any endpoint is which tier it requires.
 
 Two scope qualifications apply. Every capability above is bounded by the

@@ -24,7 +24,12 @@ import {
 import { isGovernanceRole } from "../governance/roles.js";
 import { issueSession, revokeSession, verifySession } from "../governance/session-tokens.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
-import { authenticate, createUser, newGroupId } from "../governance/user-store.js";
+import {
+  authenticate,
+  createUser,
+  installationHasOrganisation,
+  newGroupId,
+} from "../governance/user-store.js";
 import type { AuthRateLimiter } from "./auth-rate-limit.js";
 import type { ResolvedGatewayAuth } from "./auth.js";
 import { authorizeControlUiReadRequest } from "./control-ui.js";
@@ -209,11 +214,17 @@ export async function handleGovernanceAuthRequest(
     return true;
   }
 
-  // One-time bootstrap: create the first Root account. Refuses once any
-  // account exists, so this cannot be used to mint a second privileged
-  // account later — ordinary account creation after that point is an
-  // administrator/root dashboard action (src/governance/user-store.ts
-  // createUser), not this endpoint.
+  // Bootstrap: create the first Root account, and with it the installation's
+  // one organisation. Refused once that organisation exists — see the 409
+  // below, which is also the signal the dashboard reads to decide which form to
+  // show. Ordinary account creation after that point is a Root dashboard action
+  // (`createUser`), not this endpoint.
+  //
+  // _(This comment read "One-time bootstrap … refuses once any account exists"
+  // while the block immediately below it explained that M3 had made it **not**
+  // one-time. Two comments in one route contradicting each other, and the one
+  // that was wrong was the one a reader meets first — corrected 2026-09-01 with
+  // finding 205.)_
   if (pathname === `${GOVERNANCE_AUTH_PATH_PREFIX}bootstrap-root` && req.method === "POST") {
     // ------------------------------------------------------------------
     // **Creating a Root now creates a group, and it is no longer one-time (M3).**
@@ -237,7 +248,48 @@ export async function handleGovernanceAuthRequest(
     // "anyone who can reach the host". On a deployment that exposes this port
     // directly, this endpoint is self-service Root and must be fronted by
     // something that decides who may ask.
+    //
+    // **Narrowed again on 2026-08-30 by the one-organisation cap**, which the
+    // paragraph above predates: an installation hosts one organisation, so this
+    // endpoint is self-service Root **once**, on an unclaimed installation, and
+    // is refused for ever afterwards. The exposure is real and is bounded by
+    // whoever gets there first.
     // ------------------------------------------------------------------
+    //
+    // ------------------------------------------------------------------
+    // **Answered before the body is read, and that ordering is the fix**
+    // (finding 205).
+    //
+    // The dashboard decides between the sign-in form and the create-the-first-
+    // account form by calling this route with **empty credentials** and reading
+    // the status: a refusal that means "already claimed" tells it to show
+    // sign-in, and a complaint about the body tells it the installation is
+    // unclaimed. Its comment said the server answered the first question first.
+    // It did not — M3 deleted that check, and the one-organisation cap restored
+    // the *behaviour* inside `createUser`, which runs after body validation and
+    // reports 400 like any malformed request. **Both states answered 400, so
+    // every visitor to an established installation was offered the bootstrap
+    // form**, and filling it in produced "this installation already hosts an
+    // organisation".
+    //
+    // 409 rather than 400 because it is a conflict with the state of the
+    // installation and not a fault in the request — the same distinction the
+    // account routes already draw with `would_lock_out`. It discloses one bit,
+    // *is this installation claimed*, which the form's own refusal disclosed
+    // already and which the operator must be told in order to be shown the
+    // right screen.
+    // ------------------------------------------------------------------
+    if (await installationHasOrganisation()) {
+      sendJson(res, 409, {
+        error: {
+          message:
+            "This installation already hosts an organisation. Sign in instead — " +
+            "a second organisation needs a second installation.",
+          type: "conflict",
+        },
+      });
+      return true;
+    }
     const body = await readJsonBodyOrError(req, res, MAX_LOGIN_BODY_BYTES);
     if (body === undefined) {
       return true;

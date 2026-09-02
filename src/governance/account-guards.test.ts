@@ -9,14 +9,14 @@ const viewer: AccountSummary = { id: "u4", username: "viewer", role: "viewer" };
 describe("guardRoleChange", () => {
   it("refuses to demote the only Root", () => {
     const result = guardRoleChange([rootA, admin, viewer], "u1", "administrator");
-    expect(result.allowed).toBe(false);
+    if (result.allowed) {
+      throw new Error("expected a refusal, and the guard allowed it");
+    }
     // Asserts the rule the refusal states, not its old phrasing. The message
     // used to say "promote another account to Root first", which the upper
     // bound refuses — so the test now also pins that the advice is gone.
-    expect(result.allowed === false && result.reason).toMatch(/exactly one Root/);
-    expect(result.allowed === false && result.reason).not.toMatch(
-      /promote another account to Root/,
-    );
+    expect(result.reason).toMatch(/exactly one Root/);
+    expect(result.reason).not.toMatch(/promote another account to Root/);
   });
 
   it("allows demoting one Root when another remains", () => {
@@ -50,17 +50,19 @@ describe("guardDeletion", () => {
     // Blocked even though another Root exists, so this is the self-delete rule
     // firing rather than the last-Root rule.
     const result = guardDeletion([rootA, rootB], "u1", "u1");
-    expect(result.allowed).toBe(false);
-    expect(result.allowed === false && result.reason).toMatch(/signed in with/);
+    if (result.allowed) {
+      throw new Error("expected a refusal, and the guard allowed it");
+    }
+    expect(result.reason).toMatch(/signed in with/);
   });
 
   it("refuses deleting the only Root", () => {
     const result = guardDeletion([rootA, admin], "u1", "u3");
-    expect(result.allowed).toBe(false);
-    expect(result.allowed === false && result.reason).toMatch(/exactly one Root/);
-    expect(result.allowed === false && result.reason).not.toMatch(
-      /promote another account to Root/,
-    );
+    if (result.allowed) {
+      throw new Error("expected a refusal, and the guard allowed it");
+    }
+    expect(result.reason).toMatch(/exactly one Root/);
+    expect(result.reason).not.toMatch(/promote another account to Root/);
   });
 
   it("allows deleting a Root when another Root remains", () => {
@@ -80,7 +82,9 @@ describe("guardDeletion", () => {
     // Only Root, deleting themselves: the actionable advice is "you cannot
     // delete yourself", so that message must win.
     const result = guardDeletion([rootA], "u1", "u1");
-    expect(result.allowed).toBe(false);
-    expect(result.allowed === false && result.reason).toMatch(/signed in with/);
+    if (result.allowed) {
+      throw new Error("expected a refusal, and the guard allowed it");
+    }
+    expect(result.reason).toMatch(/signed in with/);
   });
 });

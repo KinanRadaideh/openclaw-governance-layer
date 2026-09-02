@@ -3759,6 +3759,7 @@ export const en: TranslationMap = {
         "Root manages people; Administrator manages agents. Viewers see the audit trail with resource details masked.",
       addButton: "Create account",
       rootPermanent: "root — permanent, cannot be changed",
+      willAnswerTo: "will answer to {username}",
       setPassword: "Set password",
       newPasswordFor: "New password for {username}",
       newUsernameLabel: "New account username",
@@ -3771,9 +3772,30 @@ export const en: TranslationMap = {
       agentsPlaceholder: "Assigned agents (comma separated)",
       policyAuthoringWithhold: "Withhold rule editing",
       policyAuthoringGrant: "Allow rule editing",
+      cannotDeleteSelfHint:
+        "To remove your own Root account, delete the organisation below — that removes every account and every agent with it.",
       policyAuthoringHint:
         "Whether this account may change the rules for the agents it manages. Withholding keeps everything else: they can still read the policy and audit log, prompt and stop their agents, and request rule changes for an Administrator to approve.",
       saveAgents: "Save agents",
+    },
+    organisation: {
+      title: "Organisation",
+      deleteTitle: "Delete this organisation",
+      deleteHint:
+        "Removes all {accounts} account(s) — including your own Root account, {username} — and every agent in this organisation, from OpenClaw as well as from governance. You will be signed out and there is no way back in: there is no password reset. The audit ledger is kept: it is the record of what happened here and is not an operator's to delete. The next account created on this installation starts a new organisation.",
+      confirmLabel: "Type {username} to confirm",
+      typeToEnable: "Type {username} exactly to enable this",
+      deleteButton: "Delete organisation",
+      confirmMessage: "Delete this organisation and everything in it?",
+      confirmDetails:
+        "Every account and every agent goes, your own Root account included. The agents are deleted from OpenClaw, not just unregistered. This cannot be undone.",
+      confirmAction: "Delete everything",
+      deleted:
+        "Organisation deleted: {accounts} account(s) and {agents} agent(s) removed. Its audit ledger was kept on the server.",
+      deletedWithEvidence:
+        "Organisation deleted: {accounts} account(s) and {agents} agent(s) removed. Its audit ledger was kept on the server, with {attachments} attachment(s) its entries name.",
+      deletedResidue:
+        "Organisation deleted, but some files could not be removed and are left on the server: {residue}",
     },
     pending: {
       title: "Awaiting your decision",
@@ -3907,6 +3929,8 @@ export const en: TranslationMap = {
         "Lockdown engaged, but no in-flight run matched that agent id. The agent will be blocked from further actions; check whether the id is correct and whether anything is still executing.",
       noticeNoTermination:
         "Lockdown engaged, but in-flight termination is unavailable here — anything the agent is doing right now continues until it finishes. Further actions are blocked.",
+      noticeAuditFailed:
+        "Lockdown engaged — the agent IS stopped. But this stop could not be written to the audit ledger, so the trail has no record of it: {reason}. Check the governance directory is writable, then note the stop by hand.",
       engage: "Lock down an agent",
       /**
        * ~~"Root only."~~ **Wrong on every surface, and wrong for the life of the

@@ -62,7 +62,7 @@ const OUTSIDE_WORKSPACE = "^([A-Za-z]:/|/)";
  * expansion mechanical.
  */
 function anyCase(literal: string): string {
-  return [...literal]
+  return Array.from(literal)
     .map((char) => {
       const lower = char.toLowerCase();
       const upper = char.toUpperCase();

@@ -17,7 +17,10 @@ import {
   countUsers,
   createUser,
   deleteUser,
+  findUsersForAgent,
   listUsers,
+  newGroupId,
+  setUserAssignedAgents,
   setUserPassword,
   setUserRole,
 } from "./user-store.js";
@@ -462,5 +465,108 @@ describe("password cost can be raised later (B9)", () => {
     await expect(setUserPassword(user.id, "short", "root-user")).rejects.toThrow();
     // The old password must still work after a refused reset.
     expect(await authenticate("malek", "correct-horse-battery")).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Finding 200 — the assignment list was the one identifier kept as typed.
+//
+// Every id it is compared against is canonical: the host mints session keys
+// through `normalizeAgentId`, the registry stores canonical ids, and the gate
+// resolves an agent id out of a session key. This list trimmed and nothing
+// else, so an assignment typed with different case was accepted, stored, echoed
+// back and never consulted — `account-name.ts`'s sentence about a governance
+// control that silently does nothing, on the other identifier.
+// ---------------------------------------------------------------------------
+describe("assigned agent ids are folded the way every other id is (finding 200)", () => {
+  it("stores the canonical id, so a permission check can match it", async () => {
+    const group = newGroupId();
+    const account = await createUser(
+      {
+        username: "assignee",
+        password: "correct-horse-battery",
+        role: "administrator",
+        groupId: group,
+      },
+      { name: "test", role: "root" },
+    );
+
+    await setUserAssignedAgents(account.id, ["Scout", "  AGENT-B  "], {
+      name: "test",
+      role: "root",
+    });
+
+    const stored = (await listUsers(group)).find((entry) => entry.id === account.id);
+    expect(stored?.assignedAgents).toEqual(["scout", "agent-b"]);
+    // The comparison the gate actually performs, which answered `false` before.
+    expect(stored?.assignedAgents.includes("scout")).toBe(true);
+  });
+
+  it("finds the account behind an agent whatever case it was assigned in", async () => {
+    const group = newGroupId();
+    const admin = await createUser(
+      {
+        username: "boss",
+        password: "correct-horse-battery",
+        role: "administrator",
+        groupId: group,
+      },
+      { name: "test", role: "root" },
+    );
+    const account = await createUser(
+      {
+        username: "holder",
+        password: "correct-horse-battery",
+        role: "user",
+        groupId: group,
+        managedBy: admin.id,
+        assignedAgents: ["Scout"],
+      },
+      { name: "test", role: "root" },
+    );
+
+    // The bridge the per-user escalation axis crosses: with an unfolded list it
+    // found nobody, so `userAsk` had no account to ask.
+    expect(await findUsersForAgent("scout", group)).toContain("holder");
+    expect(account.assignedAgents).toEqual(["scout"]);
+  });
+
+  it("does not turn an id with no canonical form into the default agent", async () => {
+    const group = newGroupId();
+    const account = await createUser(
+      {
+        username: "typo",
+        password: "correct-horse-battery",
+        role: "administrator",
+        groupId: group,
+      },
+      { name: "test", role: "root" },
+    );
+
+    await setUserAssignedAgents(account.id, ["###", "   ", "-"], { name: "test", role: "root" });
+
+    // `normalizeAgentId` is a coercion, not a validator: unfiltered, each of
+    // these folds to `main` and would assign the installation's default agent.
+    // Finding 129's trap, reached from a different direction.
+    const stored = (await listUsers(group)).find((entry) => entry.id === account.id);
+    expect(stored?.assignedAgents).toEqual([]);
+  });
+
+  it("still lets `main` be assigned when it is what was meant", async () => {
+    const group = newGroupId();
+    const account = await createUser(
+      {
+        username: "mainly",
+        password: "correct-horse-battery",
+        role: "administrator",
+        groupId: group,
+      },
+      { name: "test", role: "root" },
+    );
+
+    await setUserAssignedAgents(account.id, ["Main"], { name: "test", role: "root" });
+
+    const stored = (await listUsers(group)).find((entry) => entry.id === account.id);
+    expect(stored?.assignedAgents).toEqual(["main"]);
   });
 });

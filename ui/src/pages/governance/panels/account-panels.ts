@@ -37,7 +37,7 @@
 // *showing a dialog and running the action* is the page's job. Splitting it
 // that way keeps the sentence an operator reads next to the markup it belongs
 // to.
-import { html, nothing, type TemplateResult } from "lit";
+import { html, nothing, type ReactiveControllerHost, type TemplateResult } from "lit";
 import type { GovernanceRole } from "../../../../../src/governance/roles.ts";
 import {
   renderSettingsRow,
@@ -76,6 +76,49 @@ const ASSIGNABLE_ROLE_OPTIONS: ReadonlyArray<{ value: GovernanceRole; label: str
 ];
 
 /**
+ * Which Administrator would answer for this account if it were demoted into a
+ * managed tier, or `undefined` if none could.
+ *
+ * **The server has required this since the store gained its `managedBy`
+ * parameter, and this control never sent one** (finding 197). Every demotion of
+ * an Administrator to User or Viewer therefore reached `MissingManagerError`
+ * and came back as a 500 — the store closed a dead end ("an Administrator could
+ * never be demoted at all") and the dead end moved to the surface instead of
+ * closing.
+ *
+ * An account that already has a manager keeps it, so switching a User to a
+ * Viewer is unchanged. Only an Administrator being demoted needs a successor
+ * chosen, and the first other Administrator is chosen rather than prompted for:
+ * the alternative is another control on the busiest row of the page, and the
+ * choice is visible in the confirmation and changeable afterwards through the
+ * ordinary manager field.
+ */
+function successorFor(
+  user: GovernanceUserRecord,
+  props: AccountsPanelProps,
+): GovernanceUserRecord | undefined {
+  return props.administrators.find((candidate) => candidate.id !== user.id);
+}
+
+/**
+ * The roles this account may actually be given.
+ *
+ * Narrowed for the same reason `root` is absent from the list entirely: the
+ * page does not offer a control whose only possible outcome is a refusal. An
+ * Administrator with nobody else to answer for them cannot become a User or a
+ * Viewer, so those options are withheld rather than shown and rejected.
+ */
+function roleOptionsFor(
+  user: GovernanceUserRecord,
+  props: AccountsPanelProps,
+): ReadonlyArray<{ value: GovernanceRole; label: string }> {
+  if (user.role !== "administrator" || successorFor(user, props)) {
+    return ASSIGNABLE_ROLE_OPTIONS;
+  }
+  return ASSIGNABLE_ROLE_OPTIONS.filter((option) => option.value === "administrator");
+}
+
+/**
  * Shortest password the server will accept.
  *
  * Mirrored by hand from `MIN_PASSWORD_LENGTH` in `src/governance/user-store.ts`,
@@ -94,12 +137,31 @@ export const MIN_PASSWORD_LENGTH = 8;
  */
 export type SetPasswordContext = PanelEffects & {
   identity: GovernanceIdentity | null;
-  passwordEdits: Record<string, string>;
+  /**
+   * The whole draft bundle rather than the one field it reads.
+   *
+   * So a caller can hand it `...controller.slice()` and be done, instead of
+   * naming `passwordEdits` and `onDraft` separately — two lines that have to
+   * agree about which controller they came from, at a call site that already
+   * spreads two other bundles.
+   */
+  drafts: AccountDrafts;
   onDraft: (patch: Partial<AccountDrafts>) => void;
   onError: (message: string) => void;
 };
 
-/** Form state an operator is part-way through typing. The page owns it; the panels read and patch it. */
+/**
+ * Form state an operator is part-way through typing, owned by
+ * `AccountsController` below and read by the panels.
+ *
+ * **It used to be six `@state` fields on the page**, and moving it here was not
+ * tidying: `governance-page.ts` sits against a 700-line limit the project set
+ * itself, it was at exactly 700, and the organisation panel could not be added
+ * to it at all. The registry panel had already established the answer (M6) —
+ * a panel owns its own drafts — and these were the last set that had not
+ * followed. The page keeps what the page is for: identity, server data,
+ * lifecycle.
+ */
 export type AccountDrafts = {
   agentEdits: Record<string, string>;
   passwordEdits: Record<string, string>;
@@ -107,7 +169,75 @@ export type AccountDrafts = {
   newUserPassword: string;
   newUserRole: GovernanceRole;
   newUserManagedBy: string;
+  /**
+   * The Root username as typed into the organisation-deletion field.
+   *
+   * Here rather than in a controller of its own because it is the same subject
+   * — Root administering accounts — and because two controllers on one page
+   * both exposing `onDraft` is the collision the registry panel's `slice()`
+   * warns about, one page further along.
+   */
+  orgConfirmName: string;
+  /** The outcome of the last organisation deletion, kept until the next action. */
+  orgNotice: string;
 };
+
+export function emptyAccountDrafts(): AccountDrafts {
+  return {
+    agentEdits: {},
+    passwordEdits: {},
+    newUserName: "",
+    newUserPassword: "",
+    newUserRole: "viewer",
+    newUserManagedBy: "",
+    orgConfirmName: "",
+    orgNotice: "",
+  };
+}
+
+/**
+ * The account panels' draft state, held off the page.
+ *
+ * The shape `AgentRegistryController` set, including the warning on `slice()`:
+ * spread it **last** into a merged props bundle, because `onDraft` is a name
+ * more than one panel uses.
+ */
+export class AccountsController {
+  private drafts: AccountDrafts = emptyAccountDrafts();
+
+  constructor(private readonly host: ReactiveControllerHost) {
+    host.addController(this);
+  }
+
+  /** Required by `ReactiveController`; this controller has no connect-time work. */
+  hostConnected(): void {}
+
+  slice(): { drafts: AccountDrafts; onDraft: (patch: Partial<AccountDrafts>) => void } {
+    return {
+      drafts: this.drafts,
+      onDraft: (patch) => {
+        // Replaced rather than mutated, then the host is told — Lit re-renders
+        // on identity change.
+        this.drafts = { ...this.drafts, ...patch };
+        this.host.requestUpdate();
+      },
+    };
+  }
+
+  /**
+   * Drops the drafted secrets when a session ends.
+   *
+   * The page called this inline when it owned the field, with a comment
+   * explaining that a half-typed password is the one piece of ended-session
+   * state that is *secret* rather than merely stale. That reasoning moves with
+   * the field: the owner of the state is the right place to know which part of
+   * it must not outlive a session.
+   */
+  clearSecrets(): void {
+    this.drafts = { ...this.drafts, passwordEdits: {}, orgConfirmName: "" };
+    this.host.requestUpdate();
+  }
+}
 
 export type RuleRequestDrafts = {
   requestKind: GovernancePolicyRule["resourceKind"];
@@ -138,7 +268,14 @@ export type PanelEffects = {
 };
 
 export type AccountsPanelProps = PanelEffects & {
-  role: GovernanceRole | undefined;
+  /**
+   * No separate `role` prop, unlike the rule-request panel beside it.
+   *
+   * It carried the same fact as `identity.role` and the page had to keep the
+   * two in step by passing both. One fact, two props, is the shape this project
+   * keeps finding defects in; the tier is read off the identity that already
+   * has to be here for the self-deletion check.
+   */
   identity: GovernanceIdentity | null;
   users: readonly GovernanceUserRecord[];
   /** Accounts eligible to manage a User or Viewer (M3). Derived by the page so both panels agree. */
@@ -170,7 +307,7 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
   // Account administration is the Root tier's defining responsibility: the
   // design doc gives Root the human side of the system and Administrator the
   // agent side, so this section is hidden below Root entirely.
-  if (props.role !== "root") {
+  if (props.identity?.role !== "root") {
     return nothing;
   }
   return renderSettingsSection({ title: t("governance.users.title") }, [
@@ -192,21 +329,37 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
               : renderSettingsSegmented({
                   value: user.role,
                   disabled: props.busy,
-                  options: ASSIGNABLE_ROLE_OPTIONS,
+                  options: roleOptionsFor(user, props),
                   // A privilege change used to apply the instant the control
                   // was clicked, including a mis-click onto a higher tier. It
                   // is the most consequential control on the page and had the
                   // lightest interaction of any of them.
-                  onChange: (role) =>
-                    props.confirmThen(
+                  onChange: (role) => {
+                    void props.confirmThen(
                       {
                         message: t("governance.confirm.changeRole"),
-                        details: `${user.username}: ${user.role} → ${role}`,
+                        details: `${user.username}: ${user.role} → ${role}${
+                          successorFor(user, props)
+                            ? ` (${t("governance.users.willAnswerTo", {
+                                username: successorFor(user, props)?.username ?? "",
+                              })})`
+                            : ""
+                        }`,
                         confirmLabel: t("governance.confirm.changeRoleAction"),
                         danger: role === "administrator",
                       },
-                      () => props.api().setUserRole(user.id, role as GovernanceRole),
-                    ),
+                      () =>
+                        props
+                          .api()
+                          .setUserRole(
+                            user.id,
+                            role as GovernanceRole,
+                            role === "user" || role === "viewer"
+                              ? (user.managedBy ?? successorFor(user, props)?.id)
+                              : undefined,
+                          ),
+                    );
+                  },
                 })}
             ${user.role === "user" || user.role === "viewer"
               ? html`<input
@@ -255,7 +408,7 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
               // Withholding removes *writing policy*, not the tier: the
               // account keeps reading its agents' policy and ledger,
               // prompting them, stopping them, and submitting rule requests.
-              props.role === "root" && user.role === "user"
+              props.identity?.role === "root" && user.role === "user"
                 ? html`<button
                     class="btn"
                     ?disabled=${props.busy}
@@ -313,7 +466,12 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
               class="btn btn--danger"
               ?disabled=${props.busy || user.username === props.identity?.username}
               title=${user.username === props.identity?.username
-                ? t("governance.users.cannotDeleteSelf")
+                ? // Names the act that *does* remove this account rather than
+                  // stopping at "no". Deleting Root on its own is refused
+                  // because it strands everybody below; deleting the
+                  // organisation takes everybody below with it, and is the
+                  // panel immediately underneath this one.
+                  `${t("governance.users.cannotDeleteSelf")} ${t("governance.users.cannotDeleteSelfHint")}`
                 : ""}
               @click=${() =>
                 props.confirmThen(
@@ -630,7 +788,7 @@ export async function setAccountPassword(
   username: string,
   ctx: SetPasswordContext,
 ): Promise<void> {
-  const password = (ctx.passwordEdits[userId] ?? "").trim();
+  const password = (ctx.drafts.passwordEdits[userId] ?? "").trim();
   if (!password) {
     return;
   }
@@ -653,7 +811,7 @@ export async function setAccountPassword(
       // Cleared whatever happens next: on a self-reset the page is about to
       // return to sign-in, and leaving a password sitting in a field behind
       // that transition is the kind of thing nobody notices until it matters.
-      ctx.onDraft({ passwordEdits: { ...ctx.passwordEdits, [userId]: "" } });
+      ctx.onDraft({ passwordEdits: { ...ctx.drafts.passwordEdits, [userId]: "" } });
     },
   );
 }

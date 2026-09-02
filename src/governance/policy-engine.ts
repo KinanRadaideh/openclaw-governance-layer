@@ -711,7 +711,7 @@ export async function evaluateGovernancePolicy(
       blockReason:
         `governance: ${spec.resourceKind} "${first.resource}" is refused by a ` +
         `${first.rule.tier ?? "admin"}-tier deny rule (${first.rule.description ?? first.rule.pattern})` +
-        `${first.rule.tier === "core" ? ". Core rules cannot be overridden by policy." : "."}`,
+        (first.rule.tier === "core" ? ". Core rules cannot be overridden by policy." : "."),
     };
   }
 

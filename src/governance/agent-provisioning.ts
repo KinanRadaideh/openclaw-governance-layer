@@ -194,7 +194,9 @@ function messageOf(err: unknown): string {
  */
 async function hostRosterIds(): Promise<Set<string>> {
   const { loadConfig } = await import("../config/config.js");
-  const cfg = await loadConfig();
+  // `loadConfig` is synchronous — it returns `OpenClawConfig`, not a promise.
+  // The `await` above is the dynamic import and is real.
+  const cfg = loadConfig();
   return new Set(listAgentEntries(cfg).map((entry) => normalizeAgentId(entry.id)));
 }
 

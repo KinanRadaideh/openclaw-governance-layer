@@ -35,6 +35,7 @@ import { randomUUID } from "node:crypto";
 // to the agent, only a new way for an authorised person to ask.
 import { readJsonIfExists } from "../infra/json-files.js";
 import { redactToolPayloadText } from "../logging/redact.js";
+import { normalizeAgentId } from "../routing/session-key.js";
 import { canonicalAccountName } from "./account-name.js";
 import { ADMIN_ACTIONS, recordAdminAction } from "./admin-audit.js";
 import { runAgentPrompt, type AgentRunOutcome } from "./agent-runner.js";
@@ -112,7 +113,14 @@ type ConversationsFile = { version: 1; conversations: Conversation[] };
  * share a conversation — without constraining what a username may be.
  */
 export function governanceSessionKey(agentId: string, username: string): string {
-  return `agent:${agentId}:governance:${encodeAccountSegment(username)}`;
+  // **The agent segment is folded, like the account segment beside it**
+  // (finding 202). The host lowercases session keys anyway — which is the
+  // reason the account segment is encoded — so an unfolded agent id here
+  // produces a key the host rewrites and this module then fails to match its
+  // own stored transcript against. The account axis of this very function was
+  // already handled; the agent axis was not, which is the shape the whole
+  // finding takes across four files.
+  return `agent:${normalizeAgentId(agentId)}:governance:${encodeAccountSegment(username)}`;
 }
 
 /**
@@ -167,7 +175,7 @@ export function parseGovernanceSessionKey(
 }
 
 function encodeAccountSegment(username: string): string {
-  return [...conversationKey(username)]
+  return Array.from(conversationKey(username))
     .map((char) =>
       /[a-z0-9_-]/.test(char)
         ? char
@@ -281,16 +289,25 @@ async function appendTurn(
 /**
  * One account's conversation with one agent, oldest turn first.
  *
- * Scope is the caller's to enforce: this returns what it is asked for, and the
- * HTTP layer decides whether the caller may ask. Keeping the check there rather
- * than here matches every other read in this layer and keeps the authorization
- * rule in one place.
+ * Scope is the caller's to enforce: this returns what it is asked for, and
+ * **each surface** decides whether the caller may ask. Keeping the check there
+ * rather than here matches every other read in this layer and keeps the
+ * authorization rule in one place.
+ *
+ * This sentence read "the HTTP layer decides" for as long as there were two
+ * callers, and the command line was the one it did not name — which is finding
+ * 216. A module that delegates authorization has to say *to whom* in the plural
+ * or the delegation is only documented for whoever wrote it first.
  */
 export async function readConversation(
   groupId: string,
-  agentId: string,
+  rawAgentId: string,
   username: string,
 ): Promise<ConversationTurn[]> {
+  // Folded at entry (finding 202): the stored transcript is keyed by the
+  // canonical id, so reading under the spelling an operator typed returned an
+  // empty conversation for a prompt that had been sent and answered.
+  const agentId = normalizeAgentId(rawAgentId);
   const key = conversationKey(username);
   const file = await readConversations(groupId);
   return (
@@ -336,7 +353,7 @@ export class EmptyPromptError extends Error {
  */
 export async function promptAgent(
   groupId: string,
-  input: {
+  rawInput: {
     agentId: string;
     username: string;
     message: string;
@@ -391,6 +408,23 @@ export async function promptAgent(
     onStart?: (info: { runId: string; sessionKey: string }) => void;
   },
 ): Promise<PromptOutcome> {
+  // ---------------------------------------------------------------------
+  // **Folded once, covering every use below** (finding 202), and the use that
+  // matters is the lockdown check twenty lines down.
+  //
+  // Point 2 of this file's header is *"the kill switch binds at the door"* —
+  // a locked agent must refuse the prompt outright, "otherwise stopping an
+  // agent would still let an operator start it thinking, burn tokens and
+  // produce a reply — an emergency stop that does not stop." That check reads
+  // `policy.lockedAgents`, which holds canonical ids, against whatever id the
+  // request body carried. Typing the agent's id in a different case walked
+  // straight past it.
+  //
+  // Rebound rather than folded at each of the ten call sites below, because
+  // nine of them being right and one being wrong is precisely how this defect
+  // came to exist across four files.
+  // ---------------------------------------------------------------------
+  const input = { ...rawInput, agentId: normalizeAgentId(rawInput.agentId) };
   const message = input.message.trim();
   if (!message) {
     throw new EmptyPromptError();

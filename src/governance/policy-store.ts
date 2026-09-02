@@ -4,10 +4,12 @@
 // own JSON helpers, ../infra/json-files.js, instead of the plugin SDK facade
 // that wrapped them).
 import { readJsonIfExists } from "../infra/json-files.js";
+import { normalizeAgentId } from "../routing/session-key.js";
 import { canonicalAccountName } from "./account-name.js";
 import { ADMIN_ACTIONS, recordAdminAction, type AuditActorInput } from "./admin-audit.js";
 import { BASELINE_RULES, coreRules, seedRuleId, type SeedRule } from "./baseline-policy.js";
 import { withFileLock } from "./file-lock.js";
+import { newGovernanceId } from "./ids.js";
 import { ensureGroupDir, isUnconfiguredTestRun, policyFilePath } from "./paths.js";
 import {
   defaultPolicyDocument,
@@ -77,12 +79,48 @@ export async function loadPolicy(groupId: string): Promise<PolicyDocument> {
       defaults.mode,
     ),
     ask: coerce(merged.ask, (v) => v === "off" || v === "on-miss", defaults.ask),
-    rules: coerce(merged.rules, Array.isArray, defaults.rules).filter(
-      (rule) => typeof rule?.pattern === "string" && typeof rule?.resourceKind === "string",
-    ),
-    lockedAgents: coerce(merged.lockedAgents, Array.isArray, defaults.lockedAgents).filter(
-      (id) => typeof id === "string",
-    ),
+    rules: coerce(merged.rules, Array.isArray, defaults.rules)
+      .filter((rule) => typeof rule?.pattern === "string" && typeof rule?.resourceKind === "string")
+      // An agent-scoped rule binds by `rule.agentId === agentId`, against the
+      // canonical id the gate resolved — so a rule scoped to `Scout` bound
+      // nothing (finding 202). This is the worst of the four in one direction
+      // and the best in the other: an **allow** scoped that way silently did
+      // not grant, and a **deny** scoped that way silently did not forbid.
+      // oxlint-disable-next-line no-map-spread
+      .map((rule) => (rule.agentId ? { ...rule, agentId: normalizeAgentId(rule.agentId) } : rule)),
+    // ------------------------------------------------------------------
+    // **Folded, because this list is compared against the id the gate
+    // resolves** (finding 202), and that id is always canonical: the host mints
+    // session keys through `normalizeAgentId`, and `parseAgentSessionKey`
+    // returns what it minted.
+    //
+    // The kill switch took its agent id **raw from the request body**, and
+    // every check between there and here canonicalised for its own lookup
+    // without passing the canonical form on — `findAgent` did,
+    // `requireAgentInGroup` did, and then `lockAgent` stored what was typed. So
+    // engaging the emergency stop on `Scout`, for an agent whose id is `scout`:
+    //
+    //   - wrote `lockedAgents: ["Scout"]`, which the gate's
+    //     `lockedAgents.includes("scout")` answered `false` to, so **the agent
+    //     was never blocked**;
+    //   - found no runs to abort, because the Gateway's registry is keyed
+    //     canonically too;
+    //   - and reported `stoppedConfirmed: true`, because zero aborted runs is
+    //     read as "nothing was in flight", which is the honest reading of that
+    //     number and the wrong conclusion here.
+    //
+    // The dashboard therefore said *"Lockdown engaged"* over an agent that was
+    // neither stopped nor locked. That is requirement #7 reporting success for
+    // an emergency stop that did nothing.
+    //
+    // Folded **on read** rather than only on write, so a `policy.json` already
+    // holding `Scout` starts locking the moment this build runs, instead of
+    // needing the operator to notice and re-engage. `lockAgent` folds on the
+    // way in as well, so the file converges to canonical form.
+    // ------------------------------------------------------------------
+    lockedAgents: coerce(merged.lockedAgents, Array.isArray, defaults.lockedAgents)
+      .filter((id) => typeof id === "string")
+      .map((id) => normalizeAgentId(id)),
     // Per-agent posture, with **`off` dropped rather than honoured** (QA round
     // 13, finding 80).
     //
@@ -107,10 +145,18 @@ export async function loadPolicy(groupId: string): Promise<PolicyDocument> {
           (v) => typeof v === "object" && v !== null && !Array.isArray(v),
           defaults.agentMode,
         ),
-      ).filter(
-        ([agentId, mode]) =>
-          typeof agentId === "string" && (mode === "enforce" || mode === "monitor"),
-      ),
+      )
+        .filter(
+          ([agentId, mode]) =>
+            typeof agentId === "string" && (mode === "enforce" || mode === "monitor"),
+        )
+        // Keys folded for the reason `lockedAgents` above is (finding 202): the
+        // engine reads `doc.agentMode[agentId]` with the canonical id, so an
+        // override stored under the spelling an operator typed was written,
+        // displayed, and never consulted. Two spellings of one agent collapse
+        // into one entry, the last read winning — a repair of a state the write
+        // path no longer produces.
+        .map(([agentId, mode]) => [normalizeAgentId(agentId), mode]),
     ),
     // Coerced as a container *and* per entry. Validating only the container let
     // an unparseable per-agent value through to the engine, where it resolved
@@ -124,10 +170,19 @@ export async function loadPolicy(groupId: string): Promise<PolicyDocument> {
           (v) => typeof v === "object" && v !== null && !Array.isArray(v),
           defaults.agentAsk,
         ),
-      ).filter(([agentId, ask]) => typeof agentId === "string" && isAskMode(ask)),
+      )
+        .filter(([agentId, ask]) => typeof agentId === "string" && isAskMode(ask))
+        // Folded like `agentMode` and `lockedAgents` (finding 202).
+        .map(([agentId, ask]) => [normalizeAgentId(agentId), ask]),
     ),
     // Same per-entry validation as agentAsk: an unparseable value must not
     // reach the engine, where it would resolve to the more permissive branch.
+    //
+    // The keys here are **account names**, and they have been folded through
+    // `canonicalAccountName` since the defect that fold exists for. That this
+    // map was folded and the two agent-keyed maps above it were not is the
+    // shape of finding 202: one axis of one document repaired, the axis beside
+    // it left alone.
     userAsk: Object.fromEntries(
       Object.entries(
         coerce<Record<string, AskMode>>(
@@ -433,7 +488,13 @@ export async function addRuleChecked(
     // the installation shipped would be indistinguishable from a vouched-for
     // default in the dashboard and in the audit trail.
     tier: "admin",
-    id: rule.id ?? `${rule.resourceKind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: rule.id ?? newGovernanceId(rule.resourceKind),
+    // Folded on the way in, like every other agent key in this document
+    // (finding 202). The read side folds too, so a rule stored before this
+    // binds; folding here is what keeps the stored scope, the ledger entry and
+    // the dashboard's "which agents does this rule bind?" answer agreeing about
+    // which agent was named.
+    ...(rule.agentId ? { agentId: normalizeAgentId(rule.agentId) } : {}),
     createdAt: new Date().toISOString(),
   };
   let overflowed = false;
@@ -616,10 +677,12 @@ export async function setHitlTimeout(
  */
 export async function setAgentAskMode(
   groupId: string,
-  agentId: string,
+  rawAgentId: string,
   ask: PolicyDocument["ask"] | undefined,
   actor: AuditActorInput,
 ): Promise<void> {
+  // Folded like every other agent key in this document (finding 202).
+  const agentId = normalizeAgentId(rawAgentId);
   await updatePolicy(groupId, (doc) => {
     if (ask === undefined) {
       delete doc.agentAsk[agentId];
@@ -690,10 +753,12 @@ export async function setUserAskMode(
  */
 export async function setAgentMode(
   groupId: string,
-  agentId: string,
+  rawAgentId: string,
   mode: GovernanceMode | undefined,
   actor: AuditActorInput,
 ): Promise<void> {
+  // Folded like every other agent key in this document (finding 202).
+  const agentId = normalizeAgentId(rawAgentId);
   let previous: GovernanceMode | undefined;
   await updatePolicy(groupId, (doc) => {
     previous = doc.agentMode[agentId];
@@ -719,7 +784,14 @@ export function policyFilePathForTests(groupId: string): string {
   return policyFilePath(groupId);
 }
 
-export async function lockAgent(groupId: string, agentId: string): Promise<void> {
+/**
+ * Locks an agent down. Folds the id on the way in (finding 202), so the entry
+ * written matches the canonical id the gate compares against — the read side
+ * folds too, which repairs documents written before this, but a store that only
+ * worked because its reader repaired it would be one refactor from breaking.
+ */
+export async function lockAgent(groupId: string, rawAgentId: string): Promise<void> {
+  const agentId = normalizeAgentId(rawAgentId);
   await updatePolicy(groupId, (doc) => {
     if (!doc.lockedAgents.includes(agentId)) {
       doc.lockedAgents.push(agentId);
@@ -727,7 +799,8 @@ export async function lockAgent(groupId: string, agentId: string): Promise<void>
   });
 }
 
-export async function unlockAgent(groupId: string, agentId: string): Promise<void> {
+export async function unlockAgent(groupId: string, rawAgentId: string): Promise<void> {
+  const agentId = normalizeAgentId(rawAgentId);
   await updatePolicy(groupId, (doc) => {
     doc.lockedAgents = doc.lockedAgents.filter((id) => id !== agentId);
   });

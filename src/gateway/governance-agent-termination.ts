@@ -12,7 +12,7 @@
 // (src/process/exec-termination.ts).
 import { registerActiveSessionsSupplier } from "../governance/active-sessions.js";
 import { registerAgentTerminator } from "../governance/agent-terminator.js";
-import { parseAgentSessionKey } from "../routing/session-key.js";
+import { normalizeAgentId, parseAgentSessionKey } from "../routing/session-key.js";
 import { abortChatRunById, type ChatAbortOps } from "./chat-abort.js";
 
 const KILL_SWITCH_STOP_REASON = "governance-kill-switch";
@@ -25,11 +25,18 @@ const KILL_SWITCH_STOP_REASON = "governance-kill-switch";
  * field alone silently misses runs and a kill switch that misses is worse
  * than one that is merely slow.
  */
-function runsForAgent(ops: ChatAbortOps, agentId: string): Array<[string, string]> {
+function runsForAgent(ops: ChatAbortOps, rawAgentId: string): Array<[string, string]> {
+  // **Both sides folded** (finding 202), the shape `agent-group.ts` uses and
+  // for the same reason. The id arriving here came from a request body by way
+  // of the kill switch; `entry.agentId` is whatever the Gateway recorded. A
+  // mismatch of spelling here is not a missed row in a list — it is an
+  // emergency stop that signals nothing and then reports `stoppedConfirmed`,
+  // because zero aborted runs is read as "nothing was in flight".
+  const agentId = normalizeAgentId(rawAgentId);
   const matches: Array<[string, string]> = [];
   for (const [runId, entry] of ops.chatAbortControllers.entries()) {
     const entryAgentId = entry.agentId ?? parseAgentSessionKey(entry.sessionKey)?.agentId;
-    if (entryAgentId === agentId) {
+    if (entryAgentId && normalizeAgentId(entryAgentId) === agentId) {
       matches.push([runId, entry.sessionKey]);
     }
   }

@@ -16,6 +16,7 @@
 // satisfied for them. Keeping both checks explicit stops "high enough tier"
 // from silently implying "any agent", which is the mistake that would let a
 // User edit another team's agent.
+import { isValidAgentId, normalizeAgentId } from "../routing/session-key.js";
 import { roleAtLeast, type GovernanceRole } from "./roles.js";
 
 /** The caller's identity as far as authorization is concerned. */
@@ -40,9 +41,53 @@ export function hasUnlimitedAgentScope(role: GovernanceRole): boolean {
   return roleAtLeast(role, "administrator");
 }
 
+/**
+ * The canonical form of an agent id being asked about, or `undefined` when it
+ * has none (finding 213).
+ *
+ * **Why this is here and not left to the callers.** Finding 200 folded the
+ * *stored* assignment list at `user-store.ts`'s choke point, and its own
+ * write-up named the comparison below as the thing that had been answering
+ * `["Scout"].includes("scout")` → `false`. The data was folded; the comparison
+ * was not, so the identical mismatch stayed reachable from the other side — a
+ * canonical assignment and a query typed the way an operator types it. Both
+ * surfaces hand this module a raw string: the CLI passes `options.agent?.trim()`
+ * and the route passes `agentId.trim()`.
+ *
+ * This is finding 202's rule — *fold at each boundary that owns a question* —
+ * applied to the boundary that owns "is this agent inside your scope?".
+ *
+ * **Filtered before folding**, exactly as `normalizeAgentIds` does it.
+ * `normalizeAgentId` is a coercion rather than a validator and answers `main`
+ * for anything with no canonical form of its own, so folding unconditionally
+ * would turn a query for `###` into a query for the installation's default
+ * agent — finding 129's trap, arriving at the permission check. An id with no
+ * canonical form matches nothing, which is the direction this function has to
+ * fail in.
+ */
+function canonicalAgentQuery(agentId: string): string | undefined {
+  const trimmed = agentId?.trim() ?? "";
+  if (!trimmed) {
+    return undefined;
+  }
+  if (!isValidAgentId(trimmed) && normalizeAgentId(trimmed) === "main") {
+    return undefined;
+  }
+  return normalizeAgentId(trimmed);
+}
+
 /** True when this actor may *see* the given agent's rules and audit entries. */
 export function canViewAgent(actor: GovernanceActor, agentId: string): boolean {
-  return hasUnlimitedAgentScope(actor.role) || actor.assignedAgents.includes(agentId);
+  if (hasUnlimitedAgentScope(actor.role)) {
+    return true;
+  }
+  const wanted = canonicalAgentQuery(agentId);
+  if (wanted === undefined) {
+    return false;
+  }
+  // Both sides folded. The stored list is already canonical after finding 200,
+  // and folding it again costs nothing and removes the assumption.
+  return actor.assignedAgents.some((held) => canonicalAgentQuery(held) === wanted);
 }
 
 /**
@@ -77,8 +122,25 @@ export function canManageAgent(actor: GovernanceActor, agentId: string): boolean
  *     escalation. None of these change the rules; they exercise authority the
  *     tier already has over a workload it is responsible for.
  *   - **`canAuthorPolicyForAgent`** — *may this actor change the rules this
- *     agent is judged by?* Adding and removing agent-scoped rules, and setting
- *     that agent's posture and escalation overrides.
+ *     agent is judged by?* Adding and removing agent-scoped rules, and the
+ *     folder grants that compile into them.
+ *
+ * **This list said "and setting that agent's posture and escalation overrides"
+ * until finding 218, and had been wrong since those two moved to Administrator.**
+ * `policy/agent-ask` argues the move at length in its own comment — an
+ * escalation override converts a hard refusal into a request somebody might
+ * grant, which is a widening made by the tier the paper gives the least
+ * authority — and the capability was *relocated* rather than removed: a User
+ * submits an `agent-setting` rule request and an Administrator decides it. Both
+ * surfaces enforce the Administrator floor, so no caller of this predicate can
+ * reach `setAgentMode` or `setAgentAsk`.
+ *
+ * The sentence mattered because this file is the authority on the model: a
+ * reader checking what a User may do reads it here, and it over-stated the tier
+ * in the permissive direction. Note also that `policy/agent-ask` and
+ * `policy/agent-mode` still call this predicate *behind* that floor, where it
+ * can no longer refuse anything — kept as defence in depth, but it is the
+ * `requireRole` above it that decides.
  */
 export function canAuthorPolicyForAgent(actor: GovernanceActor, agentId: string): boolean {
   return canManageAgent(actor, agentId) && canWritePolicy(actor);
@@ -195,7 +257,10 @@ export function visibleAgents(
   actor: GovernanceActor,
   agentIds: readonly string[],
 ): readonly string[] {
+  // Filtered through `canViewAgent` rather than repeating its comparison, so
+  // the list and the single-agent question cannot come to differ — which is the
+  // shape finding 213 was.
   return hasUnlimitedAgentScope(actor.role)
     ? agentIds
-    : agentIds.filter((agentId) => actor.assignedAgents.includes(agentId));
+    : agentIds.filter((agentId) => canViewAgent(actor, agentId));
 }

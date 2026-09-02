@@ -498,26 +498,38 @@ export async function readDeploymentStatus(
   // -------------------------------------------------------------------
   const attachments = await attachmentStoreStats(groupId);
   checks.push(
-    attachments.orphanCount === 0
+    // An unreadable index is a `fail` rather than a `warn`, and the difference
+    // is what it costs: the orphan case wastes space, while this one means the
+    // store cannot say which attachments a ledger entry is entitled to point
+    // at, so the trail's "provable" claim is suspended until it is repaired.
+    attachments.unreadable
       ? check(
           "deployment.attachment_store",
           "Attachment store is consistent",
-          "pass",
-          attachments.count === 0
-            ? "No attachments stored."
-            : `${attachments.count} attachment(s), ${Math.round(attachments.totalBytes / 1024)} KB, all referenced.`,
+          "fail",
+          "The attachment index exists but could not be read, so no attachment can be accounted for.",
+          "Restore index.json from a backup taken beside the files in the same store, or move the store aside — the ledger still records the hash, type and size of everything ever sent.",
         )
-      : check(
-          "deployment.attachment_store",
-          "Attachment store is consistent",
-          // A warning rather than a failure: orphans waste space and indicate a
-          // half-completed write or a restore from mismatched backups, but they
-          // do not weaken any control. Calling it `fail` would put it beside a
-          // disabled core denial, which is a different order of problem.
-          "warn",
-          `${attachments.orphanCount} stored file(s) are not referenced by any ledger entry.`,
-          "Run the orphan sweep, or investigate whether an index was restored from an older backup than the files beside it.",
-        ),
+      : attachments.orphanCount === 0
+        ? check(
+            "deployment.attachment_store",
+            "Attachment store is consistent",
+            "pass",
+            attachments.count === 0
+              ? "No attachments stored."
+              : `${attachments.count} attachment(s), ${Math.round(attachments.totalBytes / 1024)} KB, all referenced.`,
+          )
+        : check(
+            "deployment.attachment_store",
+            "Attachment store is consistent",
+            // A warning rather than a failure: orphans waste space and indicate a
+            // half-completed write or a restore from mismatched backups, but they
+            // do not weaken any control. Calling it `fail` would put it beside a
+            // disabled core denial, which is a different order of problem.
+            "warn",
+            `${attachments.orphanCount} stored file(s) are not referenced by any ledger entry.`,
+            "Run the orphan sweep, or investigate whether an index was restored from an older backup than the files beside it.",
+          ),
   );
 
   // -------------------------------------------------------------------

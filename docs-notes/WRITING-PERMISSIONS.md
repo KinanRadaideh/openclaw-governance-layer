@@ -35,6 +35,15 @@ Three more are optional: **which agent** (default: all of them), for path rules
 **which direction** (read, write, or both — see §4c), and a free-text
 **description** for whoever reads the list later.
 
+> **Agent names are not case-sensitive, and you do not have to be careful about
+> it.** The system folds them to lower case before storing or comparing, so
+> `Scout`, `scout` and `SCOUT` are the same agent everywhere — in a rule's scope,
+> in an assignment, in the emergency stop. That was **not** true before
+> 2026-09-01: a rule scoped to `Scout` for an agent called `scout` was saved,
+> shown in the list, and bound nothing at all. If you are reading an older
+> `policy.json`, entries written that way are folded automatically the next time
+> the file is loaded.
+
 ### One rule that will save you confusion
 
 **Adding an allow rule can never take access away.**
@@ -348,6 +357,23 @@ Patterns like `^(a+)+$` — a repeat inside a repeat — are rejected. On certai
 inputs they take effectively forever to evaluate, which would freeze the
 security check itself. If you see this rejection, rewrite without the nested
 repetition; `^a+$` is fine.
+
+**`?` counts as a repeat for this purpose, since 2026-09-02.** A group marked
+optional and then repeated a fixed number of times — `^(a?){26}$` — is the same
+trap wearing different punctuation, and it was accepted as safe until finding 207. On a non-matching input it took **44 seconds**, during which the server does
+nothing else at all. A `?` on its own is still perfectly fine and very common
+(`^ls( .*)?$`, `^https?://…$` are both accepted); what is refused is `?` inside
+something that is then repeated.
+
+### The agent name is not case-sensitive
+
+When a rule, an assignment or the emergency stop asks you for an agent, `Scout`
+and `scout` mean the same agent. That was **not** true until 2026-09-02: the
+system stored names in lower case and compared them exactly as typed, so a
+capital letter produced "you do not manage that agent" for an agent you do
+manage — and, on the dashboard, greyed out the emergency-stop button (findings
+210, 213 and 215). If you are reading an older note that tells you to match the
+spelling exactly, it is describing a version that no longer exists.
 
 ---
 

@@ -6,14 +6,33 @@ or picking it up after a break.
 
 **Companion documents:**
 
-- `mg/REMAINING-WORK.md` — everything still outstanding. **§"The numbered backlog" (T1–T43) is the authoritative list** — 36 done, 5 open as of 2026-09-01, derived as 43 − 2 not-being-done − 5 open; the sections below it are history. A second backlog, §"The M-series" (M1–M6), holds the multi-tenancy feature — **complete as of 2026-08-27**
+- `mg/HANDOFF.md` — **read it first if you are picking this up cold.** State,
+  next actions, and how to verify. This file is the reference beneath it
+- `mg/REMAINING-WORK.md` — everything still outstanding. **§"The numbered backlog" (T1–T44) is the authoritative list** — 37 done, 5 open as of 2026-09-02, derived as 44 − 2 not-being-done − 5 open; the sections below it are history. A second backlog, §"The M-series" (M1–M6), holds the multi-tenancy feature — **complete as of 2026-08-27**
 - `mg/SESSION-LOG-2026-08.md` — what the August 2026 session changed, and why
+
+> **⚠ The working tree is not clean (2026-09-02).** 56 files are uncommitted:
+> T44 and findings 194–208, including four security fixes, plus the
+> documentation. Everything _committed_ is pushed. See `HANDOFF.md` §6 step 0
+> before doing anything else — this is the only exposure on the project.
+
+**Root can delete accounts, including its own (`T44`, 2026-09-02).** Deleting
+Root's row alone is still refused, because it strands everyone below; deleting
+the **organisation** removes every account and every agent together and is
+therefore permitted. Confirmed by typing the Root username. The audit ledger is
+deliberately kept.
 
 **The emergency stop's tier was settled on 2026-09-01** (`T42`): Administrator
 and above stop any agent in their organisation, a User stops the agents assigned
 to them, a Viewer stops nothing — and agent creation stays the Administrator's,
 with assignment the way a User or Viewer comes to hold one. Three surfaces had
 described it three different ways.
+
+**And on 2026-09-02 it was found not to work at all when the id was typed in a
+different case** (`finding 202`): the lockdown was written as typed and read back
+canonically, so the stop locked nothing and reported success. Fixed. It is the
+single most important thing to know about this system's history — see
+`HANDOFF.md` §1's 2026-09-02 entry.
 
 ---
 
@@ -130,7 +149,21 @@ configuration. It adds:
     this list that writes to OpenClaw rather than reading or gating it, and the
     report states that as a change of kind. Removing an agent asks which of two
     things you mean, and confirms the irreversible one in words.
-20. **The log records what the agent said it was doing** (§1.6's "raw LLM
+20. **Root can delete accounts, and can delete its own** (T44, 2026-09-01).
+    Deleting any other account in the organisation always worked; deleting
+    Root's own row was refused twice and documented as permanent. It still is,
+    and correctly — an installation left holding accounts with no Root above
+    them has no password reset and no second bootstrap. What was added is a
+    **different act**: deleting the _organisation_, which removes every account
+    including Root and every agent it holds, from OpenClaw as well as from
+    governance, so it never produces the state the guard protects against.
+    Confirmed by typing the Root username, compared on the server so all three
+    surfaces ask for the same word. Agents go first, while Root still exists to
+    retry a host refusal. **The audit ledger is kept** — an operator who could
+    erase the trail by deleting the organisation it covers would have a
+    one-click way to destroy requirement #6 — and the installation can be set up
+    again afterwards, which makes it a reset rather than a brick.
+21. **The log records what the agent said it was doing** (§1.6's "raw LLM
     intent"). Captured from the model's own words on the turn that produced a
     call — its reasoning where the provider emits it, its narration otherwise —
     and written into the hash chain beside the action. It is the only field that
@@ -169,7 +202,7 @@ C:\Users\kinan\openclaw\          (the fork; branch: governance-layer)
 
 | Location                                            | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/governance/`                                   | **The core.** 46 source modules + 63 test files (measured 2026-08-27, after M5, M6 and QA rounds nineteen to twenty-one); the 10,657-production-line figure is from 2026-08-24 and has grown since — re-measure rather than quote it ( the "34 modules / ~5,600 lines" this said before was roughly a year of drift behind — see `CHAPTER3-MATERIAL.md` §3.5.2). Policy engine and the three-tier rule model, keyed audit ledger, roles and permissions, accounts and sessions, kill switch, rule conflicts and warnings, HITL escalation stack, regex safety, path canonicalisation, file locking.                                                                                                                                                                                                                                                                                                                                                 |
+| `src/governance/`                                   | **The core.** **51 source modules + 90 test files, 7,778 production code lines** (modules and lines measured 2026-09-02 after T44 and findings 194–208; the test-file count re-measured after findings 209–220 added four regression suites and no new source module; it read "46 + 63" on 2026-08-27, and "34 modules / ~5,600 lines" before that, which was roughly a year of drift behind — see `CHAPTER3-MATERIAL.md` §3.5.2). **Re-measure rather than quote it**; the command is in the footnote below this table. Note that "code lines" excludes blanks and comments, which is how the project's own 700-line limit counts, so it is well under the raw line total. Policy engine and the three-tier rule model, keyed audit ledger, roles and permissions, accounts and sessions, kill switch, rule conflicts and warnings, HITL escalation stack, regex safety, path canonicalisation, file locking, organisation deletion.               |
 | `src/gateway/governance-*.ts`                       | The HTTP layer: login/session (`-auth`), kill-switch wiring (`-agent-termination`), and **six route modules**, each split off so that it states **one authorization rule for its whole contents** — `-accounts` (Root manages people), `-agents` (an Administrator administers the agents they own), `-agent-control` (User tier, and you must manage this agent — including the kill switch), `-oversight` (Viewer and above, read-only, filtered), `-rule-requests` (one queue: Viewers read, Users add, Administrators decide), and `-api`, which keeps the policy routes and dispatches to the rest                                                                                                                                                                                                                                                                                                                                             |
 | `ui/src/pages/governance/`                          | The dashboard. **Split into panel modules on 2026-08-25 (T16)**: `governance-page.ts` keeps state, lifecycle and the effect primitives (**697** code lines on 2026-08-28, from 2,412; 696 at T16, 703 — over the limit — under M6, back to 697 when `renderFreshness` moved to `panels/oversight-panels.ts`, finding 136. **Three lines of headroom**, so the next panel added to this page will break it again), and `panels/` holds one module per panel — `policy`, `agent`, `account`, `oversight`, `session`, and the `agent-policy-lookup`. **The panels match the route modules that serve them**, so a question like "who can see the ledger?" is one route file and one panel file. Panels are pure functions of explicit props. Beside them: the typed API client, `agent-directory.ts` and the two filters (`rule-filter`, `ledger-filter`) — pure derivations, which is why their logic was always testable and the component's was not |
 | `src/cli/program/register.governance.ts`            | The `openclaw governance ...` command tree, split three ways by subject (T16): the policy document in `register.governance.policy.ts`, the agent registry in `register.governance.agents.ts` (M4), the identity gate all three share in `governance-cli-gate.ts`, and identity, groups, oversight, audit and the kill switch here                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
@@ -178,6 +211,7 @@ C:\Users\kinan\openclaw\          (the fork; branch: governance-layer)
 | `src/gateway/governance-dashboard-group.ts`         | **`requireGroup`** (M5). The HTTP surface's only source for the caller's organisation: **the session, never the request body, never a query parameter.** An Administrator who could name the group could read another organisation's rulebook by typing its id — the one write the tenant model exists to prevent. Refuses an account with no group rather than defaulting                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `src/governance/test-group.ts`                      | Test support for M5. Creates a real organisation through the real registration path, then hands back an empty chain — clearing the ledger **and its checkpoint**, because leaving the checkpoint manufactures exactly the truncation signal the ledger exists to detect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `src/governance/search-audit.ts`                    | **What a search reached** (T7 audit half, 2026-08-26). `grep`/`find`/`ls` are governed at their root and then recurse; this records every path they returned that a live denial covers, as `search-reached-denied` / `ungoverned` — not `deny`, because the call was allowed and happened. Called directly from both after-tool-call sites rather than through the plugin hook, which both sites skip when no plugin registered one. Under-reports by construction and says so. Records; does not prevent                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `src/governance/organisation-deletion.ts`           | **Deleting the organisation** (T44, 2026-09-01) — the one act that removes the Root account. A composition of primitives whose whole contribution is the **order** (agents while Root can still retry, then accounts in one write, then storage) and **what is reported when a step fails part-way**. Keeps the audit ledger and its archives **and the attachments its entries name**, deleting everything else in the group directory — stated as "everything except the ledger and the evidence it names" so a per-group file added later goes without anyone remembering this module exists. The attachment half is finding 211 (2026-09-02): the store lives inside the directory this purges, so the trail was kept and every file it pointed at was destroyed, by the Root those entries would incriminate. _(This table carried two rows for this module, dated a day apart and disagreeing; merged 2026-09-02.)_                           |
 | `src/governance/agent-provisioning.ts`              | **Creating an agent for real** (M6, 2026-08-27). The host's roster and this layer's registry as **one act or none**: the host write first, because it is the one likely to fail, so most failures happen while there is still nothing to undo. Writes no configuration itself — it composes `createAgent` and `deleteAgentConfigEntry`, which already validate, take the mutation lock and write through a top-level `$include`. Refuses an id the host already has, which is what makes the rollback safe. **The only module in the layer that mutates the host rather than observing it**                                                                                                                                                                                                                                                                                                                                                         |
 | `src/governance/agent-intent.ts`                    | **What the model said it was doing** (§1.6's "raw LLM intent", 2026-08-27). Captured at `llm_output` by a direct call rather than a registered hook — B1's rule — held per session, and read at the gate so the ledger records _why_ beside _what_. Bounded, redacted at capture as well as at the ledger boundary, masked for Viewers, and deliberately lossy: nothing is gated on it and its absence is normal                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `ui/.../panels/agent-registry-panels.ts`            | **The Administrator's panel over the registry** (M6). The surface M4's routes never had — the routes worked, the API client had methods for them, and nothing called them. Keeps its half-typed form state in a Lit reactive controller rather than on the page, which is also what kept `governance-page.ts` inside the inherited line limit. Removing an agent opens a chooser naming both outcomes, then confirms the irreversible one in words                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
@@ -189,9 +223,20 @@ C:\Users\kinan\openclaw\          (the fork; branch: governance-layer)
 | `src/governance/agent-registry.test.ts`             | The registry's invariants (M4): the registry leads and the old reconstruction follows, one owning Administrator, the assignment constraint, ownership changes repairing the assignments they invalidate — and one test named for the hole that is deliberately left open                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `src/gateway/governance-agent-registry.test.ts`     | The three questions only the registry's HTTP surface owns (M4): who may name an owner, what a refusal is allowed to reveal, and that the group comes from the session and never from the request body                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `src/governance/path-binding.test.ts`               | T23: the gate hands over the path it judged, replayed against a link swapped after the decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `src/governance/attachment-store.ts`                | Attachment bytes, hashed and quota-bounded, in a store the agent cannot read (T14)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `src/governance/attachment-store.ts`                | Attachment bytes, hashed and quota-bounded, in a store the agent cannot read (T14). Every index write takes the lock and goes through the atomic writer (finding 194), and **an attachment that has been sent is undeletable by anything in this layer** — not its uploader (`releaseAttachment`), not a race that could drop `usedAt` (finding 194), and not the deletion of the organisation holding it (`retainSentAttachments`, finding 211). Three separate paths had to be taught the same sentence                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `src/governance/deployment-status.ts`               | Root's deployment/network report (A7). A **pure function** of injected inputs — it imports nothing from the gateway, which is what makes every check testable with no Gateway, socket or config file                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `src/gateway/governance-deployment-input.ts`        | The one file bridging the Gateway's configuration and that report. Also the one place a careless import would break the layering, which makes it the one place to look                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `src/governance/ids.ts`                             | One definition for all five identifier kinds (finding 199). Five modules had hand-written `Date.now()` plus a `Math.random` suffix, and one had been upgraded to `randomBytes` without the others                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `src/governance/account-name.ts`                    | **"Which account is this?", once.** Read it before touching anything that compares an identifier — findings 40, 114 and 198, and then 200 and 202, when the rule it states turned out never to have been applied to **agent** ids at all, and then 210, 213 and 215, when the _comparisons_ on that axis turned out not to have been folded either                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `src/governance/permissions.ts`                     | **What "manage" means at each tier**, and — since finding 213 — the boundary that owns "is this agent inside your scope?", folding **both sides** of the comparison. Filters before folding, because `normalizeAgentId` is a coercion that answers `main` for anything with no canonical form (finding 129's trap arriving at a permission check). `ui/.../identity.ts` is its browser twin and imports the same canonicaliser rather than reimplementing it (finding 215)                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `src/governance/session-tokens.ts`                  | Dashboard and CLI sessions: an opaque bearer token stored as a one-way fingerprint, mapped to a **mirror** of the account's role, agent scope, policy-authoring flag and group. The mirror exists so an authorization check costs no file read, and it carries an obligation — **written in both places, wherever either is written**. `issueSession` had never copied `canAuthorPolicy`, so a withheld restriction was lifted by signing out and back in (finding 209); `updateSessionsAssignedAgents` now folds agent ids at the mirror's own choke point rather than trusting its callers (finding 210)                                                                                                                                                                                                                                                                                                                                          |
+
+**Re-measure the counts above rather than quoting them** — all three moved on
+2026-09-02:
+
+```bash
+ls src/governance/*.ts | grep -v '\.test\.ts' | wc -l
+```
 
 ### Project documentation (in-repo)
 
@@ -205,27 +250,50 @@ C:\Users\kinan\openclaw\          (the fork; branch: governance-layer)
 | `docs-notes/CLI-REFERENCE.md`       | Every command, its syntax, and how it works                                                                                                                                                                                               |
 | `docs-notes/CHAT-DEPLOYMENTS.md`    | Running the fork through Discord/Telegram/Slack/WhatsApp — what the gate does there, and the limits it does not cover                                                                                                                     |
 | `docs-notes/BASELINE-RULES.md`      | **The rules an installation ships with**, and why each core denial and baseline allowance was chosen. Also states what the core denials do _not_ protect against                                                                          |
-| `docs-notes/QA-IN-PLAIN-TERMS.md`   | Plain-language walkthrough of the QA findings                                                                                                                                                                                             |
+| `docs-notes/QA-IN-PLAIN-TERMS.md`   | Plain-language walkthrough of the QA findings. **§5.87 is the one to read** — the emergency stop that reported success and stopped nothing (finding 202)                                                                                  |
+| `docs-notes/FIGURES.md`             | The report's figures, in Mermaid and TikZ, with the correction each one needed                                                                                                                                                            |
+| `docs-notes/LINUX-INSTALL.md`       | How the fork reaches a Linux server, and the last measurements taken there                                                                                                                                                                |
+| `docs-notes/T2-LIVE-RUN.md`         | The script for the live demonstration that has not happened yet (T2)                                                                                                                                                                      |
 | `UPSTREAM-BUG-REPORT.md`            | A bug found in OpenClaw itself (written, not yet filed)                                                                                                                                                                                   |
 | `Kimi_QA_1.md`                      | An independent review comparing the code against the PDF                                                                                                                                                                                  |
 | `mg/PROJECT-SUMMARY.md`             | This file — what the project is and where everything lives                                                                                                                                                                                |
-| `mg/REMAINING-WORK.md`              | The backlog. **§"The numbered backlog" (T1–T43) is authoritative** — 36 done, 5 open (36 + 5 + 2 = 43); §"The M-series" (M1–M6) is the multi-tenancy feature, **complete**. Everything beneath them is kept as history and marked as such |
+| `mg/REMAINING-WORK.md`              | The backlog. **§"The numbered backlog" (T1–T44) is authoritative** — 37 done, 5 open (37 + 5 + 2 = 44); §"The M-series" (M1–M6) is the multi-tenancy feature, **complete**. Everything beneath them is kept as history and marked as such |
 | `mg/SESSION-LOG-2026-08.md`         | What the August 2026 session changed, and why                                                                                                                                                                                             |
 
 ### Runtime state (created on first use, not in the repo)
 
+**Corrected 2026-09-02 against `paths.ts`.** This listed everything as flat,
+which stopped being true at **M5 (2026-08-26/27)** when storage became per-group
+— so the diagram described the layout of a system two weeks older than the one
+it sits in. The split is the point of M5 and is what makes isolation a property
+of the filesystem rather than a rule every reader must remember:
+
 ```
 ~/.openclaw/governance/
-    policy.json              the rules (core / baseline / admin) and current posture
     users.json               accounts; scrypt hashes carrying their own cost parameters
     agents.json              the agent registry (M4): id, display name, group, owning Administrator
     sessions.json            active dashboard logins, stored as one-way fingerprints
-    audit-ledger.jsonl       the tamper-evident log (rotates to .1, .2, … at 8 MB)
-    ledger.key               HMAC key for the chain; overridable by environment
-    ledger-checkpoint.json   independent record of the chain head, for truncation detection
-    rule-requests.json       User-submitted rule requests awaiting an Administrator
-    pending-decisions.json   escalations nobody answered in time
+    cli-session.json         the command line's own signed-in session (T5)
+    ledger.key               HMAC key for every chain; overridable by environment
+    ledger-checkpoint.json   one chain head per group, for truncation detection
+    groups/<groupId>/
+        policy.json              the rules (core / baseline / admin) and current posture
+        audit-ledger.jsonl       the tamper-evident log (rotates to .1, .2, … at 8 MB)
+        rule-requests.json       User-submitted rule requests awaiting an Administrator
+        pending-decisions.json   escalations nobody answered in time
+        conversations.json       transcripts, per (agent, account)
+        attachments/             content-addressed bytes + index.json (T14)
 ```
+
+**The key and the checkpoint stay installation-wide deliberately**, so the
+tamper-evidence claim is still about the whole installation: one secret, and a
+checkpoint that lives **outside** the group directory it describes — which is
+what makes erasing a group's tail take two edits in two places.
+
+**Deleting an organisation (T44) removes `groups/<groupId>/` except the ledger
+and its archives.** The directory therefore survives holding only
+`audit-ledger.jsonl`, which is intended: see `ROLE-MODEL.md` §"Deleting the
+organisation".
 
 Permissions are `0700` on the directory and `0600` on every file. **Both halves
 are true as of 2026-09-01 and the first was not before it:** every governance
@@ -327,6 +395,26 @@ Entries also record **who** made administrative changes, not only what agents
 did. An audit trail of agent behaviour without a matching trail of the policy
 that governed it cannot answer the question an investigation starts from.
 
+**A change that can fail is recorded twice: a request before it is attempted, a
+completion after it lands.** Recording only success hides exactly the events an
+investigation wants — "who kept trying to create agents?" has no answer if only
+the successes are written — so provisioning, organisation deletion and the Codex
+backend stance each write a `…-request` entry first. The pairing matters as much
+as the timing: a single entry written _before_ the attempt and phrased as the
+accomplished change tells a reader something untrue whenever the attempt fails,
+which is what the Codex toggle did until finding 217 (2026-09-02). Its one entry
+said `codex backend disabled -> enabled`, and a config write that lost a hash
+race left the tamper-evident trail asserting that this installation had begun
+accepting a known enforcement gap.
+
+**And the evidence an entry names is kept as long as the entry.** An attachment
+that has been sent cannot be deleted by its uploader, cannot lose the flag that
+says so to a race, and — since finding 211 — is not destroyed by deleting the
+organisation whose ledger names it. That last one was reachable in a single
+command by the Root the entries would incriminate, while the ledger itself was
+deliberately retained: a trail kept without its evidence still reads as
+complete, which is worse than either whole answer.
+
 Remaining limit, stated plainly: both the key and the checkpoint live on the same
 host, so full filesystem access still defeats them. What changed is that reading
 the ledger is no longer sufficient. Closing it properly needs an off-host
@@ -337,16 +425,35 @@ verifier — deployment rather than code.
 The hierarchy is by _subject_, not merely by strength — each tier governs a
 different thing and inherits everything below it:
 
-| Role              | Governs                                                  |
-| ----------------- | -------------------------------------------------------- |
-| **Root**          | People — accounts, roles, agent assignments              |
-| **Administrator** | All agents — global policy, posture, any agent           |
-| **User**          | The specific agents an Administrator assigned them       |
-| **Viewer**        | The same assignment, read-only, with audit detail masked |
+| Role              | Governs                                                                  |
+| ----------------- | ------------------------------------------------------------------------ |
+| **Root**          | People — accounts, roles, agent assignments, and the organisation itself |
+| **Administrator** | All agents — global policy, posture, any agent                           |
+| **User**          | The specific agents an Administrator assigned them                       |
+| **Viewer**        | The same assignment, read-only, with audit detail masked                 |
 
-Every request answers **two independent questions**: is the caller's tier high
-enough, and is this agent inside their remit? Keeping both explicit is what
-stops "high enough tier" from silently implying "any agent".
+Every request answers **three independent questions**: is the caller's tier high
+enough, is this agent inside their remit, and is it in their organisation?
+Keeping the first two explicit is what stops "high enough tier" from silently
+implying "any agent"; the third exists because the first two cannot answer it —
+an Administrator's scope is unlimited _within their own group_, so
+`canManageAgent` returns true for any id in the world and a separate
+`requireAgentInGroup` / `requireManagedAgent` is what makes it tenancy-safe
+(findings 144 and 174).
+
+**All three are asked on both surfaces, and keeping that true has been a
+recurring cost.** The 2026-08-31 parity audit found four commands making fewer
+checks than their routes; a fifth, `agent transcript`, was found on 2026-09-02
+(finding 216) — on the command directly below one of the four, in the same file.
+
+**And the second question has to fold before it compares.** Agent ids are
+canonical (lowercased) everywhere they are _stored_; the three places that
+_asked_ — the session's mirror of the assignment list, `canViewAgent`, and its
+browser twin — compared raw strings until findings 210, 213 and 215. The
+direction was safe (an unfolded query never matches a canonical entry, so it
+only ever withheld), which is exactly why it survived three earlier rounds: the
+symptom is an operator being told "no" about something that is theirs, which
+reads as a permissions decision rather than as a bug.
 
 ### Zero new dependencies
 
@@ -389,7 +496,7 @@ Chapter 3 will need them.
 
 ## 5. Quality assurance history
 
-Twenty-eight rounds plus the M-series build, **150 defects found, 149 fixed, one recorded rather than fixed by decision** — **150** (2026-08-30) is the dashboard telling operators a forbid rule does not stop a search, hours after T7's prevention half made that false on the default runtime; the test written to catch exactly that moment kept passing, because the change narrowed the claim instead of retiring it — **149** (2026-08-30) closed an attribution gap the documentation audit surfaced: the command-line kill switch recorded actor `cli` while the signed-in account sat unused two lines above, so the most consequential administrative action was the one the trail could not attribute — **147** (2026-08-29) closed the last requirement-8 leak: every component-prefixed credential flag (`--db-password=`, `--admin-password=`, `--gateway-token=`) reached the ledger in plaintext, because the CLI-flag patterns anchor the key to `--` and one component of prefix made the whole list unreachable — two earlier write-ups had recorded this as a single missing key, having probed exactly one spelling. **148** is two Windows-only test failures that sit outside the five documented verification commands while the handoff claimed "no known-failing test anywhere"; not product defects, and recorded rather than fixed.
+Thirty-six rounds and sweeps plus the M-series build, **220 defects found, 218 fixed, one withdrawn as not a defect (157) and one open as an unexplained observation (169)** — the most recent being the seventh and eighth 20% segments (209–219) and **220**, the harness baseline documented as half its size in four places after the 2026-09-02 correction fixed two others. Older milestones, kept because the count's history is itself evidence: **150 defects found, 149 fixed, one recorded rather than fixed by decision** — **150** (2026-08-30) is the dashboard telling operators a forbid rule does not stop a search, hours after T7's prevention half made that false on the default runtime; the test written to catch exactly that moment kept passing, because the change narrowed the claim instead of retiring it — **149** (2026-08-30) closed an attribution gap the documentation audit surfaced: the command-line kill switch recorded actor `cli` while the signed-in account sat unused two lines above, so the most consequential administrative action was the one the trail could not attribute — **147** (2026-08-29) closed the last requirement-8 leak: every component-prefixed credential flag (`--db-password=`, `--admin-password=`, `--gateway-token=`) reached the ledger in plaintext, because the CLI-flag patterns anchor the key to `--` and one component of prefix made the whole list unreachable — two earlier write-ups had recorded this as a single missing key, having probed exactly one spelling. **148** is two Windows-only test failures that sit outside the five documented verification commands while the handoff claimed "no known-failing test anywhere"; not product defects, and recorded rather than fixed.
 
 **The history of the count.** Finding 120 (2026-08-26) was found by mutation-testing T6 and closed the same day; the count became 121 when T29's numbering audit found two defects sharing the number 104, **127 on 2026-08-27** when M5's four and M6's two were numbered 122–127, **130** when QA round nineteen audited the M-series as one system (128–130), **131** when QA round twenty read the remaining work against the nine design requirements and found a requirement-8 breach in the search audit, **134** when round twenty-one built the missing "raw LLM intent" field and found three defects in it (132–134), and **136** on 2026-08-28 when round twenty-two audited that documentation pass against the code (135–136): a JSDoc comment orphaned from `entryKind` by the new field, and T16 regressed in the same commit whose documentation asserted it closed.
 
@@ -577,11 +684,17 @@ conclusion.
 > paragraph, what to do before anything else, and how to verify nothing is
 > broken. This file is the reference beneath it.
 >
-> **The state in one line, as of 2026-09-01:** built and verified, never
+> **The state in one line, as of 2026-09-02:** built and verified, never
 > demonstrated; **the engineering on the backlog is finished** (T38–T40, T42 and
-> T43 closed on 2026-09-01, T32 and T34 the day before); **193 findings, 191
-> fixed**; and what remains is a live run, a Linux host, a read, the figures and
-> the report — **all of them Kinan's**.
+> T43 closed on 2026-09-01, T32 and T34 the day before); **221 findings, 219
+> fixed**, the last twenty-six from four mechanically-drawn 20% segments and a
+> closing pass over everything they left —
+> including **202, an emergency stop that reported success and stopped nothing**,
+> **207, a regex the safety checker called safe that blocks the Gateway
+> thread for 44 seconds**, and **209, a policy-authoring restriction a User
+> lifted by signing out and signing back in**; and what
+> remains is a live run, a Linux host, a read, the figures and the report —
+> **all of them Kinan's**.
 >
 > **And a warning about the line above.** It said exactly this on 2026-08-31,
 > minus the last clause, and doing the three remaining items found **eleven more
@@ -589,8 +702,11 @@ conclusion.
 > earlier round had already found and fixed on one surface only. "The backlog is
 > finished" is a statement about the backlog.
 
-- **2,548 governance tests pass across 133 files, on Windows _and_ on Ubuntu 24.04** (2026-09-01, after T38–T40,
-  T42, T43 and the universal QA sweep; 2,372/119 on 2026-08-31) — file _runs_, not files;
+- **2,653 governance tests pass across 138 files on Windows** (2026-09-01, after
+  T44 and the fourth and fifth segment sweeps; 2,548/133 earlier the same day,
+  2,372/119 on 2026-08-31). **The last Ubuntu 24.04 measurement is 2,548 / 133**,
+  taken before those, so re-run it there before quoting a Linux figure — file
+  _runs_, not files;
   roughly 1,469 distinct tests across 81 distinct files, because the thirteen
   gateway files each run under three Vitest projects (measured 2026-08-29, after
   finding 147; the distinct figure was 1,467 on 2026-08-27 and has not been
@@ -645,7 +761,7 @@ conclusion.
 - **Requirement status** is tabulated in `docs-notes/CHAPTER3-MATERIAL.md` §3.1
   and validated in §4.x.5: **eight of nine fully met**, #9 (Linux) partial
   because the suite is **green on Ubuntu 24.04 from a clean clone, install and
-  build (2,548 / 133, 2026-09-01)** but has never been deployed to a
+  build (2,679 / 143 on Windows, 2026-09-02)** but has never been deployed to a
   VPS. Requirements #3, #6 and #7 spent one round marked _partially met_ after
   the thirteenth review measured them properly, and were returned to met by the
   fixes rather than by rewording.
@@ -704,13 +820,22 @@ node node_modules/vitest/vitest.mjs run src/governance/ src/gateway/governance-*
 node scripts/run-tsgo.mjs -p tsconfig.core.json
 node scripts/run-tsgo.mjs -p tsconfig.ui.json
 node node_modules/vitest/vitest.mjs run src/agents/harness/native-hook-relay.test.ts src/plugins/contracts/host-hooks.contract.test.ts
-node node_modules/oxlint/bin/oxlint --config .oxlintrc.json src ui/src
+node scripts/run-lint.mjs        # the GATE. NOT `oxlint … src ui/src` — see below
 node scripts/run-tsgo.mjs -p test/tsconfig/tsconfig.core.test.json
 ```
 
+> **The lint line changed on 2026-09-02 (finding 221).** It used to read
+> `node node_modules/oxlint/bin/oxlint --config .oxlintrc.json src ui/src`, which
+> exits `0` — while `pnpm lint`, the gate `git-hooks/pre-commit` runs, fails with
+> two shards with **38 errors**. 34 are type-aware rules the direct invocation
+> does not run and does not say it skipped; the other 4 are in `scripts/`, which
+> that invocation never targets. All 38 predate these sweeps and are open.
+
 **Six commands, and `HANDOFF.md` §4 is where their expected values live.**
-Measured 2026-09-01: 2,548 / 133 (both platforms) · both typechecks clean · 263 / 0 host ·
-oxlint zero · `core:test` clean.
+Measured 2026-09-02: 2,679 / 143 (Windows, in two shards — 89/1,219+5 skipped for
+`src/governance/`, 53/1,455 for the gateway and UI paths; 2,548 / 133 was the
+last both-platforms figure) · both typechecks clean · 263 / 0 host · oxlint-as-documented zero, **but `pnpm lint` fails on two shards with 38
+pre-existing errors** (finding 221, open) · `core:test` clean.
 
 A fifth check exists as of A7 and is worth running on any host you deploy to:
 
@@ -722,8 +847,11 @@ It reports whether the running installation matches the architecture Chapter 1
 describes. On a workstation expect warnings; on the VPS it should be clean, and
 that output is Chapter 4 evidence.
 
-The harness command is not optional. Its baseline is now **0 failed / 192
-passed**, and **any** failure is a regression introduced here. Round six exists
+The harness command is not optional. Its baseline is now **0 failed / 263
+passed** — 192 in `native-hook-relay.test.ts` plus 71 in
+`host-hooks.contract.test.ts` — and **any** failure is a regression introduced
+here. _(This read "192" until 2026-09-02, which is the first file alone. Finding
+220.)_ Round six exists
 because governance-only test runs hid 19 such regressions for weeks — a clean
 baseline makes that failure mode cheaper to notice, not less likely.
 

@@ -90,7 +90,8 @@ function readEntryEnabled(config: OpenClawConfig): boolean | undefined {
 /** The current stance, and whether anybody chose it. */
 export async function readCodexBackendState(): Promise<CodexBackendState> {
   const { loadConfig } = await import("../config/config.js");
-  const config = (await loadConfig()) as OpenClawConfig;
+  // Synchronous; only the dynamic import above is awaited.
+  const config = loadConfig() as OpenClawConfig;
   const entry = readEntryEnabled(config);
   return entry === undefined
     ? { enabled: false, explicit: false }
@@ -117,12 +118,20 @@ export async function setCodexBackendEnabled(
   actor: AuditActorInput,
 ): Promise<void> {
   const before = await readCodexBackendState();
+  const change = `codex backend ${before.enabled ? "enabled" : "disabled"} -> ${
+    enabled ? "enabled" : "disabled"
+  }`;
+  // **Two entries, and the first one says "requested"** (finding 217). Recording
+  // before the write is right and stays — a change that fails part-way is
+  // exactly the event an investigation wants. Recording it *as the change* was
+  // not: `replaceConfigFile` takes a base hash and throws when the config moved
+  // under us, and the trail then asserted that this installation had begun
+  // accepting the enforcement gap when it had not. The same pair, for the same
+  // reason, as `organisationDeleteRequest` / `organisationDelete`.
   await recordAdminAction(groupId, {
     actor,
-    action: ADMIN_ACTIONS.codexBackendToggle,
-    target: `codex backend ${before.enabled ? "enabled" : "disabled"} -> ${
-      enabled ? "enabled" : "disabled"
-    }`,
+    action: ADMIN_ACTIONS.codexBackendToggleRequest,
+    target: `${change} requested`,
   });
 
   const { readConfigFileSnapshot, replaceConfigFile } = await import("../config/config.js");
@@ -149,5 +158,13 @@ export async function setCodexBackendEnabled(
     reason: "policy-changed",
     invalidateRuntimeCache: false,
     policyPluginIds: [CODEX_PLUGIN_ID],
+  });
+  // Written only once the config actually holds the new stance, so this is the
+  // entry that answers "when did this installation start accepting that gap?"
+  // and the one above answers "who asked, and did it take?".
+  await recordAdminAction(groupId, {
+    actor,
+    action: ADMIN_ACTIONS.codexBackendToggle,
+    target: change,
   });
 }

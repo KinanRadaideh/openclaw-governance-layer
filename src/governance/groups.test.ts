@@ -35,6 +35,7 @@ import {
   authenticate,
   createUser,
   deleteUnmigratedAccounts,
+  deleteUser,
   DuplicateRootError,
   listUnmigratedAccounts,
   listUsers,
@@ -247,6 +248,87 @@ describe("a User or Viewer always has an Administrator answerable for it", () =>
     expect(await setUserRole(user.id, "administrator", "alpha-root")).toBe(true);
     const after = (await listUsers(a.groupId)).find((u) => u.id === user.id);
     expect(after?.managedBy).toBeUndefined();
+  });
+
+  // -------------------------------------------------------------------------
+  // Finding 196 — the invariant was enforced where the link is made and
+  // abandoned where it is broken.
+  //
+  // `createUser` and `setUserRole` both refuse a manager who is not an
+  // Administrator in the same group. Neither demotion nor deletion of an
+  // Administrator checked what happened to the accounts pointing at them, so
+  // both silently produced the state `MissingManagerError` exists to prevent:
+  // an account answering to somebody who is no longer answerable for anyone.
+  // -------------------------------------------------------------------------
+  describe("an Administrator cannot walk away from the people who answer to them", () => {
+    /** An organisation with an Administrator who manages one User. */
+    async function withManagedUser(): Promise<{
+      groupId: string;
+      adminId: string;
+      userId: string;
+    }> {
+      const a = await organisation("alpha");
+      const user = await createUser(
+        {
+          username: "malek",
+          password: PASSWORD,
+          role: "user",
+          groupId: a.groupId,
+          managedBy: a.admin.id,
+        },
+        "alpha-root",
+      );
+      return { groupId: a.groupId, adminId: a.admin.id, userId: user.id };
+    }
+
+    it("refuses to demote them, and names who must be re-homed first", async () => {
+      const { adminId, groupId } = await withManagedUser();
+      const spare = await createUser(
+        { username: "spare-admin", password: PASSWORD, role: "administrator", groupId },
+        "alpha-root",
+      );
+
+      await expect(setUserRole(adminId, "viewer", "alpha-root", spare.id)).rejects.toThrow(/malek/);
+      // Nothing changed: the refusal is before the write, because there is
+      // nobody left to re-home them to afterwards.
+      const after = (await listUsers(groupId)).find((u) => u.id === adminId);
+      expect(after?.role).toBe("administrator");
+    });
+
+    it("refuses to delete them while anybody still answers to them", async () => {
+      const { adminId, groupId } = await withManagedUser();
+
+      await expect(deleteUser(adminId, "alpha-root")).rejects.toThrow(/malek/);
+      expect((await listUsers(groupId)).some((u) => u.id === adminId)).toBe(true);
+    });
+
+    it("allows both once their accounts have been re-homed", async () => {
+      const { adminId, userId, groupId } = await withManagedUser();
+      const successor = await createUser(
+        { username: "successor", password: PASSWORD, role: "administrator", groupId },
+        "alpha-root",
+      );
+
+      // The step the refusal asks for, and then the act it was refusing.
+      expect(await setUserRole(userId, "user", "alpha-root", successor.id)).toBe(true);
+      expect(await deleteUser(adminId, "alpha-root")).toBe(true);
+      const remaining = await listUsers(groupId);
+      expect(remaining.some((u) => u.id === adminId)).toBe(false);
+      // And the invariant still holds for the account that moved.
+      expect(remaining.find((u) => u.id === userId)?.managedBy).toBe(successor.id);
+    });
+
+    it("still allows an Administrator who manages nobody to be demoted or deleted", async () => {
+      const a = await organisation("alpha");
+      const lonely = await createUser(
+        { username: "lonely", password: PASSWORD, role: "administrator", groupId: a.groupId },
+        "alpha-root",
+      );
+
+      // The guard must bite on the state it names and on nothing else.
+      expect(await setUserRole(lonely.id, "viewer", "alpha-root", a.admin.id)).toBe(true);
+      expect(await deleteUser(lonely.id, "alpha-root")).toBe(true);
+    });
   });
 });
 

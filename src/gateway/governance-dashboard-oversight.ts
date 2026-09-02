@@ -122,25 +122,9 @@ export async function handleGovernanceOversightRoutes(
     return true;
   }
 
-  // ---------------------------------------------------------------------
-  // Root only: the deployment and network posture (backlog item A7).
-  //
-  // §1.6 gives Root "overseeing the deployment and network configurations of
-  // the governance layer on the VPS" — the one clause of that tier's definition
-  // that had nothing behind it.
-  //
-  // **Why this is Root when its neighbour above is Viewer.** `system` reports
-  // CPU and memory, which disclose nothing about how to reach the installation.
-  // This reports the bind mode, the port, the gateway auth mode and where the
-  // governance directory is — a map of how to reach and attack this deployment.
-  // The tiers differ because the disclosure differs, not because one feels more
-  // administrative than the other.
-  //
-  // Read-only, deliberately: changing a bind address from the dashboard you are
-  // connected *through* can lock you out of it in one click. Oversight here
-  // means reading the deployment and judging it; changing it is a server-admin
-  // act outside this application.
-  // ---------------------------------------------------------------------
+  // Viewer and above: what is running right now. Filtered to the caller by
+  // `listActiveSessions`, and to the organisation by the roster passed below —
+  // the run registry behind it is installation-wide, which is finding 139.
   if (route === "sessions" && req.method === "GET") {
     if (!requireRole(res, session, "viewer")) {
       return true;

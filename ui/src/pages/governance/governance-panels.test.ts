@@ -325,6 +325,61 @@ describe("the accounts panel", () => {
   });
 });
 
+describe("the organisation panel", () => {
+  const users: GovernanceUserRecord[] = [
+    userRecord("root", "root"),
+    userRecord("malek", "administrator"),
+  ];
+
+  /** The delete control, found by its label rather than by markup. */
+  function deleteButton(): HTMLButtonElement | undefined {
+    return [...page.querySelectorAll("button")].find((button) =>
+      (button.textContent ?? "").includes("Delete organisation"),
+    );
+  }
+
+  it("tells Root exactly what goes, including the two things it would not guess", async () => {
+    await mount({ identity: identity("root"), users });
+    // The agents are destroyed in OpenClaw rather than unregistered, and the
+    // audit trail is the one thing that stays. Both are surprising, so both are
+    // said rather than left for an operator to discover afterwards.
+    expect(text()).toContain("from OpenClaw as well as from governance");
+    expect(text()).toContain("The audit ledger is kept");
+  });
+
+  it("counts the accounts that would go, rather than gesturing at them", async () => {
+    await mount({ identity: identity("root"), users });
+    expect(text()).toContain("all 2 account(s)");
+  });
+
+  it("keeps the control dead until the Root username is typed exactly", async () => {
+    await mount({ identity: identity("root"), users });
+    expect(deleteButton()?.disabled).toBe(true);
+
+    const field = page.querySelector<HTMLInputElement>('input[placeholder="root"]');
+    field!.value = "roo";
+    field!.dispatchEvent(new Event("input"));
+    await page.updateComplete;
+    expect(deleteButton()?.disabled).toBe(true);
+
+    field!.value = "root";
+    field!.dispatchEvent(new Event("input"));
+    await page.updateComplete;
+    // Live only on an exact match, so the control's appearance and the server's
+    // answer agree. A button that looks ready and is then refused is the
+    // two-surfaces-one-question defect in miniature.
+    expect(deleteButton()?.disabled).toBe(false);
+  });
+
+  it("is not rendered below Root, greyed out or otherwise", async () => {
+    await mount({ identity: identity("administrator"), users });
+    // Hidden rather than disabled: an Administrator shown a dead control that
+    // destroys their organisation learns only that it exists and that they are
+    // not trusted with it.
+    expect(text()).not.toContain("Delete this organisation");
+  });
+});
+
 describe("the rule-request queue", () => {
   const request: GovernanceRuleRequest = {
     id: "req-1",

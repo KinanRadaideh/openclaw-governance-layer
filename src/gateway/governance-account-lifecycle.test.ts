@@ -21,6 +21,7 @@ import { resetLoginThrottle } from "../governance/login-throttle.js";
 import { savePolicy } from "../governance/policy-store.js";
 import { defaultPolicyDocument } from "../governance/policy-types.js";
 import { seedGroupWithAgents } from "../governance/test-group.js";
+import { setMultiOrganisationAllowedForTests } from "../governance/user-store.js";
 import { handleGovernanceAuthRequest } from "./governance-dashboard-auth.js";
 
 let dir: string;
@@ -138,11 +139,48 @@ describe("bootstrap", () => {
     expect(who.body).toMatchObject({ username: "root-user", role: "root" });
   });
 
-  it("creates a second group rather than refusing a second Root (M3)", async () => {
-    // **This asserted a 409 until M3, and the reversal is deliberate.** A Root
-    // now owns one group rather than the installation, so a second Root is a
-    // different organisation with its own isolated world — there is nothing
-    // left for the old race guard to protect.
+  // -------------------------------------------------------------------------
+  // Finding 206 — this test asserted the opposite of what ships, and stayed
+  // green because the fixture disabled the rule it was contradicting.
+  //
+  // It read "creates a second group rather than refusing a second Root (M3)"
+  // and expected **200**. That was shipped behaviour for six days. The
+  // one-organisation cap landed on 2026-08-30 and made it a refusal — and this
+  // test kept passing, because importing `test-group.ts` calls
+  // `setMultiOrganisationAllowedForTests(true)` as a module side effect, for
+  // every suite that imports it.
+  //
+  // **So the end-to-end suite whose stated purpose is exercising the real login
+  // path was asserting a behaviour the product does not have**, in the one place
+  // a reader would go to find out what bootstrap does. Had it been honest,
+  // finding 205 could not have happened: an assertion that the second bootstrap
+  // is refused is exactly the assertion that was missing.
+  // -------------------------------------------------------------------------
+  it("refuses a second organisation on one installation", async () => {
+    setMultiOrganisationAllowedForTests(false);
+    try {
+      await bootstrapRoot();
+
+      const second = await call("POST", `${AUTH}bootstrap-root`, {
+        body: { username: "other-org", password: ROOT_PASSWORD },
+      });
+
+      // The shipped rule since 2026-08-30: one organisation per installation, so
+      // that installation-wide controls have an unambiguous owner. A second
+      // organisation takes a second installation.
+      expect(second.status).toBe(409);
+      expect(JSON.stringify(second.body)).toContain("already hosts an organisation");
+    } finally {
+      setMultiOrganisationAllowedForTests(true);
+    }
+  });
+
+  it("creates a second group rather than a second Root, where the cap is lifted (M3)", async () => {
+    // The M3 model itself, which the cap bounds rather than replaces: a second
+    // Root is a *different organisation*, not an attacker stealing the first
+    // one's layer. Exercised with the cap explicitly lifted, so this test says
+    // out loud what it depends on instead of inheriting it from an import.
+    setMultiOrganisationAllowedForTests(true);
     await bootstrapRoot();
     const second = await call("POST", `${AUTH}bootstrap-root`, {
       body: { username: "other-org", password: ROOT_PASSWORD },
@@ -154,6 +192,10 @@ describe("bootstrap", () => {
   });
 
   it("does not show one group's accounts to another group's Root (M3)", async () => {
+    // Needs two organisations, so it says so rather than relying on the
+    // fixture's side effect — the property under test is isolation, and a
+    // reader must be able to see why two exist here at all.
+    setMultiOrganisationAllowedForTests(true);
     const first = await bootstrapRoot("org-a-root");
     await call("POST", `${API}users`, {
       cookie: first,
@@ -325,5 +367,202 @@ describe("only one Root", () => {
       body: { userId: rootId, role: "viewer" },
     });
     expect(demoted.status).toBeGreaterThanOrEqual(400);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Finding 197 — demoting an Administrator returned 500 from every surface.
+//
+// The store gained a `managedBy` parameter specifically to close a dead end its
+// own comment names: "an Administrator could never be demoted at all". The
+// route never mapped the refusal that parameter answers, and the dashboard
+// client never sent it — so the dead end moved out of the store and into the
+// two surfaces above it, wearing a server error instead of a message.
+// ---------------------------------------------------------------------------
+describe("demoting an Administrator", () => {
+  /** Root, plus two Administrators — the smallest organisation where one can go. */
+  async function twoAdministrators(): Promise<{
+    rootCookie: string;
+    firstId: string;
+    secondId: string;
+  }> {
+    const rootCookie = await bootstrapRoot();
+    const first = await call("POST", `${API}users`, {
+      cookie: rootCookie,
+      body: { username: "admin-one", password: USER_PASSWORD, role: "administrator" },
+    });
+    const second = await call("POST", `${API}users`, {
+      cookie: rootCookie,
+      body: { username: "admin-two", password: USER_PASSWORD, role: "administrator" },
+    });
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    return {
+      rootCookie,
+      firstId: (first.body as { id: string }).id,
+      secondId: (second.body as { id: string }).id,
+    };
+  }
+
+  it("succeeds when the request names who will answer for them", async () => {
+    const { rootCookie, firstId, secondId } = await twoAdministrators();
+
+    const demoted = await call("POST", `${API}users/role`, {
+      cookie: rootCookie,
+      body: { userId: firstId, role: "user", managedBy: secondId },
+    });
+
+    expect(demoted.status).toBe(200);
+    const list = (await call("GET", `${API}users`, { cookie: rootCookie })).body as Array<{
+      id: string;
+      role: string;
+      managedBy?: string;
+    }>;
+    const moved = list.find((entry) => entry.id === firstId);
+    expect(moved?.role).toBe("user");
+    // The link the invariant is about, and the field the dashboard's own type
+    // did not declare until this finding.
+    expect(moved?.managedBy).toBe(secondId);
+  });
+
+  it("refuses with a conflict and an explanation when it does not", async () => {
+    const { rootCookie, firstId } = await twoAdministrators();
+
+    const demoted = await call("POST", `${API}users/role`, {
+      cookie: rootCookie,
+      body: { userId: firstId, role: "user" },
+    });
+
+    // A 500 here is the defect: the store had a sentence explaining exactly
+    // what to supply, and the route threw it away.
+    expect(demoted.status).toBe(409);
+    expect(JSON.stringify(demoted.body)).toMatch(/Administrator answerable for it/);
+  });
+
+  it("refuses with a conflict when people still answer to them (finding 196)", async () => {
+    const { rootCookie, firstId, secondId } = await twoAdministrators();
+    const managed = await call("POST", `${API}users`, {
+      cookie: rootCookie,
+      body: {
+        username: "answers-to-one",
+        password: USER_PASSWORD,
+        role: "viewer",
+        managedBy: firstId,
+      },
+    });
+    expect(managed.status).toBe(200);
+
+    const demoted = await call("POST", `${API}users/role`, {
+      cookie: rootCookie,
+      body: { userId: firstId, role: "user", managedBy: secondId },
+    });
+    const deleted = await call("POST", `${API}users/delete`, {
+      cookie: rootCookie,
+      body: { userId: firstId },
+    });
+
+    for (const reply of [demoted, deleted]) {
+      expect(reply.status).toBe(409);
+      // Names the account that has to be re-homed, so the fix is one step
+      // rather than a hunt through the roster.
+      expect(JSON.stringify(reply.body)).toContain("answers-to-one");
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Finding 205 — the sign-in screen was replaced by the bootstrap form.
+//
+// The dashboard chooses between "sign in" and "create the first account" by
+// calling `bootstrap-root` with empty credentials and reading the status. Its
+// comment said the server answers "already claimed" **before** it validates the
+// body. M3 deleted that check, and the one-organisation cap restored the
+// behaviour inside `createUser` — after validation, reported as 400 like any
+// malformed request.
+//
+// So both states answered 400, the probe returned "needs bootstrap"
+// unconditionally, and every unauthenticated visitor to an established
+// installation was invited to create an account the server would then refuse.
+// ---------------------------------------------------------------------------
+describe("the bootstrap probe distinguishes a claimed installation (finding 205)", () => {
+  /** Exactly what `probeBootstrapNeeded` sends. */
+  function probe() {
+    return call("POST", `${AUTH}bootstrap-root`, { body: { username: "", password: "" } });
+  }
+
+  it("answers 400 on an unclaimed installation, so the bootstrap form is offered", async () => {
+    const reply = await probe();
+
+    // A complaint about the body, which is the probe's signal for "unclaimed":
+    // the route had nothing to refuse before it looked at the credentials.
+    expect(reply.status).toBe(400);
+  });
+
+  it("answers 409 once an organisation exists, so the sign-in form is offered", async () => {
+    setMultiOrganisationAllowedForTests(false);
+    try {
+      await bootstrapRoot("first-root");
+
+      const reply = await probe();
+
+      // The status the probe reads as "already claimed". A 400 here is the
+      // defect: indistinguishable from an unclaimed installation.
+      expect(reply.status).toBe(409);
+      expect(JSON.stringify(reply.body)).toContain("Sign in instead");
+    } finally {
+      setMultiOrganisationAllowedForTests(true);
+    }
+  });
+
+  it("refuses a real second bootstrap as a conflict, not a malformed request", async () => {
+    setMultiOrganisationAllowedForTests(false);
+    try {
+      await bootstrapRoot("first-root");
+
+      const second = await call("POST", `${AUTH}bootstrap-root`, {
+        body: { username: "second-root", password: ROOT_PASSWORD },
+      });
+
+      // 409 rather than 400: the request is well-formed and conflicts with the
+      // state of the installation, which is the distinction the account routes
+      // already draw.
+      expect(second.status).toBe(409);
+      expect((second.body as { error?: { type?: string } }).error?.type).toBe("conflict");
+    } finally {
+      setMultiOrganisationAllowedForTests(true);
+    }
+  });
+
+  it("still lets an installation holding only pre-group accounts be claimed", async () => {
+    setMultiOrganisationAllowedForTests(false);
+    try {
+      // An account with no group belongs to no organisation — the state
+      // `governance migrate` repairs, and one in which bootstrap must still
+      // work. Counting accounts rather than organisations would refuse it.
+      const { readFile, writeFile } = await import("node:fs/promises");
+      const { usersFilePath } = await import("../governance/paths.js");
+      await writeFile(
+        usersFilePath(),
+        JSON.stringify({
+          version: 1,
+          users: [
+            {
+              id: "legacy",
+              username: "predates-groups",
+              passwordHash: "x",
+              role: "root",
+              createdAt: new Date().toISOString(),
+              assignedAgents: [],
+            },
+          ],
+        }),
+        "utf8",
+      );
+      void readFile;
+
+      expect((await probe()).status).toBe(400);
+    } finally {
+      setMultiOrganisationAllowedForTests(true);
+    }
   });
 });

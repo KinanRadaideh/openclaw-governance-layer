@@ -20,10 +20,13 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   attachmentStoreStats,
+  AttachmentIndexUnreadableError,
   AttachmentQuotaExceededError,
   AttachmentTooLargeError,
   listAttachments,
+  markAttachmentUsed,
   MAX_ATTACHMENT_BYTES,
+  releaseAttachment,
   sniffMimeType,
   storeAttachment,
   sweepOrphans,
@@ -247,5 +250,99 @@ describe("evidence and record stay in step", () => {
   it("reports an empty store without inventing one", async () => {
     const stats = await attachmentStoreStats(TEST_GROUP);
     expect(stats).toEqual({ count: 0, totalBytes: 0, orphanCount: 0 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Finding 194 — the index was the one governance store written without a lock.
+//
+// Four functions read this index, change it and write it back. None of them
+// took the lock the account, agent and policy stores take, and none went
+// through `writeGovernanceJson`. Two of the consequences are security
+// properties rather than tidiness, so both are pinned here rather than left to
+// the header that now explains them.
+// ---------------------------------------------------------------------------
+describe("the index survives concurrent writers (finding 194)", () => {
+  it("keeps every record when uploads arrive together", async () => {
+    const uploads = Array.from({ length: 8 }, (_, i) =>
+      store({
+        content: new TextEncoder().encode(`payload-${i}`),
+        declaredName: `file-${i}.txt`,
+      }),
+    );
+
+    await Promise.all(uploads);
+
+    // Without the lock the last writer wins and the rest of the records are
+    // lost — while their files stay on disk, unreferenced and no longer
+    // counting toward the quota. That is the quota bypass, not just untidiness.
+    const held = await listAttachments(TEST_GROUP);
+    expect(held).toHaveLength(8);
+    expect((await attachmentStoreStats(TEST_GROUP)).orphanCount).toBe(0);
+  });
+
+  it("does not lose usedAt to a write racing beside it", async () => {
+    const sent = await store({
+      content: new TextEncoder().encode("evidence"),
+      declaredName: "sent.txt",
+    });
+
+    await Promise.all([
+      markAttachmentUsed(TEST_GROUP, sent.sha256),
+      store({ content: new TextEncoder().encode("unrelated"), declaredName: "other.txt" }),
+    ]);
+
+    // `usedAt` is what stops an uploader deleting bytes a ledger entry names.
+    // A lost update here re-opens exactly that delete.
+    const held = await listAttachments(TEST_GROUP);
+    expect(held.find((entry) => entry.sha256 === sent.sha256)?.usedAt).toBeTruthy();
+    expect(await releaseAttachment(TEST_GROUP, sent.sha256, "alice")).toBe("already-sent");
+  });
+
+  it("carries usedAt forward when the same bytes are uploaded again", async () => {
+    const first = await store({ content: PNG, declaredName: "first.png" });
+    await markAttachmentUsed(TEST_GROUP, first.sha256);
+
+    const again = await store({ content: PNG, declaredName: "second.png" });
+
+    // The metadata is the new upload's, because the ledger entry about to be
+    // written describes that upload; the flag is the old one's, because the
+    // bytes have already been sent and are evidence whoever re-uploads them.
+    expect(again.declaredName).toBe("second.png");
+    expect(again.usedAt).toBeTruthy();
+    expect(await releaseAttachment(TEST_GROUP, first.sha256, "alice")).toBe("already-sent");
+  });
+});
+
+describe("an unreadable index stops rather than reading as empty (finding 194)", () => {
+  it("refuses to store against an index it cannot parse", async () => {
+    await store();
+    const { writeFile } = await import("node:fs/promises");
+    await writeFile(join(attachmentsDir(TEST_GROUP), "index.json"), "{ truncated", "utf8");
+
+    // Swallowing this into an empty index is how every `usedAt` in the store
+    // could be dropped by one crash mid-write — the finding-78 rule at a second
+    // store: a damaged state file stops the operation rather than degrading it.
+    await expect(store({ declaredName: "after.txt" })).rejects.toBeInstanceOf(
+      AttachmentIndexUnreadableError,
+    );
+  });
+
+  it("lets the deployment report say so instead of throwing at Root", async () => {
+    await store();
+    const { writeFile } = await import("node:fs/promises");
+    await writeFile(join(attachmentsDir(TEST_GROUP), "index.json"), "{ truncated", "utf8");
+
+    // The one caller that must not propagate it: a Root-only diagnostic that
+    // throws on the fault it exists to surface is a green tick for a defence
+    // that is not there, one step further along.
+    const stats = await attachmentStoreStats(TEST_GROUP);
+    expect(stats).toEqual({ count: 0, totalBytes: 0, orphanCount: 0, unreadable: true });
+  });
+
+  it("still treats a store that has never been written as empty", async () => {
+    // Absent and unreadable are different answers, and only the first means
+    // "nothing has been stored".
+    expect(await listAttachments(TEST_GROUP)).toEqual([]);
   });
 });

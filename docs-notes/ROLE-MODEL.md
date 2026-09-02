@@ -76,15 +76,18 @@ agent-touching operation.
 
 ### Root — manages people
 
-| Capability                                           | Function            |
-| ---------------------------------------------------- | ------------------- |
-| Create accounts, set initial role and assignment     | `canManageAccounts` |
-| Change any account's role                            | `canManageAccounts` |
-| Delete accounts (revoking live sessions immediately) | `canManageAccounts` |
-| Everything an Administrator can do                   | inheritance         |
+| Capability                                                 | Function                    |
+| ---------------------------------------------------------- | --------------------------- |
+| Create accounts, set initial role and assignment           | `canManageAccounts`         |
+| Change any account's role                                  | `canManageAccounts`         |
+| Delete accounts (revoking live sessions immediately)       | `canManageAccounts`         |
+| Delete the whole organisation, Root's own account included | `guardOrganisationDeletion` |
+| Everything an Administrator can do                         | inheritance                 |
 
 Constrained by lockout guards (`account-guards.ts`): cannot delete the account
-it is signed in with, and cannot demote or delete the Root account.
+it is signed in with, and cannot demote or delete the Root account **on its
+own**. The last row above is the exception those guards leave, and it is a
+different act — see "Deleting the organisation" below.
 
 **There is exactly one Root and it is permanent.** Both bounds are enforced, in
 the store and inside its write lock:
@@ -96,7 +99,16 @@ the store and inside its write lock:
 | Demote the Root                  | refused — `LastRootError`                  |
 | Delete the Root                  | refused — `LastRootError`                  |
 | Root deletes itself              | refused twice — self-delete, then Root     |
+| Root deletes its organisation    | **permitted** — every account goes at once |
 | Two promotions racing each other | both refused; the check is inside the lock |
+
+**Permanent is not the same as undeletable, and the two now have different
+answers (2026-09-01).** Root cannot be deleted _as an account_, because an
+installation left holding accounts with no Root above them is unrecoverable —
+there is no password reset and no second bootstrap. Root can be deleted _with
+its organisation_, because that removes everybody at once and so never produces
+the state the guards exist to prevent. The refusal is about leaving people
+behind, not about the Root account being sacred.
 
 The invariant is asserted directly in `src/governance/root-invariant.test.ts`
 rather than left to emerge from the two guards, because for a while it _did_
@@ -110,6 +122,8 @@ message says what is actually true.
 **The cost, stated plainly.** There is no in-product handover of the Root role.
 Transferring an installation means Root resetting the successor's password and
 passing on the credentials, or editing `users.json` directly and restarting.
+(Deleting the organisation is not a handover — it is a reset, and it takes every
+account and agent with it.)
 That is a deliberate trade: every in-product design for a handover passes
 through a moment when the account that governs all the others is either
 duplicated or absent, and both of those are worse than an offline step taken
@@ -118,6 +132,139 @@ once in the life of an installation.
 A file that already holds two Roots — hand-edited, or written before the upper
 bound existed — is still repairable: deleting one of them is permitted, because
 in that state it removes a risk rather than creating a lockout.
+
+### An Administrator cannot walk away from the people who answer to them
+
+Added 2026-09-01 (finding 196). _"Every User and Viewer has one Administrator
+answerable for it"_ was enforced by both writers that **create** the link and by
+neither that **breaks** it. Demoting an Administrator to Viewer, or deleting one
+outright, left every account they managed pointing at somebody who is no longer
+an Administrator — or at no account at all — silently, with nothing refusing it
+and nothing repairing it.
+
+| Attempt                                              | Result                                                     |
+| ---------------------------------------------------- | ---------------------------------------------------------- |
+| Demote an Administrator who manages nobody           | permitted                                                  |
+| Delete an Administrator who manages nobody           | permitted                                                  |
+| Demote or delete one who still has people under them | **refused**, and the refusal names the accounts to re-home |
+| Delete the whole organisation                        | permitted — manager and managed go in one write            |
+
+**Refused rather than re-homed automatically**, because there is no successor to
+pick without inventing one. The agent registry reaches the opposite answer for
+agents and the difference is instructive rather than inconsistent:
+`revokeHoldersOutsideOwner` **can** repair its join by revoking, because "nobody
+holds this agent" is a valid, safe state. "Nobody is answerable for this person"
+is not a valid state — it is the one being prevented.
+
+The dashboard could not demote an Administrator at all until the same day
+(finding 197): the store required a `managedBy` and neither the route nor the
+client supplied one, so every attempt returned a 500. The panel now picks the
+first other Administrator, names them in the confirmation, and **withholds the
+User and Viewer options entirely** when there is none — the page does not offer a
+control whose only possible outcome is a refusal.
+
+### Agent ids are folded wherever they are used as a key
+
+Added 2026-09-01 (findings 200 and 202), and worth stating in a role document
+because two of the tiers' capabilities depended on it silently.
+
+Every agent id the gate compares against is **canonical** — lowercased, because
+the host mints session keys that way. Four places stored what an operator typed
+instead, and each produced a control that was accepted, displayed, and never
+consulted:
+
+- **An assignment** (`assignedAgents`) — the User or Viewer could not see, prompt
+  or stop the agent they had been given.
+- **The kill switch** — the lockdown was written under a spelling the gate did
+  not recognise, no runs matched, and the stop was reported as **confirmed**.
+- **Per-agent posture and escalation overrides** — saved and never applied.
+- **An agent-scoped rule** — bound nothing, in both directions: an allow that did
+  not grant and a deny that did not forbid.
+
+All four are folded now, on read as well as on write, so an installation already
+holding the typed spelling is repaired rather than needing a migration.
+
+**And so are the three places that _ask_, since findings 210, 213 and 215
+(2026-09-02).** Folding the places that store an id left the comparisons
+unfolded, so the identical mismatch stayed reachable from the other side — a
+canonical assignment and a query typed the way an operator types it:
+
+- **The session's mirror of `assignedAgents`** was written from the request body
+  trimmed but unfolded, so the account file held `scout`, the session held
+  `Scout`, and the assignment took effect only after its holder signed out and
+  back in.
+- **`canViewAgent` / `visibleAgents`** — the comparison finding 200's own
+  write-up _names_. A User assigned `scout` typing `--agent Scout` was told they
+  did not manage it.
+- **`identity.ts`, the browser twin of that comparison** — where the kill
+  switch's free-text agent field made the **emergency stop button** unclickable
+  for an agent the operator holds.
+
+The rule, stated once for the layer: **fold at the boundary that owns the
+question, on both sides, and filter before folding.** `normalizeAgentId` is a
+coercion, not a validator — it answers `main` for anything with no canonical
+form — so an id with no canonical form of its own now matches nothing rather
+than resolving to the installation's default agent.
+
+### Deleting the organisation
+
+The one act that removes the Root account. It deletes **every account in the
+organisation, Root's own included, and every agent it holds — from OpenClaw as
+well as from governance.** `src/governance/organisation-deletion.ts`, served at
+`POST /control-ui/governance/organisation/delete` and run from the terminal as
+`openclaw governance organisation delete --confirm <root-username> --yes`.
+
+| Question                              | Answer                                                                      |
+| ------------------------------------- | --------------------------------------------------------------------------- |
+| Who may                               | The organisation's own Root, and nobody else — not an Administrator         |
+| What confirms it                      | The Root username, typed; checked on the server, so both surfaces agree     |
+| What order                            | Agents first (while Root still exists to retry), then accounts, then state  |
+| What happens to a still-running agent | Its registry record is gone, so the gate refuses its next tool call         |
+| What survives                         | The audit ledger and its archives, **and the attachments its entries name** |
+| What comes next                       | No account exists, so the sign-in screen becomes "create the first account" |
+
+**The audit ledger is kept, and that is the decision worth defending.** An
+operator who could delete the trail by deleting the organisation it covers would
+have a one-click way to erase every record of everything their agents ever did —
+the exact capability a hash-chained, HMAC-keyed, append-only log exists to deny
+them. Requirement #6 is a property of the installation, not a courtesy extended
+to organisations that still exist. The kept directory holds only
+`audit-ledger.jsonl` (plus rotated archives); no account can read it, because no
+account remains, and a fresh organisation gets a new group id and never collides
+with it. Keeping the chain also keeps the checkpoint honest: it is keyed by group
+and stored outside the group directory, so deleting the chain while leaving its
+recorded head would manufacture exactly the truncation signal the checkpoint
+exists to detect.
+
+**The evidence the trail points at is kept with it (finding 211, 2026-09-02).**
+Attachments live at `groups/<groupId>/attachments`, **inside the directory this
+deletion purges** — so for as long as the feature existed the ledger survived and
+every file its entries named was destroyed, by the Root those entries would
+incriminate, in one command. A trail retained without the evidence it points at
+is worse than either whole answer, because it still reads as complete.
+
+The rule applied is the one the attachment store already enforces rather than a
+second one: `releaseAttachment` refuses to discard an attachment once it has been
+sent, _"because a ledger entry names it and the store is the evidence behind that
+entry"_. So an attachment with `usedAt` set is kept, an upload nobody ever sent
+is deleted with the rest of the organisation's data, and an organisation that
+never used the feature leaves no attachment directory at all. Both surfaces
+report the retained count — the dashboard had never mentioned that _anything_
+survived, which is finding 212.
+
+**Agents are deleted before accounts, and the order is the safety property.**
+Deleting an agent from the host is the step that can fail. If it fails while
+Root is still there, the operator can clear the obstruction and run it again;
+the reverse order would strand a half-deleted organisation with nobody left able
+to finish it. A partial deletion therefore always leaves _more_ than intended,
+never less, and it says so.
+
+Recorded twice: `governance.organisation.delete-request` before the first
+destructive step, into the organisation's own retained chain, so a deletion
+killed half-way still shows who asked; and `governance.organisation.delete`
+afterwards, into both that chain and the installation chain — the second copy
+being what an operator finds when the organisation's own directory is no longer
+somewhere they would think to look.
 
 **From the paper** (§1.6): "manages the human element of the system, including
 creating user accounts, defining high-level RBAC settings, assigning roles".
@@ -194,7 +341,7 @@ attack.
 
 | Capability                                                             | Function                        |
 | ---------------------------------------------------------------------- | ------------------------------- |
-| **Prompt an assigned agent, and read that conversation back**          | `canManageAgent`                |
+| **Prompt an assigned agent, and read that conversation back**          | `canManageAgent` + tenancy      |
 | Create rules **scoped to an assigned agent**, allowing _or forbidding_ | `canAuthorPolicyForAgent` (T27) |
 | Remove rules belonging to an assigned agent                            | `canAuthorPolicyForAgent` (T27) |
 | Lock / release an assigned agent                                       | `canManageAgent`                |
@@ -207,6 +354,18 @@ attack.
 **From the paper** (§1.6): "Granted targeted access to interact with specific,
 pre-configured agents… may strictly prompt the agents for task execution or be
 granted limited, scoped permissions to modify non-critical agent parameters."
+
+> **Reading a conversation is interacting with an agent, and the command line
+> did not treat it that way until 2026-09-02 (finding 216).** `POST agent/prompt`
+> and `GET agent/transcript` both ask four questions on the HTTP surface — tier
+> floor User, a group, `canManageAgent`, and `requireAgentInGroup`. The
+> `transcript` **command** asked two: signed in, and holding a group. So a
+> Viewer — the tier this table says cannot interact with an agent — could read a
+> transcript from the terminal, and a User could read one for an agent nobody
+> assigned them. What it disclosed was narrow, because a conversation is keyed by
+> account and the reader reached their own past thread; the gap is that the two
+> surfaces implemented different models of the same rule. Both now use the same
+> four checks.
 
 A denial needs no higher tier than an allowance, which is worth stating because
 it looks like it should. A denial _narrows_: a User forbidding something on
@@ -249,7 +408,7 @@ reason it belongs in this layer at all:
 | Verify the audit chain's integrity                                 | tier floor: viewer            |
 | View system resource states (CPU, memory, uptime)                  | tier floor: viewer            |
 | See the rule-request queue for assigned agents                     | `canViewAgent`                |
-| **Cannot** prompt or otherwise interact with an agent              | tier floor: user              |
+| **Cannot** prompt an agent, or read a conversation with one        | tier floor: user              |
 | **Cannot** change anything at all                                  | every `canManage*` false      |
 
 **From the paper** (§1.6): "strictly read-only access… can monitor active agent
@@ -358,6 +517,23 @@ _Assignment binds immediately._ Changing a role or an assignment updates live
 sessions (`updateSessionsRoleForUser`, `updateSessionsAssignedAgents`) rather
 than waiting for the 12-hour session expiry. An operator whose access is
 revoked for cause must lose it now.
+
+_And a mirrored fact has to be written in **both** directions._ The session row
+carries copies of `role`, `assignedAgents`, `canAuthorPolicy` and the group, so
+an authorization check costs no file read. That is a performance decision with
+an obligation attached, and until 2026-09-02 the obligation was met for changes
+to an existing session and not for the creation of a new one:
+
+- **Finding 209** — `issueSession` never copied `canAuthorPolicy`, so a User
+  whose Root had withheld policy authoring **got it back by signing out and
+  signing back in**. The setter that withholds it argues in its own comment that
+  a permission applying only to future sessions would be one an operator
+  believes has taken hold when it has not; the defect was that same sentence
+  with "future" and "current" exchanged.
+- **Finding 210** — the assignment mirror was written unfolded (above).
+
+Both are fixed at the mirror's own choke point rather than at each caller, which
+is what makes the account file's rules survive a careless writer.
 
 ### 3.3 Correction: the kill switch is not Root-only
 

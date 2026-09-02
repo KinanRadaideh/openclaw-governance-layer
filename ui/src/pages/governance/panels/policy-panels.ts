@@ -397,9 +397,10 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
         onChange: (mode) => {
           const next = mode as GovernancePolicyDocument["mode"];
           if (next !== "off") {
-            return props.run(() => props.api().setMode(next));
+            void props.run(() => props.api().setMode(next));
+            return;
           }
-          return props.confirmThen(
+          void props.confirmThen(
             {
               message: t("governance.policy.confirmOff"),
               details: t("governance.policy.confirmOffDetails"),
@@ -421,8 +422,9 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
           { value: "on-miss", label: t("governance.policy.askOnMiss") },
           { value: "off", label: t("governance.policy.askOff") },
         ],
-        onChange: (ask) =>
-          props.run(() => props.api().setAsk(ask as GovernancePolicyDocument["ask"])),
+        onChange: (ask) => {
+          void props.run(() => props.api().setAsk(ask as GovernancePolicyDocument["ask"]));
+        },
       }),
     }),
     // Root-only, installation-wide, and unreachable from any surface until

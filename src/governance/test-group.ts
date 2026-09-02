@@ -38,6 +38,24 @@ import {
 // suites exist to prove that one organisation cannot see another, which takes
 // two of them, so this module — which shipped code never imports — lifts the cap
 // for anything seeding a group. The cap's own tests set it back explicitly.
+//
+// ## What this costs, and finding 206 is the bill
+//
+// It is a **module side effect on import**, so every suite that reaches for any
+// helper here has the cap lifted whether it wanted that or not — silently, and
+// without the suite mentioning it. One end-to-end test in
+// `governance-account-lifecycle.test.ts` therefore asserted that a second
+// bootstrap **succeeds**, which stopped being true on 2026-08-30 and stayed
+// green for six days. It was documenting the fixture, not the product, in the
+// one file a reader would consult to learn what bootstrap does.
+//
+// Kept as an import-time call rather than something each suite opts into,
+// because the alternative — every seeding suite remembering a setup line — is
+// the failure mode this project has already paid for twice with modes and
+// folds. **The mitigation is the rule, not the mechanism:** a test that asserts
+// anything about *how many organisations may exist* must set the flag itself, in
+// the test, so the assertion and its premise are read together. The cap's own
+// suite does this, and the lifecycle suite now does too.
 setMultiOrganisationAllowedForTests(true);
 
 /**

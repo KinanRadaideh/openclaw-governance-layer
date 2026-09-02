@@ -8,6 +8,7 @@ import { withFileLock } from "./file-lock.js";
 import { governanceHomeDir, sessionsFilePath } from "./paths.js";
 import type { GovernanceRole } from "./roles.js";
 import { writeGovernanceJson } from "./state-file.js";
+import { normalizeAgentIds } from "./user-store.js";
 
 export type GovernanceSession = {
   token: string;
@@ -80,6 +81,13 @@ export async function issueSession(user: {
   username: string;
   role: GovernanceRole;
   assignedAgents?: readonly string[];
+  /**
+   * Mirrored from the account record, and declared here rather than left to
+   * structural typing because it was silently dropped for as long as it was
+   * absent: every caller passes a whole `GovernanceUserRecord`, which carries
+   * the flag, and this function built the session without it (finding 209).
+   */
+  canAuthorPolicy?: boolean;
   groupId?: string;
   managedBy?: string;
 }): Promise<GovernanceSession> {
@@ -97,6 +105,11 @@ export async function issueSession(user: {
       createdAt: new Date(now).toISOString(),
       expiresAt: new Date(now + SESSION_TTL_MS).toISOString(),
       assignedAgents: [...(user.assignedAgents ?? [])],
+      // Tested against `undefined` rather than for truthiness, unlike the two
+      // below it. `false` is the only value that means anything here — absent
+      // means allowed — so a truthy test would drop precisely the restriction
+      // this field exists to carry.
+      ...(user.canAuthorPolicy !== undefined ? { canAuthorPolicy: user.canAuthorPolicy } : {}),
       // Mirrored for the same reason `assignedAgents` is: every route has to
       // answer "is this in your group?" and an authorization check should not
       // cost a file read. `authenticate` refuses an account with no group, so a
@@ -175,17 +188,31 @@ export async function revokeSessionsForUser(userId: string): Promise<number> {
   });
 }
 
-/** Reflects an agent-assignment change into already-issued sessions. */
+/**
+ * Reflects an agent-assignment change into already-issued sessions.
+ *
+ * **Folded here rather than trusted from the caller (finding 210).** This is the
+ * session copy's choke point exactly as `readUsersFile` and the setters are the
+ * account file's, and the two copies answer the same question — `canViewAgent`
+ * reads whichever one the surface happens to hold. The dashboard's assignment
+ * route passed the request body trimmed but not folded, so an Administrator
+ * assigning `Scout` for an agent whose id is `scout` wrote a session list that
+ * matched nothing, and the assignment did not take effect until its holder
+ * signed out and back in. That is finding 200 arriving at the mirror it did not
+ * cover, and the reason the fold belongs at the boundary that owns the store
+ * rather than at each caller.
+ */
 export async function updateSessionsAssignedAgents(
   userId: string,
   assignedAgents: readonly string[],
 ): Promise<void> {
   await ensureHomeDir();
+  const canonical = normalizeAgentIds(assignedAgents);
   await withFileLock(sessionsFilePath(), async () => {
     const file = await readSessionsFile();
     for (const session of file.sessions) {
       if (session.userId === userId) {
-        session.assignedAgents = [...assignedAgents];
+        session.assignedAgents = [...canonical];
       }
     }
     await writeGovernanceJson(sessionsFilePath(), file);

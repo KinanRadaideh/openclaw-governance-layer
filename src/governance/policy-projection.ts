@@ -26,6 +26,7 @@
 // and authorization apart means the interesting logic is testable without
 // constructing a session, and it means there is exactly one place that decides
 // who sees what — rather than a second, subtly different copy living here.
+import { normalizeAgentId } from "../routing/session-key.js";
 import {
   isRuleExpired,
   resolveAskMode,
@@ -202,9 +203,15 @@ export type AgentPolicyView = {
 /** Everything in force for one agent, in the shape the dashboard and CLI print. */
 export function agentPolicyView(
   doc: PolicyDocument,
-  agentId: string,
+  rawAgentId: string,
   nowMs: number = Date.now(),
 ): AgentPolicyView {
+  // Folded at the one entry point both surfaces use (finding 202). The document
+  // is keyed canonically; asking about it with the spelling an operator typed
+  // reported no overrides and `lockedDown: false` for an agent that was in fact
+  // locked — on the panel whose whole job is answering "why is my agent
+  // blocked?".
+  const agentId = normalizeAgentId(rawAgentId);
   const rules = rulesForAgent(doc, agentId, nowMs);
   return {
     posture: agentPosture(doc, agentId),

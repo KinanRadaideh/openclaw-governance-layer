@@ -30,6 +30,7 @@
 // matrix. A page that hides a control the server would refuse is being polite.
 // A page that *shows* one is a cosmetic bug, not a privilege escalation — and
 // that distinction is exactly why authorization does not live in this file.
+import { isValidAgentId, normalizeAgentId } from "@openclaw/normalization-core/agent-id";
 import { GovernanceApiError, type GovernanceIdentity } from "./api.ts";
 
 /**
@@ -81,7 +82,46 @@ export function canManageAgent(identity: GovernanceIdentity | null, agentId: str
   if (canAdminister(identity)) {
     return true;
   }
-  return (identity?.assignedAgents ?? []).includes(agentId);
+  const wanted = canonicalAgentQuery(agentId);
+  if (wanted === undefined) {
+    return false;
+  }
+  return (identity?.assignedAgents ?? []).some((held) => canonicalAgentQuery(held) === wanted);
+}
+
+/**
+ * The canonical form of an agent id, or `undefined` when it has none.
+ *
+ * **Imported rather than reimplemented (finding 215).** This is the browser half
+ * of a comparison the server also makes, and the only way a twin stays a twin is
+ * for both halves to fold with the same function — so this reaches for
+ * `@openclaw/normalization-core/agent-id`, which is what `normalizeAgentId`
+ * resolves to on the host side as well. A local `toLowerCase()` would be a
+ * second definition of "the same agent", which is the drift this project has
+ * paid for repeatedly.
+ *
+ * **Why it matters more here than at the other conveniences in this file.** The
+ * kill switch's agent field is free text, deliberately, so that an emergency can
+ * reach an agent that is real but idle — and the button is disabled on this
+ * predicate, over the words "not your agent". Comparing unfolded meant an
+ * operator who typed `Scout` for the `scout` they hold was told the emergency
+ * stop was not theirs to press, before they pressed it. That is the one case
+ * where "the page is only being polite" stops being true.
+ *
+ * **Filtered before folding**, as `permissions.ts` does it: `normalizeAgentId`
+ * is a coercion and answers `main` for anything with no canonical form, so
+ * folding unconditionally would turn a query for `###` into a query for the
+ * installation's default agent.
+ */
+function canonicalAgentQuery(agentId: string): string | undefined {
+  const trimmed = agentId?.trim() ?? "";
+  if (!trimmed) {
+    return undefined;
+  }
+  if (!isValidAgentId(trimmed) && normalizeAgentId(trimmed) === "main") {
+    return undefined;
+  }
+  return normalizeAgentId(trimmed);
 }
 
 /** The subset of `ids` this operator may act on, in the order given. */

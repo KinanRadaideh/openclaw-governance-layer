@@ -4,7 +4,6 @@
 import { consume } from "@lit/context";
 import { html, nothing } from "lit";
 import { state } from "lit/decorators.js";
-import type { GovernanceRole } from "../../../../src/governance/roles.ts";
 import { applicationContext, type ApplicationContext } from "../../app/context.ts";
 import { resolveControlUiAuthToken } from "../../app/control-ui-auth.ts";
 import { showConfirmDialog } from "../../components/confirm-dialog.ts";
@@ -45,6 +44,7 @@ import { canAdminister, canManageAnyAgent, isSessionLost, panelCapabilities } fr
 import type { LedgerFilter } from "./ledger-filter.ts";
 import { MIN_PASSWORD_LENGTH } from "./panels/account-panels.ts";
 import {
+  AccountsController,
   renderRuleRequestsSection,
   renderUsersSection,
   setAccountPassword,
@@ -65,6 +65,7 @@ import {
   AgentRegistryController,
   renderAgentRegistrySection,
 } from "./panels/agent-registry-panels.ts";
+import { renderOrganisationSection } from "./panels/organisation-panel.ts";
 import {
   renderDeploymentSection,
   renderFreshness,
@@ -180,11 +181,17 @@ class GovernancePage extends OpenClawLightDomElement {
   @state() private newRuleTtl = "";
   @state() private killAgentId = "";
   @state() private users: GovernanceUserRecord[] = [];
-  @state() private newUserName = "";
-  @state() private newUserPassword = "";
-  @state() private newUserRole: GovernanceRole = "viewer";
-  /** The Administrator a new User or Viewer will answer to (M3). */
-  @state() private newUserManagedBy = "";
+  /**
+   * The account panels' half-typed form fields, including the Administrator a
+   * new User or Viewer will answer to (M3) and the confirmation typed to delete
+   * the organisation.
+   *
+   * A controller rather than six `@state` fields here, following the registry
+   * panel (M6). The page had reached exactly the 700-line limit it holds itself
+   * to, so the organisation panel could not be added until the state it did not
+   * need to own moved to the panels that do.
+   */
+  private readonly accounts = new AccountsController(this);
   @state() private newRuleAgentId = "";
   /** Root-only policy settings that had no dashboard control until finding 140. */
   @state() private hitlTimeoutDraft = "";
@@ -219,9 +226,6 @@ class GovernancePage extends OpenClawLightDomElement {
    * that the browser keeps in history and every proxy logs.
    */
   @state() private ruleFilter: RuleFilter = { ...EMPTY_RULE_FILTER };
-  @state() private agentEdits: Record<string, string> = {};
-  /** Draft passwords, per account id. Never sent anywhere until confirmed. */
-  @state() private passwordEdits: Record<string, string> = {};
   @state() private systemStatus: GovernanceSystemStatus | null = null;
   @state() private deployment: GovernanceDeploymentStatus | null = null;
   @state() private ruleRequests: GovernanceRuleRequest[] = [];
@@ -275,12 +279,23 @@ class GovernancePage extends OpenClawLightDomElement {
   }
 
   private async probeBootstrapNeeded(): Promise<boolean> {
-    // The server checks "does any account exist" (409) before it validates the
-    // body (400), so deliberately empty credentials distinguish the two states
-    // without ever creating anything. Anything else — a network failure, a
-    // gateway auth problem — is not evidence that setup is needed, so fall
-    // back to the ordinary sign-in form rather than inviting the operator to
-    // create a second Root account that the server would refuse anyway.
+    // The server answers "this installation already has an organisation" (409)
+    // **before** it validates the body (400), so deliberately empty credentials
+    // distinguish the two states without ever creating anything. Anything else —
+    // a network failure, a gateway auth problem — is not evidence that setup is
+    // needed, so fall back to the ordinary sign-in form rather than inviting the
+    // operator to create an account the server would refuse.
+    //
+    // **That sentence described the server for one day and then described
+    // nothing for a week (finding 205).** M3 deleted the 409, and the
+    // one-organisation cap put the refusal back inside `createUser` — after body
+    // validation, reported as 400 like any malformed request. So both states
+    // answered 400, this returned `true` unconditionally, and **every
+    // unauthenticated visitor to an established installation was shown the
+    // create-the-first-account form** instead of the sign-in form. Fixed on the
+    // server, by making the contract this comment describes true again, rather
+    // than here — a probe that infers the answer from a status the route does
+    // not promise is a second copy of a rule, which is how it broke.
     try {
       await this.api().bootstrapRoot("", "");
       return false;
@@ -563,7 +578,7 @@ class GovernancePage extends OpenClawLightDomElement {
     // self-reset ends the session by design, so this path is the ordinary one
     // rather than an edge case: without it, the new Root password would sit in
     // component memory behind the sign-in screen it just caused.
-    this.passwordEdits = {};
+    this.accounts.clearSecrets();
     this.loginPassword = "";
     this.loginConfirm = "";
     this.stopAutoRefresh();
@@ -583,7 +598,7 @@ class GovernancePage extends OpenClawLightDomElement {
       if (this.busy || !this.identity || document.hidden) {
         return;
       }
-      void this.refreshData().catch((err) => {
+      void this.refreshData().catch((err: unknown) => {
         if (isSessionLost(err)) {
           this.markSessionExpired();
         }
@@ -979,32 +994,45 @@ class GovernancePage extends OpenClawLightDomElement {
         ${renderDeploymentSection({ deployment: this.deployment, role: this.identity?.role })}
         ${renderUsersSection({
           ...this.effects(),
-          role: this.identity?.role,
           identity: this.identity,
           users: this.users,
           administrators: this.administrators(),
           busy: this.busy,
-          drafts: {
-            agentEdits: this.agentEdits,
-            passwordEdits: this.passwordEdits,
-            newUserName: this.newUserName,
-            newUserPassword: this.newUserPassword,
-            newUserRole: this.newUserRole,
-            newUserManagedBy: this.newUserManagedBy,
-          },
-          onDraft: (patch) => Object.assign(this, patch),
+          ...this.accounts.slice(),
           setPassword: (userId, username) =>
             setAccountPassword(userId, username, {
               ...this.effects(),
               identity: this.identity,
-              passwordEdits: this.passwordEdits,
-              onDraft: (patch) => Object.assign(this, patch),
+              ...this.accounts.slice(),
               onError: (message) => {
                 this.error = message;
               },
             }),
           reloadUsers: async () => {
             this.users = await this.api().listUsers();
+          },
+        })}
+        ${renderOrganisationSection({
+          ...this.effects(),
+          identity: this.identity,
+          busy: this.busy,
+          accountCount: this.users.length,
+          ...this.accounts.slice(),
+          // Two facts recorded, and then the ordinary session-lost path does
+          // the rest of the work. The deletion revoked the session that
+          // authorised it, so `run`'s refresh immediately 401s and
+          // `markSessionExpired` clears the screen — which is exactly right
+          // here and needs no special case. It leaves `error` and
+          // `needsBootstrap` alone, which is why these two survive it.
+          //
+          // `needsBootstrap` is the honest state afterwards: no account exists
+          // on this installation, so the sign-in form should be the one that
+          // creates the first one rather than a form for accounts that are
+          // gone. `error` carries the outcome, because the sign-in screen is
+          // the only screen left to report it on.
+          onDeleted: (notice) => {
+            this.error = notice;
+            this.needsBootstrap = true;
           },
         })}
         ${renderKillSwitchSection({

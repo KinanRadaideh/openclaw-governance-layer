@@ -61,6 +61,18 @@ export const ADMIN_ACTIONS = {
    */
   codexBackendToggle: "governance.backend.codex",
   /**
+   * The same decision, recorded **before** it is attempted (finding 217).
+   *
+   * The pair exists for the reason `organisationDeleteRequest` /
+   * `organisationDelete` exists: a change that dies part-way — a config hash
+   * that moved under us, a read-only filesystem — must still leave a record of
+   * who asked for it, and that record must not be phrased as though the change
+   * happened. One entry written before the write, saying `disabled -> enabled`,
+   * told an investigation the installation had started accepting the
+   * enforcement gap when it had not.
+   */
+  codexBackendToggleRequest: "governance.backend.codex-request",
+  /**
    * A named account sent a prompt to an agent, and what came back.
    *
    * The trail could already say what an agent did and who wrote the rules it
@@ -185,6 +197,27 @@ export const ADMIN_ACTIONS = {
   ruleRequestSubmit: "governance.rule-request.submit",
   ruleRequestDecide: "governance.rule-request.decide",
   pendingDecisionDecide: "governance.pending-decision.decide",
+  /**
+   * Root asked for its own organisation to be deleted, and what came of it.
+   *
+   * Two actions rather than one, for the reason `agentProvision` gives and more
+   * strongly: this is the only act in the system that removes the account
+   * authorising it, so an entry written only on success would be missing
+   * exactly when the question "who did this?" becomes unanswerable from
+   * anywhere else. The request is recorded **before the first destructive
+   * step**, into the organisation's own chain — which is retained — so an
+   * attempt that dies half-way still shows who started it and when.
+   *
+   * The outcome is recorded twice on purpose: once in the organisation's
+   * retained chain and once in the installation chain
+   * (`INSTALLATION_LEDGER_GROUP`). The second copy is what an operator finds
+   * after the organisation is gone, when they no longer know which group
+   * directory to look in; the first is what keeps the deletion inside the
+   * hash chain it belongs to, rather than only in a chain the deleted
+   * organisation never wrote to.
+   */
+  organisationDeleteRequest: "governance.organisation.delete-request",
+  organisationDelete: "governance.organisation.delete",
 } as const;
 
 export type AdminAction = (typeof ADMIN_ACTIONS)[keyof typeof ADMIN_ACTIONS];

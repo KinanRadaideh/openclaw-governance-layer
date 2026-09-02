@@ -68,13 +68,48 @@ async function canonicalize(path: string): Promise<string> {
   try {
     return await realpath(path);
   } catch {
-    try {
-      return join(await realpath(dirname(path)), basename(path));
-    } catch {
-      // Neither the path nor its parent exists. The value is already absolute
-      // with `..` collapsed by this point, so returning it is safe: it simply
-      // means no link could be followed.
-      return path;
+    // ------------------------------------------------------------------
+    // **Walks up until something resolves, and stopping at one level was an
+    // escape** (finding 208).
+    //
+    // This tried the parent and gave up, returning the raw path — so a link
+    // stayed unresolved as soon as **two** components were missing:
+    //
+    //     workspace/data -> /etc          (a link that exists)
+    //     write "data/newdir/evil.conf"   (neither newdir nor the file exists)
+    //
+    // `realpath` failed on the file, `realpath` failed on `data/newdir`, and the
+    // gate matched its rules against `data/newdir/evil.conf` — a path that reads
+    // as workspace-relative. The `write` tool then created the missing
+    // directories with `mkdir(dir, { recursive: true })`, which follows the
+    // link, and wrote `/etc/newdir/evil.conf`.
+    //
+    // That defeats the property this module exists to provide, stated in its own
+    // header: *a rule anchored at `^src/` cannot be walked around, because an
+    // escape stops matching by ceasing to be workspace-relative.* Two
+    // non-existent components were enough to walk around it.
+    //
+    // The fallback's stated intent was always "a link in a directory component
+    // is still followed for a file that has not been created yet". This is that
+    // intent, generalised: find the deepest ancestor that exists, resolve it,
+    // and re-attach the segments below it. Bounded by the number of segments, so
+    // it terminates on every input including a root that cannot be read.
+    // ------------------------------------------------------------------
+    const trailing: string[] = [];
+    let current = path;
+    for (;;) {
+      const parent = dirname(current);
+      // `dirname` is idempotent at a root, which is the termination condition:
+      // nothing above it resolved either, so no link could be followed at all.
+      if (parent === current) {
+        return path;
+      }
+      trailing.unshift(basename(current));
+      try {
+        return join(await realpath(parent), ...trailing);
+      } catch {
+        current = parent;
+      }
     }
   }
 }

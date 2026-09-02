@@ -5,6 +5,7 @@
 // governance dashboard has no "forgot password" flow and its bootstrap
 // endpoint refuses to run once any account exists, so an operator who removes
 // the last privileged account has no way back in through the product.
+import { canonicalAccountName } from "./account-name.js";
 import type { GovernanceRole } from "./roles.js";
 
 export type AccountSummary = {
@@ -55,6 +56,15 @@ const ALLOWED: GuardResult = { allowed: true };
  * ends in a window where the account that governs all the others is either
  * duplicated or absent.
  *
+ * **Permanent is not the same as undeletable, and since 2026-09-01 the two have
+ * different answers.** Root cannot be deleted *as an account* — that is what
+ * these guards say, and it is unchanged, because an installation left with
+ * accounts and no Root is unrecoverable. Root can be deleted *with its
+ * organisation*, by `guardOrganisationDeletion` below, which removes every
+ * account and every agent in one act and therefore never produces the state the
+ * guards exist to prevent. The distinction is the whole design: the refusal here
+ * is about leaving people behind, not about the Root account being sacred.
+ *
  * The "another Root exists" branch is kept, not as a transfer route but because
  * a pre-existing or hand-edited `users.json` can still hold two Roots, and in
  * that state removing one is a repair rather than a lockout.
@@ -85,10 +95,75 @@ export function guardDeletion(
   if (userId === actingUserId) {
     return {
       allowed: false,
-      reason: "You cannot delete the account you are signed in with.",
+      // Names the one route out rather than stopping at "no". Root deleting
+      // itself is now possible and is a *different act* — it takes the
+      // organisation with it — so this refusal points at that act instead of
+      // implying no such thing exists.
+      reason:
+        "You cannot delete the account you are signed in with. " +
+        "To remove your own Root account, delete the organisation: that removes every " +
+        "account and every agent in it, and cannot be undone.",
     };
   }
   return guardRootPermanence(users, userId, "delete");
+}
+
+/**
+ * Whether Root may delete its own organisation, and whether it typed the right
+ * thing to prove it meant to.
+ *
+ * ## Why this is a guard and not four lines in the route
+ *
+ * It is the same kind of rule as the two above — a domain condition on an
+ * irreversible account change, stated once and unit tested without a Gateway —
+ * and it is the rule the two above deliberately leave a hole for. Splitting it
+ * across a route and a store is how "Root is permanent" came to be true by
+ * accident in the first place.
+ *
+ * ## The three conditions, and why each one
+ *
+ *   - **The caller must be the group's Root.** An Administrator can already
+ *     delete every agent they own; letting them delete the accounts above them
+ *     would make the tier that governs people removable by the tier it governs.
+ *   - **There must be no second Root.** On a hand-edited file holding two, the
+ *     repair is to delete the extra account (which `guardRootPermanence`
+ *     already permits), not to destroy the organisation both belong to.
+ *   - **The confirmation must be the caller's own username**, folded the way
+ *     every other account key is folded. A typed name is the one confirmation
+ *     that cannot be produced by a mis-click, a double-submitted form, or a
+ *     forged cross-site POST that does not know who is signed in.
+ */
+export function guardOrganisationDeletion(
+  users: readonly AccountSummary[],
+  actingUserId: string,
+  confirmation: string,
+): GuardResult {
+  const actor = users.find((candidate) => candidate.id === actingUserId);
+  if (!actor || actor.role !== "root") {
+    return {
+      allowed: false,
+      reason: "Only the organisation's Root account can delete the organisation.",
+    };
+  }
+  const otherRoots = users.filter(
+    (candidate) => candidate.role === "root" && candidate.id !== actingUserId,
+  ).length;
+  if (otherRoots > 0) {
+    return {
+      allowed: false,
+      reason:
+        "This organisation holds more than one Root account, which is not a state this " +
+        "system creates. Delete the extra Root account first; destroying the organisation " +
+        "is not the repair for it.",
+    };
+  }
+  if (canonicalAccountName(confirmation ?? "") !== canonicalAccountName(actor.username)) {
+    return {
+      allowed: false,
+      reason: `To confirm, type the Root username exactly: ${actor.username}`,
+    };
+  }
+  return ALLOWED;
 }
 
 function guardRootPermanence(
@@ -115,8 +190,10 @@ function guardRootPermanence(
     // wording sent an operator to try a promotion that always fails.
     reason:
       `An installation has exactly one Root account and it is permanent, so it cannot be ` +
-      `${action === "demote" ? "demoted" : "deleted"}. A second Root cannot be created either, ` +
-      `so there is no in-product handover: transfer the installation by resetting the ` +
-      `successor's password and passing on the credentials, or by editing users.json directly.`,
+      `${action === "demote" ? "demoted" : "deleted"} on its own. A second Root cannot be created ` +
+      `either, so there is no in-product handover: transfer the installation by resetting the ` +
+      `successor's password and passing on the credentials, or by editing users.json directly. ` +
+      `The one way Root goes away is deleting the whole organisation, which removes every ` +
+      `account and every agent with it.`,
   };
 }

@@ -73,13 +73,23 @@ type PolicyRule = {
   createdAt: string; // ISO 8601
   createdBy?: string; // authoring account
   expiresAt?: string; // ISO 8601; absent ⇒ indefinite
-  agentId?: string; // absent ⇒ global
+  agentId?: string; // absent ⇒ global; stored canonical (lowercased)
 };
 ```
 
 Every field added after the original allow-only language is **optional and
 defaults to the previous meaning**, so a rule written before any of them keeps
 granting exactly what it granted.
+
+**`agentId` is canonical, on the way in and on the way out (finding 202,
+2026-09-01).** It is compared against the id the gate resolves from the session
+key, which the host mints lowercased, so a rule scoped as written bound nothing:
+an `allow` that did not grant and — worse — a `deny` that did not forbid. It is
+now folded through `normalizeAgentId` when a rule is stored **and** when the
+document is read, so a `policy.json` already holding the typed spelling starts
+binding on this build. The same fold now applies to `lockedAgents`, `agentMode`
+and `agentAsk`; the account-keyed `userAsk` beside them had been folded since the
+defect that fold exists for, which is how the gap survived.
 
 **Effect.** The language was allow-only, on the reasoning that denial was the
 default and needed no expression. The tier model requires restrictions that
@@ -335,7 +345,18 @@ Creation fails with HTTP 400 (or a CLI error) when:
 1. `new RegExp(pattern)` throws.
 2. `pattern.length > 512`.
 3. The pattern nests a quantifier inside a quantified group — `(a+)+`, `(a*)*`,
-   `(?:x+)+`, `(a{1,}){2,}` and equivalents.
+   `(?:x+)+`, `(a{1,}){2,}`, **`(a?){n}`** and equivalents.
+4. The pattern repeats a group whose alternatives can match the same text —
+   `(a|a)+`, `(a|a?)+`.
+
+**`?` counts as a quantifier for rule 3, and did not until 2026-09-02 (finding
+207).** The check modelled `*`, `+` and `{n,m}` and not `?`, so `^(a?){26}$` was
+accepted and took **44.5 seconds** against a non-matching input — doubling per
+increment of `n`, which the rule's author chooses. Two exclusions are deliberate
+and remain: a `?` immediately after `(` opens `(?:`, `(?=`, `(?!` or `(?<` and
+quantifies nothing, and `{n}` on a fixed-length body is fixed-length. So
+`^ls( .*)?$` and `^https?://…$` are still accepted, which matters — see the note
+on over-rejection below.
 
 Rule 3 exists because patterns execute on every governed action against
 agent-controlled input, where such constructions exhibit exponential
@@ -508,7 +529,7 @@ that guessed would produce false positives and be ignored.
 | Read policy, ledger, sessions, rule requests           | `viewer`        | Filtered to visible agents                                                 |
 | See who else can reach an agent (M2)                   | `viewer`        | Must be able to _view_ that agent                                          |
 | Create/remove agent-scoped rule                        | `user`          | `canAuthorPolicyForAgent` — Root may withhold it per account (T27)         |
-| Prompt an agent, and read that transcript              | `user`          | Must manage that agent                                                     |
+| Prompt an agent, and read that transcript              | `user`          | Must manage that agent, **and it must be in the caller's own group**       |
 | Lock/release agent                                     | `user`          | Must manage that agent                                                     |
 | Attach a file to a prompt (T14)                        | `user`          | Must manage that agent                                                     |
 | **Set per-agent `ask`** (T4)                           | `administrator` | Must manage that agent. A User _requests_ it                               |
@@ -537,6 +558,24 @@ that guessed would produce false positives and be ignored.
 > And "create a second Root" is now scoped: M3 made a Root the owner of a
 > **group** rather than of the installation, so a second Root elsewhere is a
 > different organisation. Inside one group the original refusal is unchanged.
+
+> **This table was the one that stayed right (finding 218, 2026-09-02).** The
+> two per-agent rows above have said `administrator` since T4, and so has
+> `ROLE-MODEL.md`. `permissions.ts` and `GOVERNANCE.md` both went on describing
+> `canAuthorPolicyForAgent` as covering "setting that agent's posture and
+> escalation overrides" — three copies of a claim no surface honoured, in the
+> permissive direction, one of them in the file a developer opens to learn the
+> model. Corrected there; recorded here because _the specification and the
+> implementation's own summary disagreed and the specification was correct_,
+> which is the outcome a written spec is for and only useful if somebody reads
+> the two against each other.
+
+> **Every row in this table is enforced on both surfaces, and one was not
+> (finding 216, 2026-09-02).** The `transcript` half of the prompt row asked
+> only "signed in, and in a group" from the command line — no tier floor, no
+> scope check, no tenancy check — while its route asked all four. The scope
+> column above is the contract; a surface that implements less of it is the
+> defect class this project has now found five times (finding 174).
 
 > **A fourth check joined on 2026-08-24 (M4): ownership.** Every row above this
 > note is decided by group, tier and agent scope. The three registry-mutation

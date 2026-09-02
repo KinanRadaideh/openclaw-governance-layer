@@ -58,8 +58,10 @@ describe("dangerous patterns are rejected", () => {
 
   it("explains why, so the operator can fix the rule", () => {
     const result = checkRegexSafety("^(a+)+$");
-    expect(result.safe).toBe(false);
-    expect(result.safe === false && result.reason).toMatch(/backtracking/i);
+    if (result.safe) {
+      throw new Error("expected the checker to refuse this pattern");
+    }
+    expect(result.reason).toMatch(/backtracking/i);
   });
 });
 
@@ -124,5 +126,68 @@ describe("empirical check", () => {
     const safe = "^a+$";
     expect(checkRegexSafety(safe).safe).toBe(true);
     expect(backtrackMillis(safe, `${"a".repeat(28)}!`)).toBeLessThan(10);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Finding 207 — `?` was not modelled, and that was a live bypass.
+//
+// The checker treated `*`, `+` and `{n,m}` as quantifiers and not `?`, so a
+// repeated group with a merely *optional* body was accepted. Measured against
+// the checker as it stood: `^(a?){18}$` took 176 ms, `{22}` took 2.7 s and
+// `{26}` took **44.5 s** — doubling per increment, with `n` chosen by whoever
+// writes the rule.
+//
+// That is this module's own stated threat, reached by a shape it did not model:
+// the pattern is authored by the least-privileged tier that can write a rule and
+// then run on the Gateway's only thread against agent-controlled text.
+// ---------------------------------------------------------------------------
+describe("an optional body counts as a quantifier (finding 207)", () => {
+  it.each([
+    ["a bare optional", "^(a?){26}$"],
+    ["an optional class", "^([a-z]?){24}$"],
+    ["an optional group", "^((ab)?){24}$"],
+    ["two optionals", "^(a?a?){12}$"],
+    ["a lazy optional", "^(a??){20}$"],
+  ])("refuses %s repeated", (_label, pattern) => {
+    expect(checkRegexSafety(pattern).safe).toBe(false);
+  });
+
+  it("the accepted shape really was pathological", () => {
+    // The same empirical standard the suite already applies to `(a+)+`: show the
+    // refusal targets a real cost rather than a theoretical one. Deliberately a
+    // small `n` so the assertion is quick — the growth is what matters, and it
+    // was measured out to 44.5 s at n=26 when this was found.
+    const evil = "^(a?){22}$";
+    expect(checkRegexSafety(evil).safe).toBe(false);
+    expect(backtrackMillis(evil, `${"a".repeat(22)}!`)).toBeGreaterThan(50);
+  });
+
+  it("does not refuse the patterns operators actually write", () => {
+    // The module's stated policy: over-rejecting pushes operators toward
+    // catch-alls, which is worse than missing an exotic case. Every one of these
+    // contains a `?`, and none of them repeats a variable-length body.
+    for (const pattern of [
+      "^ls( .*)?$",
+      String.raw`^https?://api\.example\.com/.*$`,
+      String.raw`^\.env(\..*)?$`,
+      "^cat( -n)? [^;&|]+$",
+      "^(foo|bar)?$",
+    ]) {
+      expect(checkRegexSafety(pattern), pattern).toMatchObject({ safe: true });
+    }
+  });
+
+  it("still accepts a non-capturing group inside a repeated one", () => {
+    // `(?:` opens a group; its `?` quantifies nothing. Reading it as a
+    // quantifier would refuse a fixed-length, harmless construction.
+    expect(checkRegexSafety("^((?:ab))+$").safe).toBe(true);
+    expect(checkRegexSafety("^((?=a)ab)+$").safe).toBe(true);
+  });
+
+  it("still accepts a fixed count of a fixed-length body", () => {
+    // `{n}` without a comma is not variable-length, so it gives the engine
+    // nothing to choose between — the distinction this fix keeps.
+    expect(checkRegexSafety("^(a{3})+$").safe).toBe(true);
   });
 });

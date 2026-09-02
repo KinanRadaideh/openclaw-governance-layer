@@ -23,8 +23,19 @@ most and taught the most. Rounds one to five are summarised at the end.
 >
 > The **numbers are stable and are cited by number** from `HANDOFF.md` and
 > `REMAINING-WORK.md`, so they have deliberately not been renumbered. Use the
-> numbers, not the position. The newest material is §5.42–5.44 (M5), at the end
-> of the file.
+> numbers, not the position.
+>
+> **The newest material is §5.86–5.90, at the end of the file** (2026-09-01/02):
+> deleting an organisation, the four randomly-drawn sweeps after it, and the
+> pass over everything they left. _(This
+> line said "§5.42–5.44 (M5)" for four days while forty sections had been added
+> past it — which is this document's own subject arriving in its navigation
+> note.)_ **If you read one section, read §5.87**: it covers the emergency stop
+> that reported success and stopped nothing. **§5.89 is the one to read second**,
+> because four of its seven problems are the same mistake in four places — a fact
+> stored twice with only one copy kept up to date — and **§5.90 closes both the
+> pool and the argument**: eight of the last ten problems are either that, or an
+> explanation that outlived the code it explained.
 
 ---
 
@@ -5334,3 +5345,533 @@ they'd be vulnerable to rather than just read.
 wrong thing. Both are the code and its description drifting apart. That is now
 comfortably the most common kind of problem in this project — and it is exactly
 the kind that tests cannot catch.
+
+## 5.86 Deleting an account, and the one that couldn't be deleted
+
+You asked for account deletion: the boss can delete anyone, and can delete
+themselves — which takes the whole organisation down with it.
+
+**Half of it already worked.** The boss could always delete anybody else. What
+was refused was deleting _themselves_, and the refusal was right for a reason
+worth keeping: if you delete the person who manages everyone, everyone else is
+left answering to nobody, on a system with no password reset and no way to start
+again. The code said so at length, and told operators to edit the file by hand.
+
+So the fix was not to weaken that. It was to notice that **these are two
+different acts**. Deleting the boss's row strands everyone below. Deleting the
+_organisation_ takes everyone below along with it, so the bad state never
+happens. The refusal stays exactly as it was; the new act sits beside it with its
+own button, its own command, and a confirmation you have to type the boss's
+username into.
+
+Three things about it are worth saying plainly, because they are the parts
+somebody would otherwise be surprised by:
+
+**The agents are really deleted**, from OpenClaw itself, not just "no longer
+governed". And they go **first**, while the boss still exists — so if one of them
+refuses to go, nothing else has happened yet and you can try again. A
+half-finished deletion always leaves _more_ than intended, never less.
+
+**The audit log is kept.** Everything else in the organisation's folder is
+removed; the record of what its agents did stays. This is deliberate, and it is
+the one place we knowingly did not do what you might expect. If deleting your
+organisation also deleted the log of everything that happened in it, then anyone
+running one has a one-click way to destroy the evidence — which is the exact
+thing a tamper-proof log exists to prevent. It is not the operator's to delete.
+
+**Afterwards the installation is empty, not broken.** No account exists, so the
+sign-in page becomes the "create the first account" page again. It is a reset,
+not a brick.
+
+## 5.87 Two more random fifths, and the worst thing we have found
+
+After building that, you asked for two more reviews of randomly chosen fifths of
+the system, each with a few features gone through end to end. Between them they
+cover a little over 40% of it, with no overlap. **Nine problems, all fixed.** One
+of them is the most serious thing this project has found.
+
+### The emergency stop that said it worked and did nothing
+
+Agents have an id — a short name like "scout". The system stores those ids in
+lower case everywhere, because that is what the underlying runtime does.
+
+The emergency stop took the id **exactly as you typed it**. So if you typed
+"Scout" instead of "scout":
+
+- it wrote down that "Scout" is stopped, and the checker later asked "is scout
+  stopped?" and was told no — **the agent was never blocked**;
+- it looked for "Scout"'s running work, found none, because the running work is
+  filed under "scout";
+- and because it found nothing running, it reported **"stopped, confirmed"** —
+  which is the honest reading of "nothing was running" and completely the wrong
+  conclusion here.
+
+The screen said "Lockdown engaged". The agent carried on.
+
+This is the worst kind of failure this project recognises: not a crash, not a
+missing feature, but a control that reports success while doing nothing — on the
+one control whose entire purpose is stopping something dangerous immediately.
+
+The same missing step turned out to affect **everything else that names an
+agent**: a per-agent safety setting you saved that never applied, a rule you
+wrote for one agent that bound nobody, the record of your conversation with an
+agent becoming unreadable, and the panel that answers "why is my agent blocked?"
+answering "it isn't" about an agent that was. All of them now agree on the same
+spelling, and an installation that already stored the wrong one is repaired the
+moment it starts up rather than needing anyone to notice.
+
+### The assignment that was saved and never used
+
+Same cause, different place. When an administrator hands an agent to a team
+member, that was stored exactly as typed too. Hand somebody "Scout" and the
+system accepted it, showed it as saved, and then never matched it against
+anything: the person could not see that agent's log, talk to it, stop it, or
+write rules for it. Nothing anywhere said there was a problem.
+
+It failed in the safe direction — people got _less_ access than intended, never
+more — which is exactly why nobody noticed.
+
+### The upload store that could lose what it was holding
+
+Attachments you send to an agent are recorded in an index. Every other store in
+the system takes a lock before writing; this one did not. Two uploads at the same
+moment meant one of them vanished from the index while its file stayed on disk —
+so it stopped counting against your storage limit, and the limit could be walked
+past by uploading several at once.
+
+Worse, the same race could lose the flag that marks a file as **already sent**.
+That flag is the only thing stopping someone deleting a file the audit log points
+at. Losing it re-opens the ability to delete your own evidence.
+
+And if the index file was ever damaged, the store read it as "empty" and then
+saved that emptiness — silently forgetting every attachment it held. It now
+refuses to continue instead, and the health report says so.
+
+### The emergency stop that said it failed when it had worked
+
+The opposite mistake, in the same feature. Two things could go wrong _after_ the
+agent had already been stopped — a hiccup reading the list of running work, or
+the audit log being unwritable — and either one made the whole request report an
+error. So the agent was stopped, and the operator was told the stop had failed,
+at the exact moment they would reach for something more drastic.
+
+Now the stop reports what it is: the agent is stopped, and if the log entry could
+not be written, it says that too, beside the success rather than instead of it.
+
+### The one that couldn't be demoted
+
+Administrators manage people. If you demoted or deleted an administrator, the
+people who reported to them were left reporting to somebody who no longer had
+that job — silently, with nothing refusing it and nothing fixing it. Both are now
+refused, and the refusal lists exactly who you need to move first.
+
+While closing that, we found that **demoting an administrator from the dashboard
+had never worked at all** — it always returned a server error, because the page
+never sent the one piece of information the server required. Fixed on all three
+surfaces, and the page no longer offers the option when there is nobody available
+to take over.
+
+### The audit entry that said "undefined undefined"
+
+Approving a request to change an agent's safety setting wrote this into the
+tamper-proof log:
+
+    approved malek's request for undefined undefined
+
+The sentence was assembled from two fields that only exist on the _other_ kind of
+request. The entry recording when the request was _submitted_ had always been
+correct, because it used a shared helper written for exactly this reason. There
+were two descriptions of one thing, and one of them had drifted into nonsense.
+
+### Two smaller ones
+
+An identifier comparison that was correct only by coincidence, and a way of
+generating ids that could — very rarely — produce two identical ones. Neither was
+exploitable; both were the kind of thing that is right today and wrong after the
+next change, so both were made right on purpose instead.
+
+### What the pattern says
+
+**Eight of these nine are the same shape**: something is stored the way it was
+typed, and compared against something stored a different way. The system already
+had a file whose entire job is to say "fold a name before you use it as a key" —
+written after exactly this bug, for _account_ names. Account names were folded
+everywhere. Agent names were folded nowhere.
+
+One half of the problem was fixed thoroughly, and the half beside it was never
+looked at. That is the lesson worth carrying into the report: the most valuable
+question to ask about a past fix is not "did it work?" but **"what else has that
+shape?"**
+
+## 5.88 A sixth random fifth, and two defences that were one case short
+
+Three separate fifths of the system had already been reviewed when you asked for
+another. This one drew the parts that exist to be defences: the tamper-proof log,
+the login lockout, the check on operator-written patterns, and the code that
+stops an agent escaping its folder.
+
+**Four problems, all fixed. Two are security, and both are the same shape:** the
+defence was correct about the situation it was written for, and there was one
+more situation.
+
+### The pattern checker that could be handed a 44-second pattern
+
+Operators write rules using patterns. Some patterns are pathological — they look
+innocent and take a computer an astronomically long time to evaluate. The system
+has a checker that refuses them, and it refuses the classic examples correctly.
+
+It did not know that `?` — "this part is optional" — makes a pattern
+open-ended in the same way `*` does. So a pattern meaning roughly "twenty-six
+optional letters in a row" was **accepted as safe** and, on a non-matching
+input, took:
+
+| pattern            | time       |
+| ------------------ | ---------- |
+| eighteen optionals | 0.2 s      |
+| twenty-two         | 2.7 s      |
+| twenty-six         | **44.5 s** |
+
+Doubling with each one added, and the number is chosen by whoever writes the
+rule. During those 44 seconds the server does nothing else at all — not the
+dashboard, not the audit log, not the emergency stop. The person who can write
+such a rule is the _least privileged_ one who can write any rule.
+
+Fixed, and checked in both directions: every dangerous shape we could construct
+is now refused, and twelve patterns operators genuinely write — including ones
+with `?` in them, like "ls optionally followed by anything" — are still accepted.
+Refusing too much would push people toward writing catch-all rules, which is
+worse than the problem.
+
+### The folder confinement that two missing folders walked around
+
+The system keeps an agent inside its workspace by resolving what a path _really_
+points at before checking the rules. Shortcuts (symbolic links) are followed, so
+a link named `data` pointing at a system folder cannot be used to sneak out.
+
+When the file does not exist yet — which is the normal case for writing a new
+file — it resolved the containing folder instead. **But only one level up.** So
+if the agent wrote to `data/newfolder/thing.conf`, where neither `newfolder` nor
+the file existed, the link was never followed at all, and the rules were checked
+against a path that still looked like it was inside the workspace.
+
+The write tool then creates missing folders as it goes — which _does_ follow the
+link — and the file landed outside.
+
+Fixed by walking up until something real is found, however many levels that
+takes. The test for it was run against the old code first and fails there, which
+is how we know it tests the bug rather than the fix.
+
+### The sign-in page that was never shown
+
+The dashboard decides whether to show you "sign in" or "create the first
+account" by asking the server a question. The question relied on the server
+answering "this installation is already set up" _before_ it complained about the
+empty form it was sent. That answer had been removed months earlier, and the
+equivalent check moved somewhere that answers after the complaint instead.
+
+So both cases looked identical, and **every visitor to a working installation
+was shown the create-the-first-account form** — and, if they filled it in, told
+their installation already had one. The first screen anybody sees, showing the
+wrong thing.
+
+Fixed on the server, by making it answer the question the page was asking.
+
+### The test that would have caught it, asserting the opposite
+
+While fixing that, we found why nobody had noticed: the end-to-end test file for
+accounts contained a test named "creates a second organisation rather than
+refusing" — asserting **success**. That stopped being true on 30 August, when
+one-organisation-per-installation landed.
+
+It kept passing because the shared test fixture quietly switches that rule off
+for every test file that uses it. So the file a person would read to learn what
+happens when you set up an account was describing the test scaffolding rather
+than the product.
+
+Fixed to assert what actually ships, with the genuine two-organisation tests now
+switching the rule off _explicitly and saying why_.
+
+### What this one says about the method
+
+Three fifths of this system had already been swept when this one found two
+security defects. Both were in files that had been read carefully — the comments
+in them are long and thoughtful and correct. Neither would have been found by
+reading again.
+
+One needed a stopwatch. The other needed a real symbolic link on a real disk.
+**"That module has been reviewed" and "that module has been measured" are
+different claims, and only the second one found these.**
+
+---
+
+## 5.89 A seventh random fifth, and four copies of one mistake
+
+Four fifths of the system had now been reviewed, each drawn at random and none
+overlapping the others. This one drew what was left: mostly the smaller pieces —
+the command-line commands, the web routes, the dashboard panels — rather than
+the big stores of data.
+
+**Seven problems, all fixed. Two are security.** And the interesting thing is
+not any one of them: **four of the seven are the same mistake in four places.**
+
+### The one mistake, said plainly
+
+Some facts about an account are stored twice on purpose.
+
+When somebody signs in, the system writes down a few things about them — which
+agents they may touch, whether they are allowed to write rules — and keeps that
+copy alongside the sign-in itself. It does that because the alternative is
+opening the account file on every single click, which would make the dashboard
+slow.
+
+That is a reasonable decision and it is written down as one. The problem is that
+a fact kept in two places has to be _updated_ in two places, and in four
+different spots only one of the two was being maintained.
+
+### The withheld permission that came back on the next sign-in
+
+The owner of an installation can take away one person's ability to write rules —
+narrowing them to "may ask an administrator" instead. When they do that, the
+system carefully updates the person's _current_ sign-in so the change takes
+effect immediately. There is a comment beside that code explaining why doing
+less would be wrong: a permission that only applies later is one you would
+believe had taken hold when it had not.
+
+**But the code that creates a _new_ sign-in never copied the setting at all.**
+
+So the restriction held until that person signed out and signed back in — and
+then it was gone. On the website and on the command line both. Not because
+anything overrode it, but because the new sign-in simply did not know about it,
+and "not known" was read as "allowed".
+
+This is the same sentence as the comment, with "later" and "now" swapped.
+
+### The evidence that was deleted along with the organisation
+
+An installation's owner can delete their whole organisation — every account,
+every agent. The system deliberately **keeps the audit log** when they do, and
+the reasoning is written out at length: somebody who can erase the record by
+deleting the thing the record is about has a one-click way to destroy the entire
+point of having a tamper-proof log.
+
+The audit log refers to files people attached and sent to agents. **Those files
+lived inside the folder the deletion emptied.** So the log was kept and
+everything it pointed at was deleted — by exactly the person the log would
+incriminate, in one command.
+
+What makes this clearly a bug rather than a judgement call is that the system
+_already refuses this_. Elsewhere there is a rule that once an attachment has
+been sent, its owner cannot delete it, because the log names it and the file is
+the evidence behind the entry. Somebody who could not delete one file could
+delete all of them by deleting the organisation.
+
+Now the files the log names are kept with the log, and files nobody ever sent
+are deleted with everything else — which is the same rule, applied in both
+places instead of one.
+
+### The capital letter that disabled the emergency stop
+
+Agent names are stored in lower case. When somebody types one, the system is
+supposed to treat `Scout` and `scout` as the same agent.
+
+A previous review found this and fixed it where the names are _stored_. It did
+not fix the place that _compares_ them — even though that comparison is quoted
+by name in that review's own write-up.
+
+So somebody who had been given the agent `scout`, typing `Scout`, was told they
+did not manage it. Mostly that is an irritation. In one place it is not: the
+emergency stop has a free-text box for the agent's name, and the button was
+switched off by this comparison, over the words "not your agent". The one
+control that exists for emergencies told the operator it was not theirs to press
+— before they pressed it — on an agent they hold.
+
+Fixed on the server and in the browser, both using the same single function to
+decide what "the same agent" means, so the two cannot drift apart again.
+
+### Something we corrected about the reviews themselves
+
+Each of these random fifths is supposed to be drawn mechanically, and each one
+disjoint from the ones before, so that "we have now reviewed 80% of the system,
+randomly, without overlap" is a true sentence.
+
+The three previous sweeps recorded **how many** pieces they drew and never
+recorded **which**. So the claim could not actually be checked — only inferred
+from what the write-ups happened to mention. This one records the exact recipe
+used to draw it.
+
+That is worth more than any single finding here: a review whose selection cannot
+be reproduced cannot be shown to be disjoint from the next one, and that
+disjointness is something the report claims.
+
+### Why this sweep found what six before it did not
+
+Every one of the four copies exists for a good, written-down reason. None of
+them is a shortcut somebody took carelessly. What was missing in each case was
+the _other half_ of the reason — that a second copy has to be kept in step —
+and that is not something you notice by reading either file on its own.
+
+You notice it by reading the sign-in code and the permission code in the same
+sitting, which is what a random draw makes you do and a targeted review does
+not.
+
+---
+
+## 5.90 The last fifth — and what the two closing reviews say together
+
+This one was not a random draw. It was **everything the four random fifths had
+left**: eleven pieces, including the biggest web-route file, the biggest
+dashboard panel, and the main set of command-line commands. With the four before
+it, every part of the system that had no record of having been reviewed has now
+been reviewed.
+
+**Six problems: five fixed, one recorded and left open.**
+
+### The command that forgot to ask who was asking
+
+The website has a page that shows your conversation with an agent. Before it
+shows you anything, it asks four questions: is your role high enough, do you
+belong to an organisation, is this agent one you manage, and is it even in your
+organisation.
+
+The command-line version of the same thing asked two: are you signed in, and do
+you belong to an organisation.
+
+What that actually exposed is narrow — a conversation is stored per person, so
+what you could reach was your _own_ past conversation with an agent you no
+longer manage. But the gap is the point: two front doors to the same room with
+different locks.
+
+**The uncomfortable part is that we already went looking for exactly this.** On
+31 August a review read every command's checks beside its website counterpart's
+and found four gaps. It missed this one — which sits directly below one of the
+four it found, in the same file. A review that sounds exhaustive and is not.
+
+### The log entry that described something that had not happened
+
+An installation's owner can turn the Codex backend on. Doing so accepts a stated
+limitation — on that backend one protection can be recorded but not enforced —
+so it is written into the tamper-proof log, deliberately, before the change is
+attempted. Writing it before is right: a change that fails half-way is exactly
+the event you want a record of.
+
+But the entry said "codex backend disabled → enabled". When the change failed —
+and it can, if the configuration file moved underneath — the permanent record
+said the installation had started accepting that limitation, and it had not.
+
+Two similar operations elsewhere in the system already do this correctly: they
+write "requested" before, and a second entry confirming it afterwards. This one
+had a single entry doing both jobs, and doing the second one falsely.
+
+**And the test for it is the part worth repeating.** There was already a test
+called "records before it writes, so a failed change still leaves a trail". It
+checked that an entry existed and who it named. It never checked what the entry
+said. **A test that proves a record was written, but not that the record is
+true, is not testing the thing that matters about a record.**
+
+### The rulebook that described a power it had taken away
+
+One file is the authority on what each role may do — it is what you read, and
+what the report will quote, to learn the model. It listed one role as able to
+"set that agent's posture and escalation overrides".
+
+That stopped being true a while ago. Those two settings were moved up a level,
+deliberately and with the reasoning written out: letting the lowest role change
+them turns a firm refusal into a request somebody might approve, which is a
+widening made by the role with the least authority. The ability was not removed
+but _relocated_ — that role now asks, and an administrator decides.
+
+Both the website and the command line enforce the higher level. So the sentence
+described a permission nobody has, in the file most likely to be believed, and
+it was wrong in the generous direction.
+
+### The handbook that described a feature we had changed
+
+Found while fixing the command above, in the paragraph directly about it. The
+operator's reference said that the command line shows you a _different_
+conversation from the one the website shows you.
+
+It used to. Conversations were once owned by the machine you were sitting at, so
+two people sharing a computer shared a transcript. **We changed that** — the
+conversation now belongs to the account, precisely so those two people stop
+sharing one — and after that change the command line and the website show you
+the same thread. What stays separate is _other people's_ conversations, which is
+what the paragraph's last sentence was actually describing.
+
+So the reference stated the opposite of what the system does, and the command's
+own `--help` text carried the same old wording. The code comment where the
+change was made recorded it correctly. The two places a user actually looks did
+not.
+
+This is the same shape as the two above it, with one difference worth naming:
+this one had a reader **outside** the project.
+
+### The number we corrected, in the two places out of six that we corrected it
+
+We keep a short list of commands that must be run before anything is called
+verified, each with the number it is expected to produce. One of them runs a
+suite belonging to OpenClaw itself.
+
+On 1 September we found that this expected number was stale — it told a reader
+to accept eighteen failures that had been fixed six days earlier. On 2 September
+we found that the _corrected_ number was **half the suite**: the command runs two
+files, and the figure we had written down was the first file's total.
+
+We fixed that in two documents. **The same number appears in six**, and the four
+we did not touch went on saying the old value — including **inside the write-up
+of the original finding**, which is the one about a stale number.
+
+So the document diagnosing the problem was handing out the wrong figure. All six
+now agree, and each writes the arithmetic (`192 + 71 = 263`) rather than the
+total alone, so a future half-measurement looks like a half instead of like a
+plausible answer.
+
+This is the same lesson this project has now learned four times: **a fix is not
+checked as carefully as the thing it fixed.**
+
+### The check that could not fail
+
+The project keeps a short list of commands that must pass before anything is
+called verified. One of them checks code style and common mistakes.
+
+Running the command as written: **clean, no problems.** Running the **actual
+check** — the one that runs automatically before every commit — **38 problems**,
+and it refuses.
+
+Two different reasons, and both are the same shape as a problem we found the day
+before:
+
+- **34 of them need the checker to understand the program's types**, which is
+  slow (about eight minutes). Invoked the way our own instructions describe, it
+  skips that work and finishes in seconds, reporting nothing. It does not say it
+  skipped anything.
+- **The other 4 are in a folder the written command never looks at** — including
+  three ordinary problems in the script this project wrote to verify its own
+  Linux install.
+
+**A check that cannot fail is not a check.** The day before we found the same
+thing about the test command: on Windows it silently ran half the tests and
+exited successfully, which looks exactly like a pass. This is that, one layer
+along.
+
+None of the 38 came from this work — we checked, and one of the files is
+byte-for-byte identical to the last commit and still fails. **They are recorded
+and left open**: fixing 14 files across three areas, none of them in the parts
+this review covered, is a separate job, and quietly turning a review into one is
+how "what did you actually do?" stops having an answer.
+
+### What the last two reviews say together
+
+Thirteen problems across the two of them, and **ten are one of two things**:
+
+1. **A fact stored in two places, with only one kept up to date.**
+2. **A written explanation that outlived the code it explained.**
+
+Neither is a coding error. Both are what happens when somebody records a
+decision properly and then the thing they described moves.
+
+This project writes down its reasoning more thoroughly than most, which is why
+the second kind shows up so often here. That is worth stating plainly rather
+than defensively: **every one of these was found by reading the explanation
+against the code — which is only possible because the explanation was there to
+disagree with.** A codebase with no comments would have had the same defects and
+no way to notice them.

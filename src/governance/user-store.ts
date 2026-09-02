@@ -8,9 +8,11 @@ import { randomBytes } from "node:crypto";
 // changes, not a correctness requirement today.
 import { mkdir } from "node:fs/promises";
 import { readJsonIfExists } from "../infra/json-files.js";
+import { isValidAgentId, normalizeAgentId } from "../routing/session-key.js";
 import { canonicalAccountName } from "./account-name.js";
 import { ADMIN_ACTIONS, recordAdminAction, type AuditActorInput } from "./admin-audit.js";
 import { withFileLock } from "./file-lock.js";
+import { newGovernanceId } from "./ids.js";
 import { hashPassword, needsRehash, verifyPassword } from "./password.js";
 import { INSTALLATION_LEDGER_GROUP } from "./paths.js";
 import { governanceHomeDir, usersFilePath } from "./paths.js";
@@ -90,9 +92,14 @@ export function accountMayAuthorPolicy(user: { canAuthorPolicy?: boolean }): boo
 
 export type GovernanceUserRecord = Omit<GovernanceUser, "passwordHash">;
 
-/** A fresh group id. Same shape as an account id, for the same reason: sortable and unmistakable. */
+/**
+ * A fresh group id. Same shape as an account id, for the same reason: sortable
+ * and unmistakable — and since finding 199 that sentence is true again, because
+ * both come from `newGovernanceId` rather than from two hand-written copies of
+ * one line that had drifted apart.
+ */
 export function newGroupId(): string {
-  return `group-${Date.now()}-${randomBytes(4).toString("hex")}`;
+  return newGovernanceId("group");
 }
 
 /** Thrown when an account is created without the group every account must belong to. */
@@ -124,9 +131,55 @@ async function ensureHomeDir(): Promise<void> {
   await mkdir(governanceHomeDir(), { recursive: true, mode: 0o700 });
 }
 
-/** Trims, de-duplicates, and drops empty agent ids. */
-function normalizeAgentIds(agentIds: readonly string[] | undefined): string[] {
-  return [...new Set((agentIds ?? []).map((id) => id.trim()).filter(Boolean))];
+/**
+ * Folds, de-duplicates, and drops empty agent ids.
+ *
+ * ## Why the fold, and what it was costing (finding 200)
+ *
+ * This trimmed and nothing else, while **every id it is compared against is
+ * canonical**. The host mints session keys through `normalizeAgentId`, which
+ * lowercases; `agent-registry.ts` stores canonical ids (finding 128); and the
+ * gate resolves an agent id out of a session key. The assignment list was the
+ * one identifier in this system kept as typed and then compared with `===`.
+ *
+ * So an Administrator assigning `Scout` to a User — from a comma-separated text
+ * field, on either surface — produced an assignment that was **accepted,
+ * stored, echoed back and never consulted**. `assertAssignable` permitted it,
+ * because it canonicalises for its own lookup; `canViewAgent` then asked
+ * `["Scout"].includes("scout")` and answered no. The User could not read that
+ * agent's ledger, prompt it, stop it, or write policy for it, and
+ * `findUsersForAgent` could not find them behind it, so the per-user escalation
+ * axis had nobody to ask. Nothing anywhere reported a problem.
+ *
+ * That is the sentence `account-name.ts` was written for — *"a governance
+ * control that silently did nothing"* — reproduced on the other identifier, and
+ * the same repair: fold where the value becomes a key.
+ *
+ * **Here rather than at the route**, because this function is the choke point
+ * for both directions: `readUsersFile` calls it on the way in and the setters
+ * call it on the way out. Folding on read means an installation that already
+ * holds `Scout` starts working immediately and is rewritten canonically by the
+ * next assignment, rather than needing a migration.
+ *
+ * The failure direction was safe — a stored non-canonical id can never match a
+ * canonical one, so this only ever withheld access — which is why it survived:
+ * nothing broke loudly, an assignment simply did not work.
+ */
+export function normalizeAgentIds(agentIds: readonly string[] | undefined): string[] {
+  return [
+    ...new Set(
+      (agentIds ?? [])
+        .map((id) => id.trim())
+        .filter(Boolean)
+        // Filtered *before* folding: `normalizeAgentId` is a coercion, not a
+        // validator, and returns the installation's default id `main` for
+        // anything with no canonical form of its own. Folding unfiltered would
+        // turn a typo like `###` into an assignment of the default agent —
+        // finding 129's trap, arriving here by a different route.
+        .filter((id) => isValidAgentId(id) || normalizeAgentId(id) !== "main")
+        .map((id) => normalizeAgentId(id)),
+    ),
+  ];
 }
 
 async function readUsersFile(): Promise<UsersFile> {
@@ -372,7 +425,11 @@ export async function createUser(
       );
     }
     const user: GovernanceUser = {
-      id: `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      // One definition for all five id kinds since finding 199 — see `ids.ts`
+      // for what the hand-written version was doing and why it matters here:
+      // this id is what every role change, assignment and deletion resolves a
+      // row by.
+      id: newGovernanceId("user"),
       username: normalized,
       passwordHash: await hashPassword(input.password),
       role: input.role,
@@ -433,6 +490,65 @@ export class DuplicateRootError extends Error {
   }
 }
 
+/**
+ * Thrown when removing or demoting an Administrator would leave accounts with
+ * nobody answerable for them (finding 196).
+ *
+ * ## The hole this closes
+ *
+ * `MissingManagerError` states the invariant as *"no unmanaged account
+ * exists"*, and argues for it over a softer flag because *"an account nobody is
+ * answerable for … is the one an ecosystem panel exists to make impossible"*.
+ * Both writers that **create** the link enforce it: `createUser` and
+ * `setUserRole` each refuse a manager who is not an Administrator in the same
+ * group.
+ *
+ * Neither writer that **breaks** it did. Demoting an Administrator to Viewer,
+ * or deleting one outright, left every account they managed pointing at an
+ * account that is no longer an Administrator — or at no account at all. Nothing
+ * refused it, nothing repaired it, and nothing reported it: the rule was
+ * enforced at creation and abandoned at the two operations that end it.
+ *
+ * ## Why refusing rather than re-homing
+ *
+ * There is no successor to choose. Picking one would invent an answer to
+ * *"who is now answerable for these people?"* — the question the link exists to
+ * record — and `deleteUnmigratedAccounts` already argues that inventing an
+ * organisation for an account is worse than refusing to guess.
+ *
+ * The agent registry reached the opposite answer for agents, and the difference
+ * is instructive rather than inconsistent: `revokeHoldersOutsideOwner` **can**
+ * repair its join by revoking, because "nobody holds this agent" is a valid,
+ * safe state. "Nobody is answerable for this person" is not a valid state; it
+ * is the one being prevented.
+ *
+ * So the operator re-homes them first, and the refusal names them so that is
+ * one step rather than a hunt.
+ */
+export class ManagedAccountsRemainError extends Error {
+  constructor(action: "delete" | "demote", managerName: string, managed: readonly string[]) {
+    super(
+      `Cannot ${action} ${managerName}: ${managed.length} account(s) answer to them — ` +
+        `${managed.join(", ")}. Assign those accounts to another Administrator first, ` +
+        `or remove them. An account that answers to nobody is the state this refuses to create.`,
+    );
+    this.name = "ManagedAccountsRemainError";
+  }
+}
+
+/**
+ * Accounts that would be left unmanaged if this one stopped being their
+ * Administrator. Empty for an account that manages nobody.
+ */
+function accountsLeftUnmanaged(
+  users: readonly GovernanceUser[],
+  managerId: string,
+): GovernanceUser[] {
+  return users.filter(
+    (candidate) => candidate.id !== managerId && candidate.managedBy === managerId,
+  );
+}
+
 /** Raised when an account would start a second organisation on one installation. */
 export class DuplicateOrganisationError extends Error {
   constructor() {
@@ -479,6 +595,35 @@ let multiOrganisationAllowed = false;
  */
 export function setMultiOrganisationAllowedForTests(allowed: boolean): void {
   multiOrganisationAllowed = allowed;
+}
+
+/**
+ * Whether this installation already hosts an organisation.
+ *
+ * **The one bit the sign-in screen needs, and the reason it is exported**
+ * (finding 205). The dashboard decides between "sign in" and "create the first
+ * account" by probing `bootstrap-root` with empty credentials and reading the
+ * status — a design that depended on the route answering *"an organisation
+ * already exists"* **before** it validated the body. M3 removed that refusal,
+ * and the one-organisation cap put the behaviour back inside `createUser`,
+ * which runs *after* validation and reports a 400 like every other bad body. So
+ * both states answered 400 and every visitor to an established installation was
+ * shown the bootstrap form.
+ *
+ * Derived from the same premise `wouldCreateSecondOrganisation` uses rather than
+ * counting accounts: an installation holding only accounts that predate groups
+ * has **no** organisation yet, which is the state `governance migrate` repairs
+ * and in which bootstrap must still work. Sharing the premise is what stops the
+ * route and the store disagreeing about what "already has one" means.
+ *
+ * Honours the test-only multi-organisation override for the same reason: a suite
+ * that is allowed to create two organisations must not be told it cannot.
+ */
+export async function installationHasOrganisation(): Promise<boolean> {
+  if (multiOrganisationAllowed) {
+    return false;
+  }
+  return (await readUsersFile()).users.some((user) => Boolean(user.groupId?.trim()));
 }
 
 /**
@@ -609,6 +754,20 @@ export async function setUserRole(
     // rather than guessed. Changing what an account *is* and choosing who
     // answers for it are two decisions, and folding them together is how a
     // User quietly ends up unmanaged (the state M3 exists to make impossible).
+    // Losing the Administrator tier ends every management link pointing at this
+    // account (finding 196). Checked inside the lock, like every other invariant
+    // here, and before the write rather than after: the accounts it names must
+    // be re-homed first, and there is nobody to re-home them to afterwards.
+    if (user.role === "administrator" && role !== "administrator") {
+      const stranded = accountsLeftUnmanaged(file.users, userId);
+      if (stranded.length > 0) {
+        throw new ManagedAccountsRemainError(
+          "demote",
+          user.username,
+          stranded.map((account) => account.username),
+        );
+      }
+    }
     const becomesManaged = role === "user" || role === "viewer";
     const nextManager = managedBy ?? (becomesManaged ? user.managedBy : undefined);
     if (becomesManaged) {
@@ -761,6 +920,23 @@ export async function deleteUser(userId: string, actor: AuditActorInput): Promis
     if (!user) {
       return undefined;
     }
+    // The same invariant the demotion path guards (finding 196). Deleting an
+    // Administrator is the more obvious way to strand their people, and it was
+    // the less guarded of the two: `wouldStrandWithoutRoot` above protects the
+    // account at the top of the tree and nothing protected the accounts below
+    // this one.
+    //
+    // `deleteGroupAccounts` deliberately does not come through here, and that is
+    // correct rather than an oversight: it removes the manager and the managed
+    // in one write, so there is no moment at which an account answers to nobody.
+    const stranded = accountsLeftUnmanaged(file.users, userId);
+    if (stranded.length > 0) {
+      throw new ManagedAccountsRemainError(
+        "delete",
+        user.username,
+        stranded.map((account) => account.username),
+      );
+    }
     file.users = file.users.filter((u) => u.id !== userId);
     await writeGovernanceJson(usersFilePath(), file);
     return { username: user.username, role: user.role, groupId: user.groupId };
@@ -777,6 +953,62 @@ export async function deleteUser(userId: string, actor: AuditActorInput): Promis
     subjectId: userId,
   });
   return true;
+}
+
+/**
+ * Removes every account in one group, Root included.
+ *
+ * ## Why this is not a loop over `deleteUser`
+ *
+ * `deleteUser` refuses to remove the last Root (`LastRootError`), and it is
+ * right to: an installation left holding accounts that answer to nobody, with
+ * no password reset and no second bootstrap, is unrecoverable. A loop would
+ * therefore delete every account *except* the one that matters and then throw,
+ * leaving the organisation half-gone — the worst of both outcomes.
+ *
+ * The invariant those guards protect is **"no account is ever left without a
+ * Root"**, not "a Root always exists". Removing the Root together with everyone
+ * it governs, in a single write under a single lock, satisfies that invariant
+ * rather than breaking it: there is no instant at which a reader can observe
+ * accounts with no Root above them, because the file goes from all of them to
+ * none of them in one `writeGovernanceJson`.
+ *
+ * Accounts predating groups carry no `groupId` and are deliberately left alone.
+ * They belong to no organisation, so no organisation's deletion is authority to
+ * remove them; `deleteUnmigratedAccounts` is the command that owns that.
+ *
+ * Not exported to any route directly — `organisation-deletion.ts` is the only
+ * caller, and it is the module that owns the confirmation and the ordering.
+ * This is the primitive, in the same sense `setUserAssignedAgents` is one.
+ */
+export async function deleteGroupAccounts(
+  groupId: string,
+  actor: AuditActorInput,
+): Promise<GovernanceUserRecord[]> {
+  await ensureHomeDir();
+  const removed = await withFileLock(usersFilePath(), async () => {
+    const file = await readUsersFile();
+    const doomed = file.users.filter((u) => u.groupId === groupId);
+    if (doomed.length === 0) {
+      return [];
+    }
+    file.users = file.users.filter((u) => u.groupId !== groupId);
+    await writeGovernanceJson(usersFilePath(), file);
+    return doomed.map(toRecord);
+  });
+  for (const account of removed) {
+    // One entry per account, not one summary line, and into the organisation's
+    // **own** chain — which the deletion retains. After this the ledger is the
+    // only place that says these people existed, so it records them one by one
+    // exactly as an ordinary deletion would.
+    await recordAdminAction(groupId, {
+      actor,
+      action: ADMIN_ACTIONS.userDelete,
+      target: `account ${account.username} (role ${account.role}) deleted: organisation deleted`,
+      subjectId: account.id,
+    });
+  }
+  return removed;
 }
 
 /**

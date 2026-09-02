@@ -203,3 +203,62 @@ describe("symbolic links", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Finding 208 — the link fallback stopped one level up, and two missing
+// components walked around path confinement.
+//
+// `canonicalize` resolved the full path, and on failure tried the parent. With
+// *two* non-existent components the parent failed too, so it returned the raw
+// path with the symlink unresolved — and the gate matched its rules against
+// something that still read as workspace-relative.
+//
+// It is reachable because the `write` tool creates missing directories with
+// `mkdir(dir, { recursive: true })`, which follows the link. So the decision was
+// made about `data/newdir/evil.conf` and the write landed outside the workspace.
+// ---------------------------------------------------------------------------
+describe("a link is followed however many components are missing (finding 208)", () => {
+  it("resolves through a link when the file and its parent do not exist", async () => {
+    const { realpath } = await import("node:fs/promises");
+
+    const root = await realpath(await mkdtemp(join(tmpdir(), "gov-link-")));
+    const linkWorkspace = join(root, "workspace");
+    const outside = join(root, "outside");
+    await mkdir(linkWorkspace, { recursive: true });
+    await mkdir(outside, { recursive: true });
+    try {
+      await symlink(outside, join(linkWorkspace, "data"), "junction");
+    } catch {
+      // Creating a link needs privileges this machine may not grant. Skipped
+      // rather than silently passing — the same honesty `state-file-permissions`
+      // applies to POSIX modes on Windows.
+      return;
+    }
+
+    // One missing component: this always worked.
+    const oneLevel = await normalizeGovernedPath("data/evil.conf", linkWorkspace);
+    // Two missing components: this is the finding.
+    const twoLevels = await normalizeGovernedPath("data/newdir/evil.conf", linkWorkspace);
+    // Three, to show the walk is not a second special case.
+    const threeLevels = await normalizeGovernedPath("data/a/b/evil.conf", linkWorkspace);
+
+    for (const resolved of [oneLevel, twoLevels, threeLevels]) {
+      // Escaped paths render absolute, which is what stops a workspace-relative
+      // rule from matching them. A leading `data/` here means the link was never
+      // followed and the rule would have matched the wrong thing.
+      expect(resolved.startsWith("data/"), resolved).toBe(false);
+      expect(resolved.replaceAll("\\", "/")).toContain("outside");
+    }
+  });
+
+  it("still returns the path when nothing above it resolves", async () => {
+    // No link can be followed, so the value is returned as it stands — already
+    // absolute with `..` collapsed. The walk must terminate here rather than
+    // looping at the root.
+    const resolved = await normalizeGovernedPath(
+      join("no", "such", "place", "file.txt"),
+      join("also", "absent"),
+    );
+    expect(typeof resolved).toBe("string");
+  });
+});

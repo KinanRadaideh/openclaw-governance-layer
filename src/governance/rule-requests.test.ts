@@ -230,3 +230,70 @@ describe("two administrators deciding at once", () => {
     expect(stored?.createdRuleId).toBe("rule-abc");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Finding 201 — the decision entry described a request the union does not have.
+//
+// `RuleRequest` has two arms. The `agent-setting` arm (T4) carries `setting`
+// and `value` and has no `resourceKind` and no `pattern` — and the decision's
+// ledger `target` was hand-rolled from exactly those two absent fields, so
+// approving a posture or escalation change wrote "undefined undefined" into the
+// tamper-evident trail.
+//
+// The submission entry beside it was always correct, because it goes through
+// `describeRequest`, whose own doc says why it exists: one sentence shared by
+// the ledger and the review list, because "two descriptions of one request is
+// how the two drift". There were two descriptions and one had drifted into
+// nonsense.
+// ---------------------------------------------------------------------------
+describe("what the ledger says about a decision (finding 201)", () => {
+  it("names the setting and value for an agent-setting request", async () => {
+    const group = await seedGroupWithAgents(["scout"]);
+    const request = await submitRuleRequest(group, {
+      kind: "agent-setting",
+      agentId: "scout",
+      setting: "mode",
+      value: "monitor",
+      reason: "debugging a false denial",
+      requestedBy: "alice",
+    });
+
+    await decideRuleRequest(group, {
+      id: request.id,
+      approve: true,
+      decidedBy: "malek",
+      decidedByRole: "administrator",
+    });
+
+    const { tailLedger } = await import("./audit-ledger.js");
+    const { ADMIN_ACTIONS } = await import("./admin-audit.js");
+    const entry = (await tailLedger(group, 50)).find(
+      (candidate) => candidate.toolName === ADMIN_ACTIONS.ruleRequestDecide,
+    );
+    expect(entry?.resource).toContain("posture");
+    expect(entry?.resource).toContain("monitor");
+    expect(entry?.resource).toContain("scout");
+    // The defect itself, pinned directly: an auditor must never read this.
+    expect(entry?.resource).not.toContain("undefined");
+  });
+
+  it("still names the kind and pattern for an ordinary rule request", async () => {
+    const request = await submitRuleRequest(TEST_GROUP, input());
+
+    await decideRuleRequest(TEST_GROUP, {
+      id: request.id,
+      approve: false,
+      decidedBy: "malek",
+      decidedByRole: "administrator",
+    });
+
+    const { tailLedger } = await import("./audit-ledger.js");
+    const { ADMIN_ACTIONS } = await import("./admin-audit.js");
+    const entry = (await tailLedger(TEST_GROUP, 50)).find(
+      (candidate) => candidate.toolName === ADMIN_ACTIONS.ruleRequestDecide,
+    );
+    expect(entry?.resource).toContain("rejected");
+    expect(entry?.resource).toContain("alice");
+    expect(entry?.resource).toContain("^git status$");
+  });
+});

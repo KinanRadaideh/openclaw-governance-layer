@@ -38,6 +38,7 @@ import { promptSecret, promptText } from "../prompt.js";
 import { requireCliActor, requireCliIdentity, requireManagedAgent } from "./governance-cli-gate.js";
 import { registerGovernanceAgentCommands } from "./register.governance.agents.js";
 import { registerGovernanceBackendCommands } from "./register.governance.backend.js";
+import { registerGovernanceOrganisationCommands } from "./register.governance.organisation.js";
 import { registerGovernancePolicyCommands } from "./register.governance.policy.js";
 import { registerGovernanceRuleRequestCommands } from "./register.governance.requests.js";
 
@@ -229,6 +230,11 @@ export function registerGovernanceCommands(program: Command): void {
   // queue is one subject, and it is the only one whose three commands sit at
   // three different tiers.
   registerGovernanceRuleRequestCommands(governance);
+
+  // Deleting the organisation, including the Root running the command. Its own
+  // module because it is the only capability in the tree whose authorization
+  // rule is an identity rather than a tier — see its header.
+  registerGovernanceOrganisationCommands(governance);
 
   // ---------------------------------------------------------------------
   const agent = governance.command("agent").description("Interact with a governed agent");
@@ -470,23 +476,37 @@ export function registerGovernanceCommands(program: Command): void {
 
   agent
     .command("transcript <agentId>")
-    .description("Print this machine's conversation with an agent")
+    // "your account's", not "this machine's" (finding 219). T5 moved
+    // conversations from being owned by `cli` to being owned by the signed-in
+    // account — the comment in `prompt` above records the change — and this
+    // string, the reference table row and the reference prose all kept the old
+    // model. The prose went further and told operators the command line and the
+    // dashboard were separate threads, which stopped being true at the same
+    // moment: the same account sees one conversation on both.
+    .description("Print your account's conversation with an agent")
     .option("--limit <n>", "number of turns", "50")
     .action(async (agentId: string, options: { limit: string }) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
         const { readConversation } = await import("../../governance/agent-conversation.js");
         const limit = Number(options.limit);
-        const reader = await currentCliIdentity();
+        // **The route's four checks, which this command made two of** (finding
+        // 216). `agent/transcript` requires the User floor, a group,
+        // `canManageAgent` and `requireAgentInGroup`; this asked only for a
+        // signed-in account holding a group, so a Viewer could read a
+        // transcript their tier cannot produce and a User could read one for an
+        // agent nobody assigned them. `requireManagedAgent` is the command
+        // line's half of that set and is what `kill` already uses — the gap was
+        // that this command was written before it existed and never moved onto
+        // it.
+        const reader = await requireManagedAgent(
+          defaultRuntime,
+          `read agent "${agentId}"'s transcript`,
+          agentId,
+        );
         if (!reader) {
-          defaultRuntime.log("Not signed in. Run `openclaw governance login` first.");
           return;
         }
-        const readerGroup = reader.groupId?.trim();
-        if (!readerGroup) {
-          defaultRuntime.log("Your account does not belong to an organisation.");
-          return;
-        }
-        const turns = await readConversation(readerGroup, agentId, reader.username);
+        const turns = await readConversation(reader.groupId, agentId, reader.name);
         const shown = Number.isFinite(limit) && limit > 0 ? turns.slice(-limit) : turns;
         if (shown.length === 0) {
           defaultRuntime.log(`no conversation with "${agentId}" from this machine`);
@@ -848,6 +868,14 @@ export function registerGovernanceCommands(program: Command): void {
             ? `aborted ${outcome.termination.abortedRunIds.length} in-flight run(s)`
             : "no in-flight termination available from the CLI (the Gateway owns the run registry)",
         );
+        if (outcome.auditError) {
+          // The stop landed; its ledger entry did not (finding 195). Said out
+          // loud, because a missing entry in a tamper-evident trail is exactly
+          // the thing nobody should discover later as a gap.
+          defaultRuntime.log(
+            `WARNING: the agent is stopped, but this stop could not be written to the audit ledger: ${outcome.auditError}`,
+          );
+        }
       });
     });
 }

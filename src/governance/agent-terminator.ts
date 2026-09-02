@@ -169,13 +169,45 @@ export async function terminateAgentRuns(agentId: string): Promise<TerminationOu
     };
   }
 
+  // ---------------------------------------------------------------------
+  // **The probe is guarded, and until finding 195 it was the one thing here
+  // that was not.**
+  //
+  // This function's own contract two paragraphs up says it *never throws*, and
+  // the terminator call above is wrapped precisely to honour that. The probe —
+  // supplied by the same Gateway registration, reading the same live run
+  // registry, and equally capable of throwing while that registry is being torn
+  // down — was called bare, three times, in a loop.
+  //
+  // What a throw here cost was not the measurement. `lockDownAgent` has already
+  // applied the lockdown by this point and has not yet written the ledger entry,
+  // so the rejection propagated out through the route as a 500: **the emergency
+  // stop landed, the trail did not record it, and the operator was told the stop
+  // had failed** — during the one incident where they would then reach for
+  // something more drastic. The abort itself was already sent.
+  //
+  // Reported as an unconfirmed stop with the reason attached, which is exactly
+  // what it is: the runs were signalled and nobody could observe the result.
+  // ---------------------------------------------------------------------
   const deadline = Date.now() + CONFIRM_STOPPED_TIMEOUT_MS;
-  let stillRunning = probe(abortedRunIds);
-  while (stillRunning.length > 0 && Date.now() < deadline) {
-    await new Promise((resolve) => {
-      setTimeout(resolve, CONFIRM_POLL_INTERVAL_MS);
-    });
+  let stillRunning: readonly string[];
+  try {
     stillRunning = probe(abortedRunIds);
+    while (stillRunning.length > 0 && Date.now() < deadline) {
+      await new Promise((resolve) => {
+        setTimeout(resolve, CONFIRM_POLL_INTERVAL_MS);
+      });
+      stillRunning = probe(abortedRunIds);
+    }
+  } catch (err) {
+    return {
+      supported: true,
+      abortedRunIds,
+      elapsedMs: elapsed(),
+      dispatchMs,
+      stoppedConfirmed: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
   return {
     supported: true,

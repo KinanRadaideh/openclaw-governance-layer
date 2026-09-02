@@ -18,6 +18,7 @@
 import { readJsonIfExists } from "../infra/json-files.js";
 import { ADMIN_ACTIONS, recordAdminAction } from "./admin-audit.js";
 import { withFileLock } from "./file-lock.js";
+import { newGovernanceId } from "./ids.js";
 import { pendingDecisionsFilePath, ensureGroupDir } from "./paths.js";
 import type { ResourceKind } from "./policy-types.js";
 import type { GovernanceRole } from "./roles.js";
@@ -30,7 +31,7 @@ export type PendingDecision = {
   agentId: string;
   sessionKey?: string;
   toolName: string;
-  resourceKind: ResourceKind | string;
+  resourceKind: ResourceKind | (string & {});
   /** The resource the agent was blocked from acting on (already redacted). */
   resource: string;
   /** When the escalation timed out. */
@@ -132,7 +133,7 @@ export type RecordTimedOutEscalationInput = {
   agentId: string;
   sessionKey?: string;
   toolName: string;
-  resourceKind: ResourceKind | string;
+  resourceKind: ResourceKind | (string & {});
   resource: string;
   waitedMs: number;
 };
@@ -146,7 +147,7 @@ export async function recordTimedOutEscalation(
   return withFileLock(pendingDecisionsFilePath(groupId), async () => {
     const file = await readFileOrEmpty(groupId);
     const decision: PendingDecision = {
-      id: `pend-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: newGovernanceId("pend"),
       agentId: input.agentId,
       ...(input.sessionKey ? { sessionKey: input.sessionKey } : {}),
       toolName: input.toolName,

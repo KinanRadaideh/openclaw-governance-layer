@@ -6,6 +6,7 @@
 // endpoints enforce their own named-account session via an HttpOnly cookie
 // issued by /control-ui/governance/login — hence `credentials: "same-origin"`.
 import type { GovernanceRole } from "../../../../src/governance/roles.ts";
+import type { GovernanceUserRecord, OrganisationDeletionResponse } from "./api.accounts.ts";
 
 /**
  * A rule that binds an agent, and why it does.
@@ -354,18 +355,10 @@ export type GovernanceDeploymentStatus = {
   sampledAt: string;
 };
 
-export type GovernanceUserRecord = {
-  id: string;
-  username: string;
-  role: GovernanceRole;
-  createdAt: string;
-  assignedAgents: string[];
-  /**
-   * Whether Root has granted this account the ability to write policy.
-   * Absent means allowed; meaningful for the User tier only.
-   */
-  canAuthorPolicy?: boolean;
-};
+// Account shapes live in `api.accounts.ts` and are re-exported here, so the
+// dozen modules that import them from `./api.ts` keep working and there is
+// still one name to import from.
+export type { GovernanceUserRecord, OrganisationDeletionResponse } from "./api.accounts.ts";
 
 const BASE = "/control-ui/governance";
 
@@ -395,6 +388,17 @@ export type GovernanceKillResult = {
   stoppedConfirmed?: boolean;
   abortedRunIds?: string[];
   inFlightTerminationSupported?: boolean;
+  /**
+   * Present when the stop landed but its ledger entry could not be written
+   * (finding 195).
+   *
+   * The request still succeeds, because the agent really is stopped. Shown as a
+   * warning beside the outcome rather than reported as a failure: a
+   * tamper-evident trail missing an entry is something the operator must be
+   * told, and telling them the emergency stop failed when it did not is the
+   * reading that makes them escalate during an incident.
+   */
+  auditError?: string;
 };
 
 /**
@@ -459,7 +463,10 @@ export class GovernanceApi {
     return `${prefix}${BASE}/${path}`;
   }
 
-  private headers(json: boolean): HeadersInit {
+  // `Record<string, string>` rather than `HeadersInit`: this only ever returns
+  // a plain object, and the wider union includes `string[][]`, which spreads
+  // into an object literal as indices rather than headers.
+  private headers(json: boolean): Record<string, string> {
     const headers: Record<string, string> = {};
     if (json) {
       headers["Content-Type"] = "application/json";
@@ -1057,8 +1064,16 @@ export class GovernanceApi {
     return this.request<GovernanceUserRecord>("users", { method: "POST", body: input });
   }
 
-  setUserRole(userId: string, role: GovernanceRole): Promise<{ ok: true }> {
-    return this.request<{ ok: true }>("users/role", { method: "POST", body: { userId, role } });
+  /**
+   * `managedBy` is required when the new role is `user` or `viewer` and the
+   * account does not already have a manager — the server refuses otherwise, and
+   * this client omitted it entirely until finding 197.
+   */
+  setUserRole(userId: string, role: GovernanceRole, managedBy?: string): Promise<{ ok: true }> {
+    return this.request<{ ok: true }>("users/role", {
+      method: "POST",
+      body: { userId, role, ...(managedBy ? { managedBy } : {}) },
+    });
   }
 
   /** Root: switch a shipped core denial off, or back on. */
@@ -1095,6 +1110,22 @@ export class GovernanceApi {
 
   deleteUser(userId: string): Promise<{ ok: true }> {
     return this.request<{ ok: true }>("users/delete", { method: "POST", body: { userId } });
+  }
+
+  /**
+   * Root: delete the whole organisation — every account including your own, and
+   * every agent.
+   *
+   * `confirm` is the Root username, typed by the operator. Passed straight
+   * through rather than checked here: the server compares it, so the dashboard
+   * and the command line cannot come to disagree about what counts as consent.
+   *
+   * Resolving this response means the session it was sent with no longer
+   * exists. The caller's next request is unauthenticated, which is correct and
+   * is why the page treats success as a sign-out rather than as a refresh.
+   */
+  deleteOrganisation(confirm: string): Promise<OrganisationDeletionResponse> {
+    return this.request("organisation/delete", { method: "POST", body: { confirm } });
   }
 
   /**

@@ -131,6 +131,16 @@ export function renderKillNotice(
     return nothing;
   }
   const aborted = notice.abortedRunIds?.length ?? 0;
+  // Shown **before** every other outcome, and it is the only branch that can
+  // combine with any of them (finding 195): the stop landed, whichever way it
+  // landed, and the ledger did not record it. A missing entry in a
+  // tamper-evident trail is the more consequential half of that sentence, so it
+  // is the half an operator reads first.
+  if (notice.auditError) {
+    return html`<div class="settings-empty" role="alert">
+      ${t("governance.kill.noticeAuditFailed", { reason: notice.auditError })}
+    </div>`;
+  }
   if (notice.inFlightTerminationSupported === false) {
     return html`<div class="settings-empty" role="alert">
       ${t("governance.kill.noticeNoTermination")}

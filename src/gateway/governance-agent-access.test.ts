@@ -125,8 +125,12 @@ async function accessFor(
       return this;
     },
     end(chunk?: unknown) {
-      if (chunk) {
-        text += String(chunk);
+      if (typeof chunk === "string") {
+        text += chunk;
+      } else if (chunk instanceof Uint8Array) {
+        text += Buffer.from(chunk).toString("utf8");
+      } else if (chunk !== undefined && chunk !== null) {
+        text += JSON.stringify(chunk);
       }
       return this;
     },
