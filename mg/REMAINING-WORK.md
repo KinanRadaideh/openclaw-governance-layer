@@ -116,11 +116,25 @@ closed — nine fixed on the day, and 181 and 182 closed as T42 and T43. A
 deployed to, found **seven more (183–189)**. See §"The universal QA sweep —
 2026-09-01" and §"The second universal QA sweep, and a 20% segment".
 
-**The count of findings is now 208**, and the shape of the last thirty-seven is the
-argument: they were found by _doing the small remaining items_, by _running the
-layer on the platform it targets_, by _building a feature the backlog did not
-have_, and by _drawing a fifth of the modules at random, **five times**_ — not by
-reading more code in the places already read.
+**The count of findings is now 224**, and the shape of the last fifty-three is
+the argument: they were found by _doing the small remaining items_, by _running
+the layer on the platform it targets_, by _building a feature the backlog did not
+have_, by _drawing a fifth of the modules at random until the pool was
+exhausted_, and then — when there was nothing left to draw on that axis — by
+_changing what was sampled_ and drawing **capabilities across surfaces** instead.
+None of them by reading more code in the places already read.
+
+**That last step is the methodological result.** Segments four to eight closed
+the module pool: every governance module with no evidence of having been read had
+been read, across five mutually disjoint mechanical draws. The seventh segment's
+own lesson was that **four of its seven findings were one defect** — a fact kept
+in two places with one copy maintained — which a module draw finds only by luck,
+because the two halves live in different files. So the ninth sweep drew
+capabilities and audited each across its three surfaces, and immediately found a
+Root control absent from the command line (222) and a register of exceptions
+missing two of its three entries (223). **The sampling axis should match the
+shape of the defect you keep finding**, and this project's dominant shape stopped
+being "a wrong line in a module" some time ago.
 
 **The fifth segment is the one that justifies the method.** Findings 200 and 202
 are the same missing step — an agent id stored as typed and compared against a

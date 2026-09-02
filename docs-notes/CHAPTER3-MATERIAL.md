@@ -12,6 +12,14 @@ of Design Constraints → §3.4 Different Design Approaches → §3.5 Developed 
 Cross-references: `GOVERNANCE.md` (operator-facing overview + QA defect table),
 `UPSTREAM-BUG-REPORT.md` (the OpenClaw bug found during QA).
 
+> **Newest material, 2026-09-02:** §3.1's requirements table was re-verified by
+> **running** each requirement rather than re-reading its row, and carries the
+> evidence for each. §3.5.71–3.5.74 are the last four sweeps' results, and
+> §3.5.73–3.5.74 are the two worth taking into §4's methodology discussion: why
+> the sampling axis was changed once the module pool closed, and why a
+> performance property asserted in wall-clock time is asserted against the host
+> rather than the code.
+
 ---
 
 ## → 3.1 Design Requirements

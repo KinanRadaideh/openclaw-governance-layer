@@ -25,17 +25,19 @@ most and taught the most. Rounds one to five are summarised at the end.
 > `REMAINING-WORK.md`, so they have deliberately not been renumbered. Use the
 > numbers, not the position.
 >
-> **The newest material is §5.86–5.90, at the end of the file** (2026-09-01/02):
-> deleting an organisation, the four randomly-drawn sweeps after it, and the
-> pass over everything they left. _(This
-> line said "§5.42–5.44 (M5)" for four days while forty sections had been added
-> past it — which is this document's own subject arriving in its navigation
-> note.)_ **If you read one section, read §5.87**: it covers the emergency stop
-> that reported success and stopped nothing. **§5.89 is the one to read second**,
-> because four of its seven problems are the same mistake in four places — a fact
-> stored twice with only one copy kept up to date — and **§5.90 closes both the
-> pool and the argument**: eight of the last ten problems are either that, or an
-> explanation that outlived the code it explained.
+> **The newest material is §5.86–5.91, at the end of the file** (2026-09-01/02):
+> deleting an organisation, the four randomly-drawn sweeps after it, the pass
+> over everything they left, and a final review that changed **what it sampled**
+> once there was nothing left to draw. _(This line said "§5.42–5.44 (M5)" for
+> four days while forty sections had been added past it — which is this
+> document's own subject arriving in its navigation note.)_
+>
+> **If you read one section, read §5.87**: the emergency stop that reported
+> success and stopped nothing. **§5.89 second**, because four of its seven
+> problems are the same mistake in four places. **§5.90** closes the pool and the
+> argument. **§5.91 is the one about method** — reviewing by _capability_ rather
+> than by _file_, and the test that turned out to be unable to fail for the
+> reason it existed.
 
 ---
 

@@ -496,7 +496,7 @@ Chapter 3 will need them.
 
 ## 5. Quality assurance history
 
-Thirty-six rounds and sweeps plus the M-series build, **220 defects found, 218 fixed, one withdrawn as not a defect (157) and one open as an unexplained observation (169)** — the most recent being the seventh and eighth 20% segments (209–219) and **220**, the harness baseline documented as half its size in four places after the 2026-09-02 correction fixed two others. Older milestones, kept because the count's history is itself evidence: **150 defects found, 149 fixed, one recorded rather than fixed by decision** — **150** (2026-08-30) is the dashboard telling operators a forbid rule does not stop a search, hours after T7's prevention half made that false on the default runtime; the test written to catch exactly that moment kept passing, because the change narrowed the claim instead of retiring it — **149** (2026-08-30) closed an attribution gap the documentation audit surfaced: the command-line kill switch recorded actor `cli` while the signed-in account sat unused two lines above, so the most consequential administrative action was the one the trail could not attribute — **147** (2026-08-29) closed the last requirement-8 leak: every component-prefixed credential flag (`--db-password=`, `--admin-password=`, `--gateway-token=`) reached the ledger in plaintext, because the CLI-flag patterns anchor the key to `--` and one component of prefix made the whole list unreachable — two earlier write-ups had recorded this as a single missing key, having probed exactly one spelling. **148** is two Windows-only test failures that sit outside the five documented verification commands while the handoff claimed "no known-failing test anywhere"; not product defects, and recorded rather than fixed.
+Thirty-seven rounds and sweeps plus the M-series build, **224 defects found, 222 fixed, one withdrawn as not a defect (157) and one open as an unexplained observation (169)** — the most recent being the seventh and eighth 20% segments (209–219), **220** (the harness baseline documented as half its size in four places, after the 2026-09-02 correction fixed two others), **221** (the lint gate failing on two shards with 38 errors the documented lint command could not see), and a **ninth sweep on a new axis** — capabilities across surfaces rather than modules, once the module pool was exhausted — which found **222** (Root's per-account escalation override missing from the command line), **223** (the register of dashboard-only exceptions listing one of three) and **224** (a performance test that passed against the very defect it was written to catch). Older milestones, kept because the count's history is itself evidence: **150 defects found, 149 fixed, one recorded rather than fixed by decision** — **150** (2026-08-30) is the dashboard telling operators a forbid rule does not stop a search, hours after T7's prevention half made that false on the default runtime; the test written to catch exactly that moment kept passing, because the change narrowed the claim instead of retiring it — **149** (2026-08-30) closed an attribution gap the documentation audit surfaced: the command-line kill switch recorded actor `cli` while the signed-in account sat unused two lines above, so the most consequential administrative action was the one the trail could not attribute — **147** (2026-08-29) closed the last requirement-8 leak: every component-prefixed credential flag (`--db-password=`, `--admin-password=`, `--gateway-token=`) reached the ledger in plaintext, because the CLI-flag patterns anchor the key to `--` and one component of prefix made the whole list unreachable — two earlier write-ups had recorded this as a single missing key, having probed exactly one spelling. **148** is two Windows-only test failures that sit outside the five documented verification commands while the handoff claimed "no known-failing test anywhere"; not product defects, and recorded rather than fixed.
 
 **The history of the count.** Finding 120 (2026-08-26) was found by mutation-testing T6 and closed the same day; the count became 121 when T29's numbering audit found two defects sharing the number 104, **127 on 2026-08-27** when M5's four and M6's two were numbered 122–127, **130** when QA round nineteen audited the M-series as one system (128–130), **131** when QA round twenty read the remaining work against the nine design requirements and found a requirement-8 breach in the search audit, **134** when round twenty-one built the missing "raw LLM intent" field and found three defects in it (132–134), and **136** on 2026-08-28 when round twenty-two audited that documentation pass against the code (135–136): a JSDoc comment orphaned from `entryKind` by the new field, and T16 regressed in the same commit whose documentation asserted it closed.
 
@@ -687,14 +687,22 @@ conclusion.
 > **The state in one line, as of 2026-09-02:** built and verified, never
 > demonstrated; **the engineering on the backlog is finished** (T38–T40, T42 and
 > T43 closed on 2026-09-01, T32 and T34 the day before); **224 findings, 222
-> fixed**, the last twenty-nine from four mechanically-drawn 20% segments and a
-> closing pass over everything they left —
+> fixed**, the last thirty-two from four mechanically-drawn 20% segments, a
+> closing pass over everything they left, and a ninth sweep that changed axis to
+> draw **capabilities across surfaces** once the module pool was exhausted —
 > including **202, an emergency stop that reported success and stopped nothing**,
-> **207, a regex the safety checker called safe that blocks the Gateway
-> thread for 44 seconds**, and **209, a policy-authoring restriction a User
-> lifted by signing out and signing back in**; and what
-> remains is a live run, a Linux host, a read, the figures and the report —
-> **all of them Kinan's**.
+> **207, a regex the safety checker called safe that blocks the Gateway thread
+> for 44 seconds**, **209, a policy-authoring restriction a User lifted by
+> signing out and signing back in**, and **224, a performance test that passed
+> against the very defect it was written to catch**; and what remains is a live
+> run, a Linux host, a read, the figures and the report — **all of them
+> Kinan's**.
+>
+> **The live run is next, and it is imminent.** The install path, the Kimi
+> configuration (provider `moonshot`) and a 20-check rehearsal script are ready;
+> `docs-notes/LINUX-INSTALL.md` §6b and `HANDOFF.md`'s VPS checklist are what to
+> follow. **Requirement 9 is the row that trip changes**, and it is the only one
+> of the nine not fully met.
 >
 > **And a warning about the line above.** It said exactly this on 2026-08-31,
 > minus the last clause, and doing the three remaining items found **eleven more

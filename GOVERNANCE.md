@@ -1140,7 +1140,7 @@ pnpm exec tsx scripts/governance-demo-rehearsal.mjs
 > **The glob does not expand in PowerShell, and the command does not complain.**
 > `src/gateway/governance-*.test.ts` is passed through as a literal, matches no
 > file, and vitest runs the other two paths without a word — **93 files and 1,279
-> tests instead of 143 and 2,679.** A 52% undercount that exits `0`. On
+> tests instead of 144 and 2,684.** A 52% undercount that exits `0`. On
 > PowerShell, enumerate the files instead:
 >
 > ```powershell
@@ -1165,9 +1165,9 @@ pnpm exec tsx scripts/governance-demo-rehearsal.mjs
 > node node_modules/vitest/vitest.mjs run src/gateway/governance-*.test.ts ui/src/pages/governance/
 > ```
 >
-> The 2026-09-02 measurement was taken this way: **90 file runs (89 passed + 1
-> skipped) and 1,224 tests (1,219 passed + 5 skipped)**, then **53 file runs and
-> 1,455 tests, all passed** — so **143 file runs and 2,679 executions, 2,674 of
+> The 2026-09-02 measurement was taken this way: **91 file runs (90 passed + 1
+> skipped) and 1,229 tests (1,224 passed + 5 skipped)**, then **53 file runs and
+> 1,455 tests, all passed** — so **144 file runs and 2,684 executions, 2,679 of
 > them passing**. Write it as the sum rather than as the total: adding the
 > _passed_ file counts instead of the totals gives 142, which is how this line
 > was first written. That is finding 220's lesson reappearing on the day it was
@@ -1186,7 +1186,7 @@ The second command exists because the sixth QA round discovered that
 governance-only runs had hidden nineteen regressions in the host for weeks. A
 green governance suite is not evidence on its own.
 
-2,679 automated tests across 143 file runs (Windows, 2026-09-02, after T44 and the
+2,684 automated tests across 144 file runs (Windows, 2026-09-02, after T44 and the
 fourth through eighth segment sweeps — the **five** new files are the regression
 suites for findings 209/210, 211, 213, 215 and 216, and two cases were added to
 `codex-backend.test.ts` for 217, which is +5 file runs and +26 executions; it read "2,348 across 112" when measured on
