@@ -221,6 +221,7 @@ the core denial on 2026-08-19, the login on 2026-08-24.
 | `governance policy for-agent <agentId>`                                                                                   | **Agent → policies.** Posture and every rule in force for one agent                                                                       |
 | `governance policy rule-agents <ruleId>`                                                                                  | **Policies → agents.** Which agents a rule binds                                                                                          |
 | `governance policy set-agent-mode <agentId> <mode>`                                                                       | **Administrator:** per-agent posture: enforce / monitor / default                                                                         |
+| `governance policy set-user-ask <username> <mode>`                                                                        | **Root:** per-**account** escalation override: off / on-miss / default                                                                    |
 | `governance policy grant-folder <folder> [--except <path...>] [--access read\|write] [--agent <id>]`                      | Allow a folder and forbid named paths inside it, as one act. Writes ordinary, separately removable rules                                  |
 | `governance policy set-hitl-timeout <seconds>`                                                                            | How long an escalation waits for a human                                                                                                  |
 | `governance agent prompt [--stream] [--attach <path...>] <agentId> <message>`                                             | Send a prompt to an agent and print the reply. `--attach` sends files; the ledger records hash, type, size and name and **never content** |
@@ -597,10 +598,17 @@ groups. The rule now reads:
 > **Every capability reaches all three surfaces unless a stated reason says
 > otherwise, and the reasons are here.**
 
-**One capability is deliberately dashboard-only as of 2026-09-01**, down from
-two. Its reason is narrower than the one you would reach for first, and that is
-why it is written down. The second — rule requests — was built (`T40`), because
-when somebody sat down to act on the reason it did not survive: see below.
+**Two capabilities are deliberately dashboard-only as of 2026-09-02**, and the
+list below was **wrong until then (finding 223)**: it named one, asserted the
+rule above, and missed two cases. One of those two — `policy/user-ask` — had no
+stated reason because there was none, and it was built (finding 222). The other
+— releasing an unsent attachment — has a good reason that lived in
+`attachment-store.ts` and not here, which is the same defect in the milder
+direction: a document promising _"the reasons are here"_ while a reason was
+somewhere else.
+
+Rule requests were the third, and were built (`T40`) because when somebody sat
+down to act on the reason it did not survive: see below.
 
 ### Accounts — create, delete, re-role, reset a password
 
@@ -629,6 +637,41 @@ command has one input, the typed Root username, and the server compares it, so
 there is no second implementation of anything to drift. It is also the one
 account-touching act whose whole point is being reachable when the dashboard is
 not (see §2b).
+
+### Releasing an attachment that was never sent
+
+**Dashboard-only, and the reason is that the state cannot exist here.**
+`agent/attachment/release` discards an attachment its uploader picked and has
+not yet sent. On the command line, storing and sending are the **same act** —
+`governance agent prompt --attach <path>` puts the bytes in the store and sends
+them in one command — so there is never an unsent attachment for this surface to
+release.
+
+The control exists because the dashboard uploads when a file is _chosen_, which
+is what makes size and type known before the prompt goes out, and that split is
+what creates a state needing a discard (finding 113). A command here would have
+nothing to act on.
+
+**Not a capability gap, then, but a control for a state only one surface has** —
+and worth writing down, because "the CLI cannot release attachments" reads like
+a gap until you know why. It was recorded in `attachment-store.ts` and not in
+this section, which is the half of finding 223 that is only a documentation
+defect.
+
+### ~~`policy set-user-ask` — the per-account escalation override~~ — **BUILT 2026-09-02 (finding 222)**
+
+**Kept as a heading because the omission is the instructive part.** §1.6 splits
+escalation two ways: an Administrator sets it per **agent**, Root sets it per
+**account**. `policy set-agent-ask` shipped on 2026-08-11 with the note _"CLI
+parity closed… No known CLI gaps remain against the dashboard."_ The
+per-**account** half never had a command, and this section — whose whole job is
+to name such cases — did not list it.
+
+So an operator over SSH could change an agent's escalation behaviour and not a
+person's, on the axis Chapter 1 assigns to Root specifically. The command is
+`governance policy set-user-ask <username> <off|on-miss|default>` (§3), Root-
+gated by `canManageAccounts` rather than `canManageGlobalPolicy`, because the
+tier is the point of the axis.
 
 ### ~~Rule requests — submitting one, and deciding it~~ — **BUILT 2026-09-01 (T40)**
 
@@ -1114,6 +1157,36 @@ permissive direction. The pair matches
 **Exit codes:** `0` the change was made or the state was printed · `1` the value
 was not `on` or `off`. A refusal on tier prints the reason and exits `0`, like
 every other gated command here.
+
+### `governance policy set-user-ask <username> <mode>`
+
+**Root only.** The per-**account** half of the escalation axis, and the tier is
+the point: §1.6 gives an Administrator escalation per _agent_
+(`policy set-agent-ask`) and gives Root escalation per _person_. This command is
+gated by `canManageAccounts`, not `canManageGlobalPolicy`, so the two axes
+cannot collapse into one another.
+
+```bash
+openclaw governance policy set-user-ask malek off        # never escalate for this account
+openclaw governance policy set-user-ask malek on-miss    # escalate on an unmatched call
+openclaw governance policy set-user-ask malek default    # clear the override
+```
+
+**The account name is folded**, so an override set for `Malek` is the one
+`resolveAskMode` reads for `malek`. That is not a courtesy: keying this map by
+the spelling somebody typed while the engine looked it up canonically is a defect
+this project has already had, where the control reported success, the dashboard
+displayed the setting, and the engine never saw it.
+
+**Added 2026-09-02 (finding 222)**, having been on the route and the dashboard
+since the axis was built. §2d, which exists to name every dashboard-only
+capability, did not list it — so nothing reported the gap, and the 2026-08-11
+changelog entry below claiming "no known CLI gaps remain against the dashboard"
+had been false ever since.
+
+**Exit codes:** `0` the override was set or cleared · `1` the mode was not
+`off`, `on-miss` or `default`. A refusal on tier prints the reason and exits `0`,
+like every other gated command here.
 
 ### `governance agent runs` and `governance agent cancel <runId>`
 
@@ -1656,6 +1729,7 @@ node --import ./scripts/register-ts-resolver.mjs scripts/governance-linux-check.
 
 | Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-02 | Added `governance policy set-user-ask <username> <mode>` (Root) — the per-**account** half of §1.6's escalation axis, which had the route and the dashboard and no command since the axis was built (finding 222). Its per-_agent_ twin `set-agent-ask` shipped 2026-08-11 under the note "CLI parity closed… No known CLI gaps remain against the dashboard", which this makes true again. **§2d was wrong** (finding 223): it named one dashboard-only capability, asserted "the reasons are here", and missed two — this one, which had no reason, and releasing an unsent attachment, whose reason was recorded in the module instead                                                                                                                                                                                                                                   |
 | 2026-09-02 | **Behaviour change, no new flags:** `agent transcript` now makes the same four checks its HTTP route makes — the User floor, an organisation, `canManageAgent`, and the agent being registered in the caller's own organisation. It had made two (signed in, and holding a group), so a **Viewer** could read a transcript from the terminal that the dashboard refuses their tier, and a User could read one for an agent nobody assigned them. Finding 216, and the fifth instance of a check present on the route and absent on the command. Two documentation corrections landed with it (finding 219): this reference said the command shows "the `cli` thread — not what a User has said … from the dashboard", which **T5 made false** when it moved conversations from the machine to the account, and the command's own `--help` line carried the same stale model |
 | 2026-09-02 | No command changed. `governance backend set-codex` now writes **two** ledger entries rather than one — `governance.backend.codex-request` before the configuration write and `governance.backend.codex` after it succeeds. The single entry was written before the attempt (correct, so a change that dies half-way still shows who asked) and phrased as the accomplished change, so a failed toggle left the tamper-evident trail asserting this installation had begun accepting the Codex enforcement gap. Finding 217                                                                                                                                                                                                                                                                                                                                                  |
 | 2026-08-31 | Added `governance agents access`, `governance agent runs` and `governance agent cancel` (T34), closing three of the four surface gaps finding 158 measured — and added **§2d**, which names the two that stay dashboard-only and why. The project's rule changed with it: from "a capability reaching only two surfaces is unfinished" to "every capability reaches all three unless a stated reason says otherwise"                                                                                                                                                                                                                                                                                                                                                                                                                                                        |

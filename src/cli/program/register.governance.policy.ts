@@ -36,6 +36,7 @@ import {
   loadPolicy,
   removeRule,
   setAgentAskMode,
+  setUserAskMode,
   setAgentMode,
   setAskMode,
   setCoreRuleEnabled,
@@ -499,6 +500,49 @@ export function registerGovernancePolicyCommands(governance: Command): void {
         assertAskMode(mode);
         await setAgentAskMode(actor.groupId, agentId, mode, actor);
         defaultRuntime.log(`agent "${agentId}" ask set to ${mode}`);
+      });
+    });
+
+  policy
+    .command("set-user-ask <username> <mode>")
+    .description("Root: per-account override of ask behaviour: off | on-miss | default")
+    .action(async (username: string, mode: string) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        // **Root, not Administrator, and the tier is the point of the axis.**
+        // §1.6 splits escalation two ways: an Administrator controls it per
+        // *agent*, Root controls it per *account*. `policy/user-ask` is the
+        // second, so it sits with account administration even though it writes
+        // the policy document — which is why this command asks
+        // `canManageAccounts` while its per-agent twin above asks
+        // `canManageGlobalPolicy`.
+        //
+        // **This command did not exist until 2026-09-02 (finding 222.)** The
+        // route and the dashboard have had it since the axis was built; the
+        // command line never did, and `CLI-REFERENCE.md` §2d — which promises
+        // to name every dashboard-only capability — did not list it. An
+        // operator over SSH could set an agent's escalation and not a person's.
+        const actor = await requireCliActor(
+          defaultRuntime,
+          "set an account's escalation behaviour",
+          (a) => canManageAccounts(a),
+        );
+        if (!actor) {
+          return;
+        }
+        const target = username.trim();
+        if (!target) {
+          defaultRuntime.log("username is required");
+          defaultRuntime.exit(1);
+          return;
+        }
+        if (mode === "default") {
+          await setUserAskMode(actor.groupId, target, undefined, actor);
+          defaultRuntime.log(`account "${target}" now follows the installation default`);
+          return;
+        }
+        assertAskMode(mode);
+        await setUserAskMode(actor.groupId, target, mode, actor);
+        defaultRuntime.log(`account "${target}" ask set to ${mode}`);
       });
     });
 

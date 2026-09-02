@@ -686,8 +686,8 @@ conclusion.
 >
 > **The state in one line, as of 2026-09-02:** built and verified, never
 > demonstrated; **the engineering on the backlog is finished** (T38–T40, T42 and
-> T43 closed on 2026-09-01, T32 and T34 the day before); **221 findings, 219
-> fixed**, the last twenty-six from four mechanically-drawn 20% segments and a
+> T43 closed on 2026-09-01, T32 and T34 the day before); **224 findings, 222
+> fixed**, the last twenty-nine from four mechanically-drawn 20% segments and a
 > closing pass over everything they left —
 > including **202, an emergency stop that reported success and stopped nothing**,
 > **207, a regex the safety checker called safe that blocks the Gateway

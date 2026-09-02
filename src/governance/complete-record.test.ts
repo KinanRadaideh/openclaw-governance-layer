@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   appendLedgerEntry,
   LEDGER_ROTATE_BYTES,
+  fullChainReadsForTests,
   resetLedgerCursorForTests,
   setLedgerRotateBytesForTests,
   tailLedger,
@@ -126,6 +127,27 @@ describe("write cost stays bounded as the ledger grows", () => {
     // Before the cached head, each append parsed the entire ledger, making the
     // ledger quadratic to write. Recording every action would have made that
     // the dominant cost.
+    //
+    // **Counted, not timed** (finding 224). This asserted "under 50 ms per
+    // append" beneath a comment claiming to be "about complexity, not machine
+    // speed" — and an absolute per-append ceiling is precisely machine speed.
+    // It sat at a ~3% margin and failed whenever the host was busy.
+    //
+    // Rewriting it as a *ratio* of a late window to an early one did not help,
+    // and measuring both implementations is what showed why:
+    //
+    //   | append path            | early    | late     | ratio |
+    //   | ---------------------- | -------- | -------- | ----- |
+    //   | cached head (correct)  | 53.1 ms  | 54.9 ms  | 1.03  |
+    //   | cache disabled (quadratic) | 68.2 ms | 64.8 ms | 0.95  |
+    //
+    // **Indistinguishable.** Parsing a few hundred JSON lines is microseconds
+    // against a ~55 ms file lock and fsync, so at any size a unit test can
+    // afford the growth term is invisible. The old test would have passed
+    // against the very defect it was written for.
+    //
+    // So the property is asserted directly: the number of times the whole file
+    // is parsed to recover the head must not grow with the number of appends.
     const write = async (index: number) =>
       appendLedgerEntry(TEST_GROUP, {
         agentId: "a",
@@ -136,19 +158,28 @@ describe("write cost stays bounded as the ledger grows", () => {
         decision: "allow",
       });
 
-    for (let index = 0; index < 200; index += 1) {
-      await write(index);
-    }
-    const startLate = process.hrtime.bigint();
-    for (let index = 200; index < 300; index += 1) {
-      await write(index);
-    }
-    const lateMs = Number(process.hrtime.bigint() - startLate) / 1e6 / 100;
+    // One cold read is expected and correct: the first append after a reset has
+    // no cached head and must find it.
+    await write(0);
+    const afterFirst = fullChainReadsForTests();
 
-    // A quadratic implementation would make later writes visibly slower than
-    // a small constant; assert a generous ceiling rather than a tight number
-    // so the test is about complexity, not machine speed.
-    expect(lateMs).toBeLessThan(50);
+    for (let index = 1; index < 60; index += 1) {
+      await write(index);
+    }
+    const afterSixty = fullChainReadsForTests();
+
+    for (let index = 60; index < 120; index += 1) {
+      await write(index);
+    }
+    const afterOneTwenty = fullChainReadsForTests();
+
+    // Constant: the head is carried forward, so no later append re-reads.
+    // Quadratic: this grows by one per append, so the two deltas below would be
+    // 59 and 60 rather than 0 — verified by disabling the cache.
+    expect(afterSixty - afterFirst).toBe(0);
+    expect(afterOneTwenty - afterSixty).toBe(0);
+    expect(afterFirst).toBeLessThanOrEqual(1);
+
     expect((await verifyLedgerChain(TEST_GROUP)).ok).toBe(true);
   });
 

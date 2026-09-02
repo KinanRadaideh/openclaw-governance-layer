@@ -440,12 +440,33 @@ async function readCarriedHead(groupId: string): Promise<{ seq: number; hash: st
   return { seq: 0, hash: GENESIS_HASH };
 }
 
+/**
+ * How many times the whole active ledger has been parsed to find the head.
+ *
+ * **A test seam, and it exists because the property could not be measured any
+ * other way** (finding 224). "Appending does not re-read the whole file" was
+ * asserted by timing 100 appends and requiring under 50 ms each — which is a
+ * statement about the machine, not about complexity. Measured both ways, the
+ * quadratic implementation and the correct one are indistinguishable at any
+ * size a unit test can afford: parsing a few hundred JSON lines is microseconds
+ * against a ~55 ms file lock and fsync, so the growth term is invisible.
+ * Counting the reads asserts the property directly, in constant time, and
+ * cannot be affected by how busy the host is.
+ */
+let fullChainReads = 0;
+
+/** Test-only: how many times the head was recovered by parsing the whole file. */
+export function fullChainReadsForTests(): number {
+  return fullChainReads;
+}
+
 async function readChainHead(groupId: string): Promise<{ seq: number; hash: string }> {
   const size = await activeFileSize(groupId);
   const cached = cachedHeads.get(groupId);
   if (cached && cached.fileSize === size) {
     return { seq: cached.seq, hash: cached.hash };
   }
+  fullChainReads += 1;
   const records = await readLedgerRecords(ledgerFilePath(groupId));
   for (let index = records.length - 1; index >= 0; index -= 1) {
     const record = records[index];
@@ -520,6 +541,7 @@ export async function clearCheckpointForTests(groupId: string): Promise<void> {
 /** Test-only: drops the cached head so a suite can simulate a separate process. */
 export function resetLedgerCursorForTests(): void {
   cachedHeads.clear();
+  fullChainReads = 0;
 }
 
 export type AppendLedgerEntryInput = {

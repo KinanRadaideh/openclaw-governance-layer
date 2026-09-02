@@ -9080,3 +9080,112 @@ audit that describes itself as exhaustive is making a claim that nothing checks.
 The mechanical draws are the counterweight — they do not depend on the reviewer
 having remembered every command — and this is the case where the two
 methodologies disagreed and the draw was right.
+
+### 3.5.73 Changing the axis of the sweep, and what that alone found
+
+**The module pool closed after the eighth segment** — every governance module
+with no evidence of having been read had been read, across five mutually
+disjoint mechanical draws. That is a coverage claim worth making, and it is also
+a dead end: there is nothing left to draw on that axis.
+
+**So the ninth sweep changed what it samples.** Segments four through eight drew
+_modules_; this one draws _capabilities_, and audits each across the three
+surfaces it is required to reach.
+
+#### Why the axis change is a result rather than a convenience
+
+The choice follows from the previous two sweeps' own data. **Ten of their
+thirteen findings were cross-surface**: a fact stored in two places with one copy
+maintained (209, 210, 213, 215), or a check present on the route and absent on
+the command (216), or a statement that outlived the code it described in one of
+several copies (212, 214, 218, 219, 220).
+
+**A module-shaped draw finds those only by coincidence**, because the two halves
+of the defect live in different files and a draw over files is unlikely to
+contain both. A capability-shaped draw puts them side by side by construction.
+That is the general point for the report: _the sampling axis should match the
+shape of the defect you keep finding_, and this project's dominant shape stopped
+being "a wrong line in a module" some time ago.
+
+#### The universe, and why it is extracted rather than listed
+
+`grep` over `governance-dashboard-*.ts` for `route === "…"` yields **44
+capabilities**. Twelve were drawn by seeded hash — 27%.
+
+That extraction is itself the method's advantage, and it is what found finding 223. `CLI-REFERENCE.md` §2d is a hand-maintained register of "every capability
+deliberately absent from the command line". Comparing it against a list derived
+from source showed it named one exception where there were three.
+
+#### The two findings
+
+**222** — §1.6 splits escalation between an Administrator (per agent) and Root
+(per account). The per-agent half had a command since 2026-08-11, under a
+changelog note reading _"CLI parity closed… no known CLI gaps remain against the
+dashboard"_. The per-account half had the route and the dashboard and no command,
+so an operator over SSH could set an agent's escalation and not a person's — on
+the surface §2b argues matters most, because it works before the dashboard's
+tunnel exists. Built, and gated by `canManageAccounts` rather than
+`canManageGlobalPolicy`: the tiers differ because the axes differ, and reaching
+for the neighbouring predicate would have merged two controls the design keeps
+apart.
+
+**223** — the register of exceptions was missing two of its three entries. One
+was 222, which had no reason. The other, releasing an unsent attachment, has a
+good reason — storing and sending are one act on the command line, so the state
+the control exists for cannot arise there — recorded in `attachment-store.ts`
+rather than in the section that promises _"the reasons are here"_.
+
+#### The recommendation this produces
+
+**A document that asserts completeness should be generated from, or checked
+against, the artefact it claims to cover.** §2d is maintained by hand and makes a
+universal claim; the route table it is implicitly about is one `grep`. This is
+the second instance in two days — finding 216 was a parity audit that described
+itself as exhaustive and missed the command directly below one it found — which
+is enough to state it as a practice rather than an observation.
+
+#### 3.5.74 A performance assertion that measured the host
+
+**Finding 224 is the third test in three days found to be asserting something it
+could not detect**, and the clearest of them.
+
+`complete-record.test.ts` guards the fix that stopped the audit ledger being
+quadratic to write. It asserted `lateMs < 50` — milliseconds per append — under
+a comment stating the intent explicitly:
+
+> assert a generous ceiling rather than a tight number **so the test is about
+> complexity, not machine speed**
+
+An absolute per-append ceiling is machine speed. It measured 51.6 ms idle and 84
+under load: a ~3% margin, passing by luck.
+
+**The instructive part is that the obvious repair also failed.** A ratio of a
+late window to an early one cancels the host, so it should isolate the growth
+term. Measuring both implementations showed why it does not:
+
+| append path                | early    | late     | ratio |
+| -------------------------- | -------- | -------- | ----- |
+| cached head (correct)      | 53.06 ms | 54.86 ms | 1.03  |
+| cache disabled (quadratic) | 68.16 ms | 64.80 ms | 0.95  |
+
+A full re-read costs a flat ~15 ms and does not grow, because parsing a few
+hundred JSON lines is microseconds against a ~55 ms file lock and fsync. **At any
+ledger size a unit test can afford, the quadratic term is invisible.**
+
+Confirmed rather than argued: disabling the cached head and running the original
+test gave **12 passed**. The test would have passed against the defect it was
+written for, for its entire life.
+
+**Fixed by counting the operation instead of timing it.** `readChainHead`
+increments a counter on the slow path, exposed as `fullChainReadsForTests()`; the
+test asserts the count does not grow across two windows of appends. Against the
+broken implementation it fails `expected 59 to be +0` — one extra full read per
+append. Machine-independent, and 35 s → 7 s as a side effect.
+
+**The general statement for §4:** a property about _complexity_ asserted in
+wall-clock time is asserted against the host. Where the claim is "this does not
+grow with n", the honest instrument counts the operation that would grow. This
+test carried the right intent in its own comment and the wrong instrument
+underneath it — which is the same gap between stated and actual property that
+findings 130, 132, 214 and 218 record, here in a test rather than in production
+code.

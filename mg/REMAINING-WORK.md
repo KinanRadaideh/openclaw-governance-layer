@@ -2334,6 +2334,200 @@ And two that are ours and were checked rather than assumed:
 
 ---
 
+### A feature sweep, drawn across surfaces rather than modules — 2026-09-02 (later)
+
+**The module pool was closed**, so this one changes axis. Segments four through
+eight drew _modules_; this draws **capabilities**, and audits each one across the
+three surfaces it is supposed to reach.
+
+That axis is chosen rather than arbitrary. **Ten of the thirteen findings in the
+seventh and eighth segments were cross-surface defects** — a fact kept in two
+places with one copy maintained, or a check present on the route and absent on
+the command. A module-shaped draw finds those only by luck, because the two
+halves live in different files. A capability-shaped draw puts them side by side
+on purpose.
+
+**The universe is the route table**, extracted from the source rather than
+listed by hand: `grep` over `governance-dashboard-*.ts` for every `route === "…"`
+gives **44 capabilities**. Twelve were drawn — **27%** — by
+`sha256("openclaw-governance-feature-sweep-1-2026-09-02" + route)`, ascending:
+
+`policy/rule-agents`, `organisation/delete`, `policy/agent-mode`,
+`policy/user-ask`, `rule-requests`, `agent/runs`, `agents/provision`,
+`agent/attachment`, `policy`, `ledger`, `agents/codex`,
+`users/policy-authoring`.
+
+Each was audited on four axes: **does it reach all three surfaces**, **does each
+surface ask what the route asks**, **is the write recorded with an actor**, and
+**does the documentation describe it accurately**.
+
+**Three findings, 222–224. All fixed.** Two came from the draw; the third came
+from the suite failing afterwards on a test the sweep had not touched, and is
+the most instructive of the three.
+
+#### 222 — the per-account escalation override never reached the command line
+
+§1.6 splits escalation on two axes, and gives them to different tiers:
+
+| Axis            | Tier          | Route              | CLI                      |
+| --------------- | ------------- | ------------------ | ------------------------ |
+| Per **agent**   | Administrator | `policy/agent-ask` | `policy set-agent-ask` ✔ |
+| Per **account** | **Root**      | `policy/user-ask`  | **nothing**              |
+
+The per-agent half shipped on 2026-08-11 under a changelog entry reading _"CLI
+parity closed… **No known CLI gaps remain against the dashboard**."_ The
+per-account half has had the route and the dashboard since the axis was built
+and never had a command.
+
+**So an operator over SSH could change an agent's escalation behaviour and not a
+person's** — on the axis Chapter 1 assigns to Root specifically, and on the
+surface §2b argues matters most, because it is the one reachable before the
+dashboard's tunnel exists.
+
+Built as `governance policy set-user-ask <username> <off|on-miss|default>`,
+gated by **`canManageAccounts`** rather than `canManageGlobalPolicy`. That
+distinction is the finding's own lesson applied to its fix: the two axes have
+different tiers, and a command that reached for the neighbouring predicate would
+have quietly merged them. Five regression tests, one of which is an
+Administrator being refused.
+
+#### 223 — the section that exists to name the exceptions was missing two
+
+`CLI-REFERENCE.md` §2d states the project's rule and promises to be the register
+for it:
+
+> **Every capability reaches all three surfaces unless a stated reason says
+> otherwise, and the reasons are here.**
+
+It listed **one** exception. There were **three**:
+
+| Capability                                         | Status                                          | Where its reason actually was       |
+| -------------------------------------------------- | ----------------------------------------------- | ----------------------------------- |
+| Accounts — create, delete, re-role, reset password | Listed ✔                                        | §2d                                 |
+| `policy/user-ask`                                  | **Not listed, and had no reason** — finding 222 | nowhere                             |
+| `agent/attachment/release`                         | **Not listed**                                  | `attachment-store.ts`'s own comment |
+
+The attachment case is the milder half and the more interesting one, because the
+reason is _good_: on the command line, storing and sending are the same act
+(`prompt --attach`), so an unsent attachment cannot exist there and there is
+nothing for a release command to act on. The control exists only because the
+dashboard uploads when a file is **chosen**, which is the split finding 113
+created. **It is not a capability gap; it is a control for a state one surface
+cannot reach** — and that is exactly the kind of sentence §2d exists to hold. It
+was written down in the module instead.
+
+**This is the second time in two days that an audit describing itself as
+complete was not.** Finding 216 was the 2026-08-31 parity sweep — "a sweep that
+read every governance command's gate beside its HTTP counterpart's" — missing
+`agent transcript`, the command directly below one it found. This is the same
+shape one level up: the _register of exceptions_ had an exception missing from
+it.
+
+The practical repair is the same in both cases and is worth stating once: **a
+document that claims completeness should be generated or checked, not
+maintained.** §2d is maintained by hand, and the route table it is implicitly
+about can be extracted in one line — which is how this sweep found the gap.
+
+#### 224 — a test that could not fail for the reason it existed
+
+Found by the suite failing after the feature sweep, on a test the sweep had not
+touched. Two tests failed; one (`pending-decisions`) passed alone and is the
+load-sensitivity this project already knows about (finding 169). The other did
+not, and chasing it produced the finding.
+
+**`complete-record.test.ts > does not re-read the whole file on every append`**
+asserted, under this comment:
+
+> A quadratic implementation would make later writes visibly slower than a small
+> constant; **assert a generous ceiling rather than a tight number so the test is
+> about complexity, not machine speed.**
+
+```ts
+expect(lateMs).toBeLessThan(50); // milliseconds per append
+```
+
+**An absolute per-append ceiling is machine speed**, which is the one thing the
+comment says it is not. Measured: **51.6 ms idle, 68 and 84 under load** — a
+margin of about 3%, and it had been passing only because this machine happened
+to sit just under the line.
+
+**Rewriting it as a ratio did not fix it, and that is the finding.** Comparing a
+late window against an early one cancels the machine — so it should have worked.
+Both implementations were then measured:
+
+| append path                    | early    | late     | ratio    |
+| ------------------------------ | -------- | -------- | -------- |
+| cached head (correct)          | 53.06 ms | 54.86 ms | **1.03** |
+| cache disabled (**quadratic**) | 68.16 ms | 64.80 ms | **0.95** |
+
+**Indistinguishable.** The re-read costs a flat ~15 ms and does not _grow_,
+because parsing a few hundred JSON lines is microseconds against a ~55 ms file
+lock and fsync. At any ledger size a unit test can afford, the quadratic term is
+invisible.
+
+So the original test **would have passed against the very defect it was written
+for**, and this was confirmed rather than reasoned: disabling the cached head and
+running it gave **12 passed**.
+
+That is finding 132's shape — _"mutation testing removed the tag and all
+seventeen tests still passed"_ — and it is the third test in three days found to
+be asserting something it could not detect (206 documented the fixture; 221's
+`await-thenable` mocks described a contract the product does not have).
+
+**Fixed by counting rather than timing.** `readChainHead` now increments a
+counter on the slow path, exposed as `fullChainReadsForTests()` alongside the
+existing `resetLedgerCursorForTests`, and the test asserts the count does not
+grow across two windows of appends. Machine-independent, constant-time, and it
+**detects the defect**: with the cached head disabled it fails
+`expected 59 to be +0` — one extra full read per append, exactly as a quadratic
+implementation produces. Verified in both directions, and the test got faster
+(35 s → 7 s) as a side effect of no longer needing to time anything.
+
+**The general point, and it is the one for the report.** A performance property
+asserted in wall-clock time is asserted against the host, not the code. Where the
+property is really about _complexity_ — "this does not grow with n" — the honest
+assertion counts the operation that would grow. This test had the right intent
+written in its own comment and the wrong instrument underneath it for as long as
+it existed.
+
+#### What the sweep cleared
+
+Recorded because a sweep that only lists what it broke is not a measurement. The
+other ten capabilities reach all three surfaces, and:
+
+- **Every route in the draw is correctly gated.** `requireRole` floors match
+  what `governance-privilege-matrix.test.ts` records, and every one that touches
+  group data reaches its group through the session — `requireGroup`, or
+  `targetIsInCallerGroup` for `users/policy-authoring`, which checks the
+  _target_ is in the caller's organisation and is the stronger form.
+- **`organisation/delete` takes the group from the session**, with a comment
+  explaining that it goes through `requireGroup` rather than reading
+  `session.groupId` so an absent group refuses rather than throwing a 500 out of
+  `groupDir("")`.
+- **Every write in the draw records an admin action carrying an actor** —
+  `setAgentMode`, `setUserAskMode`, `setUserPolicyAuthoring`,
+  `setAgentCodexAllowed`, `submitRuleRequest`, `decideRuleRequest`, and
+  organisation deletion twice over.
+- **`storeAttachment` records nothing, and that is correct.** The metadata rides
+  the **prompt** entry — `agentPrompt` carries `declaredName (mimeType, bytes,
+sha256:…)` and never the content — which is requirement 8 satisfied by
+  construction. Verified by reading the entry that is actually written, not by
+  trusting the design note.
+- **`requests list` uses `() => true` and is right to.** The route's floor is
+  `viewer`, and every signed-in account is at least a Viewer, so the predicate is
+  equivalent; the comment beside it says so.
+- **`agent runs` admits a Viewer where the route refuses one**, and the
+  difference is cosmetic rather than a gap: the inner
+  `.filter((run) => canManageAgent(scope, run.agentId))` enforces the same
+  `user` floor, so a Viewer receives an empty list either way. Recorded because
+  the _wording_ differs — the CLI says "no runs are in flight that you can see",
+  which is true and is the distinction finding 117 asked for — and because a
+  future change to that filter would turn a cosmetic difference into a real one.
+- **`policy rule-agents` does reach the command line**, which is worth recording
+  because it was the first candidate gap this sweep chased and it was not one.
+
+---
+
 ### An eighth 20% segment — the remainder, 2026-09-02
 
 **11 modules, 4,476 lines, 14.4%** — and this one is not a draw. It is

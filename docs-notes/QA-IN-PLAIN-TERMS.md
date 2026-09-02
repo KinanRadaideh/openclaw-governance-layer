@@ -5875,3 +5875,119 @@ than defensively: **every one of these was found by reading the explanation
 against the code — which is only possible because the explanation was there to
 disagree with.** A codebase with no comments would have had the same defects and
 no way to notice them.
+
+---
+
+## 5.91 A different kind of sweep: by feature, not by file
+
+The five random-fifths reviews had covered every piece of the system, so there
+was nothing left to draw. This one changes what it draws.
+
+Instead of picking **files**, it picks **capabilities** — "delete an
+organisation", "set an agent's posture", "read the audit log" — and asks of each
+one the same four questions:
+
+1. Can you do it from all three places (the website, the command line, the
+   programmatic interface)?
+2. Does each place ask the same questions before letting you?
+3. Is it written into the audit log, with a name attached?
+4. Does the handbook describe it correctly?
+
+**Why that is the right axis now.** Ten of the thirteen problems in the last two
+reviews were of one kind: **the same thing implemented twice and maintained
+once.** A file-by-file review finds those only by accident, because the two
+halves are in different files. A capability-by-capability review puts them next
+to each other deliberately.
+
+The list of capabilities was not written by hand — it was extracted from the
+code, which gives **44**. Twelve were drawn at random.
+
+**Two problems, both fixed.**
+
+### The setting an administrator could change and a person could not
+
+The system lets you decide when a human gets asked to approve an agent's action,
+and it splits that decision two ways on purpose: an **administrator** sets it for
+an _agent_, and the **owner** sets it for a _person_.
+
+The agent half has had a command-line version since August. **The person half
+never did.** It worked on the website and it worked programmatically, and there
+was simply no command for it.
+
+That matters more than it sounds, because the command line is the surface that
+works when the website does not — the website is reachable only through a secure
+tunnel, and the moment you most need to change something is often before that
+tunnel exists. So an operator logged into the server could adjust an agent's
+approval behaviour and could not adjust a person's.
+
+Now built, and deliberately gated by the _account_ permission rather than the
+_policy_ permission — because using the neighbouring one would have quietly
+merged two settings the design keeps apart.
+
+### The list of exceptions was missing two exceptions
+
+The handbook has a section whose entire job is to say **"here is every capability
+that is deliberately not on the command line, and why."** It listed one. There
+were three.
+
+One was the setting above, which had no reason because there was none. The other
+was releasing a file you had attached but not yet sent — and that one has a
+_good_ reason: on the command line, attaching and sending are the same action, so
+a not-yet-sent attachment cannot exist there and there is nothing to release. The
+reason was written down in the code and not in the section that promises to hold
+the reasons.
+
+**This is the second time in two days we have found an audit that described
+itself as complete and was not.** The other was a review that said it had read
+"every command's checks beside its counterpart's" and had missed the command
+directly below one it found.
+
+The lesson is the same both times, and it is worth more than either problem:
+**a document that claims to be complete should be generated or checked against
+the code, not maintained by hand.** The list of capabilities this review used was
+extracted in one line — which is how the gap was found.
+
+### The test that could not fail
+
+After the review above, the test suite failed on something the review had not
+touched. One failure was a known flaky test. The other was not, and it turned
+out to be the most interesting thing found all day.
+
+There is a test called **"does not re-read the whole file on every append"**. The
+audit log is written to constantly, and an early version re-read the entire file
+every time it added a line — which gets slower and slower as the log grows. That
+was fixed, and a test was added to make sure it stayed fixed.
+
+The test worked by **timing** it: append 100 entries, and require each one to
+take under 50 milliseconds.
+
+**That is a measurement of how fast the computer is**, not of whether the code
+re-reads the file — and the test's own comment said, in as many words, that it
+was deliberately _not_ doing that. On an idle machine it measured 51.6. Under
+load, 84. It had been passing because this machine happened to sit just under
+the line.
+
+The obvious repair — compare early appends against later ones, so machine speed
+cancels out — **did not work either**, and finding out why is the point. We put
+the old, slow behaviour back and measured both:
+
+| version    | early   | late    |
+| ---------- | ------- | ------- |
+| fixed      | 53.1 ms | 54.9 ms |
+| **broken** | 68.2 ms | 64.8 ms |
+
+Effectively identical. Reading a few hundred lines of text takes microseconds;
+each append spends about 55 milliseconds waiting for a file lock and a disk
+flush. The thing the test was looking for is a rounding error next to the thing
+it could not avoid measuring.
+
+So we checked directly: **we broke the code on purpose and ran the test. It
+passed.** The test had never been able to detect the problem it existed for.
+
+It now **counts** instead of timing — how many times the file gets fully read —
+which is exactly the thing that would grow. Broken code makes it fail with "59
+when it should be 0". It is also machine-independent and five times faster.
+
+**The lesson is worth more than the fix:** if you are testing that something does
+not get slower as it grows, count the operation that would grow. Timing it
+measures the computer.

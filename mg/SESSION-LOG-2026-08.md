@@ -4577,3 +4577,109 @@ Root turns it on.
 made to Kimi from this fork. The first refusal of a real model by this gate has
 not happened yet, and its ledger entry is the single most valuable artefact the
 VPS trip can produce.
+
+---
+
+## 50. A sweep on a new axis: by capability, across surfaces (2026-09-02, later)
+
+Kinan asked for another sweep. **The module pool was closed** — segments four
+through eight had read every governance module with no evidence of having been
+read — so there was nothing left to draw on that axis.
+
+### The axis change is the point of the entry
+
+Segments four to eight drew **modules**. This draws **capabilities**, and audits
+each across the three surfaces it must reach.
+
+That follows from the last two sweeps' own data rather than from taste: **ten of
+their thirteen findings were cross-surface** — a fact stored twice with one copy
+maintained, a check on the route and not the command, a statement outliving its
+code in one of several copies. A module draw finds those by coincidence, because
+the halves live in different files. A capability draw puts them side by side.
+
+**The universe was extracted, not written**: `grep` for `route === "…"` over the
+dashboard route modules gives **44** capabilities. Twelve drawn by seed, 27%.
+
+That extraction found the second finding on its own.
+
+### 222 - the per-account escalation override had no command
+
+§1.6 splits escalation two ways: an Administrator sets it per **agent**, Root
+sets it per **account**. `policy set-agent-ask` shipped 2026-08-11 under the note
+"CLI parity closed... No known CLI gaps remain against the dashboard."
+
+**The per-account half never had a command.** Route yes, dashboard yes, command
+line no - so an operator over SSH could change an agent's escalation and not a
+person's, on the surface that works before the dashboard's tunnel exists.
+
+Built, and gated by `canManageAccounts` rather than `canManageGlobalPolicy`.
+That is the finding's own lesson applied to its fix: the two axes have different
+tiers, and reaching for the neighbouring predicate would have merged them
+silently. Five tests, one of them an Administrator being refused.
+
+### 223 - the register of exceptions was missing two of its three entries
+
+`CLI-REFERENCE.md` §2d says: _"Every capability reaches all three surfaces unless
+a stated reason says otherwise, and the reasons are here."_ It listed one. There
+were three.
+
+One was 222, which had no reason. The other is releasing an unsent attachment,
+and that one has a **good** reason: on the command line, storing and sending are
+the same act, so an unsent attachment cannot exist there and there is nothing to
+release. The reason was in `attachment-store.ts`, not in the section that
+promises to hold reasons.
+
+**Second time in two days that an audit describing itself as complete was not.**
+Finding 216 was the parity sweep that had "read every governance command's gate
+beside its HTTP counterpart's" and missed the command directly below one it
+found.
+
+**The recommendation, stated once for both:** a document that claims
+completeness should be generated or checked against the artefact it covers, not
+maintained by hand. §2d makes a universal claim and is hand-maintained; the route
+table it is about is one `grep`.
+
+### 224 - the test that could not fail, found by the suite afterwards
+
+Two tests failed after the sweep, neither of them touched by it. One passed when
+run alone and is the load sensitivity this project already knows about (finding
+169). The other did not.
+
+`complete-record.test.ts > does not re-read the whole file on every append`
+asserted `lateMs < 50` - milliseconds per append - beneath a comment saying it
+was deliberately _"about complexity, not machine speed"_. **It was machine
+speed**: 51.6 idle, 68 and 84 under load, a 3% margin it had been clearing by
+luck.
+
+**Rewriting it as a ratio did not fix it, which is the finding.** Measuring both
+implementations:
+
+correct (cached head) early 53.06 ms late 54.86 ms ratio 1.03
+broken (full re-read) early 68.16 ms late 64.80 ms ratio 0.95
+
+Indistinguishable. A full re-read costs a flat ~15 ms and does not grow, because
+parsing a few hundred JSON lines is microseconds against a ~55 ms file lock and
+fsync. **The test would have passed against the defect it was written for** -
+confirmed by disabling the cached head and watching all 12 pass.
+
+Third test in three days found to assert something it cannot detect: 206
+documented the fixture, 221's mocks described a contract the product does not
+have, and this one measured the host.
+
+**Fixed by counting rather than timing.** A counter on the slow path, exposed as
+`fullChainReadsForTests()`, and the test asserts it does not grow across two
+windows. Against the broken implementation it fails `expected 59 to be +0`. It is
+now machine-independent and runs in 7 s instead of 35.
+
+**The rule:** a property about complexity asserted in wall-clock time is asserted
+against the host. Count the operation that would grow.
+
+### What the sweep cleared
+
+Ten of the twelve reach all three surfaces. Every route in the draw is correctly
+gated and takes its group from the session. Every write records an actor.
+`storeAttachment` records nothing and is right to - the metadata rides the
+**prompt** entry, verified by reading the entry actually written rather than the
+design note. And `agent runs` admits a Viewer where the route refuses one, which
+is cosmetic rather than a gap because the inner filter enforces the same floor -
+recorded anyway, because a change to that filter would make it real.
