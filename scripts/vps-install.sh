@@ -134,7 +134,13 @@ else
     # to run by hand.
     link_runtime_into() {
       local bindir="$1" sudo_prefix="${2:-}" tool
-      for tool in node npm npx; do
+      # `corepack` belongs in this list and was missing from it, which broke the
+      # *second* install rather than the first: with node reachable from
+      # /usr/local/bin the Node phase is satisfied, so nvm is never sourced, so
+      # the pnpm phase below cannot find corepack and fails with
+      # "corepack is missing; it ships with Node 16.9+ — check the Node install".
+      # A fix that links a runtime must link the tools that runtime ships with.
+      for tool in node npm npx corepack; do
         [ -x "$NODE_BIN_DIR/$tool" ] || continue
         $sudo_prefix ln -sf "$NODE_BIN_DIR/$tool" "$bindir/$tool" 2>/dev/null || return 1
       done
