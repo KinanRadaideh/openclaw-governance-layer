@@ -123,20 +123,30 @@ export function renderOrganisationSection(
                   // the one who could not find out that anything survived — and
                   // now something more than the ledger does.
                   props.onDeleted(
-                    result.residue.length > 0
-                      ? t("governance.organisation.deletedResidue", {
-                          residue: result.residue.join(", "),
+                    // Checked before `residue`, because a step that did not
+                    // finish is the more consequential of the two: leftover
+                    // files are inert, an un-revoked session is not (finding
+                    // 229).
+                    result.incomplete.length > 0
+                      ? t("governance.organisation.deletedIncomplete", {
+                          accounts: String(result.accountsDeleted),
+                          agents: String(result.agentsDeleted),
+                          steps: result.incomplete.join("; "),
                         })
-                      : result.attachmentsRetained > 0
-                        ? t("governance.organisation.deletedWithEvidence", {
-                            accounts: String(result.accountsDeleted),
-                            agents: String(result.agentsDeleted),
-                            attachments: String(result.attachmentsRetained),
+                      : result.residue.length > 0
+                        ? t("governance.organisation.deletedResidue", {
+                            residue: result.residue.join(", "),
                           })
-                        : t("governance.organisation.deleted", {
-                            accounts: String(result.accountsDeleted),
-                            agents: String(result.agentsDeleted),
-                          }),
+                        : result.attachmentsRetained > 0
+                          ? t("governance.organisation.deletedWithEvidence", {
+                              accounts: String(result.accountsDeleted),
+                              agents: String(result.agentsDeleted),
+                              attachments: String(result.attachmentsRetained),
+                            })
+                          : t("governance.organisation.deleted", {
+                              accounts: String(result.accountsDeleted),
+                              agents: String(result.agentsDeleted),
+                            }),
                   );
                 },
               )}

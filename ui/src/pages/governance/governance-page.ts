@@ -404,6 +404,11 @@ class GovernancePage extends OpenClawLightDomElement {
       agentLabel: (agentId) => agentLabel(this.agents, agentId),
       agentPolicyView: this.agentPolicyView,
       agentPolicyError: this.agentPolicyError,
+      onAuditWarning: (message) => {
+        // The same band the organisation panel writes its outcome into, and
+        // for the same reason: this is a qualifier on a success, not an error.
+        this.error = message;
+      },
       agentAccess: this.agentAccess,
       ruleTargets: this.ruleTargets,
       conflictNotice: this.conflictNotice,

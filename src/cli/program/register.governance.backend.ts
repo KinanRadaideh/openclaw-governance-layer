@@ -102,7 +102,14 @@ export function registerGovernanceBackendCommands(governance: Command): void {
         // the actor as `unknown`. It typechecks either way, because
         // `AuditActorInput` has a bare `string` arm — the same hole that let
         // finding 149 reach the ledger. The CLI test caught it here.
-        await setCodexBackendEnabled(actor.groupId, permit, actor);
+        const change = await setCodexBackendEnabled(actor.groupId, permit, actor);
+        if (change.auditError) {
+          // Before the stance lines, because it qualifies them: the change took
+          // and the trail is short of the entry that says so (finding 229).
+          defaultRuntime.log(
+            `warning: the change was made but was not written to the audit ledger: ${change.auditError}`,
+          );
+        }
         // **The warning is printed on the permissive direction only**, matching
         // the dashboard's asymmetry and `agents set-codex`: enabling accepts a
         // stated enforcement gap, while withdrawing is the safe direction and

@@ -190,6 +190,14 @@ export type PolicyPanelProps = PanelEffects & {
   onDraft: (patch: Partial<PolicyDrafts>) => void;
   /** Clears a conflict notice the operator has read. State the page owns. */
   onDismissConflict: () => void;
+  /**
+   * Reports a change that took while its audit entry did not (finding 229).
+   *
+   * The page owns the notice band, and the shared `confirmThen`/`run` pair
+   * discards results by design — so a panel with something to say about a
+   * *success* is given a way to say it, as the organisation panel is.
+   */
+  onAuditWarning: (message: string) => void;
   /** Both answer questions the server projects; the page owns the request and its error. */
   loadAgentPolicy: (agentId: string) => Promise<void>;
   loadRuleTargets: (ruleId: string) => Promise<void>;
@@ -471,6 +479,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
       state: props.codexBackend,
       isRoot,
       busy: props.busy,
+      onAuditWarning: props.onAuditWarning,
     }),
     ...Object.entries(policy.agentAsk ?? {}).map(([agentId, ask]) =>
       renderSettingsRow({

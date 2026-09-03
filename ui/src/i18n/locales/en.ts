@@ -3796,6 +3796,8 @@ export const en: TranslationMap = {
         "Organisation deleted: {accounts} account(s) and {agents} agent(s) removed. Its audit ledger was kept on the server, with {attachments} attachment(s) its entries name.",
       deletedResidue:
         "Organisation deleted, but some files could not be removed and are left on the server: {residue}",
+      deletedIncomplete:
+        "Organisation deleted: {accounts} account(s) and {agents} agent(s) removed — but some steps after it did not finish, and only you can act on them: {steps}",
     },
     pending: {
       title: "Awaiting your decision",

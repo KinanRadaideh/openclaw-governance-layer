@@ -66,6 +66,7 @@
 import { createAgent } from "../agents/agent-create.js";
 import { listAgentEntries } from "../agents/agent-scope-config.js";
 import { deleteAgentConfigEntry } from "../gateway/server-methods/agents-config-mutations.js";
+import { formatErrorMessage } from "../infra/errors.js";
 import { normalizeAgentId } from "../routing/session-key.js";
 import { ADMIN_ACTIONS, recordAdminAction, type AuditActorInput } from "./admin-audit.js";
 import {
@@ -518,6 +519,16 @@ export type DeprovisionResult =
       displayName: string;
       /** Whether the agent was also removed from the host, not merely from the registry. */
       deletedFromHost: boolean;
+      /**
+       * Why the ledger entry for this deletion could not be written, when it
+       * could not (finding 229).
+       *
+       * Present rather than thrown, for the reason `kill-switch.ts` gives on
+       * its identical field: the deletion has already happened by the time this
+       * entry is attempted, so a throw reports completed work as failed. The
+       * failure is not swallowed — it travels back and the surfaces say it.
+       */
+      auditError?: string;
     }
   | {
       ok: false;
@@ -617,12 +628,36 @@ export async function deprovisionAgent(
   if (!input.deleteFromHost) {
     return { ok: true, agentId, displayName: removed.displayName, deletedFromHost: false };
   }
-  await recordAdminAction(input.groupId, {
-    actor,
-    action: ADMIN_ACTIONS.agentDeprovision,
-    target: `agent ${agentId} ("${removed.displayName}") deleted from the host`,
+  // Past the point of no return: the agent is gone from the host *and* from
+  // governance, and neither can be put back by failing here (finding 229).
+  //
+  // Every fallible step above this line is caught and returned as a typed
+  // failure with a remedy — this one was not, so a ledger that would not take
+  // the entry threw out of a function whose work was complete, and the caller
+  // reported the deletion as failed. `deleteOrganisation` calls this in a loop
+  // and reads `ok`, so the throw also escaped its per-agent failure handling
+  // entirely.
+  //
+  // Reported rather than swallowed, the way `kill-switch.ts` carries
+  // `auditError`: a missing ledger entry is something the operator is told
+  // about, not something they discover later in a gap.
+  let auditError: string | undefined;
+  try {
+    await recordAdminAction(input.groupId, {
+      actor,
+      action: ADMIN_ACTIONS.agentDeprovision,
+      target: `agent ${agentId} ("${removed.displayName}") deleted from the host`,
+      agentId,
+      subjectId: agentId,
+    });
+  } catch (err) {
+    auditError = formatErrorMessage(err);
+  }
+  return {
+    ok: true,
     agentId,
-    subjectId: agentId,
-  });
-  return { ok: true, agentId, displayName: removed.displayName, deletedFromHost: true };
+    displayName: removed.displayName,
+    deletedFromHost: true,
+    ...(auditError ? { auditError } : {}),
+  };
 }

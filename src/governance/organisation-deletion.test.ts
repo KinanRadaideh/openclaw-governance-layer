@@ -22,7 +22,7 @@
 //   5. **The installation is left able to start again.** Every account gone
 //      means the bootstrap path can mint a new Root, which is what makes this a
 //      reset rather than a brick.
-import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -47,7 +47,13 @@ import { listAgents, registerAgent } from "./agent-registry.js";
 import { tailLedger, verifyLedgerChain } from "./audit-ledger.js";
 import { resetLedgerKeyCacheForTests } from "./ledger-key.js";
 import { deleteOrganisation, summariseOrganisation } from "./organisation-deletion.js";
-import { conversationsFilePath, groupDir, policyFilePath } from "./paths.js";
+import {
+  attachmentsDir,
+  conversationsFilePath,
+  groupDir,
+  INSTALLATION_LEDGER_GROUP,
+  policyFilePath,
+} from "./paths.js";
 import { savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
 import { issueSession, verifySession } from "./session-tokens.js";
@@ -355,5 +361,100 @@ describe("summarising before deleting", () => {
     const summary = await summariseOrganisation(groupId);
 
     expect(summary).toMatchObject({ groupId, rootUsername: "root-acct", accounts: 3, agents: 2 });
+  });
+});
+
+/**
+ * What happens when a step *after* the point of no return fails (finding 229).
+ *
+ * The accounts and the agents are gone by then and cannot be put back, so a
+ * failure here is not a reason to report that the deletion failed — it is a
+ * fact about bookkeeping the operator has to be told alongside the success.
+ *
+ * These used to be unguarded `await`s. A corrupt attachment index — which
+ * `readIndex` refuses on, deliberately and correctly — threw straight out of
+ * `deleteOrganisation`, and both surfaces reported a completed irreversible
+ * act as a failure. That is finding 195 at a second feature: the kill switch
+ * reporting a stop that had worked as a failure, one destructive act over.
+ *
+ * The trigger is real rather than mocked, which matters: it is the exact state
+ * finding 194's missing lock could produce, and it is reached through the
+ * store's own refusal rather than an injected throw.
+ */
+describe("a step that fails after the organisation is already gone", () => {
+  it("still reports the deletion as done, and names what did not finish (229)", async () => {
+    const { rootId, rootUsername } = await seedOrganisation();
+    // An attachment index the store will refuse to read. `retainSentAttachments`
+    // runs after the accounts are deleted, so this fails past the point of no
+    // return by design.
+    await mkdir(attachmentsDir(groupId), { recursive: true });
+    await writeFile(join(attachmentsDir(groupId), "index.json"), "{ not json", "utf8");
+
+    const result = await deleteOrganisation(
+      { groupId, actingUserId: rootId, confirmation: rootUsername },
+      ROOT_ACTOR,
+    );
+
+    // The act happened, and the result says so. Before the fix this threw.
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+    expect(result.accountsDeleted).toBe(3);
+    expect(result.agentsDeleted).toBe(2);
+    expect(await listUsers()).toEqual([]);
+    expect(await listAgents(groupId)).toEqual([]);
+
+    // And the step that did not finish is named, in a sentence an operator can
+    // act on rather than a stack trace.
+    expect(result.incomplete).toHaveLength(1);
+    expect(result.incomplete[0]).toContain("attachment store");
+    expect(result.incomplete[0]).toContain("left whole beside the retained trail");
+  });
+
+  it("keeps the steps after the failure, rather than stopping at it (229)", async () => {
+    const { rootId, rootUsername } = await seedOrganisation();
+    await mkdir(attachmentsDir(groupId), { recursive: true });
+    await writeFile(join(attachmentsDir(groupId), "index.json"), "{ not json", "utf8");
+
+    const result = await deleteOrganisation(
+      { groupId, actingUserId: rootId, confirmation: rootUsername },
+      ROOT_ACTOR,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+    // The installation-wide copy is written *after* the attachment step, and it
+    // is the copy an operator finds when the organisation's own directory is
+    // not somewhere they would think to look. A failure part-way must not cost
+    // it — which is the difference between one `try` around the block and one
+    // around each step.
+    const installationEntries = await tailLedger(INSTALLATION_LEDGER_GROUP, 200);
+    const recorded = installationEntries.find(
+      (entry) =>
+        entry.toolName === ADMIN_ACTIONS.organisationDelete &&
+        (entry.resource ?? "").includes(groupId),
+    );
+    expect(recorded).toBeDefined();
+    // The purge still ran too, so the organisation's state is gone rather than
+    // left behind by an early exit.
+    expect(result.residue).toEqual([]);
+  });
+
+  it("reports nothing when every step finishes, so the field means something", async () => {
+    const { rootId, rootUsername } = await seedOrganisation();
+
+    const result = await deleteOrganisation(
+      { groupId, actingUserId: rootId, confirmation: rootUsername },
+      ROOT_ACTOR,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+    expect(result.incomplete).toEqual([]);
   });
 });

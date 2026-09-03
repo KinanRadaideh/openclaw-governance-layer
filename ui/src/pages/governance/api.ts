@@ -561,7 +561,14 @@ export class GovernanceApi {
     return this.request<{ enabled: boolean; explicit: boolean }>("backend/codex");
   }
 
-  setCodexBackend(enabled: boolean): Promise<{ enabled: boolean; explicit: boolean }> {
+  /**
+   * `auditError` is present only when the change took and its completion entry
+   * did not (finding 229). It is not a failure — `enabled` is authoritative —
+   * so a caller shows it beside the new state rather than instead of it.
+   */
+  setCodexBackend(
+    enabled: boolean,
+  ): Promise<{ enabled: boolean; explicit: boolean; auditError?: string }> {
     return this.request<{ enabled: boolean; explicit: boolean }>("backend/codex", {
       method: "POST",
       body: { enabled },

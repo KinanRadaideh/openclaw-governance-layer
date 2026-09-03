@@ -26,6 +26,14 @@ let written: Array<Record<string, unknown>>;
 let refreshed: string[][];
 /** Set to make the next config write fail, for the record-before-write test. */
 let failNextWrite: Error | undefined;
+/**
+ * Set to break the ledger *after* the config write and before the completion
+ * entry (finding 229). Fired from the refresh hook because that is the only
+ * point inside `setCodexBackendEnabled` a test can reach between the two, and
+ * it is a real breakage — the file becomes a directory — rather than a stubbed
+ * throw.
+ */
+let breakLedgerOnRefresh = false;
 
 vi.mock("../config/config.js", () => ({
   // Synchronous, matching the real `loadConfig` — see finding 221.
@@ -45,6 +53,17 @@ vi.mock("../config/config.js", () => ({
 vi.mock("../plugins/registry-refresh.js", () => ({
   refreshPluginRegistryAfterConfigMutation: async (params: { policyPluginIds: string[] }) => {
     refreshed.push(params.policyPluginIds);
+    if (breakLedgerOnRefresh) {
+      breakLedgerOnRefresh = false;
+      // A directory where the ledger file was: the next append cannot read or
+      // extend it, and nothing else in the module is disturbed.
+      const { mkdir, rm: remove } = await import("node:fs/promises");
+      const { ledgerFilePath } = await import("./paths.js");
+      await remove(ledgerFilePath(TEST_GROUP), { force: true });
+      await mkdir(ledgerFilePath(TEST_GROUP), { recursive: true });
+      const { resetLedgerCursorForTests } = await import("./audit-ledger.js");
+      resetLedgerCursorForTests();
+    }
   },
 }));
 
@@ -191,5 +210,49 @@ describe("what the ledger says about it", () => {
     expect(done).toHaveLength(1);
     expect(done[0]?.resource).toContain("disabled -> enabled");
     expect(done[0]?.resource).not.toContain("requested");
+  });
+});
+
+/**
+ * The completion entry failing must not report the change as failed
+ * (finding 229).
+ *
+ * By the time that entry is written the config already holds the new stance and
+ * the plugin registry has been refreshed, so a throw here cannot un-accept the
+ * enforcement gap — it can only misreport it, and in the dangerous direction:
+ * an operator told the enable failed believes Codex is still refused while the
+ * installation has begun offering it.
+ *
+ * The same shape as finding 195 (the kill switch reporting a stop that had
+ * worked as a failure) and as `deleteOrganisation`'s `incomplete`. Reported
+ * rather than swallowed: the caller gets the reason back.
+ */
+describe("when the completion entry cannot be written", () => {
+  it("reports the change as made, and hands back why the trail is short (229)", async () => {
+    breakLedgerOnRefresh = true;
+
+    const result = await setCodexBackendEnabled(TEST_GROUP, true, {
+      name: "root-acct",
+      role: "root",
+    });
+
+    // Before the fix this threw, and both surfaces reported a change that had
+    // taken as one that had not.
+    expect(result.auditError).toBeDefined();
+    expect(result.auditError).not.toBe("");
+    // The stance is the stance: the config was written before the ledger was
+    // asked for anything.
+    expect((await readCodexBackendState()).enabled).toBe(true);
+  });
+
+  it("reports no error when the entry is written, so the field means something", async () => {
+    const result = await setCodexBackendEnabled(TEST_GROUP, true, {
+      name: "root-acct",
+      role: "root",
+    });
+
+    expect(result.auditError).toBeUndefined();
+    const entries = await tailLedger(TEST_GROUP, 100);
+    expect(entries.some((entry) => entry.toolName === ADMIN_ACTIONS.codexBackendToggle)).toBe(true);
   });
 });

@@ -80,6 +80,7 @@
 // go with the rest of the organisation's data.
 import { readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { formatErrorMessage } from "../infra/errors.js";
 import { guardOrganisationDeletion } from "./account-guards.js";
 import { ADMIN_ACTIONS, recordAdminAction, type AuditActorInput } from "./admin-audit.js";
 import { deprovisionAgent } from "./agent-provisioning.js";
@@ -140,6 +141,25 @@ export type OrganisationDeletionResult =
        * bug class, and because the operator is the only one who can clear it.
        */
       residue: string[];
+      /**
+       * Bookkeeping steps that failed **after** the organisation was already
+       * gone, each named in a sentence an operator can act on (finding 229).
+       *
+       * Empty on every ordinary deletion. Non-empty means the destructive act
+       * completed and something after it did not — a session left un-revoked, a
+       * completion entry the ledger would not take, an attachment store that
+       * could not be reduced to its evidence.
+       *
+       * **This exists because the alternative was reporting the whole act as
+       * failed.** Every one of these steps used to be an unguarded `await` past
+       * the point of no return, so a corrupt attachment index or a ledger lock
+       * timing out threw out of this function, and both surfaces told the
+       * operator the deletion had not happened while the accounts and agents
+       * were already gone. That is finding 195 exactly — the kill switch
+       * reporting a stop that had worked as a failure — and `kill-switch.ts`
+       * carries the same field, `auditError`, for the same reason.
+       */
+      incomplete: string[];
     }
   | {
       ok: false;
@@ -196,6 +216,8 @@ export async function deleteOrganisation(
   });
 
   let agentsDeleted = 0;
+  /** Agents deleted whose ledger entry would not be written. See the loop. */
+  const unrecordedAgents: string[] = [];
   for (const agent of agents) {
     const removed = await deprovisionAgent(
       { agentId: agent.id, groupId: input.groupId, deleteFromHost: true },
@@ -216,6 +238,12 @@ export async function deleteOrganisation(
       };
     }
     agentsDeleted += 1;
+    if (removed.auditError) {
+      // The agent is gone and its entry is not. Carried rather than dropped,
+      // for the same reason the steps below this loop are (finding 229) — and
+      // collected here because the loop is the only place that sees it.
+      unrecordedAgents.push(`agent ${agent.id}: ${removed.auditError}`);
+    }
   }
 
   const deleted = await deleteGroupAccounts(input.groupId, actor);
@@ -227,38 +255,89 @@ export async function deleteOrganisation(
       ok: false,
       stage: "accounts",
       message: "The organisation's accounts were already gone when the deletion reached them.",
-      remedy: `Its ${agentsDeleted} agent(s) were deleted. Nothing else is left to remove.`,
+      // Not "nothing else is left": the group directory is still there, because
+      // the purge runs after this point and this arm never reaches it.
+      remedy:
+        `Its ${agentsDeleted} agent(s) were deleted. The organisation` +
+        ` directory was left untouched, so re-running the deletion will finish it.`,
       agentsDeleted,
     };
   }
+  // ---------------------------------------------------------------------
+  // Past the point of no return. Nothing below may throw (finding 229).
+  //
+  // The accounts and the agents are gone and cannot be put back, so a failure
+  // here is not a reason to report that the deletion failed — it is a fact
+  // about bookkeeping that the operator has to be told *alongside* the success.
+  // Each step is attempted, and a step that will not go names itself.
+  // ---------------------------------------------------------------------
+  const incomplete: string[] = [...unrecordedAgents];
+  const attempt = async (what: string, step: () => Promise<unknown>): Promise<void> => {
+    try {
+      await step();
+    } catch (err) {
+      // `formatErrorMessage` rather than `err.message`: this string reaches an
+      // operator's screen and the sentence naming it, and a filesystem error
+      // can carry a path with a token in it.
+      incomplete.push(`${what}: ${formatErrorMessage(err)}`);
+    }
+  };
+
   for (const account of deleted) {
-    await revokeSessionsForUser(account.id);
+    await attempt(
+      `the session for account ${account.id} could not be revoked, so a browser ` +
+        `still holding its cookie stays signed in until the session expires`,
+      () => revokeSessionsForUser(account.id),
+    );
   }
 
   const dir = groupDir(input.groupId);
-  await recordAdminAction(input.groupId, {
-    actor,
-    action: ADMIN_ACTIONS.organisationDelete,
-    target:
-      `organisation ${input.groupId} deleted: ${deleted.length} account(s), ` +
-      `${agentsDeleted} agent(s); audit ledger retained`,
-    subjectId: input.groupId,
-  });
+  await attempt(
+    "the organisation's own ledger did not take the completion entry, so its " +
+      "chain ends at the request rather than at the deletion",
+    () =>
+      recordAdminAction(input.groupId, {
+        actor,
+        action: ADMIN_ACTIONS.organisationDelete,
+        target:
+          `organisation ${input.groupId} deleted: ${deleted.length} account(s), ` +
+          `${agentsDeleted} agent(s); audit ledger retained`,
+        subjectId: input.groupId,
+      }),
+  );
   // Before the blanket purge, and separately from it, because the question
   // "which of these files is evidence?" is the attachment store's to answer.
-  const attachmentsRetained = await retainSentAttachments(input.groupId);
+  //
+  // It refuses outright on a damaged index — deliberately, and correctly for a
+  // store being asked what to keep. Called from here that refusal can no longer
+  // protect anything, because what it would have stopped has already happened,
+  // so it is reported rather than allowed to decide the outcome of the act.
+  let attachmentsRetained = 0;
+  await attempt(
+    "the attachment store could not be reduced to the files the ledger names, " +
+      "so it was left whole beside the retained trail",
+    async () => {
+      attachmentsRetained = await retainSentAttachments(input.groupId);
+    },
+  );
   const residue = await purgeExceptLedger(dir);
   // The copy an operator finds when the organisation's own directory is no
   // longer somewhere they would think to look. See `organisationDelete`.
-  await recordAdminAction(INSTALLATION_LEDGER_GROUP, {
-    actor,
-    action: ADMIN_ACTIONS.organisationDelete,
-    target:
-      `organisation ${input.groupId} deleted: ${deleted.length} account(s), ` +
-      `${agentsDeleted} agent(s); audit ledger retained at ${dir}` +
-      (residue.length > 0 ? `; ${residue.length} file(s) could not be removed` : ""),
-    subjectId: input.groupId,
-  });
+  await attempt(
+    "the installation-wide ledger did not take its copy of the entry, so the " +
+      "record of this deletion exists only inside the deleted organisation's " +
+      "own retained trail",
+    () =>
+      recordAdminAction(INSTALLATION_LEDGER_GROUP, {
+        actor,
+        action: ADMIN_ACTIONS.organisationDelete,
+        target:
+          `organisation ${input.groupId} deleted: ${deleted.length} account(s), ` +
+          `${agentsDeleted} agent(s); audit ledger retained at ${dir}` +
+          (residue.length > 0 ? `; ${residue.length} file(s) could not be removed` : ""),
+        subjectId: input.groupId,
+      }),
+  );
   return {
     ok: true,
     groupId: input.groupId,
@@ -267,6 +346,7 @@ export async function deleteOrganisation(
     ledgerRetainedAt: dir,
     attachmentsRetained,
     residue,
+    incomplete,
   };
 }
 

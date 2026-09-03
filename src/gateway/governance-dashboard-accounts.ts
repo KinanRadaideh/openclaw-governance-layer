@@ -502,6 +502,11 @@ export async function handleGovernanceAccountRoutes(
       ledgerRetainedAt: result.ledgerRetainedAt,
       attachmentsRetained: result.attachmentsRetained,
       residue: result.residue,
+      // Still a 200: the organisation is gone, which is what was asked for.
+      // These are the steps after it that did not finish (finding 229), and
+      // reporting them as an error would put the surface back to describing a
+      // completed irreversible act as a failure.
+      incomplete: result.incomplete,
     });
     return true;
   }

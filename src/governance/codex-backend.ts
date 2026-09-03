@@ -58,6 +58,7 @@
 // so the safe answer stands", which is what lets the dashboard show consent
 // rather than merely state.
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import { formatErrorMessage } from "../infra/errors.js";
 import { ADMIN_ACTIONS, type AuditActorInput, recordAdminAction } from "./admin-audit.js";
 
 /** The bundled plugin that supplies the Codex app-server harness. */
@@ -112,11 +113,30 @@ export async function readCodexBackendState(): Promise<CodexBackendState> {
  * this installation start accepting that gap, and on whose authority?" must not
  * have to infer the answer from a config file's modification time.
  */
+export type CodexBackendChangeResult = {
+  /**
+   * Why the completion entry could not be written, when it could not
+   * (finding 229).
+   *
+   * The config already holds the new stance by the time that entry is
+   * attempted, so a throw here reported an accepted enforcement gap as a
+   * failed change — and this is the direction that matters, because an
+   * operator told the enable failed believes Codex is still refused when the
+   * installation has begun offering it.
+   *
+   * Reported rather than thrown, the way `kill-switch.ts` carries `auditError`
+   * and `deleteOrganisation` carries `incomplete`. The `requested` entry above
+   * is already in the trail, so an investigation is not left with nothing —
+   * what would be lost is the entry that says the change *took*.
+   */
+  auditError?: string;
+};
+
 export async function setCodexBackendEnabled(
   groupId: string,
   enabled: boolean,
   actor: AuditActorInput,
-): Promise<void> {
+): Promise<CodexBackendChangeResult> {
   const before = await readCodexBackendState();
   const change = `codex backend ${before.enabled ? "enabled" : "disabled"} -> ${
     enabled ? "enabled" : "disabled"
@@ -162,9 +182,18 @@ export async function setCodexBackendEnabled(
   // Written only once the config actually holds the new stance, so this is the
   // entry that answers "when did this installation start accepting that gap?"
   // and the one above answers "who asked, and did it take?".
-  await recordAdminAction(groupId, {
-    actor,
-    action: ADMIN_ACTIONS.codexBackendToggle,
-    target: change,
-  });
+  //
+  // Past the point of no return for this call: the config is written and the
+  // registry refreshed, so failing here cannot un-accept the gap — it can only
+  // misreport it (finding 229).
+  try {
+    await recordAdminAction(groupId, {
+      actor,
+      action: ADMIN_ACTIONS.codexBackendToggle,
+      target: change,
+    });
+  } catch (err) {
+    return { auditError: formatErrorMessage(err) };
+  }
+  return {};
 }

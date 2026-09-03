@@ -66,4 +66,15 @@ export type OrganisationDeletionResponse = {
    */
   attachmentsRetained: number;
   residue: string[];
+  /**
+   * Steps that failed *after* the organisation was already gone (finding 229) —
+   * a session left un-revoked, a ledger that would not take the completion
+   * entry, an attachment store that could not be reduced.
+   *
+   * Distinct from `residue`, which is leftover *files*. This is leftover
+   * *bookkeeping*, and it is the half that used to arrive as a 500: every one
+   * of these steps was an unguarded write past the point of no return, so the
+   * dashboard told the operator the deletion had failed while it had happened.
+   */
+  incomplete: string[];
 };

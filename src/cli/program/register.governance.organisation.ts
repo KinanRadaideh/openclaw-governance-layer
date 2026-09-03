@@ -156,6 +156,18 @@ export function registerGovernanceOrganisationCommands(governance: Command): voi
             `${result.residue.length} file(s) could not be removed: ${result.residue.join(", ")}`,
           );
         }
+        if (result.incomplete.length > 0) {
+          // Printed after the success lines rather than instead of them, which
+          // is the whole of finding 229: the organisation *is* gone, and the
+          // operator needs both halves of that sentence.
+          defaultRuntime.log("");
+          defaultRuntime.log(
+            `the organisation was deleted, but ${result.incomplete.length} step(s) after it did not finish:`,
+          );
+          for (const step of result.incomplete) {
+            defaultRuntime.log(`  - ${step}`);
+          }
+        }
       });
     });
 }

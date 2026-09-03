@@ -445,6 +445,13 @@ export function registerGovernanceAgentCommands(governance: Command): void {
           return;
         }
         defaultRuntime.log(`deleted ${result.agentId} ("${result.displayName}") from OpenClaw`);
+        if (result.auditError) {
+          // After the success line, not instead of it: the agent is gone
+          // either way, and only the trail is short (finding 229).
+          defaultRuntime.log(
+            `  warning: this deletion was not written to the audit ledger: ${result.auditError}`,
+          );
+        }
       });
     });
 }

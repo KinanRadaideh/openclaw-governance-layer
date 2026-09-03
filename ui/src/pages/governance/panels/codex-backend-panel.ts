@@ -53,6 +53,15 @@ export type CodexBackendPanelProps = PanelEffects & {
   state: CodexBackendState | null;
   isRoot: boolean;
   busy: boolean;
+  /**
+   * Shown when the change took and its audit entry did not (finding 229).
+   *
+   * Passed at the call site rather than added to `PanelEffects`, matching how
+   * the organisation panel reports what survived a deletion: the shared
+   * `confirmThen`/`run` pair discards results by design, so a panel that has
+   * something to say about a *success* needs its own way to say it.
+   */
+  onAuditWarning: (message: string) => void;
 };
 
 /**
@@ -195,9 +204,17 @@ export function renderCodexBackendPanel(
         // constants above. Returning `false` keeps the switch showing the
         // server's state until the round trip lands, so a cancelled dialog does
         // not leave the control lying about what the installation is doing.
-        void props.confirmThen(checked ? ENABLE_WARNING : DISABLE_WARNING, () =>
-          props.api().setCodexBackend(checked),
-        );
+        void props.confirmThen(checked ? ENABLE_WARNING : DISABLE_WARNING, async () => {
+          const result = await props.api().setCodexBackend(checked);
+          if (result.auditError) {
+            // Reported beside the new state, never instead of it: the switch
+            // moved, and what is short is the trail (finding 229).
+            props.onAuditWarning(
+              `The Codex backend is now ${result.enabled ? "offered" : "refused"}, ` +
+                `but this change was not written to the audit ledger: ${result.auditError}`,
+            );
+          }
+        });
         return false;
       },
     })}

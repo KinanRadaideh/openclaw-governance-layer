@@ -94,8 +94,15 @@ export async function handleGovernanceCodexBackendRoutes(
       sendInvalidRequest(res, "enabled must be true or false");
       return true;
     }
-    await setCodexBackendEnabled(groupId, enabled, auditActor(session));
-    sendJson(res, 200, await readCodexBackendState());
+    const change = await setCodexBackendEnabled(groupId, enabled, auditActor(session));
+    // Still a 200, and the state is the state: the config holds the new stance
+    // whether or not the ledger took its completion entry. Reporting an error
+    // would tell the operator the gap was refused when it was accepted, which
+    // is the wrong direction to be wrong in (finding 229).
+    sendJson(res, 200, {
+      ...(await readCodexBackendState()),
+      ...(change.auditError ? { auditError: change.auditError } : {}),
+    });
     return true;
   }
 
