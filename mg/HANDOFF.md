@@ -88,12 +88,15 @@ after a break. Everything else in `mg/` is detail beneath this.
 > - **Everything that remains is yours**: a live run (T2), a Linux host (T3), a
 >   read (T13), the figures (T17), the report (T18). Nothing is waiting on
 >   Claude.
-> - **The 56 uncommitted files are committed and pushed** (re-measured
->   2026-09-03). They landed in three commits on 2026-09-02 —
->   `8ae19b88e24`, `02359a1eb82`, `f01526eb06d` — and `personal/governance-layer`
->   is at `f01526eb06d`, exactly HEAD. **85 commits ahead of `main`.** The only
->   uncommitted work is the tenth sweep of 2026-09-03 (findings 225–228), which
->   is verified and small.
+> - **Everything is committed and pushed** (re-measured 2026-09-03, after the
+>   tenth and eleventh sweeps). The 56-file backlog landed in three commits on
+>   2026-09-02; findings 225–229 landed in three more on 2026-09-03, and
+>   `personal/governance-layer` is at HEAD with a clean tree.
+>
+>   **No hash and no count is quoted here on purpose.** Both move with every
+>   commit — including the commit that would update this line, which is finding
+>   227's exact mechanism and the reason it is not repeated. Run the two commands
+>   below instead; they are the claim.
 >
 >   **Measure, do not read.** Both numbers are one command:
 >
@@ -1743,11 +1746,13 @@ A finding that appears in only the middle column is not finished.
 
 ## 3. Where the code is, right now
 
-**Measured 2026-09-03.** Branch `governance-layer`, **85 commits ahead of
-`main`**, HEAD `f01526eb06d`, and the working tree holds only the tenth sweep's
-own changes (findings 225–228). Re-check all three rather than trusting these
-numbers — they move with every commit, and a hard-coded count in a handoff is the
-same class of defect as the stale inventory T19 carried:
+**Branch `governance-layer`; everything committed and pushed to `personal` as
+of 2026-09-03**, after findings 225–229. The commit count and the HEAD hash that
+used to sit in this sentence have been removed rather than updated: they were
+wrong within one commit every time, and the commit that corrected them was the
+commit that made them wrong again (finding 227). **The three commands below are
+the claim** — a hard-coded count in a handoff is the same class of defect as the
+stale inventory T19 carried:
 
 ```bash
 git rev-list --count main..HEAD
@@ -1761,11 +1766,17 @@ git status --porcelain | wc -l
 git log --oneline personal/governance-layer..HEAD
 ```
 
-**Neither is outstanding.** `personal/governance-layer` is at `f01526eb06d`,
-exactly HEAD, so **everything committed is pushed** and the third command above
-prints nothing — and the 56 files this section warned about are in the three
-commits of 2026-09-02 (`8ae19b88e24`, `02359a1eb82`, `f01526eb06d`), which carry
-T44, findings 194–224 and the documentation rewritten around them.
+**Neither is outstanding.** `personal/governance-layer` is at HEAD, so
+**everything committed is pushed** and the third command above prints nothing.
+The 56 files this section warned about are in the three commits of 2026-09-02
+(`8ae19b88e24`, `02359a1eb82`, `f01526eb06d`), which carry T44, findings 194–224
+and the documentation rewritten around them; findings 225–229 followed in three
+more on 2026-09-03.
+
+**The tip hash is deliberately not named here any more.** It was correct for one
+commit each time it was written, and the commit that corrected it was the commit
+that made it wrong — which is finding 227 stated as a mechanism rather than as an
+incident.
 
 **Finding 227 lived here**, in the table below, and it is kept struck through
 rather than deleted because the shape is the point: the paragraph describing this
@@ -1859,10 +1870,9 @@ docs-notes/qa-round13-probes/                     reproductions for round 13, ke
 must **never** be pushed there. The private remote is **`personal`**
 (`github.com/KinanRadaideh/openclaw-governance-layer`), added and verified on
 2026-08-21 when F1 closed. ~~It still sits at the 2026-08-21 tip
-(`e5a7876431b`)~~ — **it is at HEAD (`f01526eb06d`) as of 2026-09-03**, so every
-_committed_ change exists in three places, and that now includes the 56 files
-this sentence used to exclude. `OneDrive/GradProj-Backups/2026-08-13/` predates
-all of it.
+(`e5a7876431b`)~~ — **it is at HEAD as of 2026-09-03**, so every _committed_
+change exists in three places, and that now includes the 56 files this sentence
+used to exclude. `OneDrive/GradProj-Backups/2026-08-13/` predates all of it.
 
 `Documentation/` is untracked on purpose: 163 MB that byte-for-byte mirrors a
 OneDrive folder. **It already has a `.gitignore` entry** (`.gitignore:235`), so
@@ -2765,13 +2775,13 @@ backwards when the language stops being allow-only. Report material:
 
 **This step is closed and is kept because the way it went stale is finding 227.**
 T44, findings 194–224 and their documentation went in as three commits on
-2026-09-02 — `8ae19b88e24`, `02359a1eb82`, `f01526eb06d` — and the private remote
-is at HEAD. Re-measured 2026-09-03; **85 commits ahead of `main`**, nothing
-unpushed.
+2026-09-02; findings 225–229 went in as three more on 2026-09-03, and the private
+remote is at HEAD with a clean tree. Verified before each push — the governance
+suite, the host suite, both typechecks, `tsgo:core:test` and the lint gate, all
+green.
 
-The uncommitted work now is the tenth sweep of 2026-09-03 alone: findings
-225–228, two production files, two test files and the documentation. Verified —
-the governance suite, both typechecks and the lint gate were run green after it.
+**The count that used to sit here is gone rather than updated**, for the reason
+the bullet in §1 gives: it was made wrong by the commit that corrected it.
 
 _(What stood here read "56 files are uncommitted … this is the only exposure on
 the project right now", and it said so in **four** places across this file and

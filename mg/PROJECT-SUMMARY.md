@@ -11,11 +11,13 @@ or picking it up after a break.
 - `mg/REMAINING-WORK.md` — everything still outstanding. **§"The numbered backlog" (T1–T44) is the authoritative list** — 37 done, 5 open as of 2026-09-02, derived as 44 − 2 not-being-done − 5 open; the sections below it are history. A second backlog, §"The M-series" (M1–M6), holds the multi-tenancy feature — **complete as of 2026-08-27**
 - `mg/SESSION-LOG-2026-08.md` — what the August 2026 session changed, and why
 
-> **Committed and pushed (re-measured 2026-09-03).** T44 and findings 194–224
-> landed in three commits on 2026-09-02 and `personal/governance-layer` is at
-> HEAD, `f01526eb06d`. _(This box read "⚠ The working tree is not clean … 56
-> files are uncommitted" for a day after they were committed — **finding 227**,
-> one of four live copies of that warning. Re-measure with `git status
+> **Committed and pushed (2026-09-03).** T44 and findings 194–224 landed in
+> three commits on 2026-09-02; findings 225–229 landed in three more on
+> 2026-09-03. `personal/governance-layer` is at HEAD and the tree is clean.
+> _(This box read "⚠ The working tree is not clean … 56 files are uncommitted"
+> for a day after they were committed — **finding 227**, one of four live copies
+> of that warning. The HEAD hash that replaced it has since been removed too,
+> because it was stale one commit later. Re-measure with `git status
 --porcelain`; do not repeat a number from prose.)_
 
 **Root can delete accounts, including its own (`T44`, 2026-09-02).** Deleting
