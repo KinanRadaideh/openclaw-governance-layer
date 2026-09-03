@@ -115,6 +115,44 @@ else
     nvm use 22
     node_ok || die "Node is still not a supported version after install"
     ok "node $(node -v)"
+
+    # Put the runtime itself on the system PATH (finding 231).
+    #
+    # nvm installs into ~/.nvm/versions/node/<v>/bin and makes it reachable
+    # through a hook in ~/.bashrc — which the *current* shell has not sourced,
+    # and which **systemd does not read**. That is the same argument the
+    # "Command" step below writes down for `openclaw`, and leaving it half-done
+    # is worse than not making it: `openclaw` is a symlink to `openclaw.mjs`,
+    # whose shebang is `#!/usr/bin/env node`. So the command this script puts on
+    # PATH could not run, and the very next thing the runbook tells an operator
+    # to do failed with:
+    #
+    #     /usr/bin/env: 'node': No such file or directory
+    #
+    # Best-effort: a box where /usr/local/bin is not writable and passwordless
+    # sudo is unavailable still has a working build, and the warning says what
+    # to run by hand.
+    link_runtime_into() {
+      local bindir="$1" sudo_prefix="${2:-}" tool
+      for tool in node npm npx; do
+        [ -x "$NODE_BIN_DIR/$tool" ] || continue
+        $sudo_prefix ln -sf "$NODE_BIN_DIR/$tool" "$bindir/$tool" 2>/dev/null || return 1
+      done
+      return 0
+    }
+    NODE_BIN_DIR="$(dirname "$(command -v node)")"
+    if [ -w /usr/local/bin ] && link_runtime_into /usr/local/bin; then
+      ok "node -> /usr/local/bin/node"
+    elif command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null &&
+      link_runtime_into /usr/local/bin sudo; then
+      ok "node -> /usr/local/bin/node"
+    else
+      warn "could not put node on PATH for services. Run by hand:"
+      printf '        sudo ln -sf %s/node /usr/local/bin/node\n' "$NODE_BIN_DIR"
+      printf '      Without it, %sopenclaw%s cannot start: its shebang looks for node on PATH,\n' \
+        "$BOLD" "$RESET"
+      printf '      and systemd does not read shell profiles.\n'
+    fi
   else
     printf '\n  %s%s.%s This fork needs %s.\n\n' "$BOLD" "$CURRENT" "$RESET" \
       ">=22.22.3 <23, >=24.15.0 <25, or >=25.9.0"
