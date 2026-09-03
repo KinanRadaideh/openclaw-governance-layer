@@ -116,7 +116,7 @@ closed — nine fixed on the day, and 181 and 182 closed as T42 and T43. A
 deployed to, found **seven more (183–189)**. See §"The universal QA sweep —
 2026-09-01" and §"The second universal QA sweep, and a 20% segment".
 
-**The count of findings is now 224**, and the shape of the last fifty-three is
+**The count of findings is now 229**, and the shape of the last fifty-eight is
 the argument: they were found by _doing the small remaining items_, by _running
 the layer on the platform it targets_, by _building a feature the backlog did not
 have_, by _drawing a fifth of the modules at random until the pool was
@@ -7152,3 +7152,306 @@ Not a schedule — an argument about sequence.
 10. **D** — dashboard polish.
 11. **A9** — the live agent run, last, as agreed.
 12. **F** — write-up.
+
+---
+
+## The tenth sweep — breaking it on purpose (2026-09-03)
+
+**Findings 225–228. 225 and 226 are security; all four are fixed.**
+
+### What this sweep changed
+
+The fourth through eighth segments drew **modules** until the pool was empty. The
+ninth drew **capabilities**, because there was nothing left to draw on the first
+axis. This one keeps sampling deliberate but changes **what is accepted as
+evidence**.
+
+The reason is in the previous three sweeps' own results. Findings **206**, **221**
+and **224** are the same result three times: a test asserting a property it could
+not detect. Reading cannot measure how widespread that is — a test that cannot
+fail reads exactly like a test that passes — so the only instrument is to break
+the code and watch.
+
+### The design
+
+**Six features, one selection rule: the ones where reading proves nothing**,
+because the property depends on the clock, on concurrency, or on cryptography.
+
+| Feature                  | Module              | Property under test                                                      |
+| ------------------------ | ------------------- | ------------------------------------------------------------------------ |
+| Sign-in throttling       | `login-throttle.ts` | Five failures lock out; the key folds Unicode; the bound spares lockouts |
+| Session lifecycle        | `session-tokens.ts` | Expiry; fingerprint-at-rest; revocation on account deletion              |
+| Password storage         | `password.ts`       | Cost recorded; weak hashes upgraded on sign-in                           |
+| Ledger tamper detection  | `audit-ledger.ts`   | Chain links, truncation, a deleted checkpoint                            |
+| Cross-process lock       | `file-lock.ts`      | Ownership on release; the heartbeat stops when the lock does             |
+| Time-limited permissions | `policy-types.ts`   | A lapsed rule stops applying; a corrupt date fails closed                |
+
+**Fifteen mutations.** The harness anchors on a unique source string and
+**refuses to run when the anchor is not unique**, so a mutation that silently
+edited nothing cannot be scored as a caught defect; it runs only the test files
+claiming the property, and restores the file in a `finally`.
+
+### The result: fifteen of fifteen caught
+
+| ID    | Broken property                                                        | Verdict |
+| ----- | ---------------------------------------------------------------------- | ------- |
+| T1–T3 | Throttle: Unicode fold, the five-failure threshold, lockout eviction   | caught  |
+| S1–S3 | Sessions: fingerprint at rest, expiry, revocation on deletion          | caught  |
+| P1–P2 | Passwords: rehash-on-sign-in, the current scrypt cost                  | caught  |
+| L1–L3 | Ledger: chain link, one entry removed from the end, deleted checkpoint | caught  |
+| F1–F2 | Lock: ownership check on release, heartbeat ownership check            | caught  |
+| E1–E2 | Expiry: corrupt date fails closed, a rule lapses on time               | caught  |
+
+`git status` was verified clean afterwards; every mutation was reverted.
+
+**This is a different claim from "the suite is green"** and belongs in Chapter 4
+as such: it says the tests are load-bearing for the six subsystems the security
+argument rests on. It is the strongest positive evidence the project has about
+its own verification, and it is the direct answer to the worry 206, 221 and 224
+raised.
+
+### Finding 225 — the throttle's memory bound was its off switch
+
+**Security. Disables the control installation-wide.**
+
+**Who can reach it, stated precisely.** The governance login sits _behind_ the
+Gateway's own Control-UI gate — `authorizeControlUiReadRequest` runs first — so
+this is not reachable by a stranger on the internet. It is reachable by anyone
+holding the shared secret, a device token, or the SSH tunnel, **and no governance
+account at all**. That is exactly the population the dashboard login exists to
+stop: it is designed as a _second, independent_ gate stacked on the first, so
+that holding the Gateway's credential is not the same as holding an account.
+Defeating the throttle collapses the second gate into "guess as fast as you
+like".
+
+`login-throttle.ts` caps its table at `MAX_TRACKED_KEYS` = 1,000. Finding 104 had
+already fixed one version of this: filling the table evicted the **lockouts**, so
+a thousand throwaway logins released the account under attack. The repair kept
+lockouts by shedding unlocked records first — which handed the attacker a strictly
+better move.
+
+Lock out a thousand **invented** usernames. The key is `canonicalAccountName` of
+whatever was submitted, so they need not be accounts. The table is now entirely
+lockouts. A real account's first wrong password is then the only unlocked record
+present, so `prune` deletes it on the next call, `attempts.get` returns
+`undefined`, and the counter is rebuilt at one — every time. It never reaches
+`MAX_ATTEMPTS`, so no lockout is created, so there is nothing left to evict.
+
+Measured with both implementations loaded in one process:
+
+| table state           | guesses before refusal  | counter reached | locked out |
+| --------------------- | ----------------------- | --------------- | ---------- |
+| empty (control)       | 5                       | 5               | yes        |
+| full of junk lockouts | **500 (cap; no limit)** | **1**           | **no**     |
+| full, after the fix   | 5                       | 5               | yes        |
+
+**Fixed** by exempting the key currently being handled from eviction, and by
+selecting the victim as the least protective record: unlocked before locked
+(104's property kept) and soonest-to-lapse within each class. The second half
+replaces a justification that was simply untrue — a record is inserted on the
+**first** failure and locked on the **fifth**, so the oldest-inserted lockout is
+routinely the **last** to lapse, and that spread is widest for the account under
+sustained attack.
+
+**Residual, recorded rather than deferred.** An attacker interleaving one junk
+failure per guess can still displace a counter, and no eviction policy fixes it:
+any shape treated as valuable is imitable by a flood that mints usernames for
+free, and refusing new keys when full means the victim is never counted at all.
+A username-keyed table with a hard bound cannot beat that opponent; the bound that
+would is per-**source**, which is the Gateway transport layer's to own. The fix
+converts a one-shot permanent disabling into an attack that must be sustained —
+and, via 226, one that leaves a trail.
+
+Regression tests: `login-throttle.test.ts`, two cases. Both were run against
+pre-fix code and fail there. The pre-existing "bounds memory under a distributed
+guessing attempt" test is why this survived: it fills the table with **unlocked**
+keys and asserts a fresh account is still _allowed_ — which is the symptom of the
+defect asserted as the desired outcome.
+
+### Finding 226 — a failed sign-in at the terminal was recorded nowhere
+
+**Security.** `auditLoginFailure` had exactly **one** production caller, the
+dashboard route. `openclaw governance login` called `authenticate`, printed
+`Invalid credentials.` and returned — no throttle, no lockout, **no ledger
+entry**. Successes were recorded; failures were not, on any surface reachable
+from a shell.
+
+`auth-audit.ts` exists precisely to close this, and its header cites ISO 27001
+and OWASP's Secure Coding Practices for logging authentication **failures** as
+well as successes.
+
+**The usual excuse reverses here.** Yes, anyone who can run the command could edit
+`users.json` — but that is a **visible** act, while guessing is not, and what
+guessing yields is the plaintext password, which then authenticates on the
+dashboard as a routine sign-in by its owner. Where enforcement is honestly
+unavailable, the record is the whole remaining control.
+
+**The throttle is deliberately not added.** It cannot work here: the table is
+Gateway-process memory and each command is its own process, so every invocation
+would start empty. That is now stated in `login-throttle.ts` so the next reader
+does not build a second throttle to close it.
+
+**Why five parity audits missed it** — the reusable part. Each asked "does this
+command make the checks its route makes?" and hunted for an absent gate. `login`
+is the one command that correctly has none, because it runs before an identity
+exists. _An audit shaped around a missing check is blind to the case that is
+supposed to be missing one._ Same structural blindness as finding 216.
+
+Regression tests: `cli-login-audit.test.ts`, four cases, three of which fail
+against pre-fix code. The fourth pins a distinction worth keeping — a **failed**
+sign-in goes to the installation trail (an attacker must not choose whose log
+records the attack) and a **successful** one to the organisation's.
+
+### Findings 227 and 228 — two registers describing a system that had moved
+
+**227.** `HANDOFF.md` and `PROJECT-SUMMARY.md` warned, in **four live places**
+including the bold block at the top of "Start here", that the tree was not clean
+and 56 files were uncommitted. They had been committed and pushed the previous
+day. The commit that falsified it — `f01526eb06d` — is the one whose message reads
+_"the handoff documents brought level for handoff"_: it landed both the work and
+the note calling that work unlanded.
+
+**228.** `GOVERNANCE.md`'s defect register **stops at 221**. The ninth sweep's
+findings (222–224) were entered in five documents and not that one — including
+finding 223, whose entire lesson is that a document claiming completeness should
+be checked against the artefact rather than maintained by hand. Its last row also
+still marks **221 as open**, while three other registers record it fixed the same
+day; re-measured this session, `scripts/run-lint.mjs` exits 0.
+
+Both fixed, with the stale text struck through rather than deleted where the
+shape is instructive.
+
+**The rule these produce**, and it is the fourth instance (136, 148, 150, 220):
+a fact recorded in prose across several documents drifts at the rate the
+documents are edited, not at the rate the fact changes — and the worst case is a
+number written into prose **by the change that alters it**, which is stale before
+the commit finishes. Treat it as a property of the format rather than a lapse,
+and apply 223's countermeasure to registers too: **derive or verify, do not
+maintain by hand.**
+
+---
+
+## The eleventh sweep — the branch that only runs on a bad day (2026-09-03)
+
+**Finding 229, in three modules. Fixed.**
+
+### The axis, and why it is the one left
+
+Four sweeps have now each changed what they sample:
+
+| Sweep    | Samples                                            | Exhausted / superseded by        |
+| -------- | -------------------------------------------------- | -------------------------------- |
+| 4th–8th  | modules                                            | the pool closed after the eighth |
+| 9th      | capabilities × surfaces                            | 44 routes, 12 drawn              |
+| 10th     | **what counts as evidence** — break it and watch   | 15 mutations, 15 caught          |
+| **11th** | **control-flow reachability** — the failure branch | this one                         |
+
+The failure branch is, by construction, the least-executed code in the layer,
+and it is where three of this project's most expensive findings already sat:
+**195** (the kill switch reporting a stop that had worked as a failure), **156**
+(a search filter that failed open), **217** (the ledger asserting a config change
+that had thrown). Three findings on one axis, and it had never been swept
+deliberately.
+
+`AGENTS.md` supplies the criterion rather than a hunch: **silent failure > crash
+
+> missing feature**, and _"every user or agent action ends in a visible outcome
+> or a recorded, intentional non-outcome."_
+
+### The six features, and the question asked of each
+
+_If a step fails half-way, is what the operator is told actually true?_
+
+| Feature                  | Module                     | Verdict                                               |
+| ------------------------ | -------------------------- | ----------------------------------------------------- |
+| Governance state writes  | `state-file.ts`            | Sound — one writer, file and directory modes together |
+| Emergency stop           | `kill-switch.ts`           | Sound — `auditError` returned beside the outcome      |
+| Denied-search filtering  | `search-audit.ts`          | Sound — fails closed, and tells the model why         |
+| Deleting one agent       | `agent-provisioning.ts`    | **229** — the final ledger write unguarded            |
+| Attachment store         | `attachment-store.ts`      | Sound — refuses on a damaged index                    |
+| Deleting an organisation | `organisation-deletion.ts` | **229** — five unguarded steps                        |
+
+**Two of the four sound ones are sound because they were repaired**, and both
+now carry the principle in prose. That is the finding behind the finding: the
+module that was bitten states the rule, and the module written afterwards does
+not follow it.
+
+### Finding 229 — a completed irreversible act reported as a failure
+
+`deleteOrganisation` removes every account, every agent, and the Root that could
+have reversed it. Its header states that its whole contribution is _"the order
+and what is reported when a step fails part-way"_, and names
+`agent-provisioning.ts` as its model.
+
+The order is right. The reporting stops exactly where it begins to matter.
+
+**The point of no return is `deleteGroupAccounts`.** Everything before it returns
+a typed failure with a remedy. Everything after it was five unguarded awaits:
+
+1. `revokeSessionsForUser`, per account
+2. the group-scope completion entry
+3. `retainSentAttachments`
+4. `purgeExceptLedger` — _the one exception; it already caught internally_
+5. the installation-scope copy of the entry
+
+A throw from 1, 2, 3 or 5 left the function. **Neither surface catches it** — the
+CLI prints a generic error, the route returns 500 — so the operator is told the
+deletion failed while the organisation is gone. Finding 195, one act further up
+the scale of consequence, and worse than 195 because a kill switch can be
+re-engaged and an organisation cannot be restored.
+
+**The trigger is real rather than injected, and it is the instructive part.**
+`readIndex` throws `AttachmentIndexUnreadableError` on a damaged attachment
+index — deliberately, under a comment explaining that treating it as empty
+_"would discard the record of every attachment already stored."_ Exactly right
+for a store being asked what to keep. Reached from here it can protect nothing,
+because what it would have protected is already deleted; all it can still do is
+destroy the report. **A fail-closed dependency called past the point where
+failing closed can help only breaks the outcome.**
+
+**Fixed** by folding each post-point-of-no-return step into `incomplete:
+string[]` on the **success** arm — each entry a sentence an operator can act on,
+not a stack trace — and surfacing it on all three surfaces. `residue` (leftover
+_files_) already worked this way; this is the same treatment for leftover
+_bookkeeping_, and the two are kept distinct because one is inert and the other
+is not.
+
+Regression tests build the corrupt index for real and assert three things: the
+deletion is reported as done, the step that failed is named, and the steps
+_after_ the failing one still run — which is the difference between one `try`
+around the block and one around each step. All three fail against the pre-fix
+code with the genuine `AttachmentIndexUnreadableError`.
+
+### The two siblings, fixed with it rather than left as one-sided proof
+
+**`deprovisionAgent`** guards every fallible step except its final
+`recordAdminAction`, by which point the agent is gone from the host _and_ from
+governance. Because `deleteOrganisation` calls it in a loop that reads `ok`, that
+throw also escaped the loop's own per-agent failure handling.
+
+**`setCodexBackendEnabled`** had it in the direction that matters most. Its
+completion entry is written after `replaceConfigFile` and the registry refresh
+have landed the new stance, so a throw reported an **accepted** enforcement gap
+as a refused one — an operator told the enable failed believes Codex is still
+refused while the installation has begun offering it.
+
+Both now return `auditError` beside the success, matching `kill-switch.ts`
+field-for-field, and both surfaces say it. The Codex regression test breaks the
+ledger from inside the registry-refresh hook — the only point a test can reach
+between the config write and the completion entry — by replacing the ledger file
+with a directory; it fails pre-fix with a real `EISDIR`.
+
+### The rule, and the meta-observation
+
+**Before the point of no return, fail loudly; after it, never throw.** The two
+halves of an operation have opposite correct behaviours, and the boundary is not
+taste — it is the line past which an error message stops being information and
+becomes a false statement. The more irreversible the act, the more that false
+statement costs, because the operator's next move is chosen on it.
+
+**And why five sweeps walked past all three.** Segments four through eight
+covered every one of these modules. None exercised the branch, because a
+`catch`-less `await` reads exactly like a guarded one unless you are asking this
+specific question. _Coverage of a module is not coverage of its failure path_ —
+the same distinction findings 206, 221 and 224 drew between a test existing and
+a test being able to fail.

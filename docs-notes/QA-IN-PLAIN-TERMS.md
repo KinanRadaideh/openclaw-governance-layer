@@ -5993,3 +5993,317 @@ when it should be 0". It is also machine-independent and five times faster.
 **The lesson is worth more than the fix:** if you are testing that something does
 not get slower as it grows, count the operation that would grow. Timing it
 measures the computer.
+
+## 5.92 A tenth sweep: break it on purpose and see if anything complains
+
+The ninth review changed what it sampled — capabilities instead of files —
+because the module pool had run out. This one changes something else: **what
+counts as evidence.**
+
+Every review so far has been some form of _reading_. Read the module, read it
+against the handbook, read the command beside the web page. That has found a
+great deal, and the last three reviews each ended with the same uncomfortable
+result: **a test that asserted something it could not actually detect.** One
+described the test fixture rather than the product, one described a contract the
+product does not have, and one timed the computer instead of measuring the code.
+
+If three tests in three days were pretending, the obvious question is **how many
+others are.** Reading cannot answer that, because a test that cannot fail looks
+exactly like a test that passes.
+
+So this review asks it directly. Pick a promise the system makes, **break the
+code that keeps it**, and run the tests that claim to cover it. If the tests
+still pass, they never depended on the promise.
+
+### What was picked, and why these
+
+Six features, chosen on one rule: **the ones where reading proves nothing.**
+Anything that depends on timing, on two processes colliding, on cryptography, or
+on the clock cannot be verified by looking at it — those are exactly the places
+where a confident-looking test can be measuring nothing.
+
+| Feature                  | The promise                                                                      |
+| ------------------------ | -------------------------------------------------------------------------------- |
+| Sign-in throttling       | Repeated wrong passwords lock the account                                        |
+| Sign-in sessions         | They expire, they are not stored in the clear, and deleting an account ends them |
+| Password storage         | Weakly-stored passwords are strengthened on next sign-in                         |
+| The tamper-evident log   | Edits, reorderings and deletions are all detected                                |
+| The cross-process lock   | Two writers cannot overlap                                                       |
+| Time-limited permissions | A rule stops applying when it lapses                                             |
+
+Fifteen deliberate breakages in all — some blunt ("delete this check"), some
+subtle ("let one entry be removed from the end without noticing"). Each one was
+applied, the relevant tests were run, and the code was put back.
+
+### The result: fifteen out of fifteen were caught
+
+Every single break was detected. Sessions that never expired, a log that no
+longer noticed a deleted checkpoint, a lock that deleted somebody else's lock, a
+permission that outlived its own expiry — all of them failed the suite
+immediately.
+
+**That is the most reassuring thing this project has measured**, and it is worth
+stating precisely, because it is a different claim from "the tests pass". The
+tests passing says the code does what the tests describe. This says **the tests
+would notice if it stopped** — which is the property that was missing in each of
+the last three reviews' findings.
+
+### And then the reading found four things anyway
+
+The breakage exercise cleared the tests. It did not clear the code. Two problems
+came out of reading the same six features while the machine worked, and two more
+came out of checking this project’s own paperwork against itself.
+
+### The lockout that could be switched off for everybody, for five thousand guesses
+
+The dashboard limits password guessing: five wrong passwords for an account and
+that account is refused for fifteen minutes. It remembers this in a table in
+memory, and the table has a size limit — a thousand accounts — so that somebody
+throwing junk at it cannot use up all the memory in the machine.
+
+**That size limit was the whole defence's off switch.**
+
+An earlier review had already found one version of this. Back then, filling the
+table threw away the _lockouts_ first, so a thousand junk sign-in attempts
+unlocked whoever you were attacking. The repair was to throw away the
+**not-yet-locked** records first and keep the lockouts.
+
+Read that repair from the attacker's side. Lock out a thousand usernames — and
+**they do not have to be real usernames**, because the table is keyed on
+whatever was typed in the box. The table is now full of lockouts. Now start
+guessing a real password. Your first wrong guess creates the only not-yet-locked
+record in the table, so it is the one thrown away — on your very next request.
+The count restarts at one. Every time. **It can never reach five, so the lockout
+is never created, so there is nothing left to throw away.**
+
+We measured it rather than arguing about it:
+
+| table state           | guesses allowed | counter reached | locked out? |
+| --------------------- | --------------- | --------------- | ----------- |
+| empty                 | 5               | 5               | yes         |
+| full of junk lockouts | **500+**        | **1**           | **no**      |
+
+Five hundred is where we stopped counting; there is no limit. The setup costs
+about five thousand failed logins, needs **no account and no password** — and
+after it the guessing limit is off for **every** account on the installation.
+
+**One thing this is not, and it matters.** It is not reachable by a stranger on
+the internet: the dashboard sits behind the server's own front door (a shared
+secret, a device token, or the SSH tunnel), and that door is checked first. What
+it _is_ reachable by is somebody who got through that door and has no account
+here — which is the entire reason the account login exists as a **second** door.
+Switching off the guessing limit turns the second door into one you can try as
+fast as you can type.
+
+**The fix, and the part of it that is a confession.** The account being tried is
+now never the one thrown away, and among the rest the system discards whatever
+is closest to expiring anyway rather than whatever arrived first. That closes
+the free, permanent version above — the same measurement now reads five guesses
+and a lockout, exactly like an empty table.
+
+It does not close it completely, and we would rather write that down than imply
+otherwise. Somebody willing to keep a junk request interleaved between every
+single guess, and to refresh a thousand lockouts every fifteen minutes, can still
+push a victim's count out. **No choice of what-to-discard fixes that**, and the
+reason is worth understanding: whatever shape you decide is worth keeping, the
+attacker can make their junk records that shape. The table is keyed on a name
+they invent for free. What actually bounds this is a limit per _source_ rather
+than per _username_, and that lives in a different layer of the program.
+
+What did change is that the attack now has to be continuous, and — because of
+the second finding below — every one of those attempts now leaves a mark.
+
+### Signing in at the terminal left no trace when it failed
+
+There are two ways to sign in: the web dashboard and the command line.
+
+The dashboard, on a wrong password, does three things: counts it against the
+lockout, writes a line into the tamper-evident log saying an attempt failed, and
+writes a second line if that attempt was the one that tripped the lockout.
+
+The command line, on a wrong password, printed `Invalid credentials.` on the
+screen and did **nothing else at all.** No count, no lockout, and — the part that
+matters — **no entry in the log.** A successful sign-in was recorded. A thousand
+failed ones were not recorded anywhere.
+
+**Why that is not excused by the usual argument.** The obvious objection is that
+anybody who can run these commands already has a shell on the machine and could
+just edit the account file — which is true, and the project says so in as many
+words. But it argues the _opposite_ way round. Editing the account file is a
+change somebody can see afterwards. Guessing the password is not, and what it
+gets you is the real password, which then works on the dashboard, where it looks
+like the rightful owner signing in normally.
+
+So the trail is the entire value this surface can honestly offer, and the trail
+had a hole in it exactly where an attack would be.
+
+**Why five earlier reviews walked past it.** Each of them asked the same
+question — "does this command check what its web-page twin checks?" — and went
+looking for a missing permission check. `login` is the one command that
+correctly has no permission check, because it is what runs _before_ anybody has
+an identity. **A review shaped around finding a missing check cannot see the
+command that is supposed to be missing one.**
+
+Now fixed: a failed sign-in from the terminal writes the same entry the
+dashboard writes, attributed to nobody rather than to the account somebody
+failed to prove they own. It deliberately does not claim to know how many times
+that account has been tried, because a fresh terminal process genuinely cannot
+know that.
+
+The throttle is still not applied at the terminal, and that is now written into
+the code rather than left to be discovered: it _cannot_ be, because the counter
+lives in the memory of the running server and each command is its own program.
+The terminal owes a record, not a refusal.
+
+### A third one, in this project's own paperwork
+
+The handover notes open with a warning in bold: **the working tree is not clean,
+fifty-six files are uncommitted, do this before anything else.** The project
+summary repeats it. A third place repeats it with a commit reference.
+
+All of it was committed and pushed before this session started. Four live copies
+of a warning about work that is not at risk, in the paragraph somebody reads
+when deciding whether their work is at risk.
+
+The way it happened is the reason it is worth recording. The commit that made
+those sentences false is the commit whose message says it brought the handover
+notes level — it landed the work _and_ the note describing that work as
+unlanded. **A number written into prose by the same change that alters the
+number is stale the moment it is written**, which is the fourth time this project
+has recorded that exact shape.
+
+The file itself asks for the habit that prevents it, one paragraph above the
+stale warning: _re-measure before you repeat a number, including a number in
+this paragraph._ Both claims are one command each, and both were run.
+
+### And a fourth: the register that stopped being written in
+
+Every problem this project finds gets a number and an entry in a few places, so
+that somebody reading any one of them gets the whole picture. One of those places
+is `GOVERNANCE.md`, the main engineering document.
+
+**Its list stops at 221.** The three problems found the previous day — including
+the one whose entire lesson is _"a document claiming to be complete should be
+checked against the thing it describes, not maintained by hand"_ — were written
+into five documents and not into that one.
+
+Worse, its last row still describes problem 221 as **open**. Three other
+documents say it was fixed the same day, and we ran the check ourselves this
+morning: clean. So the one document a reader would treat as the engineering
+record was the only one saying an unresolved problem remained.
+
+Nothing was actually broken by this. It is on the list because of what it says
+about the method: **the sweep that produced the "check your registers against the
+code" lesson did not check its own registers**, and the gap it left is in the
+document that lesson is most relevant to. Now filled, along with entries for
+everything found today.
+
+## 5.93 An eleventh sweep: what happens when the second half goes wrong
+
+The tenth review broke the code on purpose to see whether the tests noticed.
+They did, all fifteen times. This one asks a question that exercise cannot: not
+_"does the code do the right thing?"_ but **"what does it say when it can't?"**
+
+Every piece of this system has two halves — the part that runs when everything
+works, and the part that runs when a disk is full, a file is corrupt, or two
+programs want the same file at once. The second half is written once, read
+rarely, and almost never run. It is also where this project's own rulebook says
+the worst bugs live: **an action that ends with nothing explaining what
+happened is ranked above a crash and above a missing feature.**
+
+So: six features, and for each one the same question — **if a step fails
+half-way, is what the operator is told actually true?**
+
+### The five that were right
+
+| Feature                    | What it does when a step fails                                         |
+| -------------------------- | ---------------------------------------------------------------------- |
+| Writing any settings file  | One place does it, with the right permissions. Nothing to get wrong    |
+| The emergency stop         | Reports the stop **and** says the log entry is missing, if it is       |
+| Filtering a blocked search | Withholds everything and tells the agent why. Fails toward less access |
+| Deleting one agent         | Every step wrapped; says exactly what survived and what to do next     |
+| The attachment store       | Refuses to run on a damaged index rather than guessing                 |
+
+Two of those are right **because they were wrong before** and somebody fixed
+them — the emergency stop reported a stop that had worked as a failure, and the
+search filter used to let results through when it could not check them. Both
+now carry a written explanation of the principle.
+
+### The one that was not: deleting an organisation
+
+This is the biggest, most irreversible thing the system can do — it removes
+every account, every agent, and the Root account that could have undone it. Its
+own opening comment says its whole job is _"the order, and what is reported when
+a step fails part-way."_
+
+It gets the order right. It does not get the reporting right, and the mistake is
+all in one place: **after the point of no return.**
+
+The deletion happens in stages. Agents, then accounts, then five smaller steps —
+sign people out, write the completion record, tidy the attachment store, remove
+the leftover files, write a second copy of the record where an operator will
+find it. The first two stages are carefully handled: if they fail, nothing has
+been lost and you are told so.
+
+**The five steps after them were not handled at all.** Any one of them failing
+threw the error straight out, past everything, to the screen. And by then the
+accounts and the agents are already gone.
+
+So the operator sees an error. What they conclude is that the deletion did not
+happen. What actually happened is that **it did** — completely, irreversibly —
+and one piece of tidying afterwards did not.
+
+That is the same mistake the emergency stop made, one act further down the scale
+of consequences. There the fix was to hand the failure back alongside the
+success, so the operator is told "it worked, and here is what is missing". That
+is now what this does too.
+
+### We did not have to imagine the failure
+
+The step most likely to go wrong is the one that tidies up attachments, and the
+reason is almost funny: **it refuses to run on a damaged index, deliberately and
+correctly.** Its own comment explains why — treating an unreadable index as
+empty would throw away the record of every file the organisation ever sent.
+
+That refusal is exactly right when somebody is asking the store what to keep. It
+is useless here, because by the time it is asked, everything it might have
+protected is already gone. All the refusal can still do is destroy the report.
+
+So the test does not fake anything. It writes a corrupt index file — the state a
+crash mid-write would leave — and deletes the organisation. Before the fix, the
+whole thing threw. After it, the deletion completes and the result says, in a
+sentence: the attachment store could not be reduced to the files the ledger
+names, so it was left whole beside the retained trail.
+
+### Two more places with the same shape
+
+Once the pattern was named, two siblings had it in miniature.
+
+**Deleting a single agent** wrapped every fallible step but the last one — the
+line that writes the deletion into the audit log. The agent is gone from both
+places by then, so a log that would not take the entry turned a completed
+deletion into a reported failure. And because deleting an organisation deletes
+its agents in a loop, that error escaped the loop's own careful handling too.
+
+**Turning the Codex backend on** had it in the direction that matters most.
+That switch accepts a known enforcement gap, and it writes two log entries: one
+saying the change was _requested_, one saying it _took_. The second is written
+after the configuration is already saved. If it failed, the operator was told
+the change failed — while the installation had in fact begun offering the
+backend. Being told a security setting is off when it is on is the wrong way
+round to be wrong.
+
+Both now report the same way: the thing happened, and here is what is missing
+from the record.
+
+### The rule worth keeping
+
+**Past the point where an action cannot be undone, nothing may throw.** Before
+that line, failing loudly is right — nothing is lost and the operator can retry.
+After it, an error message is simply false, and the more irreversible the act
+the more damage the false message does, because the operator's next move is
+based on it.
+
+Every one of these was a step that only runs when something else has already
+gone wrong — which is why five careful reviews walked past them. **Code that
+only runs on a bad day is the code least likely to have been watched running.**
