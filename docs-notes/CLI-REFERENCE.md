@@ -1096,12 +1096,34 @@ it on when you are watching a long task by hand.
 **Stopping a run.** Press Ctrl-C. That cancels the agent run itself, not just
 the printout, and the cancellation is recorded.
 
-There is deliberately **no `governance agent cancel` command.** The table of
-in-flight prompts lives inside the process running them, and this command runs
-the agent in its own — so such a command could only ever stop a run started in
-the same terminal, and one that looked like it could reach the Gateway's runs
-would be reporting a power it does not have. Use the dashboard to stop a prompt
-somebody else started, or one whose terminal is gone.
+**There is a `governance agent cancel` command, and this paragraph used to say
+there was not — read both halves, because the paragraph was right about the
+mechanism (finding 238, 2026-09-03).**
+
+What it said: _"The table of in-flight prompts lives inside the process running
+them, and this command runs the agent in its own — so such a command could only
+ever stop a run started in the same terminal, and one that looked like it could
+reach the Gateway's runs would be reporting a power it does not have."_
+
+**All of that is still true.** `governance agent runs` and
+`governance agent cancel` were added later as command-line parity for the
+`agent/runs` and `agent/cancel` routes, and this argument was never revisited.
+They call the in-flight table directly, in their own process, and that table is
+a module-level `Map` — measured, not assumed: a process holding a run and a
+child process spawned from it report the run and an empty list respectively. So
+**neither command can see anything the Gateway is running**, which is every
+prompt sent from the dashboard and every run an operator would want to stop.
+
+They now say so. `agent runs` reports "no runs are in flight **in this process**"
+and names what it cannot reach; `cancel` distinguishes "I cannot see it" from
+"it does not exist". Whether the command line should reach the Gateway's runs
+properly — which means giving the CLI an HTTP client for governance routes, a
+change to the three-surfaces model in §2d — is **T51**, and it is a decision
+rather than a fix.
+
+**Until then: use the dashboard** to stop a prompt somebody else started, or one
+whose terminal is gone — or `governance kill <agentId>`, which is file-backed and
+therefore does work from any process.
 
 **Limits that apply here too.** A prompt is stopped after five minutes, and each
 account may have two running at once (six across the installation). The CLI

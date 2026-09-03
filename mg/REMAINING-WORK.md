@@ -13,7 +13,7 @@ Nothing here is speculative — every item was found by one of those two reviews
 up cold; `mg/PROJECT-SUMMARY.md` — what the project is and what has been built.
 
 **The authoritative outstanding list is §"The numbered backlog" immediately
-below — **forty-eight tasks, T1–T48, of which 37 are done and 9 open** (T1 and T41
+below — **fifty-one tasks, T1–T51, of which 38 are done and 11 open** (T1 and T41
 are not being done), **current as of 2026-09-03**, with a
 §"Who can do what" triage in front of it. _(This sentence has been stale three
 times and was also ungrammatical, having been patched mid-clause: it read
@@ -45,14 +45,14 @@ remains in `Kimi_QA_1.md` §7 and `docs-notes/QA-IN-PLAIN-TERMS.md` §3.
 
 ---
 
-## The numbered backlog — current as of 2026-09-02
+## The numbered backlog — current as of 2026-09-03
 
 **This is the authoritative outstanding list.** It supersedes §"What is actually
 left" further down, which was accurate on 2026-08-19 and is kept unedited
 because the report's Chapter 4 argument is partly about how a confident summary
 survives twelve reviews and does not survive the thirteenth.
 
-**Forty-eight tasks, numbered T1–T48** (the paragraph below this one was written
+**Fifty-one tasks, numbered T1–T51** (the paragraph below this one was written
 when the list was T1–T28 and is kept as history — see the dated count above it),
 grouped by what blocks them rather than
 by severity.
@@ -212,10 +212,13 @@ four (T29–T32) after two investigations and a request. What is open:
 | ~~**T42**~~ | ~~A decision: three surfaces describe the emergency stop three different ways.~~ **DECIDED AND BUILT 2026-09-01, option 1 at Kinan's instruction:** the dashboard matches the route. Administrator and above stop any agent in their organisation; a User stops the agents assigned to them; a Viewer stops nothing. The "Root only" hint is gone, replaced by one string per tier. Verified in a browser in both tiers, not only in jsdom. §"T42 — who may operate the emergency stop"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | ~~**T43**~~ | ~~`pnpm lint:ui:i18n` is red — 59 raw-copy deltas.~~ **DONE 2026-09-01.** All 59 measured, and all 59 were in the governance panels. Two were an HTML comment inside a lit template — shipped into every operator's DOM and read by the extractor as user-facing prose — fixed by moving it out. The remaining 57 are intentional under the recorded English-only decision and are baselined, which is what the tool's own message prescribes. §"T43 — the raw-copy check, and what it was really telling us"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | ~~**T44**~~ | ~~Kinan — deleting accounts: Root deletes any account, and its own, which takes the organisation with it.~~ **DONE 2026-09-01.** Half of it already worked: Root could delete every account in its organisation _except its own_, refused twice — as a self-deletion and by the Root-permanence guard, which documented that permanence as intended and told operators to edit `users.json` by hand. What was added is a **different act**, not a wider filter: `organisation delete` removes every account including Root and every agent, from OpenClaw as well as governance, confirmed by typing the Root username and compared on the server so all three surfaces ask for the same word. Agents go first, while Root still exists to retry a host refusal. **The audit ledger is kept** — an operator who could erase the trail by deleting the organisation it covers would have a one-click way to destroy requirement #6. Three surfaces, 32 new tests. §"T44 — deleting an organisation, and the guard that was right to refuse" |
-| **T45**     | **Claude — a first-run installation guide for a new user.** `docs-notes/LINUX-INSTALL.md` is a deployment runbook written for somebody who already knows what this project is; it opens with why the normal install does not work. A newcomer needs the step before that: what the layer is, what it needs, and the shortest path from a clean machine to a governed agent. Should absorb §2c's three cold-server findings (231, 232 and the linger ordering) so they are met as instructions rather than as troubleshooting                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ~~**T45**~~ | ~~Claude — a first-run installation guide for a new user.~~ **DONE 2026-09-03** — `docs-notes/FIRST-RUN.md`. What the layer is in one page, the test that tells you whether you installed the fork or stock OpenClaw (`governance policy show`: `Not signed in.` is a pass, `unknown command` is not), two paths (laptop, or a real VPS), and **§2c's cold-server findings promoted into the ordering itself** — lingering and the bus address come _before_ the install, not after it as troubleshooting. Ends on the five minutes that produce the demonstration: Root, Administrator, agent, assignment, then ask it to read a credential file and read the refusal out of the ledger                                                                                                                                                                                                                                                                                                                                                   |
 | **T46**     | **Kinan then Claude — the setup wizard still says "OpenClaw", not "OpenClaw Governance".** `openclaw onboard` presents upstream's introduction, prompts and completion text unchanged, so an operator installing _this_ project is never told what it is. Nothing in the wizard mentions the governance layer, the RBAC tiers, the audit ledger or the dashboard's second gate. **Kinan's judgement is that it should differ, and that the branding should read "OpenClaw Governance" throughout** — the decision needed is how far it goes: banner and completion text only, or new prompts (bootstrap the first Root during onboarding?) as well. Touches upstream files, so it grows the fork diff §3.5.2b measures                                                                                                                                                                                                                                                                                                                     |
 | **T47**     | **All three — a by-hand test plan, one list per RBAC tier, split between K, M and O.** Everything verified so far is automated or was driven by whoever wrote it. What has never happened is three people exercising the four tiers from the operator's chair: what a Root can do that an Administrator cannot, what a User sees, what a Viewer is refused, and whether every refusal explains itself. Produces the operator-visible evidence Chapter 4 needs and is the natural companion to T2                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | **T48**     | **Kinan — decide whether Chapter 3 is ready to be written.** `CHAPTER3-MATERIAL.md` is ~9,300 lines of design material accumulated across 76 sections. The question is not whether there is enough; it is whether the design has stopped moving. Findings 230–232 argue it has not quite — three defects in the deployment path in one evening — so the honest answer may be "after the VPS trip closes". A judgement, not a task                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| **T49**     | **Kinan — decide what the multi-tenancy machinery is for now.** M5 built per-group storage, `requireGroup`, `requireManagedAgent` and the roster filters; the 2026-08-30 cap means **a shipped installation only ever has one organisation**, so none of it is exercised by anything that ships. Findings 234 and 235 were both **latent for exactly that reason** — the isolation was absent and nothing could notice. Two honest positions: keep the machinery and say in the report that it is verified by test rather than by deployment, or state the cap as the boundary and stop describing the isolation as a live control. **The one thing that does not work is describing it as "untouched and still enforced" without re-deriving that**, which is what the register said while two commands were not enforcing it                                                                                                                                                                                                             |
+| **T50**     | **Kinan then Claude — nothing automatic runs the full lint gate (finding 237).** `git-hooks/pre-commit` runs `oxfmt` and plain `oxlint` over staged files; the type-aware rules, `scripts/` and the CSS check are only reached by `node scripts/run-lint.mjs`, which a person has to remember and which **could not complete on Windows at all until finding 233 was fixed**. The decision is which way to close it: make the hook run the gate (slow — the core shard alone is ~10 minutes, so it would have to be staged-scoped or moved to CI), or leave it manual and correct the five registers that call it "what `git-hooks/pre-commit` runs". **The registers are being corrected either way**; the open question is whether anything should enforce it                                                                                                                                                                                                                                                                            |
+| **T51**     | **Kinan then Claude — should the command line be able to reach the Gateway's runs?** (finding 238.) `governance agent runs` and `governance agent cancel` call the in-flight table in their own process, and that table is a module-level `Map` — so neither can see anything the Gateway is running, which is every prompt from the dashboard. They now say so instead of reporting "nothing is in flight". Making them work means **giving the CLI an HTTP client for governance routes**, which every other governance command avoids: they are file-backed and work from any process. That is a change to the three-surfaces model in `CLI-REFERENCE.md` §2d and is a design decision, not a fix. The alternative is to remove both commands and record the reason, which is what §2d exists to hold                                                                                                                                                                                                                                   |
 | ~~**T33**~~ | ~~Claude — make the fork build and start on Linux at all.~~ **DONE 2026-08-28**, verified on Ubuntu 24.04: installer exit 0, probe 14/14, `openclaw` on PATH. It was listed here as open until 2026-08-31 while §1 and §6 both recorded it closed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ~~**T34**~~ | ~~Decide what the three-surfaces rule promises.~~ **DONE 2026-08-31**, option 3 at Kinan’s decision: the four reasons were written first, two survived and two did not. `agents access`, `agent runs` and `agent cancel` built; accounts and rule requests kept as deliberate, with the reasons in `CLI-REFERENCE.md` §2d. **The rule itself was narrowed**, which matters more than the commands                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ~~**T35**~~ | ~~Claude — narrow `AuditActorInput`.~~ **DONE 2026-08-31.** A brand on the labelled arm was built, measured and **rejected** — 8 shipped rewrites finding zero defects, plus 311 test errors, to catch one historical defect, enforced by a command nobody runs. What shipped is a guard at the choke point: a named actor may not claim a labelled origin's name, which catches finding 161. §3.5.63                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -2739,6 +2742,15 @@ verification set names. They disagree:
 | ------------------------------------------------------------------------------------------------ | ------------------------------------------- |
 | `node node_modules/oxlint/bin/oxlint --config .oxlintrc.json src ui/src` — **what §4 documents** | **exit 0, zero errors**                     |
 | `node scripts/run-lint.mjs` — **the gate, and what `git-hooks/pre-commit` runs**                 | **two shards `FAILED (exit 1)`, 38 errors** |
+
+> **Both rows above say "what `git-hooks/pre-commit` runs", and that was never
+> true — finding 237, 2026-09-03.** The hook runs `oxfmt --write` and
+> `oxlint --config .oxlintrc.json` over staged files, and never invokes
+> `run-lint.mjs` at all. The comparison this table draws is real and stands;
+> only the claim that anything _enforces_ the right-hand column is wrong. The
+> rows are left as written because they are the 2026-09-02 measurement, and
+> because a register that quietly repairs its own history is worth less than
+> one that shows the correction.
 
 Both measured 2026-09-02, on the same tree. **The 38 split into two groups that
 are invisible for two different reasons**, which is what makes this worth a
@@ -7461,3 +7473,338 @@ covered every one of these modules. None exercised the branch, because a
 specific question. _Coverage of a module is not coverage of its failure path_ —
 the same distinction findings 206, 221 and 224 drew between a test existing and
 a test being able to fail.
+
+---
+
+## The document conflict that found two defects in the gate (2026-09-03, later)
+
+**Findings 233, 236 and 237. All fixed.**
+
+This did not start as a sweep. `HANDOFF.md` §1 said finding 221's 38 lint errors
+were fixed and both shards clean; `HANDOFF.md` §4 said the gate **FAILS on two
+shards with 38 errors** and that they were **open**. One of the two had to be
+wrong, so the gate was run rather than read — and the answer was _both, in
+different ways_.
+
+### 236 — the fix was recorded in one place and left open in five
+
+221's closure reached `HANDOFF.md` §1. It did not reach §4's expectation table,
+§4's paragraph beneath it, `PROJECT-SUMMARY.md` (twice), `CHAPTER3-MATERIAL.md`
+(where the finding was still headed **OPEN**), or `GOVERNANCE.md`'s command box.
+**Six live copies, one maintained.** That is findings 227 and 228's shape for the
+third time in two days, and the argument for the habit this file already states:
+state the measurement and its date, and replace it.
+
+### 233 — the gate could not finish on Windows, and never had
+
+Running it produced `exit 1`. Not from lint errors — every oxlint shard passed —
+but from this, after the last shard:
+
+```
+Error: spawnSync C:\Users\kinan\openclaw\node_modules\.bin\stylelint ENOENT
+```
+
+`run-lint.mjs` runs three steps: a UI i18n check, the oxlint shards, and
+stylelint over `ui/src/**/*.css` and `ui/src/**/*.ts` — the CSS hygiene pass,
+which exists because **oxlint cannot see inside Lit css tagged templates**. The
+first two are spawned through `process.execPath`. The third was spawned through
+`resolveRepoToolBinPath("stylelint")`, which returns the extensionless
+`node_modules/.bin` shim — and `spawnSync` on Windows cannot execute one without
+a shell. Reproduced directly:
+
+| Invocation                             | Result |
+| -------------------------------------- | ------ |
+| bare `.bin/stylelint`                  | ENOENT |
+| `.bin/stylelint.CMD`                   | EINVAL |
+| `node .../stylelint/bin/stylelint.mjs` | exit 0 |
+
+So **the third step had never run on this platform**, and the gate had been
+exiting 1 for a reason indistinguishable from a lint failure. Fixed by spawning
+it through `process.execPath` like the two steps above it, resolved via
+`stylelint/package.json` because stylelint's `exports` map does not publish the
+CLI path. The gate now exits `0` end to end.
+
+**The CSS check was clean the first time it ran**, which is worth stating
+plainly: nothing was hiding behind it. But nobody could have known that, and
+"the check is clean" and "the check has never run" are indistinguishable from a
+transcript that never reached it.
+
+**And it earned its keep immediately.** The first complete run of the repaired
+gate, on the tree containing findings 234 and 235's fixes, **failed with four
+real errors — all of them introduced by those fixes**:
+
+```
+src/cli/program/register.governance.ts:467  eslint(no-shadow): 'listAgents' is already declared in the upper scope
+src/cli/program/register.governance.ts:476  eslint(no-shadow): 'agent' is already declared in the upper scope
+```
+
+A dynamic `const { listAgents } = await import(...)` shadowed the module's own
+import of the same name, twice, and `.map((agent) => …)` shadowed the commander
+sub-command variable, twice. **Nothing else would have caught them**: both
+typechecks are clean, the suite is green, and the plain oxlint invocation the
+pre-commit hook runs does not report `no-shadow` on these files. Renamed and
+re-run clean.
+
+That is the argument for 233 and 237 stated as a measurement rather than as a
+worry: **a gate that has never run is indistinguishable from a gate with nothing
+to find, right up until the first time it runs.**
+
+### 237 — the hook does not run the gate, and five documents say it does
+
+Every register describes `node scripts/run-lint.mjs` as _"the gate, and what
+`git-hooks/pre-commit` runs"_. `core.hooksPath` is `git-hooks`, so the hook is
+live. It runs exactly two tools:
+
+```
+oxfmt --write ...                                   # formatting
+oxlint --config .oxlintrc.json <staged files>       # the plain invocation
+```
+
+It never invokes `run-lint.mjs`. So the hook runs **the narrow, non-type-aware
+oxlint that finding 221 was written to distrust** — no `--tsconfig`, no
+`scripts/`, no stylelint. The consequence is not that the hook is bad; it is that
+**nothing automatic enforces the type-aware rules, `scripts/`, or the CSS check
+at all.** They are commands a person has to remember, and finding 233 shows what
+happens to a command nobody has to run: it can stop working entirely and stay
+that way.
+
+This also corrects T31's closing sentence, repeated in §4 — _"`git-hooks/pre-commit`
+now lints staged files, so the count cannot drift back unnoticed"_. True only of
+the rules that invocation runs.
+
+**The rule worth keeping: a claim about what enforces quality is a claim, and
+this project has now been wrong about its own verification machinery three
+times — findings 203, 221 and 237.**
+
+---
+
+## A twelfth sweep — twelve more capabilities, drawn across surfaces (2026-09-03)
+
+**Findings 234 and 238. Both fixed.**
+
+The ninth sweep drew capabilities rather than modules, because ten of thirteen
+findings in the two segments before it were cross-surface. That axis produced two
+findings from twelve draws, so it is drawn again — **disjoint from the first
+twelve**.
+
+**The universe is the route table**, extracted from source exactly as before:
+`grep` over `governance-dashboard-*.ts`. It gives **43** matching `route === "…"`,
+plus `ledger`, which is dispatched by `route.startsWith` and which a `route ===`
+grep therefore misses — **44**, matching the ninth sweep's count. Twelve were
+drawn from the **32 not previously drawn**, by
+`sha256("openclaw-governance-feature-sweep-2-2026-09-03" + route)`, ascending:
+
+`users`, `policy/core-rules`, `sessions`, `ledger/verify`, `deployment`,
+`agent/attachment/release`, `agents/register`, `agents/owner`, `users/role`,
+`users/delete`, `policy/by-agent`, `agent/transcript`.
+
+Audited on the same four axes: all three surfaces, the same questions on each,
+recorded with an actor, described accurately.
+
+### What held
+
+Ten of the twelve are clean on all four. `agent/transcript` carries finding 216's
+fix and now makes all four of its route's checks. `agents/owner` validates the new
+owner's group on both surfaces. `policy/core-rules` guards the three
+self-protecting denials in the domain module, so both surfaces inherit it.
+`ledger/verify`, `sessions` and `system` each take the group from the session and
+scope with the organisation's roster. `agent/attachment/release` is a stated §2d
+exception with a real reason, as finding 223 recorded.
+
+### Two observations that are not defects, recorded so the next sweep does not re-find them
+
+**The route universe cannot be extracted by one grep.** `route === "…"` gives 43;
+`ledger` is dispatched by `route.startsWith("ledger") && !route.includes("verify")`
+and is invisible to that pattern. The ninth sweep's count of 44 is right, so it
+must have caught this by hand — but nothing recorded how, and a future sweep
+running the documented grep would silently draw from a pool with a hole in it.
+**Both patterns, next time.**
+
+**That `startsWith` also matches more than it names.** `GET ledgerfoo` is handled
+by the ledger branch. It is not a defect: the tier floor, the group scoping and
+the projection are identical whatever the suffix, so the caller gets exactly the
+data they were already entitled to. Worth knowing only because a reader auditing
+the route table by eye will assume `route === "ledger"` and be wrong about which
+paths reach it.
+
+### 234 — the one account command that dropped the organisation
+
+A mechanical pass over every id-taking command — _does its body ever mention
+`groupId`?_ — flagged two of twenty-two. One was a false positive. The other:
+
+```
+governance set-policy-authoring <userId> <allowed>
+```
+
+`requireCliActor` returns `{name, role, groupId}` and its own comment says why: a
+command "cannot obtain permission to act and then quietly act on a different
+organisation's files, because the only group it has is the one attached to the
+permission it was granted." This command took the permission and passed only the
+id. `setUserPolicyAuthoring` then searched **every account on the installation**,
+and the CLI called `updateSessionsPolicyAuthoring` — also group-blind —
+regardless of whether the write had succeeded, so the refusal reached across too.
+
+Its HTTP counterpart refuses the identical request with a 404, under a comment
+naming this exact shape: _"a Root in one group naming an account id in another."_
+
+**Reproduced**: a Root of group A withheld policy authoring from a User of group
+B and was told `policy authoring withheld for user-…`.
+
+**Graded latent.** A shipped installation caps at one organisation (2026-08-30),
+so there is no second organisation to reach; the reproduction needs
+`setMultiOrganisationAllowedForTests`, which is how every M5 isolation suite makes
+that machinery observable. It is fixed anyway, because the cap is recorded as "a
+product decision rather than a security boundary" beside the claim that M5's
+isolation is "untouched and still enforced" — and here it was not.
+
+**Fixed** by giving `setUserPolicyAuthoring` a **required** `groupId`, which is
+`listActiveSessions`'s own remedy for finding 139: a required parameter makes the
+type checker ask the question at every call site rather than letting the sites
+nobody looked at keep the defect by omission. Three regression tests; two fail
+under mutation, the third is the positive control.
+
+### 238 — two commands that cannot do what they are documented to do
+
+**Found on the sweep's fourth axis — _does the documentation describe it
+accurately?_ — which is the axis that has now produced findings 219, 223 and
+this one.**
+
+`CLI-REFERENCE.md` says two incompatible things about the same command. In the
+prompt section:
+
+> There is deliberately **no `governance agent cancel` command.** The table of
+> in-flight prompts lives inside the process running them, and this command runs
+> the agent in its own — so such a command could only ever stop a run started in
+> the same terminal, and one that looked like it could reach the Gateway's runs
+> **would be reporting a power it does not have.**
+
+And in the command table, and again in its own subsection: `governance agent
+runs` and `governance agent cancel <runId>`, documented with example output.
+
+**The prose is right and the commands were built anyway.** They were added as
+command-line parity for the `agent/runs` and `agent/cancel` routes, and the
+paragraph arguing they could not work was never revisited.
+
+#### Measured, not reasoned
+
+`prompt-runs.ts` holds its table in a module-level `Map` with no persistence, no
+file and no Gateway call, and both commands import it and call it in their own
+process. A two-process probe:
+
+```
+PARENT sees runs: ["gov-run-probe"]
+CHILD  sees runs: []
+```
+
+A CLI invocation is **always** a fresh process. So the table these commands read
+is always the empty one, and the runs an operator would want to stop — every
+prompt sent from the dashboard, every long agent run — live in the **Gateway's**
+process.
+
+`governance kill` is the contrast that proves the mechanism: it works from any
+process because a lockdown is written to the **policy document**, a file. The
+run table is the one piece of governance state that is memory-only.
+
+#### Why nothing caught it
+
+Every test of the pair asserts the empty case:
+
+| Test                                         | Asserts                 |
+| -------------------------------------------- | ----------------------- |
+| "says so in words when nothing is in flight" | `no runs are in flight` |
+| "reports a run id that does not exist"       | `no run`                |
+| "requires a signed-in account"               | `Not signed in`         |
+
+That is not a gap in the tests so much as **a faithful description of the only
+behaviour the commands have.** A test that started a run and cancelled it would
+pass too — in one process — and would prove nothing, which is finding 224's
+lesson arriving from the other direction: there the test measured the host, here
+it measures the fixture's process.
+
+#### Why it matters more than it looks
+
+Finding 222 established the surface argument: the command line is the one that
+works when the dashboard's tunnel does not, and an incident is exactly when the
+tunnel is missing. So the failure lands at the worst moment — an operator over
+SSH types `governance agent cancel <runId>` and is told **"no run is in flight"**
+about a run that is.
+
+It fails closed, which is why this is not filed as security: it cancels nothing
+rather than cancelling too much.
+
+#### What was done
+
+The commands are **kept and made honest** rather than removed. `agent runs` now
+reports "no runs are in flight **in this process**" and names what it cannot
+reach; `cancel` distinguishes _"I cannot see it"_ from _"it does not exist"_ and
+points at the dashboard and at `governance kill`. The parity tests pin both
+sentences, so the limitation cannot be silently dropped again.
+
+**The real fix is a decision, not a patch, and it is T51.** Making these work
+means giving the command line an HTTP client for governance routes — something
+no other governance command needs, because every other one is file-backed. That
+changes the three-surfaces model `CLI-REFERENCE.md` §2d describes. Removing both
+commands and recording why is the other honest option, and §2d exists to hold
+exactly that kind of entry.
+
+---
+
+## A thirteenth sweep — security, across the whole system (2026-09-03)
+
+**Finding 235. Fixed.**
+
+Drawn on an axis no previous sweep has used: **installation-wide state, and
+whether every reader of it scopes by organisation.** Chosen because M5 made
+isolation a property of the filesystem — `groups/<groupId>/` — which means the
+places isolation can still fail are the places that are _not_ files. Five
+module-level stores exist in `src/governance/`:
+
+| Store                         | Keyed by    | Verdict                           |
+| ----------------------------- | ----------- | --------------------------------- |
+| `pattern-match.ts` compiled   | the pattern | fine — no tenant data             |
+| `audit-ledger.ts` cachedHeads | group       | fine                              |
+| `agent-intent.ts` intents     | session     | fine — read at the gate, per call |
+| `login-throttle.ts` attempts  | username    | fine — login precedes any group   |
+| `prompt-runs.ts` runs         | **run id**  | **finding 235**                   |
+
+### 235 — finding 139's defect, on the registry it did not reach
+
+`active-sessions.ts` states the lesson in full, about the Gateway's run registry:
+
+> The supplier is the Gateway's own run registry, which is **installation-wide**
+> … The only filter was `canViewAgent`, and `hasUnlimitedAgentScope` makes that
+> unconditionally true for an Administrator or Root.
+
+`prompt-runs.ts` is a **second** installation-wide registry, and its two readers
+filtered with `canManageAgent` — which is `canViewAgent` plus a tier floor, so
+unconditionally true at exactly the tier that can see other people's runs. The
+group never entered either function.
+
+Three claims about scoping were made in comments and none held:
+
+1. The `agent/cancel` route's comment ends _"The scope check that follows still
+   binds an Administrator to agents they may manage."_ **No check follows.**
+2. `agent/runs` filters with `canManageAgent` under a comment saying an
+   Administrator sees runs "only for agents inside their remit". That predicate is
+   a no-op at that tier.
+3. Both CLI commands say **"Tier floor User, matching `agent/runs`"** and pass
+   `() => true`. A Viewer was admitted by the check and then excluded by accident
+   — `includeOthers` is false at that tier and a Viewer cannot start a run to own
+   one. **A control that holds because a second filter happens to cover it is not
+   a control.**
+
+**Graded latent**, for the same reason as 234, and fixed for the same reason.
+`groupAgentIds` is now **required** on both readers — 139's remedy, applied to the
+registry it missed — the two CLI commands take the User floor they claimed, and a
+run outside the caller's organisation is refused as `not-found` rather than
+`forbidden`, so a run id cannot become an existence oracle across the boundary.
+Three regression tests; two fail under mutation, the third is the positive
+control.
+
+### The rule worth keeping
+
+**Finding 139's fix was made a required parameter specifically so that no call
+site could keep the defect by omission — and it still missed a whole second
+registry, because a required parameter only reaches the function it is added to.**
+The question a fix has to answer is not "did every caller get updated?" but "is
+there another thing of this kind?"

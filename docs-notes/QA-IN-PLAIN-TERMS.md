@@ -6387,3 +6387,190 @@ between a runbook that works and one that works if you already know the answers.
 The third one is not even this project's bug. It is in the underlying OpenClaw
 code and affects anybody installing it as root on a server, so it is written up
 separately to be reported upstream.
+
+## 5.95 Two sweeps, and the discovery that the safety inspector had never shown up
+
+Six problems on the evening of 3 September. Four of them are about the system,
+and two are about **the thing that is supposed to check the system** — which is
+the more uncomfortable pair, and the more useful.
+
+### It started with two pages of our own notes disagreeing
+
+One page of the handover document said a batch of code-quality problems had been
+fixed. Another page of the **same document** said they were still there and still
+broken. Both had been written by us, a day apart.
+
+The rule this project has learned the hard way is: when two records disagree,
+don't decide which one sounds right — go and measure. So we ran the check.
+
+Neither page was right.
+
+### The check had never finished running on this computer
+
+The project has a "gate": one command that runs every code-quality check in
+sequence. Three steps — a translation check, the main code check, and last a
+check on the dashboard's visual styling.
+
+The command reported failure. Not because of anything wrong with the code: the
+first two steps passed completely. It failed on the third step with an error
+meaning **"I cannot find the styling checker"** — even though the styling checker
+was installed and working perfectly.
+
+The cause is a Windows detail. The tool is installed in a folder as a file with
+no file extension. Windows can run it if you go through a command prompt, and
+cannot run it directly. The first two steps launched their tools a different way,
+which works. The third launched it the broken way.
+
+So for as long as this has existed, **the last step of our quality gate has never
+run on this machine**, and the whole command has been reporting failure for a
+reason that looks exactly like "your code is bad".
+
+We fixed it, and then ran the styling check by hand for the first time. It
+passes. Nothing was hiding behind it.
+
+**And then the repaired check immediately caught four mistakes — in the repair
+itself.** The first time the whole gate ran end to end, it failed, on four
+problems introduced by the very fixes we had made that evening: a name declared
+twice in the same file, four times over. Nothing else noticed. The type checkers
+were happy, every test passed, and the basic checker the automatic guard runs
+does not look for that.
+
+**A check that has never run looks exactly like a check with nothing to find** —
+right up until the first time it runs.
+
+**But that is luck, and it is worth being clear about why.** "The check passes"
+and "the check has never run" produce the same thing on your screen when the
+command dies before reaching it. We only know it passes because somebody finally
+looked.
+
+### And then the worse one: the automatic guard doesn't run the gate
+
+Every document we have describes that command as _"the gate, and what the
+pre-commit hook runs"_ — the pre-commit hook being the automatic guard that
+inspects your work every time you save it into the project's history.
+
+We read the hook. It runs two things: a formatter, and a **basic** version of the
+code checker, looking only at the files you just changed.
+
+It has never run the gate. Not once.
+
+That matters because of what the basic version skips. It skips the deeper checks
+that need to understand the whole program — the ones that catch, for instance, a
+value being used in a way its own definition forbids. It skips an entire folder
+of the project's own scripts. And it skips the styling check entirely.
+
+So the honest picture is: **the deeper checks are not enforced by anything.**
+They are a command a person has to remember to type. And the previous problem
+shows exactly what happens to a command nobody is required to run — it can break
+completely and stay broken, because nothing is depending on it.
+
+We have written this down rather than quietly making the hook slower. Running the
+full gate takes about ten minutes, so where it belongs — the hook, a server, or a
+person's checklist — is a decision, and it is now on the list as one.
+
+### The two problems in the system itself
+
+Both were found by sweeps, and **neither can happen on a real installation
+today.** They are recorded as real anyway, and the reason is worth understanding.
+
+The system was built to hold several separate organisations at once, each unable
+to see the others. Then, in August, a decision was made that **one installation
+holds exactly one organisation** — several organisations means several servers.
+That decision was recorded as a _product_ choice, not a security boundary, and
+alongside it we wrote that the separation machinery was "untouched and still
+enforced".
+
+In two places, it wasn't.
+
+**The first.** There is a setting where the owner can take away a person's
+ability to write rules. On the website, the system checks that the person you
+named actually belongs to your organisation, and refuses if not — there is even a
+comment explaining that this is precisely the dangerous case. On the command
+line, the same setting **skipped that check** and would happily change the setting
+for anybody on the whole machine. It then went one step further and rewrote that
+person's live session too, whether or not the change had been allowed.
+
+**The second.** When somebody asks an agent to do something, that request is
+tracked in a list so it can be cancelled. That list is **machine-wide** — every
+request, from every organisation. The two places that read it filtered by "are
+you allowed to manage this agent?", and for an administrator that question always
+answers _yes_, for every agent that exists. So the filter that looked like the
+boundary did nothing at the exact level where it mattered.
+
+We have made this mistake before, in August, on a _different_ machine-wide list.
+We fixed it there and wrote a careful note explaining that we had made the
+organisation a **required** piece of information so no place could forget it. That
+worked — for that one list. Nobody asked whether there was a second list of the
+same kind. There was.
+
+Three comments in that area also claimed protections that were not there: one
+promised "the check that follows" where nothing followed, and two said the
+command was restricted to a certain level of user while the code let anybody in.
+That last one happened to be harmless, because a second, unrelated filter caught
+the case anyway. **A protection that works because something else happens to cover
+it is not a protection** — it is a coincidence that has not been tested.
+
+Both are fixed, both have tests, and we deliberately broke the fixes afterwards to
+confirm the tests notice.
+
+### A sixth: two commands that were never able to do their job
+
+This one came from asking the dullest question on the list — **does the handbook
+describe this correctly?** — and it turned out to be the biggest of the six.
+
+The handbook says, in one place, that there is deliberately **no** command for
+cancelling a running request from the terminal, and explains why: the list of
+requests currently in flight is held **in the memory of whichever program is
+running them**, so a command typed in a terminal could only ever see requests
+that terminal started itself.
+
+It then documents that command, twice, in two other places.
+
+**The explanation was correct. The commands were built anyway, later, and nobody
+went back to read the paragraph saying they could not work.**
+
+We measured it rather than argued about it: one program was made to hold a
+request, and a second program started from it was asked what it could see. The
+first saw the request. The second saw nothing.
+
+Every time you type one of these commands you get a brand-new program. So
+`agent runs` always says nothing is running, and `agent cancel` always says
+**"no request by that name is in flight"** — including when the request is very
+much in flight, in the server, which is where every request sent from the website
+actually lives.
+
+The emergency stop is the useful contrast, because it **does** work from a
+terminal. Stopping an agent is written into a **file**, and any program can read
+a file. The list of in-flight requests is the one piece of this system that lives
+only in memory.
+
+**Why no test caught it.** Every test of these two commands checks the
+"nothing is running" case — because that is the only case they have. A test that
+started a request and cancelled it would pass, in the one program running the
+test, and would prove nothing at all about the command an operator types.
+
+Nothing dangerous happens: it refuses to cancel rather than cancelling the wrong
+thing. But it fails at the worst possible moment. We decided earlier this year
+that the terminal is the surface that matters most, because the website is only
+reachable through a secure tunnel — and an emergency is exactly when that tunnel
+does not exist. So the person who most needs to stop a runaway request is the
+person most likely to be told nothing is running.
+
+Both commands now say plainly what they cannot see, and point at the two things
+that do work. Making them work properly would mean letting the terminal talk to
+the server over the network — something no other command here needs, because
+everything else is stored in files. That is a design decision, and it is on the
+list rather than quietly made.
+
+### What the six have in common
+
+**Everything here was described somewhere before it was measured.** A comment said
+a check followed. A document said a hook ran a command. A register said errors
+were still open. In every case the description was written honestly by somebody
+who believed it, and in every case it had stopped being true — or had never been
+true — and nothing in the world objected.
+
+The three sweeps before this one each said a version of the same thing about
+tests. This one says it about **the machinery that checks the code, and about the
+notes we keep on ourselves.** Those are the last places anybody thinks to look,
+because they are what you look _with_.

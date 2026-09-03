@@ -9002,13 +9002,28 @@ For the report this is worth more than its severity. It is:
 
 #### 221 — a verification step that could not fail
 
-**OPEN**, and the most useful of the five for Chapter 3's methodology section,
-because it is about the evidence rather than about the system.
+**CLOSED 2026-09-03** — all 38 fixed, both shards exit `0`. Still the most
+useful of the five for Chapter 3's methodology section, because it is about the
+evidence rather than about the system, and because **the same question asked
+twice more the day it closed found two further defects in the same gate**:
+finding 233, the gate could not run to completion on Windows at all; and
+finding 237, `git-hooks/pre-commit` does not run the gate and never did. The row
+below records the 2026-09-02 measurement that produced 221 and is kept as
+history.
 
 | Command                                                                           | Result, 2026-09-02               |
 | --------------------------------------------------------------------------------- | -------------------------------- |
 | `oxlint --config .oxlintrc.json src ui/src` — what the verification set documents | **exit 0**                       |
 | `node scripts/run-lint.mjs` — the gate, and what `git-hooks/pre-commit` runs      | **two shards FAILED, 38 errors** |
+
+> **Both rows above say "what `git-hooks/pre-commit` runs", and that was never
+> true — finding 237, 2026-09-03.** The hook runs `oxfmt --write` and
+> `oxlint --config .oxlintrc.json` over staged files, and never invokes
+> `run-lint.mjs` at all. The comparison this table draws is real and stands;
+> only the claim that anything _enforces_ the right-hand column is wrong. The
+> rows are left as written because they are the 2026-09-02 measurement, and
+> because a register that quietly repairs its own history is worth less than
+> one that shows the correction.
 
 The 38 are invisible for two independent reasons, and the pair is the point:
 
