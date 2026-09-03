@@ -310,6 +310,18 @@ function sourcePackageAlias(packageId: string, subpath?: string): ControlUiViteA
 
 export function resolveSourcePackageAliasesForVite(): ControlUiViteAlias[] {
   return [
+    // **Every subpath the UI imports needs a line here, and the bare alias below
+    // cannot stand in for one (finding 230.)** `find` is a prefix match, so the
+    // bare entry turns `@openclaw/normalization-core/agent-id` into
+    // `packages/normalization-core/src/index.ts/agent-id` — a path with a file
+    // in the middle of it, which fails as `Not a directory (os error 20)`.
+    //
+    // `agent-id` was missing from 2026-09-02, when finding 213's fold reached
+    // the dashboard, until 2026-09-03. `pnpm ui:build` failed for that whole
+    // window and nothing said so: the UI typecheck resolves through tsconfig
+    // `paths`, which is a different mechanism that was satisfied, and the build
+    // was not one of the six documented verification commands.
+    sourcePackageAlias("normalization-core", "agent-id"),
     sourcePackageAlias("normalization-core", "json-schema"),
     sourcePackageAlias("normalization-core", "number-coercion"),
     sourcePackageAlias("normalization-core", "phone-presentation"),
