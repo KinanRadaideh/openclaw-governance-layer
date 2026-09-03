@@ -10,6 +10,15 @@
 // Deliberately in-memory: a restart clearing the counters is acceptable (an
 // attacker cannot force a Gateway restart from here), and it keeps failed
 // login attempts out of persistent storage.
+//
+// **The command line's `governance login` is not throttled, and cannot be by
+// this module** — it runs in its own process, so every invocation would start
+// with an empty table. That is not a gap being deferred: the command line is not
+// a security boundary (`cli-identity.ts` states why, and the filesystem is the
+// real one there), so what that surface owes is a *record* rather than a
+// refusal, and it writes one (finding 226). Anyone reading this file for "why is
+// the CLI not rate-limited" should read that pair rather than add a second
+// throttle here.
 
 import { canonicalAccountName } from "./account-name.js";
 const MAX_ATTEMPTS = 5;
@@ -21,7 +30,75 @@ type AttemptRecord = { failures: number; firstFailureAtMs: number; lockedUntilMs
 
 const attempts = new Map<string, AttemptRecord>();
 
-function prune(nowMs: number): void {
+/**
+ * When a record would lapse on its own — the moment it stops protecting anything.
+ *
+ * A locked record lapses when the lockout ends; an unlocked one lapses when its
+ * failure window closes. Evicting by this, rather than by lock state or by
+ * insertion order, is what makes the bound below degrade in the right direction.
+ */
+function lapsesAtMs(record: AttemptRecord): number {
+  return record.lockedUntilMs ?? record.firstFailureAtMs + WINDOW_MS;
+}
+
+/**
+ * Drops what has expired, then holds the table to its budget.
+ *
+ * **`activeKey` is the account whose attempt is being handled right now, and it
+ * is never the eviction victim (finding 225).** Without that exemption the bound
+ * was a complete bypass of the throttle, by the exact inverse of the bug it was
+ * written to fix.
+ *
+ * The original defect (104/105) was that a thousand throwaway logins evicted a
+ * real account's *lockout*. The repair protected lockouts by shedding unlocked
+ * records first — which handed the attacker a better move. Fill the table with
+ * lockouts on **invented** usernames, and from then on a real account's first
+ * failure is the only unlocked record present, so it is deleted on the very next
+ * call and the counter restarts at one. Measured: with the table full, `root`
+ * took five hundred guesses without ever locking out, and the counter never rose
+ * above 1. The lockout did not need evicting, because it could never be made.
+ *
+ * Two changes, and neither is sufficient alone:
+ *
+ *   1. **The active key is exempt**, so an account being tried can always
+ *      accumulate its own failures.
+ *   2. Among the rest the victim is the least protective — **unlocked before
+ *      locked**, which is 104/105's property kept, and within each class the one
+ *      that **lapses soonest**. That last part was previously claimed for
+ *      "oldest" and was not true of it: a record is inserted on the first
+ *      failure and locked on the fifth, so the oldest-inserted lockout is
+ *      routinely the *last* to lapse — and it is the account under sustained
+ *      attack whose two timestamps are furthest apart.
+ *
+ * ## What this does not fix, and why no eviction order can
+ *
+ * An attacker who keeps a throwaway failure interleaved between every guess can
+ * still push a victim's in-progress counter out, because the table is keyed on a
+ * username the attacker invents freely and every slot is contested. No choice of
+ * victim helps: whatever shape is treated as worth keeping — most failures,
+ * newest, oldest, locked — can be imitated by the flood, and refusing to admit
+ * new keys when full simply means the victim is never counted at all. **A
+ * username-keyed table with a hard bound cannot survive an opponent who mints
+ * usernames**; that is a property of the key, not of the policy.
+ *
+ * The reach is worth stating exactly, because it is neither trivial nor
+ * catastrophic: `authorizeControlUiReadRequest` runs before this route, so a
+ * stranger on the internet cannot get here. Somebody holding the shared secret,
+ * a device token or the SSH tunnel — and **no governance account** — can. That
+ * is precisely the population this login exists to stop, since it is a second
+ * gate stacked on the first (see `handleGovernanceAuthRequest`), so defeating
+ * the throttle collapses it into unlimited guessing.
+ *
+ * What changed is the cost and the visibility. Before, one flood of five
+ * thousand requests disabled the throttle for every account permanently and
+ * unattended. Now it must be *sustained* — a thousand lockouts refreshed every
+ * fifteen minutes, plus one extra request per guess, per target — and every one
+ * of those failures reaches the tamper-evident ledger (`auth-audit.ts`), where
+ * that pattern is what an investigation is looking for. The defence that would
+ * actually bound an anonymous flood is a per-source limit, which belongs to the
+ * Gateway's transport layer and not to this module.
+ */
+function prune(nowMs: number, activeKey?: string): void {
   for (const [key, record] of attempts) {
     const expired =
       (record.lockedUntilMs !== undefined && record.lockedUntilMs <= nowMs) ||
@@ -30,34 +107,28 @@ function prune(nowMs: number): void {
       attempts.delete(key);
     }
   }
-  // Bound memory even under a distributed guessing attempt.
-  //
-  // Locked records are evicted last. Map iteration is insertion-ordered and
-  // `record.failures += 1` mutates in place without re-inserting, so an account
-  // under active attack stays pinned at the *front* of the queue — meaning the
-  // naive "delete the oldest key" was guaranteed to throw away the attacker's
-  // own lockout first. Five failed guesses against `root`, then a thousand
-  // logins with throwaway usernames, and the lockout was gone: the bound
-  // intended to protect memory was a complete bypass of the throttle.
-  if (attempts.size > MAX_TRACKED_KEYS) {
+  while (attempts.size > MAX_TRACKED_KEYS) {
+    let victim: string | undefined;
+    let victimRank = Number.POSITIVE_INFINITY;
+    let victimLapsesAt = Number.POSITIVE_INFINITY;
     for (const [key, record] of attempts) {
-      if (attempts.size <= MAX_TRACKED_KEYS) {
-        break;
+      if (key === activeKey) {
+        continue;
       }
-      if (record.lockedUntilMs === undefined || record.lockedUntilMs <= nowMs) {
-        attempts.delete(key);
+      // A lockout is protecting something and an in-progress count is not yet,
+      // so rank is the first comparison and time only breaks ties within a rank.
+      const rank = record.lockedUntilMs !== undefined && record.lockedUntilMs > nowMs ? 1 : 0;
+      const lapsesAt = lapsesAtMs(record);
+      if (rank < victimRank || (rank === victimRank && lapsesAt < victimLapsesAt)) {
+        victimRank = rank;
+        victimLapsesAt = lapsesAt;
+        victim = key;
       }
     }
-    // Still over budget means every record is an active lockout. Shedding the
-    // oldest of those is the only remaining option, and it is the safe end to
-    // shed from: it expires soonest anyway.
-    while (attempts.size > MAX_TRACKED_KEYS) {
-      const oldest = attempts.keys().next().value;
-      if (oldest === undefined) {
-        break;
-      }
-      attempts.delete(oldest);
+    if (victim === undefined) {
+      break;
     }
+    attempts.delete(victim);
   }
 }
 
@@ -78,7 +149,10 @@ export type ThrottleState = { allowed: boolean; retryAfterSeconds?: number };
 
 /** Checks whether this key may attempt a login right now. */
 export function checkLoginAllowed(key: string, nowMs = Date.now()): ThrottleState {
-  prune(nowMs);
+  // Exempt for the same reason `recordLoginFailure` exempts it: the route calls
+  // this immediately before recording, so evicting the key here would destroy
+  // the counter one step earlier than the bug this closes did.
+  prune(nowMs, key);
   const record = attempts.get(key);
   if (record?.lockedUntilMs !== undefined && record.lockedUntilMs > nowMs) {
     return {
@@ -106,7 +180,7 @@ export function checkLoginAllowed(key: string, nowMs = Date.now()): ThrottleStat
 export type LoginFailureResult = { failures: number; lockedOut: boolean };
 
 export function recordLoginFailure(key: string, nowMs = Date.now()): LoginFailureResult {
-  prune(nowMs);
+  prune(nowMs, key);
   const record = attempts.get(key);
   if (!record || nowMs - record.firstFailureAtMs > WINDOW_MS) {
     attempts.set(key, { failures: 1, firstFailureAtMs: nowMs });

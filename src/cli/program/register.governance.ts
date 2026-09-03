@@ -5,7 +5,7 @@ import { listActiveSessions } from "../../governance/active-sessions.js";
 import { CLI_ACTOR } from "../../governance/admin-audit.js";
 import { listAgents } from "../../governance/agent-registry.js";
 import { tailLedger, verifyLedgerChain } from "../../governance/audit-ledger.js";
-import { auditLoginSuccess, auditLogout } from "../../governance/auth-audit.js";
+import { auditLoginFailure, auditLoginSuccess, auditLogout } from "../../governance/auth-audit.js";
 import {
   currentCliIdentity,
   signOutCli,
@@ -63,6 +63,18 @@ export function registerGovernanceCommands(program: Command): void {
         const password = await promptSecret("Password: ");
         const user = await authenticate(name, password);
         if (!user) {
+          // Recorded here as it is on the route (finding 226). `auth-audit.ts`
+          // exists because "who was in the system, and when?" had no answer, and
+          // names ISO 27001 and OWASP for logging failures as well as successes;
+          // this surface recorded the success and dropped the failure, so a
+          // password guessed from a shell left nothing behind at all.
+          //
+          // No attempt count is passed. The throttle is per-process in-memory
+          // state belonging to the Gateway, so a command run in a fresh process
+          // cannot know how many times this account has been tried, and claiming
+          // a repeat it cannot substantiate would spend the reserve finding 107
+          // built for repeats it can.
+          await auditLoginFailure(name);
           // Deliberately the same message for a wrong password and an unknown
           // account, matching the dashboard: the command line must not become
           // the account-existence oracle the HTTP surface is careful not to be.
