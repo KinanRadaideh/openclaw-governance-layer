@@ -153,3 +153,108 @@ currently hiding on CI.
 
 Adding a Windows job to CI for this suite would stop the class of bug
 recurring.
+
+---
+
+# `daemon install` fails for root on a server with no login session
+
+**Found 2026-09-03**, deploying to a bare Contabo VPS (Ubuntu 24.04) as root
+over SSH. Reproduced from a fresh OS image. Not fork-specific: nothing in the
+governance layer touches `src/daemon/`, so stock OpenClaw fails identically.
+
+## Symptom
+
+```
+$ openclaw daemon install
+Gateway install failed: Error: systemctl enable failed:
+  Failed to enable unit: Unit file openclaw-gateway.service does not exist.
+```
+
+While the unit is plainly there, and `systemctl --user` can see it:
+
+```
+$ ls -la ~/.config/systemd/user/
+-rw-r--r-- 1 root root 1152 Sep  3 18:18 openclaw-gateway.service
+
+$ systemctl --user list-unit-files | grep openclaw
+openclaw-gateway.service    disabled  enabled
+
+$ systemctl --user enable openclaw-gateway.service
+Created symlink /root/.config/systemd/user/default.target.wants/openclaw-gateway.service → …
+$ echo $?
+0
+```
+
+So OpenClaw reports the file missing, and the same operation run by hand
+succeeds immediately. Lingering was enabled, `/run/user/0` existed, and
+`user@0.service` was active throughout.
+
+## Cause
+
+`resolveSystemctlProcessEnv` (`src/daemon/systemd.ts`) fills in a missing
+`DBUS_SESSION_BUS_ADDRESS` when the user bus socket exists — but returns early
+for uid 0:
+
+```ts
+const uid = readSystemctlEffectiveUid();
+if (uid === null || uid === 0) {
+  return processEnv;
+}
+```
+
+On a normal desktop or laptop this is invisible, because `pam_systemd` sets
+`DBUS_SESSION_BUS_ADDRESS` at login. On a server reached by SSH with no
+registered systemd session it is never set, and root is the one account the
+rescue skips.
+
+The consequence is not a bus error, which would at least point at the problem.
+`hasRootUserManagerEnvironment` requires all three of `HOME=/root`,
+`XDG_RUNTIME_DIR=/run/user/0` and a `DBUS_SESSION_BUS_ADDRESS` naming
+`/run/user/0/bus`. With the third missing it returns false,
+`resolveSystemctlUserScope` falls through to `machineUser = "root"`, and the
+command issued becomes:
+
+```
+systemctl --machine root@ --user enable openclaw-gateway.service
+```
+
+That scope reaches a different manager, which does not see a unit under
+`/root/.config/systemd/user/` — hence a "file does not exist" error about a
+file that exists.
+
+## Workaround
+
+```bash
+export XDG_RUNTIME_DIR=/run/user/0
+export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus
+```
+
+Both are needed. Setting only `XDG_RUNTIME_DIR` — the obvious guess, and what
+the error invites — does not help, because the scope decision reads all three.
+
+## Suggested fix
+
+Let uid 0 through the same rescue as every other uid:
+
+```ts
+const uid = readSystemctlEffectiveUid();
+if (uid === null) {
+  return processEnv;
+}
+```
+
+The existing `existsSync(busPath)` guard already makes this safe. A host with no
+user manager for root has no socket and is unaffected. A plain
+`sudo openclaw …` from a normal account keeps `HOME` at that account's home, so
+`hasRootUserManagerEnvironment` still refuses and the machine scope still wins.
+Only `sudo -i`, where `HOME=/root` and the unit is genuinely written under
+root's home, is redirected — to the manager that actually owns the unit.
+
+Applied locally as finding 232.
+
+## Why the error is worth improving regardless
+
+The message names a missing file that is present. An operator's first move is to
+look for the file, find it, and be stuck — which is where two hours went here.
+Reporting the scope actually used (`--machine root@ --user` versus `--user`)
+would make the cause visible without any knowledge of the internals.

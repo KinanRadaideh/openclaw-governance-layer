@@ -134,6 +134,141 @@ production, scrypt, the role ladder, Viewer masking and load average.
 
 ---
 
+---
+
+## 2c. Root on a bare VPS — three things a warm machine hides
+
+**Added 2026-09-03, and every line of it came from an actual deployment**, not
+from review. A clean Contabo VPS reached as root over SSH found three defects in
+one evening — the first two in this repository, the third upstream. None had
+appeared in the 2026-08-28 rehearsal, and the reason is the same in all three
+cases: **the rehearsal machine was warm.** It already had Node on `PATH`, and it
+already had a systemd login session. A server built ten minutes ago has neither.
+
+If you are deploying to a fresh server, read this section before §3.
+
+### The runtime must be on the system PATH, not just yours
+
+`--with-node` installs Node through nvm, which puts it under
+`~/.nvm/versions/node/<v>/bin` and reaches it through a hook in `~/.bashrc`.
+That is enough to build and nothing else: the shell you ran the installer from
+never sourced it, and **systemd never reads shell profiles at all**. Since
+`openclaw` is a symlink to `openclaw.mjs`, whose shebang is
+`#!/usr/bin/env node`, the very next command in the runbook failed with:
+
+```
+/usr/bin/env: 'node': No such file or directory
+```
+
+**Fixed in `scripts/vps-install.sh` (finding 231)** — it now links `node`, `npm`
+and `npx` into `/usr/local/bin` straight after the nvm install, which is the
+same argument the script already made for `openclaw` itself and had only
+half-applied. On an installer predating that fix:
+
+```bash
+NODEBIN="$(ls -d "$HOME"/.nvm/versions/node/*/bin | tail -1)"
+ln -sf "$NODEBIN/node" /usr/local/bin/node
+```
+
+Worth knowing even after the fix: OpenClaw's own `daemon status` flags a service
+whose `ExecStart` points into a version manager — _"Gateway service uses Node
+from a version manager; it can break after upgrades."_ `openclaw doctor --repair`
+rewrites the unit with a minimal PATH, and is worth running before a
+demonstration.
+
+### Lingering comes first, not last
+
+§4 introduces `loginctl enable-linger` after `daemon install` and
+`daemon start`, framed as the thing that keeps the Gateway alive past logout.
+That framing is right and **the ordering is wrong for a cold server**: without a
+user manager there is nothing for `systemctl --user` to talk to, so both of the
+commands that precede it fail —
+
+```
+Failed to connect to bus: No medium found
+```
+
+— and the step that would have fixed that is the one you have not reached. Do it
+first:
+
+```bash
+loginctl enable-linger root
+systemctl start user@0.service     # if /run/user/0 does not exist yet
+```
+
+Then confirm before going on:
+
+```bash
+ls -ld /run/user/0 && systemctl is-active user@0.service
+```
+
+### The bus address, which is the one that wastes an evening
+
+Even with lingering enabled, `/run/user/0` present and `user@0.service` active,
+`openclaw daemon install` can still fail with:
+
+```
+Failed to enable unit: Unit file openclaw-gateway.service does not exist.
+```
+
+**about a file that is demonstrably there.** `systemctl --user list-unit-files`
+lists it, and `systemctl --user enable openclaw-gateway.service` succeeds by
+hand.
+
+The cause is `DBUS_SESSION_BUS_ADDRESS` being unset. `pam_systemd` normally sets
+it at login; a bare root SSH shell may never invoke it. OpenClaw decides how to
+reach your user manager by checking `HOME`, `XDG_RUNTIME_DIR` **and** that
+address together, so with one of the three missing it falls back to
+`systemctl --machine root@ --user`, a scope that cannot see a unit under
+`/root/.config/systemd/user/`.
+
+**Setting `XDG_RUNTIME_DIR` alone does not help** — the obvious guess, and the
+one the error invites. Set both:
+
+```bash
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
+```
+
+Make it survive reconnects:
+
+```bash
+cat >> ~/.bashrc <<'EOF'
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
+EOF
+```
+
+**Patched locally as finding 232** — `resolveSystemctlProcessEnv` in
+`src/daemon/systemd.ts` filled a missing bus address for every uid _except_ 0,
+which is the account a server is administered as. The environment variables
+above are still the correct workaround on any build predating that patch, and on
+stock OpenClaw, which has the bug. Written up in `UPSTREAM-BUG-REPORT.md`.
+
+### If you cannot SSH in as root at all
+
+Several provider images ship with root SSH disabled and a sudo-capable account
+instead. Log in as that account and `sudo -i`; everything above then applies
+unchanged, because `sudo -i` sets `HOME=/root` and the unit is written there.
+
+The **SSH tunnel does not need root** — port forwarding only needs a shell, and
+the forward terminates on the server's own loopback:
+
+```bash
+ssh -N -L 18789:127.0.0.1:18789 <sudo-account>@<vps-host>
+```
+
+### What this section is really recording
+
+Three defects, one shape: **the path a new operator actually takes was the path
+nobody had walked to the end.** Every earlier verification ran on a machine that
+had already been used for something else. That is worth a paragraph in Chapter 4
+on its own — a runbook is only tested by a stranger's machine, and the project's
+own rule about checks that stand in for things they do not exercise (findings
+137, 224, 230) applies to deployment instructions exactly as it does to tests.
+
+---
+
 ## 3. From here on it is ordinary OpenClaw
 
 **This is the point of the whole exercise.** Building from source is the one

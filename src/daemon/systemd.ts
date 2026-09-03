@@ -939,8 +939,28 @@ function resolveSystemctlProcessEnv(env: GatewayServiceEnv): NodeJS.ProcessEnv {
     return processEnv;
   }
 
+  // **uid 0 is included, and excluding it was finding 232.**
+  //
+  // Root was the one account this rescue skipped, and it is the account a VPS
+  // is administered as. On a server reached by SSH with no login session,
+  // nothing sets `DBUS_SESSION_BUS_ADDRESS` — `pam_systemd` is what normally
+  // does it, and a bare root shell may never invoke it. `hasRootUserManagerEnvironment`
+  // then reports false, `resolveSystemctlUserScope` falls through to
+  // `--machine root@ --user`, and that scope cannot see a unit sitting in
+  // `/root/.config/systemd/user/`. The result is `openclaw daemon install`
+  // failing with "Unit file openclaw-gateway.service does not exist" while
+  // `ls` shows the file and `systemctl --user list-unit-files` lists it.
+  //
+  // The `existsSync(busPath)` guard below is what makes this safe: a host with
+  // no user manager for root has no socket, so nothing changes there. And a
+  // plain `sudo openclaw ...` from a normal account keeps `HOME` at that
+  // account's home, so `hasRootUserManagerEnvironment` still refuses and the
+  // machine scope still wins — only `sudo -i` (HOME=/root), where the unit is
+  // genuinely written under root's home, is redirected to root's own manager.
+  //
+  // Upstream behaviour, reported in `UPSTREAM-BUG-REPORT.md`.
   const uid = readSystemctlEffectiveUid();
-  if (uid === null || uid === 0) {
+  if (uid === null) {
     return processEnv;
   }
 
