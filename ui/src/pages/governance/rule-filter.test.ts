@@ -51,7 +51,7 @@ describe("an empty filter keeps everything", () => {
 describe("the list stays in evaluation order", () => {
   it("sorts core, then baseline, then operator rules", () => {
     // What an operator sees must match what the engine does, or the panel
-    // teaches the wrong precedence — and precedence is the whole design of the
+    // teaches the wrong precedence, and precedence is the whole design of the
     // tier model.
     expect(filterRules(RULES, EMPTY_RULE_FILTER).map((r) => r.tier)).toEqual([
       "core",
@@ -67,7 +67,7 @@ describe("search is a substring search, never a regular expression", () => {
   it("finds the rules whose text contains a catch-all, and only those", () => {
     // The single most useful search this panel offers: an unanchored `.*` is
     // exactly what somebody hunts for during a review. Treating the query as a
-    // pattern would match *every* rule — `.*` matches anything — so the one
+    // pattern would match *every* rule, `.*` matches anything, so the one
     // search that finds over-broad rules would instead find all of them. It
     // would also put a second operator-supplied pattern on the page with no
     // `checkRegexSafety` in front of it, which is what Q-79 was.
@@ -129,7 +129,7 @@ describe("the structured filters", () => {
 describe("the scope picker", () => {
   it("offers only agents that actually appear in the ruleset", () => {
     // Drawn from the rules rather than from the agent list, so it cannot become
-    // a second way to enumerate agents the caller may not see — the defect
+    // a second way to enumerate agents the caller may not see. The defect
     // round eleven found in `GET policy`.
     expect(ruleScopes(RULES)).toEqual(["agent-a", "agent-b"]);
   });

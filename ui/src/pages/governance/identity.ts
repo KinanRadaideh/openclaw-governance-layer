@@ -6,7 +6,7 @@
 //
 // `governance-page.ts` was split by T16 so that the page holds **state,
 // lifecycle and the effect primitives**, and everything else lives beside it as
-// a pure derivation — the shape `rule-filter.ts` and `ledger-filter.ts` already
+// a pure derivation. The shape `rule-filter.ts` and `ledger-filter.ts` already
 // had, and the reason their logic was always testable while the component's was
 // not.
 //
@@ -17,7 +17,7 @@
 // **The immediate cause was finding 136** (2026-08-28). M6's registry wiring
 // pushed the page from 696 code lines to 703 against a 700-line limit, and the
 // documentation asserted the limit was clean **in the same commit that broke
-// it**. Moving `renderFreshness` brought it to 697 — three lines of headroom,
+// it**. Moving `renderFreshness` brought it to 697, three lines of headroom,
 // which is not a margin: the next panel added would have crossed it again.
 // Extracting what already belonged elsewhere is the fix that does not have to
 // be repeated.
@@ -28,7 +28,7 @@
 // whether to render or how to react in the browser; the tier is enforced
 // server-side in the governance route modules and asserted by the privilege
 // matrix. A page that hides a control the server would refuse is being polite.
-// A page that *shows* one is a cosmetic bug, not a privilege escalation — and
+// A page that *shows* one is a cosmetic bug, not a privilege escalation, and
 // that distinction is exactly why authorization does not live in this file.
 import { isValidAgentId, normalizeAgentId } from "@openclaw/normalization-core/agent-id";
 import { GovernanceApiError, type GovernanceIdentity } from "./api.ts";
@@ -38,7 +38,7 @@ import { GovernanceApiError, type GovernanceIdentity } from "./api.ts";
  * wrong.
  *
  * Anything the operator is shown after this point would be historical, so it
- * must not keep being presented as current — which is the difference between a
+ * must not keep being presented as current: which is the difference between a
  * stale page and a lying one.
  */
 export function isSessionLost(err: unknown): boolean {
@@ -56,7 +56,7 @@ export function canManageAnyAgent(identity: GovernanceIdentity | null): boolean 
 }
 
 /**
- * Whether this operator may act on **this** agent — stop it, release it, write
+ * Whether this operator may act on **this** agent. Stop it, release it, write
  * its rules.
  *
  * The browser-side twin of `permissions.ts`'s `canManageAgent`, and it has to
@@ -69,7 +69,7 @@ export function canManageAnyAgent(identity: GovernanceIdentity | null): boolean 
  * described three different ways by three surfaces**: the route admitted User
  * plus `canManageAgent`, the kill-switch panel was shown only to Administrator
  * and above, and the hint printed on it said "Root only". The decision was to
- * make the dashboard match the route — so the panel needs the per-agent
+ * make the dashboard match the route: so the panel needs the per-agent
  * question, not just the per-tier one.
  *
  * Still a convenience and never the control: the server refuses regardless, and
@@ -94,7 +94,7 @@ export function canManageAgent(identity: GovernanceIdentity | null, agentId: str
  *
  * **Imported rather than reimplemented (finding 215).** This is the browser half
  * of a comparison the server also makes, and the only way a twin stays a twin is
- * for both halves to fold with the same function — so this reaches for
+ * for both halves to fold with the same function, so this reaches for
  * `@openclaw/normalization-core/agent-id`, which is what `normalizeAgentId`
  * resolves to on the host side as well. A local `toLowerCase()` would be a
  * second definition of "the same agent", which is the drift this project has
@@ -102,7 +102,7 @@ export function canManageAgent(identity: GovernanceIdentity | null, agentId: str
  *
  * **Why it matters more here than at the other conveniences in this file.** The
  * kill switch's agent field is free text, deliberately, so that an emergency can
- * reach an agent that is real but idle — and the button is disabled on this
+ * reach an agent that is real but idle: and the button is disabled on this
  * predicate, over the words "not your agent". Comparing unfolded meant an
  * operator who typed `Scout` for the `scout` they hold was told the emergency
  * stop was not theirs to press, before they pressed it. That is the one case
@@ -138,7 +138,7 @@ export function manageableAgentIds(
  * Both are derived from the same identity and are always passed together, so
  * asking for them separately is two chances to pass one and forget the other.
  * Introduced when `governance-page.ts` reached the 700-line limit and the
- * alternative was suppressing the rule — the same seam T16 used: move a
+ * alternative was suppressing the rule: the same seam T16 used: move a
  * derivation to where derivations live, rather than raise the ceiling.
  */
 export function panelCapabilities(identity: GovernanceIdentity | null): {

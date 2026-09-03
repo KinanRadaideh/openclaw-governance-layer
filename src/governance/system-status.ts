@@ -5,7 +5,7 @@
 // the resource-state half of that: a read-only snapshot an oversight role can
 // watch without holding any permission to change the system.
 //
-// Built entirely on Node's `os` module — no dependency, and no shell-out,
+// Built entirely on Node's `os` module, no dependency, and no shell-out,
 // which matters because the governance layer must not itself be a way to
 // execute commands on the host.
 import { cpus, freemem, loadavg, platform, totalmem, uptime } from "node:os";
@@ -15,7 +15,7 @@ export type SystemStatus = {
   cpuCount: number;
   /**
    * 1/5/15-minute load averages. Always [0,0,0] on Windows, where the OS
-   * exposes no equivalent — reported honestly rather than faked, and the
+   * exposes no equivalent: reported honestly rather than faked, and the
    * dashboard hides the row when unsupported.
    */
   loadAverage: [number, number, number];

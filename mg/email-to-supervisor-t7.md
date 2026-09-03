@@ -1,4 +1,4 @@
-> # ⛔ CANCELLED — do not send
+> # ⛔ CANCELLED. Do not send
 >
 > **Cancelled by Kinan on 2026-08-31.** This asks Dr. Haitham whether forking a
 > second project (Codex) would be acceptable, because at the time that looked
@@ -12,7 +12,7 @@
 > **Kept as a record, not as a draft.** It is an honest snapshot of what the
 > problem looked like before the third route was found, and Chapter 4 uses that
 > when it explains why the first two routes were wrong. See
-> `REMAINING-WORK.md` §"T7 prevention — the three routes, investigated
+> `REMAINING-WORK.md` §"T7 prevention. The three routes, investigated
 > 2026-08-30".
 
 ---

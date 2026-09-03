@@ -8,7 +8,7 @@
 //   filtered to what the caller is allowed to see.*
 //
 // Both halves matter. The tier floor is Viewer because §1.6 defines that tier
-// as oversight — it may watch everything it has been given and change none of
+// as oversight. It may watch everything it has been given and change none of
 // it. The filtering is what keeps the floor safe: `projectLedgerForActor`
 // masks the literal command, path and host from a Viewer, and
 // `listActiveSessions` and `listPendingDecisions` are each scoped to the
@@ -40,8 +40,8 @@ import { sendJson } from "./http-common.js";
 /**
  * Largest page of ledger entries a single read may return.
  *
- * Generous against any real use — the dashboard asks for 200, and an operator
- * scanning an incident wants a page, not the archive — and small enough that
+ * Generous against any real use, the dashboard asks for 200, and an operator
+ * scanning an incident wants a page, not the archive, and small enough that
  * the response cannot be turned into a memory-exhaustion primitive by the
  * lowest tier that can read at all. See the `ledger` route for the defect.
  *
@@ -86,7 +86,7 @@ export async function handleGovernanceOversightRoutes(
     const limit = Number.parseInt(limitRaw ?? "", 10);
     // Bounded above as well as below (QA round 13, finding 82). Only the lower
     // bound existed, and `tailLedger` walks backwards through every rotated
-    // archive until it has `limit` entries — so `?limit=1000000000` read the
+    // archive until it has `limit` entries, so `?limit=1000000000` read the
     // installation's entire history into memory and serialised it into one
     // response. Reachable at **Viewer**, the tier defined as strictly read-only
     // oversight, which made it the cheapest denial of service in the system.
@@ -100,7 +100,7 @@ export async function handleGovernanceOversightRoutes(
     );
     // The design doc grants Viewers "sanitized audit logs" specifically, a
     // narrower view than the tiers above them. A Viewer sees that an action
-    // happened, when, by which agent, and how it was decided — but not the
+    // happened, when, by which agent, and how it was decided, but not the
     // literal command, path, or host, which can itself disclose sensitive
     // workspace detail. This is what distinguishes Viewer from User.
     sendJson(res, 200, projectLedgerForActor(entries, toActor(session)));
@@ -109,7 +109,7 @@ export async function handleGovernanceOversightRoutes(
 
   // Viewer and above: system resource states. Design doc §1.6 names this as a
   // Viewer capability ("view system resource states (e.g., VPS CPU/RAM
-  // usage)") — oversight without any power to change anything.
+  // usage)"). Oversight without any power to change anything.
   if (route === "system" && req.method === "GET") {
     if (!requireRole(res, session, "viewer")) {
       return true;
@@ -123,7 +123,7 @@ export async function handleGovernanceOversightRoutes(
   }
 
   // Viewer and above: what is running right now. Filtered to the caller by
-  // `listActiveSessions`, and to the organisation by the roster passed below —
+  // `listActiveSessions`, and to the organisation by the roster passed below,
   // the run registry behind it is installation-wide, which is finding 139.
   if (route === "sessions" && req.method === "GET") {
     if (!requireRole(res, session, "viewer")) {

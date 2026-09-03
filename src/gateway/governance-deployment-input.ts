@@ -4,12 +4,12 @@ import { resolveGatewayPort } from "../config/paths.js";
 //
 // **This file exists to be the only one that needs to.** `src/governance/`
 // imports from `node:*`, `../infra/`, `../agents/`, `../sessions/`,
-// `../routing/` and `../logging/` — and from nothing else. That invariant is
+// `../routing/` and `../logging/`, and from nothing else. That invariant is
 // deliberate: `agent-runner.ts` and `agent-terminator.ts` both use a
 // registration seam because the governance layer is exercised by the CLI and by
 // unit tests with no Gateway running.
 //
-// `readDeploymentStatus` needs facts that live above that line — the resolved
+// `readDeploymentStatus` needs facts that live above that line. The resolved
 // bind mode, the port, the gateway auth mode, and the findings from
 // `collectGatewayConfigFindings` (which itself imports `./auth-resolve.js`).
 // Rather than let governance reach up for them, this module reaches down and
@@ -60,8 +60,8 @@ export function resolveDeploymentEnvironmentInput(params: {
 
   // Resolved **once**, with the same expression `collectGatewayConfigFindings`
   // uses (`audit-gateway-config.ts`). Using `defaultGatewayBindMode()` here
-  // instead would disagree with the audit inside a container — that helper
-  // returns "auto" there — and the panel would report one bind while the folded
+  // instead would disagree with the audit inside a container, that helper
+  // returns "auto" there, and the panel would report one bind while the folded
   // findings reasoned about another. One value, both consumers.
   const bind = typeof cfg.gateway?.bind === "string" ? cfg.gateway.bind : "loopback";
   const tailscaleMode = cfg.gateway?.tailscale?.mode ?? "off";

@@ -4,8 +4,8 @@
 // limit: `api.ts` reached 700 code lines when the organisation-deletion
 // response was added, and the rule T16 wrote is **move a subject out whole
 // rather than suppress the line count**. The subject here is the one
-// `governance-dashboard-accounts.ts` states on the server — Root manages
-// people — so the two files that describe the same routes are now split along
+// `governance-dashboard-accounts.ts` states on the server, Root manages
+// people, so the two files that describe the same routes are now split along
 // the same line.
 //
 // **Types only.** The client methods stay with their siblings in `api.ts`, so
@@ -31,7 +31,7 @@ export type GovernanceUserRecord = {
    * The Administrator answerable for this account (M3). Users and Viewers only.
    *
    * **The server has always sent this and the dashboard's type did not declare
-   * it** — `toRecord` strips only the password hash — so the page could not see
+   * it**, `toRecord` strips only the password hash, so the page could not see
    * who answers for whom even though the answer was in every response. Added
    * with finding 197, which needed it: a User already has a manager and must
    * keep it across a role change, and only an Administrator being demoted needs
@@ -67,7 +67,7 @@ export type OrganisationDeletionResponse = {
   attachmentsRetained: number;
   residue: string[];
   /**
-   * Steps that failed *after* the organisation was already gone (finding 229) —
+   * Steps that failed *after* the organisation was already gone (finding 229),
    * a session left un-revoked, a ledger that would not take the completion
    * entry, an attachment store that could not be reduced.
    *

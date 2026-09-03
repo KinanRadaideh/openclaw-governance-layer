@@ -6,8 +6,8 @@
 // ## Why these exist, and why first
 //
 // T16 splits a 2,412-line component into panel modules. `governance-page.test.ts`
-// already covers the policy section and the conversation/attachment flow — the
-// two busiest surfaces — and covers none of the panels below. Extracting seven
+// already covers the policy section and the conversation/attachment flow, the
+// two busiest surfaces, and covers none of the panels below. Extracting seven
 // untested panels and then asserting "the tests still pass" would have been a
 // claim about the tests, not about the panels: nothing would have been watching
 // the code that moved.
@@ -20,7 +20,7 @@
 //
 // ## What they assert, and what they deliberately do not
 //
-// Each panel is checked for the facts an operator reads off it — the numbers,
+// Each panel is checked for the facts an operator reads off it. The numbers,
 // the names, the words in an empty state, the presence or absence of a control
 // their tier decides. None asserts template structure, class names or element
 // nesting, because a test coupled to markup breaks on every restyle and would
@@ -92,7 +92,7 @@ function identity(role: GovernanceIdentity["role"]): GovernanceIdentity {
  *
  * Written out in full rather than cast, because the first version of the
  * finding-143 tests used `as never` on a partial object and the accounts panel
- * threw on the missing `assignedAgents` — a fixture shortcut producing a
+ * threw on the missing `assignedAgents`: a fixture shortcut producing a
  * failure that looked like a product bug.
  */
 function userRecord(username: string, role: GovernanceIdentity["role"]): GovernanceUserRecord {
@@ -405,7 +405,7 @@ describe("the rule-request queue", () => {
 
   it("describes a setting request without pretending it has a pattern", async () => {
     // An empty code block would read as a rule request whose pattern failed to
-    // load — the finding-102 shape again, in a second place.
+    // load. The finding-102 shape again, in a second place.
     await mount({
       identity: identity("administrator"),
       ruleRequests: [
@@ -511,7 +511,7 @@ describe("the Root-only policy settings (finding 140)", () => {
   it("warns when an override names an account that does not exist", async () => {
     // The server accepts any well-formed name on purpose, so an override can be
     // placed before somebody is onboarded. The cost is that a typo is
-    // indistinguishable from success — a 200, an audit entry and a row that
+    // indistinguishable from success. A 200, an audit entry and a row that
     // looks authoritative, while the account the operator meant is untouched.
     await mount({
       identity: identity("root"),
@@ -537,19 +537,40 @@ describe("the Root-only policy settings (finding 140)", () => {
     expect(text()).toContain("malek");
   });
 
-  it("withholds both from an Administrator, matching what the server enforces", async () => {
-    // Hiding is a courtesy; the server refuses either route for a non-Root
-    // caller regardless. Asserted so the panel and the route cannot drift into
-    // disagreeing about who may set these.
+  it("shows an Administrator the timeout and withholds the account override", async () => {
+    // **These two settings stopped sharing a tier on 2026-09-03.** The
+    // escalation timeout was widened to Administrator, matching every other
+    // installation-wide policy setting; the account override stays Root,
+    // because naming a *person* is account administration rather than policy.
+    //
+    // Hiding is a courtesy either way; the server refuses the route it owns for
+    // an under-privileged caller regardless. Asserted so the panel and the two
+    // routes cannot drift into disagreeing about who may set which.
     await mount({ identity: identity("administrator"), policy });
-    expect(text()).not.toContain("Approval timeout");
+    // Asserted on the controls, not on the page text. Two things make text
+    // assertions wrong here: the list of *existing* overrides renders at every
+    // tier (it is a read-only fact, not a control), and "Approval timeout for
+    // one agent" contains "Approval timeout" as a substring.
+    expect(page.querySelector('input[aria-label="Approval timeout"]')).not.toBeNull();
+    expect(page.querySelector('input[aria-label="Account name"]')).toBeNull();
+  });
+
+  it("withholds the installation timeout from a User but offers the per-agent one", async () => {
+    await mount({ identity: identity("user"), policy });
+
+    // The installation-wide window is Administrator; the per-agent override is
+    // the User tier's, for the agents assigned to them, which is the whole
+    // reason that axis exists.
+    expect(page.querySelector('input[aria-label="Approval timeout"]')).toBeNull();
+    expect(page.querySelector('input[aria-label="Account name"]')).toBeNull();
+    expect(page.querySelector('input[aria-label="Approval timeout for one agent"]')).not.toBeNull();
   });
 });
 
 describe("the intent field in the ledger panel", () => {
   // §1.6's sixth log field, recorded since round twenty-one and displayed
   // nowhere until 2026-08-28. The dashboard's own ledger type omitted it, so
-  // the panel could not render it even as a read-only fact — the same omission
+  // the panel could not render it even as a read-only fact. The same omission
   // `userAsk` had, found by the same sweep.
 
   it("shows what the model said beside what it did", async () => {
@@ -570,7 +591,7 @@ describe("the intent field in the ledger panel", () => {
   });
 
   it("adds nothing to a row that carries no intent", async () => {
-    // Absence is the common case — a turn with no narration, a harness that
+    // Absence is the common case. A turn with no narration, a harness that
     // reports none, or any call not made by a model at all. An empty "Agent
     // said:" label would read as the model having said nothing, which is a
     // different and untrue claim.
@@ -583,7 +604,7 @@ describe("the intent field in the ledger panel", () => {
 
   it("renders whatever the server sent, including a Viewer's placeholder", async () => {
     // The panel must not decide who may read narration. The server masks it for
-    // the Viewer tier (finding 133) and the panel renders what arrives — so a
+    // the Viewer tier (finding 133) and the panel renders what arrives, so a
     // Viewer sees the placeholder, and the masking cannot be undone by a client
     // that forgets to apply it.
     await mount({

@@ -25,7 +25,7 @@ let dir: string;
  * The organisation this suite's agents belong to (M5).
  *
  * Per-group storage means every call names a group, and mandatory registration
- * means the gate refuses an agent it has no record of — so the fixture creates
+ * means the gate refuses an agent it has no record of, so the fixture creates
  * a real organisation and registers this suite's agents into it, through the
  * same path an operator uses.
  */
@@ -65,7 +65,7 @@ function verdict(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>)
   if ("block" in decision) {
     return "block";
   }
-  // T23 — absence is no longer the only way the engine says "allow". A call
+  // T23. Absence is no longer the only way the engine says "allow". A call
   // whose path was redirected comes back carrying `params` (the canonical path
   // the tool should open), and reading that as "ask" would report an
   // escalation that never happened. Ask the question directly instead of
@@ -154,7 +154,7 @@ describe("governance policy engine", () => {
     );
     expect(verdict(decision)).toBe("allow");
     // `off` records nothing for the agent action. The posture change itself is
-    // an administrative act and is still recorded — switching the gate off is
+    // an administrative act and is still recorded. Switching the gate off is
     // exactly the kind of change an audit trail must not lose.
     expect((await tailLedger(TEST_GROUP)).filter((entry) => entry.entryKind !== "admin")).toEqual(
       [],
@@ -163,7 +163,7 @@ describe("governance policy engine", () => {
 
   it("does not judge tools it has no extractor for, but still records them", async () => {
     // Requirement #5 asks for a record of *all* agent actions. The gate has no
-    // opinion here, so it must not block — but staying silent would hide the
+    // opinion here, so it must not block, but staying silent would hide the
     // coverage gap, which is the thing an auditor most needs to find.
     const decision = await evaluateGovernancePolicy(
       { toolName: "some_unknown_tool", params: { anything: true } },
@@ -260,8 +260,8 @@ describe("governance policy engine", () => {
         // Plain source files. These were `src/secrets.env` and `src/other.env`
         // until QA round 13 extended the credential denial from the `.env`
         // dotfile to `*.env`, at which point the fixture stopped exercising
-        // this test's actual subject — the *allow* pass recording every
-        // resource — and started being refused by the deny pass instead.
+        // this test's actual subject, the *allow* pass recording every
+        // resource, and started being refused by the deny pass instead.
         derivedPaths: ["src/allowed.ts", "src/secrets.ts", "src/other.ts"],
       },
       ctx,
@@ -553,7 +553,7 @@ describe("per-agent HITL override (design doc §1.6)", () => {
   });
 
   // ---------------------------------------------------------------------
-  // T28 — the gate is exhaustive: no input reaches the end without deciding.
+  // T28. The gate is exhaustive: no input reaches the end without deciding.
   //
   // `evaluateGovernancePolicy` used to carry a trailing `return undefined;`
   // that no input could reach, left behind when an `if` became a bare block.
@@ -563,13 +563,13 @@ describe("per-agent HITL override (design doc §1.6)", () => {
   //
   // Deleting it makes the lint rule pass. These cases are what stop it coming
   // back as a real one: each drives a different exit from the function, and
-  // together they assert the property the deleted line pretended to provide —
+  // together they assert the property the deleted line pretended to provide,
   // that every path decides something, and that the *last* path decides too.
   // A future edit that reintroduces a fall-through would have to make one of
   // these return `undefined`, and `verdict` reports that as "allow".
   // ---------------------------------------------------------------------
   describe("every path through the gate ends in a decision", () => {
-    it("posture off — the gate is not running, and says so by allowing", async () => {
+    it("posture off. The gate is not running, and says so by allowing", async () => {
       await setMode(TEST_GROUP, "off", "tester");
       expect(
         verdict(
@@ -578,7 +578,7 @@ describe("per-agent HITL override (design doc §1.6)", () => {
       ).toBe("allow");
     });
 
-    it("lockdown — refused before the tool is even classified", async () => {
+    it("lockdown. Refused before the tool is even classified", async () => {
       await lockAgent(TEST_GROUP, "demo");
       expect(
         verdict(
@@ -587,7 +587,7 @@ describe("per-agent HITL override (design doc §1.6)", () => {
       ).toBe("block");
     });
 
-    it("no extractor — ungoverned, recorded, and allowed", async () => {
+    it("no extractor. Ungoverned, recorded, and allowed", async () => {
       expect(
         verdict(
           await evaluateGovernancePolicy({ toolName: "not_a_governed_tool", params: {} }, ctx),
@@ -595,13 +595,13 @@ describe("per-agent HITL override (design doc §1.6)", () => {
       ).toBe("allow");
     });
 
-    it("nothing extracted — the blind spot is recorded, not fatal", async () => {
+    it("nothing extracted. The blind spot is recorded, not fatal", async () => {
       expect(verdict(await evaluateGovernancePolicy({ toolName: "exec", params: {} }, ctx))).toBe(
         "allow",
       );
     });
 
-    it("a denial — blocked", async () => {
+    it("a denial. Blocked", async () => {
       await addRule(
         TEST_GROUP,
         { resourceKind: "command", pattern: "^id$", effect: "deny", description: "no id" },
@@ -614,7 +614,7 @@ describe("per-agent HITL override (design doc §1.6)", () => {
       ).toBe("block");
     });
 
-    it("an allowance — allowed", async () => {
+    it("an allowance. Allowed", async () => {
       await addRule(TEST_GROUP, { resourceKind: "command", pattern: "^id$" }, "tester");
       expect(
         verdict(
@@ -623,10 +623,10 @@ describe("per-agent HITL override (design doc §1.6)", () => {
       ).toBe("allow");
     });
 
-    it("unlisted with ask off — the last path, and it blocks", async () => {
+    it("unlisted with ask off. The last path, and it blocks", async () => {
       // This and the case below are the two the deleted statement sat beneath.
       // If a fall-through ever returned here instead, both would report
-      // "allow" — an unlisted resource silently permitted by the gate whose
+      // "allow". An unlisted resource silently permitted by the gate whose
       // entire purpose is default-deny.
       await updatePolicy(TEST_GROUP, (doc) => {
         doc.ask = "off";
@@ -638,7 +638,7 @@ describe("per-agent HITL override (design doc §1.6)", () => {
       ).toBe("block");
     });
 
-    it("unlisted with ask on-miss — the last path, and it escalates", async () => {
+    it("unlisted with ask on-miss. The last path, and it escalates", async () => {
       await updatePolicy(TEST_GROUP, (doc) => {
         doc.ask = "on-miss";
       });

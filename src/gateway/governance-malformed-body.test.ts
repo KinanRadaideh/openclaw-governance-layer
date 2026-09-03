@@ -3,8 +3,8 @@
 //
 // Every mutating route does `const { x } = body as {...}` immediately after the
 // read. That is safe for an object and safe for the empty-body case (the reader
-// substitutes `{}`), but JSON has other valid top-level values — `null`, a
-// number, a string, an array — and destructuring `null` throws a TypeError
+// substitutes `{}`), but JSON has other valid top-level values, `null`, a
+// number, a string, an array, and destructuring `null` throws a TypeError
 // rather than returning undefined. A request that crashes the handler is not a
 // vulnerability by itself, but a security console that 500s on a one-word body
 // is a bad look and an unhandled path is where surprises live.

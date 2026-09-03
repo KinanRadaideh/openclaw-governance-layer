@@ -4,7 +4,7 @@
 #
 # One deliberate difference from the PowerShell version, and it is not an
 # omission: **this does not open a browser.** A VPS has no display, and the
-# Gateway binds loopback only by design — §1.6 puts the control plane behind an
+# Gateway binds loopback only by design: §1.6 puts the control plane behind an
 # SSH tunnel precisely so it is invisible to the network. So instead of opening
 # a page, this prints the `ssh -L` command that makes the page reachable from
 # your own machine.
@@ -16,7 +16,7 @@
 # it starts the *dev* runner (scripts/run-node.mjs), which rebuilds on change.
 #
 # To deploy, use OpenClaw's own service manager, exactly as a normal install
-# would — the fork changes nothing about it:
+# would: the fork changes nothing about it:
 #
 #     openclaw onboard --install-daemon
 #     openclaw daemon status
@@ -48,7 +48,7 @@ BACKGROUND=0
 #
 # **The `for` form was wrong and shipped that way (finding 141, 2026-08-28.)**
 # `for` iterates a snapshot taken before the loop body runs, while `shift`
-# mutates the positional parameters underneath it — so the two desynchronise the
+# mutates the positional parameters underneath it: so the two desynchronise the
 # moment any flag precedes an option that takes a value:
 #
 #     ./start-governance.sh --port 18789               -> PORT=18789   (by luck)
@@ -84,11 +84,11 @@ fi
 printf '%sOpenClaw Governance Fork%s\n' "$CYAN" "$RESET"
 printf '%s========================%s\n' "$CYAN" "$RESET"
 
-command -v node >/dev/null 2>&1 || { echo "node is not installed — run ./scripts/vps-install.sh" >&2; exit 1; }
+command -v node >/dev/null 2>&1 || { echo "node is not installed. Run ./scripts/vps-install.sh" >&2; exit 1; }
 printf 'Node: %s\n' "$(node -v)"
 
 if [ ! -f dist/entry.js ] && [ ! -f dist/entry.mjs ]; then
-  echo "dist/entry.(m)js is missing — the project has not been built here." >&2
+  echo "dist/entry.(m)js is missing. The project has not been built here." >&2
   echo "Run: ./scripts/vps-install.sh" >&2
   exit 1
 fi
@@ -128,7 +128,7 @@ else
     deadline=$(( $(date +%s) + 600 ))
     until port_in_use; do
       if [ "$(date +%s)" -ge "$deadline" ]; then
-        echo "Gateway did not start within 10 minutes — check gateway.log" >&2
+        echo "Gateway did not start within 10 minutes. Check gateway.log" >&2
         exit 1
       fi
       sleep 5

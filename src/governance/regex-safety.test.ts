@@ -43,7 +43,7 @@ describe("dangerous patterns are rejected", () => {
    * not `n` is written down.
    *
    * `^(.*a){20}$` was accepted and measured at **142 seconds** for one
-   * `matchesPattern` call against a 31-character non-matching input — with the
+   * `matchesPattern` call against a 31-character non-matching input, with the
    * event loop blocked throughout, since ECMAScript cannot interrupt a running
    * expression. A User may write rules, so that is the second-lowest tier
    * halting the Gateway, the dashboard and every other agent with one rule.
@@ -82,7 +82,7 @@ describe("ordinary policy patterns are accepted", () => {
   });
 
   it("allows a quantified group whose body has no quantifier", () => {
-    // (abc)+ repeats a fixed body — linear, not exponential.
+    // (abc)+ repeats a fixed body. Linear, not exponential.
     expect(checkRegexSafety("^(abc)+$").safe).toBe(true);
     expect(checkRegexSafety("^(a|b)+$").safe).toBe(true);
   });
@@ -130,12 +130,12 @@ describe("empirical check", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Finding 207 — `?` was not modelled, and that was a live bypass.
+// Finding 207, `?` was not modelled, and that was a live bypass.
 //
 // The checker treated `*`, `+` and `{n,m}` as quantifiers and not `?`, so a
 // repeated group with a merely *optional* body was accepted. Measured against
 // the checker as it stood: `^(a?){18}$` took 176 ms, `{22}` took 2.7 s and
-// `{26}` took **44.5 s** — doubling per increment, with `n` chosen by whoever
+// `{26}` took **44.5 s**. Doubling per increment, with `n` chosen by whoever
 // writes the rule.
 //
 // That is this module's own stated threat, reached by a shape it did not model:
@@ -156,7 +156,7 @@ describe("an optional body counts as a quantifier (finding 207)", () => {
   it("the accepted shape really was pathological", () => {
     // The same empirical standard the suite already applies to `(a+)+`: show the
     // refusal targets a real cost rather than a theoretical one. Deliberately a
-    // small `n` so the assertion is quick — the growth is what matters, and it
+    // small `n` so the assertion is quick. The growth is what matters, and it
     // was measured out to 44.5 s at n=26 when this was found.
     const evil = "^(a?){22}$";
     expect(checkRegexSafety(evil).safe).toBe(false);
@@ -187,7 +187,7 @@ describe("an optional body counts as a quantifier (finding 207)", () => {
 
   it("still accepts a fixed count of a fixed-length body", () => {
     // `{n}` without a comma is not variable-length, so it gives the engine
-    // nothing to choose between — the distinction this fix keeps.
+    // nothing to choose between. The distinction this fix keeps.
     expect(checkRegexSafety("^(a{3})+$").safe).toBe(true);
   });
 });

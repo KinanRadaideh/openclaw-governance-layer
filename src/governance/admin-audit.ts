@@ -4,7 +4,7 @@
 // administrative approvals". The first two were implemented; the third was not
 // recorded at all. Adding or removing a rule, changing the posture, creating or
 // deleting an account, changing a role, and approving a rule request all wrote
-// to their own configuration files and never to the ledger — so the log could
+// to their own configuration files and never to the ledger, so the log could
 // account for everything an agent did, and nothing about who changed the rules
 // it was judged by.
 //
@@ -16,7 +16,7 @@
 //
 // Every mutating store function calls through here, and the actor is a
 // **required** argument on each of them, so a new route or command cannot
-// change governance state without saying who did it — the compiler refuses.
+// change governance state without saying who did it. The compiler refuses.
 // That is deliberate: a logging obligation enforced by review is one somebody
 // eventually forgets.
 import { appendLedgerEntry, type LedgerEntry } from "./audit-ledger.js";
@@ -38,6 +38,7 @@ export const ADMIN_ACTIONS = {
   agentModeChange: "governance.policy.agent-mode",
   userAskChange: "governance.policy.user-ask",
   hitlTimeoutChange: "governance.policy.hitl-timeout",
+  agentHitlTimeoutChange: "governance.policy.agent-hitl-timeout",
   /**
    * Root switched a core rule off, or back on (T24).
    *
@@ -64,8 +65,8 @@ export const ADMIN_ACTIONS = {
    * The same decision, recorded **before** it is attempted (finding 217).
    *
    * The pair exists for the reason `organisationDeleteRequest` /
-   * `organisationDelete` exists: a change that dies part-way — a config hash
-   * that moved under us, a read-only filesystem — must still leave a record of
+   * `organisationDelete` exists: a change that dies part-way, a config hash
+   * that moved under us, a read-only filesystem, must still leave a record of
    * who asked for it, and that record must not be phrased as though the change
    * happened. One entry written before the write, saying `disabled -> enabled`,
    * told an investigation the installation had started accepting the
@@ -78,7 +79,7 @@ export const ADMIN_ACTIONS = {
    * The trail could already say what an agent did and who wrote the rules it
    * was judged by; it could not say who *set it going*. These two close that,
    * and they are the first entries that tie a chain of agent actions to the
-   * person who caused them — §1.6 asks the log to capture "the raw LLM intent",
+   * person who caused them, §1.6 asks the log to capture "the raw LLM intent",
    * and the prompt is that intent.
    *
    * Two actions rather than one because they answer different questions and are
@@ -94,7 +95,7 @@ export const ADMIN_ACTIONS = {
    * Recorded separately from the result it produces, and for the same reason
    * the prompt and its result are two entries: they answer different questions.
    * The result says the run ended without a reply; this says *who decided that*
-   * — which may not be the account that started it, since an Administrator may
+   *which may not be the account that started it, since an Administrator may
    * stop a run inside their remit. An investigation asking why an agent stopped
    * half-way through a task cannot answer it from the result alone.
    */
@@ -106,7 +107,7 @@ export const ADMIN_ACTIONS = {
    * different attribution. A success and a logout have an authenticated account
    * behind them and are recorded against it; a failure and a lockout do not,
    * and are recorded against `UNAUTHENTICATED_ACTOR` with the *submitted*
-   * name held in the resource — where it is redacted and clamped like any other
+   * name held in the resource: where it is redacted and clamped like any other
    * untrusted string, because at that point it is attacker-controlled input
    * rather than an identity the system has agreed to.
    *
@@ -139,9 +140,9 @@ export const ADMIN_ACTIONS = {
    * Root granted or withheld a User account's ability to write policy.
    *
    * A separate action from `userRoleChange` because it is not a change of tier:
-   * the account stays a User with everything else that carries — reading its
+   * the account stays a User with everything else that carries, reading its
    * agents' policy and ledger, prompting them, stopping them, submitting rule
-   * requests — and loses only the power to change policy directly. An
+   * requests, and loses only the power to change policy directly. An
    * investigation asking "why could this account no longer write rules?" would
    * find nothing if this were folded into the role change that did not happen.
    */
@@ -157,7 +158,7 @@ export const ADMIN_ACTIONS = {
    * "owned by malek" does not say who lost it.
    *
    * `agentRegister` is deliberately **not** a claim that an agent was created
-   * in the host — that is `agentProvision` below, added by M6. The distinction
+   * in the host: that is `agentProvision` below, added by M6. The distinction
    * is the whole reason both exist: an auditor reading `agentRegister` learns
    * that a group **claimed an id**, and one reading `agentProvision` learns
    * that an agent **was brought into being**. Collapsing them into one action
@@ -188,7 +189,7 @@ export const ADMIN_ACTIONS = {
    *
    * `agentProvision` is recorded **before the attempt**, not after it. An
    * action written only on success cannot answer "who kept trying to create
-   * agents and failing?" — and a creation attempt that is refused is exactly
+   * agents and failing?", and a creation attempt that is refused is exactly
    * the event an investigator wants. A failed provision therefore leaves this
    * entry and no `agentRegister`, which is a legible pair.
    */
@@ -205,7 +206,7 @@ export const ADMIN_ACTIONS = {
    * authorising it, so an entry written only on success would be missing
    * exactly when the question "who did this?" becomes unanswerable from
    * anywhere else. The request is recorded **before the first destructive
-   * step**, into the organisation's own chain — which is retained — so an
+   * step**, into the organisation's own chain, which is retained, so an
    * attempt that dies half-way still shows who started it and when.
    *
    * The outcome is recorded twice on purpose: once in the organisation's
@@ -228,7 +229,7 @@ export type AdminAction = (typeof ADMIN_ACTIONS)[keyof typeof ADMIN_ACTIONS];
  * **Historical, and now rare (T5).** The command line used to have no login at
  * all, so every change from it was recorded against this label: the trail could
  * say a change came from this machine and never by whom, and no tier was
- * checked either. `governance login` closed both halves — a signed-in operator
+ * checked either. `governance login` closed both halves. A signed-in operator
  * is recorded by name and tier, and their tier is enforced with the same
  * helpers the dashboard uses.
  *
@@ -245,8 +246,8 @@ export const CLI_ACTOR = "cli";
 /**
  * Actor recorded when the very first account is created.
  *
- * That one creation genuinely has no authenticated actor behind it — it is the
- * bootstrap that establishes who Root is — so it is labelled rather than
+ * That one creation genuinely has no authenticated actor behind it, it is the
+ * bootstrap that establishes who Root is, so it is labelled rather than
  * attributed to the account being created, which would read as if that account
  * had authorised its own existence.
  */
@@ -270,7 +271,7 @@ export const UNKNOWN_ACTOR = "unknown";
  * explicitly is better than recording the *submitted* username in the actor
  * field, which would be wrong in two ways at once: it would read as though that
  * account had done something, when the whole point of the entry is that nobody
- * demonstrated they hold it — and it would put unbounded attacker-controlled
+ * demonstrated they hold it: and it would put unbounded attacker-controlled
  * text into a field the ledger does not clamp. The submitted name is still
  * recorded, in the resource, where redaction and clamping apply.
  *
@@ -288,7 +289,7 @@ export const UNAUTHENTICATED_ACTOR = "unauthenticated";
  * direct consequence."* **Finding 83 removed that.** `allowedDecisions` on an
  * escalation is now `["allow-once", "deny"]`, because the button is rendered in
  * Discord or Telegram and the person pressing it holds no governance account and
- * sits in none of the four tiers — so making a grant *permanent* from there was
+ * sits in none of the four tiers: so making a grant *permanent* from there was
  * policy authorship by somebody the layer could not name.
  *
  * **The constant survives deliberately, for reading rather than writing.**
@@ -308,7 +309,7 @@ export const HITL_ACTOR = "hitl-approval";
  * mutators take an actor and forward it here unchanged; widening the *type*
  * lets a caller supply a tier without any of them changing how they forward it.
  * Adding a second parameter to each would have been seventeen edits to signature
- * and call site alike, on the paths that write the audit trail — the worst place
+ * and call site alike, on the paths that write the audit trail. The worst place
  * in this codebase to make seventeen mechanical edits.
  *
  * - A bare **string** is an actor with no tier: the labelled actors (`cli`,
@@ -322,8 +323,8 @@ export type AuditActorInput = string | { name: string; role?: GovernanceRole };
  * **A brand on the labelled arm was built, measured and rejected on 2026-08-31
  * (T35), and the measurement is why.** Making `LabelledActor` a branded string
  * meant a bare `"cli"` at a call site stopped compiling, which is finding 149
- * exactly. It cost eight rewrites in shipped code — **none of which was a
- * defect**; all eight were legitimate usernames flowing in as plain strings —
+ * exactly. It cost eight rewrites in shipped code, **none of which was a
+ * defect**; all eight were legitimate usernames flowing in as plain strings,
  * and **311 further errors across about thirty test files**, because a bare
  * string has always been the ordinary way to write "a named account with no
  * tier" and there is no middle arm between the two.
@@ -337,7 +338,7 @@ export type AuditActorInput = string | { name: string; role?: GovernanceRole };
  *
  * Recorded rather than quietly abandoned, because "we tried the stronger type
  * and here is what it cost" is the kind of claim this project has previously got
- * wrong by reasoning instead of measuring — see finding 155, whose write-up
+ * wrong by reasoning instead of measuring, see finding 155, whose write-up
  * asserted a compiler behaviour that reintroducing the bug disproved.
  */
 
@@ -350,7 +351,7 @@ export type AuditActorInput = string | { name: string; role?: GovernanceRole };
  *
  * **The mistake it catches is finding 161**: `{ name: "cli", role: "root" }`
  * was passed when repairing accounts that predate groups, so a destructive
- * account deletion was recorded as the act of a **Root** — a tier no
+ * account deletion was recorded as the act of a **Root**, a tier no
  * authenticated account held, on the one code path that runs when nobody can
  * sign in at all. Inventing an authority is worse than recording none, because
  * an entry saying `unknown` announces that attribution is missing and invites
@@ -379,7 +380,7 @@ export class FabricatedActorError extends Error {
 /**
  * Splits an actor into the two fields the ledger stores.
  *
- * Tolerates `undefined`, which several callers pass — `lockDownAgent` takes an
+ * Tolerates `undefined`, which several callers pass, `lockDownAgent` takes an
  * optional actor, and a number of internal paths record without one. The
  * previous code absorbed that in `input.actor || UNKNOWN_ACTOR`; moving the
  * split earlier moved the tolerance with it, and forgetting to carry it over
@@ -400,7 +401,7 @@ export function splitAuditActor(actor: AuditActorInput | undefined): {
   // always a mistake, and the dangerous half is the tier that comes with it.
   // Thrown rather than silently normalised: a caller in this position has a
   // real actor available and is discarding it, and quietly rewriting the value
-  // would hide the bug while producing a plausible entry — which is how finding
+  // would hide the bug while producing a plausible entry, which is how finding
   // 149 survived for six days.
   if (RESERVED_ACTOR_NAMES.has(actor.name)) {
     throw new FabricatedActorError(actor.name);
@@ -427,7 +428,7 @@ export type AdminAuditInput = {
   /** Rule id, account id, or request id the action applied to. */
   subjectId?: string;
   /**
-   * `deny` records an administrator refusing something — rejecting a rule
+   * `deny` records an administrator refusing something. Rejecting a rule
    * request, denying a held escalation. Everything else is an action that was
    * carried out.
    */
@@ -454,7 +455,7 @@ export async function recordAdminAction(
     // Never allow `entryKind` without `actor`. The hashed field list is chosen
     // by whether *both* administrative fields are present (see
     // `canonicalPayload`), so an entry carrying exactly one is neither shape
-    // and fails chain verification — a caller passing an empty actor would
+    // and fails chain verification. A caller passing an empty actor would
     // corrupt the ledger rather than merely record an incomplete entry. An
     // explicit `unknown` also states plainly that attribution is missing, which
     // is itself something an auditor should be able to see.
@@ -467,7 +468,7 @@ export async function recordAdminAction(
     ...(actorParts.role ? { actorRole: actorParts.role } : {}),
     // One chain, not two. A separate administrative log would be a second file
     // to protect, and would lose the interleaving that makes the trail
-    // readable — "the rule was widened, then the agent used it" is only visible
+    // readable, "the rule was widened, then the agent used it" is only visible
     // when both appear in one ordered sequence.
     agentId: input.agentId ?? "-",
     sessionKey: "-",

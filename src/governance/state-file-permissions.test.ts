@@ -3,15 +3,15 @@
 //
 // **Found on 2026-09-01 by running the layer on real Linux for the first time**,
 // the night before the project's first VPS deployment. Windows reports
-// "unknown" for both of the deployment report's permission checks — POSIX mode
-// bits are not meaningful there — so this code path had **never executed
+// "unknown" for both of the deployment report's permission checks, POSIX mode
+// bits are not meaningful there, so this code path had **never executed
 // anywhere**, and the claim it protects had never been tested.
 //
 // `ensureGroupDir` creates the tree with `mode: 0o700` and its own comment
 // explains why: "the mode matters (`0700`, so the tree is unreadable to other
 // users on the host)". That is correct and it is not enough. Every governance
 // write goes through `writeJsonAtomic`, which ensures the parent directory
-// exists and creates it with **its own default mode** when it has to — and none
+// exists and creates it with **its own default mode** when it has to, and none
 // of the 28 governance call sites passed `dirMode`. Measured on Ubuntu with the
 // ordinary umask of 022:
 //
@@ -21,7 +21,7 @@
 // So a single write to `users.json` widened the installation's governance
 // directory from owner-only to world-traversable, and writing `policy.json` did
 // the same to the group directory. Every file inside stayed `0600`, so this is
-// not a read of the ledger key by another user — it is the directory listing,
+// not a read of the ledger key by another user. It is the directory listing,
 // the file names, the group ids, and the loss of the property the layer says it
 // has.
 //
@@ -71,7 +71,7 @@ async function mode(path: string): Promise<string> {
 describe.skipIf(!posix)("the governance tree stays owner-only after it is written to", () => {
   it("keeps the installation directory at 0700 after an account is created", async () => {
     // `users.json` is installation-scoped, so its write touches the top of the
-    // tree — the directory holding the ledger key and the session file.
+    // tree. The directory holding the ledger key and the session file.
     await createUser(
       { username: "kinan", password: "correct horse battery", role: "root", groupId: group },
       ACTOR,

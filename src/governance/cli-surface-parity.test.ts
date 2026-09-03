@@ -1,4 +1,4 @@
-// T34 — the three capabilities that reached the dashboard and the API but not
+// T34. The three capabilities that reached the dashboard and the API but not
 // the command line, and had no reason written down for it.
 //
 // **The rule these close is stated in this project's own code**: a capability
@@ -99,7 +99,7 @@ async function runGovernance(args: readonly string[]): Promise<void> {
 
 const output = () => printed.join("\n");
 
-describe("governance agents access — who holds an agent", () => {
+describe("governance agents access, who holds an agent", () => {
   it("names the accounts holding it by assignment", async () => {
     // `seedNamedGroup` already registers the agent; this only needs an account
     // holding it by assignment.
@@ -123,7 +123,7 @@ describe("governance agents access — who holds an agent", () => {
 
   it("always states that Administrators and Root are not listed", async () => {
     // Without it the list reads as "these are the only people who can act on
-    // it", which is false — every Administrator reaches every agent by role.
+    // it", which is false. Every Administrator reaches every agent by role.
     await signIn("amina", "administrator");
 
     await runGovernance(["agents", "access", AGENT]);
@@ -135,7 +135,7 @@ describe("governance agents access — who holds an agent", () => {
     // `agents/access` uses `canViewAgent`, not `canManageAgent`: a Viewer
     // assigned to an agent already reads its unmasked audit entries, which name
     // the accounts that acted. Refusing them the roster would be a distinction
-    // with no content — and a CLI that were stricter than the dashboard would
+    // with no content, and a CLI that were stricter than the dashboard would
     // be the surface disagreement this task exists to remove.
     await signIn("watcher", "viewer", [AGENT]);
 
@@ -155,7 +155,7 @@ describe("governance agents access — who holds an agent", () => {
 
 describe("governance agent runs and cancel", () => {
   // **Finding 238.** Every test in this block asserted the *empty* case, and
-  // that was not an oversight in the tests — it is the only case these two
+  // that was not an oversight in the tests. It is the only case these two
   // commands can reach. `prompt-runs.ts` holds its table in a module-level
   // `Map`, so it is per process; a CLI invocation is always a fresh process,
   // and the runs an operator wants to stop live in the Gateway's. Measured
@@ -183,7 +183,7 @@ describe("governance agent runs and cancel", () => {
 
     expect(output()).toContain("no run");
     expect(output()).not.toContain("cancelled run-that-never-was");
-    // "I cannot see it" rather than "it does not exist" — the distinction the
+    // "I cannot see it" rather than "it does not exist". The distinction the
     // Gateway's own refusals draw, and the one finding 238 turns on.
     expect(output()).toContain("cannot reach runs started by the Gateway");
   });

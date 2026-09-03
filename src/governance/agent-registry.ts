@@ -15,7 +15,7 @@
 //
 // **The registry is authoritative and `knownAgentIds()` becomes the fallback**,
 // not the other way round. An id the registry does not hold is a *pre-registry*
-// agent — real, governed, and owned by nobody — and the layer keeps working for
+// agent, real, governed, and owned by nobody, and the layer keeps working for
 // it exactly as it did. That is a deliberate asymmetry with M3's treatment of a
 // missing `groupId`, where absence means "unmigrated" and blocks sign-in. The
 // difference is what the absence would cost: an account with no group cannot be
@@ -40,7 +40,7 @@ import { listUsers, setUserAssignedAgents, type GovernanceUserRecord } from "./u
  * The import direction is one-way and deliberate: this module reads
  * `user-store.ts` (an agent is owned by an account) and `user-store.ts` knows
  * nothing about agents. Putting the assignment rule here rather than there is
- * what keeps it that way — see `assignAgentsToAccount`.
+ * what keeps it that way: see `assignAgentsToAccount`.
  */
 export type GovernanceAgent = {
   /** The id the host and the policy document use. Unique per installation. */
@@ -63,14 +63,14 @@ export type GovernanceAgent = {
    *
    * **Per agent, and Administrator-controlled, because of what it is.** Root's
    * installation-wide switch decides whether the backend exists on this machine
-   * at all — host configuration, and deployment is Root's under §1.6. This
+   * at all: host configuration, and deployment is Root's under §1.6. This
    * decides which agents may use it, which is an agent's security boundary and
    * is the Administrator's. The two compose: an agent permitted here still
    * cannot use a backend Root has not enabled.
    *
    * It is a **permission, not an observation.** The layer cannot see which
-   * runtime an agent is actually using — that is resolved at session start from
-   * the model provider and recorded nowhere — so this records what is
+   * runtime an agent is actually using, that is resolved at session start from
+   * the model provider and recorded nowhere, so this records what is
    * *allowed*, which is a fact the layer owns and can therefore display
    * honestly to every tier that can see the agent.
    */
@@ -112,7 +112,7 @@ export class UnknownAgentError extends Error {
  * binding the other's agent. Until M5 gives each group its own policy document
  * this is not a naming preference, it is the only correct answer.
  *
- * It leaks one bit — that some group, somewhere, has the id — exactly as
+ * It leaks one bit, that some group, somewhere, has the id, exactly as
  * "username already exists" does. Recorded as a limit rather than argued away.
  */
 export class DuplicateAgentError extends Error {
@@ -136,7 +136,7 @@ export class AgentOwnerError extends Error {
  * The invariant M4 adds to assignment: a User or Viewer may only hold agents
  * belonging to the Administrator answerable for them. Without it, "each
  * Administrator owns a set of agents and a set of accounts" is a description of
- * the panel rather than a property of the system — any Administrator could hand
+ * the panel rather than a property of the system, any Administrator could hand
  * another's agent to their own staff, and the ownership column would be true of
  * the record and false of the world.
  */
@@ -161,11 +161,11 @@ async function readAgentsFile(): Promise<AgentsFile> {
  * Unscoped on purpose, and every caller that acts on the result scopes it
  * afterwards. Registration needs to see across groups (the id is unique per
  * installation), and the assignment rule needs to know that an id belongs to
- * *somebody else* rather than to nobody — a distinction that would be lost if
+ * *somebody else* rather than to nobody: a distinction that would be lost if
  * the lookup itself filtered by group.
  */
 /**
- * The canonical form of an agent id — **the key, not the spelling** (finding 128).
+ * The canonical form of an agent id: **the key, not the spelling** (finding 128).
  *
  * The registry stored `id.trim()` and the gate looked up
  * `normalizeAgentId(...)`, which the host applies to every agent id it creates
@@ -179,7 +179,7 @@ async function readAgentsFile(): Promise<AgentsFile> {
  *     there while `MAX_AGENT_ID_LENGTH` allows 200.
  *   - **`DuplicateAgentError` was bypassable by case.** "Scout" and "scout"
  *     were two records for one real agent, so the installation-wide uniqueness
- *     M5 deliberately kept — session keys are `agent:<id>:…` and global — did
+ *     M5 deliberately kept, session keys are `agent:<id>:…` and global, did
  *     not actually hold. Two groups could each own "their" record of one agent,
  *     and the one whose spelling is canonical wins the gate while the other
  *     writes policy into a document the gate never reads.
@@ -198,14 +198,14 @@ function canonicalAgentId(value: string): string {
  *
  * `normalizeAgentId` is a coercion, not a validator: when nothing survives the
  * character filter it returns the host's default id, `main`. So `"###"`,
- * `"✓✓"`, `"--"` and `"   "` all canonicalise to `main` — and once finding 128
+ * `"✓✓"`, `"--"` and `"   "` all canonicalise to `main`, and once finding 128
  * made the registry *store* the canonical form, registering an agent called
  * `"###"` would have silently claimed **the installation's default agent**,
  * complete with ownership, assignment and this group's policy document
  * governing it. Nobody asked for that, and the operator would not see it: the
  * panel would simply show a row called `main`.
  *
- * This is the shape of findings 116 and 117 — *a fix is not audited as hard as
+ * This is the shape of findings 116 and 117: *a fix is not audited as hard as
  * the thing it fixes.* 128's repair introduced it, and it was caught by asking
  * what the coercion does at its edges rather than in the middle.
  *
@@ -238,7 +238,7 @@ export async function listAgents(groupId: string | undefined): Promise<Governanc
  * The ids one Administrator owns, inside one organisation.
  *
  * **`groupId` was added in QA round thirty-four (finding 171), and the reason is
- * the hazard rather than a live bug.** This filtered on `adminId` alone — the
+ * the hazard rather than a live bug.** This filtered on `adminId` alone. The
  * only read in this file with no group boundary. It was *safe* because account
  * ids are unique across the installation, so an `adminId` already implies one
  * group; it was safe by an implication nobody had written down, in a file where
@@ -252,7 +252,7 @@ export async function listAgents(groupId: string | undefined): Promise<Governanc
  * `assignAgentsToAccount` does the assignment job and validates through
  * `assertAssignable`, which is already group-scoped. It is kept rather than
  * deleted because "which agents could I assign?" is a question a surface may yet
- * ask — but a dead export **with a passing test** reads as covered code, so the
+ * ask: but a dead export **with a passing test** reads as covered code, so the
  * absence of a caller is stated here rather than left to be discovered.
  */
 export async function agentIdsOwnedBy(adminId: string, groupId: string): Promise<string[]> {
@@ -274,7 +274,7 @@ export async function agentIdsOwnedBy(adminId: string, groupId: string): Promise
  * here is on `agents.json` and the accounts live in `users.json`, so the
  * snapshot is taken before the lock and an owner deleted in the same instant
  * would still pass. The result is a record naming an account that no longer
- * exists — visible, repairable by re-owning, and not a privilege escalation,
+ * exists: visible, repairable by re-owning, and not a privilege escalation,
  * because a deleted account holds nothing. Claiming atomicity here would be the
  * more dangerous error, so it is written down instead.
  */
@@ -283,7 +283,7 @@ export async function agentIdsOwnedBy(adminId: string, groupId: string): Promise
  *
  * `registerAgent` enforces it inside its own lock, which is where it has to be.
  * But provisioning writes to the host *first*, so an ineligible owner meant
- * creating a real agent — workspace, identity file, roster entry — and then
+ * creating a real agent, workspace, identity file, roster entry, and then
  * deleting it again, for a condition that was knowable from the account file.
  * The comment above that preflight claimed it held every knowable refusal; this
  * is what made the claim true.
@@ -300,7 +300,7 @@ function assertOwnerEligible(
   const owner = accounts.find((account) => account.id === adminId);
   if (!owner || owner.groupId !== groupId) {
     // One message for "no such account" and for "not in your group", so the
-    // reply says nothing about accounts elsewhere — the oracle the login
+    // reply says nothing about accounts elsewhere. The oracle the login
     // response, the attachment lookup and the agent-access route each decline
     // to be.
     throw new AgentOwnerError("the nominated Administrator was not found in this group");
@@ -326,7 +326,7 @@ export type RegisterAgentInput = {
  *
  * **This does not create an agent in the host.** M6 does that, by writing
  * `agents.entries` through `src/config/agent-roster-provenance.ts`, and it is a
- * change of kind rather than degree — the first time this layer mutates the
+ * change of kind rather than degree: the first time this layer mutates the
  * host it governs. Registering an id the host does not have is not a mistake in
  * the meantime: it is exactly how an operator declares ownership of an agent
  * that already exists in the roster, which is the migration path every existing
@@ -370,7 +370,7 @@ export async function registerAgent(
     const file = await readAgentsFile();
     // Uniqueness is re-checked inside the lock, not merely before it: two
     // registrations of the same id arriving together would otherwise both read
-    // "not taken", both pass, and leave two records for one agent — the same
+    // "not taken", both pass, and leave two records for one agent. The same
     // race the Root cap has been checked inside its own lock for since it
     // existed.
     // **Compared canonically on both sides (finding 145).**
@@ -381,7 +381,7 @@ export async function registerAgent(
     // always was.
     //
     // A registry written *before* it can still hold `"Scout"`, and comparing
-    // that against `"scout"` said "not taken" — leaving two rows that both
+    // that against `"scout"` said "not taken". Leaving two rows that both
     // resolve to one agent, with `resolveAgentGroup` silently keeping whichever
     // came last. Two organisations could then each hold a record for one real
     // agent, which is the exact shape finding 128 closed at the gate and this
@@ -407,7 +407,7 @@ export async function registerAgent(
   });
   // **The agent's own group owns the entry.** Registering is performed by an
   // account in exactly one organisation and creates a record in that same one,
-  // so there is no ambiguity here — and `created.groupId` is the value the
+  // so there is no ambiguity here, and `created.groupId` is the value the
   // route took from the session rather than from the request, which is what
   // stops an Administrator writing into another organisation's trail (M5).
   await recordAdminAction(created.groupId, {
@@ -478,7 +478,7 @@ export async function renameAgent(
  * the installation.
  *
  * Written inside the file lock and followed by the same cache invalidation, for
- * the reason stated there — the invalidation is part of writing this file, not
+ * the reason stated there: the invalidation is part of writing this file, not
  * something each caller is trusted to remember.
  *
  * **Recorded even when the value does not change.** A restatement is itself a
@@ -522,7 +522,7 @@ export async function setAgentCodexAllowed(
  *
  * The second half is not tidying. Assignment is constrained to agents owned by
  * the account's own Administrator, so leaving the old holders in place would
- * leave the account file stating something the registry contradicts — an
+ * leave the account file stating something the registry contradicts. An
  * invariant that holds at the moment of writing and rots afterwards. This
  * project has already paid for that shape once: `userAsk` was a setting saved,
  * displayed as active, and never consulted. Repair the state at the moment its
@@ -555,7 +555,7 @@ export async function setAgentOwner(
   await recordAdminAction(changed.agent.groupId, {
     actor,
     action: ADMIN_ACTIONS.agentOwnerChange,
-    // Both owners, because a transfer is only legible as a transition — "owned
+    // Both owners, because a transfer is only legible as a transition, "owned
     // by malek" does not say who lost it.
     target: `agent ${changed.agent.id} owner ${changed.previous} -> ${changed.agent.adminId}`,
     agentId: changed.agent.id,
@@ -570,7 +570,7 @@ export async function setAgentOwner(
  *
  * The agent itself is untouched: its rules, its posture and its lockdown all
  * survive, because the registry never owned those. What it stops being is
- * *owned* — the id falls back to the pre-registry state it had before M4, which
+ * *owned*: the id falls back to the pre-registry state it had before M4, which
  * is the only unregistration that does not silently disarm the assignment rule.
  * Every account holding it is released for the same reason ownership transfer
  * releases the ones that no longer qualify.
@@ -635,7 +635,7 @@ async function revokeHoldersOutsideOwner(
     await setUserAssignedAgents(account.id, remaining, actor);
     // Bound into any live session immediately, exactly as the assignment route
     // does. A revocation that only applied at the holder's next login is one an
-    // Administrator would reasonably believe had taken hold when it had not —
+    // Administrator would reasonably believe had taken hold when it had not,
     // the `userAsk` shape again, and the reason `setUserPolicyAuthoring`
     // carries the same instruction in its own doc comment.
     await updateSessionsAssignedAgents(account.id, remaining);
@@ -647,8 +647,8 @@ async function revokeHoldersOutsideOwner(
  *
  * Three outcomes, and the middle one is the honest limit of M4:
  *
- *   - **Registered here, owned by this account's Administrator** — allowed.
- *   - **Not registered at all** — **refused, as of M5.** This was allowed, on the
+ *   - **Registered here, owned by this account's Administrator**. Allowed.
+ *   - **Not registered at all**: **refused, as of M5.** This was allowed, on the
  *     reasoning that an agent nobody has claimed cannot be stolen from an owner
  *     who does not exist. True, and it left the ownership rule sidesteppable by
  *     simply never registering. M5 made registration mandatory: the gate now
@@ -656,15 +656,15 @@ async function revokeHoldersOutsideOwner(
  *     at all, and allowing it to be *assigned* would hand somebody a thing that
  *     does nothing while leaving the sidestep looking open where an operator
  *     reads it. The old row said closing this needed M6 first; that rested on
- *     reading registration and provisioning as one act, and they are not —
+ *     reading registration and provisioning as one act, and they are not,
  *     registration already exists on all three surfaces.
- *   - **Registered to somebody else** — refused, and this is the case with
+ *   - **Registered to somebody else**: refused, and this is the case with
  *     teeth. It covers both another Administrator inside the group and another
  *     group entirely, and it is the one an ownership model exists to stop.
  *
  * The ownership half applies to **managed accounts only**. An Administrator or
  * a Root has no `managedBy`, reaches every agent by role, and carries an
- * assignment list that `permissions.ts` ignores entirely — so "which
+ * assignment list that `permissions.ts` ignores entirely, so "which
  * Administrator owns it" is not a question their list can answer wrongly. The
  * group half still applies to them, because group isolation is not conditional
  * on what a list is used for.
@@ -685,7 +685,7 @@ export async function assertAssignable(
       //
       // The middle case above described an unregistered id as assignable
       // because "an agent nobody has claimed cannot be stolen from an owner who
-      // does not exist" — true, and it made the ownership rule sidesteppable by
+      // does not exist". True, and it made the ownership rule sidesteppable by
       // simply never registering. M5 made registration mandatory at the gate,
       // so an unregistered agent can no longer act at all; leaving it
       // *assignable* would hand somebody a thing that does nothing, and leave
@@ -716,8 +716,8 @@ export async function assertAssignable(
  * Assigns agents to an account, checking ownership first.
  *
  * **The governed entry point, and the reason it lives here rather than in
- * `user-store.ts`.** The rule joins two stores — the registry owns who owns an
- * agent, the account file owns who holds one — and putting the check in
+ * `user-store.ts`.** The rule joins two stores, the registry owns who owns an
+ * agent, the account file owns who holds one, and putting the check in
  * `setUserAssignedAgents` would make `user-store.ts` import this module while
  * this module already imports it. One direction is worth more than one
  * function: the registry knows about accounts, accounts know nothing about
@@ -725,13 +725,13 @@ export async function assertAssignable(
  *
  * `setUserAssignedAgents` survives as the unchecked primitive that writes the
  * file, the same arrangement `updatePolicy` has under the policy setters. Every
- * caller that answers to an operator — the route, the command line — comes
+ * caller that answers to an operator, the route, the command line, comes
  * through here.
  *
  * The two files are locked separately, so an ownership change racing an
  * assignment can land after the check. That leaves an account holding an agent
  * its Administrator no longer owns, which `setAgentOwner` then repairs on its
- * own next pass — a state the system corrects rather than one it cannot
+ * own next pass: a state the system corrects rather than one it cannot
  * describe.
  */
 export async function assignAgentsToAccount(
@@ -747,7 +747,7 @@ export async function assignAgentsToAccount(
  * The group's agents, registry first and `knownAgentIds()` as the fallback.
  *
  * Both halves are needed and neither is sufficient. The registry holds agents
- * that exist and have never been mentioned in a rule — which is the whole point
+ * that exist and have never been mentioned in a rule, which is the whole point
  * of having one, and is invisible to the old reconstruction. The fallback holds
  * agents that predate the registry, which are real, governed, and would vanish
  * from every picker the day the registry became the only source.

@@ -2,7 +2,7 @@
 //
 // ## Why this is not a row in the accounts panel
 //
-// Every other control in `account-panels.ts` acts on **one row** — this account
+// Every other control in `account-panels.ts` acts on **one row**. This account
 // gets a role, that account gets a password, this one goes. The delete button on
 // Root's own row is disabled there and says why, and that stays true: deleting
 // the Root row on its own is refused by the server and would strand everybody
@@ -10,7 +10,7 @@
 //
 // This acts on the organisation. Putting it in the same list as the per-account
 // controls would put the widest act in the project one click away from the
-// narrowest, distinguishable only by which row it sat on — and a mis-click one
+// narrowest, distinguishable only by which row it sat on, and a mis-click one
 // row up would be unrecoverable. So it renders below, in its own section,
 // with the word "delete" appearing only after the operator has typed a name.
 //
@@ -20,13 +20,13 @@
 // Root username is typed exactly; the second is that the typed name is sent to
 // the server and compared there. A typed name is the only confirmation that
 // survives a double-submitted form, a mis-click, or a cross-site POST that does
-// not know who is signed in — none of which a dialog stops.
+// not know who is signed in, none of which a dialog stops.
 //
 // ## Its drafts live with the account panels'
 //
 // In `AccountsController`, not in one of its own. Two controllers on one page
 // both exposing `onDraft` is the collision the registry panel's `slice()`
-// warns about — a button that renders correctly and silently does nothing —
+// warns about, a button that renders correctly and silently does nothing,
 // and this is the same subject anyway: Root administering accounts.
 import { html, nothing, type TemplateResult } from "lit";
 import {
@@ -49,7 +49,7 @@ export type OrganisationPanelProps = PanelEffects & {
    * What the page does once the organisation is gone.
    *
    * Deletion revokes the session that authorised it, so there is nothing left
-   * to refresh — every subsequent request is unauthenticated. The page treats
+   * to refresh: every subsequent request is unauthenticated. The page treats
    * this as a sign-out rather than a reload, which is why the panel hands the
    * decision back instead of calling `reload` itself.
    */
@@ -120,7 +120,7 @@ export function renderOrganisationSection(
                   // messages say it (finding 212). The command line has always
                   // printed where the ledger was left; this surface reported
                   // only the counts, so the operator who used the dashboard was
-                  // the one who could not find out that anything survived — and
+                  // the one who could not find out that anything survived, and
                   // now something more than the ledger does.
                   props.onDeleted(
                     // Checked before `residue`, because a step that did not

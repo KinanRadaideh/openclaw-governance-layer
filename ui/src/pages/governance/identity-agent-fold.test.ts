@@ -8,8 +8,8 @@
 // to send it.
 //
 // The consequence is worse here than "a control is hidden". The kill switch's
-// agent field is **free text** — deliberately, because an emergency control has
-// to reach an agent that is real but idle — and the button is disabled on this
+// agent field is **free text**, deliberately, because an emergency control has
+// to reach an agent that is real but idle, and the button is disabled on this
 // predicate, over the message "not your agent". So the one control that exists
 // for emergencies told the operator it was not theirs, before they pressed it,
 // on an agent they hold.

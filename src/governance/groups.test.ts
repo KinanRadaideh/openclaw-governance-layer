@@ -1,4 +1,4 @@
-// M3 — the group: one organisation's isolated world.
+// M3. The group: one organisation's isolated world.
 //
 // Before this, the layer modelled one installation with one operator. Exactly
 // one Root existed and it was permanent; there was no notion of an
@@ -17,7 +17,7 @@
 //   2. **No account exists outside a group, and no managed account exists
 //      without a manager.** These are enforced in the store rather than at the
 //      HTTP boundary, so the command line cannot create what the dashboard
-//      refuses — two surfaces asking one question two ways is this project's
+//      refuses, two surfaces asking one question two ways is this project's
 //      most-found defect.
 //   3. **Accounts written before groups existed cannot sign in.** Absent is not
 //      read as a default here, unlike `actorRole` and `canAuthorPolicy`,
@@ -67,7 +67,7 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-/** A Root and an Administrator in one group — the smallest usable organisation. */
+/** A Root and an Administrator in one group. The smallest usable organisation. */
 async function organisation(prefix: string) {
   const groupId = newGroupId();
   const root = await createUser(
@@ -157,7 +157,7 @@ describe("a User or Viewer always has an Administrator answerable for it", () =>
   it("refuses a manager who is not an Administrator", async () => {
     // Root is excluded deliberately, even though it outranks every
     // Administrator. If Root wants to run a User directly it creates an
-    // Administrator account and signs into that — one statable rule instead of
+    // Administrator account and signs into that, one statable rule instead of
     // two, and the act stays attributable to the hat it was done in.
     const a = await organisation("alpha");
     await expect(
@@ -251,7 +251,7 @@ describe("a User or Viewer always has an Administrator answerable for it", () =>
   });
 
   // -------------------------------------------------------------------------
-  // Finding 196 — the invariant was enforced where the link is made and
+  // Finding 196. The invariant was enforced where the link is made and
   // abandoned where it is broken.
   //
   // `createUser` and `setUserRole` both refuse a manager who is not an
@@ -345,8 +345,8 @@ describe("accounts that predate groups", () => {
       users: Array<Record<string, unknown>>;
     };
     // Annotated because `file.users[0]` is possibly undefined, so the spread
-    // narrows to just the two literal keys and `groupId` — the field this line
-    // exists to remove — is not visible on the result (T37).
+    // narrows to just the two literal keys and `groupId`, the field this line
+    // exists to remove, is not visible on the result (T37).
     const legacy: Record<string, unknown> = {
       ...file.users[0],
       id: "user-legacy",
@@ -361,7 +361,7 @@ describe("accounts that predate groups", () => {
     // The password is correct; the account still cannot be used. Absent is not
     // read as "the founding group", because a missing group is an unanswered
     // question about who this account belongs to rather than a knowable
-    // default — and guessing would place somebody in an organisation nobody
+    // default, and guessing would place somebody in an organisation nobody
     // put them in.
     await seedLegacyAccount();
     expect(await authenticate("legacy", PASSWORD)).toBeUndefined();

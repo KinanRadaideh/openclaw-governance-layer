@@ -671,7 +671,7 @@
       "kind": "html-text",
       "name": "text",
       "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
-      "text": "— Codex sessions started somewhere else, from a terminal, an editor or ChatGPT, which this installation can adopt so they are governed and recorded like any other agent activity. With Codex off, those sessions are not reachable from here."
+      "text": ": Codex sessions started somewhere else, from a terminal, an editor or ChatGPT, which this installation can adopt so they are governed and recorded like any other agent activity. With Codex off, those sessions are not reachable from here."
     },
     {
       "count": 1,
@@ -804,7 +804,7 @@
       "kind": "html-text",
       "name": "text",
       "path": "ui/src/pages/governance/panels/codex-backend-panel.ts",
-      "text": "thing — what a recursive search hands back — not denials in general."
+      "text": "thing, namely what a recursive search hands back, not denials in general."
     },
     {
       "count": 1,
@@ -860,13 +860,6 @@
       "kind": "html-text",
       "name": "text",
       "path": "ui/src/pages/governance/panels/folder-grant-panel.ts",
-      "text": "— the limit is about search results, not about your rules generally. Agents affected by it are marked in the rule list."
-    },
-    {
-      "count": 1,
-      "kind": "html-text",
-      "name": "text",
-      "path": "ui/src/pages/governance/panels/folder-grant-panel.ts",
       "text": ": when a search runs across a folder it is allowed to read, anything inside it that your rules forbid is removed from the results before the model sees it. You need both, because a rule that forbids a file is worth little if a search can hand its contents over anyway."
     },
     {
@@ -875,6 +868,13 @@
       "name": "text",
       "path": "ui/src/pages/governance/panels/folder-grant-panel.ts",
       "text": ": which folders an agent may reach, and what is carved out of them. The search protection is about"
+    },
+    {
+      "count": 1,
+      "kind": "html-text",
+      "name": "text",
+      "path": "ui/src/pages/governance/panels/folder-grant-panel.ts",
+      "text": ". The limit is about search results, not about your rules generally. Agents affected by it are marked in the rule list."
     },
     {
       "count": 1,
@@ -951,7 +951,7 @@
       "kind": "html-text",
       "name": "text",
       "path": "ui/src/pages/governance/panels/folder-grant-panel.ts",
-      "text": "You can write exactly the same rules by hand in the form above, and many people will — this exists because doing it by hand means writing two regular expressions and knowing which one wins. Everything created here appears in the rule list below as ordinary rules, each with its own entry, each removable on its own. Delete the exception and the folder stays allowed; delete the allowance and the exception stays forbidden."
+      "text": "You can write exactly the same rules by hand in the form above, and many people will. This exists because doing it by hand means writing two regular expressions and knowing which one wins. Everything created here appears in the rule list below as ordinary rules, each with its own entry, each removable on its own. Delete the exception and the folder stays allowed; delete the allowance and the exception stays forbidden."
     },
     {
       "count": 1,

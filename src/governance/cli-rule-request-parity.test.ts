@@ -1,9 +1,9 @@
-// T40 — the rule-request queue on the command line, against the routes it mirrors.
+// T40. The rule-request queue on the command line, against the routes it mirrors.
 //
 // The last capability `CLI-REFERENCE.md` §2d listed as deliberately
 // dashboard-only, and the one whose reason that document itself flagged as the
-// weakest of the four. What these pin is not that the commands work — a domain
-// test already covers `submitRuleRequest` and `decideRuleRequest` — but that
+// weakest of the four. What these pin is not that the commands work, a domain
+// test already covers `submitRuleRequest` and `decideRuleRequest`, but that
 // each command asks the **same authorization question** its HTTP counterpart
 // asks, and that approving through the command line produces the same joined-up
 // state the route produces.
@@ -129,7 +129,7 @@ async function seedRequest(requestedBy: string, agentId?: string): Promise<strin
   return request.id;
 }
 
-describe("governance requests submit — the tier that may ask", () => {
+describe("governance requests submit. The tier that may ask", () => {
   it("lets a User file a request against an agent they hold", async () => {
     await signIn("malek", "user", [MINE]);
 
@@ -213,7 +213,7 @@ describe("governance requests submit — the tier that may ask", () => {
   });
 });
 
-describe("governance requests list — scoped to what the caller can see", () => {
+describe("governance requests list. Scoped to what the caller can see", () => {
   it("hides requests for agents the caller cannot view", async () => {
     // The unscoped queue was a real defect: it let an account limited to one
     // agent enumerate every other agent's id and the free-text reasons, which
@@ -247,7 +247,7 @@ describe("governance requests list — scoped to what the caller can see", () =>
   });
 });
 
-describe("governance requests decide — the floor, and the link it exists for", () => {
+describe("governance requests decide. The floor, and the link it exists for", () => {
   it("refuses a User: no privilege is created by a non-Administrator", async () => {
     const id = await seedRequest("malek", MINE);
     await signIn("malek", "user", [MINE]);

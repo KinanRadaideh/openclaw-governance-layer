@@ -2,7 +2,7 @@
 //
 // Its own module for the reason `governance-dashboard-backend.ts` has one:
 // `governance-dashboard-api.ts` is already the largest file on this surface, and
-// the seam every other split here used holds — **one file, one statable
+// the seam every other split here used holds, **one file, one statable
 // authorization rule**. The rule is the same one `policy/rules` applies, because
 // this writes exactly the rules that route writes: a User may author for an
 // agent assigned to them, and only an Administrator may write a rule binding
@@ -52,7 +52,7 @@ function readStringArray(value: unknown): string[] | undefined {
 }
 
 /**
- * `POST policy/folder-grant` — one folder, zero or more exceptions.
+ * `POST policy/folder-grant`: one folder, zero or more exceptions.
  *
  * Returns every rule it wrote, grant and exceptions alike, because the operator
  * needs to see that they are ordinary rules rather than one opaque thing. The
@@ -148,7 +148,7 @@ export async function handleGovernanceFolderGrantRoutes(
     });
   } catch (err) {
     // A `FolderGrantError` is the operator being told their input does not
-    // express what they meant — an exception outside the folder, an empty
+    // express what they meant. An exception outside the folder, an empty
     // path. It is a 400 with the reason, not a 500: the message names both
     // paths and says what to do instead, and hiding that behind "internal
     // error" would leave them guessing.

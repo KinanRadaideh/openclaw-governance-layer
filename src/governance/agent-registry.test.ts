@@ -1,4 +1,4 @@
-// M4 — the agent registry: the noun the layer never had.
+// M4. The agent registry: the noun the layer never had.
 //
 // Until this, an agent was not a record. It "existed" the moment a rule, a
 // posture, a lockdown or an assignment happened to mention its id, and
@@ -156,7 +156,7 @@ describe("an agent is a record, not an inference", () => {
   it("does not offer another group's agent as an unregistered one", async () => {
     // The shared policy document is the only reason this caller ever sees the
     // id at all. Folding it in as a fallback row would present somebody else's
-    // agent as unclaimed — an invitation to claim it.
+    // agent as unclaimed. An invitation to claim it.
     const alpha = await organisation("alpha");
     const beta = await organisation("beta");
     await registerAgent(
@@ -300,14 +300,14 @@ describe("assignment is constrained to the account's own Administrator's agents"
     ).rejects.toThrow("is not yours to assign");
   });
 
-  it("refuses an agent that is not registered — the hole M5 closed", async () => {
+  it("refuses an agent that is not registered, the hole M5 closed", async () => {
     /**
      * **This test asserted the opposite until 2026-08-26, and the comment it
      * carried is why it is worth reading now.**
      *
      * It used to say: an unregistered id is assignable, so the ownership
-     * constraint can be sidestepped by not registering — which makes the
-     * registry a statement of ownership rather than a gate on it — and closing
+     * constraint can be sidestepped by not registering, which makes the
+     * registry a statement of ownership rather than a gate on it, and closing
      * that "needs registration to be mandatory, which needs M6's provisioning
      * to exist first".
      *
@@ -316,7 +316,7 @@ describe("assignment is constrained to the account's own Administrator's agents"
      * *provisioning* one (creating it in the host's own config) as a single
      * act. They are not: registration has been available on all three surfaces
      * since M4 shipped. So mandatory registration never needed M6, and M5 took
-     * it — the gate refuses an agent it has no record of, and this refuses
+     * it: the gate refuses an agent it has no record of, and this refuses
      * handing one out.
      *
      * The same shape as the three "blocked on the host" claims: a sentence that
@@ -339,7 +339,7 @@ describe("ownership changes repair the assignments they invalidate", () => {
   it("releases holders whose Administrator no longer owns the agent", async () => {
     // Repair at the producer rather than compensation downstream. Leaving the
     // holder in place would leave the account file stating something the
-    // registry contradicts — an invariant that holds when written and rots
+    // registry contradicts. An invariant that holds when written and rots
     // afterwards, which is the `userAsk` shape this project has already paid
     // for once.
     const org = await organisation("alpha");
@@ -442,7 +442,7 @@ describe("the registry writes to the same audit chain as everything else", () =>
 
   it("keeps the name and owner of an agent it has just erased", async () => {
     // After this the record is gone, so the ledger is the only place that says
-    // the agent was ever owned — the same reasoning `deleteUser` records a
+    // the agent was ever owned. The same reasoning `deleteUser` records a
     // name and role it is about to remove.
     const org = await organisation("alpha");
     await registerAgent(

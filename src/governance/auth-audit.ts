@@ -3,7 +3,7 @@
 // **The gap this closes.** The ledger could say what every agent did, which
 // policy decision governed it, and who changed the rules it was judged by. It
 // could not say who was *signed in*. Successful logins, failed passwords,
-// lockouts and logouts reached it nowhere — so the first question asked after an
+// lockouts and logouts reached it nowhere, so the first question asked after an
 // incident ("who was in the system, and when?") had no answer on the one
 // surface built to answer questions like it.
 //
@@ -18,8 +18,8 @@
 // the ledger is written by an authenticated actor who has already passed the
 // gate. These entries are written *at* the gate, and two of the four are caused
 // by someone who has not proved who they are. That difference drives every
-// decision below — attribution, bounding, and what happens when the write
-// fails — and each of those decisions would be wrong if applied to the
+// decision below, attribution, bounding, and what happens when the write
+// fails, and each of those decisions would be wrong if applied to the
 // administrative entries, so keeping them in one file would mean a file whose
 // rules had exceptions.
 
@@ -37,7 +37,7 @@ import type { GovernanceRole } from "./roles.js";
  * How much of a submitted username is echoed into the resource string.
  *
  * The ledger already redacts and clamps the resource at 4,096 characters, so
- * this is not a safety bound — it is a readability one. A login body may carry
+ * this is not a safety bound: it is a readability one. A login body may carry
  * four kilobytes of junk as a username, and an audit line that is mostly junk
  * is an audit line nobody reads. A hundred and twenty characters is far longer
  * than any real account name and short enough to keep the entry scannable.
@@ -51,7 +51,7 @@ export const MAX_ECHOED_USERNAME_LENGTH = 120;
  * logout both require valid credentials, so an attacker cannot cause either;
  * they are self-limiting and are always recorded. A *failed* login requires
  * nothing but the ability to reach the route, and the ledger never deletes
- * anything — `rotateIfNeeded` archives segments and keeps them, deliberately,
+ * anything: `rotateIfNeeded` archives segments and keeps them, deliberately,
  * because audit history that ages out is not audit history. Those two facts
  * together make unaudited-but-unbounded writing a disk-fill vector that an
  * unauthenticated caller can pull: the fix for a missing log must not be a new
@@ -64,7 +64,7 @@ export const MAX_ECHOED_USERNAME_LENGTH = 120;
  * Two hundred failed logins across an entire installation in fifteen minutes is
  * already far outside anything a real set of users produces, so the cap does
  * not bite in normal operation. Past it, entries are counted and dropped, and
- * the count is written as a single entry — see `flushSuppressedFailures`.
+ * the count is written as a single entry: see `flushSuppressedFailures`.
  */
 export const AUTH_FAILURE_WINDOW_MS = 15 * 60 * 1000;
 export const MAX_FAILURE_ENTRIES_PER_WINDOW = 200;
@@ -75,7 +75,7 @@ export const MAX_FAILURE_ENTRIES_PER_WINDOW = 200;
  * **Finding 107, and it was a hole in this file's first version.** The cap
  * above was purely global, which handed an attacker a way to choose what the
  * ledger would not say. Flood the window with two hundred invented usernames,
- * and every later failure is counted but never named — so a patient guessing
+ * and every later failure is counted but never named, so a patient guessing
  * attempt against `root`, kept below the five that trigger a lockout, left a
  * record of two hundred accounts that never existed and nothing at all about
  * the one that does. The bound written to stop a denial of service had become a
@@ -90,14 +90,14 @@ export const MAX_FAILURE_ENTRIES_PER_WINDOW = 200;
  *
  * The total is unchanged, so the denial-of-service bound the cap exists for is
  * exactly as tight as before. Only the *choice* of which failures are worth an
- * entry has changed — from "whichever arrived first" to "whichever tells an
+ * entry has changed: from "whichever arrived first" to "whichever tells an
  * investigator more".
  *
  * **The attempt count comes from the throttle, and the first fix got that
  * wrong.** This module's first attempt at finding 107 kept its own per-subject
  * table and evicted from it when full. That table was a second counter for a
- * thing `login-throttle.ts` already counts, and it reproduced — in a fresh
- * file, a few hours later — the exact defect that file documents at length: a
+ * thing `login-throttle.ts` already counts, and it reproduced, in a fresh
+ * file, a few hours later, the exact defect that file documents at length: a
  * `Map` iterated in insertion order evicts the *oldest* entry, and the account
  * an attacker is patiently working on is the oldest, so the eviction intended
  * to bound memory threw away the one record worth keeping. It was caught by a
@@ -107,7 +107,7 @@ export const MAX_FAILURE_ENTRIES_PER_WINDOW = 200;
  * The route already learns the attempt number from `recordLoginFailure`, whose
  * table is bounded and whose eviction has already been hardened for precisely
  * this attack, so the count is passed in. One definition, one eviction policy,
- * one place to get it wrong — which is the standing lesson of this project
+ * one place to get it wrong: which is the standing lesson of this project
  * applied to a module that had just finished violating it.
  */
 export const REPEAT_RESERVE = 50;
@@ -139,12 +139,12 @@ function echoUsername(submitted: string): string {
  *
  * Canonical rather than as-typed because this is the field an auditor filters
  * on, and it has to fold the same way the account lookup and the throttle fold
- * — otherwise five failures against `Alice`, `alice` and `ａｌｉｃｅ` read as
+ *otherwise five failures against `Alice`, `alice` and `ａｌｉｃｅ` read as
  * three unrelated events when the throttle correctly saw one. That is the
  * lesson `account-name.ts` exists to enforce, applied here rather than restated.
  *
  * Clamped because `recordAdminAction` puts `subjectId` in the ledger's `ruleId`
- * field, which — unlike `resource` — is neither redacted nor length-limited.
+ * field, which, unlike `resource`, is neither redacted nor length-limited.
  */
 function subjectFor(submitted: string): string {
   return canonicalAccountName(submitted).slice(0, MAX_ECHOED_USERNAME_LENGTH);
@@ -157,8 +157,8 @@ function subjectFor(submitted: string): string {
  * Everywhere else in this codebase an unrecordable governance change is a
  * change that does not happen: `recordAdminAction` is awaited and its error
  * propagates, so a rule cannot be added if adding it cannot be logged. Applying
- * that rule here would mean that an unwritable ledger — a full disk, a bad
- * permission, a corrupted key file — locks every account out of the dashboard,
+ * that rule here would mean that an unwritable ledger, a full disk, a bad
+ * permission, a corrupted key file, locks every account out of the dashboard,
  * including the Root account whose job is to go in and fix it. An audit outage
  * would become a total outage, with no way back in, which is precisely the
  * lockout class `account-guards.ts` exists to prevent.
@@ -169,7 +169,7 @@ function subjectFor(submitted: string): string {
  *
  * So authentication auditing is best-effort, and this is stated in the report
  * rather than implied. The requirement it serves (#5, "100% of agent actions,
- * policy decisions and administrative approvals") is unaffected — those three
+ * policy decisions and administrative approvals") is unaffected. Those three
  * kinds still fail closed. Authentication events are an addition beyond that
  * requirement, and for an addition, degrading is the right failure direction.
  */
@@ -204,7 +204,7 @@ async function writeAuthEntry(input: {
       outcome: input.outcome,
       // No agentId. An authentication event concerns the installation, not one
       // agent, so it carries `-` and is therefore visible to Administrator and
-      // above only — which falls out of `projectLedgerForActor`'s existing
+      // above only, which falls out of `projectLedgerForActor`'s existing
       // agent-scope filter rather than needing a rule of its own. That is the
       // right audience: who signed in is not a User's business, and a Viewer
       // seeing the pattern of failed attempts against named accounts would be
@@ -248,7 +248,7 @@ export async function auditLoginSuccess(user: {
    * The account's organisation (M5).
    *
    * A *successful* sign-in knows exactly whose it is, so the entry belongs in
-   * that organisation's trail rather than the installation's — a Root reviewing
+   * that organisation's trail rather than the installation's. A Root reviewing
    * who signed in should see their own people. Optional only because an account
    * predating groups has none; those fall back to the installation trail, which
    * is where an account belonging to no organisation honestly belongs.
@@ -275,7 +275,7 @@ export async function auditLoginSuccess(user: {
  *
  * The two cases are recorded identically and deliberately so. Distinguishing
  * them in the ledger would build an account-existence oracle into the audit
- * trail — and while only Administrators can read it, an audit log is exactly
+ * trail: and while only Administrators can read it, an audit log is exactly
  * the wrong place to put a fact the login response itself is careful not to
  * leak. What an investigator needs is the pattern of attempts, which is present
  * either way.
@@ -316,7 +316,7 @@ export async function auditLoginFailure(
  *
  * A repeat draws from the reserve first and falls back to the general budget;
  * a novel subject may only use the general budget. That asymmetry is the whole
- * of finding 107's fix — a flood cannot reach the reserve without repeating,
+ * of finding 107's fix: a flood cannot reach the reserve without repeating,
  * and a flood that repeats is a guessing attack, which is the thing the reserve
  * is for.
  */
@@ -360,7 +360,7 @@ export async function auditLoginLockout(
  * A session was ended deliberately.
  *
  * Recorded because the *span* is what an investigation reconstructs, and a
- * login with no matching logout is a different fact from one with it — the
+ * login with no matching logout is a different fact from one with it. The
  * first says the session ran to its expiry or is still open, and the second
  * bounds it. Expiry and administrative revocation are not covered here: they
  * happen without a request, and pinning that limitation is better than

@@ -1,4 +1,4 @@
-// T7 prevention — the wiring, as opposed to the decision.
+// T7 prevention. The wiring, as opposed to the decision.
 //
 // `search-filter.test.ts` proves `filterSearchResult` removes the right lines.
 // This proves the hook that carries it into a run behaves: that it chains the
@@ -109,7 +109,7 @@ describe("installing the filter onto a run", () => {
     };
     install(agent);
     await agent.afterToolCall?.(callContext("grep", ["safe.ts:1:ok"]));
-    // `agent.afterToolCall` is a single slot with several claimants — extensions
+    // `agent.afterToolCall` is a single slot with several claimants. Extensions
     // assign it, the source-reply tracker wraps it. Assignment would silently
     // drop whichever got there first.
     expect(priorRan).toBe(true);
@@ -132,7 +132,7 @@ describe("installing the filter onto a run", () => {
   });
 
   it("respects an earlier hook that blanked the result, rather than refilling it", async () => {
-    // **Not a regression test — this behaviour was already correct.** It was
+    // **Not a regression test. This behaviour was already correct.** It was
     // raised on 2026-08-31 as a defect, on the reading that `prior?.content ? …`
     // would treat a blanked rewrite as "no rewrite" and hand back the tool's raw
     // output. `content` is an array, so a blanked rewrite is `[]` and is truthy;

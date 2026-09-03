@@ -58,7 +58,7 @@ type Reply = { status: number; body: unknown };
 /** Drives the real handler with a fake response, returning what it sent. */
 async function post(body: unknown, actorSession: GovernanceSession | undefined): Promise<Reply> {
   const reply: Reply = { status: 0, body: undefined };
-  // `sendJson` writes `statusCode` and calls `end` — it does not use
+  // `sendJson` writes `statusCode` and calls `end`. It does not use
   // `writeHead`. Mirroring the real shape rather than guessing at it, because a
   // fake that captures nothing makes every assertion read zero and every test
   // fail identically, which says nothing about the code.

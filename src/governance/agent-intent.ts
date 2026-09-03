@@ -7,11 +7,11 @@
 // timestamp, the agent id, **the raw LLM intent**, the attempted system call
 // payload, the policy engine's decision, and the identity of the human approver
 // if HITL was triggered. Every item but one was already recorded. This is the
-// one — and it is the only field in the ledger that comes from the *model*
+// one, and it is the only field in the ledger that comes from the *model*
 // rather than from the runtime.
 //
 // **"Raw LLM intent" is interpreted here as the assistant's own words on the
-// turn that produced the tool call** — its narration and, where the provider
+// turn that produced the tool call**. Its narration and, where the provider
 // emits them, its reasoning blocks. Not a re-derivation, not a summary the layer
 // writes, and not a separate question put to the model. The distinction matters
 // for the report: this records something the model said, so the ledger can be
@@ -21,7 +21,7 @@
 // ## Why a store rather than a hook payload
 //
 // The gate runs at `before_tool_call` and is handed a tool name, its parameters
-// and a session key — no assistant text, because by then the message that asked
+// and a session key, no assistant text, because by then the message that asked
 // for the call is behind it. The text is available one step earlier, at
 // `llm_output`, which carries `assistantTexts` and `lastAssistant`.
 //
@@ -33,7 +33,7 @@
 // B1's lesson, and the same shape `search-audit.ts` uses. The host only
 // dispatches `llm_output` when a plugin has registered for it
 // (`hookRunner?.hasHooks("llm_output")`), so a governance capture written as a
-// plugin hook would record nothing on an installation with no plugins loaded —
+// plugin hook would record nothing on an installation with no plugins loaded,
 // which is the configuration B1 found the gate itself was missing from.
 // Governance calls in directly and does not care whether anything else did.
 //
@@ -46,14 +46,14 @@
 //   - It lives in memory. A restart loses pending intent, and the ledger simply
 //     records the calls without it, exactly as it did before this existed.
 //   - It is capped (`MAX_TRACKED_SESSIONS`). An installation with thousands of
-//     live sessions drops the oldest rather than growing without limit — round
+//     live sessions drops the oldest rather than growing without limit. Round
 //     four's lesson about agent-influenced text with no size bound.
 //
 //     **There is deliberately no `forgetAgentIntent` for session end** (finding
 //     134). One was written and exported, and nothing ever called it: the cap
 //     already bounds the store, and a session that ends simply stops being
-//     re-read. An exported function with no caller is finding 113's shape — a
-//     capability that looks present and is not — so it was deleted rather than
+//     re-read. An exported function with no caller is finding 113's shape, a
+//     capability that looks present and is not, so it was deleted rather than
 //     wired up to give it something to do.
 //   - Each entry is clamped and passed through the ledger's own redactor before
 //     it is stored, not only before it is written. Model narration quotes what
@@ -64,7 +64,7 @@ import { redactToolPayloadText } from "../logging/redact.js";
  * How much of the model's narration is kept.
  *
  * Long enough to hold a sentence or two of stated purpose, short enough that a
- * ledger entry stays a record rather than a transcript — the conversation store
+ * ledger entry stays a record rather than a transcript. The conversation store
  * already keeps the full text, and duplicating it into the hash chain would make
  * the chain a second copy of everything the agent ever said.
  */
@@ -105,7 +105,7 @@ export function normalizeIntent(text: string): string {
  * Two sources, in order of preference:
  *
  *   1. **`thinking` blocks on the last assistant message.** This is the closest
- *      thing to "raw intent" any provider exposes — the model's reasoning about
+ *      thing to "raw intent" any provider exposes. The model's reasoning about
  *      what it is about to do, before it does it.
  *   2. **The assistant's visible text.** Every provider produces this, including
  *      those that emit no reasoning at all, so it is what keeps the field
@@ -113,7 +113,7 @@ export function normalizeIntent(text: string): string {
  *
  * Read defensively. `lastAssistant` is typed `unknown` by the host's hook
  * contract and its shape differs between harnesses, so anything unrecognised
- * yields nothing and the call is recorded without an intent — the same
+ * yields nothing and the call is recorded without an intent. The same
  * under-reporting direction `search-audit.ts` takes, and for the same reason:
  * this must never turn a working tool call into an error.
  */
@@ -196,7 +196,7 @@ export function recordAgentIntent(input: {
  * The intent standing for this session, if any.
  *
  * **Read rather than consumed.** One model turn commonly issues several tool
- * calls, and all of them were asked for by the same statement of purpose — so
+ * calls, and all of them were asked for by the same statement of purpose, so
  * taking the value on first read would attach the intent to the first call and
  * leave its siblings bare. It is replaced on the next turn, which is when it
  * stops being true.

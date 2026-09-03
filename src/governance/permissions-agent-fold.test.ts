@@ -4,8 +4,8 @@
 // `Scout` "produced an assignment that `assertAssignable` permitted, because it
 // canonicalises for its own lookup, and that `canViewAgent` then answered
 // `["Scout"].includes("scout")` → `false` to." The fix folded the *stored* list
-// at `user-store.ts`'s choke point. The comparison itself — the one in the
-// sentence — still folds nothing, so the same mismatch is reachable from the
+// at `user-store.ts`'s choke point. The comparison itself, the one in the
+// sentence, still folds nothing, so the same mismatch is reachable from the
 // other side: a canonical assignment and a query typed the way an operator
 // types it.
 //
@@ -14,8 +14,8 @@
 // `agentId.trim()`, so a User assigned `scout` who types `--agent Scout` is
 // told they do not manage an agent they do manage.
 //
-// The failure direction is the safe one again — an unfolded query cannot match
-// a canonical entry, so it only ever withholds — which is again why nobody hit
+// The failure direction is the safe one again, an unfolded query cannot match
+// a canonical entry, so it only ever withholds, which is again why nobody hit
 // it hard enough to look.
 import { describe, expect, it } from "vitest";
 import {
@@ -54,7 +54,7 @@ describe("agent scope, however the id is typed", () => {
     // `normalizeAgentId` is a coercion, not a validator: it answers `main` for
     // anything with no canonical form of its own. Folding unconditionally would
     // turn a query for `###` into a query for the installation's default agent
-    // — finding 129's trap, arriving at the permission check.
+    //. Finding 129's trap, arriving at the permission check.
     const holdsMain: GovernanceActor = { ...user, assignedAgents: ["main"] };
     expect(canViewAgent(holdsMain, "###")).toBe(false);
     expect(canViewAgent(holdsMain, "main")).toBe(true);

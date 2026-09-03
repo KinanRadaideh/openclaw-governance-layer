@@ -1,7 +1,7 @@
 # Source material for Chapters 3–4
 
-**This is not draft prose.** It is organised raw material — decisions, rationale,
-data, diagrams, and code — keyed to where each item belongs in the report, so the
+**This is not draft prose.** It is organised raw material, decisions, rationale,
+data, diagrams, and code, keyed to where each item belongs in the report, so the
 team can write the chapters from it later.
 
 Section numbering follows the structure of the NGO-Ledger report supplied as the
@@ -28,26 +28,26 @@ The nine requirements from Chapter 1 §1.3, each with implementation status and
 location. Use this table more or less directly; the _status_ column is the part
 that matters for §4.4 validation.
 
-| #   | Requirement (abbreviated)                                        | Status            | Where implemented                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| --- | ---------------------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Node.js ≥ 18, TypeScript, static type checking                   | **Met**           | Node v22.22.3; `tsconfig.json` `strict: true` + `noUncheckedIndexedAccess`; `pnpm tsgo:core` / `pnpm tsgo:ui` clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| 2   | Secure web dashboard: configure policies, monitor sessions, RBAC | **Met**           | `ui/src/pages/governance/` — policy config ✔, RBAC ✔, live session monitoring ✔ (`active-sessions.ts`), per-agent posture ✔, prompting an assigned agent ✔ (§3.5.11), and Root's deployment/network oversight ✔ (§3.5.14) — the last unimplemented clause of the §1.6 role definitions. The per-agent monitor toggle was **not** reachable from any surface until the eleventh QA pass; a policy tier settable only from code does not satisfy "configure policies" — see §4.x.18. **Root can also delete the whole organisation from here (T44, §3.5.67)**, which is the account surface completing itself: every other account act was already on the page, and the one that removes Root's own was refused with a message pointing nowhere. **Two dashboard controls were found not to work at all in the same week (findings 197, 200)** — demoting an Administrator returned a 500 every time, and an agent assignment typed in a different case was saved and never consulted — which is worth this row carrying, because "the dashboard can do X" is a claim about a control an operator can actually complete                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| 3   | Default-deny over file paths, process execution, network         | **Met**           | The _decision_ was always correct; the _coverage_ was one seventh of the host until the thirteenth pass measured it and the fixes closed it. `src/governance/policy-engine.ts` + `resource-extraction.ts`; path confinement enforced by canonicalisation (`path-normalize.ts`, §3.5.8) rather than pattern filtering — validated §4.x.13. Hostnames canonicalised on the same principle, and coverage extended to `grep`/`find`/`ls` and the `terminal` tool's input channel — see §4.x.18. **The thirteenth pass counted the surface against the host's own `tool-catalog.ts` — 7 of its 52 tools were governed — and closed it: 18 are now governed and the other 34 carry a written reason in `DELIBERATELY_UNGOVERNED` (§4.x.20).** Every control surface that reaches the OS is default-denied: `process` (the second command channel into a running shell), `computer`/`screen`/`browser`/`mobile_ui` (desktop and device control), `nodes`, `gateway`, `automations`, `sessions_spawn`, `subagents`, `code_execution`. Residual: search tools are governed at their root only                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| 4   | Fine-grained privileges: path, command, network, time-limited    | **Met**           | `policy-types.ts` (`PolicyRule.expiresAt`), `policy-engine.ts`; one path rule now binds every path-taking tool identically (§4.x.13, row 4)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| 5   | Record 100% of agent actions, policy decisions, approvals        | **Met**           | Prompts are now recorded too, with the account that sent them (§3.5.11) — the trail can finally say _who set the agent going_, not only what it did and who wrote its rules. Agent actions ✔ and policy decisions ✔ (`audit-ledger.ts` + `policy-engine.ts`; every invocation recorded, `ungoverned` included — §4.x.10). Administrative approvals ✔ (`admin-audit.ts`, §3.5.9) — policy, account, and approval changes carry a required `actor`, in the same hash chain. ~~Caveat to state: CLI-origin changes are attributed to `cli`, not a person (§3.5.9).~~ **False since T5 on 2026-08-24 — finding 163, found by T36 on 2026-08-31.** Command-line changes resolve the signed-in account through `verifySession` and are recorded by name and tier. `cli` survives only where no account _can_ sign in: the pre-groups repair command and the first-account bootstrap. **Also added since this row was written:** searches reaching a denied path are recorded (T7 audit half), and results withheld from the model are recorded distinctly from reaches (T7 prevention), so the trail now separates _what leaked_ from _what was stopped_.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| 6   | Tamper-evident audit logging                                     | **Met**           | `audit-ledger.ts` HMAC-SHA256 hash chain, keyed per installation, with an independent checkpoint file (§4.x.2). Evident against an attacker who wants to **alter** the record. The thirteenth pass demonstrated three routes that needed no key and defeated detection by **destroying** rather than forging — deleting the checkpoint made truncation return `ok`, a whole-history rewrite in the pre-key format verified clean, and corrupting `ledger.key` silently yielded a zero-length HMAC key — and closed all three (§4.x.20). Residual, unchanged: an attacker deleting _both_ the key and the checkpoint leaves nothing on the host to contradict a rewritten chain, which needs an off-host anchor (deployment, not code)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| 7   | Real-time control: suspend/terminate within 1 second             | **Met**           | `kill-switch.ts` + `agent-terminator.ts` + `src/gateway/governance-agent-termination.ts`. Measures **confirmed termination**, not dispatch: the run-activity probe waits for signalled runs to leave the Gateway registry, and reports `dispatchMs`, `elapsedMs` and `stoppedConfirmed` separately (§3.5.10, §4.x.17). Caveat retained: from the CLI no in-flight abort is possible, and that is reported rather than implied. **Three failure modes found and fixed in the thirteenth pass (§4.x.20)**, each of which used to return `200 OK` while stopping nothing: a mistyped agent id (the dashboard now offers known ids and warns when the typed one matches none), a hand-written `agentMode: "off"` (dropped on load), and a call carrying neither `agentId` nor `sessionKey` (refused whenever any agent is locked, recorded under `kill-switch-unattributable`). **Blast radius completed 2026-08-25 (T6, §3.5.38):** a lockdown now reaches a cross-agent child already running, by walking the `spawnedBy` chain the host records on the session entry — finding 96 closed without any upstream change. **A fourth failure mode of the same class was found on 2026-09-01 and is the worst of the four (finding 202, §3.5.68):** the agent id was taken raw from the request body, so a stop engaged on `Scout` for an agent called `scout` wrote a lockdown the gate did not recognise, matched no runs, and reported `stoppedConfirmed: true` — because zero aborted runs reads as "nothing was in flight". Folded now at every boundary, on read as well as write. **And two throws could escape after the lockdown had landed (195)**, reporting a stop that had _worked_ as a failure; both are guarded, with the ledger write best-effort here alone and its failure carried back rather than swallowed |
-| 8   | No plaintext secrets in logs                                     | **Met**           | Recorded text is redacted at the ledger boundary by OpenClaw's own `redactToolPayloadText`, so a future caller cannot reintroduce the hole by forgetting. **Restated for attachments (T14, §3.5.28):** redaction is a text operation and an image is not text, so attachment _content_ is never recorded at all — the ledger holds SHA-256, sniffed MIME type, size and the declared name, and the bytes live in a store the governed agent cannot read (inherited from the self-protecting core denial, asserted by test). The claim is therefore "recorded text is redacted; attachment content is never recorded", not "everything is scanned"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| 9   | Deployable on Linux, open-source components only                 | **Partially met** | Open-source ✔ (zero new dependencies, `git diff package.json` empty); Linux **tested, not deployed** — the full suite (213 tests at the time) runs natively on Ubuntu 24.04 under WSL2, plus a dedicated platform harness (`scripts/governance-linux-check.mjs`), but **the application itself has never been built or started on Linux** — the Linux evidence is unit tests plus `governance-linux-check.mjs`, which states in its own header that it runs "without needing a full monorepo install". `scripts/linux-setup.sh` hardcodes a `/mnt/c/...` WSL mount, installs with `--ignore-scripts` and never runs `pnpm build`, so `dist/` — which `openclaw.mjs` refuses to start without — has never existed on Linux. Nothing has run on a VPS and the launcher is PowerShell-only. See §4.x.9, **T33** (the prerequisite added 2026-08-28) and T3. **Two lint errors sat in the install path itself until 2026-09-02** (finding 221): `scripts/register-ts-resolver.mjs` began with a **UTF-8 BOM**, and `scripts/governance-linux-check.mjs` — the probe the installer runs, and whose failure aborts the install — carried an unused import and a `return` inside a Promise executor. None was reachable by the documented lint command, which does not target `scripts/`. All four are fixed and both files are syntax-clean, which matters here more than anywhere else in this table: **this is the row about to be tested on real hardware**. **This row said "Met" until 2026-08-28 and contradicted §4.x.5b in this same file**, which has always read "Partially met — the one requirement not fully demonstrated"; §3.4 below says the same. The status column is the one the report quotes, so the optimistic reading was in the place most likely to be believed                                         |
+| #   | Requirement (abbreviated)                                        | Status            | Where implemented                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| --- | ---------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Node.js ≥ 18, TypeScript, static type checking                   | **Met**           | Node v22.22.3; `tsconfig.json` `strict: true` + `noUncheckedIndexedAccess`; `pnpm tsgo:core` / `pnpm tsgo:ui` clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 2   | Secure web dashboard: configure policies, monitor sessions, RBAC | **Met**           | `ui/src/pages/governance/`, policy config ✔, RBAC ✔, live session monitoring ✔ (`active-sessions.ts`), per-agent posture ✔, prompting an assigned agent ✔ (§3.5.11), and Root's deployment/network oversight ✔ (§3.5.14), the last unimplemented clause of the §1.6 role definitions. The per-agent monitor toggle was **not** reachable from any surface until the eleventh QA pass; a policy tier settable only from code does not satisfy "configure policies". See §4.x.18. **Root can also delete the whole organisation from here (T44, §3.5.67)**, which is the account surface completing itself: every other account act was already on the page, and the one that removes Root's own was refused with a message pointing nowhere. **Two dashboard controls were found not to work at all in the same week (findings 197, 200)**, demoting an Administrator returned a 500 every time, and an agent assignment typed in a different case was saved and never consulted, which is worth this row carrying, because "the dashboard can do X" is a claim about a control an operator can actually complete                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 3   | Default-deny over file paths, process execution, network         | **Met**           | The _decision_ was always correct; the _coverage_ was one seventh of the host until the thirteenth pass measured it and the fixes closed it. `src/governance/policy-engine.ts` + `resource-extraction.ts`; path confinement enforced by canonicalisation (`path-normalize.ts`, §3.5.8) rather than pattern filtering. Validated §4.x.13. Hostnames canonicalised on the same principle, and coverage extended to `grep`/`find`/`ls` and the `terminal` tool's input channel. See §4.x.18. **The thirteenth pass counted the surface against the host's own `tool-catalog.ts`, 7 of its 52 tools were governed, and closed it: 18 are now governed and the other 34 carry a written reason in `DELIBERATELY_UNGOVERNED` (§4.x.20).** Every control surface that reaches the OS is default-denied: `process` (the second command channel into a running shell), `computer`/`screen`/`browser`/`mobile_ui` (desktop and device control), `nodes`, `gateway`, `automations`, `sessions_spawn`, `subagents`, `code_execution`. Residual: search tools are governed at their root only                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 4   | Fine-grained privileges: path, command, network, time-limited    | **Met**           | `policy-types.ts` (`PolicyRule.expiresAt`), `policy-engine.ts`; one path rule now binds every path-taking tool identically (§4.x.13, row 4)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 5   | Record 100% of agent actions, policy decisions, approvals        | **Met**           | Prompts are now recorded too, with the account that sent them (§3.5.11). The trail can finally say _who set the agent going_, not only what it did and who wrote its rules. Agent actions ✔ and policy decisions ✔ (`audit-ledger.ts` + `policy-engine.ts`; every invocation recorded, `ungoverned` included, §4.x.10). Administrative approvals ✔ (`admin-audit.ts`, §3.5.9). Policy, account, and approval changes carry a required `actor`, in the same hash chain. ~~Caveat to state: CLI-origin changes are attributed to `cli`, not a person (§3.5.9).~~ **False since T5 on 2026-08-24. Finding 163, found by T36 on 2026-08-31.** Command-line changes resolve the signed-in account through `verifySession` and are recorded by name and tier. `cli` survives only where no account _can_ sign in: the pre-groups repair command and the first-account bootstrap. **Also added since this row was written:** searches reaching a denied path are recorded (T7 audit half), and results withheld from the model are recorded distinctly from reaches (T7 prevention), so the trail now separates _what leaked_ from _what was stopped_.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 6   | Tamper-evident audit logging                                     | **Met**           | `audit-ledger.ts` HMAC-SHA256 hash chain, keyed per installation, with an independent checkpoint file (§4.x.2). Evident against an attacker who wants to **alter** the record. The thirteenth pass demonstrated three routes that needed no key and defeated detection by **destroying** rather than forging, deleting the checkpoint made truncation return `ok`, a whole-history rewrite in the pre-key format verified clean, and corrupting `ledger.key` silently yielded a zero-length HMAC key, and closed all three (§4.x.20). Residual, unchanged: an attacker deleting _both_ the key and the checkpoint leaves nothing on the host to contradict a rewritten chain, which needs an off-host anchor (deployment, not code)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 7   | Real-time control: suspend/terminate within 1 second             | **Met**           | `kill-switch.ts` + `agent-terminator.ts` + `src/gateway/governance-agent-termination.ts`. Measures **confirmed termination**, not dispatch: the run-activity probe waits for signalled runs to leave the Gateway registry, and reports `dispatchMs`, `elapsedMs` and `stoppedConfirmed` separately (§3.5.10, §4.x.17). Caveat retained: from the CLI no in-flight abort is possible, and that is reported rather than implied. **Three failure modes found and fixed in the thirteenth pass (§4.x.20)**, each of which used to return `200 OK` while stopping nothing: a mistyped agent id (the dashboard now offers known ids and warns when the typed one matches none), a hand-written `agentMode: "off"` (dropped on load), and a call carrying neither `agentId` nor `sessionKey` (refused whenever any agent is locked, recorded under `kill-switch-unattributable`). **Blast radius completed 2026-08-25 (T6, §3.5.38):** a lockdown now reaches a cross-agent child already running, by walking the `spawnedBy` chain the host records on the session entry. Finding 96 closed without any upstream change. **A fourth failure mode of the same class was found on 2026-09-01 and is the worst of the four (finding 202, §3.5.68):** the agent id was taken raw from the request body, so a stop engaged on `Scout` for an agent called `scout` wrote a lockdown the gate did not recognise, matched no runs, and reported `stoppedConfirmed: true`, because zero aborted runs reads as "nothing was in flight". Folded now at every boundary, on read as well as write. **And two throws could escape after the lockdown had landed (195)**, reporting a stop that had _worked_ as a failure; both are guarded, with the ledger write best-effort here alone and its failure carried back rather than swallowed |
+| 8   | No plaintext secrets in logs                                     | **Met**           | Recorded text is redacted at the ledger boundary by OpenClaw's own `redactToolPayloadText`, so a future caller cannot reintroduce the hole by forgetting. **Restated for attachments (T14, §3.5.28):** redaction is a text operation and an image is not text, so attachment _content_ is never recorded at all. The ledger holds SHA-256, sniffed MIME type, size and the declared name, and the bytes live in a store the governed agent cannot read (inherited from the self-protecting core denial, asserted by test). The claim is therefore "recorded text is redacted; attachment content is never recorded", not "everything is scanned"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 9   | Deployable on Linux, open-source components only                 | **Partially met** | Open-source ✔ (zero new dependencies, `git diff package.json` empty); Linux **tested, not deployed**, the full suite (213 tests at the time) runs natively on Ubuntu 24.04 under WSL2, plus a dedicated platform harness (`scripts/governance-linux-check.mjs`), but **the application itself has never been built or started on Linux**, the Linux evidence is unit tests plus `governance-linux-check.mjs`, which states in its own header that it runs "without needing a full monorepo install". `scripts/linux-setup.sh` hardcodes a `/mnt/c/...` WSL mount, installs with `--ignore-scripts` and never runs `pnpm build`, so `dist/`, which `openclaw.mjs` refuses to start without, has never existed on Linux. Nothing has run on a VPS and the launcher is PowerShell-only. See §4.x.9, **T33** (the prerequisite added 2026-08-28) and T3. **Two lint errors sat in the install path itself until 2026-09-02** (finding 221): `scripts/register-ts-resolver.mjs` began with a **UTF-8 BOM**, and `scripts/governance-linux-check.mjs`, the probe the installer runs, and whose failure aborts the install, carried an unused import and a `return` inside a Promise executor. None was reachable by the documented lint command, which does not target `scripts/`. All four are fixed and both files are syntax-clean, which matters here more than anywhere else in this table: **this is the row about to be tested on real hardware**. **This row said "Met" until 2026-08-28 and contradicted §4.x.5b in this same file**, which has always read "Partially met. The one requirement not fully demonstrated"; §3.4 below says the same. The status column is the one the report quotes, so the optimistic reading was in the place most likely to be believed                                              |
 
 ---
 
 ---
 
-### The nine requirements, re-verified before the VPS trip — 2026-09-02
+### The nine requirements, re-verified before the VPS trip: 2026-09-02
 
 Kinan is about to install this on a real Linux VPS, configure it, and drive Kimi
-through it. So each of §1.3's nine requirements was checked again — **by running
+through it. So each of §1.3's nine requirements was checked again, **by running
 something, not by re-reading the table**. Where a claim could only be argued
 rather than executed, that is said.
 
@@ -55,21 +55,21 @@ rather than executed, that is said.
 evidence: **20 checks, all passing**, walking the sequence a demonstration walks
 against real modules and a real governance directory.
 
-| #   | Requirement                                          | Re-verified how                                                                                                                                                                                                                                                                                                                                                                       | Verdict                                       |
-| --- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| 1   | Node ≥ 18, TypeScript, static type checking          | `node --version` → v22.22.3; `tsconfig.json` carries `strict: true` and `noUncheckedIndexedAccess`; `tsgo:core`, `tsgo:ui` and `tsgo:core:test` all clean                                                                                                                                                                                                                             | **Met**                                       |
-| 2   | Secure dashboard: policies, session monitoring, RBAC | Rehearsal §1: bootstrap creates Root and its group, a second Root is refused, and the four tiers answer the _two_ scope questions independently — including the folded agent id (finding 213). `governance-privilege-matrix.test.ts` covers the route surface                                                                                                                         | **Met**                                       |
-| 3   | Default-deny over paths, execution, network          | Rehearsal §3, driving the real gate: an unlisted command is never simply allowed, a core credential denial blocks **outright** rather than escalating, and an operator rule permits exactly what it names. `qa-round11.test.ts` is the trip-wire that keeps every host tool either governed or listed in `DELIBERATELY_UNGOVERNED` with a reason                                      | **Met**                                       |
-| 4   | Fine-grained privileges, incl. time-limited          | Rule written and enforced live in the rehearsal; `expiresAt` and the tier/effect/access model in `policy-types.ts`, covered by `policy-engine.test.ts`                                                                                                                                                                                                                                | **Met**                                       |
-| 5   | Record 100% of actions, decisions, approvals         | Rehearsal §5: every refusal above appears in the ledger, and **every administrative entry names an actor** — asserted over the whole tail rather than a sample                                                                                                                                                                                                                        | **Met**                                       |
-| 6   | Tamper-evident audit logging                         | Rehearsal §5 **demonstrates** it rather than asserting it: an entry in the middle of the chain is rewritten, verification fails, the file is restored, verification passes                                                                                                                                                                                                            | **Met**                                       |
-| 7   | Real-time control: suspend/terminate                 | Rehearsal §4: a locked agent is refused even for a command a rule allows, the lockdown is stored canonically, **a stop engaged on `SCOUT` locks `scout`** (finding 202 pinned in the rehearsal, because it is the failure an operator would never notice), and release restores the allowance                                                                                         | **Met**                                       |
-| 8   | No plaintext secrets in logs                         | Rehearsal §5: a command carrying `Authorization: Bearer sk-live-…` is driven through the gate and the ledger file is then searched for the token verbatim. It is not there                                                                                                                                                                                                            | **Met**                                       |
-| 9   | Deployable on Linux, open-source only                | Open-source ✔ — `git diff HEAD -- package.json pnpm-lock.yaml` is **empty**, so still zero new dependencies. Linux: `scripts/vps-install.sh` and `governance-linux-check.mjs` are present and syntax-clean, and **the four lint errors that sat in those two install-path scripts are fixed** (finding 221) — one of them a BOM that would have been read as part of the first import | **Still "partially met" until the VPS boots** |
+| #   | Requirement                                          | Re-verified how                                                                                                                                                                                                                                                                                                                                                                     | Verdict                                       |
+| --- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| 1   | Node ≥ 18, TypeScript, static type checking          | `node --version` → v22.22.3; `tsconfig.json` carries `strict: true` and `noUncheckedIndexedAccess`; `tsgo:core`, `tsgo:ui` and `tsgo:core:test` all clean                                                                                                                                                                                                                           | **Met**                                       |
+| 2   | Secure dashboard: policies, session monitoring, RBAC | Rehearsal §1: bootstrap creates Root and its group, a second Root is refused, and the four tiers answer the _two_ scope questions independently, including the folded agent id (finding 213). `governance-privilege-matrix.test.ts` covers the route surface                                                                                                                        | **Met**                                       |
+| 3   | Default-deny over paths, execution, network          | Rehearsal §3, driving the real gate: an unlisted command is never simply allowed, a core credential denial blocks **outright** rather than escalating, and an operator rule permits exactly what it names. `qa-round11.test.ts` is the trip-wire that keeps every host tool either governed or listed in `DELIBERATELY_UNGOVERNED` with a reason                                    | **Met**                                       |
+| 4   | Fine-grained privileges, incl. time-limited          | Rule written and enforced live in the rehearsal; `expiresAt` and the tier/effect/access model in `policy-types.ts`, covered by `policy-engine.test.ts`                                                                                                                                                                                                                              | **Met**                                       |
+| 5   | Record 100% of actions, decisions, approvals         | Rehearsal §5: every refusal above appears in the ledger, and **every administrative entry names an actor**. Asserted over the whole tail rather than a sample                                                                                                                                                                                                                       | **Met**                                       |
+| 6   | Tamper-evident audit logging                         | Rehearsal §5 **demonstrates** it rather than asserting it: an entry in the middle of the chain is rewritten, verification fails, the file is restored, verification passes                                                                                                                                                                                                          | **Met**                                       |
+| 7   | Real-time control: suspend/terminate                 | Rehearsal §4: a locked agent is refused even for a command a rule allows, the lockdown is stored canonically, **a stop engaged on `SCOUT` locks `scout`** (finding 202 pinned in the rehearsal, because it is the failure an operator would never notice), and release restores the allowance                                                                                       | **Met**                                       |
+| 8   | No plaintext secrets in logs                         | Rehearsal §5: a command carrying `Authorization: Bearer sk-live-…` is driven through the gate and the ledger file is then searched for the token verbatim. It is not there                                                                                                                                                                                                          | **Met**                                       |
+| 9   | Deployable on Linux, open-source only                | Open-source ✔, `git diff HEAD -- package.json pnpm-lock.yaml` is **empty**, so still zero new dependencies. Linux: `scripts/vps-install.sh` and `governance-linux-check.mjs` are present and syntax-clean, and **the four lint errors that sat in those two install-path scripts are fixed** (finding 221), one of them a BOM that would have been read as part of the first import | **Still "partially met" until the VPS boots** |
 
 **Requirement 9 is the honest one, and it is about to change.** Everything else
 on this list has been executed. Number 9 says "deployable on Linux", and the
-evidence is still unit tests plus a platform probe — the application has never
+evidence is still unit tests plus a platform probe. The application has never
 been built or started on a Linux host. That is precisely what this trip does,
 and the moment it succeeds the row can move to **Met** with a real citation.
 
@@ -77,12 +77,12 @@ and the moment it succeeds the row can move to **Met** with a real citation.
 different row:
 
 1. `./scripts/vps-install.sh` completing, including its `governance-linux-check`
-   run — requirement 9.
-2. `openclaw governance deployment` — the deployment posture, over plain SSH
+   run. Requirement 9.
+2. `openclaw governance deployment`. The deployment posture, over plain SSH
    before any tunnel.
-3. `pnpm exec tsx scripts/governance-demo-rehearsal.mjs` — 20/20 on Linux.
+3. `pnpm exec tsx scripts/governance-demo-rehearsal.mjs`, 20/20 on Linux.
 4. A real Kimi prompt that attempts a command the policy refuses, and the
-   `openclaw governance audit tail` entry recording it — requirements 3, 5 and 7
+   `openclaw governance audit tail` entry recording it. Requirements 3, 5 and 7
    together, with a live model behind them for the first time.
 
 That last one is the only thing in this project that has never been done.
@@ -91,19 +91,19 @@ That last one is the only thing in this project that has never been done.
 
 Notes on what each requirement actually demanded once implemented. The two
 honest narrowings below should be stated explicitly in the report rather than
-glossed — an examiner reading requirement #5's "100%" will ask.
+glossed. An examiner reading requirement #5's "100%" will ask.
 
-**Requirement 3 (default-deny) — where the gate must sit.** A default-deny gate
+**Requirement 3 (default-deny). Where the gate must sit.** A default-deny gate
 is only meaningful if nothing can route around it. OpenClaw funnels every tool
 call through one function, `runBeforeToolCallHook`
 (`src/agents/agent-tools.before-tool-call.policy.ts`), so that is where the gate
 was inserted. Critically it had to go _before_ an existing early-return that
-skips policy work when no plugins are registered — placing it after would have
+skips policy work when no plugins are registered. Placing it after would have
 silently disabled governance on a default installation. This is a good concrete
 example for the report of a control that is correct in isolation but useless in
 the wrong position.
 
-**Requirement 5 ("100% of agent actions") — originally narrowed, later met in full.**
+**Requirement 5 ("100% of agent actions"). Originally narrowed, later met in full.**
 The first implementation logged 100% of _governed_ actions only: shell commands,
 file reads/writes/patches, and network fetches. Tools the extractor did not
 recognise passed the gate silently. The reasoning was that an audit trail's
@@ -114,16 +114,16 @@ That reasoning was wrong on the point that mattered. The unlogged actions are
 exactly the ones that reveal what the policy fails to cover, so omitting them
 removed the record's most diagnostic content. Every invocation is now recorded;
 those the layer could not evaluate carry the distinct decision `ungoverned`
-rather than being folded into `allow`. Full treatment in §4.x.10 below —
+rather than being folded into `allow`. Full treatment in §4.x.10 below,
 including the two costs the change exposed (write complexity and file growth)
 and the vulnerability it introduced before it was capped.
 
-**Requirement 7 ("within one second") — now met; this text records how.** Locking an agent blocks all
+**Requirement 7 ("within one second"). Now met; this text records how.** Locking an agent blocks all
 _subsequent_ governed actions immediately (the check precedes rule matching, so
 it is O(1) on the lockdown list). It does **not** abort a command already
-executing. OpenClaw has that capability internally — the `chat.abort` gateway
+executing. OpenClaw has that capability internally, the `chat.abort` gateway
 method → `AbortController` → OS process-tree termination
-(`src/gateway/chat-abort.ts`, `src/process/exec-termination.ts`) — but it is a
+(`src/gateway/chat-abort.ts`, `src/process/exec-termination.ts`), but it is a
 Gateway-client capability that the governance layer cannot import directly
 without inverting the dependency order.
 
@@ -131,7 +131,7 @@ Resolved with a registration seam: the Gateway installs its abort
 implementation at startup (`installGovernanceAgentTerminator`, called from
 `server-runtime-state.ts` where the live run registry is created), and
 governance invokes it through `agent-terminator.ts`. The kill switch now
-(1) locks the agent, then (2) aborts its in-flight runs, in that order —
+(1) locks the agent, then (2) aborts its in-flight runs, in that order,
 locking second would leave a window in which the agent could legally start a
 fresh action. Elapsed time is measured with `process.hrtime.bigint()` and
 returned to both the CLI and the dashboard, so the one-second figure is
@@ -141,7 +141,7 @@ Honest caveat to keep: when invoked from the **CLI**, no in-flight termination
 occurs, because the run registry lives in the Gateway process. The CLI says so
 explicitly rather than implying the agent was stopped.
 
-**Requirement 8 (no plaintext secrets) — met by reuse, not reimplementation.**
+**Requirement 8 (no plaintext secrets). Met by reuse, not reimplementation.**
 OpenClaw already has a mature redaction engine (`src/logging/redact.ts`, ~1100
 lines, ~40 vendor token patterns, structured-field and URL/PEM handling). The
 governance ledger calls `redactToolPayloadText` on every resource string before
@@ -161,7 +161,7 @@ hashing choice (§3.4) was influenced by this constraint.
 
 **Manufacturability / 8 GB VPS.** The layer adds negligible resident memory: two
 small JSON files and an append-only text log, no database process, no daemon of
-its own — it executes inside the existing Gateway process. The one bounded
+its own. It executes inside the existing Gateway process. The one bounded
 in-memory structure is the login throttle map, capped at 1000 entries.
 
 **Ethical / defensive-only scope.** The layer can only _restrict_ what the agent
@@ -171,7 +171,7 @@ does; it exposes no capability to extend agent reach. Worth stating explicitly.
 the governance page is written in one. This is a _scope decision_, not an
 unfinished feature, and it is worth a sentence in the report because the
 alternative is worse than it looks. Translation fallback in this codebase is per
-key, so nothing breaks — an Arabic-locale operator gets an Arabic application
+key, so nothing breaks. An Arabic-locale operator gets an Arabic application
 shell around an English governance page, with no right-to-left handling. Filling
 the other twenty-one would mean shipping strings nobody on the team can verify
 into a **security console**, where a mistranslated `deny` is a control an
@@ -179,18 +179,18 @@ operator misreads at the moment it matters most. A governance surface whose
 wording cannot be checked by the people responsible for it is a liability
 disguised as accessibility. The deployment context is Amman, so the honest
 version of this constraint is that Arabic _would_ be the one worth doing, by
-hand, with a native reviewer — and that no such review was available for this
+hand, with a native reviewer, and that no such review was available for this
 project. (Tracked as Q-93, settled 2026-08-21.)
 
 **Known constraint gap: Linux.** Development is on Windows 11, and **testing is
-no longer only there** — the governance suite runs natively on Ubuntu 24.04 under
+no longer only there**. The governance suite runs natively on Ubuntu 24.04 under
 WSL2 and `scripts/governance-linux-check.mjs` exists as a platform harness
 (§4.x.9). _(This paragraph read "All development and testing has been on Windows
 11" until 2026-08-28, which stopped being true when the Linux runs were done and
-was never updated — the same drift §3.1 row 9 carried in the other direction.)_
+was never updated. The same drift §3.1 row 9 carried in the other direction.)_
 What is still missing is **deployment**: nothing has run on a VPS and the
 launcher is PowerShell-only. The paper specifies a Linux VPS. This matters more
-than it might appear —
+than it might appear,
 one defect found during QA (defect 6, path separators) was a direct
 Windows-vs-Linux behaviour difference, and the upstream OpenClaw bug found
 (`UPSTREAM-BUG-REPORT.md`) is _also_ a POSIX-vs-Windows filesystem-semantics
@@ -213,11 +213,11 @@ investigation behind it.
 >
 > - **§1.3 design requirements and §1.4 constraints** are what the project is
 >   _held to_. These are not negotiable. Chapter 4 validates each one
->   individually (§4.x.5 and §4.x.5b), and where one is not fully met — #9,
->   Linux deployment — it is stated in those words rather than rounded up.
+>   individually (§4.x.5 and §4.x.5b), and where one is not fully met, #9,
+>   Linux deployment, it is stated in those words rather than rounded up.
 > - **§1.6 is a _preliminary_ design.** It sketches an architecture before the
 >   host system had been read closely. The implemented design is allowed to
->   differ from it, and in several places it does — deliberately, with the
+>   differ from it, and in several places it does. Deliberately, with the
 >   reasoning recorded.
 >
 > This is not a licence to quietly drop things. Every divergence below is a
@@ -228,27 +228,27 @@ investigation behind it.
 >
 > The divergences worth naming explicitly in the report:
 >
-> | §1.6 says                                                                              | Implemented as                                                                                                           | Why                                                                                                                                                            |
-> | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-> | The User tier "may strictly prompt the agents" or hold "limited, scoped permissions"   | A User genuinely manages their assigned agents — writes their rules, reads their unmasked logs, stops them, prompts them | The narrower reading left a tier with almost nothing to do. Expanded deliberately; see `ROLE-MODEL.md` §3.7                                                    |
-> | Root "oversee[s] the deployment and network configurations"                            | A **read-only** report with a verdict per check (§3.5.14)                                                                | An editing surface can remove your own access to the control plane during the incident you need it for. Oversight implemented as seeing and judging            |
-> | "Once an Administrator responds to the prompt, the response optionally becomes policy" | An escalation grants the action; it cannot author policy (QA round 13, finding 83)                                       | The approval machinery reports a decision without an identity. Making a grant permanent is policy authorship and belongs on a surface that knows who is asking |
-> | A default-deny model, with no starting policy described                                | Ships a three-tier starting policy: immutable core denials, baseline allowances, operator rules                          | `enforce` with an empty allowlist refuses everything, and an unusable control gets switched off wholesale. See `BASELINE-RULES.md`                             |
+> | §1.6 says                                                                              | Implemented as                                                                                                          | Why                                                                                                                                                            |
+> | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+> | The User tier "may strictly prompt the agents" or hold "limited, scoped permissions"   | A User genuinely manages their assigned agents. Writes their rules, reads their unmasked logs, stops them, prompts them | The narrower reading left a tier with almost nothing to do. Expanded deliberately; see `ROLE-MODEL.md` §3.7                                                    |
+> | Root "oversee[s] the deployment and network configurations"                            | A **read-only** report with a verdict per check (§3.5.14)                                                               | An editing surface can remove your own access to the control plane during the incident you need it for. Oversight implemented as seeing and judging            |
+> | "Once an Administrator responds to the prompt, the response optionally becomes policy" | An escalation grants the action; it cannot author policy (QA round 13, finding 83)                                      | The approval machinery reports a decision without an identity. Making a grant permanent is policy authorship and belongs on a surface that knows who is asking |
+> | A default-deny model, with no starting policy described                                | Ships a three-tier starting policy: immutable core denials, baseline allowances, operator rules                         | `enforce` with an empty allowlist refuses everything, and an unusable control gets switched off wholesale. See `BASELINE-RULES.md`                             |
 >
 > Presenting these as _decisions_ rather than as omissions is the honest framing,
 > and it is also the stronger one: each shows the design being tested against a
 > real system and adjusted, which is what Chapter 3 is supposed to demonstrate.
 
-| Decision             | Alternatives considered                                                                                 | Chosen                         | Deciding reason                                                                                                                                                                                                                                                                                                                |
-| -------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Integration strategy | (a) OpenClaw plugin via public SDK; (b) hard fork of core                                               | **Hard fork**                  | The plugin API can only contribute a dashboard page inside a _sandboxed iframe_ — `ui/src/pages/plugin/plugin-page.ts` hardcodes which tabs render natively (`BUNDLED_TAB_VIEWS`). Seamless integration is impossible as a plugin. A plugin version was actually built first, then migrated into core when this was confirmed. |
-| Audit storage        | (a) extend OpenClaw's existing `audit_events` SQLite store; (b) own append-only hash-chained file       | **Own ledger**                 | Core's store has no entry-to-entry chaining and its schema/writer are internal, not a stable contract. Also serves a different purpose (general telemetry). Verified by reading `src/audit/audit-event-store.ts`: pseudonymization exists, chaining does not — this absence is the project's clearest original contribution.   |
-| Password hashing     | (a) `bcrypt`; (b) `argon2`; (c) Node built-in `scrypt`                                                  | **scrypt**                     | Both alternatives are native npm addons requiring compilation. `scrypt` is memory-hard, in the standard library, and adds no dependency — satisfying the economic and open-source-only constraints simultaneously.                                                                                                             |
-| Account storage      | (a) OpenClaw's state SQLite DB; (b) JSON file                                                           | **JSON file**                  | Single-operator deployment; account volume is tiny; a JSON file is human-auditable, which suits a governance artifact. Migration to SQLite is documented as an option, not a correctness requirement.                                                                                                                          |
-| Concurrency control  | (a) in-process promise queue (mutex); (b) OS-level lock file                                            | **Lock file** (`file-lock.ts`) | Started with (a) and it **failed in testing**: the CLI and the Gateway are separate OS processes, so a per-process mutex does not serialize them and the hash chain corrupted itself. See QA defect 1 — good narrative material.                                                                                               |
-| Gate placement       | before vs. after the "no plugins registered" early-return                                               | **Before**                     | After would disable governance entirely on a plugin-free install.                                                                                                                                                                                                                                                              |
-| Viewer log access    | (a) same view as all tiers; (b) sanitized view                                                          | **Sanitized**                  | Chapter 1 §1.6 grants Viewers "sanitized audit logs" specifically; masking the resource string is what makes Viewer meaningfully distinct from User.                                                                                                                                                                           |
-| Path rule form       | (a) always absolute; (b) always workspace-relative; (c) relative inside the workspace, absolute outside | **(c) hybrid**                 | Expanded below — this one needs a paragraph, not a table cell.                                                                                                                                                                                                                                                                 |
+| Decision             | Alternatives considered                                                                                 | Chosen                         | Deciding reason                                                                                                                                                                                                                                                                                                               |
+| -------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Integration strategy | (a) OpenClaw plugin via public SDK; (b) hard fork of core                                               | **Hard fork**                  | The plugin API can only contribute a dashboard page inside a _sandboxed iframe_, `ui/src/pages/plugin/plugin-page.ts` hardcodes which tabs render natively (`BUNDLED_TAB_VIEWS`). Seamless integration is impossible as a plugin. A plugin version was actually built first, then migrated into core when this was confirmed. |
+| Audit storage        | (a) extend OpenClaw's existing `audit_events` SQLite store; (b) own append-only hash-chained file       | **Own ledger**                 | Core's store has no entry-to-entry chaining and its schema/writer are internal, not a stable contract. Also serves a different purpose (general telemetry). Verified by reading `src/audit/audit-event-store.ts`: pseudonymization exists, chaining does not. This absence is the project's clearest original contribution.   |
+| Password hashing     | (a) `bcrypt`; (b) `argon2`; (c) Node built-in `scrypt`                                                  | **scrypt**                     | Both alternatives are native npm addons requiring compilation. `scrypt` is memory-hard, in the standard library, and adds no dependency. Satisfying the economic and open-source-only constraints simultaneously.                                                                                                             |
+| Account storage      | (a) OpenClaw's state SQLite DB; (b) JSON file                                                           | **JSON file**                  | Single-operator deployment; account volume is tiny; a JSON file is human-auditable, which suits a governance artifact. Migration to SQLite is documented as an option, not a correctness requirement.                                                                                                                         |
+| Concurrency control  | (a) in-process promise queue (mutex); (b) OS-level lock file                                            | **Lock file** (`file-lock.ts`) | Started with (a) and it **failed in testing**: the CLI and the Gateway are separate OS processes, so a per-process mutex does not serialize them and the hash chain corrupted itself. See QA defect 1. Good narrative material.                                                                                               |
+| Gate placement       | before vs. after the "no plugins registered" early-return                                               | **Before**                     | After would disable governance entirely on a plugin-free install.                                                                                                                                                                                                                                                             |
+| Viewer log access    | (a) same view as all tiers; (b) sanitized view                                                          | **Sanitized**                  | Chapter 1 §1.6 grants Viewers "sanitized audit logs" specifically; masking the resource string is what makes Viewer meaningfully distinct from User.                                                                                                                                                                          |
+| Path rule form       | (a) always absolute; (b) always workspace-relative; (c) relative inside the workspace, absolute outside | **(c) hybrid**                 | Expanded below. This one needs a paragraph, not a table cell.                                                                                                                                                                                                                                                                 |
 
 #### 3.4.x Which form a file path takes when a rule is matched against it
 
@@ -259,21 +259,21 @@ A rule is a regular expression tested against a string. So the security question
 "can this rule be walked around?" is really the question "what string does the
 gate build from the path the agent supplied?" Three answers were considered.
 
-**(a) Always absolute** — every path becomes `/home/kinan/openclaw/src/app.ts`.
+**(a) Always absolute**. Every path becomes `/home/kinan/openclaw/src/app.ts`.
 Unambiguous, and traversal-proof once `..` is collapsed. Rejected because it
 makes every rule machine-specific: a rule written on the development laptop
 cannot work on the Linux VPS that design requirement #9 commits the project to,
 since the two have different absolute prefixes. It also invalidates every
 example in the operator documentation.
 
-**(b) Always workspace-relative** — every path becomes `src/app.ts`. Portable,
+**(b) Always workspace-relative**. Every path becomes `src/app.ts`. Portable,
 and matches the documentation. Rejected because it has no answer for a path
 outside the workspace: `/etc/passwd` has no workspace-relative form, so it would
 have to be either rejected (breaking legitimate access to files outside the
 project) or expressed with `..` (which is precisely the string the traversal
 defence has to eliminate).
 
-**(c) Relative inside, absolute outside — chosen.** A path within the workspace
+**(c) Relative inside, absolute outside. Chosen.** A path within the workspace
 is recorded as `src/app.ts`; a path outside it as `/etc/passwd` or
 `C:/Users/kinan/.ssh/id_rsa`. This keeps (b)'s portability for project files and
 (a)'s unambiguity for everything else, and it produces the security property
@@ -281,7 +281,7 @@ directly: _leaving the workspace changes the shape of the string._ A rule
 anchored at `^src/` cannot match an escape attempt, not because the attempt is
 detected and rejected, but because the resulting string no longer begins with
 `src/`. The check needs no blocklist of suspicious patterns, which is what makes
-it robust — there is no list of tricks to keep up to date.
+it robust. There is no list of tricks to keep up to date.
 
 The implementation reuses three helpers the host already ships and tests
 (`resolveToCwd`, `realpath`, `formatPathRelativeToCwdOrAbsolute`), so no new
@@ -296,15 +296,15 @@ decides whether one whole class of deployment is governed at all: **when an
 agent runs inside a separate helper process, what makes the host route that
 process's tool calls back through the gate?**
 
-The host's own answer was a predicate — "is any before-tool-call policy
-installed?" — and it counts plugin policies. This project's gate is not a
+The host's own answer was a predicate, "is any before-tool-call policy
+installed?", and it counts plugin policies. This project's gate is not a
 plugin; it was moved into the core precisely so that no configuration could
 remove it (§3.4.1). The two facts together are the defect: the mechanism that
 decides whether to consult the gate could not see the gate. Four designs were
 considered for repairing it.
 
 **(a) Widen the existing predicate to always answer yes.** One line, and it does
-close the hole. Rejected on two counts. It is _wrong as an answer_ — the
+close the hole. Rejected on two counts. It is _wrong as an answer_. The
 predicate is exported to plugins, and a plugin asking whether plugin policies
 exist must not be told yes because something else does. And it is wrong as a
 _change_: the same predicate is what lets the host omit a relay in
@@ -321,21 +321,21 @@ plugin registry is a governance layer removable through the plugin registry, and
 §3.4.1 rejected that for the whole project; re-introducing it here for one
 deployment shape would be the same mistake in one corner.
 
-**(c) A second, independent signal — chosen.** The predicate keeps its meaning
+**(c) A second, independent signal. Chosen.** The predicate keeps its meaning
 and its contract, and the relay layer gains a second reason to relay:
 `governanceRequiresNativeToolRelay()`. The two are combined with `or`, so
 governance can add a reason to consult the gate and can never remove anybody
 else's. This is the smallest change that is also true: the host had one question
-standing in for two — "are there plugin policies?" was being asked in place of
-"is there anything to consult?" — and the fix is to ask the second question
+standing in for two, "are there plugin policies?" was being asked in place of
+"is there anything to consult?", and the fix is to ask the second question
 separately rather than to corrupt the answer to the first.
 
-**(d) Relay only when the current posture would act** — that is, skip the relay
+**(d) Relay only when the current posture would act**. That is, skip the relay
 while governance is switched off, and reinstate it when it is switched on.
 Attractive, and rejected as _unsafe_, which is worth stating carefully because
 it is the subtlest of the four. The relay is configured once, when a harness
-session starts. The posture lives in a file that another process — the CLI, the
-dashboard — may change at any moment. So the decision would be a cached copy of
+session starts. The posture lives in a file that another process, the CLI, the
+dashboard, may change at any moment. So the decision would be a cached copy of
 a value that can change behind it, and the direction of the staleness is the one
 that matters: an operator who turns governance _on_ during a session would not
 be governed until that session ended, and nothing anywhere would say so. The
@@ -349,12 +349,12 @@ un-govern a running agent is not a trade worth making at a security boundary.
 
 ### 3.5.1 System architecture
 
-Figure candidate — _Figure 3.1: Governance layer within the OpenClaw Gateway._
+Figure candidate, _Figure 3.1: Governance layer within the OpenClaw Gateway._
 
 ```mermaid
 flowchart TB
   subgraph Browser["Operator browser (via SSH tunnel)"]
-    UI["Control UI — Settings → Governance"]
+    UI["Control UI, Settings → Governance"]
   end
   subgraph GW["OpenClaw Gateway process"]
     AUTH["Gate 1: Gateway shared-secret / device auth"]
@@ -393,7 +393,7 @@ Figure 1.1 of Chapter 1.
 
 ### 3.5.2 Component inventory
 
-Table candidate — _Table 3.1: Governance layer components._ Line counts are
+Table candidate, _Table 3.1: Governance layer components._ Line counts are
 `wc -l` on the working tree, exclude test files, and are **current as of
 2026-08-24**. Grouped by responsibility rather than alphabetically, because the
 grouping is itself part of the design argument.
@@ -401,9 +401,9 @@ grouping is itself part of the design argument.
 > **Correction, 2026-08-24.** This table previously said it was re-measured in
 > full on 2026-08-22 under T19. It was not. Re-measuring every row on 2026-08-24
 > found **twenty-one of thirty-seven rows already wrong before that week's work
-> began** — `resource-extraction.ts` was recorded at 144 lines against an actual
+> began**, `resource-extraction.ts` was recorded at 144 lines against an actual
 > 545, `register.governance.ts` at 302 against 977, `ledger-view.ts` at 42
-> against 137 — and **eleven modules absent from the table altogether**,
+> against 137, and **eleven modules absent from the table altogether**,
 > totalling 3,177 lines. What T19 actually updated was the totals row; the
 > per-file rows were carried forward unchanged and the summary was written as
 > though they had been checked.
@@ -513,15 +513,15 @@ grouping is itself part of the design argument.
 | `src/gateway/governance-deployment-input.ts`   | The one bridge from Gateway config to the deployment report | 89    |
 | `src/gateway/governance-dashboard-accounts.ts` | Account administration, split out at 700 lines (T16)        | 307   |
 
-|                      |                                                                                                                                                                                                                  |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Production total** | **19,215 lines** — 11,201 across 40 files in `src/governance/`, plus 8,014 across the 11 HTTP, CLI and dashboard surface files tabulated below                                                                   |
-| **Test total**       | **81 test files.** The suite _reports_ **2,311 tests across 107 files** (re-measured 2026-08-27, after QA rounds nineteen to twenty-one), and both numbers are right about different things — see the note below |
+|                      |                                                                                                                                                                                                                 |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Production total** | **19,215 lines**, 11,201 across 40 files in `src/governance/`, plus 8,014 across the 11 HTTP, CLI and dashboard surface files tabulated below                                                                   |
+| **Test total**       | **81 test files.** The suite _reports_ **2,311 tests across 107 files** (re-measured 2026-08-27, after QA rounds nineteen to twenty-one), and both numbers are right about different things, see the note below |
 
 > **The 107 is a count of test-file _runs_, not of files. 2,311 is a count of
 > test _executions_, not of distinct tests.** Thirteen of the governance test
 > files live under `src/gateway/` and the repository runs that directory under
-> three Vitest projects — `gateway-core`, `gateway-server`, `gateway-client` — so
+> three Vitest projects, `gateway-core`, `gateway-server`, `gateway-client`, so
 > each of the thirteen is executed three times. 63 unit + 5 ui + (13 × 3) =
 > **107**, and the distinct totals are **1,467 tests across 81 files**.
 > (This note read 99 / 2,116 / 1,343 / 75 until 2026-08-27; the figures moved
@@ -540,19 +540,19 @@ grouping is itself part of the design argument.
 >
 > **This is the same mistake this project already documented and warned about.**
 > `HANDOFF.md` §4 records that the host harness baseline was once written as "9
-> failures" when the suite prints 18, because it runs under two projects — and
+> failures" when the suite prints 18, because it runs under two projects, and
 > tells the reader to compare like for like. The governance headline had the
 > identical defect for as long as it has been quoted, in the same repository, a
 > few paragraphs from the warning. Chapter 4 should say so: **a lesson recorded
 > in one place is not a lesson applied in the next.**
 
-Plus **13 modified OpenClaw core files** — the tool-call pipeline insertion
+Plus **13 modified OpenClaw core files**. The tool-call pipeline insertion
 (`agent-tools.before-tool-call.policy.ts` and its two type/diagnostic
 companions), route and CLI registration, Gateway runtime wiring, and UI
 routing/navigation/strings.
 
 **Point worth making in prose.** Test code is **92% of production code by
-volume** — 16,372 lines against 17,799 — and that ratio is not incidental. It
+volume**, 16,372 lines against 17,799, and that ratio is not incidental. It
 was 87% when this table was first written and has stayed near ninety since,
 entirely through regression tests lifted out of the probes that produced each
 finding. Sixteen QA rounds have found more than a hundred defects,
@@ -561,30 +561,30 @@ disagreeing (§4.x.11, §4.x.15, §4.x.20, §4.x.25). Disagreements are only vis
 from outside the code that contains them, which is what the test volume is
 buying.
 
-**The other half of the inventory** — what this project did _not_ write, and why
-the repository looks 89% TypeScript with a visible Swift and Kotlin share — is
+**The other half of the inventory**, what this project did _not_ write, and why
+the repository looks 89% TypeScript with a visible Swift and Kotlin share, is
 §3.5.2b. Read the two together before quoting any size figure.
 
 ### 3.5.2b The inherited codebase, and the boundary of this work
 
-**Why this section exists.** Anyone who opens the repository — a supervisor, an
-examiner, a second marker — sees a language bar at the top of the page before
+**Why this section exists.** Anyone who opens the repository, a supervisor, an
+examiner, a second marker, sees a language bar at the top of the page before
 they see a line of code, and it does not say what they might expect. TypeScript
 is 89% of it; the next four entries are Swift, JavaScript, Kotlin and Shell.
 None of that is an accident, and none of it except a fraction of a percent is
 this project's work.
 
-Table candidate — _Table 3.3: Repository composition by language, and its origin._
+Table candidate, _Table 3.3: Repository composition by language, and its origin._
 
-| Language   | Share  | Bytes       | Files | Origin                                                                                                                                               |
-| ---------- | ------ | ----------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| TypeScript | 89.40% | 249,400,627 | —     | Upstream OpenClaw core, plus this project's ~1.16 MB                                                                                                 |
-| Swift      | 5.09%  | 14,190,209  | 1,089 | Upstream — `apps/macos` (503 incl. tests), `apps/shared/OpenClawKit` (285), `apps/ios` (242 incl. tests, watch app, share extension), `apps/swabble` |
-| Kotlin     | 2.09%  | 5,824,506   | 433   | Upstream — `apps/android/app` (392), `apps/android/wear` (31), Wear-shared, benchmark, Gradle build files                                            |
-| JavaScript | 2.00%  | 5,571,753   | 504   | Upstream build and release tooling (mostly `.mjs`), plus this project's 3 scripts                                                                    |
-| Shell      | 0.58%  | 1,619,903   | 216   | Upstream CI and release scripts, plus this project's 3 Linux scripts                                                                                 |
-| CSS        | 0.39%  | 1,100,943   | 59    | Upstream — `ui/src/styles/` (51). **None of it is this project's**                                                                                   |
-| Other      | ~0.44% | ~1,275,000  | —     | Upstream Python (438 KB), Go (345 KB), Rust (340 KB), HTML, Objective-C; plus this project's one PowerShell launcher                                 |
+| Language   | Share  | Bytes       | Files | Origin                                                                                                                                              |
+| ---------- | ------ | ----------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TypeScript | 89.40% | 249,400,627 | -     | Upstream OpenClaw core, plus this project's ~1.16 MB                                                                                                |
+| Swift      | 5.09%  | 14,190,209  | 1,089 | Upstream, `apps/macos` (503 incl. tests), `apps/shared/OpenClawKit` (285), `apps/ios` (242 incl. tests, watch app, share extension), `apps/swabble` |
+| Kotlin     | 2.09%  | 5,824,506   | 433   | Upstream, `apps/android/app` (392), `apps/android/wear` (31), Wear-shared, benchmark, Gradle build files                                            |
+| JavaScript | 2.00%  | 5,571,753   | 504   | Upstream build and release tooling (mostly `.mjs`), plus this project's 3 scripts                                                                   |
+| Shell      | 0.58%  | 1,619,903   | 216   | Upstream CI and release scripts, plus this project's 3 Linux scripts                                                                                |
+| CSS        | 0.39%  | 1,100,943   | 59    | Upstream, `ui/src/styles/` (51). **None of it is this project's**                                                                                   |
+| Other      | ~0.44% | ~1,275,000  | -     | Upstream Python (438 KB), Go (345 KB), Rust (340 KB), HTML, Objective-C; plus this project's one PowerShell launcher                                |
 
 **The plain-language answer.** OpenClaw is not only a TypeScript program. It
 ships native desktop and phone applications alongside its core: a macOS app and
@@ -592,7 +592,7 @@ an iOS app, both written in Swift, with a watch app and a share extension; and a
 Android app written in Kotlin, with a Wear OS companion. Forking OpenClaw meant
 taking all of that with it. The Swift and Kotlin in this repository is the
 inherited furniture of the house, not anything built for this project. The
-governance layer never touches it — it governs the TypeScript agent runtime, and
+governance layer never touches it. It governs the TypeScript agent runtime, and
 the native applications are clients that talk to that runtime over the network.
 
 **Reproducing the figures.** The bar is produced by GitHub Linguist, which counts
@@ -610,12 +610,12 @@ Every figure lands within 0.1 percentage points of what GitHub reports, which is
 close enough to treat the bar as understood rather than mysterious. Two caveats
 if the number is ever quoted precisely: Linguist excludes prose and data formats
 (Markdown, JSON, YAML) from the bar entirely, so the repository's 17 MB of
-Markdown — including every document in `docs-notes/` and `mg/` — is invisible in
+Markdown, including every document in `docs-notes/` and `mg/`, is invisible in
 it; and it honours `linguist-` overrides in `.gitattributes`, which in this
 repository marks `ui/src/i18n/.i18n/*` as generated.
 
 **What of it is this project's own work.** Measured as lines and bytes added on
-branch `governance-layer` against `main` — 144 files, 43,014 insertions, 18
+branch `governance-layer` against `main`, 144 files, 43,014 insertions, 18
 deletions across fifteen commits:
 
 | Language   | Lines added | Bytes added | Share of that language in the repo |
@@ -645,23 +645,23 @@ a local convenience:
 
 | File                                 | Bytes          | Purpose                                                                                                                                                                                                                               |
 | ------------------------------------ | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scripts/governance-linux-check.mjs` | 10,097         | The Linux platform harness — see §4.x.9                                                                                                                                                                                               |
+| `scripts/governance-linux-check.mjs` | 10,097         | The Linux platform harness. See §4.x.9                                                                                                                                                                                                |
 | `scripts/ts-extension-resolver.mjs`  | 1,262          | Node loader hook so `.ts` imports resolve under the harness                                                                                                                                                                           |
 | `scripts/register-ts-resolver.mjs`   | 155            | Registers the above                                                                                                                                                                                                                   |
 | `start-governance.ps1`               | 1,917          | Windows developer launcher                                                                                                                                                                                                            |
 | `scripts/vps-install.sh`             | new 2026-08-28 | **The Linux install (T33).** Clone → `pnpm install` → `pnpm build` → `pnpm ui:build` → platform probe → `openclaw` on PATH. Exists because neither of upstream's install routes can deliver a fork: both fetch upstream's npm package |
-| `scripts/start-governance.sh`        | new 2026-08-28 | The launcher's Linux twin. Prints the `ssh -L` command instead of opening a browser — a VPS has no display and the Gateway binds loopback by design                                                                                   |
+| `scripts/start-governance.sh`        | new 2026-08-28 | The launcher's Linux twin. Prints the `ssh -L` command instead of opening a browser. A VPS has no display and the Gateway binds loopback by design                                                                                    |
 | `deploy/openclaw-governance.service` | new 2026-08-28 | systemd unit. Restart-on-failure is a governance property here, not an operations nicety: the kill switch and the ledger only mean something while the Gateway runs                                                                   |
-| `scripts/wsl-dev-setup.sh`           | 982            | **Renamed from `linux-setup.sh` 2026-08-28.** A WSL2 development helper, never an installer — hardcoded `/mnt/c` mount, `--ignore-scripts`, and it never builds                                                                       |
+| `scripts/wsl-dev-setup.sh`           | 982            | **Renamed from `linux-setup.sh` 2026-08-28.** A WSL2 development helper, never an installer. Hardcoded `/mnt/c` mount, `--ignore-scripts`, and it never builds                                                                        |
 | `scripts/wsl-dev-sync.sh`            | 389            | **Renamed from `linux-sync-test.sh`.** Syncs the working tree into that environment                                                                                                                                                   |
 | `scripts/wsl-dev-test.sh`            | 187            | **Renamed from `linux-run-tests.sh`.** Runs the suite there                                                                                                                                                                           |
 
 **Why the dashboard added no CSS, which is a design point and not an omission.**
 `ui/src/pages/governance/governance-page.ts` is 2,489 lines and contains no
 stylesheet of any kind. It renders through the host's existing shared components
-in `ui/src/components/settings-ui.ts` — the same `renderSettingsPage`,
+in `ui/src/components/settings-ui.ts`, the same `renderSettingsPage`,
 `renderSettingsSection` and `renderSettingsRow` helpers every other page in the
-control UI uses — and therefore inherits the host's stylesheet, theming and
+control UI uses, and therefore inherits the host's stylesheet, theming and
 dark-mode handling for nothing. Writing bespoke CSS would have produced a page
 that looked like a bolted-on addition and drifted visually the first time
 upstream restyled anything. This is the same reasoning as the zero-new-dependency
@@ -672,14 +672,14 @@ constraint in §3.3, applied to presentation rather than to code.
 avoiding it. The project was never to write an agent runtime; it was to place a
 default-deny gate over one that already existed and was already dangerous. A
 small diff against a large host is the expected shape of that work, and the
-alternative shape — a large diff — would have meant rewriting code the project
+alternative shape, a large diff, would have meant rewriting code the project
 had no reason to touch, making the fork harder to rebase and the security
 argument harder to audit. The size figure that actually bears on the claim is
 not the percentage of the repository but the percentage of the **governed
 surface**: 18 of the host's 52 declared tools governed, with each of the
 remaining 34 carrying a written reason in `DELIBERATELY_UNGOVERNED` (§3.5.13,
 §4.x.20). A reviewer who asks "how much of this is yours?" is usually asking
-"how much of it did you have to understand?" — and the answer to that is the
+"how much of it did you have to understand?", and the answer to that is the
 whole tool-call pipeline, which is §3.5.5.
 
 **If a panel asks it directly**, the two-sentence answer is: the Swift and Kotlin
@@ -691,7 +691,7 @@ Nothing in the native applications was written, changed, or claimed.
 
 ### 3.5.3 Data models
 
-_Table candidate — Table 3.2: Policy rule fields._
+_Table candidate, Table 3.2: Policy rule fields._
 
 ```ts
 type PolicyRule = {
@@ -713,7 +713,7 @@ type PolicyDocument = {
 };
 ```
 
-_Table candidate — Table 3.3: Audit ledger entry fields._
+_Table candidate, Table 3.3: Audit ledger entry fields._
 
 ```ts
 type LedgerEntry = {
@@ -731,21 +731,21 @@ type LedgerEntry = {
 };
 ```
 
-Note for the report: `ruleId` is what makes an entry _explainable_ — it answers
+Note for the report: `ruleId` is what makes an entry _explainable_. It answers
 "why was this decided this way", which is exactly the Table 1.1 example from
 Chapter 1.
 
 ### 3.5.4 The four-tier permission model
 
 > **Full treatment in `docs-notes/ROLE-MODEL.md`**, including §3.7 "Evolution
-> of the User tier" — how that tier changed during implementation and why,
+> of the User tier". How that tier changed during implementation and why,
 > which is prime §3.5 narrative material.
 >
-> Original note: — what "manage" means at each
+> Original note: what "manage" means at each
 > tier, which parts come from the paper vs. are design decisions, the two-question
 > (tier + scope) authorization model, and the complete permission matrix.
 
-Figure candidate — _Figure 3.2: RBAC hierarchy with inherited permissions._
+Figure candidate, _Figure 3.2: RBAC hierarchy with inherited permissions._
 
 ```mermaid
 flowchart BT
@@ -756,7 +756,7 @@ flowchart BT
   V --> U --> A --> R
 ```
 
-_Table candidate — Table 3.4: Permission matrix._
+_Table candidate, Table 3.4: Permission matrix._
 
 | Capability                             |     Viewer     |  User  | Administrator | Root |
 | -------------------------------------- | :------------: | :----: | :-----------: | :--: |
@@ -775,7 +775,7 @@ Administrator cannot promote themselves, because account administration is not
 their tier.
 
 **The one deliberate divergence from Chapter 1, stated plainly.** In the
-preliminary design the User tier _uses_ its assigned agent — it prompts and
+preliminary design the User tier _uses_ its assigned agent. It prompts and
 interacts with it, and its governance authority extends little beyond proposing
 changes. In the implemented system a User _governs_ its assigned agent: it
 writes agent-scoped rules, sets that agent's escalation behaviour, reads its
@@ -787,22 +787,22 @@ The argument for it: a tier that can only propose is not a tier of
 responsibility, and it forces every routine decision about one team's agent up
 to an Administrator who has installation-wide authority. Delegating narrow,
 agent-scoped authority is what makes the Administrator tier's global scope
-meaningful — otherwise "governs all agents" and "governs one agent" collapse
+meaningful. Otherwise "governs all agents" and "governs one agent" collapse
 into the same job. The two-question authorization model (tier + scope) exists
 precisely to make that delegation safe: a User's authority stops at the agents
 assigned to them, and global rules remain Administrator-only.
 
-Two honest riders belong with it. First, this places one capability — the
-per-agent human-approval toggle — a tier lower than Chapter 1 assigns it
+Two honest riders belong with it. First, this places one capability, the
+per-agent human-approval toggle, a tier lower than Chapter 1 assigns it
 (tracked as A5). Second, the divergence is a _substitution_, not a superset:
 the User tier gained governance authority but has **not** gained the paper's
 conversational access to its agent, because the account system was never wired
 into OpenClaw's chat path (tracked as A1). Both belong in §4.4's validation
 discussion.
 
-### 3.5.5 Process flow — a policy decision
+### 3.5.5 Process flow: a policy decision
 
-Figure candidate — _Figure 3.3: Policy decision sequence._
+Figure candidate, _Figure 3.3: Policy decision sequence._
 
 ```mermaid
 sequenceDiagram
@@ -834,9 +834,9 @@ sequenceDiagram
   end
 ```
 
-### 3.5.6 Process flow — authentication
+### 3.5.6 Process flow: authentication
 
-Figure candidate — _Figure 3.4: Two-gate authentication._
+Figure candidate, _Figure 3.4: Two-gate authentication._
 
 Steps: browser presents Gateway credential → Gateway auth gate → governance
 `whoami` → if no account exists, one-time Root bootstrap (refuses once any
@@ -848,7 +848,7 @@ tier the endpoint requires.
 Security notes for prose: the throttle is keyed _per username_, so guessing one
 account cannot be parallelised and a flood cannot lock out a different victim.
 The cookie deliberately omits `Secure` because the Gateway binds to loopback and
-remote access is via SSH tunnel per the Chapter 1 architecture — requiring HTTPS
+remote access is via SSH tunnel per the Chapter 1 architecture. Requiring HTTPS
 would break the intended deployment without adding protection.
 
 ### 3.5.7 System security
@@ -866,7 +866,7 @@ would break the intended deployment without adding protection.
 
 ### 3.5.8 Canonicalizing file paths before a rule is applied
 
-Figure candidate — _Figure 3.x: Path normalization pipeline._
+Figure candidate, _Figure 3.x: Path normalization pipeline._
 
 ```mermaid
 flowchart LR
@@ -882,7 +882,7 @@ flowchart LR
 
 A policy rule is a pattern tested against a string, so a location-based rule is
 only as strong as the string the gate constructs. Three separate weaknesses came
-from constructing it carelessly — the original implementation converted
+from constructing it carelessly. The original implementation converted
 backslashes to forward slashes and did nothing else:
 
 1. **`..` was never collapsed.** A rule meaning "only inside the workspace"
@@ -898,7 +898,7 @@ backslashes to forward slashes and did nothing else:
    `derivedPaths` hint for `apply_patch` alone
    (`src/plugins/host-tool-param-parsers.ts`). Since all operator documentation
    teaches the short relative form, a rule written as documented was
-   _simultaneously_ bypassable on three tools and silently inert on the fourth —
+   _simultaneously_ bypassable on three tools and silently inert on the fourth,
    it never matched a patch of the very file it named.
 
 The three are one defect with three symptoms, and one pipeline closes all of
@@ -917,14 +917,14 @@ them. Points worth making in prose:
 - **A file that does not exist yet is the normal case, not an error.** A `write`
   creating a new file cannot be resolved directly, so the _parent directory_ is
   resolved and the filename re-attached. Without that, an agent could evade link
-  resolution simply by targeting a file that does not exist yet — the kind of
+  resolution simply by targeting a file that does not exist yet. The kind of
   gap that appears only when the mechanism is written out and examined.
 
 Validation of all three symptoms: §4.x.13.
 
-### 3.5.11 The User tier's own capability — prompting a governed agent
+### 3.5.11 The User tier's own capability: prompting a governed agent
 
-_Figure candidate — Figure 3.x: The governed prompt path._
+_Figure candidate, Figure 3.x: The governed prompt path._
 
 Chapter 1 §1.6 defines the User tier as "granted targeted access to **interact
 with** specific, pre-configured agents", and every other User capability was
@@ -970,7 +970,7 @@ already existed, which is why prompting adds no capability to the agent.
 **Four decisions worth defending in prose.**
 
 _Authorization needed no new concept._ The route's tier floor is User and its
-scope check is `canManageAgent` — the same pair that governs writing a rule or
+scope check is `canManageAgent`. The same pair that governs writing a rule or
 stopping an agent. A Viewer is refused by tier, matching §1.6's "cannot interact
 with the agent"; a User reaches only their assignment. That the existing model
 absorbed a genuinely new capability without extension is evidence the tier model
@@ -985,7 +985,7 @@ layer the project exists to impose. Worth a sentence in Chapter 4 as an example
 of a security-critical decision that looks like plumbing.
 
 _The kill switch binds at the door._ A locked-down agent refuses the prompt
-before the model is reached, in every posture — including `off`, deliberately
+before the model is reached, in every posture, including `off`, deliberately
 unlike the tool gate. The reasoning is that this route _is_ a governance surface
 and does not exist when governance is absent, so unlike the tool gate there is no
 host path it could be inconsistent with. Without it, an emergency stop would
@@ -997,21 +997,21 @@ _The session key is a seam, and it was tested as one._ Governance runs use
 `parseAgentSessionKey`, because the gate recovers the agent id from the session
 key whenever `ctx.agentId` is absent, and so do the kill switch and the
 live-session view. A key that did not parse would have left precisely the runs
-this feature creates unattributable to their agent — lockdown and every
+this feature creates unattributable to their agent. Lockdown and every
 agent-scoped rule silently ceasing to apply to them. This is the project's
 recurring defect shape (§4.x.11: two components disagreeing), anticipated this
 time and pinned by a test instead of discovered by a later round.
 
 **What it closes in the requirement table.** Requirement #5 asks for agent
 actions, policy decisions **and administrative approvals**. The ledger could
-account for the first two and, since §3.5.9, for who changed the rules — but
+account for the first two and, since §3.5.9, for who changed the rules, but
 never for _who set the agent going_. Two new actions record the prompt and its
 result against the account that sent it, the prompt written **before** the run so
 a process that dies mid-run still shows the attempt. §1.6 asks the log to capture
 "the raw LLM intent"; the prompt is that intent, and this is the first point at
 which a chain of agent actions can be traced to a person.
 
-### 3.5.12 Making the rule language usable — denials and directional access
+### 3.5.12 Making the rule language usable: denials and directional access
 
 _Section candidate. Short, and it carries a design argument the report needs
 anyway: what it means for a policy language to be more expressive than its
@@ -1020,11 +1020,11 @@ interface._
 The rule model gained two fields when the supervisor's tier model landed
 (§3.5.x): `effect`, so a rule can forbid rather than permit, and `access`, so a
 path rule can cover reading without covering writing. The engine honoured both
-from the first commit. The rules an installation _ships_ with use both — the
+from the first commit. The rules an installation _ships_ with use both. The
 core tier is entirely denials, and the baseline workspace grant is read-only.
 
-Neither could be written by an operator. Both create paths — the HTTP route and
-the CLI command — accepted allowances only, so an operator's own restriction
+Neither could be written by an operator. Both create paths, the HTTP route and
+the CLI command, accepted allowances only, so an operator's own restriction
 meant editing `policy.json` by hand and restarting. This is the defect round
 eleven named (§4.x.18, family 3): **a mechanism that works and no surface that
 reaches it.** It passes every check the project has, because the code is
@@ -1040,7 +1040,7 @@ this directly, because it is the argument for the whole feature.
 Not writing an allowance produces a state that _looks_ like a restriction and is
 undone by the next broad grant. A denial is evaluated before every allowance and
 cannot be overridden by one, so it is a statement that **survives other people**
-— which is precisely what an operator means by "this agent must never touch
+which is precisely what an operator means by "this agent must never touch
 billing". The distinction is between the current configuration happening to
 refuse something, and the policy asserting that it always will. Only the second
 is a control.
@@ -1057,7 +1057,7 @@ up are the ones that follow from a language becoming bidirectional:
 same pattern is a different mistake each way round: a catch-all allowance
 removes a protection, a catch-all denial removes a _capability_. Reusing the
 allow-flavoured warning would have produced text that is not merely unhelpful
-but false — telling an operator their denial "allows every command the agent
+but false. Telling an operator their denial "allows every command the agent
 could attempt". A new warning covers the one genuinely counter-intuitive case: a
 denial narrowed to `read` leaves writing permitted, which follows from the rule
 that narrowing must never strengthen a rule in the other direction, and is
@@ -1067,9 +1067,9 @@ almost never what someone means.
 rules of its own effect, because "an identical rule already does this" is true
 only of a rule pointing the same way. Without that guard, writing a denial where
 an allowance existed would have been reported as _"an identical rule already
-allows this — the new rule is redundant"_: the same inversion this module has
+allows this. The new rule is redundant"_: the same inversion this module has
 been corrected for twice before (§4.x.18). Worth noting in Chapter 4 as an
-instance of a general pattern — **every component that reasoned about an
+instance of a general pattern, **every component that reasoned about an
 allow-only language has to be revisited when the language stops being
 allow-only**, and the ones that are not revisited fail silently and politely.
 
@@ -1082,14 +1082,14 @@ usability defect in a security tool, because the user's model of the system
 diverges from the system without either of them noticing._
 
 **Authorization did not change.** A denial narrows rather than widens, so it
-binds under the existing pair — `canManageAgent` for an agent-scoped rule,
+binds under the existing pair, `canManageAgent` for an agent-scoped rule,
 `canManageGlobalPolicy` for a global one. That a genuinely new capability
 required no new permission concept is, again, evidence the tier model was drawn
 along the right lines (cf. §3.5.11, where prompting needed none either).
 
 Evidence: `rule-authoring.test.ts` (26 tests) plus 11 HTTP cases; the CLI
 exercised end to end. The behaviours pinned are the ones that would fail
-silently — an authored denial beating a later allowance, refusing outright
+silently. An authored denial beating a later allowance, refusing outright
 rather than offering approval, expiring, staying agent-scoped, and still binding
 after a hand-edit strips its tier.
 
@@ -1102,7 +1102,7 @@ the **model** of what a "command" is, not just a list of tool names._
 #### The problem the design had not stated
 
 Everything written about the gate up to this point describes three resource
-kinds — command, path, network — and reasons about them as though `exec` were
+kinds, command, path, network, and reasons about them as though `exec` were
 the only way an agent reaches the operating system. That was never true of
 OpenClaw, and the design had simply not been checked against the host's actual
 tool surface. Measured against `CORE_TOOL_DEFINITIONS` in
@@ -1125,7 +1125,7 @@ same effect:
 
 `process` is the sharpest example and the one to use in the report, because it
 is the **same defect the eleventh round had already found and fixed on the
-`terminal` tool** — _a shell has two doors and only one was watched_ — recurring
+`terminal` tool**, _a shell has two doors and only one was watched_, recurring
 on the sibling tool five days later. The fix had been applied to the tool that
 was discovered rather than to the sentence describing it.
 
@@ -1134,21 +1134,21 @@ was discovered rather than to the sentence describing it.
 Three options were considered.
 
 1. **A fourth resource kind** (`control`, or `ui`). Rejected. It would need its
-   own patterns, its own core denials, its own documentation, and — critically —
+   own patterns, its own core denials, its own documentation, and, critically,
    an operator would have to write `sudo` into _two_ rules to forbid it. Two
    places to say one thing is how the deny pass and the allow pass came to
    disagree in round ten.
 2. **Govern only the tool name**, with no payload. Rejected as too coarse: it
    makes `computer` all-or-nothing, so an operator who wants screenshots for
    monitoring must also grant keystrokes.
-3. **Chosen — model them as `command`, with the resource as
+3. **Chosen. Model them as `command`, with the resource as
    `<tool>:<action>` plus any literal payload the call carries.**
 
 The third option is the one that makes the existing rules do the work. Because a
 typed payload is emitted as a `command` resource, the core denial that refuses
 `sudo` for `exec` refuses it for `computer` and `process` **without that rule
 knowing those tools exist**. The property comes from the representation rather
-than from remembering to extend every rule — the same move `path-normalize.ts`
+than from remembering to extend every rule. The same move `path-normalize.ts`
 makes for files and `canonicalHostname` makes for addresses, now applied a third
 time.
 
@@ -1168,7 +1168,7 @@ The host does not present typed text uniformly, and this is where the
 implementation had to be written against the schemas rather than from memory:
 
 - a **plain string** (`process.data`, `computer.text`, `nodes.body`);
-- an **array of tokens** (`process.keys`, `process.hex`, `automations.command` —
+- an **array of tokens** (`process.keys`, `process.hex`, `automations.command`,
   the last being supervised argv, a genuine execution channel), joined so a rule
   sees the whole submitted sequence rather than one token at a time;
 - a **nested object** (`mobile_ui.mobileAction`, whose typed text lives at
@@ -1176,7 +1176,7 @@ implementation had to be written against the schemas rather than from memory:
 
 The object case is deliberately serialised rather than reaching for a known
 field name. Guessing the field is how this file had already gone wrong twice,
-and serialising cannot miss it — a pattern written against the text still
+and serialising cannot miss it. A pattern written against the text still
 matches inside the JSON.
 
 > **Worth reporting as a process observation.** Two of these parameter names
@@ -1184,8 +1184,8 @@ matches inside the JSON.
 > wrong: `mobile_ui` has no top-level `text`, and `automations` has no `prompt`.
 > That is the registry-versus-host mistake beginning a _fourth_ time, in the
 > change whose entire purpose was to close it, and it was caught only by opening
-> the schemas. It is the strongest available evidence that the discipline —
-> cite the file, read the file — is doing real work rather than decorating the
+> the schemas. It is the strongest available evidence that the discipline,
+> cite the file, read the file, is doing real work rather than decorating the
 > comments.
 
 #### Declining to govern is now a decision, not an omission
@@ -1193,12 +1193,12 @@ matches inside the JSON.
 The remaining 34 catalogued tools are listed in `DELIBERATELY_UNGOVERNED` in
 `qa-round11.test.ts`, each with a written reason, in four groups:
 
-| Group                                                                    | Reason                                                                                                                                                                                                         |
-| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Outbound messaging (`message`, `conversations_send`, `sessions_send`, …) | The resource model has no axis for "put this text where a person will read it". Refusing `message` by default would stop the agent replying at all. Needs a fourth kind — recorded as future work, not hidden. |
-| Reads of the agent's own session state                                   | Already bounded by what the gate permitted the agent to create.                                                                                                                                                |
-| Model-facing bookkeeping (goals, plans, `ask_user`)                      | No OS or network reach.                                                                                                                                                                                        |
-| Media generation, display surfaces                                       | Files land through the host's own pipeline, not a path the agent chooses, so a `path` rule has nothing to match.                                                                                               |
+| Group                                                                    | Reason                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Outbound messaging (`message`, `conversations_send`, `sessions_send`, …) | The resource model has no axis for "put this text where a person will read it". Refusing `message` by default would stop the agent replying at all. Needs a fourth kind. Recorded as future work, not hidden. |
+| Reads of the agent's own session state                                   | Already bounded by what the gate permitted the agent to create.                                                                                                                                               |
+| Model-facing bookkeeping (goals, plans, `ask_user`)                      | No OS or network reach.                                                                                                                                                                                       |
+| Media generation, display surfaces                                       | Files land through the host's own pipeline, not a path the agent chooses, so a `path` rule has nothing to match.                                                                                              |
 
 A test asserts every entry carries a non-empty reason, because an empty reason
 is how a decision decays back into an omission.
@@ -1228,16 +1228,16 @@ clause had nothing behind it, and `ROLE-MODEL.md` recorded it as future work.
 The word that had to be interpreted is **overseeing**, and the two readings lead
 to very different systems:
 
-| Reading                                                                                         | What it builds                                       | Why it was or was not chosen                                                                                                                                                                                                                                                    |
-| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| _Managing_ — Root edits bind address, port and auth mode from the dashboard                     | A configuration editor plus gateway restart handling | **Rejected.** Changing the bind address of the server you are currently connected _through_ removes your own access, and it does so most easily during exactly the incident when you need the control plane. It also duplicates configuration management the host already owns. |
-| _Seeing and judging_ — Root reads the live deployment and is told whether it matches the design | A read-only report with a verdict per check          | **Chosen.** It answers the question oversight is actually for, it cannot lock anybody out, and it converts four prose claims in Chapter 1 into something an examiner can watch being verified.                                                                                  |
+| Reading                                                                                        | What it builds                                       | Why it was or was not chosen                                                                                                                                                                                                                                                    |
+| ---------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _Managing_, Root edits bind address, port and auth mode from the dashboard                     | A configuration editor plus gateway restart handling | **Rejected.** Changing the bind address of the server you are currently connected _through_ removes your own access, and it does so most easily during exactly the incident when you need the control plane. It also duplicates configuration management the host already owns. |
+| _Seeing and judging_, Root reads the live deployment and is told whether it matches the design | A read-only report with a verdict per check          | **Chosen.** It answers the question oversight is actually for, it cannot lock anybody out, and it converts four prose claims in Chapter 1 into something an examiner can watch being verified.                                                                                  |
 
 This is a place where **the implemented design deliberately differs from the
 preliminary design**, and the report should present it that way rather than
 hiding the divergence: Chapter 1 sketched a capability, Chapter 3 chose an
 interpretation of it, and the reasoning above is the justification. What is _not_
-negotiable is the requirement — see §4.x.5b, where the constraint this feature
+negotiable is the requirement. See §4.x.5b, where the constraint this feature
 verifies is checked rather than asserted.
 
 #### What it checks, and where each check comes from
@@ -1245,28 +1245,28 @@ verifies is checked rather than asserted.
 The value of the feature is that the checks are not invented. Each one is a
 claim the report already makes, turned into something testable.
 
-_Table candidate — Table 3.x: Deployment posture checks and their source._
+_Table candidate, Table 3.x: Deployment posture checks and their source._
 
 | Check                                                          | Source claim                                                                                             |
 | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `deployment.bind_loopback`                                     | §1.6: the dashboard "listens only on localhost"                                                          |
 | `deployment.nonstandard_port`                                  | §1.6: it "does not expose standard HTTP/HTTPS ports globally"                                            |
 | `deployment.tunnel_required`                                   | §1.6: "access requires secure cryptographic tunneling, specifically utilizing SSH local port forwarding" |
-| `deployment.gateway_auth`                                      | §1.6's layered gate — the governance login is a _second_ gate, not a replacement for the Gateway's own   |
+| `deployment.gateway_auth`                                      | §1.6's layered gate, the governance login is a _second_ gate, not a replacement for the Gateway's own    |
 | `deployment.platform_linux`                                    | Requirement #9, the Linux deployment target                                                              |
 | `deployment.memory_minimum`                                    | §1.4's "minimum hardware specification of 8 GB RAM"                                                      |
 | `deployment.governance_dir_permissions`, `…_files_permissions` | The `0700`/`0600` regime this layer relies on for confidentiality of the policy, accounts and ledger key |
 | `deployment.ledger_key_source`                                 | The residual risk documented in `ledger-key.ts`: the key on the same host as the ledger it protects      |
-| `deployment.ledger_checkpoint`                                 | QA round 13, finding 76 — without the checkpoint, truncation is undetectable                             |
+| `deployment.ledger_checkpoint`                                 | QA round 13, finding 76, without the checkpoint, truncation is undetectable                              |
 | `deployment.governance_disk_space`                             | The audit ledger is append-only and rotates rather than shrinking                                        |
-| `gateway.*`                                                    | Folded in from the host's own security audit, verbatim — see below                                       |
+| `gateway.*`                                                    | Folded in from the host's own security audit, verbatim, see below                                        |
 
 #### Three design decisions worth defending
 
 **1. A fourth status, `unknown`, and why it is not decoration.**
 
 The natural vocabulary is pass / warn / fail. A fourth was added for checks that
-_could not run here_ — POSIX permission bits on Windows, free space where
+_could not run here_, POSIX permission bits on Windows, free space where
 `statfs` is unavailable. The alternative is for such a check to report `pass`,
 and that is precisely the failure this feature exists to prevent: **a
 verification report that is confidently green because the detector was
@@ -1275,10 +1275,10 @@ displayed separately, and excluded from the overall verdict, so it can neither
 hide a problem nor manufacture one.
 
 The same reasoning already existed one file away, in `system-status.ts`'s
-`loadAverageSupported` — reported honestly rather than faked. Reusing it was a
+`loadAverageSupported`. Reported honestly rather than faked. Reusing it was a
 matter of noticing the precedent.
 
-**2. Absence of a finding is reported as a pass — which is what makes it a report.**
+**2. Absence of a finding is reported as a pass, which is what makes it a report.**
 
 The host already has a security audit (`collectGatewayConfigFindings`) that
 classifies bind exposure, auth mode, control-UI origins and trusted proxies. Its
@@ -1288,7 +1288,7 @@ not merely that nothing complained.
 
 So the module holds a list of the host check ids it expects to be absent, and
 converts absence into an explicit `pass`. Findings that _are_ present are folded
-in with their `title`, `detail` and `remediation` copied **verbatim** — two
+in with their `title`, `detail` and `remediation` copied **verbatim**, two
 components describing one condition in different words is this project's single
 most frequent defect shape (§4.x.20), and re-authoring the wording would have
 created another instance of it.
@@ -1296,13 +1296,13 @@ created another instance of it.
 **3. The layering constraint, and the seam it forced.**
 
 `src/governance/` imports from `node:*`, `../infra/`, `../agents/`,
-`../sessions/`, `../routing/` and `../logging/` — and nothing else. That is
+`../sessions/`, `../routing/` and `../logging/`, and nothing else. That is
 deliberate: the governance layer is exercised by the CLI and by unit tests with
 no Gateway running, which is why `agent-runner.ts` and `agent-terminator.ts`
 already use registration seams.
 
-The obvious implementation — call `collectGatewayConfigFindings` from inside the
-governance module — would have created the first governance→gateway edge in the
+The obvious implementation, call `collectGatewayConfigFindings` from inside the
+governance module, would have created the first governance→gateway edge in the
 codebase, because that module imports `../gateway/auth-resolve.js`. Instead the
 findings arrive as a **parameter**, assembled by
 `src/gateway/governance-deployment-input.ts`, which is the only file that touches
@@ -1314,7 +1314,7 @@ Gateway, no socket and no configuration file. That is what let the permission
 table be verified on Windows CI, where the real answer is "these bits are not
 meaningful here".
 
-_Figure candidate — a small diagram of the seam: config and security audit on
+_Figure candidate. A small diagram of the seam: config and security audit on
 the Gateway side, a plain-data `DeploymentEnvironmentInput` crossing one
 boundary, and a pure function on the governance side. It illustrates the
 project's layering discipline better than any prose, and the same shape recurs
@@ -1329,7 +1329,7 @@ _dashboard_ is reached, and are absent entirely from a Gateway started as a
 daemon. A check reading them would give a confident answer to a different
 question.
 
-What can be established is strictly stronger: that **no other route exists** —
+What can be established is strictly stronger: that **no other route exists**,
 loopback bind, Tailscale off, no non-loopback trusted proxy, no TLS listener.
 Then any access from another machine must arrive through a local port forward,
 because there is nothing else to arrive through. When the check fails it names
@@ -1346,7 +1346,7 @@ The report is served to Root at `GET /control-ui/governance/deployment` and
 printed by `openclaw governance deployment`.
 
 The command line matters more than it first appears. The design has the
-dashboard reachable only through an SSH tunnel — so the moment an operator most
+dashboard reachable only through an SSH tunnel, so the moment an operator most
 needs to know whether the listener is exposed is over a plain SSH session
 _before_ any tunnel exists, which is exactly when the dashboard is by design
 unreachable. The CLI is the surface that works then, and it is the natural first
@@ -1355,8 +1355,8 @@ ready-made verification step.
 
 The tier gate is enforced **server-side**; hiding the panel from non-Root
 accounts is a convenience, not the control. The route reports the bind mode,
-port, auth mode and governance directory — collectively a map of how to reach
-and attack the installation — which is why it sits at Root while its neighbour
+port, auth mode and governance directory, collectively a map of how to reach
+and attack the installation, which is why it sits at Root while its neighbour
 `system` (CPU and memory, disclosing nothing) sits at Viewer. The tiers differ
 because the _disclosure_ differs, which is the same reasoning the Viewer/User
 audit-masking split rests on.
@@ -1367,7 +1367,7 @@ audit-masking split rests on.
 `collectGatewayConfigFindings` and asserts that each expected check id actually
 fires. Without it, renaming a check id upstream would silently stop the
 expectation from matching, the finding would never be looked for, and the check
-would become a permanent green — the disconnected-detector failure described
+would become a permanent green. The disconnected-detector failure described
 above, arriving by accident rather than by design.
 
 That test is the direct descendant of §4.x.20's lesson: a guard makes a silent
@@ -1379,7 +1379,7 @@ unexamined as the code did. This one is examined.
 The last known hole in the gate's coverage, and the one that most directly
 threatens the project's central claim. Everything else in §3.5 describes how a
 tool call is _judged_. This describes how the host is obliged to _present_ it
-for judgement — and for one deployment shape, it was not.
+for judgement, and for one deployment shape, it was not.
 
 **Figure candidate.** Two paths through the host to the gate: the in-process
 path, and the native-harness path with the relay hook that had been missing.
@@ -1396,7 +1396,7 @@ optional stands between the tool call and the policy check. This is the
 arrangement every part of this project has used, and every experiment in §4.x
 was run under it.
 
-In the **native-harness** arrangement — used by the Codex app-server backend —
+In the **native-harness** arrangement, used by the Codex app-server backend,
 the agent runs inside a separate helper process, which executes tools itself.
 That process knows nothing about OpenClaw's hooks. The host reaches it by
 writing a _relay hook_ into the helper's own configuration at session start: a
@@ -1404,12 +1404,12 @@ command the helper is told to run before each tool call, which calls back into
 the host, which then runs `runBeforeToolCallHook` and returns allow or block.
 
 The gate is identical in both. The difference is that in the second, the gate is
-reached only if the relay hook was installed — and installing it was conditional.
+reached only if the relay hook was installed, and installing it was conditional.
 
 #### The condition, and why it was false
 
 The host decided whether to install the relay by asking one question:
-`hasBeforeToolCallPolicy()` — _is any before-tool-call policy installed?_ The
+`hasBeforeToolCallPolicy()`, _is any before-tool-call policy installed?_ The
 function counts plugin hooks and trusted tool policies.
 
 This governance layer is neither. §3.4.1 records the decision to abandon the
@@ -1425,7 +1425,7 @@ call on its own authority. Concretely, in that configuration:
 
 - no rule was evaluated, so a core denial did not apply;
 - no ledger entry was written, so requirement #5's complete record had a hole
-  that the record itself could not reveal — an action that never reaches the
+  that the record itself could not reveal. An action that never reaches the
   gate cannot be logged as `ungoverned` either;
 - the kill switch could not reach the agent, because the switch is enforced at
   the same gate.
@@ -1442,14 +1442,14 @@ yes:
 ```ts
 // src/agents/harness/native-hook-relay-events.ts
 return (
-  governanceRequiresNativeToolRelay() || // governance — compiled in
-  hasBeforeToolCallPolicy() || // plugins — as before
+  governanceRequiresNativeToolRelay() || // governance, compiled in
+  hasBeforeToolCallPolicy() || // plugins, as before
   nativePreToolUseMayRunLoopDetection(registration)
 );
 ```
 
 `hasBeforeToolCallPolicy()` is deliberately unchanged. Widening it was the
-tempting one-line fix and it is the wrong repair twice over — it lies to plugins
+tempting one-line fix and it is the wrong repair twice over. It lies to plugins
 about what is installed, and it forces the relay on in configurations that
 switch it off on purpose, which is what breaks thirty of the host's own tests.
 §3.4.y sets out all four candidate designs.
@@ -1458,7 +1458,7 @@ switch it off on purpose, which is what breaks thirty of the host's own tests.
 Deciding to relay the _event_ is not the same as relaying every _tool_. The host
 also computes a tool matcher: a list restricting which tools the relay fires
 for, built as the union of the plugin hooks' own scopes. An installation
-carrying a single narrowly-scoped plugin hook — say one that watches `exec` —
+carrying a single narrowly-scoped plugin hook, say one that watches `exec`,
 would therefore have relayed `exec` and nothing else, leaving every other tool
 call outside the gate while the relay was present and appeared correct. This is
 the same hole one level down, and it is worse than the original because it looks
@@ -1477,7 +1477,7 @@ its consumers.
 #### What "every installation" means, and why it is defined once
 
 `governanceRequiresNativeToolRelay()` returns true for every installation. The
-single exception is a test process that never asked for a governance directory —
+single exception is a test process that never asked for a governance directory,
 OpenClaw's own harness suite, which predates this project, has no operator, no
 policy and no approver.
 
@@ -1492,7 +1492,7 @@ worth defending:
 
 This project's defect list is overwhelmingly made of two components that
 disagreed while each was correct alone (§4.x.20). Had the relay requirement
-carried its own copy of "is this a real installation?", the copy could drift —
+carried its own copy of "is this a real installation?", the copy could drift,
 and the drift that matters runs one way: a governed installation whose harness
 sessions are quietly ungoverned. `qa-round15.test.ts` asserts the agreement
 directly, reading both sides on a fresh policy in both environments, rather than
@@ -1502,7 +1502,7 @@ asserting either one on its own.
 
 Stated here so it is not discovered at the defence. The fix guarantees that the
 relay hook is _installed_ and that it covers every tool. It does not, and cannot
-from this side, guarantee that the helper process honours it — the helper is a
+from this side, guarantee that the helper process honours it. The helper is a
 separate program, and a governance layer that runs inside the host can compel
 its own host, not a third-party binary. What it can do is refuse when the
 answer does not come back, which is what the fail-closed behaviour above
@@ -1549,20 +1549,20 @@ returned to the dashboard, displayed as active, and never consulted.** A
 governance control that reports success and does nothing is worse than one that
 is missing, because the operator stops looking.
 
-Three modules already folded account names identically —`user-store.ts` for
+Three modules already folded account names identically, `user-store.ts` for
 uniqueness, `login-throttle.ts` for its attempt counter, `agent-conversation.ts`
-for conversation ownership — each with a private copy of
+for conversation ownership, each with a private copy of
 `normalize("NFKC").trim().toLowerCase()`. All three agreed, which is the only
 reason nothing else had broken. They were three statements of one intention, and
 the fourth consumer wrote the intention down differently.
 
 The fix is `account-name.ts`: one exported definition, four importers, and the
-guard against prototype keys moved to run **after** folding rather than before —
+guard against prototype keys moved to run **after** folding rather than before,
 because lowercasing turns `__PROTO__` into `__proto__`, so canonicalising the key
 space without moving the guard would have opened a prototype-pollution route
 that did not previously exist.
 
-> **Figure candidate.** Four modules, one definition — before and after.
+> **Figure candidate.** Four modules, one definition. Before and after.
 
 #### The exact answer, and the one case where it widens
 
@@ -1573,7 +1573,7 @@ which remains correct there.
 
 This **widens access in exactly one configuration**, and saying so plainly is
 more useful than hiding it. Two accounts, A and B, both assigned agent X; Root
-sets B to `off`. Previously a prompt from _A_ resolved to `off` — A's run denied
+sets B to `off`. Previously a prompt from _A_ resolved to `off`, A's run denied
 on a miss because of a restriction placed on somebody else. It now escalates as
 A's own setting says, and a human may allow it.
 
@@ -1581,15 +1581,15 @@ That is a correction, not a loosening, and the argument is the tier model's own:
 **the tool for constraining an agent is `agentAsk`**, which is untouched and
 still combines as the stricter of the two axes. The per-user axis had been
 behaving as a second, badly approximated agent axis. A restriction that lands on
-the wrong person is not a safeguard — it is a control nobody can reason about.
+the wrong person is not a safeguard. It is a control nobody can reason about.
 Nothing in this change can affect a deny rule, a core rule, or the agent axis;
 the only value it decides is whether a _miss_ is refused outright or offered to a
 human.
 
 One guard is worth naming: the session key contains an agent id as well as an
 account, and the exact path is taken only when that id matches the agent
-actually being governed. They can differ — round 14 showed a spawned child runs
-under one identity while carrying a key minted for another — and without the
+actually being governed. They can differ, round 14 showed a spawned child runs
+under one identity while carrying a key minted for another, and without the
 check the axis would become a way to _choose whose restriction applies_.
 
 ### 3.5.17 Watching a prompt run, and being able to stop it
@@ -1611,7 +1611,7 @@ sounds like polish. Together they are the difference between a control surface
 and a form:
 
 1. **A disconnected client still ran.** Closing the tab abandoned the response
-   and left the agent working, reachable only through the kill switch — which
+   and left the agent working, reachable only through the kill switch, which
    locks the agent down entirely and has to be released by hand. Using an
    emergency stop to undo "I asked the wrong thing" is how an emergency stop
    stops being treated as one.
@@ -1620,7 +1620,7 @@ and a form:
 3. **Unbounded concurrency is a denial of service available to the lowest tier
    that can act.** Filed as robustness; it is not. A User with one assigned
    agent could open prompts until the Gateway's event loop and the
-   installation's model budget were both exhausted — for every other account,
+   installation's model budget were both exhausted, for every other account,
    Root included. This is the third time this project has found the same family
    (Q-79, a rule pattern that froze the gate; Q-82, an unbounded ledger page),
    and the generalisation is worth the report: **the cheapest attack on a
@@ -1633,21 +1633,21 @@ and a form:
 time. The host's own OpenAI-compatible surface accumulates deltas and must fail
 the stream outright when a model retracts text it already emitted, because SSE
 cannot unsend bytes to a client that concatenates. This surface is not bound by
-that contract — the dashboard renders whatever it was last given — so a
+that contract, the dashboard renders whatever it was last given, so a
 retraction becomes ordinary instead of fatal. It also makes redaction sound: a
 secret split across two deltas matches no pattern in either half, and would
 survive per-delta redaction; a snapshot is redacted complete, every time.
 
 **The live view is redacted the same way the record is.** Each snapshot passes
 through the same `redactToolPayloadText` the ledger boundary uses. Requirement #8
-is about log files, so this is stricter than the requirement — deliberately. A
+is about log files, so this is stricter than the requirement. Deliberately. A
 live view that shows what the stored record hides is a way to read what was
 redacted, and the operator watching the screen is the same person who will later
 read the trail.
 
 **A POST, never an `EventSource`.** `EventSource` can only issue GET, which
 would put the prompt in a query string. A prompt is the most sensitive text this
-surface handles — it is redacted before the layer will even store it — and a URL
+surface handles, it is redacted before the layer will even store it, and a URL
 is written to browser history, proxy logs and the Gateway's own access log. So
 the dashboard reads the stream with `fetch` by hand and the body stays a body.
 Streaming is opt-in per request, so the non-streaming response is unchanged and
@@ -1657,7 +1657,7 @@ replaced.
 **Cancellation is not the kill switch, and the caps bound work rather than
 requests.** Cancelling withdraws one prompt; lockdown stops an agent doing
 anything at all. Keeping them separate is what keeps the emergency control
-believable. And the abort _asks_ a run to stop — the slot is released when the
+believable. And the abort _asks_ a run to stop. The slot is released when the
 run actually unwinds, not when the request is made, so an account cannot
 cancel-and-resend in a loop and keep an unbounded number of runs alive on the way
 out. That is the same distinction §3.5.10 draws for the kill switch: asking is
@@ -1667,7 +1667,7 @@ not stopping.
 
 The per-account cap carries the security argument and the installation cap alone
 would not do. Without a per-account bound, one User could hold every slot and
-lock Root out — turning a resource limit into a **privilege inversion**, where
+lock Root out. Turning a resource limit into a **privilege inversion**, where
 the least privileged tier decides whether the most privileged one may act. Each
 account is bounded first, so a noisy or hostile account exhausts its own
 allowance and nobody else's.
@@ -1681,8 +1681,8 @@ accounts are using.
 A refused prompt is recorded, not merely refused: an operator turned away is a
 fact an investigation may need, and it is how a flood becomes visible in the
 ledger rather than only in a rejected HTTP response. And the result entry now
-distinguishes **three** outcomes rather than two — delivered, failed, and
-_cancelled by a named person_ — with cancellation carrying its own action
+distinguishes **three** outcomes rather than two, delivered, failed, and
+_cancelled by a named person_, with cancellation carrying its own action
 (`governance.agent.prompt-cancel`), because the account that stopped a run need
 not be the one that started it. An Administrator may stop any run inside their
 remit, which §1.6 grants them explicitly; a User may stop their own.
@@ -1700,7 +1700,7 @@ fact about the architecture rather than an omission. The in-flight run table is
 per _process_, and the CLI runs the agent in its own. A command that could only
 cancel a run typed into the same terminal is not a control; one that appeared to
 reach the Gateway's runs but could not would be a control surface reporting
-success it did not achieve — which is the failure this layer has refused
+success it did not achieve, which is the failure this layer has refused
 everywhere else.
 
 ### 3.5.18 Making the policy readable (Q-89)
@@ -1709,22 +1709,22 @@ A short section, and it belongs in the design chapter rather than in a list of
 polish, because of what it says about auditability.
 
 The rule panel rendered every rule, unfiltered and unsearchable, against a
-ceiling of a thousand — and re-rendered the whole list every fifteen seconds. A
+ceiling of a thousand, and re-rendered the whole list every fifteen seconds. A
 shipped installation is never short of rules: the core and baseline tiers are
 populated on first boot (§3.4.6), so the list starts long and grows.
 
 It was filed as UX. It is not only UX. **The rule panel is where somebody
 answers "what actually permits this?" during an incident, and a ruleset that
 cannot be searched is a control that cannot be audited.** The audit view had
-already learned this — `ledger-filter.ts` exists because an accountability trail
-nobody can read is close to no trail at all — and this is the same lesson one
+already learned this, `ledger-filter.ts` exists because an accountability trail
+nobody can read is close to no trail at all, and this is the same lesson one
 panel over.
 
 Three decisions worth recording:
 
 **The search is a substring search, never a regular expression.** The things
 being searched _are_ regular expressions, so an operator typing `.*` means "find
-the rule containing `.*`" — the single most useful search this panel offers,
+the rule containing `.*`". The single most useful search this panel offers,
 since an unanchored catch-all is exactly what a review hunts for. Interpreting
 the query as a pattern would make that search match everything instead. It would
 also put a second operator-supplied pattern on the page with no
@@ -1732,7 +1732,7 @@ also put a second operator-supplied pattern on the page with no
 
 **The scope picker is built from the rules, not from the agent list.** It offers
 only agents that actually appear in the ruleset, so it cannot become a second
-way to enumerate agents the caller may not see — the defect round eleven found
+way to enumerate agents the caller may not see. The defect round eleven found
 in `GET policy`.
 
 **"No rules" and "no matching rules" are different sentences.** A panel that
@@ -1753,8 +1753,8 @@ the agent going. Neither addressed a more basic question, and the ledger could
 not answer it at all: **who was signed in?**
 
 Successful logins, rejected passwords, lockouts and logouts reached the ledger
-nowhere. The system detected all four — `login-throttle.ts` counts failures
-precisely enough to lock an account after five within fifteen minutes — but held
+nowhere. The system detected all four, `login-throttle.ts` counts failures
+precisely enough to lock an account after five within fifteen minutes, but held
 the counts in process memory, discarded them on restart, and surfaced them to
 nobody. Detection without a record is half a control.
 
@@ -1779,7 +1779,7 @@ Implementation in `src/governance/auth-audit.ts`; wiring at the three routes in
 `src/gateway/governance-dashboard-auth.ts`; tests in `auth-audit.test.ts` and
 `auth-audit.contract.test.ts`.
 
-**Point worth making in prose — the repair for one weakness nearly opened
+**Point worth making in prose. The repair for one weakness nearly opened
 another.** Writing five entry kinds is trivial. The design question was what
 happens under attack, and it changes the shape of the feature.
 
@@ -1788,7 +1788,7 @@ cannot cause either; they are self-limiting. A _failed_ login requires nothing
 but reachability. And the ledger deliberately never deletes: `rotateIfNeeded`
 archives segments and keeps them, because audit history that ages out is not
 audit history (§3.5.9). Those two facts compose into a disk-fill vector
-available to an unauthenticated caller — **the fix for a missing log would have
+available to an unauthenticated caller, **the fix for a missing log would have
 introduced a denial of service.**
 
 The per-account throttle does not close it. It bounds one account to five
@@ -1801,14 +1801,14 @@ counted rather than written, and the count is emitted as a single
 
 That last entry is the part worth arguing in the report. **An audit trail that
 silently stops recording under load is worse than one that records less and says
-so**, because the gap reads as an attack that ended — the opposite of the truth.
+so**, because the gap reads as an attack that ended. The opposite of the truth.
 The bound is honest about itself.
 
 **Three subsidiary decisions, each defensible in a sentence and each with a
 failure mode if taken the other way.**
 
 1. **A failed login is attributed to `UNAUTHENTICATED_ACTOR`, never to the
-   submitted name.** Nobody demonstrated they hold that account — that is the
+   submitted name.** Nobody demonstrated they hold that account. That is the
    entry's whole content. Putting the submitted string in the actor field would
    read as though the account acted, and would place unbounded
    attacker-controlled text into a field `appendLedgerEntry` neither redacts nor
@@ -1818,14 +1818,14 @@ failure mode if taken the other way.**
 2. **A wrong password and an unknown account are recorded identically.** The
    login response is careful not to distinguish them; writing the distinction
    into the ledger would rebuild the account-existence oracle the response
-   avoids, in a file. An investigator loses nothing — what they need is the
+   avoids, in a file. An investigator loses nothing. What they need is the
    attempt pattern, present either way.
 3. **Authentication auditing is best-effort, and everything else is not.**
    Elsewhere an unrecordable change is a change that does not happen:
    `recordAdminAction` is awaited and its error propagates, so a rule cannot be
    added if adding it cannot be logged. Applying that here would mean an
-   unwritable ledger locks every account out of the dashboard — including the
-   Root account whose job is to repair it — turning an audit outage into a total
+   unwritable ledger locks every account out of the dashboard, including the
+   Root account whose job is to repair it, turning an audit outage into a total
    one with no way back in, which is the lockout class `account-guards.ts`
    exists to prevent. On the failure paths it is worse: refusing a login because
    the ledger is unwritable hands an attacker who can break the ledger a way to
@@ -1838,7 +1838,7 @@ failure mode if taken the other way.**
 administrative revocation are not recorded. Both happen without a request, so
 there is no moment to hang an entry from without a timer inside an audit path.
 A login with no matching logout therefore means the session either ran to expiry
-or is still open — the entry bounds the span when it exists and does not claim
+or is still open. The entry bounds the span when it exists and does not claim
 to when it does not.
 
 **A consequence for §3.5.13's principle, in a new place.** Authentication
@@ -1858,7 +1858,7 @@ Sign-ins therefore got their own filter, and `admin` now excludes them.
 
 This is the project's most-repeated defect in yet another set of clothes: **a
 label that was accurate when written and became inaccurate because something new
-arrived underneath it** — the same shape as the coverage guard measuring against
+arrived underneath it**. The same shape as the coverage guard measuring against
 a stale seven-name list (§4.x.20). It is also why the dashboard's hand-mirrored
 copy of the action names is pinned by `auth-audit.contract.test.ts` rather than
 by a comment: the UI bundle deliberately does not import from `src/`, so the two
@@ -1871,7 +1871,7 @@ right attribution; failure and unknown-account entries indistinguishable;
 canonical folding matching the throttle's, so three spellings of one account
 read as one target; the enormous-username clamp on the unclamped field; the cap
 holding, the suppression notice naming its count, the window resetting; the cap
-never reaching successes, logouts or lockouts — so an attacker cannot erase the
+never reaching successes, logouts or lockouts, so an attacker cannot erase the
 record of a successful break-in by making noise first; the throttle reporting
 exactly one lockout edge; and the hash chain verifying with all four kinds
 interleaved. Governance suite **1,499 passing across 70 files** (from 1,480
@@ -1882,8 +1882,8 @@ across 68), both typechecks clean, host harness suite unchanged at 18 failed /
 
 **The gap, which was a product gap rather than a defect.** The policy document
 is one flat list of rules, each either global (no `agentId`) or written for a
-single agent. That shape is right for evaluation — the engine filters the list
-once per call — and wrong for both questions an operator actually has:
+single agent. That shape is right for evaluation, the engine filters the list
+once per call, and wrong for both questions an operator actually has:
 
 - _What is this agent allowed to do?_ Answering it from the document means
   reading every rule and deciding, per rule, whether an absent `agentId` means
@@ -1893,7 +1893,7 @@ once per call — and wrong for both questions an operator actually has:
   which the document records only incidentally: an agent appears in it once
   somebody writes a rule for it, sets its posture, or locks it.
 
-Neither was available on any surface — not the dashboard, not the CLI, not the
+Neither was available on any surface, not the dashboard, not the CLI, not the
 API. An operator deciding whether to remove a rule could not see what it was
 holding up; an operator investigating an agent could not see what that agent was
 permitted to do without reading the whole document by eye. **For a control whose
@@ -1914,7 +1914,7 @@ capability reachable from only one of them is one an operator will not find.
 
 _First, the projection must agree with the gate, and that is pinned rather than
 asserted._ A view of "what this agent may do" that disagrees with what the
-engine decides is worse than no view — an operator would be reassured by a list
+engine decides is worse than no view. An operator would be reassured by a list
 that is not the one being consulted. The predicate is deliberately the same
 expression `policy-engine.ts` uses, and `policy-projection.test.ts` checks the
 agreement by _evaluating real tool calls_ against the projection rather than by
@@ -1926,27 +1926,27 @@ _Second, a global rule's answer must not look complete._ "This rule affects
 agents A and B" is a false statement about a global rule: it affects A, B, and
 every agent anybody creates tomorrow. So `bindsFutureAgents` rides alongside the
 list, and both the CLI and the dashboard state the global fact **before** the
-list rather than as a footnote — a reader shown three ids and then a
+list rather than as a footnote. A reader shown three ids and then a
 qualification has already formed the wrong impression. This is the same failure
 mode as the coverage guard measuring against a stale list (§4.x.20), in the
 gentler clothes of an interface that is technically accurate and practically
 misleading.
 
-**Scoping — the part that made this safe to expose at Viewer tier.** §1.6 gives
+**Scoping. The part that made this safe to expose at Viewer tier.** §1.6 gives
 Viewer and User oversight of the agents an Administrator assigned them, so the
 gate on both routes is `canViewAgent` rather than a role floor:
 
 - **Administrator and Root** have unlimited agent scope and may ask about any
   agent and any rule.
 - **User and Viewer** may ask about their assigned agents. Asking about another
-  team's agent returns **403, not an empty result** — an empty answer would
+  team's agent returns **403, not an empty result**. An empty answer would
   assert "this agent has no rules", which is both false and a way to distinguish
   an agent that does not exist from one the caller may not see.
 - The _policies → agents_ direction is narrowed through `visibleAgents`, so a
   User assigned one agent learns that a global rule binds **their** agent
   without being handed an inventory of every other agent in the installation.
   That route would otherwise have been the cheapest agent-inventory disclosure
-  in the system — the same class as the `agentMode` map leaking every agent id
+  in the system. The same class as the `agentMode` map leaking every agent id
   through the policy route (§4.x.20). The response carries `scopedToAssignment`
   so a narrowed caller is told the list was narrowed rather than left to read it
   as the whole truth.
@@ -1954,8 +1954,8 @@ gate on both routes is `canViewAgent` rather than a role floor:
   `policy` route already hides that rule from them and this route must not
   become the way around it.
 
-**A defect found while building it.** The dashboard's own `knownAgentIds()` —
-which populates the kill switch's agent picker, among others — collected ids
+**A defect found while building it.** The dashboard's own `knownAgentIds()`,
+which populates the kill switch's agent picker, among others, collected ids
 from live sessions, locked agents and account assignments, but **not** from the
 policy document's rules, `agentMode` or `agentAsk`. An agent that was configured
 but not currently running was therefore absent from every picker on the page,
@@ -1967,7 +1967,7 @@ returns `mode` and `modeIsOverride` separately, because "this agent is in
 monitor" and "this agent is in monitor _because somebody set it that way_" lead
 to different actions. Since §G the installation default is `enforce` with a
 shipped baseline ruleset and monitor is an opt-in per-agent tool, so an agent
-showing a monitor override is always a deliberate decision — and it is the one
+showing a monitor override is always a deliberate decision, and it is the one
 configuration where that agent's policy decisions are recorded and not acted
 upon, which an operator scanning for surprises should see at a glance.
 
@@ -1979,7 +1979,7 @@ change: **1,564 across 75 files**, both typechecks clean, host harness suite
 unchanged at 18 failed / 174 passed.
 
 **Not verified in a browser.** The dashboard section's logic is tested and both
-typechecks pass, but the rendered component has not been driven by hand — the
+typechecks pass, but the rendered component has not been driven by hand. The
 standing T15 gap, unchanged by this work.
 
 ### 3.5.21 The emergency stop, verified end to end
@@ -1993,7 +1993,7 @@ one layer below the surface anybody uses.
 mechanism: lockdown blocks, termination aborts, the ledger records, the latency
 bound holds. All true. But the operator's stop runs through a role check, an
 agent-scope check, a policy write under the cross-process lock, the engine, and
-the ledger — and **round thirteen found three ways that whole path returned
+the ledger, and **round thirteen found three ways that whole path returned
 `200 OK` while stopping nothing**, none of which the mechanism tests could have
 caught, because each failed before the mechanism was reached. A test of the
 mechanism is not a test of the feature.
@@ -2056,14 +2056,14 @@ worth stating plainly in the report because §1.6's role table does not make it
 obvious: **role grants authority, assignment grants reach, and writing a rule
 needs both.**
 
-| Actor             | Global rule (binds every agent) | Rule for an assigned agent                                                           | Rule for another team's agent | Installation posture |
-| ----------------- | ------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------- | -------------------- |
-| **Root**          | Yes                             | Yes — any agent                                                                      | Yes                           | Yes                  |
-| **Administrator** | Yes                             | Yes — any agent                                                                      | Yes                           | Yes                  |
-| **User**          | **No**                          | **Yes** — add, forbid, remove, and set that agent's escalation and posture overrides | No                            | No                   |
-| **Viewer**        | No                              | **No**                                                                               | No                            | No                   |
+| Actor             | Global rule (binds every agent) | Rule for an assigned agent                                                          | Rule for another team's agent | Installation posture |
+| ----------------- | ------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------- | -------------------- |
+| **Root**          | Yes                             | Yes, any agent                                                                      | Yes                           | Yes                  |
+| **Administrator** | Yes                             | Yes, any agent                                                                      | Yes                           | Yes                  |
+| **User**          | **No**                          | **Yes**, add, forbid, remove, and set that agent's escalation and posture overrides | No                            | No                   |
+| **Viewer**        | No                              | **No**                                                                              | No                            | No                   |
 
-The reasoning behind the one row people query — a User's — is that a global rule
+The reasoning behind the one row people query, a User's, is that a global rule
 is not "managing your agent", it is managing everyone's, so it sits above the
 User tier no matter how many agents that account happens to hold. Within their
 own agents a User is not restricted to proposing: they add rules, write denials,
@@ -2081,7 +2081,7 @@ than a floor, so the removal is refused and the refusal is tested against the
 most privileged account rather than a convenient one.
 
 `src/gateway/governance-rule-authoring-scope.test.ts` asserts all twenty-one
-cells and refusals, each as an **exact 403** rather than "some 4xx" — the
+cells and refusals, each as an **exact 403** rather than "some 4xx". The
 privilege-matrix discipline, because a route that starts accepting a lower tier
 but still rejects the body keeps passing a loose assertion while the escalation
 is wide open. Authorization for removal is read from the **stored** rule rather
@@ -2090,7 +2090,7 @@ belongs to their agent.
 
 **One interface defect found while verifying this.** The dashboard's add-rule
 form left the agent field optional for everybody. An empty field means "global
-rule", which the server refuses below Administrator — so for a User the natural,
+rule", which the server refuses below Administrator, so for a User the natural,
 empty form was a guaranteed 403. That is the shape of finding 100, where the
 account form offered a `root` role the server always rejects: an interface that
 lets somebody complete an action it knows will fail is teaching them the tool is
@@ -2103,7 +2103,7 @@ optional field, because for them the empty case is the meaningful one.
 
 **The question that produced this.** §3.7 of `ROLE-MODEL.md` deliberately
 widened the paper's User tier from "proposes changes" to "genuinely manages its
-assigned agents" — writing agent-scoped rules, setting escalation behaviour,
+assigned agents". Writing agent-scoped rules, setting escalation behaviour,
 reading unmasked logs, stopping the agent. That widening is right for the common
 case and was never right for _every_ installation: an operator running several
 teams may reasonably want some Users to manage their agents and others only to
@@ -2111,7 +2111,7 @@ watch them and raise requests.
 
 Before this, the choice was all or nothing at the tier. An operator who wanted
 the narrower behaviour for one account had to demote them to Viewer, which also
-took away reading unmasked logs, prompting, and the emergency stop — three
+took away reading unmasked logs, prompting, and the emergency stop, three
 things that have nothing to do with authoring policy.
 
 **What was built.** A per-account flag, `canAuthorPolicy`, set by **Root only**,
@@ -2122,7 +2122,7 @@ nothing regardless.
 
 **Absent means allowed**, which is the design decision worth stating. This is a
 control Root can _take away_, not one Root must grant before the tier does its
-documented job — so every account and session issued before the flag existed
+documented job, so every account and session issued before the flag existed
 keeps working exactly as it did, and §3.7 remains the shipped default rather
 than becoming an opt-in.
 
@@ -2148,7 +2148,7 @@ first implementation made `canManageAgent` consult the new flag. That function
 was already answering two different questions for eight call sites, and folding
 the flag into it meant **withholding an account's ability to write rules also
 took away its ability to stop its own agent.** A permission intended to reduce
-how much policy somebody can change had silently removed a safety control — a
+how much policy somebody can change had silently removed a safety control. A
 regression dressed as a restriction, and precisely the kind an operator would
 never think to test for.
 
@@ -2156,11 +2156,11 @@ It was caught by a test written for that risk before the code was written, which
 is the only reason it did not ship. The repair was to separate the two
 questions rather than to special-case the kill switch:
 
-- **`canManageAgent`** — _may this actor act on this agent?_ Kill switch,
+- **`canManageAgent`**: _may this actor act on this agent?_ Kill switch,
   prompting, transcript, runs, deciding a held escalation. None of these change
   the rules; they exercise authority the tier already has over a workload it is
   responsible for.
-- **`canAuthorPolicyForAgent`** — _may this actor change the rules this agent is
+- **`canAuthorPolicyForAgent`**: _may this actor change the rules this agent is
   judged by?_ Rule add and remove, agent posture, agent escalation.
 
 Every call site now picks one, and which one it picks is a decision the reviewer
@@ -2176,7 +2176,7 @@ lockout class `account-guards.ts` exists to prevent, and the same reasoning that
 stops Root deleting the last Root account.
 
 **Recorded separately in the ledger** as `governance.account.policy-authoring`,
-not folded into a role change — because the account's tier does not change, and
+not folded into a role change, because the account's tier does not change, and
 an investigation asking "why could this account no longer write rules?" would
 find nothing if the answer were hidden inside a role change that never happened.
 When the flag is set on an account above the User tier the entry says plainly
@@ -2189,26 +2189,26 @@ read, stop and request; that the flag does not restrain Administrator or Root;
 that an absent flag means allowed; that only Root may set it; and that a
 malformed request is refused rather than guessed. Sessions are updated in the
 same request as the account record, so revocation takes effect on a User who is
-already signed in — a permission that only applied to future sessions would be
+already signed in. A permission that only applied to future sessions would be
 the `userAsk` defect again, where a setting was saved, displayed as active, and
 never consulted.
 
 ### 3.5.24 Splitting the immutable tier: what a floor is for (T24)
 
 **The question, and why the premise mattered.** The request was: _"the core rules
-— are they the same as the baseline rules an agent has on startup? if so, Root
+are they the same as the baseline rules an agent has on startup? if so, Root
 and Admin should be able to change them."_ The conditional turned out to be the
 important part, because **core and baseline are two different tiers** and the
 distinction decides the answer:
 
-| Tier         | What it is                                                                                                                  | Count | Editable before T24                                       |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------- | ----- | --------------------------------------------------------- |
-| **core**     | Denials. Credentials, the governance state, privilege escalation, the governance CLI, host destruction, cloud metadata      | 8     | No, by anyone                                             |
-| **baseline** | Allowances shipped so an agent is useful on first boot. Read the workspace, bare inspection commands, `ls`, read-only `git` | 6     | **Yes, already** — Administrator may narrow or remove any |
+| Tier         | What it is                                                                                                                  | Count | Editable before T24                                      |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------- | ----- | -------------------------------------------------------- |
+| **core**     | Denials. Credentials, the governance state, privilege escalation, the governance CLI, host destruction, cloud metadata      | 8     | No, by anyone                                            |
+| **baseline** | Allowances shipped so an agent is useful on first boot. Read the workspace, bare inspection commands, `ls`, read-only `git` | 6     | **Yes, already**, Administrator may narrow or remove any |
 
 So half the request was already satisfied: the rules an agent has on startup are
 the _baseline_ set, and an Administrator could always change them. Recording
-that rather than building it is worth a line in the report — **a request that
+that rather than building it is worth a line in the report, **a request that
 turns out to be already met is a documentation failure, not a feature gap**, and
 this one arose because the two tiers were described in `baseline-policy.ts` and
 nowhere an operator would look.
@@ -2234,7 +2234,7 @@ about a directory name is not obviously more important and is not. The line is
 **what the ability to lift the rule would mean**: a self-protecting rule is one
 whose removal lets the governed agent reach the policy, the accounts, the
 ledger, or the command line that switches the gate off. Lift any of those and
-every other control becomes advisory — **including the list recording which core
+every other control becomes advisory, **including the list recording which core
 rules are disabled.** The three are exactly the set that keeps the other five
 meaningful, which is why they are the set that cannot move.
 
@@ -2243,8 +2243,8 @@ switched off wholesale, and this project has already learned that lesson once:
 QA finding 35 shipped `enforce` with zero rules, bricked the agent, and the
 first response was to make the entire gate observe-only. An installation whose
 agent genuinely needs `sudo` had no way to say so and no option short of
-disabling everything. The five disableable rules are opinions — good defaults an
-operator with a real deployment may legitimately disagree with — and a security
+disabling everything. The five disableable rules are opinions, good defaults an
+operator with a real deployment may legitimately disagree with, and a security
 layer that cannot accommodate legitimate disagreement is one that will be
 removed rather than adjusted.
 
@@ -2259,7 +2259,7 @@ one-line change and is recorded here as a decision rather than an oversight.
    stays declared in `baseline-policy.ts`, is still rebuilt on every load, is
    still visible in the dashboard, and returns intact when re-enabled. The
    reassertion that defeats a hand-edited `policy.json` is untouched.
-2. **Self-protecting rules are refused twice** — at the setter and again at the
+2. **Self-protecting rules are refused twice**, at the setter and again at the
    load path. The second is not redundant: a `disabledCoreRules` entry naming a
    self-protecting rule can only arrive by editing the file directly, which is
    precisely the attack the core tier exists to survive, so the load path must
@@ -2268,13 +2268,13 @@ one-line change and is recorded here as a decision rather than an oversight.
 3. **A lowered floor cannot hide.** The change is its own audit action
    (`governance.policy.core-rule`, naming the rule in full rather than saying "a
    core rule was disabled"), and `governance deployment` reports the
-   installation as **`fail`** — not `warn` — while any core rule is off. Chapter
+   installation as **`fail`**, not `warn`, while any core rule is off. Chapter
    4 quotes that report as evidence, and an installation that looked clean while
    a shipped denial was switched off would be worse than having no report.
 
 **A subtlety worth stating, because it reads backwards at first.** Disabling a
 core _denial_ grants nothing by itself. Core denials are consulted before
-allowances, so switching one off does not permit the action — it stops the
+allowances, so switching one off does not permit the action. It stops the
 denial from overriding an allowance the operator writes afterwards. Under
 default-deny the action is still refused until somebody permits it explicitly.
 That is why the feature is safer than it sounds: it converts "this is forbidden
@@ -2286,7 +2286,7 @@ policy/core-rules`, `governance policy core-rule <id> true|false` (with
 `governance policy core-rules` to list them and their state), and a per-row
 control in the dashboard's rule list that appears only on the five and carries a
 confirmation naming the consequence. The dashboard's list of which rules to hide
-the control on is mirrored by hand — the bundle does not import from `src/` —
+the control on is mirrored by hand, the bundle does not import from `src/`,
 and pinned by `core-rule-mirror.contract.test.ts`, which asserts the _property_
 rather than array equality: every self-protecting rule matched, no ordinary rule
 matched, and no fragment matching nothing.
@@ -2314,7 +2314,7 @@ The answer has five parts, and only the third is about rules.
 
 An OpenClaw agent affects the outside world in exactly one way: it emits a
 **tool call**. It cannot open a file, run a command, or reach the network by any
-other route — the model produces text, the runtime turns a tool call into an
+other route. The model produces text, the runtime turns a tool call into an
 action, and everything else is conversation. That is a property of the host, not
 something this project built, and it is what makes a single chokepoint possible
 at all.
@@ -2322,7 +2322,7 @@ at all.
 Every tool call funnels through `runBeforeToolCallHook`
 (`src/agents/agent-tools.before-tool-call.policy.ts`). The governance check is
 inserted as the **outermost gate**, deliberately ahead of the short-circuit that
-skips policy work when no plugins are registered — because a plugin-free
+skips policy work when no plugins are registered, because a plugin-free
 deployment is exactly the configuration where a policy layer must still run.
 
 So enforcement is not a matter of the agent choosing to comply. The agent's
@@ -2339,12 +2339,12 @@ properties hold it in place, and each closed a real defect:
 | **Compiled into the fork, not a plugin** | No configuration file can unload it. The project began as an extension and was rebuilt for exactly this reason                                                                                                                         |
 | **The native harness must relay** (B1)   | A Codex-backed session runs in a helper process that does not call the hook itself. The relay is now required _unconditionally_, because a posture-conditional relay is a cache that goes stale in the direction that reopens the hole |
 | **Core rules reasserted on every load**  | Hand-editing `policy.json` cannot remove the floor; any stored rule claiming `tier: "core"` is discarded first, so an attacker cannot inject a core-tier _allow_ either                                                                |
-| **The governance directory is denied**   | The agent cannot read or write the policy, the accounts, the ledger, or the signing key — path _and_ command rules, on both separator spellings                                                                                        |
+| **The governance directory is denied**   | The agent cannot read or write the policy, the accounts, the ledger, or the signing key. Path _and_ command rules, on both separator spellings                                                                                         |
 | **The governance CLI is denied**         | `openclaw governance policy set-mode off` needs no login and would have switched the whole gate off. Matched on the subcommand pair, because the binary has many spellings and the subcommand has one                                  |
 
 The last three are the **self-protecting** core rules, and they are the three
 that stayed immutable when the tier was split in T24 (§3.5.24). That is not a
-coincidence — they are precisely the set whose removal would make every other
+coincidence. They are precisely the set whose removal would make every other
 control advisory.
 
 #### 3. What the gate compares, and in what order
@@ -2356,13 +2356,13 @@ For each tool call the engine extracts the **resource** being acted on
   resolved, then rendered workspace-relative inside the project and absolute
   outside it (§3.5.8). A path that escapes the workspace _becomes visibly
   absolute_, so a rule like `^src/` stops matching it however it was spelled.
-- **Hostnames** are canonicalised on the same principle — four IPv4 spellings
+- **Hostnames** are canonicalised on the same principle, four IPv4 spellings
   and the IPv6 family, after QA rounds 11 and 13.
 
 Then `evaluateGovernancePolicy` decides, in this order, and the order is
 load-bearing:
 
-1. **Posture.** If the agent's mode is `off`, return without recording —
+1. **Posture.** If the agent's mode is `off`, return without recording,
    recording would imply an oversight that is not happening.
 2. **Kill switch.** Checked before asking whether the tool is one we know how to
    judge, because an emergency stop that only covers enumerated tools is not an
@@ -2370,7 +2370,7 @@ load-bearing:
    while any agent is locked.
 3. **Denials**, core and operator alike, filtered by resource kind, access
    direction, expiry, and agent scope. Every matching resource is recorded, not
-   just the first — a patch touching three forbidden files is three ledger
+   just the first. A patch touching three forbidden files is three ledger
    entries.
 4. **Allowances.** A rule authorises an agent only if it is global or written
    for that exact agent.
@@ -2403,7 +2403,7 @@ claim about _what it compares against_. The gate can only govern tools it knows
 how to extract a resource from, so the registry is compared on every test run
 against **the host's own tool catalogue** (`tool-catalog.ts`), not against a
 list somebody wrote from memory. Round thirteen found that guard comparing
-against a stale seven-name list while the host declared fifty-two — it had
+against a stale seven-name list while the host declared fifty-two. It had
 always passed and could not fail.
 
 Today: **18 tools governed, and each of the other 34 carries a written
@@ -2411,7 +2411,7 @@ justification** in `DELIBERATELY_UNGOVERNED`. Adding a tool to the host without
 deciding which side it falls on fails the suite.
 
 And **every invocation is recorded**, including the ones no rule covered, with
-`ungoverned` as a distinct verdict — so coverage gaps are visible in the ledger
+`ungoverned` as a distinct verdict, so coverage gaps are visible in the ledger
 rather than invisible.
 
 #### What this does _not_ guarantee, stated plainly
@@ -2419,18 +2419,18 @@ rather than invisible.
 Enforcement is bounded, and the report is stronger for naming the boundary than
 for implying there is none.
 
-| Limit                                                                                                                                                        | Status                                                                                                                                                               |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Search tools are governed at their root only.** `grep`/`find`/`ls` recurse; only the path they were pointed at is checked                                  | T7 — needs the host to report files actually opened                                                                                                                  |
-| **A path is checked, then the tool re-resolves it.** A symlink swapped in between defeats the check                                                          | T10 demonstrated, T23 is the fix — the hook _can_ carry the resolved path back                                                                                       |
-| **Outbound messages are not gated** — an agent can repeat a permitted file's contents into a chat channel. **Recorded, with the destination, never refused** | T8 — **closed 2026-08-26 by decision, not a gap.** §1.3 names three resource categories and messaging is not one; connecting an agent to a channel is the permission |
-| **`web_search` / `x_search` reach the network ungoverned** — a query has no hostname to match                                                                | T12 — the accurate claim is "network communication _to a named destination_"                                                                                         |
-| **A lockdown does not reach a cross-agent child already running**                                                                                            | Finding 96 — needs `spawnedBy` in `HookContext`                                                                                                                      |
-| **Prompt injection is out of scope by design.** The gate governs _what_, never _why_                                                                         | §4.x.26 — containment is what bounds the damage when persuasion succeeds                                                                                             |
+| Limit                                                                                                                                                       | Status                                                                                                                                                              |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Search tools are governed at their root only.** `grep`/`find`/`ls` recurse; only the path they were pointed at is checked                                 | T7, needs the host to report files actually opened                                                                                                                  |
+| **A path is checked, then the tool re-resolves it.** A symlink swapped in between defeats the check                                                         | T10 demonstrated, T23 is the fix, the hook _can_ carry the resolved path back                                                                                       |
+| **Outbound messages are not gated**, an agent can repeat a permitted file's contents into a chat channel. **Recorded, with the destination, never refused** | T8, **closed 2026-08-26 by decision, not a gap.** §1.3 names three resource categories and messaging is not one; connecting an agent to a channel is the permission |
+| **`web_search` / `x_search` reach the network ungoverned**, a query has no hostname to match                                                                | T12, the accurate claim is "network communication _to a named destination_"                                                                                         |
+| **A lockdown does not reach a cross-agent child already running**                                                                                           | Finding 96, needs `spawnedBy` in `HookContext`                                                                                                                      |
+| **Prompt injection is out of scope by design.** The gate governs _what_, never _why_                                                                        | §4.x.26, containment is what bounds the damage when persuasion succeeds                                                                                             |
 
 **The honest summary sentence, and the one to use in the defence:** the agent is
 prevented from acting outside policy because every action it can take goes
-through one gate it cannot disable, which refuses by default and fails closed —
+through one gate it cannot disable, which refuses by default and fails closed,
 and the residual risk is not that the gate can be bypassed, but that a handful of
 _permitted_ actions are coarser than the policy language can currently describe.
 
@@ -2444,7 +2444,7 @@ the paper assigns that control to the **Administrator**.
 arguing: `ask: "off"` _refuses_ an unlisted action and `ask: "on-miss"`
 _escalates it to a human who may approve it_. A User moving their own agent from
 the first to the second converts a hard refusal into a request somebody might
-grant — a **widening**, made by the tier the paper gives the least authority.
+grant. A **widening**, made by the tier the paper gives the least authority.
 What bounded it: `resolveAskMode` takes the stricter of the per-agent and
 per-user settings, so a User could not override a Root who had set `off` for
 them. The widening was available only where no Root override existed, which on a
@@ -2452,7 +2452,7 @@ default installation is everywhere.
 
 **Both controls moved, not one.** Per-agent _posture_ (`agentMode`) sat at the
 same floor, and switching an agent to `monitor` stops policy decisions being
-_acted on_ for it — a wider grant than the escalation toggle T4 is named for.
+_acted on_ for it. A wider grant than the escalation toggle T4 is named for.
 Moving one and leaving the other would have been a fix aimed at the item's title
 rather than at its reasoning.
 
@@ -2471,8 +2471,8 @@ for the common case. So the capability was **relocated, not removed**: a User
 asks, an Administrator decides.
 
 **Built on the existing rule-request queue rather than beside it.** That
-mechanism already implements this exact shape — submit, review, decide, link the
-result back to the request — and one review surface is worth more than two. A
+mechanism already implements this exact shape, submit, review, decide, link the
+result back to the request, and one review surface is worth more than two. A
 parallel queue would have meant a second place for an Administrator to look and
 a second place to forget to look.
 
@@ -2492,7 +2492,7 @@ stored after and every existing reader keeps working.
 Four decisions inside that are worth recording:
 
 1. **Approval applies the setting from the _stored_ request**, never from the
-   approving client's payload — the same rule the rule branch already followed,
+   approving client's payload. The same rule the rule branch already followed,
    so an Administrator cannot be tricked into granting something other than what
    they reviewed.
 2. **The approver is the actor, not the requester.** The change is made under
@@ -2500,14 +2500,14 @@ Four decisions inside that are worth recording:
    already named on the submit entry and in the description.
 3. **Submission is gated by `canManageAgent`, not `canAuthorPolicyForAgent`.**
    Requesting is not authoring, so a User whose authoring Root has withheld may
-   still ask — asking is precisely the fallback that withholding leaves them.
+   still ask. Asking is precisely the fallback that withholding leaves them.
    Gating both the same way would have made the withholding flag a demotion in
    disguise.
 4. **A rejected request changes nothing**, and is recorded as a refusal.
 
 #### The test churn was the intended outcome
 
-Four suites asserted that a User _may_ set these — the authoring-scope matrix,
+Four suites asserted that a User _may_ set these. The authoring-scope matrix,
 the privilege matrix, the dashboard API tests and a round-three security test.
 Every one encoded the old tier placement and every one was inverted deliberately.
 Flagged here because a reviewer reading the diff sees four "expected 200, got
@@ -2516,7 +2516,7 @@ Flagged here because a reviewer reading the diff sees four "expected 200, got
 One of them changed shape rather than value and is the more interesting case:
 `policy/agent-mode` refuses `mode: "off"` at every tier, because a per-agent
 `off` would remove the kill switch and the core denials along with the ordinary
-rules. That refusal is still total — but a User now meets the **tier** check
+rules. That refusal is still total, but a User now meets the **tier** check
 (403) before the value is ever examined, while an Administrator reaches the
 **validation** (400). The test asserts both codes separately rather than "some
 4xx", for the privilege matrix's own reason: a route that starts accepting a
@@ -2530,7 +2530,7 @@ the escalation wide open.
 Two halves, one requirement each, and they are worth separating because only one
 of them is a security control.
 
-#### Part A — who ran the command
+#### Part A: who ran the command
 
 Every command-line change was recorded against the literal actor `cli`. The
 trail could say _a change came from this machine_ and never _by whom_. It was
@@ -2540,7 +2540,7 @@ the command line ignored the tier model entirely. A Viewer with shell access
 could add rules the dashboard would have refused them.
 
 `governance login` / `logout` / `whoami` now exist. The mechanics reuse what was
-already there — `authenticate()` and `issueSession()`, no new auth machinery —
+already there, `authenticate()` and `issueSession()`, no new auth machinery,
 and four details carry the design:
 
 - **A masked prompt.** `promptText` echoes every keystroke, which is right for a
@@ -2557,8 +2557,8 @@ and four details carry the design:
 - **Sign-out revokes rather than forgets.** Deleting the local file alone would
   leave a live session that any copy of the token could still use.
 
-**It enforces, using the same helpers as the HTTP routes** —
-`canManageGlobalPolicy`, `canAuthorPolicyForAgent`, `canManageAgent` — through a
+**It enforces, using the same helpers as the HTTP routes**,
+`canManageGlobalPolicy`, `canAuthorPolicyForAgent`, `canManageAgent`, through a
 single `requireCliActor` gate that takes the question as a predicate and returns
 the audit actor on success. Making the actor _the return value_ means the only
 way past the check is holding the thing it produces; a command cannot forget to
@@ -2569,10 +2569,10 @@ CLI login is a real control against mistakes and casual misuse, and it is **not
 a security boundary**: anyone who can run these commands can edit `policy.json`,
 `users.json` and the ledger directly, and no login changes that. The boundary is
 the filesystem's and always was. `cli-identity.test.ts` ends with a test that
-performs exactly that edit and asserts it succeeds — so the suite states the
+performs exactly that edit and asserts it succeeds, so the suite states the
 limitation rather than letting the other twelve tests imply it away.
 
-#### Part B — under what authority
+#### Part B: under what authority
 
 The ledger recorded _who_. It did not record _as what_. An action taken by
 someone who was an Administrator at the time reads differently from the same
@@ -2580,7 +2580,7 @@ action by the same person after a demotion, and the trail could not tell them
 apart.
 
 `actorRole` now sits beside `actor`, on both surfaces. **It is recorded as it
-was at the moment of the action and never looked up afterwards** — the ledger
+was at the moment of the action and never looked up afterwards**. The ledger
 records history, and an account's tier is part of the history of an action
 rather than a property to resolve later.
 
@@ -2596,14 +2596,14 @@ and the migration is the part the report should carry:
   the administrative fields is either a role or the literal `"keyed"`; appended
   bare, a role of `"keyed"` would give `[…, "keyed"]`-with-no-role and
   `[…, "keyed"]`-as-a-role the same payload, so two different entries could share
-  a hash. Roles come from a four-value set that does not contain `"keyed"` — which
+  a hash. Roles come from a four-value set that does not contain `"keyed"`, which
   is exactly the kind of unexamined premise this project keeps finding on the
   wrong side of a defect. The prefix removes the question instead of answering it.
 
 **One mechanical decision saved seventeen edits.** Seventeen store mutators take
 an actor and forward it to `recordAdminAction` unchanged. Rather than adding a
-parameter to each — seventeen signature changes and seventeen call-site changes,
-on the paths that write the audit trail — the _type_ widened to
+parameter to each, seventeen signature changes and seventeen call-site changes,
+on the paths that write the audit trail, the _type_ widened to
 `string | { name, role }` with one normalisation point. A bare string still means
 "an actor with no tier", which is correct for the labelled actors (`cli`,
 `bootstrap`, `hitl-approval`, `unauthenticated`): they are not accounts and hold
@@ -2613,7 +2613,7 @@ no role, and supplying one would invent an authority that never existed.
 moved a tolerance with it: the old code absorbed a missing actor in
 `input.actor || UNKNOWN_ACTOR`, and the new helper did not. The suite caught it
 in one run. Worth recording because it is the argument for the test volume in
-miniature — a mechanical refactor of a shared write path, with the mistake found
+miniature. A mechanical refactor of a shared write path, with the mistake found
 in seconds rather than in an incident.
 
 ---
@@ -2627,7 +2627,7 @@ recorded string through `redactToolPayloadText` at the ledger boundary.
 **Redaction is a text operation. An image is not text.** A screenshot of a
 terminal showing an API key contains that key as pixels; no pattern matches it,
 and no equivalent of the redactor could. The same is true, less obviously, of a
-PDF, an office document, or anything compressed — scanning the bytes for a token
+PDF, an office document, or anything compressed. Scanning the bytes for a token
 pattern finds nothing, because the token is not in the bytes in that form.
 
 So the question was never _how do we redact an attachment_. It was **what the
@@ -2640,14 +2640,14 @@ audit trail is allowed to be unable to see**, and there were three answers:
 | (c) Refuse attachments                                   | A surface with nothing to get wrong                          | A real capability                                                                                                                                |
 
 **(b) was chosen.** The ledger records SHA-256, sniffed MIME type, byte size and
-the declared filename — and never the content. An investigator holding the file
+the declared filename, and never the content. An investigator holding the file
 can prove it is the file that was sent; one without it learns that a 2.1 MB PNG
 was sent, by whom, to which agent, when. That is how evidence handling usually
 works, and it satisfies #8 by construction rather than by filtering.
 
 #### Why the store lives where it does
 
-Under the governance directory — not for tidiness. The three **self-protecting**
+Under the governance directory, not for tidiness. The three **self-protecting**
 core rules already deny the agent every path and command naming
 `~/.openclaw/governance`, and those three are the ones Root cannot switch off
 (§3.5.24). Putting attachments there means the protection is **inherited from a
@@ -2659,7 +2659,7 @@ checks is the shape of the coverage guard that always passed and could not fail.
 
 #### The hostile-input list, answered before the code was written
 
-1. **The filename is attacker-controlled and reaches the filesystem** — traversal,
+1. **The filename is attacker-controlled and reaches the filesystem**. Traversal,
    NTFS alternate data streams, a name folding onto a governance state file.
    **Answered by never using it**: files are named by their content hash, and the
    declared name is metadata, redacted and clamped. Traversal is not defended
@@ -2667,12 +2667,12 @@ checks is the shape of the coverage guard that always passed and could not fail.
 2. **Size is a denial-of-service axis**, and this layer has been bitten by that
    family three times (Q-79 a rule pattern, Q-82 an unbounded ledger page, Q-90
    unbounded concurrency). **The cap bites while streaming**, not after
-   buffering — checking the length afterwards lets an attacker choose how much
+   buffering. Checking the length afterwards lets an attacker choose how much
    memory the process allocates before being told no, which is the denial of
    service the cap exists to prevent rather than a check against it. Plus a
    per-account quota, so one uploader cannot deny the feature to everybody else.
 3. **The declared MIME type is a claim, not a fact.** Sniffed from content, and
-   anything unrecognised is `application/octet-stream` — the honest answer,
+   anything unrecognised is `application/octet-stream`. The honest answer,
    "bytes we did not recognise", rather than a guess dressed as a fact.
 4. **The dashboard never renders an attachment back.** A decision, not an
    omission: an SVG is a script, and the governance page is the one page in this
@@ -2684,12 +2684,12 @@ checks is the shape of the coverage guard that always passed and could not fail.
    there.
 
 Content addressing also means an identical file sent twice is stored once and
-named once — which is not a deduplication trick but a property an investigator
+named once, which is not a deduplication trick but a property an investigator
 can use: Tuesday's file is _provably_ byte-identical to Monday's.
 
 #### Requirement #8's claim, restated
 
-The old form — "prompt text is scanned for secrets before it is recorded" —
+The old form, "prompt text is scanned for secrets before it is recorded",
 stopped being the whole story the moment this landed. The accurate claim is:
 **recorded text is redacted; attachment content is never recorded at all, and is
 held in a store the governed agent cannot read.**
@@ -2704,7 +2704,7 @@ plainly rather than rounded up: T14 is built and one surface short.
 ### 3.5.29 Binding the decision to the file it was made about (T23)
 
 The last remaining security fix in the backlog, and the one whose write-up is
-most useful to Chapter 4 — because the interesting part is not the code, which
+most useful to Chapter 4, because the interesting part is not the code, which
 is small, but the sequence of claims the project made about this gap and had to
 withdraw one at a time.
 
@@ -2712,7 +2712,7 @@ withdraw one at a time.
 
 The gate resolved the path an agent asked for, decided about the file that path
 named _at that instant_, and then handed the agent's original text back for the
-tool to resolve a second time — so anything that changed the meaning of that
+tool to resolve a second time, so anything that changed the meaning of that
 text in between was acted on without ever having been judged.
 
 A symbolic link is the easy way to change it. `workspace/notes` points at a
@@ -2720,7 +2720,7 @@ harmless file when the gate looks; the gate says yes; the link is repointed at
 `/etc/shadow`; the tool opens `workspace/notes` and reads the secret. Two
 resolutions of one string, and only the first was governed.
 
-**Figure candidate** — _Figure 3.x: The check-then-open window._ Two timelines,
+**Figure candidate**, _Figure 3.x: The check-then-open window._ Two timelines,
 gate and tool, with the swap between them: the gate resolving `notes` → `safe`,
 the attacker repointing `notes` → `secret`, the tool resolving `notes` → `secret`.
 The point the figure has to make is that both resolutions are correct; it is
@@ -2733,7 +2733,7 @@ gap was wrong three times in a row and each correction came from a different
 kind of work.
 
 1. **"The gate canonicalizes paths, so links are handled."** True of the
-   _static_ escape and still true — a link pointing outside the workspace at
+   _static_ escape and still true. A link pointing outside the workspace at
    decision time is caught, because canonicalization makes the path visibly
    absolute and a workspace-relative allow rule stops matching it
    (`path-toctou.test.ts` pins this beside the gap, because the two are easy to
@@ -2743,8 +2743,8 @@ kind of work.
 2. **"The gap is real but inherent to any check-then-delegate design."** This
    was recorded in the backlog as a limitation and would have gone into the
    report as one. It is **false**, and finding that out cost one grep:
-   `PluginHookBeforeToolCallResult` — the shape a `before_tool_call` hook
-   returns — carries an optional `params` field, and the host applies it to the
+   `PluginHookBeforeToolCallResult`, the shape a `before_tool_call` hook
+   returns, carries an optional `params` field, and the host applies it to the
    call. The gate was never obliged to hand the string back. **Corrected by
    T10's own qualification work**: writing the executable demonstration forced
    someone to look at what the host actually accepts, which reading the
@@ -2754,13 +2754,13 @@ kind of work.
    **rejected as theatre**. Two resolutions microseconds apart agree during an
    attack; an attacker who can win a race can win it twice. A narrower window is
    not a smaller defect, it is a defect that reproduces less often, which is
-   worse — it converts a finding a test can catch into one that only production
+   worse. It converts a finding a test can catch into one that only production
    catches.
 
 The through-line for Chapter 4: **an admission is a claim too.** The project has
 argued that a promise needs a test asserting its boundary (§4.x.24); this is the
 same argument applied to a limitation. "Inherent to the design" sounds like
-humility and was doing the work of an unexamined assumption — it closed the
+humility and was doing the work of an unexamined assumption. It closed the
 question instead of opening it, and it survived twelve reviews because nobody
 audits the things a document already concedes.
 
@@ -2799,7 +2799,7 @@ every call.
 So the substitution fires **only when canonicalization actually changed which
 file the path addresses**. Four exclusions:
 
-1. **Not when nothing was redirected** — which is nearly every call an agent
+1. **Not when nothing was redirected**, which is nearly every call an agent
    ever makes. Those flow on byte-identical, and a test asserts it.
 2. **Not for non-`path` tools.** A command or a URL has no path parameter to
    rebind.
@@ -2828,25 +2828,25 @@ wrong if guessed.
 - **Case correction.** `realpath` on Windows returns the on-disk spelling: an
   agent that writes `SAFE/NOTES.TXT` gets `safe/notes.txt` back with no link
   anywhere near it. Treating that as a redirection would have made T23 fire on
-  ordinary Windows calls — precisely the blast radius the task said to avoid —
+  ordinary Windows calls, precisely the blast radius the task said to avoid,
   so the comparison ignores case on Windows.
 
   The justification is not convenience, and it matters that it is not: **case
   cannot be swapped underneath the gate.** On a case-insensitive filesystem the
   two spellings address the same file permanently, so there is no second
-  resolution to race. A link is the opposite — its target is data, and data can
+  resolution to race. A link is the opposite. Its target is data, and data can
   change. On a case-_sensitive_ filesystem the comparison stays exact, for the
   same reason: there, two spellings really are two files.
 
 #### The consequence that broke a hundred assertions in one line
 
-Allowing used to mean returning `undefined`. It no longer always does — an
+Allowing used to mean returning `undefined`. It no longer always does. An
 allowed call whose path was redirected returns `{ params }`. Every test helper
 in the project that read _absence of a decision_ as "allow" therefore reported
 that redirected call as an escalation:
 
 ```ts
-// before — infers allow from a missing value
+// before. Infers allow from a missing value
 return "block" in decision ? "block" : "ask";
 ```
 
@@ -2858,8 +2858,8 @@ failed immediately. All fifteen now ask the question directly
 appearing one more time and in its purest form: _the helper was not checking
 whether the call was allowed; it was checking whether anything was returned, and
 treating the two as the same thing._ That held for as long as they happened to
-coincide. It is the check/claim line — a check makes a silent claim about what
-it compares against — restated as: **a value's absence is a claim about meaning,
+coincide. It is the check/claim line, a check makes a silent claim about what
+it compares against, restated as: **a value's absence is a claim about meaning,
 and it is exactly as unexamined as the value.**
 
 That fifteen identical copies existed is itself the reason the change was cheap
@@ -2869,7 +2869,7 @@ edit, and would also have made the assumption visible enough to question.
 #### What this closes, and what it honestly does not
 
 **Closed.** The link-swap window for path tools taking `path` or `file_path`.
-The tool receives an absolute path with no link left in it — asserted directly,
+The tool receives an absolute path with no link left in it. Asserted directly,
 by resolving the returned path again and requiring that it resolves to itself,
 because a substitution that still contained a link would look like a fix while
 changing nothing. And the end-to-end replay: decide, swap the link, and the path
@@ -2879,8 +2879,8 @@ the tool holds still names the file that was judged.
 
 1. **Replacing the target itself.** The canonical path is link-free when
    produced, but if the file _at that path_ is replaced afterwards, the tool
-   opens the replacement. This is a different attack — it needs write access to
-   the target, not to a name pointing at it — and no parameter substitution can
+   opens the replacement. This is a different attack, it needs write access to
+   the target, not to a name pointing at it, and no parameter substitution can
    prevent it. Closing it needs the tool to open by handle rather than by path,
    which is a host change.
 2. **A file that does not exist yet.** Canonicalization resolves the parent and
@@ -2896,7 +2896,7 @@ the tool holds still names the file that was judged.
 #### The sentence for the conclusion
 
 > The fix was not to check faster. It was to notice that the system was asking
-> the same question twice and only listening to the first answer — and to stop
+> the same question twice and only listening to the first answer, and to stop
 > asking it twice.
 
 ### 3.5.30 Who can reach an agent, and the first step toward a tenant model (M2)
@@ -2911,7 +2911,7 @@ built, and **nothing ever called it**. The dashboard could always answer _which
 agents does this account have?_ and never _which people does this agent have?_
 
 The asymmetry is not cosmetic. The second question is the one an Administrator
-actually asks — before changing a rule, before handing an agent over, before
+actually asks. Before changing a rule, before handing an agent over, before
 deciding whether an agent is orphaned. A control plane whose purpose is making
 authority legible could show authority in one direction only.
 
@@ -2926,7 +2926,7 @@ nothing.
 
 **Scoped, because otherwise it is an enumeration oracle.** Without the scope
 check any account could ask about any agent id and map the whole installation's
-staffing — the same class of leak the login response avoids for account
+staffing. The same class of leak the login response avoids for account
 existence, and the attachment reference check avoids for file existence. This is
 the third time that argument has decided a design in this project, which is
 itself worth a sentence: **a lookup that answers for inputs you do not own is a
@@ -2939,9 +2939,9 @@ staffed and hide exactly the distinction the panel exists to show. The answer is
 
 #### The empty answer is an answer
 
-An agent with nobody assigned is a real and interesting state — it is running
-under Administrator authority alone — and the page says so in words rather than
-rendering an empty region. Three states, three renderings: a list, "Nobody — no
+An agent with nobody assigned is a real and interesting state, it is running
+under Administrator authority alone, and the page says so in words rather than
+rendering an empty region. Three states, three renderings: a list, "Nobody, no
 User or Viewer has been assigned this agent", and "Could not load who has
 access."
 
@@ -2956,19 +2956,19 @@ This is subtask M2 of a much larger change requested on 2026-08-24: a tenant
 model in which one person creates a Root, that Root creates the Admin, User and
 Viewer accounts of their **group**, every User and Viewer is associated with an
 Administrator, and each Administrator sees a panel of the agents in their
-ecosystem — who holds them, what policy binds them, and controls to create,
+ecosystem, who holds them, what policy binds them, and controls to create,
 edit, assign and unassign.
 
 Almost none of that exists yet, and the gap is worth stating precisely because
 it is larger than it looks:
 
-| Piece                                                                             | State                                                                                                |
-| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Four-tier ladder, Root-created accounts, agent assignment, per-agent policy views | **Built**                                                                                            |
-| Multiple Roots                                                                    | **Forbidden in code today** — `DuplicateRootError` caps the installation at one                      |
-| A group / tenant                                                                  | No such concept anywhere                                                                             |
-| User or Viewer belonging to an Administrator                                      | No link; Administrators manage every agent by role                                                   |
-| An agent registry                                                                 | **None** — an agent "exists" only once a rule, posture, lock or assignment happens to mention its id |
+| Piece                                                                             | State                                                                                               |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Four-tier ladder, Root-created accounts, agent assignment, per-agent policy views | **Built**                                                                                           |
+| Multiple Roots                                                                    | **Forbidden in code today**, `DuplicateRootError` caps the installation at one                      |
+| A group / tenant                                                                  | No such concept anywhere                                                                            |
+| User or Viewer belonging to an Administrator                                      | No link; Administrators manage every agent by role                                                  |
+| An agent registry                                                                 | **None**, an agent "exists" only once a rule, posture, lock or assignment happens to mention its id |
 
 The last row is the one that reshapes the work. `knownAgentIds()` reconstructs
 the set of agents incidentally, from whatever the policy document mentions;
@@ -2979,8 +2979,8 @@ button; it is a missing noun.**
 The decisions taken before any of it was designed are recorded here so the
 sequence is legible in the report: full isolation per group (its own policy
 document and its own audit chain), exactly one owning Administrator per agent,
-one Root **per group** rather than per installation — keeping the original
-single-Root argument intact at a new scope rather than discarding it — and
+one Root **per group** rather than per installation, keeping the original
+single-Root argument intact at a new scope rather than discarding it, and
 provisioning that reaches into the host's own agent roster.
 
 That last one is a change of kind rather than degree, and Chapter 4 should say
@@ -2991,7 +2991,7 @@ governs.
 ### 3.5.31 The group: making the layer multi-tenant (M3)
 
 The change that turns a single-operator control plane into one that can hold
-several organisations at once. The data model only — per-group storage
+several organisations at once. The data model only, per-group storage
 isolation (M5), the agent registry (M4) and the Administrator's panel (M6) build
 on it.
 
@@ -3009,7 +3009,7 @@ each other. Two new invariants join the tier model:
 1. **Every account belongs to exactly one group.**
 2. **Every User and Viewer has one Administrator answerable for it.**
 
-**Figure candidate** — _Figure 3.x: Two groups on one installation._ Two boxes,
+**Figure candidate**, _Figure 3.x: Two groups on one installation._ Two boxes,
 each containing a Root, two Administrators, and Users hanging off individual
 Administrators; a dividing line between them labelled with what does not cross
 it (accounts, the account list, agent assignment).
@@ -3021,7 +3021,7 @@ as a deliberate security decision. The argument was: Root manages people, a
 second Root can delete the first, and the moment two exist "you cannot remove
 the last Root" stops protecting the operator who set the system up.
 
-Every word of that survives. **None of it argues for one Root per _machine_** —
+Every word of that survives. **None of it argues for one Root per _machine_**,
 it argues for one Root per _thing a Root is responsible for_, which is now a
 group. So the cap is group-scoped and so is the lockout guard beneath it. The
 report should present this as a scope correction rather than a reversal: the
@@ -3029,7 +3029,7 @@ old rule was the right rule with an accidental boundary, and the accident was
 that only one organisation had ever existed.
 
 This is worth a paragraph in its own right because it is the second time this
-project has found a **correct rule stated at the wrong scope** — the first being
+project has found a **correct rule stated at the wrong scope**. The first being
 the attachment quota, which bounded what an operator had _clicked_ rather than
 what they had _sent_ (finding 113). A rule can be true, tested, and scoped to
 the wrong noun.
@@ -3045,8 +3045,8 @@ different organisation with its own world.
 
 The cost is stated plainly rather than discovered: **anyone who can reach this
 endpoint can create a group and become a Root in it.** That is defensible only
-because of the architecture Chapter 1 already describes — the Gateway binds
-loopback-only and is reached through an SSH tunnel — so "anyone who can reach
+because of the architecture Chapter 1 already describes, the Gateway binds
+loopback-only and is reached through an SSH tunnel, so "anyone who can reach
 the dashboard" already means "anyone who can reach the host". On a deployment
 that exposes the port directly, this endpoint is self-service Root and needs
 something in front of it deciding who may ask. Chapter 4 should say so.
@@ -3054,12 +3054,12 @@ something in front of it deciding who may ask. Chapter 4 should say so.
 **Managed accounts, enforced in the store rather than at the route.** A User or
 Viewer cannot be created without an Administrator in the same group answerable
 for it. The rule lives in `user-store.ts`, not in the HTTP layer, because the
-command line creates accounts too — and a rule enforced by the dashboard alone
+command line creates accounts too, and a rule enforced by the dashboard alone
 is a rule the CLI does not have. Two surfaces asking one question two ways is
 this project's most-found defect (§4.x.11, §4.x.15, §4.x.20).
 
 **Root cannot be the manager.** Root outranks every Administrator, so allowing
-it would be natural — and it is refused. If Root wants to run a User directly it
+it would be natural, and it is refused. If Root wants to run a User directly it
 creates an Administrator account and signs into that. The gain is one statable
 rule ("a User is managed by an Administrator") instead of two, and an act that
 stays attributable to the hat it was done in.
@@ -3069,7 +3069,7 @@ stays attributable to the hat it was done in.
 Three fields in this project are optional and read as a safe default when
 missing: `actorRole` (not recorded), `canAuthorPolicy` (allowed),
 `selfProtecting` (no). Each is a _property whose default is knowable_, which is
-what made presence-based migration work — a pre-existing ledger verifies
+what made presence-based migration work. A pre-existing ledger verifies
 byte-identically because a role-less entry hashes exactly what it always did
 (§3.5.27).
 
@@ -3078,8 +3078,8 @@ default; it is an unanswered question** about which organisation an account
 belongs to, and nothing can infer it. Reading absent as "the founding group"
 would silently place people in an organisation nobody put them in.
 
-So an account with no group **cannot sign in** — checked after the password, so
-it tells an attacker nothing a wrong password would not — and the operator's way
+So an account with no group **cannot sign in**, checked after the password, so
+it tells an attacker nothing a wrong password would not, and the operator's way
 out is `openclaw governance groups migrate --delete`, which removes them.
 
 The migration is deliberately **not** automatic. It deletes credentials, and a
@@ -3096,7 +3096,7 @@ consented to. The sign-in refusal is what makes leaving them sitting safe.
 
 Writing the invariants surfaced a hole in the first version: `setUserRole`
 refused to move an account _into_ a managed tier because no manager was
-supplied, **and offered no way to supply one** — so an Administrator could never
+supplied, **and offered no way to supply one**, so an Administrator could never
 be demoted at all. It was caught by an existing test that demoted one, which is
 what a test suite is for. `setUserRole` now takes the manager alongside the
 role, and refuses an account made answerable for itself.
@@ -3111,7 +3111,7 @@ tests and adding a manager to each would have changed counts they assert.
 Reading the M3 diff against the route M2 had shipped two commits earlier found
 that `agents/access` answered from a lookup that searches **every account on the
 installation**. Agent ids are free-form and are not owned by a group until M4,
-so two organisations can independently assign the same id — and an
+so two organisations can independently assign the same id, and an
 Administrator asking "who can reach agent-x?" would have been told the names of
 people in another organisation.
 
@@ -3122,7 +3122,7 @@ the world changed underneath it, without a line of M2 changing.**
 > **Since M4 (§3.5.33), a registered agent belongs to one group**, so the
 > collision this describes can no longer be created between two groups that both
 > register their agents. The group filter added here stays, because an agent that
-> predates the registry is still owned by nobody — the fix outlives the specific
+> predates the registry is still owned by nobody. The fix outlives the specific
 > gap that motivated it, which is the right direction for a fix to outlive
 > something.
 
@@ -3143,7 +3143,7 @@ which is what makes it easy to miss and cheap to exploit.
 Usernames remain unique across the **installation**, not per group, because
 login is by username alone. Two organisations cannot both have an `admin`. The
 alternative is a group-qualified login, which is a larger change to a surface
-that has been stable since the beginning — recorded as a limitation rather than
+that has been stable since the beginning. Recorded as a limitation rather than
 smuggled in.
 
 ### 3.5.32 The M-series: what multi-tenancy asked of a single-tenant design
@@ -3155,7 +3155,7 @@ are part of.
 #### The request, and what made it large
 
 The layer was built for **one installation with one operator**, and that
-assumption was never written down — it was simply what you get when only one
+assumption was never written down. It was simply what you get when only one
 organisation has ever used something. Exactly one Root existed and was
 permanent; there was no notion of an organisation; and an Administrator managed
 every agent on the machine by virtue of the tier.
@@ -3163,7 +3163,7 @@ every agent on the machine by virtue of the tier.
 The request was Active-Directory-shaped: a person creates a Root, that Root
 creates their organisation's Admin/User/Viewer accounts, others sign in to
 accounts they were given, and each Administrator sees a panel of the agents in
-their ecosystem — who can reach each one, what policy binds it, and controls to
+their ecosystem, who can reach each one, what policy binds it, and controls to
 create, edit, assign and unassign.
 
 **What made it larger than it reads** was not the account model. It was one row
@@ -3171,32 +3171,32 @@ of the gap analysis: **there is no agent registry.** An agent "exists" only once
 a rule, posture, lock or assignment happens to mention its id, and
 `knownAgentIds()` reconstructs the set incidentally from whatever the policy
 document names. "Create a new agent in the panel" is therefore **not a missing
-button; it is a missing noun** — there is nothing to own, nothing to name, and
+button; it is a missing noun**. There is nothing to own, nothing to name, and
 nothing to list when the answer is "none".
 
 #### The four decisions taken before designing anything
 
-| Question                          | Decision                                                   | Consequence                                            |
-| --------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------ |
-| What does creating an agent _do_? | Provision a real OpenClaw agent                            | The layer would **mutate** its host for the first time |
-| How separate are groups?          | Full isolation — policy document and audit chain per group | The ledger's security argument becomes per-group       |
-| Agent ownership                   | Exactly one owning Administrator                           | Makes "their ecosystem" statable                       |
-| The single-Root rule              | Kept, per group                                            | A scope correction rather than a reversal              |
+| Question                          | Decision                                                  | Consequence                                            |
+| --------------------------------- | --------------------------------------------------------- | ------------------------------------------------------ |
+| What does creating an agent _do_? | Provision a real OpenClaw agent                           | The layer would **mutate** its host for the first time |
+| How separate are groups?          | Full isolation. Policy document and audit chain per group | The ledger's security argument becomes per-group       |
+| Agent ownership                   | Exactly one owning Administrator                          | Makes "their ecosystem" statable                       |
+| The single-Root rule              | Kept, per group                                           | A scope correction rather than a reversal              |
 
 #### The six subtasks, and why the order is forced
 
-| #   | What                                           | State          |
-| --- | ---------------------------------------------- | -------------- |
-| M1  | Drive the dashboard upload in a browser        | Done — §4.x.30 |
-| M2  | "Who can reach this agent", including "nobody" | Done — §3.5.30 |
-| M3  | The group as a data model                      | Done — §3.5.31 |
-| M4  | The agent registry                             | Done — §3.5.33 |
-| M5  | Per-group storage isolation                    | Not started    |
-| M6  | The Administrator panel, and provisioning      | Not started    |
+| #   | What                                           | State         |
+| --- | ---------------------------------------------- | ------------- |
+| M1  | Drive the dashboard upload in a browser        | Done, §4.x.30 |
+| M2  | "Who can reach this agent", including "nobody" | Done, §3.5.30 |
+| M3  | The group as a data model                      | Done, §3.5.31 |
+| M4  | The agent registry                             | Done, §3.5.33 |
+| M5  | Per-group storage isolation                    | Not started   |
+| M6  | The Administrator panel, and provisioning      | Not started   |
 
 M5 before M3 would split storage before knowing what a group is. M6 before M4
 would provision agents with nowhere to record who owns them. **M4 is the
-unlock**, because the noun has to exist before anything can be built on it — and
+unlock**, because the noun has to exist before anything can be built on it, and
 with §3.5.33 landed, it does.
 
 #### What the finished third has already taught
@@ -3205,11 +3205,11 @@ Three findings came out of M1–M3, and each is a different _shape_ of defect. T
 report should present them together, because the set is more interesting than
 any one:
 
-| Shape                                            | Finding | What it looked like                                                                                                                      |
-| ------------------------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| A control that only worked one way               | **118** | The Attach button could not be reached by keyboard — `display:none` removes an input from the tab order and a `<label>` is not focusable |
-| A correct rule attached to the wrong noun        | **M3**  | The single-Root rule was right and bounded _machines_ rather than _organisations_                                                        |
-| Correct code turned into a defect from elsewhere | **119** | M2's route answered across every group, and became a leak the moment groups existed — without a line of M2 changing                      |
+| Shape                                            | Finding | What it looked like                                                                                                                     |
+| ------------------------------------------------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| A control that only worked one way               | **118** | The Attach button could not be reached by keyboard, `display:none` removes an input from the tab order and a `<label>` is not focusable |
+| A correct rule attached to the wrong noun        | **M3**  | The single-Root rule was right and bounded _machines_ rather than _organisations_                                                       |
+| Correct code turned into a defect from elsewhere | **119** | M2's route answered across every group, and became a leak the moment groups existed, without a line of M2 changing                      |
 
 The third is the one worth the most space. **No test could have caught it**,
 because until M3 there was no second group to leak across; and no review of M2
@@ -3218,14 +3218,14 @@ re-reading an older feature while building a newer one.
 
 > **The transferable claim:** adding a boundary to a system does not apply that
 > boundary to anything written before it. Every pre-existing surface has to be
-> re-asked the question, one at a time — and that audit is **not finished**
+> re-asked the question, one at a time, and that audit is **not finished**
 > here. Chapter 4 should say so rather than imply the isolation is complete.
 
 #### The honest limits, as of 2026-08-24
 
 - ~~**Isolation is enforced by the layer, not by storage.** One policy document and
   one audit chain serve every group until M5.~~ **Closed by M5 (§3.5.47–50),
-  2026-08-26/27** — per-group storage, with the ledger key and checkpoint kept
+  2026-08-26/27**, per-group storage, with the ledger key and checkpoint kept
   installation-wide so requirement #6's claim needed no restating. The rest of
   this list stands.
 - **Signup is open.** Creating a Root creates a group and the endpoint is
@@ -3233,7 +3233,7 @@ re-reading an older feature while building a newer one.
   tunnel; a directly exposed port makes it self-service Root.
 - **Usernames are unique per installation, not per group**, because login is by
   username alone. Two organisations cannot both have an `admin`.
-- ~~**Agents are not group-owned until M4**~~ — **closed by M4 (§3.5.33).** A
+- ~~**Agents are not group-owned until M4**~~: **closed by M4 (§3.5.33).** A
   registered agent belongs to exactly one group and one Administrator, and an id
   another group holds is refused. The residue is that an agent which predates the
   registry is still owned by nobody; §3.5.33 states why that is kept and what
@@ -3242,7 +3242,7 @@ re-reading an older feature while building a newer one.
 ### 3.5.33 The agent registry: giving the layer a noun for an agent (M4)
 
 The second subtask of the tenant model, and the one M5 and M6 were both blocked
-on. **M5 has since shipped** (§3.5.47–50), and made registration mandatory —
+on. **M5 has since shipped** (§3.5.47–50), and made registration mandatory,
 which closed the ownership hole this section records as needing M6. Engineering detail in `GOVERNANCE.md` §"M4"; plain language in
 `QA-IN-PLAIN-TERMS.md` §5.26.
 
@@ -3255,7 +3255,7 @@ layer held no record that any particular agent existed.**
 
 An agent entered the layer's awareness through four doors, all of them in the
 policy document: a rule scoped to it, a posture override, an escalation
-override, or an entry in the locked-down set. A fifth arrived later — an account
+override, or an entry in the locked-down set. A fifth arrived later. An account
 assignment naming it. `knownAgentIds()` (`policy-projection.ts`) reconstructed
 the set of agents by walking those collections, and every surface that needed a
 list of agents consumed that reconstruction: the dashboard's rule-scope picker,
@@ -3268,7 +3268,7 @@ The inference is reasonable and it has one hole it cannot close by construction:
 > lock or an assignment is invisible to it.**
 
 A newly provisioned agent is precisely that agent. This is what turned the
-requested feature — "an Administrator panel with a control to create an agent" —
+requested feature, "an Administrator panel with a control to create an agent",
 from an afternoon's UI work into a subtask of its own, and it is the single most
 useful sentence to carry into Chapter 4:
 
@@ -3294,7 +3294,7 @@ A first-class record, kept in `agents.json` beside `users.json`:
 **Not inside the policy document**, and the separation is load-bearing rather
 than tidy. The policy document says how an agent is _judged_; the registry says
 that it _exists_, who owns it, and what it is called. Folding the second into the
-first would make removing a rule capable of removing an agent — two questions
+first would make removing a rule capable of removing an agent, two questions
 with different lifetimes sharing one storage decision.
 
 **The registry leads and the reconstruction follows.** Both halves are retained
@@ -3302,11 +3302,11 @@ and neither is redundant:
 
 | Source                        | Holds                                                       |
 | ----------------------------- | ----------------------------------------------------------- |
-| the registry                  | agents no rule has ever named — including new ones          |
+| the registry                  | agents no rule has ever named, including new ones           |
 | `knownAgentIds()` as fallback | agents that predate the registry, on existing installations |
 
 Removing the fallback would delete every pre-registry agent from every picker on
-the dashboard, including the kill switch's — a regression on the one control that
+the dashboard, including the kill switch's. A regression on the one control that
 exists for emergencies. Removing the registry would leave the original hole. The
 inversion is the deliverable: what was the source of truth becomes the fallback.
 
@@ -3333,8 +3333,8 @@ agent**. That makes the registry a statement of ownership rather than a gate on
 it, and Chapter 4 should say so plainly.
 
 The alternative was considered and rejected. Refusing unregistered ids would
-break assignment on every deployment that upgrades into M4 — their agents all
-predate the registry — and it would protect nothing, because an agent nobody has
+break assignment on every deployment that upgrades into M4, their agents all
+predate the registry, and it would protect nothing, because an agent nobody has
 claimed cannot be stolen from an owner who does not exist. Closing it properly
 requires registration to be mandatory, which requires the layer to be able to
 _create_ agents, which is M6. There is no honest way to demand a record for
@@ -3346,18 +3346,18 @@ mistake the rule for a stronger one.
 
 #### The finding worth the most space: one absence, two opposite readings
 
-This project has used **presence-based migration** repeatedly — `actorRole`,
-`canAuthorPolicy`, `selfProtecting`, `entryKind`, `keyed` — where a field may be
+This project has used **presence-based migration** repeatedly, `actorRole`,
+`canAuthorPolicy`, `selfProtecting`, `entryKind`, `keyed`, where a field may be
 absent and absence reads as the old, knowable behaviour. It is what lets a
 pre-existing ledger verify byte-identically across versions.
 
 §3.5.31 broke that pattern deliberately: a missing `groupId` means **unmigrated**
-— an unanswered question that blocks sign-in — because an account with no group
+an unanswered question that blocks sign-in, because an account with no group
 cannot be placed in one without inventing an answer, and inventing one would file
 a person into an organisation nobody put them in.
 
-M4 faces a structurally identical situation — a record that may simply not exist
-— and arrives at the **opposite** answer: a missing agent record means the agent
+M4 faces a structurally identical situation, a record that may simply not exist
+and arrives at the **opposite** answer: a missing agent record means the agent
 carries on exactly as before.
 
 | Missing                    | Read as      | Because                                                                                |
@@ -3371,8 +3371,8 @@ directions.
 
 > **The transferable claim:** "what does a missing value mean?" is a question
 > about consequences, not about schema. The same blank deserves opposite answers
-> in different places, and answering it out of habit — the pattern had worked
-> five times — is how one of those answers comes out wrong.
+> in different places, and answering it out of habit, the pattern had worked
+> five times, is how one of those answers comes out wrong.
 
 Together with §3.5.31's "a correct rule attached to the wrong noun" and finding
 119's "correct code turned into a defect from elsewhere", this gives Chapter 4
@@ -3387,7 +3387,7 @@ mirrors that into any live session.
 
 This is an application of a principle §3.5 has already paid to learn. Assignment
 is constrained by ownership, so leaving the previous holders in place would leave
-the account file asserting something the registry contradicts — an invariant true
+the account file asserting something the registry contradicts. An invariant true
 at the instant it was written and false immediately afterwards. The `userAsk`
 defect was exactly that shape: a setting saved, displayed as active, and never
 consulted. The correction in both cases is the same:
@@ -3397,12 +3397,12 @@ consulted. The correction in both cases is the same:
 
 The two files are locked independently, so an ownership change racing an
 assignment can land after the check has passed. The consequence is an account
-holding an agent its Administrator no longer owns — a state the next transfer
+holding an agent its Administrator no longer owns. A state the next transfer
 repairs, and one the system can describe, rather than a corruption it cannot.
 
 #### Authorization: one statable rule per module
 
-Both new modules — the HTTP routes and the CLI commands — carry a single
+Both new modules, the HTTP routes and the CLI commands, carry a single
 authorization sentence for their whole contents:
 
 > **Agent management is the Administrator tier, and an Administrator administers
@@ -3416,7 +3416,7 @@ Two decisions inside that sentence are worth reporting:
 
 - **Root is exempt from ownership**, because Root manages the people who own
   agents. Without the exemption, an agent whose owning Administrator has left the
-  organisation is one nobody can ever re-home — a lockout with extra steps, which
+  organisation is one nobody can ever re-home. A lockout with extra steps, which
   is the class `account-guards.ts` exists to prevent.
 - **Root cannot itself own an agent**, for the same reason §3.5.31 refuses Root
   as a `managedBy`. If Root wants to own an agent it creates an Administrator
@@ -3438,16 +3438,16 @@ response, the attachment lookup and the agent-access route each already make.
 One bit does leak and is recorded rather than argued away: attempting to register
 an id another group holds is refused as a clash. That is unavoidable while a
 single policy document serves every group, and it is the same leak "that username
-is taken" has always carried — the limitation §3.5.31 already records for
+is taken" has always carried. The limitation §3.5.31 already records for
 usernames, now with a second instance.
 
 #### Surfaces
 
-| Surface      | State                                                                                                           |
-| ------------ | --------------------------------------------------------------------------------------------------------------- |
-| HTTP         | complete — list, register, rename, transfer, unregister                                                         |
-| Command line | complete — `governance agents list/register/rename/set-owner/unregister`                                        |
-| Dashboard    | **consumption only** — the registry drives every agent list and shows registered names; authoring is M6's panel |
+| Surface      | State                                                                                                          |
+| ------------ | -------------------------------------------------------------------------------------------------------------- |
+| HTTP         | complete, list, register, rename, transfer, unregister                                                         |
+| Command line | complete, `governance agents list/register/rename/set-owner/unregister`                                        |
+| Dashboard    | **consumption only**, the registry drives every agent list and shows registered names; authoring is M6's panel |
 
 The third row is a deliberate deviation from the project's three-surface rule
 rather than an oversight, because M6 _is_ the dashboard surface for this
@@ -3460,7 +3460,7 @@ in files already past the project's 700-line limit. Each was split along a seam
 T16 had already identified, and both finished smaller than they started:
 `governance-dashboard-api.ts` 1,219 → 1,208, `register.governance.ts` 863 → 848.
 
-> **Superseded 2026-08-25: T16 is closed** — see §3.5.37, which also records
+> **Superseded 2026-08-25: T16 is closed**. See §3.5.37, which also records
 > where the limit comes from and why it binds nothing here.
 
 Both remain over the limit and T16 stays open. The point worth reporting is the
@@ -3475,7 +3475,7 @@ debt was made to reduce it slightly instead, at the cost of two file moves.
 | `src/gateway/governance-agent-registry.test.ts` | 16    | who may name an owner, what a refusal reveals, group taken from the session not the body   |
 
 The privilege matrix and malformed-body suites were extended to cover all five
-new routes rather than left describing the previous set — the round-eleven lesson
+new routes rather than left describing the previous set. The round-eleven lesson
 about a guard that cannot say what it is checking against.
 
 ### 4.x.31 The regression baseline that was never what the notes said (T25)
@@ -3488,7 +3488,7 @@ Engineering detail in `GOVERNANCE.md` §"T25"; plain language in
 From 2026-08-13 onward every verification step in this project recorded the same
 figure: OpenClaw's own harness suite at **18 failed / 174 passed**, described as
 pre-existing upstream failures present on `main` before any of this work began.
-`UPSTREAM-BUG-REPORT.md` wrote them up as a single defect —
+`UPSTREAM-BUG-REPORT.md` wrote them up as a single defect,
 `src/plugins/contracts/host-hooks.contract.test.ts` removing a temporary
 directory while a SQLite handle inside it is still open, which POSIX permits and
 Windows refuses with `EBUSY`.
@@ -3500,8 +3500,8 @@ projects and prints 18.
 
 #### What was true
 
-The 18 are in a different file — `src/agents/harness/native-hook-relay.test.ts`
-— and only one of its nine distinct failures is the EBUSY defect.
+The 18 are in a different file, `src/agents/harness/native-hook-relay.test.ts`
+and only one of its nine distinct failures is the EBUSY defect.
 
 | Distinct failures | Actual cause                                                               |
 | ----------------- | -------------------------------------------------------------------------- |
@@ -3509,14 +3509,14 @@ The 18 are in a different file — `src/agents/harness/native-hook-relay.test.ts
 | 2                 | A `path.join` expectation asserted against a correct `path.resolve` result |
 | 1                 | The EBUSY teardown                                                         |
 
-**In eight of the nine, the production code was right and the test was wrong** —
+**In eight of the nine, the production code was right and the test was wrong**,
 which inverts the usual reading of a failing test and is part of why the
 explanation went unexamined. `shellQuoteArg` chooses double quotes on `win32`
 and single quotes elsewhere, because a POSIX-quoted argument handed to `cmd.exe`
 is a different argument; the derived-path code uses `path.resolve` because a
 derived path must be absolute, and on Windows that means drive-qualified.
 
-#### Why the wrong explanation survived — the finding worth reporting
+#### Why the wrong explanation survived: the finding worth reporting
 
 **Both files have exactly nine distinct failures.**
 
@@ -3549,7 +3549,7 @@ report than any individual defect in the list.
 Three fixes, all test-side, because the production code was correct:
 
 1. **The platform quoting rule, restated in the test.** Deliberately _not_
-   imported from the module under test — a test that builds its expectation by
+   imported from the module under test. A test that builds its expectation by
    calling the function it is testing asserts `f(x) === f(x)` and would pass
    whatever the rule became, including a wrong one. The duplication is the
    mechanism by which the assertion can ever disagree, not a compromise.
@@ -3567,7 +3567,7 @@ Three fixes, all test-side, because the production code was correct:
 
 **27 tests fixed and the standing baseline is zero.** The value is not the 27.
 A permanent list of known failures imposes a lookup on every future test run
-before any new failure can be believed — and §4.x's round six exists because
+before any new failure can be believed, and §4.x's round six exists because
 partial test runs hid nineteen genuine regressions for weeks. A clean baseline
 does not prevent that; it removes the step at which a real regression can be
 mistaken for the weather.
@@ -3583,7 +3583,7 @@ Each cut had to leave a file whose authorization can be stated in **one
 sentence**. That is the property that makes a split worth doing rather than
 merely making two files out of one, and it is a reviewability argument: a file
 with one rule can be checked against that rule as a whole, while a file holding
-a mixture must be checked route by route — which is where an error hides.
+a mixture must be checked route by route, which is where an error hides.
 
 | Module           | Its one sentence                                                                          | Code lines |
 | ---------------- | ----------------------------------------------------------------------------------------- | ---------- |
@@ -3598,7 +3598,7 @@ a mixture must be checked route by route — which is where an error hides.
 
 - **The kill switch sits with the prompt routes, not with policy.** Stopping an
   agent is _acting on a workload you are responsible for_, not _changing the
-  rules it is judged by_ — the distinction §3.5.23 (T27) was built on, where
+  rules it is judged by_. The distinction §3.5.23 (T27) was built on, where
   folding the two together briefly meant that withholding an account's ability
   to write rules also removed its ability to stop its own agent. The routes in
   that module check `canManageAgent`, never `canAuthorPolicyForAgent`.
@@ -3618,9 +3618,9 @@ bound nobody knows about.
 Two files are still over the limit, and neither has the property that made this
 one tractable:
 
-- **`governance-page.ts` — 2,412 code lines**, one Lit component, no seam yet
+- **`governance-page.ts`, 2,412 code lines**, one Lit component, no seam yet
   named. The largest single file in the project.
-- ~~**`register.governance.ts` — 848.**~~ **Closed later the same day at 459 —
+- ~~**`register.governance.ts`, 848.**~~ **Closed later the same day at 459,
   §3.5.36**, which also records why the criterion this section states had to
   narrow when applied to it.
 
@@ -3638,7 +3638,7 @@ Engineering detail in `GOVERNANCE.md` §"T28"; plain language in
 #### The defect
 
 `oxlint` reported `no-unreachable` at the closing `return undefined;` of
-`evaluateGovernancePolicy` — the function every governed tool call passes
+`evaluateGovernancePolicy`. The function every governed tool call passes
 through. It was recorded as a backlog item rather than deleted on sight, because
 two readings have opposite fixes:
 
@@ -3661,7 +3661,7 @@ posture monitor; unlisted with `ask: "off"`; unlisted with `ask: "on-miss"`.
 
 The last two sit inside a bare `{ … }` block. That block is the explanation: it
 was once `if (firstMiss !== undefined) { … }`, which needs a statement beneath
-it. When the negation moved into the preceding `if` — which returns — the
+it. When the negation moved into the preceding `if`, which returns, the
 condition became redundant, the `if` degenerated to a block used only to name a
 variable, and the statement below it was orphaned.
 
@@ -3681,7 +3681,7 @@ Third instance of one family in this project, and the first inside the engine:
 | ----------- | ------------------------------------------- | -------------------------------------- |
 | Finding 112 | A validator that rejects malformed headers  | The rejection branch could not execute |
 | Finding 113 | `sweepOrphans`, an exported cleanup routine | Nothing called it                      |
-| **T28**     | A final fallback in the gate                | Unreachable — and it meant _allow_     |
+| **T28**     | A final fallback in the gate                | Unreachable, and it meant _allow_      |
 
 The family is worth naming in Chapter 4 because its members look different and
 fail the same way: **code that exists, passes review, and makes a promise the
@@ -3702,18 +3702,18 @@ What _is_ testable is the property the statement pretended to provide, so
 `policy-engine.test.ts` gained a block driving all eight exits and asserting the
 decision each returns. A future edit that lets a path fall through makes one of
 them return `undefined`, which the suite's own `verdict` helper reports as
-`"allow"` — a failing test instead of a silent grant.
+`"allow"`. A failing test instead of a silent grant.
 
 That guard was then **mutation-checked rather than assumed**: the `ask: "off"`
 branch was temporarily made to fall through instead of blocking, twelve tests
 failed, and it was restored. Checking that a new test can fail is a step this
-project has learned to take — §4.x.25's round-eleven finding was a guard that
+project has learned to take, §4.x.25's round-eleven finding was a guard that
 could not say what it compared against, and a test nobody has watched fail is
 the same shape of unexamined claim.
 
 **The honest accounting of what is new:** most of those twelve were pre-existing
 tests already covering that path. The addition is not first coverage of any
-single exit — it is the _set_, asserted together, under a name that states the
+single exit. It is the _set_, asserted together, under a name that states the
 property, so the invariant is visible in one place instead of reconstructable
 from a dozen scattered cases.
 
@@ -3734,7 +3734,7 @@ from a dozen scattered cases.
 §3.5.34 reported the route split's criterion as **one statable authorization
 rule per file**, and that held for all five route modules.
 
-It does not hold here. The policy command module spans tiers by design — a
+It does not hold here. The policy command module spans tiers by design. A
 Viewer runs `policy show`, a User submits `request-setting`, an Administrator
 sets a per-agent posture, Root toggles a core denial. There is no single
 authorization sentence, and writing one would have been the tidy claim and the
@@ -3742,7 +3742,7 @@ false one.
 
 What makes the file coherent is its **subject**: everything in it reads or edits
 the policy document. Authorization consistency is preserved by a different
-mechanism — every command asks through `requireCliActor` and the same
+mechanism. Every command asks through `requireCliActor` and the same
 `permissions.ts` helpers the HTTP routes use, which is the property T5
 introduced that gate for, so the two surfaces cannot drift into different
 answers about who may do what.
@@ -3750,12 +3750,12 @@ answers about who may do what.
 > **The corrected criterion, for the report:** a file should have **one
 > subject**; where it can _also_ have one authorization rule, that is stronger
 > and worth stating. Reporting the narrower rule as though it were universal
-> would have been a claim that fitted five files and broke on the sixth — which
+> would have been a claim that fitted five files and broke on the sixth, which
 > is precisely the shape of error §4.x.31 is about.
 
 **One file remains over the limit**: `governance-page.ts` at 2,412 code lines, a
-single Lit component. It is the largest file in the project, and no seam —
-subject or authorization — has yet been named for it.
+single Lit component. It is the largest file in the project, and no seam,
+subject or authorization, has yet been named for it.
 
 ### 3.5.37 Splitting the dashboard, and an inherited rule examined (T16)
 
@@ -3768,7 +3768,7 @@ Engineering detail in `GOVERNANCE.md` §"T16 closed"; plain language in
 describing the work, the report should say where that limit comes from, because
 it changes what the work proves.
 
-**It is upstream OpenClaw's**, in `.oxlintrc.json`, inherited with the fork —
+**It is upstream OpenClaw's**, in `.oxlintrc.json`, inherited with the fork,
 700 for `.ts`, 800 for `.mjs`, 1,000 for tests, plus two hand-written per-file
 exemptions upstream wrote for its own oversized code. **It is not one of the
 nine requirements**; the nearest, #1, is about TypeScript and static type
@@ -3781,27 +3781,27 @@ option, and it was considered rather than dismissed. The work was done anyway
 for a reason the line count only pointed at, which is the part worth reporting:
 
 > **The limit was the prompt, not the payoff.** What the splits bought was a
-> reviewability property — each route file states one authorization rule, and
-> the dashboard now sits at the same granularity as the routes feeding it — and
+> reviewability property, each route file states one authorization rule, and
+> the dashboard now sits at the same granularity as the routes feeding it, and
 > that property is worth stating on its own terms, independent of any number.
 
 #### The result
 
-| Panel module                    | Route counterpart             | Code lines                                                                                                       |
-| ------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `panels/policy-panels.ts`       | `-api` (policy routes)        | 590                                                                                                              |
-| `panels/agent-panels.ts`        | `-agent-control`              | 513                                                                                                              |
-| `panels/account-panels.ts`      | `-accounts`, `-rule-requests` | 489                                                                                                              |
-| `panels/oversight-panels.ts`    | `-oversight`                  | 213                                                                                                              |
-| `panels/session-panels.ts`      | `-auth`                       | 169                                                                                                              |
-| `panels/agent-policy-lookup.ts` | the two projection reads      | 155                                                                                                              |
-| `agent-directory.ts`            | — (pure derivation)           | 53                                                                                                               |
-| `panels/format.ts`              | — (shared formatters)         | 20                                                                                                               |
-| `governance-page.ts`            | state, lifecycle, effects     | **697** (696 at T16; 703 — over the limit — under M6; restored 2026-08-28, finding 136; **3 lines of headroom**) |
+| Panel module                    | Route counterpart             | Code lines                                                                                                     |
+| ------------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `panels/policy-panels.ts`       | `-api` (policy routes)        | 590                                                                                                            |
+| `panels/agent-panels.ts`        | `-agent-control`              | 513                                                                                                            |
+| `panels/account-panels.ts`      | `-accounts`, `-rule-requests` | 489                                                                                                            |
+| `panels/oversight-panels.ts`    | `-oversight`                  | 213                                                                                                            |
+| `panels/session-panels.ts`      | `-auth`                       | 169                                                                                                            |
+| `panels/agent-policy-lookup.ts` | the two projection reads      | 155                                                                                                            |
+| `agent-directory.ts`            | -(pure derivation)            | 53                                                                                                             |
+| `panels/format.ts`              | -(shared formatters)          | 20                                                                                                             |
+| `governance-page.ts`            | state, lifecycle, effects     | **697** (696 at T16; 703, over the limit, under M6; restored 2026-08-28, finding 136; **3 lines of headroom**) |
 
 The two non-panel cuts are the more interesting ones. `agent-directory.ts` holds
 the derivations (`knownAgentIds`, `agentLabel`) as pure functions in the shape
-`rule-filter.ts` and `ledger-filter.ts` already use — the pattern that is why
+`rule-filter.ts` and `ledger-filter.ts` already use. The pattern that is why
 _their_ logic was always tested and the component's was not. `format.ts` exists
 so no panel imports the page, which would be a cycle between a component and its
 own views.
@@ -3812,14 +3812,14 @@ Only two of the nine sections had coverage. Extracting seven untested panels and
 reporting "the suite still passes" would have been a claim about the suite.
 
 24 characterization tests were therefore written against the component **as it
-was**, run green, and committed before the extraction — describing behaviour
+was**, run green, and committed before the extraction. Describing behaviour
 that already existed, so that any later difference is a regression by definition
 rather than a disagreement about intent.
 
 **They caught a real defect within the hour, and it is a good one for the
 report.** The first extraction handed each panel a pre-built API client. The
 client is constructed from the application context, which is not guaranteed to
-exist at first paint, and every real call site is an event handler — so building
+exist at first paint, and every real call site is an event handler, so building
 it eagerly moved that work from click-time to render-time and the page threw
 before drawing. Twelve tests failed at once. The fix is a getter
 (`api: () => GovernanceApi`), preserving the laziness the component always had.
@@ -3841,7 +3841,7 @@ spawning work under a _different_ agent's identity left a child that a lockdown
 on the parent did not reach, because `mintSpawnSessionKey` records only the
 target's identity and the layer had no lineage to trace.
 
-#### Why it sat open for six days — the finding worth reporting
+#### Why it sat open for six days: the finding worth reporting
 
 The backlog recorded T6 as needing OpenClaw "to report the requester
 (`spawnedBy`) through `HookContext`". Read carefully, that is a **true statement
@@ -3861,7 +3861,7 @@ control. Nothing upstream had to change.
 > was accurate.
 >
 > This is the same shape as §4.x.31's misdiagnosed baseline: a claim that is
-> correct in its own terms, cheap to re-read, and expensive to re-verify — so
+> correct in its own terms, cheap to re-read, and expensive to re-verify, so
 > re-reading replaces re-verifying and the error survives.
 
 #### The design, and its three deliberate limits
@@ -3877,7 +3877,7 @@ oldest.
 | No `await` inside the walk             | `openSessionEntryReadView` borrows rows rather than cloning; its contract requires the view be dropped before any await                    |
 
 **Fail-closed on an unreadable store.** A call whose lineage cannot be read
-_while a lockdown is in force_ is refused — the same choice finding 81 made for
+_while a lockdown is in force_ is refused. The same choice finding 81 made for
 an unattributable call, and for the same reason: during an incident,
 over-blocking costs one unrelated call while under-blocking costs the
 containment that was asked for. It is narrow by construction, since with nothing
@@ -3894,9 +3894,9 @@ comment stating that closing the gap would make the test fail and send whoever
 closed it to the explanation.
 
 That is precisely what happened. The test failed, the comment was read, and it
-now asserts the opposite — a cross-agent child refused _even though its own agent
+now asserts the opposite, a cross-agent child refused _even though its own agent
 holds an explicit allowance for that exact command_, because lineage is checked
-before any rule — with a companion test asserting an unrelated agent keeps
+before any rule, with a companion test asserting an unrelated agent keeps
 running.
 
 This is the strongest evidence the project has produced for **pinning a known
@@ -3924,10 +3924,10 @@ denied path; it cannot prevent it.
 
 So the row splits in two, where it previously read as one item:
 
-| Half                                                        | Status                            |
-| ----------------------------------------------------------- | --------------------------------- |
-| **Audit** — make the blind spot recorded rather than silent | Closable here, no upstream change |
-| **Prevention** — stop the read happening                    | Not closable by this route        |
+| Half                                                       | Status                            |
+| ---------------------------------------------------------- | --------------------------------- |
+| **Audit**, make the blind spot recorded rather than silent | Closable here, no upstream change |
+| **Prevention**, stop the read happening                    | Not closable by this route        |
 
 Prevention has two candidate designs, both changes of kind rather than plumbing:
 the search tool accepting an exclusion set from the gate (a genuine host
@@ -3937,12 +3937,12 @@ obvious risk of silently changing what an operator asked for).
 
 > **Both descriptions were corrected on 2026-08-30 and neither survived.** Root
 > narrowing cannot express an exception; the exclusion route is limited by globs
-> versus regular expressions rather than by the host. A third route — filtering
-> the result — works in-process and is impossible on the native harness. See
-> §3.5.41 and `REMAINING-WORK.md` §"T7 prevention — the three routes".
+> versus regular expressions rather than by the host. A third route, filtering
+> the result, works in-process and is impossible on the native harness. See
+> §3.5.41 and `REMAINING-WORK.md` §"T7 prevention. The three routes".
 
 Recorded rather than attempted, because choosing between them is a decision
-about how far a security control may alter a request without saying so — which
+about how far a security control may alter a request without saying so, which
 belongs beside the M5/M6 decisions, not inside a refactoring session.
 
 ### 3.5.40 Verifying a closed item, and the guard that could not fire (finding 120)
@@ -3951,20 +3951,20 @@ T6 was closed on 2026-08-25 and was **verified** on 2026-08-26 rather than taken
 on its record. The verification is the interesting part, because the item passed
 every check it had and still had a hole.
 
-The walk itself is sound. Its own tests pass, and — the step that makes that
-mean something — disabling `findLockedAncestor` fails four of them, including
+The walk itself is sound. Its own tests pass, and, the step that makes that
+mean something, disabling `findLockedAncestor` fails four of them, including
 the round-fourteen test that had pinned the limitation before T6 closed it. A
 test nobody has watched fail is an unexamined claim, so it was made to fail.
 
 The same treatment applied to the other half gave the opposite answer.
 `lineageUnknown` exists so that a call whose lineage **cannot be read during an
 incident** is treated as unproven and refused, rather than waved through as
-proven-unrelated. Disabling it — making it never fail closed — left **all 867
+proven-unrelated. Disabling it, making it never fail closed, left **all 867
 governance tests passing**. Nothing was holding the property.
 
 Reading the code with that in hand explained why. The function reports "unknown"
 only when its store probe throws, and the probe throws only for a session key
-whose store scope cannot be resolved — which the guard above it has already
+whose store scope cannot be resolved, which the guard above it has already
 excluded. For every key that actually reaches the probe, the storage layer
 answers `undefined` whether the entry is simply absent **or the entire store is
 unreadable**. The two cases the design depends on separating are, through that
@@ -3972,20 +3972,20 @@ interface, the same answer.
 
 The consequence was then measured rather than argued. With an agent locked and a
 cross-agent child of it running, the gate refuses the child. Make the session
-store unreadable and the same call is **allowed** — containment degrades
+store unreadable and the same call is **allowed**. Containment degrades
 silently, and no ledger entry records that it did.
 
 **Why this belongs in the report even though it is not exploitable as shipped.**
 The baseline policy grants no write anywhere and the immutable denials cover the
 governance directory, not the session store, so reaching this needs either an
-over-broad operator rule or an ordinary operational failure — a corrupt
+over-broad operator rule or an ordinary operational failure. A corrupt
 database, an interrupted cleanup, a disk error. What makes it worth a section is
 the _shape_, which this project has now met four times: code that exists, passes
 review, and makes a promise the control flow does not keep. The three before it
 were an unreachable validator branch, an exported function nothing called, and a
 dead default-allow at the bottom of the gate. The distinction that matters:
 
-> The first three were dead **protections that were not needed** — the dead
+> The first three were dead **protections that were not needed**. The dead
 > default-allow was harmless precisely because nothing reached it. This one is a
 > protection that **is** needed and is not there. Unreachability was the
 > mitigation in three cases and is the defect in the fourth.
@@ -3993,7 +3993,7 @@ dead default-allow at the bottom of the gate. The distinction that matters:
 **It was closed the same day, and how matters more than that it was.**
 
 The obvious fix was the wrong one. Treating every missing record as "unknown"
-closes the gap and costs _narrowness_ — six existing tests assert that an
+closes the gap and costs _narrowness_, six existing tests assert that an
 unrelated agent with no recorded session keeps working while another is locked,
 and narrowness is exactly what makes failing closed defensible rather than a
 blunt instrument. That fix would have traded one real property for another and
@@ -4010,17 +4010,17 @@ keyed probe has already come back empty, so an ordinary walk never pays for it.
 Two defects were fixed, not one. Sessions are stored per agent, so a chain
 crossing three agents crosses three stores; readability is checked at every hop.
 Checking only the first would have left one unreadable store in the middle
-truncating the walk into a confident "nothing here" — the same defect, moved two
+truncating the walk into a confident "nothing here". The same defect, moved two
 hops up. The walk now returns three answers where it returned two, because the
 underlying bug was that a two-way answer had no way to say _I could not tell_.
 
 **Verified the way it was found.** Making the readability check always report
 "readable" now fails two tests. Before the fix, disabling the equivalent branch
-failed none — which is the difference between a property being written down and
+failed none, which is the difference between a property being written down and
 a property being held.
 
 **Method point for the defence.** Two of this project's findings were produced
-by deliberately breaking working code to see whether anything objected — the
+by deliberately breaking working code to see whether anything objected. The
 guard here, and T28's exhaustiveness set. Neither would have been found by
 adding tests, because both areas already had tests that passed. **Coverage
 answers "is this line executed"; mutation answers "does anything depend on what
@@ -4029,14 +4029,14 @@ it does", and only the second is a claim about protection.**
 ### 3.5.41 T7's audit half: making a known gap answerable
 
 `grep`, `find` and `ls` are governed at their **root**. The gate resolves the
-path the agent named, judges that one string, and the tool then recurses — so a
+path the agent named, judges that one string, and the tool then recurses, so a
 search rooted somewhere permitted reads files a denial names, and the gate never
 sees them. This was recorded as a limitation long before it was addressed.
 
 The half that could be closed here has been. Every path such a search returned
 that a live denial covers is now written to the audit ledger. The question "did
 any search reach something it should not have?" has an answer, where before it
-had no answer at all — which is different from, and more honest than, having a
+had no answer at all, which is different from, and more honest than, having a
 reassuring one.
 
 Three design choices are worth carrying into the report, because in each case
@@ -4044,8 +4044,8 @@ the alternative would have read better and been false.
 
 **It is recorded as `ungoverned`, not as a refusal.** The call was allowed and
 it happened. Writing it to the ledger as a denial would make the audit trail
-claim a protection the layer did not provide — which is the very failure the
-item exists to correct — and would corrupt any count of what the gate actually
+claim a protection the layer did not provide, which is the very failure the
+item exists to correct, and would corrupt any count of what the gate actually
 stopped. The ledger already has a value meaning "this happened without the gate
 judging it", and this is that.
 
@@ -4053,7 +4053,7 @@ judging it", and this is that.
 exists, but both places that fire it first check whether any plugin registered
 one, and skip it if not. Routing the audit through that hook would have been the
 smaller change and would have made the audit trail **conditional on a plugin
-being loaded** — the exact property this layer is built into the core to avoid.
+being loaded**. The exact property this layer is built into the core to avoid.
 
 **It reports less than it could rather than more.** It reads back rendered tool
 output, so it misses whatever truncation dropped, and it resolves paths against
@@ -4072,19 +4072,19 @@ needed either the search tools to accept an exclusion set (a real host change) o
 the gate to narrow the search root before the call, reachable using T23's
 parameter rewriting. **Both halves were reasoned rather than read, and both are
 wrong**; the correction is dated 2026-08-30 and written up in full in
-`REMAINING-WORK.md` §"T7 prevention — the three routes".
+`REMAINING-WORK.md` §"T7 prevention. The three routes".
 
 In summary, for the report: narrowing the root **cannot** work, because the
 ordinary case is a denied file inside a permitted directory and a single root
-expresses no exception. The exclusion route is **not** blocked by the host —
-`grep` runs ripgrep and `find` runs fd, both of which take exclusion arguments —
+expresses no exception. The exclusion route is **not** blocked by the host,
+`grep` runs ripgrep and `find` runs fd, both of which take exclusion arguments,
 but by a language mismatch, since those arguments are globs and policy denials
 are regular expressions. A third route nobody had considered, filtering denied
 entries out of the result before the model sees it, works in the rules' own
 language and reuses the set this file already computes; it is reachable on the
 in-process runtime through `afterToolCall`, whose return value replaces the tool
 result, and is **impossible on the native harness**, because the Codex hook
-protocol has no field for substituting a result — stated in upstream's own
+protocol has no field for substituting a result. Stated in upstream's own
 comment at `native-hook-relay-events.ts`. Refusing the call outright, by
 contrast, works on both.
 
@@ -4096,7 +4096,7 @@ documented by its own authors, and no amount of forking on this side reaches it.
 
 ### 3.5.42 The third "blocked on the host" claim, and the audit of all three
 
-T8 — outbound messages are ungoverned — was the last backlog item still carrying
+T8, outbound messages are ungoverned, was the last backlog item still carrying
 a blocker nobody had checked. Its row said closing it "needs a fourth resource
 kind, separable from the `message` tool", and filed it under **Host**.
 
@@ -4110,16 +4110,16 @@ Every part needed is inside this fork:
 - The **origin** of the conversation is on the session entry, in the same store
   the kill switch's lineage walk already reads.
 
-So the distinction the row itself says it needs — "reply where you were spoken
-to" versus "send elsewhere" — is computable at the gate today. Nothing is
+So the distinction the row itself says it needs, "reply where you were spoken
+to" versus "send elsewhere", is computable at the gate today. Nothing is
 missing from the upstream project.
 
 What is genuinely open is a decision about the shipped default, and it is a real
 one. Governing these tools under default-deny would stop a chat deployment
 replying to the person who addressed it, which is why they are recorded as
 deliberately ungoverned rather than overlooked. Shipping a permissive baseline
-gives the policy language the axis — an operator could finally write "this agent
-may not message anywhere but its origin", which is impossible today — while
+gives the policy language the axis, an operator could finally write "this agent
+may not message anywhere but its origin", which is impossible today, while
 leaving default behaviour unchanged.
 
 **The finding is the tally, not the item.** "Blocked on the host" was recorded
@@ -4132,8 +4132,8 @@ was true **zero** times.
 | T7   | Needs `after_tool_call`       | The hook already existed. It cannot prevent, which is a different limitation   |
 | T8   | Needs a fourth resource kind  | The enumeration is this fork's own file; the data is already in the parameters |
 
-Each was a true statement about **one interface** — a hook payload, a hook's
-return type, a resource enumeration — recorded in language that read as a
+Each was a true statement about **one interface**, a hook payload, a hook's
+return type, a resource enumeration, recorded in language that read as a
 statement about what the project could reach. In a fork those are never the same
 claim, because a fork can go around an interface it does not like. The cost is
 measurable: T6 sat open for six days and closed in one, in the session that
@@ -4148,7 +4148,7 @@ had been verified.
 ### 3.5.43 Auditing the defect count, and finding it wrong
 
 The project reports a number of defects found and fixed. That number is quoted
-in Chapter 4, which makes it a claim a reader can check — so it was checked, by
+in Chapter 4, which makes it a claim a reader can check, so it was checked, by
 extracting every numbered row from the engineering register rather than by
 reading the totals.
 
@@ -4163,7 +4163,7 @@ locking defect keeps 104 and the other was renumbered to 121.
 > were fixed and written up the next day and **not** entered on the numbered
 > list, so for one day "121" meant _the numbered series_ rather than _defects
 > found_. They are now 122–127. T29's own lesson arriving as an omission rather
-> than a collision — and an omission is harder to see, because nothing
+> than a collision, and an omission is harder to see, because nothing
 > contradicts anything. The standing rule since: **number a defect when it is
 > found.**
 
@@ -4178,8 +4178,8 @@ a whole document set.
 **It survived eighteen rounds of review.** Every one of those rounds read these
 tables. None compared them against each other, because the total was available
 at the top and re-reading a total is cheaper than recounting rows. That is
-precisely the pattern this project has documented three times elsewhere — a
-sentence cheap to re-read and expensive to re-verify — and here it had attached
+precisely the pattern this project has documented three times elsewhere, a
+sentence cheap to re-read and expensive to re-verify, and here it had attached
 itself to the project's own record of that pattern.
 
 A convention also clarified in passing, because it first looked like a
@@ -4190,7 +4190,7 @@ be verified by matching numbers, and that half of the audit remains open.
 
 ### 3.5.44 A slow test is not a faithful test
 
-Two of the project's tests covered the audit ledger's rotation — the behaviour
+Two of the project's tests covered the audit ledger's rotation. The behaviour
 that keeps the tamper-evident chain continuous when the active file is archived
 and a new one begins. Both reached the real eight-megabyte rotation threshold by
 **writing eight megabytes**: several thousand ledger appends, each taking a file
@@ -4204,13 +4204,13 @@ The fix was to stop confusing the threshold with the behaviour. The property
 under test is _the chain continues across a rotation_; that is true at any
 threshold. Lowering it for the test checks the same thing in a dozen entries and
 under a second, and the one thing the brute force had been covering by accident
-— that the shipped threshold really is eight megabytes — is now asserted on its
+that the shipped threshold really is eight megabytes, is now asserted on its
 own line, where it cannot be lost.
 
 **The second defect is the one worth the section.** With the tests fast enough
 to experiment on, both were mutation-checked by disabling rotation entirely. One
 failed, as it should. The other **passed**. It asserts that an existing archive
-is not destroyed when a new one is created — and with rotation switched off,
+is not destroyed when a new one is created, and with rotation switched off,
 nothing is created, so nothing is destroyed, so the test goes green. It would
 have passed if the feature it exists to test had never run at all.
 
@@ -4249,7 +4249,7 @@ Requirement 3 states the default-deny model restricts agent access to operating
 system resources, _"including file system paths, process execution, and network
 communication"_. Requirement 4 names the fine-grained axes: _"path-level file
 access, command allowlisting, network allowlisting, and time-limited
-permissions"_. The same three categories, stated twice — and they correspond
+permissions"_. The same three categories, stated twice, and they correspond
 exactly to the three resource kinds the policy language implements. A fourth
 kind for messaging would be work **beyond** the specification rather than a gap
 within it.
@@ -4258,7 +4258,7 @@ The specification's only reference to chat platforms points the same way. §2.1.
 describes the gateway binding to loopback and notes that users _"usually interact
 with the agent through messaging APIs (like Telegram or Slack) rather than
 exposing the application directly to the internet"_. Messaging is presented as
-the **interface** — the safer alternative to opening a port. Treating that
+the **interface**. The safer alternative to opening a port. Treating that
 interface as governed egress would mean gating the front door the architecture
 recommends using.
 
@@ -4286,7 +4286,7 @@ this and declined"_ is the whole difference when a panel asks.
 **Closing it required one change, and it was not to the gate.** The behaviour
 already existed and was already pinned by a test asserting the verdict, the tool
 and the agent. What no test asserted was that the ledger entry carries the
-**destination** — and the entire defence of the decision is that an operator can
+**destination**, and the entire defence of the decision is that an operator can
 see afterwards where the agent sent things. A position resting on a property
 nothing checked is the same shape as the fail-closed guard that could not fire;
 the assertion was added before the claim was made rather than after it broke.
@@ -4307,16 +4307,16 @@ The behaviour already exists. Verified rather than assumed, by driving the gate
 directly with an allow rule on a folder and a deny rule on a subfolder beneath
 it:
 
-| Call                                       | Verdict                                  |
-| ------------------------------------------ | ---------------------------------------- |
-| read an allowed file in the granted folder | allowed                                  |
-| read the excepted file directly            | **refused**                              |
-| a recursive search rooted at the folder    | allowed — **and it reads the exception** |
+| Call                                       | Verdict                                 |
+| ------------------------------------------ | --------------------------------------- |
+| read an allowed file in the granted folder | allowed                                 |
+| read the excepted file directly            | **refused**                             |
+| a recursive search rooted at the folder    | allowed, **and it reads the exception** |
 
 The first two rows are the feature working, through precedence that has been in
 the engine since the tiers were introduced: denials are evaluated before
 allowances, across every tier. So the authoring half of the request is an
-affordance over capability that already exists — today it takes two hand-written
+affordance over capability that already exists. Today it takes two hand-written
 regular expressions and knowledge that denial wins, and no part of the interface
 says so.
 
@@ -4325,9 +4325,9 @@ displayed as "this folder, except `secrets/`" will be read as a guarantee that
 the agent cannot reach `secrets/`, and a recursive search still can. That is the
 search-recursion limitation, unchanged and separately tracked.
 
-This project has now recorded four defects of one shape — an unreachable
+This project has now recorded four defects of one shape, an unreachable
 validator branch, an exported function nothing called, a dead default-allow, and
-a fail-closed guard that could not fire — all of them code that advertised a
+a fail-closed guard that could not fire, all of them code that advertised a
 property the control flow did not deliver. Building this interface before the
 enforcement would produce a fifth, and the worst-placed of them:
 
@@ -4338,7 +4338,7 @@ enforcement would produce a fifth, and the worst-placed of them:
 > written and been shown.
 
 The dependency also runs the other way, usefully. Preventing a recursive search
-from reading a forbidden path requires an exclusion set — and an exception list
+from reading a forbidden path requires an exclusion set, and an exception list
 authored by an operator _is_ that exclusion set, expressed in exactly the form
 the enforcement needs. The feature that cannot ship without the fix is also the
 feature that supplies the fix its input.
@@ -4347,7 +4347,7 @@ feature that supplies the fix its input.
 
 Until this point the layer held one policy document, one audit chain and one
 account list for the whole installation. The group had been introduced as a
-_record_ — accounts belong to one, agents belong to one — but the storage
+_record_, accounts belong to one, agents belong to one, but the storage
 beneath those records was undivided, so isolation between organisations was
 enforced by remembering to filter every read by group.
 
@@ -4362,7 +4362,7 @@ future reader has to keep. Separate files are a wall.**
 #### The requirement that settled the hardest question
 
 Before designing anything, the specification was searched for multi-tenancy.
-It is not there — no requirement in §1.3 or elsewhere mentions tenants,
+It is not there, no requirement in §1.3 or elsewhere mentions tenants,
 organisations-as-tenants, or groups. Multi-tenancy is a feature added on top of
 the project. Requirement **#6**, tamper-evident logging over _all_ recorded
 actions, is not optional.
@@ -4375,7 +4375,7 @@ That converts a matter of taste into a rule that can be applied consistently:
 It decides the sharpest question immediately. Splitting the audit ledger by group
 invites splitting its cryptographic key by group, and the project's strongest
 security claim is that fingerprints are _"HMAC-SHA256 under a per-installation
-key"_ — one secret, stated once, so rewriting history requires possession of it
+key"_, one secret, stated once, so rewriting history requires possession of it
 rather than knowledge of the algorithm. Per-group keys would turn one secret into
 one per organisation and force that sentence to be restated weaker. The
 requirement forbids it, so the design had to find another way.
@@ -4392,7 +4392,7 @@ Accounts act through the layer's interface, never the filesystem, and the key si
 in a directory two immutable restrictions already deny the agent. Every group has
 exactly the access to it that every group had before: none.
 
-What the arrangement buys is that the claim survives word for word — and improves
+What the arrangement buys is that the claim survives word for word, and improves
 slightly. A convincing erasure of one organisation's recent history now requires
 editing a file that lives _outside that organisation's directory_, so the two
 coordinated edits the original design demanded are now in two different parts of
@@ -4403,8 +4403,8 @@ the tree rather than two files side by side.
 The chain head was cached in a single module-level variable, which was correct
 while there was one chain. Left shared across groups, the next entry written for
 one organisation would take **another organisation's head** as its predecessor
-hash. That is not a stale read; it is a **forged link** — a claim of continuity
-with an entry that does not exist in that chain — and it would surface later as a
+hash. That is not a stale read; it is a **forged link**, a claim of continuity
+with an entry that does not exist in that chain, and it would surface later as a
 verification failure with no diagnosable cause. The cache is now keyed by group.
 
 A second trap came from the other direction. A group identifier had been an
@@ -4414,7 +4414,7 @@ governance directory. The identifiers this system mints cannot contain one, but
 they are read back from a file an operator can edit, and _"no current code path
 produces a bad value"_ is a statement about today's code paths rather than about
 the value. The directory helper validates the shape, and **throws rather than
-falling back to the installation root** — a caller that lost track of its group
+falling back to the installation root**. A caller that lost track of its group
 would otherwise write where every group can read, which is finding 119 again by a
 different route.
 
@@ -4425,7 +4425,7 @@ Three consequences outlast the subtask.
 **The gate acquires a question it never had to ask.** Deciding a tool call used to
 need only the agent's identity, because there was one rulebook. It now needs to
 know _whose_ rulebook, which means resolving agent to organisation on every
-governed call — the hottest path in the system. The registry is the only thing
+governed call. The hottest path in the system. The registry is the only thing
 that knows, so it is held in memory and dropped on every write. This is also why
 mandatory registration is load-bearing rather than tidy-minded: without it the
 gate needs a fallback document for unregistered agents, and a fallback document
@@ -4439,7 +4439,7 @@ enumerable.
 
 **The tier model comes through unchanged, which is the result rather than a
 coincidence.** The immutable restrictions stay installation-wide, because what
-they protect — the governance directory itself — is shared. The floor described by
+they protect, the governance directory itself, is shared. The floor described by
 requirement #3 remains a single floor, and no organisation's Root can move
 another's.
 
@@ -4452,7 +4452,7 @@ list is worth recording because it was chosen rather than inherited.
 Every path function that became per-group takes its group as a **required**
 parameter. An optional one would have compiled everywhere, including at every
 call site that forgot to supply it, and each of those would have written to a
-shared location — failing silently, in the direction of leaking, which is the
+shared location. Failing silently, in the direction of leaking, which is the
 exact failure the separation exists to prevent. Requiring it made the type
 checker enumerate every caller that has to answer _whose data is this?_: seventy-
 eight errors, each a real decision about ownership, none of them discoverable by
@@ -4462,7 +4462,7 @@ Two answers came out of that census that the design had not settled.
 
 **Administrative actions belong to the subject's organisation, not the actor's.**
 A Root changing an account's role, an Administrator registering an agent, a
-password reset — each is performed by somebody and _about_ somebody, and the two
+password reset, each is performed by somebody and _about_ somebody, and the two
 can differ. Recording against the actor would scatter one person's administrative
 history across every organisation they touched; recording against the subject
 keeps each organisation's trail complete on its own terms. Accounts predating
@@ -4470,7 +4470,7 @@ groups have no organisation, and their entries fall to the installation trail.
 
 **Some events belong to no organisation at all.** This was the design's real
 omission. Mandatory registration means the gate refuses an agent it has no record
-of — and requirement #5 asks that _every_ agent action be recorded. That refusal
+of, and requirement #5 asks that _every_ agent action be recorded. That refusal
 cannot be written to the agent's own organisation's log, because not having one
 is precisely why it was refused. Without somewhere installation-scoped to put it,
 the single event that says "an unregistered agent tried to act" would be the one
@@ -4486,7 +4486,7 @@ were caught by tests rather than by review.
 
 **A cache keyed by something that can change underneath it.** Resolving an agent
 to its organisation happens on every governed call, so the registry is held in
-memory. It is correctly dropped whenever the registry is written — but the file
+memory. It is correctly dropped whenever the registry is written, but the file
 it caches is chosen by an environment variable, so one process can be asked about
 two different installations. Under the test runner that happens constantly, and a
 suite passed alone while failing in a full run, having inherited the previous
@@ -4498,7 +4498,7 @@ the cached thing is fixed.**
 **A fixture that manufactured the tampering the system detects.** Seeding a test
 organisation registers agents, and registrations are recorded, so the fixture
 cleared the group's log to hand each suite an empty one. It left the
-_checkpoint_ — the separate record of how far the chain had got, kept outside the
+_checkpoint_. The separate record of how far the chain had got, kept outside the
 group's own directory precisely so that deleting the log cannot erase the
 evidence. The result was a chain ending earlier than the record of its length,
 which is the definition of truncation, correctly reported as a failure across a
@@ -4508,7 +4508,7 @@ code participates in the security model whether or not it was written to.**
 
 **A path that every installation takes exactly once.** Locking a file creates a
 lock beside it, so the first write for a brand-new organisation failed on the
-_lock_ rather than on the write it was protecting — three stores were still
+_lock_ rather than on the write it was protecting, three stores were still
 creating only the installation's root directory, not the group's. A fresh group
 is the state every installation passes through once and never again, which is
 exactly the kind of path that is easy to leave untested.
@@ -4517,7 +4517,7 @@ exactly the kind of path that is easy to leave untested.
 The registry's assignment check skipped any agent it had no record of, and said
 so in a comment: the constraint could be sidestepped by never registering, and
 closing it "needs provisioning to exist first". That rested on reading
-_registering_ an agent and _provisioning_ one as a single act. They are not —
+_registering_ an agent and _provisioning_ one as a single act. They are not,
 registration had been available on every surface since the registry shipped. This
 is the fourth time in this project that a recorded blocker turned out to be a
 true statement about one thing written in words that read as true about another,
@@ -4534,7 +4534,7 @@ the argument for the habit rather than a coincidence.
 **A refusal that could no longer be reached.** Finding 81 added a rule: while any
 agent is locked down, refuse a call the gate cannot attribute to one, because _an
 emergency stop that holds on some code paths and not others is not an emergency
-stop_. Per-group storage made that condition unreachable — the check sits after
+stop_. Per-group storage made that condition unreachable. The check sits after
 the group has been resolved, and the group is resolved _from_ the agent identity,
 so the case it tested for cannot arrive there. The refusal it asked for still
 happens, earlier and for a broader reason; the branch was deleted on the
@@ -4546,7 +4546,7 @@ used to be refused only during an incident, and the comment explaining that said
 the over-blocking was "bounded to an active incident: with an empty lockdown list
 an unattributable call is evaluated exactly as before". True while a single
 document governed the installation. With a document per organisation there is no
-document to evaluate against, so the refusal is now unconditional — and the bound
+document to evaluate against, so the refusal is now unconditional, and the bound
 the original comment relied on turns out to have been the shared document, not
 the lockdown list. Worth reporting as an example of a security property changing
 because something underneath it moved, with no change to the rule itself.
@@ -4554,7 +4554,7 @@ because something underneath it moved, with no change to the rule itself.
 **An ownership rule that skipped what it was written to catch.** The registry's
 assignment check passed over any agent it had no record of, and said so in a
 comment: the constraint could be sidestepped by never registering, and closing it
-"needs provisioning to exist first". It did not — that rested on treating
+"needs provisioning to exist first". It did not. That rested on treating
 _recording_ an agent and _creating_ one as a single act, when recording had been
 available on every surface since the registry shipped. It now refuses, over HTTP
 as well as in the store.
@@ -4562,7 +4562,7 @@ as well as in the store.
 **A check that asked the wrong question after the data moved.** The deployment
 report tested whether the checkpoint _file_ existed. That was the right question
 while one chain existed. With one file holding a head per organisation, the file
-exists as soon as _any_ organisation has written — so an organisation with no
+exists as soon as _any_ organisation has written, so an organisation with no
 checkpoint of its own would be reported as protected by a truncation defence it
 did not have. It now asks whether this organisation has an entry. **A check that
 reports green for something absent is worse than no check**, because it also
@@ -4571,8 +4571,8 @@ answers the question a reader would otherwise go and ask themselves.
 ### 3.5.9 Recording administrative actions in the same chain
 
 The ledger originally recorded what agents did and how the policy judged them,
-and nothing about who wrote that policy. Requirement #5 names three things —
-agent actions, policy decisions, **and administrative approvals** — and only the
+and nothing about who wrote that policy. Requirement #5 names three things,
+agent actions, policy decisions, **and administrative approvals**, and only the
 first two existed. The omission matters more than its size: an investigation
 does not begin at "what did the agent do", it begins at "was this allowed
 because it was legitimate, or because somebody widened the rules just before it
@@ -4589,7 +4589,7 @@ makes the trail readable: "the rule was widened at 14:02, the agent used it at
 chain costs no confidentiality.
 
 **Attribution enforced by the compiler, not by review.** `actor` is a
-**required** parameter on every mutating store function — `addRule`,
+**required** parameter on every mutating store function, `addRule`,
 `removeRule`, `setMode`, `setAskMode`, `setHitlTimeout`, `setAgentAskMode`,
 `createUser`, `setUserRole`, `setUserAssignedAgents`, `deleteUser`. Adding a new
 route that changes governance state without saying who did it does not compile.
@@ -4601,7 +4601,7 @@ rather than relying on remembering.
 **Schema evolution in an append-only hash-chained log.** The interesting
 engineering problem, and a good one to write up. The hash covers a fixed list of
 fields, so adding `actor` and `entryKind` would change the hash of every entry
-and make an existing ledger fail verification wholesale — a tamper-evident log
+and make an existing ledger fail verification wholesale. A tamper-evident log
 whose own upgrade makes all its history look tampered with.
 
 The resolution is to key the hashed field list on **whether the new fields are
@@ -4614,7 +4614,7 @@ entry switches it the other way, with the same result. Both are detected. A
 version field would have needed protecting itself, and would still have left the
 question of entries written before versions existed.
 
-**Honest limitation to carry into §4.4 — and it was closed four days after it
+**Honest limitation to carry into §4.4, and it was closed four days after it
 was written.** This paragraph read: _"A change made through the CLI is recorded
 with actor `cli`, not a person. The CLI has no login by design"_, on the argument
 that a name collected without authentication would be a claim rather than an
@@ -4625,7 +4625,7 @@ tier via `toCliAuditActor`. A6 is closed.
 **What survives is narrower and is still worth §4.4.** The login makes the
 command line _attributable and authorized_; it is not a _security boundary_.
 Anyone who can run these commands can still edit the governance directory
-directly, so the boundary remains the filesystem's — stated in `cli-identity.ts`'s
+directly, so the boundary remains the filesystem's. Stated in `cli-identity.ts`'s
 own header, which is why `requireCliActor` refuses rather than warns.
 `CLI_ACTOR` survives for two narrow cases: the repair command that deletes
 accounts predating groups, where by definition nobody can sign in, and the
@@ -4639,7 +4639,7 @@ Validation: §4.x.14.
 
 Each with the one-line reason it is written that way.
 
-**(a) The hash chain — `audit-ledger.ts`.** _Why:_ the chain head is read from
+**(a) The hash chain, `audit-ledger.ts`.** _Why:_ the chain head is read from
 disk inside a cross-process lock on every append, never cached, because the CLI
 and Gateway are separate processes.
 
@@ -4670,8 +4670,8 @@ if (hashEntry(withoutHash) !== hash)
   return { ok: false, brokenAtSeq: entry.seq, reason: "entry hash does not match …" };
 ```
 
-**(c) The decision loop — `policy-engine.ts`.** _Why:_ every resource is
-evaluated and recorded _before_ any verdict returns — an early return would
+**(c) The decision loop, `policy-engine.ts`.** _Why:_ every resource is
+evaluated and recorded _before_ any verdict returns, an early return would
 leave later paths in a multi-file edit unaudited (QA defect 5), and the recorded
 decision is always the true one even in monitor mode (QA defect 4).
 
@@ -4686,7 +4686,7 @@ for (const resource of resources) {
 if (firstMiss === undefined || doc.mode === "monitor") return undefined;
 ```
 
-**(d) The role ladder — `roles.ts`.** _Why:_ a numeric rank makes inheritance a
+**(d) The role ladder, `roles.ts`.** _Why:_ a numeric rank makes inheritance a
 single comparison, so no endpoint can accidentally implement the hierarchy
 inconsistently.
 
@@ -4697,7 +4697,7 @@ export function roleAtLeast(role: GovernanceRole, minimum: GovernanceRole): bool
 }
 ```
 
-**(e) Lockout prevention — `account-guards.ts`.** _Why:_ there is no
+**(e) Lockout prevention, `account-guards.ts`.** _Why:_ there is no
 "forgot password" flow and bootstrap refuses once an account exists, so removing
 the last Root would be unrecoverable through the product.
 
@@ -4707,7 +4707,7 @@ if (otherRoots > 0) return ALLOWED;
 return { allowed: false, reason: "This is the only Root account; promote another…" };
 ```
 
-**(f) Safe tool lookup — `resource-extraction.ts`.** _Why:_ a null-prototype
+**(f) Safe tool lookup, `resource-extraction.ts`.** _Why:_ a null-prototype
 registry stops a tool named `constructor` or `__proto__` resolving to an
 inherited `Object.prototype` member (QA defect 3).
 
@@ -4724,7 +4724,7 @@ export function resolveGovernedTool(toolName: string) {
 
 ### 4.x.1 Test evidence
 
-_Table candidate — Table 4.1: Automated test coverage._ Current as of
+_Table candidate, Table 4.1: Automated test coverage._ Current as of
 2026-08-16. Grouped by what each group establishes, since the raw file list is
 long and the grouping is the argument.
 
@@ -4762,11 +4762,11 @@ long and the grouping is the argument.
 | ---------------------------------------- | ----: | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `user-store.test.ts`                     |    31 | Hashing with recorded cost, upgrade on sign-in, resets, single Root, and assigned agent ids folded so an assignment is actually consulted (200) |
 | `governance-privilege-matrix.test.ts`    |     8 | Every route × every tier beneath its floor, asserting an exact 403                                                                              |
-| `governance-account-lifecycle.test.ts`   |    11 | Bootstrap, creation and real sign-in end to end — no fabricated session                                                                         |
+| `governance-account-lifecycle.test.ts`   |    11 | Bootstrap, creation and real sign-in end to end, no fabricated session                                                                          |
 | `root-invariant.test.ts`                 |    10 | Exactly one Root, permanent: both bounds, the race, self-deletion, and the repair path                                                          |
 | `permissions.test.ts`                    |    11 | Tier × scope matrix, monotonic inheritance                                                                                                      |
 | `account-guards.test.ts`                 |    12 | Last-Root and self-delete lockout prevention                                                                                                    |
-| `organisation-deletion.test.ts`          |    12 | T44: the organisation deleted as one act — ordering, refusals, the retained ledger, and that the installation can be set up again               |
+| `organisation-deletion.test.ts`          |    12 | T44: the organisation deleted as one act, ordering, refusals, the retained ledger, and that the installation can be set up again                |
 | `governance-organisation-delete.test.ts` |    21 | The same over HTTP (×3 gateway projects): the tier gate, the group taken from the session and never the body, and the now-dead session          |
 | `cli-organisation-delete.test.ts`        |     8 | The same on the command line: both confirmations required, and the same guard the route uses                                                    |
 | `login-throttle.test.ts`                 |     6 | Lockout after five failures, per-account isolation, window expiry                                                                               |
@@ -4795,13 +4795,13 @@ long and the grouping is the argument.
 | `rule-filter.test.ts` (dashboard)   |    14 | Searching and filtering the ruleset, including that search is not a regex                                                                                                                                                  |
 | `core-invariants.test.ts`           |    15 | Root can change its own password; exactly one Root, always; a fresh install is usable and still default-deny                                                                                                               |
 
-**QA regression suites** — `qa-round5`, `qa-round5-storage`, `qa-round6`,
+**QA regression suites**, `qa-round5`, `qa-round5-storage`, `qa-round6`,
 `qa-round8-logic`, `qa-round8-security`: **81 tests** pinning the specific
 defects each round found, so none can silently return.
 
-|           |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Total** | **2,311 tests across 107 files** — re-measured 2026-08-27 with the command named at the end of this row, after QA rounds nineteen to twenty-one (§3.5.57–59). Round twenty-one's intent field added 19; round twenty added 9; round nineteen added 36 over M6's 2,247/104. M6 (§3.5.51–56) added 76 executions of which only 22 are its two new test files: the other 54 came from entering two routes in the privilege matrix and the malformed-body table. The distinct totals behind it are **1,403 tests across 78 files**. Before M6: 2,171 across 102 after M5's per-group storage migration (§3.5.47–50), which moved the figure not at all because it rewrote existing tests rather than adding any. 2,168 across 102, then 2,165 across 102, then 2,151 across 101 after T16's dashboard split and T6 (§3.5.45–46); 2,116 across 99 after T28 added the gate's eight exhaustiveness cases (§3.5.35); 2,108 across 99 after M4, the agent registry (§3.5.33); 1,926 across 95 after M3, the group data model (§3.5.31); 1,902 across 94 after the live browser pass and M2 (§3.5.30); 1,877 across 91 after T14's HTTP and dashboard surfaces and QA round seventeen (§4.x.29); 1,802 across 88 after T23 (§3.5.29); 1,794 across 87 after T4, T5 and T14 (§3.5.26–§3.5.28); 1,722 across 84 after the first dashboard component tests (§4.x.27), the core-tier split (§3.5.24), Root's authoring control (§3.5.23), the kill-switch end-to-end verification and the authoring-scope matrix (§3.5.21, §3.5.22). (1,564 across 75 after the bidirectional policy views, §3.5.20. (1,510 across 71 after the sixteenth QA pass, §4.x.25. (1,499 across 70 after T9, authentication auditing, §3.5.19. (1,480 across 68 before it, after the A1 follow-ups, the last of round thirteen, the hands-on UI pass and the three core invariants; 1,465 across 67 before `core-invariants.test.ts`; 1,404 across 64 after B1; 1,393 across 63 after the fourteenth QA pass and A7; 1,264 across 57 before rounds 13 and 14. The growth is almost entirely regression tests lifted out of the probes that produced each finding.) **Measured with `src/governance/`, `src/gateway/governance-*.test.ts`, `ui/src/pages/governance/`** — adding `ui/src/i18n` gives 1,564 across 73, which is a different set and not a regression. **Every figure in this row is a count of test-file _runs_ and test _executions_:** the thirteen `src/gateway/` files run under three Vitest projects, so the distinct totals behind the current 2,311/107 are **1,467 tests across 81 files**. M4's 182-execution jump is mostly _not_ its two new files — 111 of it came from adding the five new routes to the malformed-body table and the privilege matrix, which is what those two tables exist to make cheap. See §3.5.2. |
+|           |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Total** | **2,311 tests across 107 files**. Re-measured 2026-08-27 with the command named at the end of this row, after QA rounds nineteen to twenty-one (§3.5.57–59). Round twenty-one's intent field added 19; round twenty added 9; round nineteen added 36 over M6's 2,247/104. M6 (§3.5.51–56) added 76 executions of which only 22 are its two new test files: the other 54 came from entering two routes in the privilege matrix and the malformed-body table. The distinct totals behind it are **1,403 tests across 78 files**. Before M6: 2,171 across 102 after M5's per-group storage migration (§3.5.47–50), which moved the figure not at all because it rewrote existing tests rather than adding any. 2,168 across 102, then 2,165 across 102, then 2,151 across 101 after T16's dashboard split and T6 (§3.5.45–46); 2,116 across 99 after T28 added the gate's eight exhaustiveness cases (§3.5.35); 2,108 across 99 after M4, the agent registry (§3.5.33); 1,926 across 95 after M3, the group data model (§3.5.31); 1,902 across 94 after the live browser pass and M2 (§3.5.30); 1,877 across 91 after T14's HTTP and dashboard surfaces and QA round seventeen (§4.x.29); 1,802 across 88 after T23 (§3.5.29); 1,794 across 87 after T4, T5 and T14 (§3.5.26–§3.5.28); 1,722 across 84 after the first dashboard component tests (§4.x.27), the core-tier split (§3.5.24), Root's authoring control (§3.5.23), the kill-switch end-to-end verification and the authoring-scope matrix (§3.5.21, §3.5.22). (1,564 across 75 after the bidirectional policy views, §3.5.20. (1,510 across 71 after the sixteenth QA pass, §4.x.25. (1,499 across 70 after T9, authentication auditing, §3.5.19. (1,480 across 68 before it, after the A1 follow-ups, the last of round thirteen, the hands-on UI pass and the three core invariants; 1,465 across 67 before `core-invariants.test.ts`; 1,404 across 64 after B1; 1,393 across 63 after the fourteenth QA pass and A7; 1,264 across 57 before rounds 13 and 14. The growth is almost entirely regression tests lifted out of the probes that produced each finding.) **Measured with `src/governance/`, `src/gateway/governance-*.test.ts`, `ui/src/pages/governance/`**. Adding `ui/src/i18n` gives 1,564 across 73, which is a different set and not a regression. **Every figure in this row is a count of test-file _runs_ and test _executions_:** the thirteen `src/gateway/` files run under three Vitest projects, so the distinct totals behind the current 2,311/107 are **1,467 tests across 81 files**. M4's 182-execution jump is mostly _not_ its two new files, 111 of it came from adding the five new routes to the malformed-body table and the privilege matrix, which is what those two tables exist to make cheap. See §3.5.2. |
 
 Two methodology notes worth keeping:
 
@@ -4809,7 +4809,7 @@ Two methodology notes worth keeping:
   fix rather than once, because the defect they exposed was intermittent. A
   single green run does not establish that a concurrency bug is fixed.
 - **The governance suite alone is not sufficient evidence.** OpenClaw's own
-  harness suite must be run too, and its baseline is **18 failed / 174 passed** —
+  harness suite must be run too, and its baseline is **18 failed / 174 passed**,
   pre-existing failures present on `main` before this work began. Round six
   exists because governance-only runs hid nineteen regressions for weeks; §4.x.11
   tells that story.
@@ -4828,7 +4828,7 @@ node scripts/run-tsgo.mjs -p tsconfig.ui.json
 The headline experiment. Method: build a ledger through normal operation, then
 attack it three ways and attempt verification after each.
 
-_Table candidate — Table 4.2: Tamper-detection results._
+_Table candidate, Table 4.2: Tamper-detection results._
 
 | Attack                          | Result                 | Reported reason                                             |
 | ------------------------------- | ---------------------- | ----------------------------------------------------------- |
@@ -4847,7 +4847,7 @@ off-host copy of the latest hash). Good future-work item.
 Method: policy in `enforce` with one command rule (`^ls( .*)?$`) and one network
 rule (`^api[.]openweathermap[.]org$`), then four representative tool calls.
 
-_Table candidate — Table 4.3: Enforcement results._
+_Table candidate, Table 4.3: Enforcement results._
 
 | Action                                       | `ask: on-miss` | `ask: off` (strict) |
 | -------------------------------------------- | -------------- | ------------------- |
@@ -4869,7 +4869,7 @@ meaning "this agent may touch files under the project's `src` directory and
 nothing else". A workspace is created in a temporary directory containing
 `src/app.ts`. Each row is a real tool call evaluated by the gate.
 
-_Table candidate — Table 4.x: Path confinement results._
+_Table candidate, Table 4.x: Path confinement results._
 
 | #   | Tool          | Path the agent supplied      | String the gate matched | Before    | After     |
 | --- | ------------- | ---------------------------- | ----------------------- | --------- | --------- |
@@ -4881,14 +4881,14 @@ _Table candidate — Table 4.x: Path confinement results._
 
 Rows 2 and 3 are the security failures: one rule, two different ways of
 satisfying its text while pointing outside the directory it names. Row 4 is the
-mirror-image failure and the more interesting one for the report — the rule was
+mirror-image failure and the more interesting one for the report. The rule was
 not too weak there but _entirely ineffective_, refusing an operation the
 operator had explicitly permitted, because the string the gate built for
 `apply_patch` could never match a pattern written the way the documentation
 teaches. Row 1 and row 5 confirm the fix is not achieved by simply denying more.
 
 **The observation worth drawing out.** Rows 2–3 and row 4 look like opposite
-defects — too permissive and too restrictive — and were originally recorded as
+defects, too permissive and too restrictive, and were originally recorded as
 separate findings. They have a single cause: the gate had no defined answer to
 "what string represents this file?", so different code paths answered
 differently. Once the question is answered once, in one place, all three
@@ -4898,16 +4898,16 @@ it will produce both false accepts and false rejects rather than erring
 consistently in one direction.
 
 Evidence: `src/governance/path-normalize.test.ts`, 10 tests, all passing. The
-"before" column is not asserted from memory — it is what the previous
+"before" column is not asserted from memory. It is what the previous
 implementation (`value.replaceAll("\\", "/")`) demonstrably produced.
 
 ### 4.x.14 Administrative accountability experiment
 
 Method: perform one change of each administrative kind, then read the ledger
-back. The point is not that the code runs — it is that the trail answers "who
+back. The point is not that the code runs. It is that the trail answers "who
 changed what" for every route by which governance state can change.
 
-_Table candidate — Table 4.x: Administrative actions recorded._
+_Table candidate, Table 4.x: Administrative actions recorded._
 
 | Change made                   | Recorded action                  | Actor              | Detail kept                                                 |
 | ----------------------------- | -------------------------------- | ------------------ | ----------------------------------------------------------- |
@@ -4930,13 +4930,13 @@ in the trail where **three different people can appear against one event**: the
 account that sent the prompt, the account that stopped it (an Administrator may
 stop a run inside their remit), and the agent that was doing the work. A
 cancellation is recorded as its own action rather than folded into the result
-for exactly that reason — the result says the run ended without a reply, and
+for exactly that reason. The result says the run ended without a reply, and
 only the cancel entry says who decided that. An investigation asking why an
 agent stopped half-way through a task cannot answer it from the result alone.
 
 Two further details are deliberate and worth a sentence each in prose. A **removed**
 rule is described in full, because after deletion the ledger is the only
-remaining record of what the permission was — recording only its id would make
+remaining record of what the permission was. Recording only its id would make
 the entry useless for the question it exists to answer. A **deleted account**
 keeps its username and role for the same reason. Transitions are recorded as
 `old -> new` rather than just the new value, because a privilege escalation is
@@ -4959,20 +4959,20 @@ silently):
 Evidence: `src/governance/admin-audit.test.ts`, 19 tests. Suite total 682
 passing; OpenClaw's own harness suite unchanged at its 18-failure baseline.
 
-### 4.x.15 Seventh QA pass — account lifecycle and logic defects
+### 4.x.15 Seventh QA pass: account lifecycle and logic defects
 
 Run after the administrative-audit work, in two parts: an end-to-end test of the
 account system, and a targeted hunt for logic defects in the policy layer.
 
-**Part one — the account lifecycle had never been tested end to end.** Every
+**Part one. The account lifecycle had never been tested end to end.** Every
 existing suite fabricated a logged-in session object directly, which tests the
 authorization rules while assuming authentication away. Driving bootstrap,
 account creation and sign-in through the real HTTP surface confirmed the system
-works — a Root can create an account at any of the four roles, and that account
-can sign in and is recognised at the role it was given — and found one
+works, a Root can create an account at any of the four roles, and that account
+can sign in and is recognised at the role it was given, and found one
 requirement not implemented at all.
 
-_Table candidate — Table 4.x: Account lifecycle results._
+_Table candidate, Table 4.x: Account lifecycle results._
 
 | Behaviour                                         | Result        |
 | ------------------------------------------------- | ------------- |
@@ -4989,7 +4989,7 @@ _Table candidate — Table 4.x: Account lifecycle results._
 Only the _lower_ bound of the single-Root rule was enforced: the code refused to
 remove the last Root, but nothing capped the count at one. The two halves are
 the same invariant seen from opposite ends, and the consequence of missing the
-upper one is concrete — a second Root can delete the first, so "you cannot
+upper one is concrete. A second Root can delete the first, so "you cannot
 remove the last Root" stops protecting the operator who set the system up the
 moment a second exists. Both directions are now refused.
 
@@ -4998,15 +4998,15 @@ harness reported HTTP 200 for a route that did not exist, because the mock
 response object was initialised with `statusCode = 200` and an unmatched route
 never wrote a status. Nine assertions "passed" against a mistyped URL. The
 harness had invented a success the server never sent. Fixed by reporting an
-unhandled route as 599 rather than letting it inherit a default — the same
+unhandled route as 599 rather than letting it inherit a default. The same
 lesson as rounds five and six in a third costume: a test that shares an
 assumption with the thing it tests will confirm it.
 
-**Part two — logic defects found and fixed.**
+**Part two. Logic defects found and fixed.**
 
 | Defect                                                    | Why it mattered                                                                                                                                                          |
 | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Clash warning ignored expiry on catch-all rules           | A catch-all lapsing in a minute reported a new indefinite rule as "grants nothing additional" — an operator believing it would delete the rule about to do all the work  |
+| Clash warning ignored expiry on catch-all rules           | A catch-all lapsing in a minute reported a new indefinite rule as "grants nothing additional". An operator believing it would delete the rule about to do all the work   |
 | "You allowed everything" check listed only `.*` spellings | Matching is a _substring_ search, so `^`, `$`, `.`, `.+` are all universal; an admin could permit everything with no warning                                             |
 | Corrupted per-agent escalation setting resolved to "ask"  | Unparseable values fell to the _more_ permissive branch, since an escalation can end in allow while the strict setting denies outright                                   |
 | Lock staleness (60s) exceeded the wait timeout (30s)      | Every waiter gave up before the abandoned lock became reclaimable, so the self-healing path was unreachable and a crash wedged writes until the file was deleted by hand |
@@ -5026,12 +5026,12 @@ and had no upper bound.
 
 **Unanswered escalations.** Answered questions were trimmed; unanswered ones
 were exempt, on the reasoning that an undecided question is the whole point of
-the stack. Correct in principle and unbounded in practice — an agent retrying a
+the stack. Correct in principle and unbounded in practice. An agent retrying a
 blocked action against an unattended installation grew the file indefinitely,
 and every append rewrote the whole file, so cost was quadratic in how long
 nobody was watching. Fixed by recognising the actual shape of the failure: a
 wedged agent asks the _same_ question, so repeats are counted on one entry
-rather than appended. The count is better information than the rows were — "this
+rather than appended. The count is better information than the rows were, "this
 timed out 400 times" is the diagnosis of a stuck agent, which 400 identical rows
 convey far less clearly.
 
@@ -5042,7 +5042,7 @@ at 1000, checked after expiry pruning so an installation full of lapsed grants
 recovers by itself instead of being told it is full.
 
 **Pattern compilation.** Every check called `new RegExp` afresh, so compilation
-cost scaled with rules × tool calls — on the path that runs before every action
+cost scaled with rules × tool calls, on the path that runs before every action
 the agent takes. Now cached.
 
 **The dashboard.** Three related presentation defects: an expired session left
@@ -5056,7 +5056,7 @@ or the tab is hidden), and `Promise.allSettled` means one unavailable panel
 costs that panel rather than the session.
 
 **The point to draw out.** On an oversight tool, showing stale data as current
-is not a cosmetic defect — it is the same category of failure as an audit log
+is not a cosmetic defect. It is the same category of failure as an audit log
 that loses entries. The operator's belief about the system's state is the
 product. That framing connects the dashboard work to the ledger work rather
 than leaving it as UI polish.
@@ -5109,7 +5109,7 @@ pessimistic true one, because the first teaches an operator to trust something
 that has not been demonstrated.
 
 **The second escalation axis (§1.6).** Chapter 1 puts the human-in-the-loop
-toggle on two axes — Administrator per _agent_, Root per _user_ — and only the
+toggle on two axes, Administrator per _agent_, Root per _user_, and only the
 agent axis existed. Both now do. The design question was how they combine, and
 the answer is **the stricter wins**, not a precedence order.
 
@@ -5117,7 +5117,7 @@ The argument is worth a paragraph. A precedence order treats one axis as more
 authoritative, which neither is: an Administrator's view of an agent's
 trustworthiness and Root's view of a person's judgement are independent
 assessments of different things. Under any precedence rule, setting the winning
-axis could _loosen_ a restriction placed on the other — a governance layer must
+axis could _loosen_ a restriction placed on the other. A governance layer must
 not contain that surprise. Taking the stricter is the only combination that
 cannot widen access.
 
@@ -5126,21 +5126,21 @@ person, so "the user behind this agent" is resolved through the assignment an
 Administrator already maintains. That is a faithful mapping today, and it
 becomes exact once A1 binds accounts to the chat path.
 
-### 4.x.18 Eleventh QA pass — tool coverage, resource canonicalisation, and reachability
+### 4.x.18 Eleventh QA pass: tool coverage, resource canonicalisation, and reachability
 
-_Section candidate — the strongest single argument in Chapter 4 for why a
+_Section candidate. The strongest single argument in Chapter 4 for why a
 security control needs an eleventh review pass as much as a first one._
 
 Run against the Chapter 1 specification rather than against the previous round's
 fixes, on 2026-08-16. Six defects, in three families.
 
-#### Family 1 — the registry disagreed with the host, again
+#### Family 1: the registry disagreed with the host, again
 
 Three built-in tools that read the filesystem were absent from the governed-tool
 registry: `grep`, `find` and `ls`. All three appear in `allToolNames`
 (`src/agents/sessions/tools/index.ts`) beside `read`; all three accept a path.
 
-_Table candidate — Table 4.x: Coverage of the credential denial, before and
+_Table candidate, Table 4.x: Coverage of the credential denial, before and
 after._
 
 | Attempt                                     | Before      | After   |
@@ -5164,7 +5164,7 @@ Two mitigations, and the second is the one that generalises:
 
 1. The `ungoverned` verdict had been recording every one of these calls for the
    life of the project. The record was correct and nobody had read it looking
-   for this — an argument for the design decision to keep `ungoverned` distinct
+   for this. An argument for the design decision to keep `ungoverned` distinct
    from `allow` (§4.x.10), and simultaneously an argument that a record is only
    as good as the question someone thinks to ask of it.
 2. `qa-round11.test.ts` now asserts that every name in `allToolNames` is either
@@ -5175,22 +5175,22 @@ Two mitigations, and the second is the one that generalises:
 
 A second coverage defect in the same family: the `terminal` tool carries a
 command on two parameters. `action: "open"` takes `command`, which was governed;
-`action: "input"` takes `data` — raw keystrokes typed into a shell that call
-already opened — which was not. The sequence "open a terminal, then send
+`action: "input"` takes `data`, raw keystrokes typed into a shell that call
+already opened, which was not. The sequence "open a terminal, then send
 `sudo -i` through `data`" therefore bypassed the command allowlist and every
 core denial, and was recorded as `ungoverned`. Both parameters are governed now,
 and opening a terminal with no command derives the synthetic resource
-`terminal:open`, which no shipped rule matches — so an interactive shell became
+`terminal:open`, which no shipped rule matches, so an interactive shell became
 a grant an operator makes rather than a default the agent inherits.
 
 **Stated limitation, deliberately not hidden.** `grep`, `find` and `ls` recurse,
 and only the root they are pointed at is governed, so a search rooted at the
 workspace still reads files a denial names. Closing that requires the host to
 report the files a tool actually opened (`after_tool_call`); the parameters
-cannot reveal it beforehand. What the fix closes is the direct case — pointing a
+cannot reveal it beforehand. What the fix closes is the direct case. Pointing a
 search tool _at_ a denied path, or out of the workspace.
 
-#### Family 2 — one resource, several spellings
+#### Family 2: one resource, several spellings
 
 Path canonicalisation (§3.5.8) had established the principle that a rule must be
 matched against a _canonical_ resource, so that an evasion stops matching
@@ -5217,10 +5217,10 @@ produces false negatives against attackers _and_ false negatives against
 operators, and the second is the one that erodes trust in the control day to
 day.
 
-#### Family 3 — built, and unreachable
+#### Family 3: built, and unreachable
 
-`setAgentMode` — the function that switches one agent into monitor for rule
-discovery — had been written, tested, and documented as "turned on from the web
+`setAgentMode`, the function that switches one agent into monitor for rule
+discovery, had been written, tested, and documented as "turned on from the web
 dashboard" when the tier model landed (§G). It had no HTTP route, no CLI
 command, and no dashboard control. Its only caller was its own test.
 
@@ -5228,7 +5228,7 @@ This is a defect of a kind worth naming in Chapter 4 because it passes every
 check the project had: the code is correct, the tests pass, the typechecks pass,
 and the documentation describes it accurately as a capability. What fails is the
 join between the capability and the surfaces, and design requirement #2 is
-explicit that policy must be configurable from the dashboard — so a policy tier
+explicit that policy must be configurable from the dashboard, so a policy tier
 inspectable only by reading `policy.json`, or settable only from a test, does
 not satisfy the requirement however well the mechanism works.
 
@@ -5239,7 +5239,7 @@ dashboard's **Observe one agent** control.
 One design decision inside that fix deserves its own paragraph, because it is a
 genuine security argument rather than plumbing. All three surfaces **refuse
 `off`**, at every tier including Root. A per-agent `off` is not a weaker posture
-— the engine returns before the lockdown check, so the agent would cease to be
+the engine returns before the lockdown check, so the agent would cease to be
 covered by the kill switch and the core denials as well as by ordinary rules,
 and nothing would be written to the ledger recording that it had. Since a User
 may set this for an agent assigned to them, accepting `off` would have made
@@ -5252,7 +5252,7 @@ act.
 #### Two smaller findings
 
 **Enumeration through an unscoped collection.** `GET policy` filtered `rules`,
-`lockedAgents` and `agentAsk` to the caller's visible agents — and returned
+`lockedAgents` and `agentAsk` to the caller's visible agents, and returned
 `agentMode` and `userAsk` whole. A Viewer scoped to one agent could read back
 every agent id in the installation, and every account carrying an escalation
 override. The handler's own comment states that _every_ agent-keyed collection
@@ -5265,12 +5265,12 @@ Root.
 the clash detector describing a denial as a grant by making it ignore denials
 (defect 59). Silence turned out to be its own defect: an operator writing a
 permission that a core denial already refuses gets a stored rule, visible in the
-policy table, that does nothing at all — with no way to discover why except by
+policy table, that does nothing at all, with no way to discover why except by
 reading the ledger. A fifth conflict kind, `overridden-by-deny`, now reports it,
 under a heading distinct from the allowance clashes because the two mean
 opposite things: an allowance clash says the new rule _adds_ nothing, this says
 it _does_ nothing. Detection stays exact rather than guessing at regular
-expression subsumption — identical pattern, deny catch-all, or a candidate that
+expression subsumption. Identical pattern, deny catch-all, or a candidate that
 matches exactly one literal which the denial matches, which covers every
 documented example and every rule an `allow-always` approval generates.
 
@@ -5285,7 +5285,7 @@ at creation and at promotion. `LastRootError` refuses removing the last one, at
 demotion and at deletion. Read either in isolation and it is obviously correct.
 Read together, they say something neither states: since a second Root can never
 exist, the "another Root remains" escape in the second guard is unreachable, so
-**the Root account is permanent** — it can never be demoted, deleted, or
+**the Root account is permanent**. It can never be demoted, deleted, or
 transferred.
 
 Permanence is the right behaviour, and it is what the project wants. The defect
@@ -5296,7 +5296,7 @@ described a deliberate "two-step handover" that had never been possible. So the
 product's own instructions could not be followed, and the invariant actually in
 force was written down nowhere.
 
-_Table candidate — Table 4.x: The Root invariant, enforced._
+_Table candidate, Table 4.x: The Root invariant, enforced._
 
 | Attempt                                       | Guard                       | Result                      |
 | --------------------------------------------- | --------------------------- | --------------------------- |
@@ -5305,13 +5305,13 @@ _Table candidate — Table 4.x: The Root invariant, enforced._
 | Demote the Root                               | `LastRootError`             | refused                     |
 | Delete the Root                               | `LastRootError`             | refused                     |
 | Root deletes its own account                  | self-delete, then Root      | refused twice               |
-| Root deletes its **organisation**             | `guardOrganisationDeletion` | permitted — see §3.5.67     |
+| Root deletes its **organisation**             | `guardOrganisationDeletion` | permitted, see §3.5.67      |
 | Two promotions racing                         | inside the write lock       | both refused, one Root left |
-| Delete one of two Roots in a hand-edited file | —                           | permitted (a repair)        |
+| Delete one of two Roots in a hand-edited file | -                           | permitted (a repair)        |
 
 **Updated 2026-09-01 (T44): permanent and undeletable are not the same claim.**
 The row added above is the one exception, and it does not weaken the two guards
-— it sits beside them. Root cannot be deleted _as an account_, because that
+it sits beside them. Root cannot be deleted _as an account_, because that
 leaves accounts answering to nobody. Root **is** deleted along with its
 organisation, because that removes everybody at once and so never produces the
 state the guards exist to prevent. The refusal above is about leaving people
@@ -5320,7 +5320,7 @@ says which act does work.
 
 The fix is mostly not code. The rule is now stated once, the message says what
 is true, the stale comment is corrected, and `root-invariant.test.ts` asserts
-the _joint_ property directly rather than testing each guard separately — which
+the _joint_ property directly rather than testing each guard separately, which
 both guards already had, and which is exactly why nobody noticed.
 
 **The paragraph for Chapter 4.** An invariant enforced by two mechanisms is
@@ -5336,12 +5336,12 @@ successor's password and passing on the credentials, or editing `users.json`
 offline. The alternative designs all pass through a moment where the account
 governing every other account is duplicated or absent, which is worse than one
 offline step in the life of an installation. (Deleting the organisation is not a
-handover and is not offered as one — it is a reset, and it takes every account
+handover and is not offered as one. It is a reset, and it takes every account
 and every agent with it.)
 
-### 4.x.19 Twelfth QA pass — the fork as an ordinary deployment
+### 4.x.19 Twelfth QA pass: the fork as an ordinary deployment
 
-_Figure candidate — Figure 4.x: Two entry points, one gate._
+_Figure candidate, Figure 4.x: Two entry points, one gate._
 
 The eleventh round asked whether the gate covered every tool. The twelfth asks a
 different question: **is this still OpenClaw?** The paper describes a fork, not a
@@ -5373,49 +5373,49 @@ governance-specific setup.
 
 Governance had **never been tested against a channel-shaped session key**. Every
 prior test drove the gate with a key this project invented. The gate recovers the
-agent id from the session key whenever the hook context lacks one — which on a
-channel run is common — and everything agent-scoped depends on that: the kill
+agent id from the session key whenever the hook context lacks one, which on a
+channel run is common, and everything agent-scoped depends on that: the kill
 switch, agent-scoped rules, ledger attribution.
 
 Had that recovery been wrong, then on the deployment people actually use, the
-emergency stop would not have fired and no agent-scoped rule would have bound —
+emergency stop would not have fired and no agent-scoped rule would have bound,
 **silently, with a fully green suite.** It was in fact correct. The round's
 contribution is that it is now asserted, per channel, using the host's own
 `buildAgentPeerSessionKey` rather than a literal.
 
 That is worth a paragraph in Chapter 4 because it refines the project's standing
 lesson. Ten rounds found defects in _disagreements_ between two components. This
-one found an **agreement nobody had checked** — the same structural risk, one
+one found an **agreement nobody had checked**. The same structural risk, one
 step earlier, and invisible to the technique that had caught all the others.
 The generalisation: _an untested agreement is not a working one, it is an
 unexamined one._
 
-_Table candidate — Table 4.x: Governance on a chat deployment._
+_Table candidate, Table 4.x: Governance on a chat deployment._
 
-| Behaviour                               | Result                                                                     |
-| --------------------------------------- | -------------------------------------------------------------------------- |
-| Agent id recovered from a channel key   | ✔ Discord, Telegram, Slack, WhatsApp                                       |
-| Kill switch stops a channel-started run | ✔                                                                          |
-| Agent-scoped rule binds; does not leak  | ✔ binds `agent-a`, refused for `agent-b`                                   |
-| Baseline usable on first boot over chat | ✔                                                                          |
-| Unlisted action                         | escalates via OpenClaw's own approval machinery — Discord's native buttons |
-| Core denial                             | refused outright, no approval offered                                      |
-| Dashboard and chat conversations        | separate; the two key forms cannot collide                                 |
+| Behaviour                               | Result                                                                    |
+| --------------------------------------- | ------------------------------------------------------------------------- |
+| Agent id recovered from a channel key   | ✔ Discord, Telegram, Slack, WhatsApp                                      |
+| Kill switch stops a channel-started run | ✔                                                                         |
+| Agent-scoped rule binds; does not leak  | ✔ binds `agent-a`, refused for `agent-b`                                  |
+| Baseline usable on first boot over chat | ✔                                                                         |
+| Unlisted action                         | escalates via OpenClaw's own approval machinery, Discord's native buttons |
+| Core denial                             | refused outright, no approval offered                                     |
+| Dashboard and chat conversations        | separate; the two key forms cannot collide                                |
 
 #### One defect, in code written the same session
 
 A corrupted `conversations.json` let a parse error escape, so **every** prompt
 and transcript read threw until somebody found and deleted the file. Fail-closed
 applied to the wrong object: failing closed protects a _control_, and the
-transcript is a convenience whose authoritative counterpart — the ledger — is
+transcript is a convenience whose authoritative counterpart, the ledger, is
 hash-chained, append-only and written separately. Losing scrollback must not cost
 the capability. Worth reporting honestly in Chapter 4 as a defect the project's
 own QA process caught in its newest code within hours of writing it.
 
 #### A limitation documented rather than closed
 
-Outbound messages are ungoverned. The three resource kinds — command, path,
-network — do not describe "post this text into a Discord channel", so an agent
+Outbound messages are ungoverned. The three resource kinds, command, path,
+network, do not describe "post this text into a Discord channel", so an agent
 that legitimately reads a permitted file can repeat its contents into chat. On a
 chat deployment that is an exfiltration path the gate does not close.
 
@@ -5423,7 +5423,7 @@ This one could not be fixed the way `grep` was, and the reason is the
 interesting part: **the reply is the product.** Refusing `message` by default
 would stop the agent answering the person who asked it something, so the fork
 would be broken over chat. Closing it needs a fourth resource kind able to
-distinguish "reply where you were spoken to" from "message somewhere else" — a
+distinguish "reply where you were spoken to" from "message somewhere else". A
 design change rather than a registry entry. Until then the attempt is recorded
 as `ungoverned` and attributed to the agent, and a test fails if that silently
 becomes `allow`.
@@ -5447,7 +5447,7 @@ to the test suite, which is the only reviewer that does not get tired.
 > the relationship compares against the wrong artefact and cannot fail. The
 > conclusion survives in a stronger form; the paragraph as written does not.
 
-### 4.x.20 Thirteenth QA pass — measuring the governed surface, and the guard that could not fail
+### 4.x.20 Thirteenth QA pass: measuring the governed surface, and the guard that could not fail
 
 _Section candidate, and the single most important results section in Chapter 4.
 Everything here was produced by executing the gate against adversarial inputs;
@@ -5456,7 +5456,7 @@ row are in `GOVERNANCE.md` "Thirteenth QA pass"._
 
 > **Both tenses matter here, and the report should keep both.** Twenty-four
 > findings were raised and **eighteen are fixed**, each with a regression test
-> lifted out of the probe that first produced it — the suite went from 1,264 to
+> lifted out of the probe that first produced it. The suite went from 1,264 to
 > 1,297 passing, both typechecks stayed clean, and OpenClaw's own harness suite
 > stayed at its 18-failure baseline. What makes this a _results_ section rather
 > than a changelog is the measurement, not the repair: the coverage number
@@ -5473,34 +5473,34 @@ running system second, open the source third. Twenty-four findings, numbered
 Round eleven's durable fix (§4.x.18) was a test asserting that the governed-tool
 registry and the host's tool list agree. That is the correct instinct and the
 best single idea in the project. It compares against `allToolNames`
-(`src/agents/sessions/tools/index.ts`) — the **seven session tools**, every one
+(`src/agents/sessions/tools/index.ts`). The **seven session tools**, every one
 of which round eleven had just registered. The host's authoritative surface is
 `CORE_TOOL_DEFINITIONS` in `src/agents/tool-catalog.ts`, which declares
 **fifty-six**.
 
-_Table candidate — Table 4.x: Governed surface, measured against the host's own
+_Table candidate, Table 4.x: Governed surface, measured against the host's own
 tool catalogue (`CORE_TOOL_DEFINITIONS`, 52 tools), before and after the fixes.
 The three search tools are session-only and sit outside this catalogue, so the
 registry holds 18 entries against the 15 catalogued tools counted here._
 
-| Group                       |  Tools | Governed before | Governed after | Now declared ungoverned, with a reason          |
-| --------------------------- | -----: | --------------: | -------------: | ----------------------------------------------- |
-| Files (`fs`)                |      4 |               4 |              4 | —                                               |
-| Runtime                     |      3 |               1 |              3 | —                                               |
-| Web                         |      3 |               1 |              1 | `web_search`, `x_search` — no hostname to match |
-| UI                          |      6 |               1 |              3 | `dashboard`, `canvas`, `show_widget`            |
-| Nodes / devices             |      3 |               0 |              3 | —                                               |
-| Sessions & sub-agents       |     14 |               0 |              2 | reads of the agent's own session state          |
-| Messaging / automation      |      4 |               0 |              2 | `message`, `heartbeat_respond` — outbound       |
-| Memory, goals, media, misc. |     16 |               0 |              0 | bookkeeping and host-pipeline media generation  |
-| **Total**                   | **52** |           **7** |         **18** | **34, each with a written justification**       |
+| Group                       |  Tools | Governed before | Governed after | Now declared ungoverned, with a reason         |
+| --------------------------- | -----: | --------------: | -------------: | ---------------------------------------------- |
+| Files (`fs`)                |      4 |               4 |              4 | -                                              |
+| Runtime                     |      3 |               1 |              3 | -                                              |
+| Web                         |      3 |               1 |              1 | `web_search`, `x_search`, no hostname to match |
+| UI                          |      6 |               1 |              3 | `dashboard`, `canvas`, `show_widget`           |
+| Nodes / devices             |      3 |               0 |              3 | -                                              |
+| Sessions & sub-agents       |     14 |               0 |              2 | reads of the agent's own session state         |
+| Messaging / automation      |      4 |               0 |              2 | `message`, `heartbeat_respond`, outbound       |
+| Memory, goals, media, misc. |     16 |               0 |              0 | bookkeeping and host-pipeline media generation |
+| **Total**                   | **52** |           **7** |         **18** | **34, each with a written justification**      |
 
-_Figure candidate — the same data as a stacked bar, before and after. It carries
+_Figure candidate. The same data as a stacked bar, before and after. It carries
 the argument better than the table: the "after" column is not full, and should
 not be read as if it were. What changed is that the empty part is now a set of
 recorded decisions instead of an unmeasured gap._
 
-_Figure candidate — a two-column diagram of the host's tool catalogue with the
+_Figure candidate. A two-column diagram of the host's tool catalogue with the
 eleven governed entries highlighted. This single image makes the coverage
 argument better than any paragraph, and it is honest in a way a "requirements
 met" table is not._
@@ -5510,7 +5510,7 @@ claims, and each should be named in the prose:
 
 1. **`process`** carries `action: "write" | "send-keys" | "paste" | "submit"`
    with a `data` payload typed into a shell `exec` started in the background.
-   This is §4.x.18's `terminal`-tool defect **on the sibling tool** — the same
+   This is §4.x.18's `terminal`-tool defect **on the sibling tool**. The same
    defect, found five days later, because the fix was applied to the tool that
    was discovered rather than to the class the discovery described.
 2. **`computer`** drives a paired desktop with synthetic keyboard and mouse
@@ -5521,17 +5521,17 @@ claims, and each should be named in the prose:
    agents.
 
 None of the three needs a change to the rule language. Each needs a registry
-entry and a resource extractor — the same shape as the `grep` fix. **The gap is
+entry and a resource extractor. The same shape as the `grep` fix. **The gap is
 coverage, not mechanism**, and that distinction is the fair thing to say in the
 report: the design is sound and its application to the host's surface is one
 fifth complete.
 
-#### Second family — the audit chain resists an editor, not a deleter
+#### Second family: the audit chain resists an editor, not a deleter
 
 Requirement #6 is the one this round moves furthest. Three independent routes
 defeat detection and **none of them needs the ledger key**:
 
-_Table candidate — Table 4.x: Tamper-detection outcomes, thirteenth pass._
+_Table candidate, Table 4.x: Tamper-detection outcomes, thirteenth pass._
 
 | Attack                                                         | Needs the key? | `verifyLedgerChain()`      |
 | -------------------------------------------------------------- | -------------- | -------------------------- |
@@ -5545,8 +5545,8 @@ Each has a short, specific cause worth a sentence apiece:
 
 - The verifier's checkpoint comparison is guarded by `if (checkpoint)`, so an
   absent checkpoint is skipped. The comment directly above `writeCheckpoint`
-  asserts the opposite — "a missing checkpoint is itself reported rather than
-  passing quietly" — which makes this a **code-versus-comment disagreement**,
+  asserts the opposite, "a missing checkpoint is itself reported rather than
+  passing quietly", which makes this a **code-versus-comment disagreement**,
   the project's signature defect shape, in the module whose job is trust.
 - The keyed-downgrade guard (`seenKeyed && !entry.keyed`) catches a chain that
   _switches_ format mid-file. A file rebuilt entirely in the old format never
@@ -5567,7 +5567,7 @@ future-work section: an attacker who deletes **both** the ledger key and the
 checkpoint leaves nothing on the host to contradict a rewritten chain, and
 closing that means holding one of them off the machine.
 
-#### Third family — a bypass of the control plane the threat model omitted
+#### Third family: a bypass of the control plane the threat model omitted
 
 The `openclaw governance …` command tree has **no authentication**. That was
 recorded, but only as the attribution limitation A6 ("a CLI change is
@@ -5576,8 +5576,8 @@ attributable to the machine, not a person"). The security consequence was not:
 - `openclaw governance policy set-mode off` disables the gate installation-wide.
 - The core command denial protects the governance **directory**
   (`\.openclaw/governance`), not the governance **command**.
-- Therefore any operator allow-rule broad enough to run the project — and
-  `^(node|npm|npx|pnpm) .*$` is the first rule most operators write — lets the
+- Therefore any operator allow-rule broad enough to run the project, and
+  `^(node|npm|npx|pnpm) .*$` is the first rule most operators write, lets the
   agent switch its own governance off. Four spellings tested; all four allowed.
 
 This belongs in Chapter 4 as a **threat-model finding rather than a bug**: the
@@ -5589,22 +5589,22 @@ the same authority with neither, on the machine the agent already runs on.
 Related, and the same shape: a hand-written `agentMode: {"<id>": "off"}` in
 `policy.json` returns from the gate _before_ the lockdown check, so it removes
 the core denials **and** the kill switch for that agent. `loadPolicy` re-asserts
-`CORE_RULES` on every load specifically so hand-editing cannot remove them — and
+`CORE_RULES` on every load specifically so hand-editing cannot remove them, and
 does not sanitise the posture maps one field away. The HTTP route refuses
 per-agent `off` and explains why at length; the file format does not.
 
-#### Fourth family — availability of the gate itself
+#### Fourth family: availability of the gate itself
 
 `^(.*a){20}$` passes `checkRegexSafety` (a `{n}` with no comma is treated as a
 fixed count that "cannot blow up") and took a measured **142,431 ms** for one
 `matchesPattern` call against a 31-character non-matching input. JavaScript
 cannot interrupt a running regular expression, so that is the entire event loop
-— Gateway, dashboard, every agent — halted by one rule, writable at **User**
+Gateway, dashboard, every agent, halted by one rule, writable at **User**
 tier.
 
 Separately, `GET ledger?limit=` is bounded below (`> 0`) and not above, so
 `?limit=1000000000` walks every rotated archive into memory and serialises it,
-at **Viewer** tier — the tier defined as strictly read-only oversight.
+at **Viewer** tier. The tier defined as strictly read-only oversight.
 
 Both are worth stating because they are the mirror image of everything else in
 this project: the risk is not that the gate permits too much, it is that the
@@ -5612,7 +5612,7 @@ gate can be made to stop running. A default-deny control that hangs is a
 default-deny control that has failed _closed on everything_, including the
 operator's ability to fix it.
 
-#### Fifth family — the dashboard, driven adversarially for the first time
+#### Fifth family: the dashboard, driven adversarially for the first time
 
 Requirement #2 asks for a dashboard that configures policy, monitors sessions,
 and enforces RBAC. It does all three. Two findings are about _risk gradient_
@@ -5620,13 +5620,13 @@ rather than function, and both are the kind of thing a viva examiner asks about:
 
 - **Turning all governance off is one unconfirmed click.** `mode` is a
   three-segment control; `off` has no dialog, no distinct styling and no typed
-  confirmation. Deleting a single rule — recoverable in seconds — goes through
+  confirmation. Deleting a single rule, recoverable in seconds, goes through
   `confirmThen` with `danger: true`. The gradient is inverted.
 - **The kill switch takes a free-text agent id and reports success on a typo.**
   Nothing validates the string against the sessions the page has already loaded.
   Stopping `agent-1` when the agent is `agent1` returns `200 OK`, writes a
   lockdown entry to the ledger, and reports `abortedRunIds: []`, which the UI
-  renders as "no runs stopped" — indistinguishable from "the agent was idle".
+  renders as "no runs stopped". Indistinguishable from "the agent was idle".
   For the one control that exists for emergencies, that is the wrong failure
   mode: it should offer the running agents as choices, and it should say
   plainly when the id matches nothing.
@@ -5642,10 +5642,10 @@ Kept in the write-up deliberately. The project's central claim is that unchecked
 assumptions are where the defects live, and that has to apply to the reviewer
 as well as to the code.
 
-| Hypothesis                                                                         | Why it looked certain                              | What running it showed                                                                                                                                                         |
-| ---------------------------------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `.ENV` reads past a `.env` denial, because Windows filenames are case-insensitive  | The core pattern is case-sensitive and NTFS is not | **Denied.** The async `realpath` folds an existing file to its on-disk name before matching. Only files that do **not** exist keep the agent's casing — retained as finding 85 |
-| `.env.` and `.env␣` alias the same file, because Win32 strips trailing dots/spaces | True at the Win32 API level                        | **Not exploitable.** Node's `fs` returns `ENOENT` for both, so no tool the agent can call reaches the file. The canonical form is genuinely wrong; nothing can use it          |
+| Hypothesis                                                                         | Why it looked certain                              | What running it showed                                                                                                                                                        |
+| ---------------------------------------------------------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.ENV` reads past a `.env` denial, because Windows filenames are case-insensitive  | The core pattern is case-sensitive and NTFS is not | **Denied.** The async `realpath` folds an existing file to its on-disk name before matching. Only files that do **not** exist keep the agent's casing. Retained as finding 85 |
+| `.env.` and `.env␣` alias the same file, because Win32 strips trailing dots/spaces | True at the Win32 API level                        | **Not exploitable.** Node's `fs` returns `ENOENT` for both, so no tool the agent can call reaches the file. The canonical form is genuinely wrong; nothing can use it         |
 
 A third correction runs the other way and is worth a footnote: **defect #1 in
 this project's own defect table is wrong.** It records that `web_fetch` with a
@@ -5653,7 +5653,7 @@ this project's own defect table is wrong.** It records that `web_fetch` with a
 `web-fetch.ts` rejects every protocol other than `http:`/`https:` before the
 request is built, and always did. The behaviour added in response is harmless
 and worth keeping; the _claim_ has headed the project's evidence of rigour since
-round one and was never checked against the host — the round-five habit,
+round one and was never checked against the host. The round-five habit,
 preserved in a comment.
 
 #### What this round says about the method
@@ -5666,20 +5666,20 @@ because the test suite was given the relationship and compared the wrong pair.
 The sequence across thirteen rounds is the argument, and it should be presented
 as a numbered progression in Chapter 4:
 
-1. **Round five** — the code was wrong, and the tests agreed with it because
+1. **Round five**. The code was wrong, and the tests agreed with it because
    both were written from one assumption about the host.
-2. **Round six** — the tests were wrong, because they were ours and never the
+2. **Round six**. The tests were wrong, because they were ours and never the
    host's.
-3. **Round seven** — the harness was wrong, because it and the server disagreed
+3. **Round seven**. The harness was wrong, because it and the server disagreed
    about what a missing route returns.
-4. **Round thirteen** — the _guard against all three_ was wrong, because it was
+4. **Round thirteen**. The _guard against all three_ was wrong, because it was
    pointed at the wrong authority.
 
 Each layer added to catch the previous one inherited the same flaw one level up.
 
 > **The generalisation.** A check makes a silent claim about what it compares
 > against, and that claim begins exactly as unexamined as the code did.
-> Automating a comparison does not make it true — it makes it repeat. Every
+> Automating a comparison does not make it true. It makes it repeat. Every
 > guard should be able to state, in writing, which artefact is its source of
 > truth and why that artefact is authoritative. Round eleven's guard could not,
 > and for two rounds nobody asked it to.
@@ -5687,7 +5687,7 @@ Each layer added to catch the previous one inherited the same flaw one level up.
 That is a stronger and more transferable result than "ninety-three defects were
 found and fixed", and it is the paragraph to build the conclusion around.
 
-### 4.x.21 Closing B1 — the configuration that never reached the gate
+### 4.x.21 Closing B1: the configuration that never reached the gate
 
 The last known security hole in the layer, carried open through nine QA rounds
 by an explicit decision, and closed on its own. Design material is in §3.5.15;
@@ -5699,7 +5699,7 @@ B1 was found during the sixth QA round and recorded, not fixed, every round
 since. The reason is worth reporting because it is a project-management result
 rather than a technical one.
 
-The available fix was one line — make the host's predicate always answer yes —
+The available fix was one line, make the host's predicate always answer yes,
 and it worked. It also changed the behaviour of a subsystem this project does
 not own, in configurations that switch that behaviour off deliberately, and
 **thirty of OpenClaw's own tests failed**. Applying it inside a QA pass would
@@ -5716,24 +5716,24 @@ the hole. They were the signature of closing it in the wrong place.
 
 #### The experiment
 
-The property under test is not "does the gate refuse this call" — that is
-established elsewhere — but "is the host obliged to present the call to the
+The property under test is not "does the gate refuse this call", that is
+established elsewhere, but "is the host obliged to present the call to the
 gate at all". So the measurement is taken on the host's relay-configuration
 decision, in the exact configuration the finding named: the Codex native
 harness, no plugins registered, the loop-detection relay disabled.
 
-| Measurement                                                      | Before                 | After                            |
-| ---------------------------------------------------------------- | ---------------------- | -------------------------------- |
-| `shouldRelayEvent("pre_tool_use")` on a plugin-free install      | `false` — no relay     | `true` — relay installed         |
-| Tools the relay fires for                                        | plugin scope only      | `undefined` — every tool         |
-| `--pre-tool-use-unavailable noop` in the generated relay command | present                | absent — unreachable gate blocks |
-| `hasBeforeToolCallPolicy()` (the plugin predicate)               | `false`                | `false` — deliberately unchanged |
-| OpenClaw's own harness suite                                     | 18 failed / 174 passed | **18 failed / 174 passed**       |
+| Measurement                                                      | Before                 | After                           |
+| ---------------------------------------------------------------- | ---------------------- | ------------------------------- |
+| `shouldRelayEvent("pre_tool_use")` on a plugin-free install      | `false`, no relay      | `true`, relay installed         |
+| Tools the relay fires for                                        | plugin scope only      | `undefined`, every tool         |
+| `--pre-tool-use-unavailable noop` in the generated relay command | present                | absent, unreachable gate blocks |
+| `hasBeforeToolCallPolicy()` (the plugin predicate)               | `false`                | `false`, deliberately unchanged |
+| OpenClaw's own harness suite                                     | 18 failed / 174 passed | **18 failed / 174 passed**      |
 
 The last row is the one that matters most and it was measured properly rather
 than assumed: the change was stashed, `native-hook-relay.test.ts` run, the
 change restored, and the same command run again. Both runs report 18 failed and
-174 passed, and the nine distinct failing test names are identical in both — the
+174 passed, and the nine distinct failing test names are identical in both. The
 pre-existing upstream failures documented in `UPSTREAM-BUG-REPORT.md`, each
 reported twice because the suite runs under two projects. **No regression.**
 
@@ -5743,7 +5743,7 @@ the relay CLI's tests pass unchanged.
 
 #### The test that matters most, and what it asserts
 
-Not the three assertions that the relay is now installed — those state that the
+Not the three assertions that the relay is now installed. Those state that the
 fix is present, which a fix can hardly fail to do. The one worth reporting
 asserts the _agreement between two components_:
 
@@ -5759,7 +5759,7 @@ condition.
 This is §4.x.20's lesson applied to this round's own guard. Round thirteen found
 a check that had always passed and could not fail, because nobody had asked what
 it compared against. The guard written here states its source of truth in the
-test body — `isUnconfiguredTestRun()`, the same function `loadPolicy` consults —
+test body, `isUnconfiguredTestRun()`, the same function `loadPolicy` consults,
 and asserts the biconditional rather than either half.
 
 #### What this round says about the method
@@ -5770,7 +5770,7 @@ Three things, and the second is the one for the conclusion.
 possible level. The host asks "are there plugin policies?" and means "is there
 anything to consult?"; governance is something to consult and is not a plugin.
 Neither side is wrong on its own. The question standing in for the other
-question is the defect — the fourteenth instance of the same pattern, and the
+question is the defect. The fourteenth instance of the same pattern, and the
 first one where the disagreement removed the policy check, the audit record and
 the kill switch simultaneously.
 
@@ -5779,7 +5779,7 @@ missed, and the difference is whether the reason was written down._ B1 sat open
 for nine rounds with its severity stated, its configuration named, its one-line
 fix evaluated and rejected in writing, and a deliberately-wrong test holding its
 place in the suite. When it was finally repaired, none of that had to be
-rediscovered — and the recorded reason for deferring turned out to be the
+rediscovered, and the recorded reason for deferring turned out to be the
 specification for the correct fix. Deferral with a written reason is an
 engineering decision; deferral without one is a backlog.
 
@@ -5813,8 +5813,8 @@ returned, rendered as active on the dashboard, and never consulted by the
 engine. **A governance control that reports success and does nothing is worse
 than one that is missing**, because a missing control is noticed.
 
-It is the project's standing shape once more — two parts that must agree, each
-correct alone — and it arrived in the least dramatic way available: not through
+It is the project's standing shape once more, two parts that must agree, each
+correct alone, and it arrived in the least dramatic way available: not through
 an attack, not through a QA round, but because a _feature_ had to read a value
 somebody else wrote. That is worth a sentence in the conclusion: this class of
 defect surfaces when two components are finally made to talk, which is an
@@ -5822,7 +5822,7 @@ argument for building the connections rather than only the parts.
 
 Three modules already folded account names identically, each with a private copy
 of the same three calls. They agreed, which is the only reason nothing else had
-broken. The repair was one definition (`account-name.ts`) and four importers —
+broken. The repair was one definition (`account-name.ts`) and four importers,
 and moving the prototype-key guard to run _after_ folding, since lowercasing
 turns `__PROTO__` into `__proto__`. Canonicalising the key space without moving
 the guard would have opened a prototype-pollution route that did not previously
@@ -5838,7 +5838,7 @@ that carries the argument is the pair:
 | `malek`     | `malek: off`   | deny on a miss     | deny on a miss      |
 | `kinan`     | `malek: off`   | **deny on a miss** | escalate to a human |
 
-The second row is the correction, and it is a _widening_ — stated plainly
+The second row is the correction, and it is a _widening_. Stated plainly
 because a validation table that hides one is worth nothing. A restriction Root
 placed on Malek was being applied to Kinan's run. The agent axis is untouched
 and still combines as the stricter of the two, so an Administrator's restriction
@@ -5847,7 +5847,7 @@ on the agent survives unchanged; a test asserts exactly that.
 Also asserted: a run nobody started by name still takes the strictest across all
 holders (a Discord message is not one person's run), and a session key naming a
 different agent than the one being governed abandons the exact path rather than
-trusting it — otherwise the axis becomes a way to select whose restriction
+trusting it. Otherwise the axis becomes a way to select whose restriction
 applies.
 
 **The prompt's bounds.** `prompt-runs.test.ts`, 14 tests, plus 8 integration
@@ -5868,12 +5868,12 @@ tests in `agent-conversation.test.ts`.
 The redaction test is the one worth showing at a defence: it sends a
 credential-shaped string through the live stream and asserts the operator's
 screen never receives it. The live view is held to a standard requirement #8
-does not actually demand — it names log files — because a view that shows what
+does not actually demand, it names log files, because a view that shows what
 the record hides is a way to read what was redacted.
 
 **The rule filter.** `rule-filter.test.ts`, 14 tests. The interesting assertion
 is negative: searching `.*` returns the three rules whose text contains `.*`,
-and **fewer than all of them** — which is the property that would break if the
+and **fewer than all of them**, which is the property that would break if the
 query were ever interpreted as a pattern, since `.*` matches everything. The one
 search that finds over-broad rules would instead find every rule.
 
@@ -5889,7 +5889,7 @@ search that finds over-broad rules would instead find every rule.
 #### A defect in a new test, and why it is reported here
 
 One of the capacity tests passed alone and failed in the full suite. It filled an
-account's allowance and then asserted that one more prompt was refused — but
+account's allowance and then asserted that one more prompt was refused, but
 `promptAgent` does real work before it reaches the run registry (load the policy,
 append the ledger entry, write the transcript turn), so "start N, then start one
 more" is a **race**. The extra call could reach the registry first, take a slot,
@@ -5897,32 +5897,32 @@ and leave one of the earlier calls refused while the test waited forever on a
 prompt that was never held. It timed out at 120 seconds.
 
 The product was correct throughout; the test asserted an ordering it had never
-established. Fixed by synchronising on the runner — the helper waits until every
-held prompt has actually claimed a slot — rather than by sleeping. That file went
+established. Fixed by synchronising on the runner, the helper waits until every
+held prompt has actually claimed a slot, rather than by sleeping. That file went
 from 129 seconds to 11.6.
 
 It is in the report because of the class it belongs to, which this project has
 now met at four levels: **a test that passes in isolation and fails in company is
 reporting a real assumption nobody wrote down.** The tempting move is to re-run
-it alone, see green and continue — the same move as trusting a guard without
+it alone, see green and continue. The same move as trusting a guard without
 asking what it compares against (§4.x.20), one level further down.
 
 #### Two items closed without code
 
-**Q-93 — the governance page is English-only.** Settled as a **scope decision**
+**Q-93. The governance page is English-only.** Settled as a **scope decision**
 rather than left open: the product is English-only by choice. Filling twenty-one
 locales would mean shipping strings nobody on the team can verify into a
 security console, where a mistranslated `deny` is a control an operator
 misreads. The honest sentence for the report is that fallback is per key, so
-nothing breaks — an Arabic-locale operator gets an Arabic shell around an
-English governance page, with no right-to-left handling — and that this is a
+nothing breaks, an Arabic-locale operator gets an Arabic shell around an
+English governance page, with no right-to-left handling, and that this is a
 decision about scope, not an unfinished feature. Worth stating in Chapter 3's
 constraints alongside the budget and open-source ones.
 
-**Attachments — held, with the analysis written down.** The one A1 follow-up not
+**Attachments. Held, with the analysis written down.** The one A1 follow-up not
 built, and deliberately: the upload is the small half. Requirement #8 is honoured
 for prompt text by redacting every recorded string, and **redaction is a text
-operation while an image is not text** — a screenshot of a terminal holds an API
+operation while an image is not text**. A screenshot of a terminal holds an API
 key as pixels that no pattern can match. So the question is not how to redact an
 attachment but what the audit trail is allowed to be unable to see. Three
 answers, seven vulnerabilities the build would have to answer, and the order to
@@ -5942,7 +5942,7 @@ pointed at a throwaway governance directory so the operator's own state was
 never touched. The dashboard was then used the way a new operator uses it:
 create the Root account, sign in, read the policy, try to add an account, open a
 conversation, look at the ledger. Findings were taken from what the page
-actually did, not from reading its source — the same ordering rounds thirteen
+actually did, not from reading its source. The same ordering rounds thirteen
 and fourteen used, and for the same reason.
 
 > **Figure candidate.** Before/after of one rule row: the regex-first title, and
@@ -5962,19 +5962,19 @@ _Approvals_. Reporting it would have been a fabricated defect in the report.
 
 **"The Delete button on the Root account can never work."** Root is permanent,
 so a Delete control on that row looked like the same dead control as the role
-picker. **The conclusion — leave it alone — was right; the first reason given
+picker. **The conclusion, leave it alone, was right; the first reason given
 for it was wrong, and the correction is worth reporting.** The initial reading
 was that emptying the account list entirely is a permitted teardown. It is not:
 `guardDeletion` refuses deleting the account you are signed in with, and
 `guardRootPermanence` refuses deleting the only Root, so with Root as the only
 account both guards refuse. What makes the control correct is something simpler
-that reading the page had missed — **the button is already `disabled` on your own
+that reading the page had missed, **the button is already `disabled` on your own
 row**, with a tooltip saying so. Asserted since in `core-invariants.test.ts`
 rather than argued: a wrong reason for a right answer survives review exactly as
 long as nobody checks it.
 
-_(Updated 2026-09-01, T44. The initial reading — "emptying the account list
-entirely is a permitted teardown" — was wrong then and is **right now**, but by
+_(Updated 2026-09-01, T44. The initial reading, "emptying the account list
+entirely is a permitted teardown", was wrong then and is **right now**, but by
 a different route than the one it assumed. It is not `users/delete` that empties
 the list; both guards there still refuse, exactly as this paragraph says. It is
 `organisation/delete`, a separate act with its own confirmation. The tooltip on
@@ -5987,13 +5987,13 @@ inventing defects is running the thing.**
 
 #### What was actually wrong
 
-| #   | Finding                                                                                                                                                                                                                                                                                                   | Why it mattered                                                                                                                                                                                                                                                                                                                                                                                   | Fix                                                                                                                                                                                                                                                                          |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 99  | **The rule list was written for the engine, not for a person.** Each row's title was the raw regular expression — the shipped credential denial is over two hundred characters of case-folded alternation — and the human sentence describing it was buried after the kind, the tier and the scope.       | This is the panel an operator reads during an incident, to answer "what is actually allowing this?". A shipped installation opens on sixteen rules, ten of them core denials, none of which can be recognised at a glance. Requirement #2 asks for an interface an administrator can configure policy through; a list that has to be decoded is not one.                                          | The description becomes the title and the pattern moves to a monospace line beneath it — complete and exact, still fully visible, with the emphasis where a human reads. A rule with no description falls back to its pattern, which is then genuinely its best name.        |
-| 100 | **The account form offered a `root` role that is always refused.** Driving it produced the server's own error: _"A Root account already exists; there can be only one."_                                                                                                                                  | A control whose only possible outcome is a refusal. The page already applies the opposite principle two panels up — a core rule shows no Remove button _because the server would refuse it_ — so this was the page contradicting its own rule.                                                                                                                                                    | `root` removed from the assignable roles. The Root account's own row now states `root — permanent, cannot be changed` instead of offering a segmented control that cannot move.                                                                                              |
-| 101 | **The one irreversible step on the page had the weakest confirmation.** Creating the Root account took a username and a single password field, with no confirmation and no statement of the 8-character minimum — which the _ordinary_ account form two sections below already stated in its placeholder. | There is no password reset for Root: bootstrap refuses once any account exists, Root cannot be demoted or deleted, and the reset route requires being signed in as Root already. A typo at this step locks the operator out of their own governance layer permanently, recoverable only by deleting `users.json` on the server. The cheapest possible mistake had the most expensive consequence. | A confirmation field on the bootstrap form only — friction is worth adding exactly where a mistake is expensive and nowhere else — the minimum stated before the request rather than relayed back as a refusal, and a hint that says the password cannot be reset from here. |
-| 102 | **A failed transcript load rendered as a permanent "Loading…".** `openConversation` sets an error and leaves the transcript null; the early return that prints "Loading the conversation…" sat _above_ the block that renders that error.                                                                 | Observed live: a spinner that never resolves and no explanation anywhere on the page. **A progress message that cannot end is worse than an error, because it tells the operator to keep waiting.**                                                                                                                                                                                               | The early return shows the error when there is one, and the loading message only when there genuinely is a load in flight.                                                                                                                                                   |
-| 103 | **Seven inputs and three selects had no accessible name**, relying on their placeholder.                                                                                                                                                                                                                  | The sign-in form carries a comment explaining precisely why that is wrong — a placeholder is not reliably exposed as an accessible name, and it disappears once the field has content, so the hint vanishes exactly when somebody reviewing what they typed needs it. The rest of the page did not follow its own documented standard.                                                            | `aria-label` on all ten. Measured after the fix by enumerating every control in `<main>`: zero unlabelled.                                                                                                                                                                   |
+| #   | Finding                                                                                                                                                                                                                                                                                                  | Why it mattered                                                                                                                                                                                                                                                                                                                                                                                   | Fix                                                                                                                                                                                                                                                                        |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 99  | **The rule list was written for the engine, not for a person.** Each row's title was the raw regular expression, the shipped credential denial is over two hundred characters of case-folded alternation, and the human sentence describing it was buried after the kind, the tier and the scope.        | This is the panel an operator reads during an incident, to answer "what is actually allowing this?". A shipped installation opens on sixteen rules, ten of them core denials, none of which can be recognised at a glance. Requirement #2 asks for an interface an administrator can configure policy through; a list that has to be decoded is not one.                                          | The description becomes the title and the pattern moves to a monospace line beneath it. Complete and exact, still fully visible, with the emphasis where a human reads. A rule with no description falls back to its pattern, which is then genuinely its best name.       |
+| 100 | **The account form offered a `root` role that is always refused.** Driving it produced the server's own error: _"A Root account already exists; there can be only one."_                                                                                                                                 | A control whose only possible outcome is a refusal. The page already applies the opposite principle two panels up, a core rule shows no Remove button _because the server would refuse it_, so this was the page contradicting its own rule.                                                                                                                                                      | `root` removed from the assignable roles. The Root account's own row now states `root. Permanent, cannot be changed` instead of offering a segmented control that cannot move.                                                                                             |
+| 101 | **The one irreversible step on the page had the weakest confirmation.** Creating the Root account took a username and a single password field, with no confirmation and no statement of the 8-character minimum, which the _ordinary_ account form two sections below already stated in its placeholder. | There is no password reset for Root: bootstrap refuses once any account exists, Root cannot be demoted or deleted, and the reset route requires being signed in as Root already. A typo at this step locks the operator out of their own governance layer permanently, recoverable only by deleting `users.json` on the server. The cheapest possible mistake had the most expensive consequence. | A confirmation field on the bootstrap form only, friction is worth adding exactly where a mistake is expensive and nowhere else, the minimum stated before the request rather than relayed back as a refusal, and a hint that says the password cannot be reset from here. |
+| 102 | **A failed transcript load rendered as a permanent "Loading…".** `openConversation` sets an error and leaves the transcript null; the early return that prints "Loading the conversation…" sat _above_ the block that renders that error.                                                                | Observed live: a spinner that never resolves and no explanation anywhere on the page. **A progress message that cannot end is worse than an error, because it tells the operator to keep waiting.**                                                                                                                                                                                               | The early return shows the error when there is one, and the loading message only when there genuinely is a load in flight.                                                                                                                                                 |
+| 103 | **Seven inputs and three selects had no accessible name**, relying on their placeholder.                                                                                                                                                                                                                 | The sign-in form carries a comment explaining precisely why that is wrong. A placeholder is not reliably exposed as an accessible name, and it disappears once the field has content, so the hint vanishes exactly when somebody reviewing what they typed needs it. The rest of the page did not follow its own documented standard.                                                             | `aria-label` on all ten. Measured after the fix by enumerating every control in `<main>`: zero unlabelled.                                                                                                                                                                 |
 
 #### Evidence
 
@@ -6002,7 +6002,7 @@ Each fix was verified in the running browser, not only in a typecheck:
 | Fix | Observed after                                                                                                                                              |
 | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 99  | Row reads `DENY Credential files (.env, private keys, .npmrc, .netrc)` with the pattern beneath                                                             |
-| 100 | Role options are `viewer, user, administrator`; the Root row reads `root — permanent, cannot be changed`                                                    |
+| 100 | Role options are `viewer, user, administrator`; the Root row reads `root. Permanent, cannot be changed`                                                     |
 | 101 | Mismatch → _"The two passwords do not match."_; five characters → _"Password must be at least 8 characters."_; matching and long enough → signed in as Root |
 | 102 | Failure state renders the error; the loading message is gone                                                                                                |
 | 103 | Enumeration of every control in `<main>` returns an empty unlabelled list                                                                                   |
@@ -6017,8 +6017,8 @@ is the same lesson with a human as one of the components:
 > **A control surface can be correct and still be unusable, and no test written
 > against the layer beneath it will say so.** Every one of these five findings
 > sat underneath a passing test suite. The HTTP layer refused a second Root
-> exactly as designed — and the page offered the button anyway. The transcript
-> route returned its error exactly as designed — and the page showed a spinner.
+> exactly as designed, and the page offered the button anyway. The transcript
+> route returned its error exactly as designed, and the page showed a spinner.
 
 The honest sentence for the report is that testing the API is not testing the
 interface, and that the interface is what the requirement is written about:
@@ -6032,7 +6032,7 @@ somewhere in this project's documentation; none of the three had a single test
 asserting it as a _property_, and one of them turned out not to be true in
 practice at all.
 
-They are now `core-invariants.test.ts` — fifteen assertions, written against
+They are now `core-invariants.test.ts`. Fifteen assertions, written against
 behaviour rather than implementation, so the guarantee survives a refactor that
 moves where it is enforced.
 
@@ -6046,12 +6046,12 @@ records the change with an actor, and it revokes the account's sessions
 afterwards. Everything about it was right.
 
 **No surface ever called it.** Not the dashboard's API client, not the page, not
-the CLI — which has no account commands at all. So the one account that governs
+the CLI, which has no account commands at all. So the one account that governs
 every other one had a password that could not be changed after the moment it was
 first typed, on a screen whose bootstrap step is already irreversible. An
 operator who suspected Root's password was compromised had no in-product answer.
 
-This is the R5 shape exactly — deny rules and read/write narrowing were enforced
+This is the R5 shape exactly. Deny rules and read/write narrowing were enforced
 by the engine and creatable from no interface, and the per-agent posture toggle
 before them. It is the third instance, and the standing rule it produced ("a
 capability lands on all three surfaces or on none") is what should have caught
@@ -6059,7 +6059,7 @@ it.
 
 **Now:** a per-row password field in the Accounts panel, offered for every
 account including Root's own, behind a confirmation that states the two things
-an operator needs before committing — every session for that account is revoked,
+an operator needs before committing. Every session for that account is revoked,
 and when it is your own account that means you are signed out immediately; and
 Root has no other recovery, so the new password must be recorded before you
 click.
@@ -6085,12 +6085,12 @@ _compose_ into the property. Round eleven found the two halves contradicting eac
 other in their error messages precisely because each had only ever been checked
 alone. So the test drives all four routes and then counts:
 
-| Attempt                                                 | Result                     |
-| ------------------------------------------------------- | -------------------------- |
-| Create a second Root                                    | `DuplicateRootError`       |
-| Promote an existing account to Root                     | `DuplicateRootError`       |
-| Demote the only Root                                    | refused, permanence stated |
-| Delete the only Root — by another account, or by itself | refused on both grounds    |
+| Attempt                                                | Result                     |
+| ------------------------------------------------------ | -------------------------- |
+| Create a second Root                                   | `DuplicateRootError`       |
+| Promote an existing account to Root                    | `DuplicateRootError`       |
+| Demote the only Root                                   | refused, permanence stated |
+| Delete the only Root, by another account, or by itself | refused on both grounds    |
 
 and asserts that after every refused attempt exactly one Root remains, and that
 it is the same one.
@@ -6100,7 +6100,7 @@ the Delete control on the Root row was legitimate because emptying the account
 list entirely is a permitted teardown. That is wrong: `guardDeletion` refuses
 deleting the account you are signed in with, and `guardRootPermanence` refuses
 deleting the only Root, so both refuse. The control is nonetheless correct, for
-a reason reading the page had missed — **it is already disabled on your own
+a reason reading the page had missed, **it is already disabled on your own
 row**. The conclusion held; the reason did not, and a wrong reason behind a right
 answer survives review exactly as long as nobody checks it. The dashboard change
 in §4.x.23 also removed the _role_ picker from that row, so the Root row now
@@ -6118,14 +6118,14 @@ behaviour, on a policy nobody has edited:
 | --------------------------------------------------------------- | ----------------------------------------------- |
 | `ls`, `pwd`, reading a file inside the workspace                | allowed, with no operator having written a rule |
 | `sudo -i`, reading `.env`, fetching the cloud metadata endpoint | blocked by the core tier                        |
-| An unlisted command (`curl … \| sh`)                            | denied — nothing is permitted by omission       |
+| An unlisted command (`curl … \| sh`)                            | denied. Nothing is permitted by omission        |
 | Shipped posture                                                 | `enforce`, not `monitor`                        |
 
 The last two rows are the pair that matters, and they are asserted together on
 purpose. **"Usable on boot" and "default-deny" are the two halves of QA finding
 35**, which is the defect that briefly made `monitor` the shipped default: an
 `enforce` posture with zero rules refuses everything, which is not a secured
-agent but a bricked one — and a control that has to be switched off to get work
+agent but a bricked one, and a control that has to be switched off to get work
 done is a control nobody leaves on. The baseline tier is what allowed `enforce`
 to become the default again, so the honest evidence is not "we ship rules" but
 "we ship enforcing, an agent can still work, and an unlisted action is still
@@ -6140,7 +6140,7 @@ other two were true for reasons nobody had checked composed.
 > A property stated in a document is a claim about the system. A property
 > asserted in a test is a claim the system has to keep making.
 
-### 4.x.25 Sixteenth QA pass — the concurrency primitive, and a bound that became a blindfold
+### 4.x.25 Sixteenth QA pass: the concurrency primitive, and a bound that became a blindfold
 
 Run 2026-08-21, after T9. Adversarial in the same shape as rounds thirteen and
 fourteen: each probe written from the claim being tested before re-reading the
@@ -6148,28 +6148,28 @@ code that implements it. Four findings, **104-107**, all fixed. Probes kept in
 `docs-notes/qa-round16-probes/`.
 
 What makes this round worth a section is not its size. Three of the four
-findings are in code the project had already looked at and been satisfied with —
-two of them in code written **the same day** — and each was found by attacking a
+findings are in code the project had already looked at and been satisfied with,
+two of them in code written **the same day**, and each was found by attacking a
 claim rather than by reading a diff.
 
-| #       | Where           | Defect                                                                                 | Status |
-| ------- | --------------- | -------------------------------------------------------------------------------------- | ------ |
-| **104** | `file-lock.ts`  | A reaped holder is never told, and keeps running as though it holds the lock           | Fixed  |
-| **105** | `file-lock.ts`  | That holder's release then deletes its _successor's_ lock, cascading                   | Fixed  |
-| **106** | `file-lock.ts`  | The fix for 104/105 made a tokenless lock permanently unreclaimable — a total deadlock | Fixed  |
-| **107** | `auth-audit.ts` | The flood bound let an attacker choose which account the ledger would not name         | Fixed  |
+| #       | Where           | Defect                                                                                | Status |
+| ------- | --------------- | ------------------------------------------------------------------------------------- | ------ |
+| **104** | `file-lock.ts`  | A reaped holder is never told, and keeps running as though it holds the lock          | Fixed  |
+| **105** | `file-lock.ts`  | That holder's release then deletes its _successor's_ lock, cascading                  | Fixed  |
+| **106** | `file-lock.ts`  | The fix for 104/105 made a tokenless lock permanently unreclaimable. A total deadlock | Fixed  |
+| **107** | `auth-audit.ts` | The flood bound let an attacker choose which account the ledger would not name        | Fixed  |
 
-#### 104 and 105 — the backlog described the smaller half
+#### 104 and 105: the backlog described the smaller half
 
 T11 had been recorded as one sentence: stale locks are reclaimed after fifteen
 seconds with no heartbeat, which is fine while critical sections are
 milliseconds and not guaranteed on a loaded host with a large ledger. True, and
-worth fixing — the ledger's own append reads and parses the whole active segment
+worth fixing. The ledger's own append reads and parses the whole active segment
 on a cold cache, and that segment is allowed to reach eight megabytes.
 
 Probing it found that being reaped was where the failure _started_. The reaped
 holder was never informed, so it continued its critical section believing it was
-protected — and on the way out ran `rm(lockPath, { force: true })`, which
+protected, and on the way out ran `rm(lockPath, { force: true })`, which
 removes whatever lock file is at that path without asking whose it is. By then
 it was the successor's. **One slow writer did not merely lose its own exclusion;
 it unlocked the process that had replaced it**, and that process's release then
@@ -6179,7 +6179,7 @@ The repair is three separate things, and separating them is the point:
 
 1. **A heartbeat.** The holder refreshes the lock's mtime while it works.
    Staleness now means _the holder stopped responding_, not _the holder is slow_
-   — which decouples the threshold from the length of the longest critical
+   which decouples the threshold from the length of the longest critical
    section and answers T11 as originally written.
 2. **An identity.** The lock file carries a token, and every removal checks it.
    Release removes only its own lock; reaping is compare-and-delete, reading the
@@ -6187,7 +6187,7 @@ The repair is three separate things, and separating them is the point:
    the judgement and the removal is spared.
 3. **A report.** `GovernanceLockLostError` when a holder finds at release time
    that the lock is no longer its own. The critical section ran unprotected, and
-   for a ledger append that means a chain that may not verify — discovering that
+   for a ledger append that means a chain that may not verify. Discovering that
    months later from a broken chain is far worse than being told at the moment.
 
 **Worth stating in the report:** the gate fails closed on an exception
@@ -6196,13 +6196,13 @@ The repair is three separate things, and separating them is the point:
 than allowing it. The new error therefore fails in the safe direction, which was
 checked rather than assumed.
 
-#### 106 — the fix deadlocked everything, and a probe caught it
+#### 106: the fix deadlocked everything, and a probe caught it
 
 Requiring an identity before removing a lock meant a lock file with _no_
 readable token could never be reclaimed. Those exist: one written by a build
 predating tokens, or one from a crash between creating the file and writing into
 it. Every governance write would have waited thirty seconds and failed, forever,
-until somebody deleted the file by hand — **exactly the wedge the staleness
+until somebody deleted the file by hand, **exactly the wedge the staleness
 reaper was written to prevent, reintroduced by the fix for a different bug.**
 
 It survived for about four minutes, because a probe written for finding 106
@@ -6210,7 +6210,7 @@ turned from a passing attack into a timeout. That is the argument for keeping
 probes that find nothing: this one found nothing about reaping identity and
 everything about the repair.
 
-#### 107 — a bound that became a way to suppress evidence
+#### 107: a bound that became a way to suppress evidence
 
 T9 had bounded failure entries at two hundred per fifteen minutes, globally,
 because a failed login needs no credentials and the ledger never deletes. The
@@ -6219,7 +6219,7 @@ reasoning was sound and the implementation handed an attacker a new capability.
 The cap was purely global, so **an attacker could choose what the ledger would
 not say.** Flood the window with two hundred invented usernames; every failure
 after that is counted but never named. Then guess patiently at `root`, staying
-under the five attempts that trigger a lockout — because a lockout is never
+under the five attempts that trigger a lockout, because a lockout is never
 suppressed and would have named the account. The result is an audit trail
 holding two hundred entries about accounts that never existed and nothing at all
 about the one that does.
@@ -6230,13 +6230,13 @@ and repetition draw from separate purses: a name seen for the first time
 competes for the general budget, and a name seen again may draw on a reserve
 that no flood can reach without ceasing to be one. The total is unchanged, so
 the denial-of-service bound is exactly as tight. Only the _choice_ of which
-failures deserve an entry has changed — from "whichever arrived first" to
+failures deserve an entry has changed, from "whichever arrived first" to
 "whichever tells an investigator more".
 
 **And the first version of that fix was itself defective, in a way this project
 has a name for.** It kept a private per-subject table and evicted from it when
 full. A `Map` iterates in insertion order, so eviction removed the _oldest_
-entry — and the account an attacker is patiently working is the oldest. The
+entry, and the account an attacker is patiently working is the oldest. The
 table written to make the fix possible would have thrown away the one record
 worth keeping.
 
@@ -6255,7 +6255,7 @@ worth as much to the next reviewer as knowing which succeeded: the suppressed
 count survives a long quiet period and a window roll without being lost or
 understated; a lockout is recorded even when the window is exhausted; and a
 secret mistyped into the username field is recorded, which is **unfixable in
-principle** — nothing can distinguish a mistyped password from a username — and
+principle**, nothing can distinguish a mistyped password from a username, and
 is therefore recorded here as a scope limit on requirement #8 rather than as a
 defect. The ledger is Administrator-and-above only, which bounds the exposure
 without removing it.
@@ -6267,7 +6267,7 @@ compares against". This round produces its sibling: **a bound makes a silent
 claim about which of the things it drops were the ones worth keeping.**
 
 The two hundred-per-window cap and the fifteen-second staleness threshold are
-both bounds written for good reasons — one against a disk-fill vector, one
+both bounds written for good reasons, one against a disk-fill vector, one
 against a wedged lock. Both were correct about the resource they protected and
 silent about the _selection_ they were performing, and in both cases an attacker
 who understood the selection could steer it. A limit is a policy decision
@@ -6275,7 +6275,7 @@ wearing the clothes of an implementation detail.
 
 **Measured after the round:** 1,510 governance tests across 71 files (from 1,499
 across 70), both typechecks clean, OpenClaw's own harness suite unchanged at its
-pre-existing 18 failed / 174 passed. No new lint findings — the two in
+pre-existing 18 failed / 174 passed. No new lint findings. The two in
 `file-lock.ts` were verified pre-existing by stashing the round's changes and
 re-running.
 
@@ -6294,7 +6294,7 @@ and containment is precisely what limits the damage when persuasion succeeds.
 **The three-minute answer, in the order it should be given.**
 
 1. **State the scope boundary plainly and first.** Prompt injection is an attack
-   on the model's _intent_ — text arriving from a web page, a file, or a chat
+   on the model's _intent_. Text arriving from a web page, a file, or a chat
    message that convinces the agent to want something it should not want. This
    layer sits below intent. It receives a tool call that has already been
    decided on and asks a single question: is this action permitted for this
@@ -6306,7 +6306,7 @@ and containment is precisely what limits the damage when persuasion succeeds.
 2. **Then make the positive case, which is the real answer.** Injection is the
    _reason_ a containment layer is worth building rather than an argument
    against it. Chapter 2 establishes that the attack cannot be reliably
-   prevented at the prompt layer — that is the literature's own conclusion, not
+   prevented at the prompt layer. That is the literature's own conclusion, not
    this project's excuse. If persuasion cannot be prevented, the remaining
    question is what an agent can _do_ once persuaded, and that is exactly the
    question this project answers. Concretely, against an agent that has been
@@ -6334,7 +6334,7 @@ and containment is precisely what limits the damage when persuasion succeeds.
    permitted to read the workspace and post to a Discord channel can be
    persuaded to read the workspace and post its contents to that channel, and
    every individual action is one an administrator authorised. This is not
-   hypothetical for this build — it is the ungoverned-outbound-message limit
+   hypothetical for this build. It is the ungoverned-outbound-message limit
    recorded as **T8**, and the layer records it as `ungoverned` rather than
    pretending otherwise. The correct claim is therefore **narrower than
    "prevents exfiltration"**: it prevents an injected instruction from reaching
@@ -6343,7 +6343,7 @@ and containment is precisely what limits the damage when persuasion succeeds.
 
 4. **Close on the design principle.** The value of separating _what_ from _why_
    is that the boundary is checkable. A claim about what an agent may do can be
-   tested — this project tests it 1,700 times — while a claim about whether the
+   tested, this project tests it 1,700 times, while a claim about whether the
    model was fooled cannot be. A control whose correctness is verifiable and
    whose scope is narrow is worth more than one whose scope is broad and whose
    correctness is a matter of opinion.
@@ -6354,7 +6354,7 @@ to prevent it, and none of the nine mention model intent. Solving injection at
 the prompt layer is an open research problem that a graduation project should
 not claim to have closed. What the project claims is that the _consequences_ of
 that unsolved problem can be bounded by an enforcement layer the model does not
-control — and that claim is the one the whole build supports.
+control, and that claim is the one the whole build supports.
 
 **Do not offer these as defences, because they are not:** system-prompt
 hardening, instruction-vs-data delimiters, or an LLM-based injection classifier.
@@ -6364,32 +6364,32 @@ that it assumes persuasion has already succeeded.
 
 ### 4.x.27 Testing the dashboard, and the seventh label that stopped being true (T15)
 
-**The gap.** The dashboard's extracted logic had always been tested — filtering,
-projection, rule matching — and the _component_ never was. Every rendering
+**The gap.** The dashboard's extracted logic had always been tested, filtering,
+projection, rule matching, and the _component_ never was. Every rendering
 decision was therefore unverified, and the cost is measurable rather than
 theoretical: **seven defects, every one found by a person looking at the page**,
 none of which could have been caught below the component because each was a
 question about what the operator sees.
 
-| #          | Defect                                                                           |
-| ---------- | -------------------------------------------------------------------------------- |
-| 99         | Rule rows titled with the raw regular expression, not the sentence               |
-| 100        | The account form offered a `root` role the server always refuses                 |
-| 101        | Root creation had no confirmation and did not state the password minimum         |
-| 102        | A failed transcript load rendered as a permanent "Loading…"                      |
-| 103        | Ten controls with no accessible name                                             |
-| 2026-08-22 | The add-rule agent field optional for a User, for whom empty is a 403            |
-| 2026-08-22 | **The authoring form headed "Add an allow rule"** — found by writing these tests |
+| #          | Defect                                                                          |
+| ---------- | ------------------------------------------------------------------------------- |
+| 99         | Rule rows titled with the raw regular expression, not the sentence              |
+| 100        | The account form offered a `root` role the server always refuses                |
+| 101        | Root creation had no confirmation and did not state the password minimum        |
+| 102        | A failed transcript load rendered as a permanent "Loading…"                     |
+| 103        | Ten controls with no accessible name                                            |
+| 2026-08-22 | The add-rule agent field optional for a User, for whom empty is a 403           |
+| 2026-08-22 | **The authoring form headed "Add an allow rule"**. Found by writing these tests |
 
 **What was built.** Twelve tests in `ui/src/pages/governance/governance-page.test.ts`,
 under the jsdom harness the project already had. They assert what an operator
-sees rather than template structure — a test on the internal shape of a Lit
+sees rather than template structure. A test on the internal shape of a Lit
 template would break on every restyle and would have caught none of the seven.
 
 **One mounting detail worth recording**, because it is the kind of thing that
 makes a first component test look impossible. Assigning state _before_ appending
 the element does not work: `connectedCallback` starts a load that calls
-`whoami`, fails without a server, and clears `identity` — so the page renders
+`whoami`, fails without a server, and clears `identity`, so the page renders
 its sign-in form and every assertion is about the wrong screen. State is
 assigned after connection instead, which is also closer to the component's real
 life: it renders empty, then fills in.
@@ -6398,13 +6398,13 @@ life: it renders empty, then fills in.
 writing a test rather than by the test failing. The form is headed "Add an allow
 rule". R5 made denials authorable and put an allow/deny selector inside that
 very form, and the heading above it went on describing a form that did one
-thing. It is the second label in a week to have quietly stopped being true — the
+thing. It is the second label in a week to have quietly stopped being true. The
 first was the ledger's "Policy changes" filter, which would have silently
 started including sign-ins.
 
 That gives the pattern a name worth using in the report: **a label is a claim
 with no test attached.** Every other claim this project makes is pinned by
-something — the coverage guard reads the host's catalogue, the projection is
+something. The coverage guard reads the host's catalogue, the projection is
 checked against the engine, the mirrored action lists have contract tests. A
 string in an interface is a claim that nothing checks, and it goes stale exactly
 when the thing beneath it grows, which is when nobody is looking at the string.
@@ -6414,21 +6414,21 @@ when the thing beneath it grows, which is when nobody is looking at the string.
 ### 4.x.28 Splitting the dashboard API along the tier seam (T16, partial)
 
 `governance-dashboard-api.ts` had reached 1,561 lines against the project's own
-700-line limit — a pre-existing lint failure that this work had made worse
+700-line limit. A pre-existing lint failure that this work had made worse
 several times over.
 
 **The split is along a seam the design already draws**, which is the part that
 makes it worth doing. §1.6 divides the two top tiers by what they govern: **Root
-manages people, Administrator manages agents.** Account administration —
+manages people, Administrator manages agents.** Account administration,
 creating and deleting accounts, roles, passwords, agent assignment, and the new
-policy-authoring flag — is Root-only in its entirety, so the extracted module
+policy-authoring flag, is Root-only in its entirety, so the extracted module
 has **one statable authorization rule for its whole contents** instead of a
 mixture. A split that merely halved the line count would have produced two files
 each needing the same explanation; this one produces a file whose contents can
 be described in a sentence.
 
 `src/gateway/governance-dashboard-accounts.ts`, 301 lines. The parent is now
-1,369 lines (954 excluding comments), which is **still over the limit** — honest
+1,369 lines (954 excluding comments), which is **still over the limit**. Honest
 to state rather than round off. The remaining seams are the agent routes
 (prompt, transcript, runs, kill) and the ledger routes.
 
@@ -6436,26 +6436,26 @@ to state rather than round off. The remaining seams are the agent routes
 The routes, tier checks, status codes and audit calls moved verbatim; the
 privilege matrix, account-lifecycle, authoring-scope and kill-switch suites all
 pass without modification. That is the evidence this was a move and not a
-rewrite — and it is the reason the refactor was safe to attempt at all, which is
+rewrite, and it is the reason the refactor was safe to attempt at all, which is
 worth saying in a report about a security layer: **the test volume is what makes
 the code changeable**, not merely what makes it correct today.
 
 ### 4.x.29 The seventeenth QA pass, and what reviewing a fix is worth (findings 112-117)
 
-The round that reviewed **only recent work** — everything since round sixteen —
+The round that reviewed **only recent work**, everything since round sixteen,
 and found six defects, five of them in code written that same week and two in
 code written that same day.
 
-**Figure candidate** — _Figure 4.x: Where defects were found, by the age of the
+**Figure candidate**, _Figure 4.x: Where defects were found, by the age of the
 code containing them._ A simple bar chart across all seventeen rounds. The
 argument it has to carry: the distribution is not flat and does not favour old
 code. If it did, the case for continuous review would be much weaker.
 
 #### The three that are worth a paragraph each
 
-**116 — the fix that reintroduced its own defect.** T23 (§3.5.29) exists because
+**116, the fix that reintroduced its own defect.** T23 (§3.5.29) exists because
 the gate resolved a path, judged the file, and let the tool resolve the path
-again — a window an attacker could act in. Its whole argument is that
+again, a window an attacker could act in. Its whole argument is that
 _re-resolving does not close a race, it narrows one_, so a second lookup before
 the open is theatre.
 
@@ -6463,7 +6463,7 @@ The implementation then performed a second lookup of its own. `spec.extract`
 resolved the agent's string to match rules against; the parameter binding
 resolved the same string again, independently, to decide what to hand over. A
 link swapped between them would have the rules judge one file and the tool
-receive another — the same defect, in miniature, inside the function written to
+receive another. The same defect, in miniature, inside the function written to
 remove it.
 
 Two things made it survivable to write and hard to see. The two resolutions were
@@ -6471,24 +6471,24 @@ authored minutes apart, in different functions, for different purposes: one is
 "what am I deciding about", the other is "what do I pass on". And the code was
 _plainly better than what it replaced_, which is the condition under which
 nobody looks for a problem. **A fix is not audited as hard as the thing it
-fixes** — a sentence Chapter 4 should carry, because it is the argument for
+fixes**. A sentence Chapter 4 should carry, because it is the argument for
 reviewing changes rather than reviewing systems.
 
 The repair is also the simpler design: resolve once, extract from the bound
 parameters, and the two cannot disagree by construction rather than by timing.
 
-**112 and 117 — a check that could not fail, and its replacement that failed on
+**112 and 117. A check that could not fail, and its replacement that failed on
 almost everything.** The attachment filename arrives base64-encoded in a header,
 and the first implementation wrapped the decode in a try/catch that returned
 400 on error. `Buffer.from(value, "base64")` does not throw. It discards
 characters outside the alphabet and returns what remains, so the rejection
-branch was **unreachable code that read as validation** — a malformed name
+branch was **unreachable code that read as validation**. A malformed name
 became mojibake in the ledger, and a duplicated header became a run of NUL
 bytes, since Node joins repeats with `", "` and base64 drops both characters.
 
 The replacement was a hand-written validator, and it was wrong by one step in
 its handling of padding: it rejected every name whose encoding ends in `==`,
-which is most names and every non-ASCII one — precisely the case it had been
+which is most names and every non-ASCII one. Precisely the case it had been
 added to protect. The tests written for 112 caught it within a minute.
 
 The pair brackets this project's central line from both sides. **112 made a
@@ -6497,7 +6497,7 @@ the answer wrong.** And only one of them was catchable by a test suite:
 unreachable code passes every test that does not assert it is reachable, which
 is why 112 had to be found by reading and 117 did not.
 
-**113 — a limit that stopped meaning what it said when a surface was added.**
+**113. A limit that stopped meaning what it said when a surface was added.**
 The attachment store is content-addressed and never deletes; each account has a
 64 MB quota. Correct for the CLI, where storing and sending are one action.
 
@@ -6505,7 +6505,7 @@ The dashboard uploads when a file is **chosen**, which is what makes its size an
 type knowable before the prompt goes out. The rule did not change and its meaning
 did: the quota stopped bounding what an operator had _sent_ and began bounding
 what they had ever _clicked_. Nine abandoned picks of an 8 MB file exhaust an
-account permanently, because nothing in the system could delete anything —
+account permanently, because nothing in the system could delete anything,
 `sweepOrphans` was exported and never called.
 
 The fix adds a release for an attachment no prompt has named, and refuses it for
@@ -6519,14 +6519,14 @@ things it drops were the ones worth keeping.
 
 #### The two smaller ones, which are the same finding twice
 
-**114** — the attachment store keyed accounts by their _display_ spelling, for
+**114**. The attachment store keyed accounts by their _display_ spelling, for
 the quota and then for ownership. `account-name.ts` exists to prevent exactly
 this and says so in its own header; eight modules fold through it and the newest
-one did not. The bug that file documents — `policy.userAsk` written under one
-spelling and read under another, so a governance control silently did nothing —
+one did not. The bug that file documents, `policy.userAsk` written under one
+spelling and read under another, so a governance control silently did nothing,
 was one login away from recurring.
 
-**115** — the upload route did not bound `agentId`, because it arrived in a
+**115**. The upload route did not bound `agentId`, because it arrived in a
 header rather than a JSON body and so inherited none of the validation the
 body-reading routes apply. `canManageAgent` cannot reject an invented id for an
 Administrator, who manages every agent by role.
@@ -6548,7 +6548,7 @@ across a genuinely chunked body; and T23's exclusions all hold.
 #### The sentence for the conclusion
 
 > Five of the six defects in the last round were in code written that week. The
-> case for reviewing continuously is not that old code decays — it is that new
+> case for reviewing continuously is not that old code decays. It is that new
 > code has never been looked at, and a fix is the newest code of all.
 
 ### 4.x.4 RBAC enforcement experiment
@@ -6556,14 +6556,14 @@ across a genuinely chunked body; and T23's exclusions all hold.
 The demonstration to run at the defense. Method: Root creates a Viewer and an
 Administrator, then each tier attempts operations above its level. Crucially,
 attempts were made **directly against the HTTP API** (`curl`), not only through
-the dashboard — proving the tiers are enforced server-side and not merely hidden
+the dashboard. Proving the tiers are enforced server-side and not merely hidden
 in the interface. This is the distinction an examiner is most likely to probe.
 
-_Table candidate — Table 4.4: RBAC enforcement results (observed)._
+_Table candidate, Table 4.4: RBAC enforcement results (observed)._
 
 | Actor         | Operation                              | Result                                                                                       |
 | ------------- | -------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Root          | create Viewer / Administrator accounts | 200 — created                                                                                |
+| Root          | create Viewer / Administrator accounts | 200. Created                                                                                 |
 | Viewer        | read policy                            | 200                                                                                          |
 | Viewer        | change posture                         | **403** "Requires the administrator role or higher; you are viewer"                          |
 | Viewer        | list accounts                          | **403** "Requires the root role or higher; you are viewer"                                   |
@@ -6578,7 +6578,7 @@ _Table candidate — Table 4.4: RBAC enforcement results (observed)._
 
 Dashboard behaviour confirmed for the Viewer tier: Accounts section absent,
 kill switch absent, no "Add rule" form, no Remove buttons, ledger resources
-masked — i.e. the interface reflects the same boundaries the server enforces.
+masked. I.e. the interface reflects the same boundaries the server enforces.
 
 The last row is worth calling out in prose: deleting an account revokes its
 sessions immediately rather than letting an existing cookie remain valid until
@@ -6598,7 +6598,7 @@ agent-bearing view, with a Stop button for tiers that may use it.
 
 A deliberate distinction: when the Gateway has not registered a supplier (the
 CLI, or startup still in progress) the view reports **unavailable** rather than
-an empty list — "cannot see sessions" and "no sessions running" must not look
+an empty list, "cannot see sessions" and "no sessions running" must not look
 identical to somebody deciding whether to intervene.
 
 **Per-agent HITL toggle (§1.6).** The paper specifies interception "toggled on
@@ -6610,7 +6610,7 @@ exploratory one escalates to a human.
 Design decision worth stating: **only `ask` is overridable, not `mode`.**
 Posture ("monitor everything" / "enforce everything") is an installation-level
 stance, and letting it vary per agent would make the system's overall state
-hard to read at a glance — the opposite of what an oversight tool should do.
+hard to read at a glance. The opposite of what an oversight tool should do.
 
 Clearing an override is distinct from pinning it to the current default: a
 cleared agent follows future changes to the default, a pinned one does not.
@@ -6629,8 +6629,8 @@ write sensible rules, because they had no record of what the agent needed.
 
 **The first answer was `monitor`, and it was the wrong one.** Making observation
 the shipped posture solved the bricking problem by suspending enforcement on
-every fresh installation, which meant the fork's central claim — a default-deny
-gate — was false of every installation until somebody changed a setting. A
+every fresh installation, which meant the fork's central claim, a default-deny
+gate, was false of every installation until somebody changed a setting. A
 security control whose advertised behaviour begins switched off is a control
 that will be described one way and deployed another.
 
@@ -6645,7 +6645,7 @@ decided in advance and written down where an operator can read and narrow them.
 The distinction worth drawing in the report is between the _policy semantics_
 and the _enforcement posture_:
 
-- **Semantics are default-deny.** An unmatched action is recorded as `deny` —
+- **Semantics are default-deny.** An unmatched action is recorded as `deny`,
   the verdict the policy actually reached. Nothing is treated as permitted.
 - **Posture is enforce.** That verdict is acted on.
 
@@ -6655,7 +6655,7 @@ an installation-wide default. Pointing it at one new agent to discover what that
 agent needs is a legitimate and useful thing to do; making it the condition of a
 usable installation was not.
 
-Requirement #3 is therefore met without deviation — the paper asks for a
+Requirement #3 is therefore met without deviation. The paper asks for a
 default-deny policy model and the shipped default _is_ one, rather than being
 one toggle away from it.
 
@@ -6691,20 +6691,20 @@ Worth reporting in its own right, because it is a methodological finding rather
 than a coding one.
 
 Four rounds of QA tested the governance layer in isolation, and it passed each
-time — hundreds of tests green, type-checking clean. The fifth round tested it
+time. Hundreds of tests green, type-checking clean. The fifth round tested it
 against OpenClaw's actual tool definitions instead of against the layer's own
 assumptions, and immediately found that **the registry of governed tools named
 two tools that do not exist**: `read_file` and `write_file`. The real names are
 `read`, `write`, and `edit`.
 
-The consequence was that the `path` resource kind — one of the three the design
-specifies — governed nothing but `apply_patch`. Every file read, write, and edit
+The consequence was that the `path` resource kind, one of the three the design
+specifies, governed nothing but `apply_patch`. Every file read, write, and edit
 an agent performed went straight through, while the dashboard accepted path
 rules that could never match. The system was not merely incomplete; it reported
 protection it did not provide, which is the worse failure of the two.
 
 The same round found a second tool, `terminal`, whose `open` action executes a
-command on the host and was not governed at all — a direct route around command
+command on the host and was not governed at all. A direct route around command
 policy.
 
 Every earlier test had been written from the same mistaken assumption as the
@@ -6715,7 +6715,7 @@ the control's own model of that system. The registry now cites the host file
 each entry was verified against, and the tests assert the names against the
 host so a rename upstream fails loudly rather than silently disarming the gate.
 
-### 4.x.10 Requirement #5 — recording every action
+### 4.x.10 Requirement #5: recording every action
 
 The first implementation recorded only _governed_ actions: those for which a
 resource could be derived. Tools with no extractor passed the gate silently and
@@ -6731,13 +6731,13 @@ precisely the ones that reveal what the policy fails to cover.
 | Governed tool, payload yields no resource | `no-resource-extracted` | `ungoverned`      |
 
 `ungoverned` is a distinct decision value, not `allow`. Nothing _permitted_
-these actions — the gate had nothing to say about them. Keeping the two apart
+these actions. The gate had nothing to say about them. Keeping the two apart
 is what lets an auditor ask "what is my policy not covering?", which is the
 question that finds the gaps. Collapsing them into `allow` would have made the
 record complete but misleading, which is worse than incomplete.
 
 The gate still abstains (does not block) in both cases: other OpenClaw controls
-— sandbox path validation, the exec allowlist, SSRF blocking — remain in force
+sandbox path validation, the exec allowlist, SSRF blocking, remain in force
 underneath, and failing closed on our own extraction gap would break unrelated
 tools for no security gain.
 
@@ -6745,7 +6745,7 @@ tools for no security gain.
 reporting as an example of a requirement whose cost is not where you expect:
 
 1. **Write cost.** Each append re-read and re-parsed the entire ledger to find
-   the chain head — O(n) per write, O(n²) overall. Acceptable when only policy
+   the chain head, O(n) per write, O(n²) overall. Acceptable when only policy
    decisions were recorded; not once every action is. Replaced with a cached
    head validated against the file size, so the common single-writer path is
    O(1) while a concurrent writer is still detected (the size changes, the
@@ -6754,7 +6754,7 @@ reporting as an example of a requirement whose cost is not where you expect:
 2. **File growth.** Previously a theoretical concern, now a practical one. The
    ledger rotates at 8 MiB into numbered archives. Rotation preserves the hash
    chain: the first entry of a new segment still points at the archived tail,
-   and verification walks archives before the active file — so tampering in
+   and verification walks archives before the active file, so tampering in
    history is still detected, which is exactly where an attacker would prefer
    to work.
 
@@ -6762,19 +6762,19 @@ reporting as an example of a requirement whose cost is not where you expect:
 agent-controlled payloads uncapped is a disk-exhaustion attack against the
 audit trail. Capped at the ledger boundary. See defect 21 in `GOVERNANCE.md`.
 
-### 4.x.8 Requirement #7 — termination latency (measured)
+### 4.x.8 Requirement #7: termination latency (measured)
 
 Method: engage the kill switch with a registered terminator and measure the
-whole operation — policy write under a cross-process lock, abort signal, and
-the audit-ledger append — using `process.hrtime.bigint()`.
+whole operation, policy write under a cross-process lock, abort signal, and
+the audit-ledger append, using `process.hrtime.bigint()`.
 
-_Table candidate — Table 4.5: Kill-switch latency._
+_Table candidate, Table 4.5: Kill-switch latency._
 
 | Scenario                                     | Requirement               | Observed                                               |
 | -------------------------------------------- | ------------------------- | ------------------------------------------------------ |
 | Lockdown + abort, one in-flight run          | < 1000 ms                 | comfortably inside the bound                           |
 | Lockdown + abort, 250 in-flight runs         | < 1000 ms                 | comfortably inside the bound                           |
-| Lockdown with no terminator registered (CLI) | —                         | reports `supported: false` rather than implying a stop |
+| Lockdown with no terminator registered (CLI) | -                         | reports `supported: false` rather than implying a stop |
 | Terminator throws                            | lockdown must still apply | lockdown applied, error recorded                       |
 
 The tests assert the bound directly (`kill-switch.test.ts`), so a regression
@@ -6787,10 +6787,10 @@ Two properties worth defending:
 
 - **Lock before abort.** Reversing the order leaves a window in which the agent
   may legally begin a fresh action between the abort and the lock landing.
-- **Failure is contained.** If the terminator throws, lockdown still applies —
+- **Failure is contained.** If the terminator throws, lockdown still applies,
   a half-applied kill switch is worse than a slow one.
 
-### 4.x.9 Requirement #9 — Linux validation
+### 4.x.9 Requirement #9: Linux validation
 
 Everything had been developed on Windows, while the paper specifies a Linux
 VPS. Two of the defects found earlier were cross-platform behaviour
@@ -6800,29 +6800,29 @@ Environment: Ubuntu 24.04 under WSL2, Node v22.23.2, native dependency install
 (the Windows `node_modules` contains platform-specific binaries and cannot be
 reused).
 
-| Check                                                   | Result                                                                                                                                                                                                                                               |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Full governance suite (`vitest`, 213 tests at the time) | **All passed**                                                                                                                                                                                                                                       |
-| Dedicated platform harness (14 checks)                  | **All passed — but only since 2026-08-28.** This row was **false when written and for seventeen days after** (findings 137 and 138): the harness could not run at all, and separately had gone stale. Now genuinely 14/14 — see the correction below |
-| Directory mode `0700`, file mode `0600`                 | **Enforced** — advisory on Windows, real here; first proof that governance state is not world-readable on the target platform                                                                                                                        |
-| Cross-process file lock under 25-way concurrency        | Mutual exclusion held; no stale lock left behind                                                                                                                                                                                                     |
-| POSIX path handling                                     | Correct                                                                                                                                                                                                                                              |
-| scrypt hashing, salting                                 | Correct                                                                                                                                                                                                                                              |
-| Load average                                            | Reported as supported (Windows correctly reports it as unsupported)                                                                                                                                                                                  |
+| Check                                                   | Result                                                                                                                                                                                                                                             |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Full governance suite (`vitest`, 213 tests at the time) | **All passed**                                                                                                                                                                                                                                     |
+| Dedicated platform harness (14 checks)                  | **All passed, but only since 2026-08-28.** This row was **false when written and for seventeen days after** (findings 137 and 138): the harness could not run at all, and separately had gone stale. Now genuinely 14/14, see the correction below |
+| Directory mode `0700`, file mode `0600`                 | **Enforced**, advisory on Windows, real here; first proof that governance state is not world-readable on the target platform                                                                                                                       |
+| Cross-process file lock under 25-way concurrency        | Mutual exclusion held; no stale lock left behind                                                                                                                                                                                                   |
+| POSIX path handling                                     | Correct                                                                                                                                                                                                                                            |
+| scrypt hashing, salting                                 | Correct                                                                                                                                                                                                                                            |
+| Load average                                            | Reported as supported (Windows correctly reports it as unsupported)                                                                                                                                                                                |
 
-> **Correction, 2026-08-28 — and this one is Chapter 4 material in its own
+> **Correction, 2026-08-28, and this one is Chapter 4 material in its own
 > right.** The paragraph that stood here said the harness "runs on plain `node`
 > with no dependency install, because the platform-sensitive modules import only
 > Node built-ins and Node 22 strips TypeScript types natively". **Every clause of
 > that was wrong, and the file had therefore never executed once** between being
-> written on 2026-08-11 and 2026-08-28 — while this very table recorded it as
+> written on 2026-08-11 and 2026-08-28, while this very table recorded it as
 > "14 checks, all passed" and cited it as evidence for design requirement #9.
 >
 > **Finding 137.** Three independent things stop bare `node`, and each only
 > becomes visible once the previous is fixed, which is how the claim survived so
 > long unexamined:
 >
-> 1. `permissions.ts` imports `./roles.js` — the TypeScript convention for a
+> 1. `permissions.ts` imports `./roles.js`. The TypeScript convention for a
 >    sibling `.ts`. Node strips types but does **not** rewrite specifiers, so it
 >    looked for a `roles.js` that has never existed.
 > 2. The graph reaches `@openclaw/acp-core`, a **workspace** package pnpm does
@@ -6834,7 +6834,7 @@ reused).
 > **Finding 138, which only existed because of 137.** With the harness running,
 > one check failed immediately: the `0600` file-mode check called
 > `ledgerFilePath()` with no argument, and **M5 had made `groupId` mandatory two
-> days earlier**. The call had rotted and nothing said so — _a check that never
+> days earlier**. The call had rotted and nothing said so, _a check that never
 > runs does not merely fail to catch regressions, it also stops reporting when it
 > has itself gone out of date._
 >
@@ -6846,14 +6846,14 @@ reused).
 The harness (`scripts/governance-linux-check.mjs`) needs `pnpm install` and is
 invoked as `pnpm exec tsx scripts/governance-linux-check.mjs`. It does **not**
 need `pnpm build`, so it remains a practical smoke test for a candidate
-deployment target — the property the original claim was reaching for, now stated
+deployment target. The property the original claim was reaching for, now stated
 in terms that are true.
 
 **Observation worth reporting:** the retention-pruning tests took ~46 s each on
 Linux versus a fraction of that on Windows, because every rule-request write
 rewrites the whole file with a durable `fsync`, and `fsync` is expensive on
-WSL2's virtual disk. Not a correctness problem — requests are human-initiated
-and rare — but it does mean the JSON-file store would need revisiting if
+WSL2's virtual disk. Not a correctness problem, requests are human-initiated
+and rare, but it does mean the JSON-file store would need revisiting if
 request volume ever grew, which supports the documented option of migrating
 these stores to SQLite.
 
@@ -6865,8 +6865,8 @@ model reports (`Decentralized Firewall Based on Blockchain` §4.5, the
 two-column table with the requirement **quoted verbatim from Chapter 1 §1.3** on
 the left and a prose validation on the right saying whether it was met and by
 what evidence. All three are also willing to write "this has not been met, and
-here is why" in that right-hand column — the firewall report does exactly that
-for on-chain traffic logging — so an honest row costs nothing and a dishonest
+here is why" in that right-hand column, the firewall report does exactly that
+for on-chain traffic logging, so an honest row costs nothing and a dishonest
 one costs everything._
 
 **Status current as of 2026-08-20**, after the thirteenth QA round and its
@@ -6874,25 +6874,25 @@ fixes. This supersedes the previous version of this section, which still
 described live session monitoring and in-flight termination as unimplemented;
 both landed several rounds ago.
 
-_Table candidate — Table 4.x: Validation of Design Requirements._
+_Table candidate, Table 4.x: Validation of Design Requirements._
 
-| #   | Requirement (Chapter 1 §1.3, verbatim)                                                                                                                                                                                                                   | Validation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | "shall be implemented using the Node.js runtime (version 18 or higher) and developed primarily in TypeScript with static type checking enabled"                                                                                                          | **Met.** Node v22.22.3. The whole layer is TypeScript under `strict: true` with `noUncheckedIndexedAccess`; `pnpm tsgo:core` and `pnpm tsgo:ui` both pass with zero errors and are re-run on every change. No JavaScript source was added.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| 2   | "shall provide a secure web-based dashboard that enables administrators to configure customized privilege policies, monitor active autonomous agent sessions, and manage system operations using role-based access control"                              | **Met.** `ui/src/pages/governance/`. Policy configuration (posture, ask mode, per-agent overrides, rule authoring including denials and read/write narrowing), live session monitoring (`active-sessions.ts`), the kill switch, account and role administration, and prompting an assigned agent. RBAC is enforced **server-side** in `governance-dashboard-api.ts` and was verified by driving the HTTP API directly with `curl` rather than only through the interface — the distinction an examiner is most likely to probe. The page is reached only through the Gateway's existing shared-secret gate and then a second, named-account login.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| 3   | "shall enforce a default-deny, policy-based security model that restricts autonomous agent access to operating system resources, including file system paths, process execution, and network communication, based on administrator-defined capabilities" | **Met.** `policy-engine.ts` refuses anything no rule permits. All three named axes are covered: **file system paths** (`read`, `write`, `edit`, `apply_patch`, `grep`, `find`, `ls`, canonicalised before matching so traversal and symbolic links cannot evade a rule); **process execution** (`exec`, `terminal`, and — after QA round 13 — `process`, `code_execution`, `computer`, `screen`, `browser`, `mobile_ui`, `nodes`, `gateway`, `automations`, `sessions_spawn`, `subagents`); **network communication** (`web_fetch`, with the hostname canonicalised). **One qualification belongs on this row rather than in a footnote (T12):** `web_search` and `x_search` reach the network and are _not_ governed, because they carry a search query and no hostname, and the resource model has no query axis to match one against. They are recorded in `DELIBERATELY_UNGOVERNED` with that reason rather than given a made-up resource string, which would look like protection and provide none. So the accurate claim is that network communication **to a named destination** is controlled; an agent can still reach a search provider and receive arbitrary content back. Closing it needs a fourth axis on the resource model — the same missing piece as outbound chat messages (T8) — and until then the honest form of requirement #3 is that its three named axes are covered with one stated exception on the third. Coverage is now _measured_ against the host's own tool catalogue rather than assumed: 18 tools governed, and each of the remaining 34 carries a written justification in `DELIBERATELY_UNGOVERNED`, asserted on every run by a test that compares the registry against the host's own declarations. Round 13 found this surface was 7 of 52 and closed it — see §4.x.20. Coverage of _tools_ is only half the claim, and the other half was closed last: until B1 (§4.x.21) an agent running inside the Codex native harness never reached the gate at all, whatever the registry said. The host is now obliged to route that arrangement's tool calls through the same check, for every tool. |
-| 4   | "shall support customized, fine-grained privileges for autonomous agents, including path-level file access, command allowlisting, network allowlisting, and time-limited permissions"                                                                    | **Met.** A rule names a resource kind, a pattern, an effect (allow or deny), an optional single agent, an optional expiry, and — for paths — an optional read/write narrowing. Time limits are `PolicyRule.expiresAt`, bounded and validated identically from the dashboard and the CLI so the two front doors cannot enforce different rules. One path rule binds every path-taking tool identically, which was not true until the canonicalisation work (§4.x.13).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| 5   | "shall continuously monitor autonomous agent activities and shall record 100% of agent actions, policy decisions, and administrative approvals in an auditable logging system"                                                                           | **Met, in all three parts.** Agent actions and policy decisions: every invocation is recorded, including tools the policy cannot judge, which are marked `ungoverned` rather than omitted — so a coverage gap is visible _in the record_ instead of invisible. Administrative approvals: `admin-audit.ts` writes rule changes, posture changes, account changes, approvals and prompts into the **same** chain, each with a required `actor` argument, so the compiler refuses a new route that changes governance state anonymously. Round 13 closed the last gap: a refusal now records _every_ resource it refused, not only the first. Stated caveat: a change made from the command line is attributed to `cli` rather than to a person (limitation A6). B1 (§4.x.21) closed the one arrangement in which an action could avoid the record entirely rather than being recorded as `ungoverned` — the distinction matters, because a call that never reaches the gate cannot be logged as anything. The trail now also distinguishes **three** prompt outcomes rather than two — delivered, failed, and _cancelled by a named person_, the last with its own action — because the account that stops a run need not be the one that started it (§3.5.17), and a refused prompt is recorded even when it is refused for capacity.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| 6   | "shall implement tamper-evident audit logging mechanisms to ensure the integrity and traceability of all recorded agent and administrative actions"                                                                                                      | **Met.** An append-only chain in which each entry's fingerprint covers its own contents and its predecessor's, under **HMAC-SHA256 with a per-installation key**, so rewriting history requires the secret rather than merely the algorithm. A separate checkpoint file detects truncation, which a chain cannot detect about itself. Round 13 attacked this and closed three routes that needed no key at all — a deleted checkpoint, a whole-history rewrite in the pre-key format, and a corrupted key file that silently degraded to a zero-length secret (§4.x.20). **Stated limit, unchanged:** both anchors live on the host they protect, so an attacker who destroys _both_ leaves nothing to contradict a rewritten chain. Closing that means holding one off the machine — deployment, not code.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| 7   | "shall provide real-time administrative control capabilities, including the ability to suspend or terminate an autonomous agent session within a maximum response time of one second"                                                                    | **Met, and measured honestly as two numbers.** `kill-switch.ts` locks the agent first, so it can start nothing new, then aborts in-flight runs through the host's own machinery. The result reports `dispatchMs` — how long it took to _ask_ — separately from `stoppedConfirmed`, which waits for the signalled runs to leave the Gateway's registry. Reporting only the total would let "we asked in under a second" be read as "it stopped in under a second", and requirement #7 is about the second claim (§3.5.10, §4.x.17). Round 13 closed three ways the stop could report success while stopping nothing (§4.x.20), and B1 (§4.x.21) closed the arrangement in which the switch had no reach at all, since it is enforced at the same gate. **A fourth, and the worst, was closed on 2026-09-01 (finding 202, §3.5.68):** the agent id reached the lockdown exactly as an operator typed it, while everything it keys on uses the canonical form — so a stop on `Scout` for an agent called `scout` locked nothing, aborted nothing, and reported a confirmed stop. The claim in this row is therefore "met **and now tested against the identifier as well as the timing**", which it was not before that date. A **second, lighter** real-time control was added alongside it (§3.5.17): a single prompt can be cancelled without locking the agent down. Kept separate deliberately — an emergency stop that operators reach for after an ordinary mistake stops being treated as an emergency.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| 8   | "shall prevent sensitive data (such as secrets or credentials) from being written in plaintext to log files"                                                                                                                                             | **Met.** Every recorded resource passes through the host's own `redactToolPayloadText` at the ledger boundary — enforced there rather than at each call site, so a future caller cannot reintroduce the hole by forgetting to redact. Reinforced by the core tier refusing credential files outright, so in the common case the secret is never read at all. Recorded values are also length-capped, because an uncapped agent-controlled string is a way to destroy the audit trail by filling the disk.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| 9   | "shall be deployable on a Linux-based operating system using open-source software components only"                                                                                                                                                       | **Partially met — the one requirement not fully demonstrated.** Open-source-only is met exactly: `git diff package.json` is empty, and the entire layer is built from Node built-ins plus packages OpenClaw already had. Linux is _tested_ — the full suite runs natively on Ubuntu 24.04 under WSL2, plus a dedicated platform harness — but has never been **deployed** to a VPS, and the launcher script is PowerShell-only. This is item A8 and it should be stated in these words rather than rounded up. A7 (§3.5.14) now supplies the verification step that deployment will need: `openclaw governance deployment` checks the Linux target, the memory floor, the loopback listener and the file permissions in one command, over a plain SSH session and before any tunnel exists.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| #   | Requirement (Chapter 1 §1.3, verbatim)                                                                                                                                                                                                                   | Validation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | "shall be implemented using the Node.js runtime (version 18 or higher) and developed primarily in TypeScript with static type checking enabled"                                                                                                          | **Met.** Node v22.22.3. The whole layer is TypeScript under `strict: true` with `noUncheckedIndexedAccess`; `pnpm tsgo:core` and `pnpm tsgo:ui` both pass with zero errors and are re-run on every change. No JavaScript source was added.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 2   | "shall provide a secure web-based dashboard that enables administrators to configure customized privilege policies, monitor active autonomous agent sessions, and manage system operations using role-based access control"                              | **Met.** `ui/src/pages/governance/`. Policy configuration (posture, ask mode, per-agent overrides, rule authoring including denials and read/write narrowing), live session monitoring (`active-sessions.ts`), the kill switch, account and role administration, and prompting an assigned agent. RBAC is enforced **server-side** in `governance-dashboard-api.ts` and was verified by driving the HTTP API directly with `curl` rather than only through the interface. The distinction an examiner is most likely to probe. The page is reached only through the Gateway's existing shared-secret gate and then a second, named-account login.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 3   | "shall enforce a default-deny, policy-based security model that restricts autonomous agent access to operating system resources, including file system paths, process execution, and network communication, based on administrator-defined capabilities" | **Met.** `policy-engine.ts` refuses anything no rule permits. All three named axes are covered: **file system paths** (`read`, `write`, `edit`, `apply_patch`, `grep`, `find`, `ls`, canonicalised before matching so traversal and symbolic links cannot evade a rule); **process execution** (`exec`, `terminal`, and, after QA round 13, `process`, `code_execution`, `computer`, `screen`, `browser`, `mobile_ui`, `nodes`, `gateway`, `automations`, `sessions_spawn`, `subagents`); **network communication** (`web_fetch`, with the hostname canonicalised). **One qualification belongs on this row rather than in a footnote (T12):** `web_search` and `x_search` reach the network and are _not_ governed, because they carry a search query and no hostname, and the resource model has no query axis to match one against. They are recorded in `DELIBERATELY_UNGOVERNED` with that reason rather than given a made-up resource string, which would look like protection and provide none. So the accurate claim is that network communication **to a named destination** is controlled; an agent can still reach a search provider and receive arbitrary content back. Closing it needs a fourth axis on the resource model, the same missing piece as outbound chat messages (T8), and until then the honest form of requirement #3 is that its three named axes are covered with one stated exception on the third. Coverage is now _measured_ against the host's own tool catalogue rather than assumed: 18 tools governed, and each of the remaining 34 carries a written justification in `DELIBERATELY_UNGOVERNED`, asserted on every run by a test that compares the registry against the host's own declarations. Round 13 found this surface was 7 of 52 and closed it. See §4.x.20. Coverage of _tools_ is only half the claim, and the other half was closed last: until B1 (§4.x.21) an agent running inside the Codex native harness never reached the gate at all, whatever the registry said. The host is now obliged to route that arrangement's tool calls through the same check, for every tool. |
+| 4   | "shall support customized, fine-grained privileges for autonomous agents, including path-level file access, command allowlisting, network allowlisting, and time-limited permissions"                                                                    | **Met.** A rule names a resource kind, a pattern, an effect (allow or deny), an optional single agent, an optional expiry, and, for paths, an optional read/write narrowing. Time limits are `PolicyRule.expiresAt`, bounded and validated identically from the dashboard and the CLI so the two front doors cannot enforce different rules. One path rule binds every path-taking tool identically, which was not true until the canonicalisation work (§4.x.13).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 5   | "shall continuously monitor autonomous agent activities and shall record 100% of agent actions, policy decisions, and administrative approvals in an auditable logging system"                                                                           | **Met, in all three parts.** Agent actions and policy decisions: every invocation is recorded, including tools the policy cannot judge, which are marked `ungoverned` rather than omitted, so a coverage gap is visible _in the record_ instead of invisible. Administrative approvals: `admin-audit.ts` writes rule changes, posture changes, account changes, approvals and prompts into the **same** chain, each with a required `actor` argument, so the compiler refuses a new route that changes governance state anonymously. Round 13 closed the last gap: a refusal now records _every_ resource it refused, not only the first. Stated caveat: a change made from the command line is attributed to `cli` rather than to a person (limitation A6). B1 (§4.x.21) closed the one arrangement in which an action could avoid the record entirely rather than being recorded as `ungoverned`. The distinction matters, because a call that never reaches the gate cannot be logged as anything. The trail now also distinguishes **three** prompt outcomes rather than two, delivered, failed, and _cancelled by a named person_, the last with its own action, because the account that stops a run need not be the one that started it (§3.5.17), and a refused prompt is recorded even when it is refused for capacity.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| 6   | "shall implement tamper-evident audit logging mechanisms to ensure the integrity and traceability of all recorded agent and administrative actions"                                                                                                      | **Met.** An append-only chain in which each entry's fingerprint covers its own contents and its predecessor's, under **HMAC-SHA256 with a per-installation key**, so rewriting history requires the secret rather than merely the algorithm. A separate checkpoint file detects truncation, which a chain cannot detect about itself. Round 13 attacked this and closed three routes that needed no key at all. A deleted checkpoint, a whole-history rewrite in the pre-key format, and a corrupted key file that silently degraded to a zero-length secret (§4.x.20). **Stated limit, unchanged:** both anchors live on the host they protect, so an attacker who destroys _both_ leaves nothing to contradict a rewritten chain. Closing that means holding one off the machine. Deployment, not code.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| 7   | "shall provide real-time administrative control capabilities, including the ability to suspend or terminate an autonomous agent session within a maximum response time of one second"                                                                    | **Met, and measured honestly as two numbers.** `kill-switch.ts` locks the agent first, so it can start nothing new, then aborts in-flight runs through the host's own machinery. The result reports `dispatchMs`, how long it took to _ask_, separately from `stoppedConfirmed`, which waits for the signalled runs to leave the Gateway's registry. Reporting only the total would let "we asked in under a second" be read as "it stopped in under a second", and requirement #7 is about the second claim (§3.5.10, §4.x.17). Round 13 closed three ways the stop could report success while stopping nothing (§4.x.20), and B1 (§4.x.21) closed the arrangement in which the switch had no reach at all, since it is enforced at the same gate. **A fourth, and the worst, was closed on 2026-09-01 (finding 202, §3.5.68):** the agent id reached the lockdown exactly as an operator typed it, while everything it keys on uses the canonical form, so a stop on `Scout` for an agent called `scout` locked nothing, aborted nothing, and reported a confirmed stop. The claim in this row is therefore "met **and now tested against the identifier as well as the timing**", which it was not before that date. A **second, lighter** real-time control was added alongside it (§3.5.17): a single prompt can be cancelled without locking the agent down. Kept separate deliberately. An emergency stop that operators reach for after an ordinary mistake stops being treated as an emergency.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 8   | "shall prevent sensitive data (such as secrets or credentials) from being written in plaintext to log files"                                                                                                                                             | **Met.** Every recorded resource passes through the host's own `redactToolPayloadText` at the ledger boundary. Enforced there rather than at each call site, so a future caller cannot reintroduce the hole by forgetting to redact. Reinforced by the core tier refusing credential files outright, so in the common case the secret is never read at all. Recorded values are also length-capped, because an uncapped agent-controlled string is a way to destroy the audit trail by filling the disk.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 9   | "shall be deployable on a Linux-based operating system using open-source software components only"                                                                                                                                                       | **Partially met. The one requirement not fully demonstrated.** Open-source-only is met exactly: `git diff package.json` is empty, and the entire layer is built from Node built-ins plus packages OpenClaw already had. Linux is _tested_, the full suite runs natively on Ubuntu 24.04 under WSL2, plus a dedicated platform harness, but has never been **deployed** to a VPS, and the launcher script is PowerShell-only. This is item A8 and it should be stated in these words rather than rounded up. A7 (§3.5.14) now supplies the verification step that deployment will need: `openclaw governance deployment` checks the Linux target, the memory floor, the loopback listener and the file permissions in one command, over a plain SSH session and before any tunnel exists.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 **The layer has no known security hole**, and that sentence should be quoted with
 its date attached. _(It was true when written on 2026-08-31 and false three days
 later without anybody knowing: findings **194**, **195** and **202** are all
 security-relevant and all predate this line. It is restored rather than softened,
-because "no known hole" is a claim about what is known — and the honest reading,
+because "no known hole" is a claim about what is known, and the honest reading,
 which belongs in Chapter 4, is that **the sentence is worth exactly what the most
 recent sweep was worth**. Five sweeps have now run and each found more. Say when
 it was last tested, not only that it holds.)_ ~~Three limits remain, each stated
@@ -6901,29 +6901,29 @@ search tools are governed at the path they are rooted at and not at the files
 they go on to open; outbound chat messages have no resource kind describing them;
 and a lockdown does not reach a cross-agent child that was already running.~~
 
-> **Two of those three closed and this paragraph did not move — finding 159,
+> **Two of those three closed and this paragraph did not move. Finding 159,
 > 2026-08-31.** It is the paragraph Chapter 4's validation argument is built
 > from, which makes it the worst place in the document set to carry a stale
 > sentence: it understates the project by naming limits that no longer exist, and
 > an examiner who checks one of them finds the code contradicting the claim.
 >
-> - **Lockdown reaching a running cross-agent child — closed 2026-08-25 (T6),
+> - **Lockdown reaching a running cross-agent child. Closed 2026-08-25 (T6),
 >   six days before this was last read.** `session-lineage.ts` walks the spawn
 >   chain and refuses a call descending from a locked agent. It never needed
 >   anything from the host: the host already wrote `spawnedBy` onto the session
 >   entry, and only the _hook payload_ lacked it.
-> - **Search tools governed only at their root — closed 2026-08-30 (T7), on the
+> - **Search tools governed only at their root. Closed 2026-08-30 (T7), on the
 >   runtime where it can be.** Results a denial covers are withheld before the
 >   model sees them, and the count withheld is stated. Unclosable on the native
 >   Codex harness, which is why that backend now sits behind two consent
 >   switches (§3.5.62) rather than being available by default.
-> - **Outbound chat messages — still true, and settled rather than open.** §1.3
+> - **Outbound chat messages. Still true, and settled rather than open.** §1.3
 >   requirements 3 and 4 name three resource categories and messaging is not one;
 >   connecting an agent to a channel is itself the permission. Every send is
 >   recorded, redacted, attributed and carrying its destination (§3.5.45).
 >
 > **All three were once labelled "needs something the host does not report", and
-> that phrase was wrong about all three** — twice because a fork can read further
+> that phrase was wrong about all three**. Twice because a fork can read further
 > than the note assumed, once because the specification never asked. The
 > replacement sentence below states what is true now and names where each claim
 > can be re-checked.
@@ -6934,19 +6934,19 @@ among the resources the default-deny model governs. What was true of the other
 two is now the opposite of what this paragraph said: a lockdown reaches a running
 cross-agent child (T6), and a recursive search cannot hand the model a file a
 denial covers on the in-process runtime (T7). The honest summary is **limits of
-coverage, stated and dated, not defects in what is covered** — and each one is
+coverage, stated and dated, not defects in what is covered**, and each one is
 re-checkable, which is the property that matters more than the count.
 
-> ### T36 — this table re-derived from the code, 2026-08-31
+> ### T36. This table re-derived from the code, 2026-08-31
 >
 > **Every row below was re-checked against the source rather than re-read**, on
 > the argument that a validation table is the one artefact in this project that
 > nothing else audits: it is copied into Chapter 4 and defended in a viva, and
 > until now it had been _written_ carefully and _re-derived_ never.
 >
-> It found **one stale claim (finding 163)** — row 5's caveat that command-line
+> It found **one stale claim (finding 163)**, row 5's caveat that command-line
 > changes are attributed to `cli` rather than to a person, false since
-> 2026-08-24 — which is the **third** location this same sentence was found in
+> 2026-08-24, which is the **third** location this same sentence was found in
 > during 2026-08-31, after `CLI-REFERENCE.md` §1 (finding 160) and the two
 > citations corrected the day before. **One claim, four places, seven days.** A
 > fact stated once and cited three times becomes four things to maintain, and
@@ -6954,17 +6954,17 @@ re-checkable, which is the property that matters more than the count.
 >
 > **What each row now rests on**, so the next pass re-derives rather than re-reads:
 >
-> | #   | Re-derived from                                                                                        | Verdict                    |
-> | --- | ------------------------------------------------------------------------------------------------------ | -------------------------- |
-> | 1   | `node -v` → v22.22.3; `tsgo:core`/`tsgo:ui` clean under `strict`                                       | Met                        |
-> | 2   | `ui/src/pages/governance/`; `requireRole` on every route, the agent listing gated at `viewer`          | Met                        |
-> | 3   | `policy-engine.ts` — the `default-deny` exit is reached when no allow rule matches                     | Met                        |
-> | 4   | `policy-types.ts` `resourceKind` + `PolicyRule.expiresAt`; `isRuleExpired` consulted at evaluation     | Met                        |
-> | 5   | `appendLedgerEntry` on every branch of the gate, `ungoverned` included; `admin-audit.ts` for approvals | Met — **caveat corrected** |
-> | 6   | `audit-ledger.ts` `createHmac` chain + checkpoint                                                      | Met                        |
-> | 7   | `kill-switch.ts` measures `dispatchMs` and `elapsedMs` separately via `process.hrtime.bigint()`        | Met                        |
-> | 8   | `redactToolPayloadText` applied to `resource` and `intent` before storage; strengthened by finding 147 | Met                        |
-> | 9   | Built and started on Ubuntu 24.04 (T33); never deployed to a host (T3)                                 | **Partial**                |
+> | #   | Re-derived from                                                                                        | Verdict                   |
+> | --- | ------------------------------------------------------------------------------------------------------ | ------------------------- |
+> | 1   | `node -v` → v22.22.3; `tsgo:core`/`tsgo:ui` clean under `strict`                                       | Met                       |
+> | 2   | `ui/src/pages/governance/`; `requireRole` on every route, the agent listing gated at `viewer`          | Met                       |
+> | 3   | `policy-engine.ts`, the `default-deny` exit is reached when no allow rule matches                      | Met                       |
+> | 4   | `policy-types.ts` `resourceKind` + `PolicyRule.expiresAt`; `isRuleExpired` consulted at evaluation     | Met                       |
+> | 5   | `appendLedgerEntry` on every branch of the gate, `ungoverned` included; `admin-audit.ts` for approvals | Met, **caveat corrected** |
+> | 6   | `audit-ledger.ts` `createHmac` chain + checkpoint                                                      | Met                       |
+> | 7   | `kill-switch.ts` measures `dispatchMs` and `elapsedMs` separately via `process.hrtime.bigint()`        | Met                       |
+> | 8   | `redactToolPayloadText` applied to `resource` and `intent` before storage; strengthened by finding 147 | Met                       |
+> | 9   | Built and started on Ubuntu 24.04 (T33); never deployed to a host (T3)                                 | **Partial**               |
 >
 > **Row 7's caveat was re-derived and survives.** "From the CLI no in-flight
 > abort is possible" is not an accident of the code: `terminateAgentRuns` reads
@@ -6991,19 +6991,19 @@ requirements one (firewall report §4.6). It is currently missing from this
 project's material entirely, and it is cheap to satisfy, because two of the
 three constraints were met by construction rather than by effort._
 
-_Table candidate — Table 4.x: Validation of Design Constraints._
+_Table candidate, Table 4.x: Validation of Design Constraints._
 
-| Constraint (Chapter 1 §1.4, verbatim)                                                                                                                                                                                                                                                                                                      | Validation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Economic:** "The total cost of required API access and the rental of a virtual private server for one year shall not exceed 350 JOD."                                                                                                                                                                                                    | **Met, with margin.** The governance layer adds **zero** paid dependencies — `git diff package.json` is empty, which is the single strongest piece of evidence for this constraint and for requirement #9 simultaneously. Model access uses OAuth-based sign-in to a provider (per §1.6) rather than metered API keys, so inference is not a per-token cost line. The only unavoidable spend is the VPS itself, and the 8 GB specification the next constraint fixes is available well inside the annual budget from mainstream providers.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| **Manufacturability and Sustainability:** "The system shall be deployable on a virtual private server with a minimum hardware specification of 8 GB RAM to ensure stable operation, scalability, and long-term maintainability."                                                                                                           | **Met by design, and now checked rather than asserted.** `deployment.memory_minimum` (§3.5.14) verifies the 8 GB floor on the running host and reports it to Root, so the constraint is evidenced by the system itself rather than by a claim in this table — run `openclaw governance deployment` on the VPS and screenshot it. (The threshold is decimal GB, not GiB: a host sold as "8 GB" reports about 7.6–7.9 GiB after firmware reservation, so a binary threshold would fail every genuine 8 GB machine.) **Not yet demonstrated on a real VPS.** The layer's resident footprint is two small JSON documents, held only for the duration of a request, plus a cached chain head; the audit ledger is streamed rather than held in memory and rotates at 8 MB into numbered archives. Nothing added here grows in memory with the number of agents or the length of the audit history. The honest qualifier is the same one requirement #9 carries: this is an argument from the design and from local measurement, not from a VPS that has been running for a month, because A8 has not been done. |
-| **Ethical and Professional Responsibility:** "The project shall ensure the ethical and responsible use of the OpenClaw framework by restricting its functionality to defensive, governance, and monitoring purposes and by preventing misuse that could violate security policies, privacy regulations, or professional computing ethics." | **Met, and worth arguing rather than asserting.** Every addition this fork makes either _removes_ capability from the agent or _adds_ oversight of it: a default-deny gate, an immutable core tier, a tamper-evident record, an emergency stop. Nothing added extends what an agent can do. On privacy specifically: audit detail is masked for the Viewer tier, secrets are redacted before storage, and agent scoping means an operator sees only the agents they were assigned. The one place this needed a deliberate decision rather than falling out of the design is prompting (A1) — being able to _drive_ an agent is new capability — and it was built so that a prompt grants the agent nothing it did not already have, passes through the same gate as any other work, and is recorded against the person who sent it.                                                                                                                                                                                                                                                                        |
-| **(Scope, not a Chapter 1 constraint) Language:** the governance surface is English only.                                                                                                                                                                                                                                                  | **Stated as a decision.** The host ships 22 locales; the governance page is written in one, and fallback is per key so nothing breaks — an Arabic-locale operator gets an Arabic shell around an English governance page, with no RTL handling. Filling the rest would mean shipping strings nobody on the team can verify into a security console, where a mistranslated `deny` is a control an operator misreads. Recorded here rather than omitted, because an examiner in Amman will notice, and "we chose not to" is a better answer than silence.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Constraint (Chapter 1 §1.4, verbatim)                                                                                                                                                                                                                                                                                                      | Validation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Economic:** "The total cost of required API access and the rental of a virtual private server for one year shall not exceed 350 JOD."                                                                                                                                                                                                    | **Met, with margin.** The governance layer adds **zero** paid dependencies, `git diff package.json` is empty, which is the single strongest piece of evidence for this constraint and for requirement #9 simultaneously. Model access uses OAuth-based sign-in to a provider (per §1.6) rather than metered API keys, so inference is not a per-token cost line. The only unavoidable spend is the VPS itself, and the 8 GB specification the next constraint fixes is available well inside the annual budget from mainstream providers.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| **Manufacturability and Sustainability:** "The system shall be deployable on a virtual private server with a minimum hardware specification of 8 GB RAM to ensure stable operation, scalability, and long-term maintainability."                                                                                                           | **Met by design, and now checked rather than asserted.** `deployment.memory_minimum` (§3.5.14) verifies the 8 GB floor on the running host and reports it to Root, so the constraint is evidenced by the system itself rather than by a claim in this table. Run `openclaw governance deployment` on the VPS and screenshot it. (The threshold is decimal GB, not GiB: a host sold as "8 GB" reports about 7.6–7.9 GiB after firmware reservation, so a binary threshold would fail every genuine 8 GB machine.) **Not yet demonstrated on a real VPS.** The layer's resident footprint is two small JSON documents, held only for the duration of a request, plus a cached chain head; the audit ledger is streamed rather than held in memory and rotates at 8 MB into numbered archives. Nothing added here grows in memory with the number of agents or the length of the audit history. The honest qualifier is the same one requirement #9 carries: this is an argument from the design and from local measurement, not from a VPS that has been running for a month, because A8 has not been done. |
+| **Ethical and Professional Responsibility:** "The project shall ensure the ethical and responsible use of the OpenClaw framework by restricting its functionality to defensive, governance, and monitoring purposes and by preventing misuse that could violate security policies, privacy regulations, or professional computing ethics." | **Met, and worth arguing rather than asserting.** Every addition this fork makes either _removes_ capability from the agent or _adds_ oversight of it: a default-deny gate, an immutable core tier, a tamper-evident record, an emergency stop. Nothing added extends what an agent can do. On privacy specifically: audit detail is masked for the Viewer tier, secrets are redacted before storage, and agent scoping means an operator sees only the agents they were assigned. The one place this needed a deliberate decision rather than falling out of the design is prompting (A1), being able to _drive_ an agent is new capability, and it was built so that a prompt grants the agent nothing it did not already have, passes through the same gate as any other work, and is recorded against the person who sent it.                                                                                                                                                                                                                                                                         |
+| **(Scope, not a Chapter 1 constraint) Language:** the governance surface is English only.                                                                                                                                                                                                                                                  | **Stated as a decision.** The host ships 22 locales; the governance page is written in one, and fallback is per key so nothing breaks. An Arabic-locale operator gets an Arabic shell around an English governance page, with no RTL handling. Filling the rest would mean shipping strings nobody on the team can verify into a security console, where a mistranslated `deny` is a control an operator misreads. Recorded here rather than omitted, because an examiner in Amman will notice, and "we chose not to" is a better answer than silence.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
-### 4.x.6 Engineering process — QA findings
+### 4.x.6 Engineering process: QA findings
 
 Full table in `GOVERNANCE.md`. Summary for the report: a structured review and
-test pass found **12 defects in our own code**, two of them serious — (1) the
+test pass found **12 defects in our own code**, two of them serious, (1) the
 audit chain corrupting itself under normal two-process use, and (2) a
 `file://` URL bypassing the network gate entirely. Both were found by writing
 tests that deliberately attacked assumptions, not by ordinary use.
@@ -7017,7 +7017,7 @@ a design lesson.
 One genuine defect was found in OpenClaw itself and written up for filing
 (`UPSTREAM-BUG-REPORT.md`): on Windows, nine tests in
 `src/plugins/contracts/host-hooks.contract.test.ts` fail because the fixture
-deletes a temporary directory while a SQLite handle inside it is still open —
+deletes a temporary directory while a SQLite handle inside it is still open,
 legal on POSIX, refused on Windows. Verified pre-existing by stashing all
 project changes and reproducing on a clean tree.
 
@@ -7036,12 +7036,12 @@ report from a false one.
 - **Deployment/demo instructions:** `GOVERNANCE.md` ("Running it")
 - **Full QA defect table:** `GOVERNANCE.md`
 - **Upstream bug report:** `UPSTREAM-BUG-REPORT.md`
-- **Storage layout:** `~/.openclaw/governance/` — `policy.json`, `users.json`,
+- **Storage layout:** `~/.openclaw/governance/`-`policy.json`, `users.json`,
   `sessions.json`, `audit-ledger.jsonl` (override with
   `OPENCLAW_GOVERNANCE_DIR`, which is also how tests avoid touching real state)
 - **Suggested appendix listings:** `policy-engine.ts` and `audit-ledger.ts` in
-  full — they are the two files that embody the contribution
-- **Round-13 reproduction suites:** `docs-notes/qa-round13-probes/` — six probe
+  full, they are the two files that embody the contribution
+- **Round-13 reproduction suites:** `docs-notes/qa-round13-probes/`, six probe
   files plus a README saying what each covers and how to run it. Strong appendix
   material precisely because the findings in §4.x.20 are uncomfortable: an
   examiner can reproduce every one of them rather than take the table on trust,
@@ -7049,7 +7049,7 @@ report from a false one.
   difference between a self-assessment and a measurement
 - **A methodological footnote worth one paragraph:** the probe harness in
   `probe2` installs an `^.*$` allow rule so that a `block` verdict can only come
-  from a denial — except that `.` does not match a newline, so a multi-line
+  from a denial. Except that `.` does not match a newline, so a multi-line
   command is refused by default-deny instead, and three cases block for the
   wrong reason. It is the round-seven mock-response defect in miniature (a
   harness and the thing it measures disagreeing), found in this round's own
@@ -7058,7 +7058,7 @@ report from a false one.
 
 ### 3.5.51 Provisioning: the first time the layer writes to what it governs (M6)
 
-_Figure candidate: the M-series as a whole — see §3.5.56._
+_Figure candidate: the M-series as a whole. See §3.5.56._
 
 Every mechanism described so far in this chapter **observes and gates**. The
 policy gate reads a proposed tool call and answers; the ledger records what was
@@ -7076,7 +7076,7 @@ The mitigations are worth stating precisely because none of them is new:
 
 1. Provisioning sits at the **Administrator tier** and is ownership-scoped,
    exactly like every other registry operation (§3.5.33).
-2. The organisation is taken from the **session**, never from the request —
+2. The organisation is taken from the **session**, never from the request,
    the rule `registerAgent` established and M5 generalised to every surface
    (§3.5.47).
 3. Every provisioning attempt reaches the ledger **before it is attempted**, so
@@ -7084,7 +7084,7 @@ The mitigations are worth stating precisely because none of them is new:
 
 That third point is a small design decision with a disproportionate payoff. An
 action written only when it succeeds cannot answer _"who kept trying to create
-agents and failing?"_ — and a repeatedly refused creation is precisely the
+agents and failing?"_, and a repeatedly refused creation is precisely the
 pattern an investigator is looking for.
 
 ### 3.5.52 A question that the host had already answered, and the narrower one underneath it
@@ -7118,16 +7118,16 @@ individual instances look like carelessness and the set looks like a finding:
 reload is asynchronous and debounced, so between _saved_ and _exists_ there is a
 window. Reporting success at the opening of that window makes a green tick mean
 "the file was written" while the operator reads it as "the agent is there".
-§3.5.50 records this project shipping exactly one such tick — a deployment check
+§3.5.50 records this project shipping exactly one such tick, a deployment check
 that asked whether a file existed when it should have asked whether _this group_
-had an entry in it — and treats the class as its worst kind of defect.
+had an entry in it, and treats the class as its worst kind of defect.
 
 So the tick waits for the fact it claims. The confirmation polls the **running
 host's** view of the roster, not the file the write just produced:
 
 > Re-reading the file would confirm only that our own write landed, which was
 > never in doubt. **A check whose answer is guaranteed by the thing it is
-> checking is not a check** — the same sentence as round eleven's guard that
+> checking is not a check**. The same sentence as round eleven's guard that
 > compared against the wrong list, arrived at from a different direction.
 
 The command line cannot do this, because it is not the running gateway, and it
@@ -7136,7 +7136,7 @@ says so rather than asserting a confirmation nobody made.
 ### 3.5.53 A two-write transaction, and why the order is an argument
 
 Creating a governed agent requires two writes: OpenClaw's roster, and this
-layer's registry. Either can fail. The decision taken was **all or nothing** —
+layer's registry. Either can fail. The decision taken was **all or nothing**,
 undo the first write, and report loudly.
 
 **The order is the interesting part.** The host write happens first, and the
@@ -7153,7 +7153,7 @@ asymmetry is large, and putting the risky write first converts most failures fro
 "roll back" into "nothing happened".
 
 **The intermediate state is fail-closed, and not by luck.** Between the two
-writes the agent exists on the host with no registry record — and M5 made an
+writes the agent exists on the host with no registry record, and M5 made an
 unregistered agent _refused at the gate_ (§3.5.47). The window this transaction
 opens is therefore harmless because of a decision taken weeks earlier for an
 entirely unrelated reason. That is an argument for mandatory registration worth
@@ -7163,13 +7163,13 @@ was thinking about when it was taken.
 **Reversing the order costs something the ledger cannot give back.**
 `registerAgent` writes to the tamper-evident chain, and the chain never deletes.
 Rolling a registration back would leave a permanent register/unregister pair for
-an agent that never existed — _a true record of a thing that did not happen_,
+an agent that never existed, _a true record of a thing that did not happen_,
 which is worse than no record at all. The ordering is thus constrained by the
 audit design, not only by failure probability.
 
 **Deletion follows the same rule, and the first draft of it did not.** Removing an
 agent was first written as "drop the governance record, then delete the agent,
-and put the record back if the host refuses" — the reversible step first, which
+and put the record back if the host refuses". The reversible step first, which
 reads as the cautious order. It is not reversible. Unregistering also **revokes
 the agent from every account holding it**, and re-registering restores the row
 and not the assignments; a refused deletion would have left every User who had
@@ -7178,7 +7178,7 @@ of handling it: if the host refuses, nothing has happened at all. The
 transferable form:
 
 > **"Reversible" is a claim about what an operation does, not about what its name
-> suggests.** `unregister` sounds like the inverse of `register`, and it is not —
+> suggests.** `unregister` sounds like the inverse of `register`, and it is not,
 > one of them has a side effect the other cannot restore.
 
 **And the rollback is only safe because two verbs were kept apart.** `register`
@@ -7223,8 +7223,8 @@ result is still valid JSON. For a project whose central claim is that it protect
 the system it runs on, that is the worst available bug.
 
 The decision taken was: follow the pointer where possible, refuse and name the
-file where not. That maps onto a boundary the host already draws — it writes
-through a **top-level** include and not a nested one — so the fallback triggers
+file where not. That maps onto a boundary the host already draws, it writes
+through a **top-level** include and not a nested one, so the fallback triggers
 exactly where the host's own support ends, and matches what upstream's `setup.ts`
 does in the same situation. **The safe behaviour was obtained by agreeing with
 the host rather than by inventing a rule.**
@@ -7238,7 +7238,7 @@ The dashboard assembles one props bundle for all of its agent panels. The
 registry panel's controller contributes `onDraft`; the conversation panel already
 contributed an `onDraft` of its own. In a merged object the later spread wins,
 and it was the wrong one. **The Remove button rendered correctly and did nothing
-when clicked** — no error, no console warning, no failed request. The click ran a
+when clicked**, no error, no console warning, no failed request. The click ran a
 different panel's draft handler, which updated a field nobody read.
 
 The type checker was satisfied throughout, and the reason generalises:
@@ -7248,7 +7248,7 @@ The type checker was satisfied throughout, and the reason generalises:
 > the behaviours did not.**
 
 It was caught by a panel test that clicked the button and looked at the words
-that came back — the kind of test §4.x.27 argues for, written for this panel at
+that came back. The kind of test §4.x.27 argues for, written for this panel at
 the same time as the panel itself precisely because M4's registry had shipped
 without one.
 
@@ -7260,28 +7260,28 @@ rather than by the order of two lines. The transferable form:
 > **A generic key in a merged object is a collision waiting for a second user.**
 > `onDraft` had exactly one user for two months, which is exactly how long the
 > hazard was invisible. A design that is safe while something has one user is not
-> safe — it is untested for the case that matters.
+> safe. It is untested for the case that matters.
 
 ### 3.5.56 The M-series as one system
 
-_Figure candidate — a diagram of the whole tenant model, suitable for Chapter 3._
+_Figure candidate. A diagram of the whole tenant model, suitable for Chapter 3._
 
 The six subtasks are easier to defend as one argument than as six features. Each
 one supplies a noun the next one needs.
 
 ```mermaid
 flowchart TB
-    subgraph M3["M3 — the group"]
+    subgraph M3["M3, the group"]
         G["Group<br/>one Root, its own accounts"]
     end
-    subgraph M4["M4 — the registry"]
+    subgraph M4["M4, the registry"]
         A["Agent record<br/>id, name, groupId, one owning Admin"]
     end
-    subgraph M5["M5 — storage isolation"]
+    subgraph M5["M5, storage isolation"]
         S["groups/&lt;groupId&gt;/<br/>policy · ledger · requests · attachments"]
         K["One installation-wide key<br/>one checkpoint keyed by group"]
     end
-    subgraph M6["M6 — panel and provisioning"]
+    subgraph M6["M6, panel and provisioning"]
         P["Provision<br/>host roster + registry, transactional"]
         UI["Administrator panel"]
     end
@@ -7293,8 +7293,8 @@ flowchart TB
     P -->|"creates"| A
     P -->|"writes"| HOST["OpenClaw agents.entries"]
     UI --> P
-    M1["M1 — dashboard driven by hand"] -.->|"found finding 118"| UI
-    M2["M2 — who can reach this agent"] -.->|"found finding 119"| S
+    M1["M1, dashboard driven by hand"] -.->|"found finding 118"| UI
+    M2["M2, who can reach this agent"] -.->|"found finding 119"| S
 
     classDef done fill:#e8f5e9,stroke:#2e7d32
     classDef host fill:#fff3e0,stroke:#ef6c00
@@ -7304,7 +7304,7 @@ flowchart TB
 
 Read as a sentence: **M3 created the organisation, M4 gave it a first-class agent
 record, M5 gave each organisation its own storage while keeping one audit key,
-and M6 made the record creatable — which is also the moment the arrow reverses
+and M6 made the record creatable, which is also the moment the arrow reverses
 and the layer writes to the host.**
 
 Two dependencies in that diagram are worth pointing out to a reader, because
@@ -7319,8 +7319,8 @@ both were initially recorded the other way round:
 ### 3.5.57 Round nineteen: auditing a feature rather than a release
 
 The first eighteen QA rounds reviewed the governance layer as it stood. Round
-nineteen reviewed **the M-series as one system** — groups, the registry,
-per-group storage and provisioning — on the argument that a feature assembled
+nineteen reviewed **the M-series as one system**, groups, the registry,
+per-group storage and provisioning, on the argument that a feature assembled
 from four subtasks has seams no subtask owns.
 
 It found three defects, **128–130**, and the first is the most instructive
@@ -7328,8 +7328,8 @@ finding in the project since round eleven.
 
 #### The key and the spelling: finding 128
 
-Agent ids pass through the host's `normalizeAgentId` — lowercased,
-non-`[a-z0-9_-]` coerced to `-`, truncated at 64 — everywhere OpenClaw uses them.
+Agent ids pass through the host's `normalizeAgentId`, lowercased,
+non-`[a-z0-9_-]` coerced to `-`, truncated at 64, everywhere OpenClaw uses them.
 The governance registry stored `id.trim()`.
 
 Each half is obviously correct read alone. Together they mean the registry's key
@@ -7347,14 +7347,14 @@ The first three are one defect: **an agent that looks governed and is not**, wit
 no error, no log entry and no screen that would reveal it. The operator's only
 evidence is that the agent does nothing.
 
-The fourth is a security property failing. §3.5.47 records M5's decision 2 —
+The fourth is a security property failing. §3.5.47 records M5's decision 2,
 agent-id uniqueness stays _installation-wide_ rather than becoming per-group,
 because session keys are `agent:<id>:…` and global, so two groups sharing an id
 would collide in the session store, in T6's lineage walk and in the kill switch.
 Case made the duplicate check bypassable, so **that uniqueness did not hold.**
 Two organisations could each hold a record of one agent; the canonical spelling
 wins the gate, and the other organisation's Administrator writes rules into a
-document the gate never reads — _policy that is a no-op and looks exactly like
+document the gate never reads, _policy that is a no-op and looks exactly like
 policy that works._
 
 **The transferable claim, and it is the one for Chapter 4:**
@@ -7367,7 +7367,7 @@ policy that works._
 And the project had already learned this. Finding 114 was the display spelling of
 an _account_ used as a key; `account-name.ts` exists to prevent exactly that and
 says so in its header; eight modules fold through it. The registry, written
-later, did not — **a codebase that has solved a problem once solves it again only
+later, did not, **a codebase that has solved a problem once solves it again only
 where somebody remembers to ask.**
 
 #### Finding 129, and the third fix to introduce its own defect
@@ -7380,8 +7380,8 @@ agent called `"###"` silently claimed **the installation's default agent**.
 The guard intended to stop this read `if (!agentId)` and could never fire,
 because the coercion never returns empty.
 
-This is the third instance in the project's records — after 116 (T23
-reintroducing its own defect) and 117 (introduced by the fix for 112) — and three
+This is the third instance in the project's records, after 116 (T23
+reintroducing its own defect) and 117 (introduced by the fix for 112), and three
 is enough to state the rule rather than the anecdote:
 
 > **A fix is not audited as hard as the thing it fixes**, because writing one
@@ -7392,13 +7392,13 @@ is enough to state the rule rather than the anecdote:
 #### Finding 130: a comment describing a property the code lacked
 
 Provisioning's preflight carries a comment stating that every knowable refusal is
-moved ahead of the first write — the property Kinan's all-or-nothing decision
+moved ahead of the first write. The property Kinan's all-or-nothing decision
 rests on (§3.5.53). The owner-eligibility check was not in it, so naming an
 ineligible owner built a real agent, with workspace and identity file, and then
 deleted it.
 
 Same class as round eleven's guard naming the wrong source of truth and M5's
-deployment check reporting an absent defence — **except the false claim lived in
+deployment check reporting an absent defence, **except the false claim lived in
 a comment**, and a comment cannot be run. That makes it strictly worse than a
 wrong assertion, and it is worth saying so: prose in source is documentation with
 none of documentation's review.
@@ -7409,7 +7409,7 @@ Thirty-six tests, several asserting properties the M-series had argued for in
 prose and never checked: the cross-organisation boundary on listing, renaming,
 deleting, assigning and ownership transfer; absence-not-forbidden replies so the
 registry is not an enumeration oracle; mandatory registration and its cache
-invalidation; and — the central claim of M5 — **per-group directories, policy
+invalidation; and, the central claim of M5, **per-group directories, policy
 documents and ledger files verified on disk, each chain verifying independently
 on one installation-wide key, including under interleaved writes.**
 
@@ -7420,7 +7420,7 @@ category as round eleven's guard: it is believed because it was written down.
 ### 3.5.58 Round twenty: reading the code against the requirements
 
 Round nineteen audited the M-series against itself. Round twenty took the rest of
-the window's work — T6 and finding 120's fix, T7's audit half, T28, T30, T16 —
+the window's work, T6 and finding 120's fix, T7's audit half, T28, T30, T16,
 and read it against **§1.3's nine design requirements**, on the argument that a
 review measuring code against its own comments cannot find a requirement breach.
 
@@ -7430,7 +7430,7 @@ It found one, and the method is the transferable part.
 
 `search-audit.ts` recovers the paths a completed search returned, by reading the
 filename off the front of each result line. Where no filename was found it fell
-back to the whole line. `grep` searching a _single_ file omits the filename — so
+back to the whole line. `grep` searching a _single_ file omits the filename, so
 the whole line is the file's **content**, and that content was resolved as a path
 and written into the tamper-evident ledger under any broad denial.
 
@@ -7443,7 +7443,7 @@ search-reached-denied | 13:password=hunter2
 
 **Requirement 8** reads: _"The system shall prevent sensitive data (such as
 secrets or credentials) from being written in plaintext to log files."_ The
-breach is in the most durable file the project has — the one three core denials
+breach is in the most durable file the project has. The one three core denials
 protect and which never deletes.
 
 The function's own doc comment is what hid it:
@@ -7451,8 +7451,8 @@ The function's own doc comment is what hid it:
 > "a line that is not a path is simply one that will normalize to something no
 > denial matches"
 
-True, and only while no denial is broad. The commonest rule an operator writes —
-confine this agent to its workspace — matches nearly everything beneath it. **The
+True, and only while no denial is broad. The commonest rule an operator writes,
+confine this agent to its workspace, matches nearly everything beneath it. **The
 comment described a property that held under an assumption the comment did not
 state.** Round eleven's guard again, and finding 130's comment-that-cannot-be-run
 one week later.
@@ -7466,7 +7466,7 @@ one week later.
 #### The stronger claim about requirement 8, which the report should make
 
 The ledger already passes every recorded resource through `redactToolPayloadText`
-before writing it — **and these secrets went through unredacted.**
+before writing it, **and these secrets went through unredacted.**
 
 That is not a defect in the redactor. It targets _registered_ secret values and
 recognised token shapes, which is the correct contract for tool payloads;
@@ -7486,7 +7486,7 @@ the expected answer is the weaker one:
 Recorded because the project has documented this failure twice already and it
 recurred in the round's own instrumentation.
 
-Mutation testing showed the expiry filter in `applicableDenials` was unasserted —
+Mutation testing showed the expiry filter in `applicableDenials` was unasserted,
 removing it left all eleven search-audit tests green. That is a **requirement 4**
 property ("time-limited permissions"), so it needed an assertion. The first one
 used an expired denial on `secrets/key.pem`, saw the reach recorded anyway, and
@@ -7496,8 +7496,8 @@ It was not. `.pem` is covered by a **shipped core denial**, which never expires.
 The entry came from the floor, not from the expired rule.
 
 > **A test about one rule must use a resource no other rule matches, or it is
-> measuring the baseline.** Round five's lesson — tests and code written from the
-> same wrong assumption agree with each other — reappearing in a test written to
+> measuring the baseline.** Round five's lesson, tests and code written from the
+> same wrong assumption agree with each other, reappearing in a test written to
 > catch exactly that class of error.
 
 #### Requirement conformance, checked rather than assumed
@@ -7505,28 +7505,28 @@ The entry came from the floor, not from the expired rule.
 | Req | Property                                                        | Status                                                                                                                                                                                                                    |
 | --- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 4   | Time-limited permissions bind the **audit** as well as the gate | Now asserted, both directions                                                                                                                                                                                             |
-| 5   | Record 100% of actions and decisions                            | A reach past a denial is recorded as `ungoverned` — the ledger's word for "happened without the gate judging it" — rather than as a `deny`, which would pad the count of things the gate stopped                          |
+| 5   | Record 100% of actions and decisions                            | A reach past a denial is recorded as `ungoverned`, the ledger's word for "happened without the gate judging it", rather than as a `deny`, which would pad the count of things the gate stopped                            |
 | 6   | Tamper-evident logging                                          | T30's test-only rotation override is unreachable from configuration, policy or network, and the shipped 8 MB constant is asserted separately so lowering the override cannot hide a change to it                          |
-| 7   | Stop an agent within one second                                 | Asserted in three places, including end-to-end through the HTTP surface — measured _and_ bounded                                                                                                                          |
-| 8   | No secrets in plaintext in logs                                 | **Breached (131), fixed.** Met by exclusion rather than redaction — see above                                                                                                                                             |
+| 7   | Stop an agent within one second                                 | Asserted in three places, including end-to-end through the HTTP surface, measured _and_ bounded                                                                                                                           |
+| 8   | No secrets in plaintext in logs                                 | **Breached (131), fixed.** Met by exclusion rather than redaction, see above                                                                                                                                              |
 | 2   | RBAC over the dashboard and CLI                                 | T16's CLI split kept every gate. Two commands are deliberately ungated and say why: they act only on accounts that predate groups and therefore cannot sign in, on an installation where there may be nobody left who can |
 
 ### 3.5.59 Recording the raw LLM intent (round twenty-one)
 
 §1.6's "Granular Event Tracking" names six fields for the log. Five were present
-from the first ledger entry; the sixth — **the raw LLM intent** — was recorded as
+from the first ledger entry; the sixth, **the raw LLM intent**, was recorded as
 a conformance gap in §3.5.58 and is now implemented.
 
 **The interpretation matters and should be stated in the report.** "Raw LLM
 intent" is taken here as _the assistant's own words on the turn that produced the
 call_: its reasoning blocks where the provider emits them, its visible narration
 otherwise. Not a re-derivation by the layer, and not a second question put to the
-model — both of which would make the field the layer's opinion rather than the
+model, both of which would make the field the layer's opinion rather than the
 model's statement. The value of the field is precisely that it is quotable
 against the action beside it.
 
 **Where it comes from.** The gate runs at `before_tool_call` and receives a tool
-name, parameters and a session key — no assistant text, because the message that
+name, parameters and a session key, no assistant text, because the message that
 requested the call is already behind it. The text exists one step earlier, at
 `llm_output`. So intent is captured when the model speaks, held per session, and
 read when the tool runs. The capture is a **direct call** rather than a
@@ -7543,11 +7543,11 @@ fails two independent integrity tests.
 
 #### Three defects in one day's work, and what they have in common
 
-| #   | Defect                                                                                                                                                                                                            | Class                                                                            |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| 132 | A comment claiming the payload tag closed an agent-reachable collision. It is not reachable — every entry is keyed, so the colliding pair cannot exist. Mutation testing found it: removing the tag broke nothing | **A comment describing a property the code lacks** — finding 130, one week later |
-| 133 | The Viewer sanitiser masks `resource` and nothing else, so the new field reached a read-only account verbatim — and narration discloses more than a path does                                                     | **A new field not inheriting an existing protection**                            |
-| 134 | `forgetAgentIntent` written, exported, never called; the size cap already did the work                                                                                                                            | **An exported function with no caller** — finding 113's family, fourth member    |
+| #   | Defect                                                                                                                                                                                                           | Class                                                                           |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| 132 | A comment claiming the payload tag closed an agent-reachable collision. It is not reachable. Every entry is keyed, so the colliding pair cannot exist. Mutation testing found it: removing the tag broke nothing | **A comment describing a property the code lacks**, finding 130, one week later |
+| 133 | The Viewer sanitiser masks `resource` and nothing else, so the new field reached a read-only account verbatim, and narration discloses more than a path does                                                     | **A new field not inheriting an existing protection**                           |
+| 134 | `forgetAgentIntent` written, exported, never called; the size cap already did the work                                                                                                                           | **An exported function with no caller**, finding 113's family, fourth member    |
 
 The three together make a claim worth putting in Chapter 4: **adding one field to
 a tamper-evident record is not a small change.** It touches verification (132),
@@ -7560,12 +7560,12 @@ functions below the sanitiser, `isPromptEntry` carries a comment saying that
 "which entries carry private text" is a judgement each new action must make
 explicitly. That was written for a different field a month earlier, and did not
 prevent the same mistake being made for this one. **A lesson recorded in one
-place is not a lesson applied in the next** — §3.5.52's finding, arriving again.
+place is not a lesson applied in the next**, §3.5.52's finding, arriving again.
 
 #### The honest limit
 
-The end-to-end ordering — `llm_output` firing before the same turn's tool calls
-execute — is **reasoned from the runner's structure, not observed**, because no
+The end-to-end ordering, `llm_output` firing before the same turn's tool calls
+execute, is **reasoned from the runner's structure, not observed**, because no
 language model has yet driven a tool call through this layer (T2). Every piece is
 unit-tested; the seam between them is not.
 
@@ -7580,7 +7580,7 @@ next turn.
 
 The ledger is the project's evidence. Requirement 8 says sensitive data must not
 be written to it in plaintext, and requirement 5 says every action must be
-recorded — **the two pull against each other**, because the most faithful record
+recorded, **the two pull against each other**, because the most faithful record
 of a command is its exact text, and the exact text is where a password sits.
 This section is about where that line was drawn, and about the one place it had
 been drawn wrongly since the fork began.
@@ -7588,8 +7588,8 @@ been drawn wrongly since the fork began.
 #### How the masking actually works
 
 The ledger does not mask anything itself. `appendLedgerEntry` calls
-`redactToolPayloadText` on the `resource` field — and, since round twenty-one, on
-`intent` — before the entry is hashed into the chain:
+`redactToolPayloadText` on the `resource` field, and, since round twenty-one, on
+`intent`, before the entry is hashed into the chain:
 
 ```ts
 resource: clampResource(redactToolPayloadText(input.resource)),
@@ -7600,13 +7600,13 @@ resource: clampResource(redactToolPayloadText(input.resource)),
 Two properties follow from that placement and both matter to the report.
 **Masking happens before hashing**, so the chain commits to the redacted text and
 there is no window in which a plaintext secret is covered by a valid signature.
-And **the call is unconditional** — the surrounding comment says tool payloads
+And **the call is unconditional**. The surrounding comment says tool payloads
 "never skip redaction, even if some caller wanted it off", because the host's
 logging configuration can disable redaction globally and the ledger must not
 inherit that choice.
 
-`redactToolPayloadText` is upstream's, and it is a list of regular expressions —
-`DEFAULT_REDACT_PATTERNS` — applied in order. Four families are relevant here:
+`redactToolPayloadText` is upstream's, and it is a list of regular expressions,
+`DEFAULT_REDACT_PATTERNS`, applied in order. Four families are relevant here:
 structured fields (JSON keys), environment variables, config assignments, and
 **command-line flags**.
 
@@ -7620,13 +7620,13 @@ The two CLI-flag patterns were anchored directly to the flag introducer:
 ```
 
 The key has to begin immediately after `--`. So `--password=` matched and
-`--http-password=` did not — the alternation never gets a chance to match
+`--http-password=` did not. The alternation never gets a chance to match
 `password`, because the text at that position is `http-password`. **One component
 of prefix disabled the entire list.** Not one key: `--db-password=`,
 `--admin-password=`, `--gateway-password=`, `--http-token=` and any other
 component-scoped credential flag went into the tamper-evident chain verbatim.
 
-Figure candidate — _the same secret, several spellings, two outcomes._ The
+Figure candidate, _the same secret, several spellings, two outcomes._ The
 asymmetry is the whole point and reads better as a table than as prose:
 
 | Flag                | Before     | After    |
@@ -7674,7 +7674,7 @@ are ordinary arguments, and a masker that hid them would make the ledger say
 something other than what ran.
 
 The pattern also matches **prefixes only, never suffixes**, so
-`--password-file=/etc/pw.txt` keeps showing its path — a filename is not a
+`--password-file=/etc/pw.txt` keeps showing its path. A filename is not a
 credential, and hiding it would delete the very detail an investigator needs.
 
 > **The general principle, and it is requirement 5 defending itself against
@@ -7687,7 +7687,7 @@ This is the same reasoning that produced the 2026-08-27 decision to leave
 `mysql -phunter2` alone: a bare `-p` means "make parent directories" to `mkdir`,
 "publish a port" to `docker` and "preserve permissions" to `tar`. That short form
 remains a **stated limitation**, and §2.1.5.2's suggested entropy analysis would
-not have caught it either — a memorable password is low-entropy by definition.
+not have caught it either. A memorable password is low-entropy by definition.
 
 #### The cost, which is why this was a decision and not a task
 
@@ -7703,7 +7703,7 @@ Three options were on the table and the trade is worth recording:
 | Fix inside `audit-ledger.ts` (fork code) | The ledger only                            | none              |
 | Record as a stated limitation            | none                                       | none              |
 
-The second was genuinely tempting — requirement 8 is about the ledger, and the
+The second was genuinely tempting. Requirement 8 is about the ledger, and the
 fork diff is something the report has to defend. It was rejected for two reasons:
 it puts **two maskers in the system that can drift apart**, and the leak is real
 in OpenClaw's ordinary logs too, so fixing it only where this project is graded
@@ -7711,7 +7711,7 @@ would be fixing the measurement rather than the problem.
 
 **This is also the first upstream file modified for a security guarantee rather
 than to wire the layer in.** Every other entry on that list of 24 exists because
-governance had to be _reachable_ — hook payloads, route registration, navigation,
+governance had to be _reachable_. Hook payloads, route registration, navigation,
 the control UI. This one exists because inherited code was wrong. Chapter 4
 should say so: "we found and fixed a real defect in the host" is a stronger
 contribution claim than the diff size is a weakness.
@@ -7726,7 +7726,7 @@ own suite, where §4.x.5's traceability table can cite it.
 There are two tests, and the second is the unusual one. The first asserts that
 five prefixed credential flags do not survive into the ledger file; reverting the
 pattern change fails it. The second asserts that `--password-file=`, `--sort-key=`
-and `--first-pass=` **do** survive verbatim — a test that the control does _not_
+and `--first-pass=` **do** survive verbatim. A test that the control does _not_
 fire. It passes with or without the fix, which by this project's own mutation
 standard makes it worthless as proof of the fix. It is not there for that. It is
 there so that a future widening of the pattern fails loudly instead of silently
@@ -7762,7 +7762,7 @@ work, and the correction is Chapter 4 material.
    is a single location and no single location expresses "everything under `.`
    except this file". Narrowing can only move the root deeper, which either
    still contains the file or discards what the operator asked for.
-2. **Hand the tools an exclusion set.** Smaller than recorded — `grep` runs
+2. **Hand the tools an exclusion set.** Smaller than recorded, `grep` runs
    ripgrep and `find` runs fd, and both accept exclusions natively, so this was
    never the "real host change" the rows describe. It fails for a different
    reason: those arguments take **globs**, and policy denials are **regular
@@ -7788,7 +7788,7 @@ The audit half runs at two sites and **neither can be used**:
 `handleToolExecutionEnd` handles a `tool_execution_end` **event**, and
 `runAgentHarnessAfterToolCallHook` returns `Promise<void>`. Both are observers.
 Filtering there would change the transcript and the logs while the original text
-still reached the model — worse than doing nothing, because it would look like a
+still reached the model. Worse than doing nothing, because it would look like a
 control while being none.
 
 The seam that works is `afterToolCall`. In `finalizeExecutedToolCall`
@@ -7819,7 +7819,7 @@ that slot. Three properties of the installation are load-bearing:
 both call one extraction, `candidateFromLine`. That sharing is deliberate: two
 copies of "which path does this line refer to" would eventually disagree, and
 the disagreement would be a path recorded as reached that the filter had not
-removed — the ledger and the model's context telling different stories about one
+removed. The ledger and the model's context telling different stories about one
 search. It also means the filter inherits **finding 131's fix** for free: grep's
 matched _content_ is not a path candidate, so a broad denial cannot cause file
 text to be treated as a resource. That inheritance is asserted rather than
@@ -7837,13 +7837,13 @@ rather than the unchecked result. This is the opposite of `auditSearchReach`,
 which swallows every error, and the difference is the point: an audit that fails
 silently loses a record, while a **filter** that fails silently hands over the
 exact content it exists to withhold. The blast radius is bounded to three tools,
-and by the time this runs the policy was readable moments earlier — the gate read
+and by the time this runs the policy was readable moments earlier. The gate read
 it to allow the call at all.
 
 **It tells the agent.** A withheld result is replaced by
 `[N results withheld by governance policy: …]` rather than silently shortening
 the list. Silence would teach the model the file does not exist, and it may then
-act on that belief — reporting a clean scan, or creating a file it thinks absent.
+act on that belief. Reporting a clean scan, or creating a file it thinks absent.
 The notice counts **distinct files, not matching lines**, because three matches
 in one denied file is one withheld result and reporting three would disclose how
 much is in a file the agent may not read.
@@ -7882,11 +7882,11 @@ transform a result before the model sees it. On that backend the middleware
 _runs_, computes a transformed result, and the transformed result is handed only
 to observers while the model receives the original. Any user relying on that
 extension point gets it silently not applied there. This project's feature is one
-casualty of a general platform limitation rather than a special case — which is a
+casualty of a general platform limitation rather than a special case, which is a
 contribution-shaped finding rather than a limitation-shaped one, and belongs in
 Chapter 4 on that footing.
 
-_Figure candidate — the two runtimes and one seam: tool result → `afterToolCall`
+_Figure candidate. The two runtimes and one seam: tool result → `afterToolCall`
 → model on the in-process path, versus tool result → observers only on the Codex
 path, with the model unreachable from the hook. It makes the asymmetry visible in
 a way the prose cannot._
@@ -7922,10 +7922,10 @@ this default-denies a _runtime_ whose enforcement is incomplete.
 
 #### Two switches, two tiers, and the reasoning is the tier model itself
 
-| Switch          | Question                                      | Tier              | Why                                                                                                                                                                                                                       |
-| --------------- | --------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `backend/codex` | Does this backend exist on this installation? | **Root**          | Writes OpenClaw's configuration. Disabling also withdraws the Codex-managed model catalogue, media understanding and prompt overlays, and leaves supervised chats locked — deployment consequences, which §1.6 gives Root |
-| `agents/codex`  | May _this agent_ use it?                      | **Administrator** | An agent's security boundary, which §1.6 gives the Administrator. Ownership-scoped like every other registry mutation; Root reaches it by inheritance                                                                     |
+| Switch          | Question                                      | Tier              | Why                                                                                                                                                                                                                      |
+| --------------- | --------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `backend/codex` | Does this backend exist on this installation? | **Root**          | Writes OpenClaw's configuration. Disabling also withdraws the Codex-managed model catalogue, media understanding and prompt overlays, and leaves supervised chats locked. Deployment consequences, which §1.6 gives Root |
+| `agents/codex`  | May _this agent_ use it?                      | **Administrator** | An agent's security boundary, which §1.6 gives the Administrator. Ownership-scoped like every other registry mutation; Root reaches it by inheritance                                                                    |
 
 **They compose in the safe direction.** An agent permitted by an Administrator
 still cannot use a backend Root has not enabled. Neither switch alone opens the
@@ -7935,7 +7935,7 @@ gap.
 worth recording. `policy/mode` is Administrator, and matching it looked
 consistent. But the posture changes _governance's own state_ in `policy.json`,
 which this layer owns, while the installation switch writes **the host's**
-configuration — the layer reaching outside itself, which M6 established as a
+configuration. The layer reaching outside itself, which M6 established as a
 reversal of the trust direction. An Administrator toggling what reads as a
 security setting could have removed an operator's model access. The per-agent
 switch has no such reach, which is exactly why it stays with the Administrator.
@@ -7948,8 +7948,8 @@ decided.
 
 The `explicit` field is the design point: **consent and coincidence are different
 states.** "Off by default, nobody has enabled this" is not the same sentence as
-"off, somebody decided that", and the dashboard says which. A malformed entry — a
-string where a boolean belongs — also reports `explicit: false`, because a typo
+"off, somebody decided that", and the dashboard says which. A malformed entry, a
+string where a boolean belongs, also reports `explicit: false`, because a typo
 is not consent and the only reading that cannot turn one into an accepted
 enforcement gap is to fall back to the safe answer.
 
@@ -7959,9 +7959,9 @@ A permission nothing checks is a setting. Enforcing this one required the gate t
 know **which runtime a call arrived from**, and it could not: the relay passed no
 such fact.
 
-`nativeHarness?: boolean` was added to three context types — `HookContext`,
-`AgentHarnessHookContext` and `PluginHookAgentContext` — and set at the two
-native relay sites whose value something reads — `pre_tool_use`, which is the one
+`nativeHarness?: boolean` was added to three context types, `HookContext`,
+`AgentHarnessHookContext` and `PluginHookAgentContext`, and set at the two
+native relay sites whose value something reads, `pre_tool_use`, which is the one
 that reaches the gate, and `before_agent_finalize`. **Not at `post_tool_use`**,
 which passes no context object at all, so there is nothing there that could read
 it; finding 153 corrected three write-ups that said "both relay call sites" and
@@ -7978,21 +7978,21 @@ Recorded as `agent-not-permitted-on-codex`, decision `deny`.
 
 **Four properties of that check are deliberate.** It runs **after the posture and
 after the lockdown, before any rule**, because it asks whether the agent may be
-running _here at all_ rather than what it may do — an agent on a forbidden
+running _here at all_ rather than what it may do. An agent on a forbidden
 runtime should be refused uniformly, not judged rule by rule on a path where a
 denial cannot be enforced. It **blocks in monitor mode**, for the reason the kill
 switch and the core denials do: monitor suspends policy _opinions_, and this is
 not one. It is **skipped entirely** when the marker is absent, so the in-process
 path pays one property read. And the reason **names the remedy**, so a refusal
-explains itself at the point it occurs — this project's worst bug class is a
+explains itself at the point it occurs. This project's worst bug class is a
 failure with no visible cause.
 
 > **This paragraph read "before the lockdown" until 2026-08-31, and the code
-> matched it. Both were wrong — finding 152.** The outcome never differed: a
+> matched it. Both were wrong. Finding 152.** The outcome never differed: a
 > locked, unpermitted agent on Codex was refused either way. The **ledger entry**
 > differed, and that is the whole value of the kill switch after the fact. It
 > read `agent-not-permitted-on-codex`, so an operator asking the one question an
-> emergency stop exists to answer — _did it hold?_ — got a true sentence about
+> emergency stop exists to answer, _did it hold?_, got a true sentence about
 > the wrong subject.
 >
 > The comment above the lockdown block has said "checked before anything else"
@@ -8001,7 +8001,7 @@ failure with no visible cause.
 > it gives. **An invariant stated with an example is read as being about the
 > example.** It is now stated as a rule first.
 >
-> Worth Chapter 4: three of this project's defects — 81, 120 and 152 — are the
+> Worth Chapter 4: three of this project's defects, 81, 120 and 152, are the
 > same sentence about the kill switch failing in a different way, and each time
 > the enforcement was right and the _evidence_ was wrong. A control whose value
 > is retrospective fails quietly, because nothing is broken until somebody asks.
@@ -8052,8 +8052,8 @@ surfaces cannot drift into disagreeing about what this installation is doing.
 | `governance.agent.codex`           | An Administrator permitted or refused one agent          |
 
 **The first two are a pair, added 2026-09-02 (finding 217.)** There was one
-entry, written before the configuration change was attempted — which is the
-right moment, so a change that fails half-way still shows who asked — and
+entry, written before the configuration change was attempted, which is the
+right moment, so a change that fails half-way still shows who asked, and
 phrased as the accomplished change. `replaceConfigFile` takes a base hash and
 throws when the configuration moved underneath it, so a failed toggle left the
 tamper-evident trail asserting that this installation had begun accepting the
@@ -8077,7 +8077,7 @@ investigation wants, and recording only success hides it.
 #### Making the consent visible afterwards
 
 Consent given once decays: six weeks later nobody remembers which agents it
-covered. So every agent row, in every listing, states its engine permission — and
+covered. So every agent row, in every listing, states its engine permission, and
 it is shown to **every tier that can see the agent, Viewers included**. It is a
 permission rather than a secret, and noticing that an agent is permitted onto a
 runtime where denials are not fully enforced is precisely what oversight is for.
@@ -8088,7 +8088,7 @@ that is resolved at session start from the model provider and recorded nowhere.
 A column claiming "running on Codex" would be inventing precision the data does
 not support. "Engine: built-in only" and "engine: built-in or Codex" are true.
 
-_Figure candidate — the two-layer permission: Root's machine switch and the
+_Figure candidate. The two-layer permission: Root's machine switch and the
 Administrator's per-agent one as two gates in series, with an agent reaching the
 Codex runtime only when both are open, and the in-process runtime always
 available. It makes "they compose in the safe direction" visible in a way the
@@ -8097,7 +8097,7 @@ table does not._
 ### 3.5.63 Two ways to record the wrong person, and why only one is a type problem
 
 **Built 2026-08-31 (T35).** `AuditActorInput` is the parameter every
-administrative write in this layer passes through — seventeen store mutators
+administrative write in this layer passes through. Seventeen store mutators
 forward it unchanged into `recordAdminAction`, which is the single point where
 "who did this" enters the tamper-evident chain. It is therefore the place in the
 codebase where being wrong is **least visible and most consequential**: the
@@ -8119,8 +8119,8 @@ type AuditActorInput = string | { name: string; role?: GovernanceRole };
 ```
 
 The union is deliberate and its design note explains it: a bare string is a
-**labelled origin** — `cli`, `bootstrap`, `unknown`, `unauthenticated`,
-`hitl-approval` — which is not an account and holds no tier, while the object arm
+**labelled origin**, `cli`, `bootstrap`, `unknown`, `unauthenticated`,
+`hitl-approval`, which is not an account and holds no tier, while the object arm
 is a named account acting at a known tier. Two shapes rather than two fields,
 because widening a _type_ let a caller supply a tier without editing seventeen
 forwarding signatures.
@@ -8136,7 +8136,7 @@ values of that type and a bare `"cli"` stops compiling. **It was built and
 measured.** The result argues against it, and the measurement is the part worth
 carrying into the report:
 
-- **Eight rewrites in shipped code — and not one of them was a defect.** All
+- **Eight rewrites in shipped code: and not one of them was a defect.** All
   eight were legitimate usernames (`input.username`, `params.decidedBy`,
   `created.requestedBy`) flowing in as plain strings, exactly the second meaning
   the union has always carried.
@@ -8156,7 +8156,7 @@ type's own doc comment** rather than in a commit message nobody re-reads.
 > cost is paid where the _idiom_ lives rather than where the _defect_ lived. The
 > defect was in two lines of shipped code; the cost was in three hundred lines of
 > tests that were never wrong. Deciding that trade requires running the compiler,
-> not reasoning about it — which is the same lesson as finding 155, whose
+> not reasoning about it, which is the same lesson as finding 155, whose
 > write-up asserted a compiler behaviour that reintroducing the bug disproved.
 
 #### What was built instead
@@ -8171,13 +8171,13 @@ if (RESERVED_ACTOR_NAMES.has(actor.name)) {
 
 A named actor may not claim a labelled origin's name, with or without a tier.
 This catches finding 161 exactly, costs nothing in churn, and lives in
-`splitAuditActor` — the one function every recorded actor passes through, whether
+`splitAuditActor`. The one function every recorded actor passes through, whether
 it arrived from the dashboard, the CLI or an internal path.
 
 **Three design choices inside it are worth stating.**
 
 **It throws rather than normalising.** Rewriting `{ name: "cli", role: "root" }`
-to `CLI_ACTOR` would produce a plausible entry and hide the bug — which is how
+to `CLI_ACTOR` would produce a plausible entry and hide the bug, which is how
 finding 149 survived six days. A caller in this position has a real actor
 available and is discarding it; that is worth stopping.
 
@@ -8186,13 +8186,13 @@ authority. One rule is easier to hold than two, and the caller who genuinely
 wants the label has the exported constant two characters away.
 
 **The message names the remedy**, because a thrown error on an audit path is read
-by whoever is least expecting it — the same reason the gate's refusals name the
+by whoever is least expecting it. The same reason the gate's refusals name the
 Administrator who can fix them.
 
 #### Why finding 149 is not closed by this, and what actually closed it
 
 Nothing cheap in the type system catches `"cli"` passed where a real actor was
-available, because `"cli"` **is** a legitimate value — it is legitimate on the two
+available, because `"cli"` **is** a legitimate value. It is legitimate on the two
 paths where nobody can sign in. The distinction is not about the value; it is
 about whether the _call site_ had an alternative.
 
@@ -8214,19 +8214,19 @@ lint rule or a later QA round. The table is written by hand, read by an examiner
 and until this pass had been _re-derived_ never.
 
 **The method was deliberately the inverse of reading it.** Each row was
-re-established from the source — the file, the function, the branch that makes
-the claim true — and only then compared with what the row said. Reading the row
+re-established from the source, the file, the function, the branch that makes
+the claim true, and only then compared with what the row said. Reading the row
 first is how a stale claim survives: it supplies the conclusion, and the code is
 then skimmed for agreement.
 
 **Eight rows re-derived clean. One caveat was false.** Row 5 carried _"CLI-origin
-changes are attributed to `cli`, not a person"_ — untrue since T5 on 2026-08-24
+changes are attributed to `cli`, not a person"_. Untrue since T5 on 2026-08-24
 (finding 163). Row 5 also under-claimed: since it was written, the ledger gained
 records for searches reaching a denied path and for results withheld from the
 model, so the trail now separates _what leaked_ from _what was stopped_.
 
-> **The number worth putting in Chapter 4 is four.** That single sentence — the
-> CLI has no login — was found and corrected in **four separate documents in
+> **The number worth putting in Chapter 4 is four.** That single sentence, the
+> CLI has no login, was found and corrected in **four separate documents in
 > seven days**: two citations in `CLI-REFERENCE.md` on 2026-08-30, the section
 > that _defines_ it in the same file on 2026-08-31 (finding 160), and this
 > validation table the same afternoon (finding 163).
@@ -8234,8 +8234,8 @@ model, so the trail now separates _what leaked_ from _what was stopped_.
 > **A fact stated once and cited three times is four things to maintain, and
 > nothing links them.** The correction pass on the 30th searched for where the
 > claim was _used_ and missed where it was _defined_; T36 then found it in a
-> fourth place that neither pass looked at. This is not carelessness — each pass
-> was thorough within the scope it chose — it is what happens when a claim has no
+> fourth place that neither pass looked at. This is not carelessness, each pass
+> was thorough within the scope it chose, it is what happens when a claim has no
 > canonical home and every restatement is an independent copy.
 
 **Row 7's caveat was re-derived and survives**, which is the other half of what
@@ -8253,7 +8253,7 @@ only be re-read; one whose evidence is named can be re-run.
 
 **Scheduling, stated because it was argued about.** T36 was raised on 2026-08-31
 and the recommendation was to do it _immediately before Chapter 4 is written_
-rather than at once — re-deriving early does not prevent staleness, it only resets
+rather than at once. Re-deriving early does not prevent staleness, it only resets
 a clock. Kinan directed that it be done now. Both are recorded: the pass is done
 and dated, and the instruction to repeat it against the writing rather than
 against the calendar stands.
@@ -8273,7 +8273,7 @@ precisely this; it had never been run in this fork, and it reported **189
 errors**.
 
 **It was found by falling into it.** A test written that morning referenced
-`ADMIN_ACTIONS.accountDelete`, which does not exist — the key is `userDelete`.
+`ADMIN_ACTIONS.accountDelete`, which does not exist. The key is `userDelete`.
 The test **passed**: `action: undefined` reached the ledger, an entry was
 written, and every assertion still held because none looked at that field.
 
@@ -8288,15 +8288,15 @@ errors go away" would have been the wrong instruction. Three of the five classes
 were tests that were **weaker than they appeared**:
 
 - **~97 missing actor arguments.** `addRule`, `createUser`, `setAgentAskMode`,
-  `deleteUser` and `setUserRole` all require an actor and the calls omitted it —
+  `deleteUser` and `setUserRole` all require an actor and the calls omitted it,
   so every one of those actions was recorded against `unknown`. The suite was
   exercising the audit trail's **fallback** path while appearing to exercise its
   ordinary one.
 - **~30 detyped helpers.** Three test helpers used
   `Partial<Parameters<typeof fn>[0]>`. **M5 made `groupId` parameter 0**, so each
-  quietly became `Partial<string>` and stopped checking its overrides — a
+  quietly became `Partial<string>` and stopped checking its overrides. A
   signature change silently disabling a test's own type safety.
-- **~14 union reads.** `verdict?.block`, `outcome.reason` — properties read off
+- **~14 union reads.** `verdict?.block`, `outcome.reason`. Properties read off
   unions that do not carry them. At runtime they are `undefined`, so
   `expect(undefined).not.toBe(true)` **passed for the wrong reason.**
 
@@ -8308,14 +8308,14 @@ this can destroy a real signal by making a stale assertion compile. The evidence
 that it did not: **2,338 tests passed before and 2,338 after**, across roughly
 140 edits. Not one result moved.
 
-**Then, and only then, added to the verification set.** Zero first, gate second —
+**Then, and only then, added to the verification set.** Zero first, gate second,
 a check that is red on the day it arrives teaches everyone to skip it, and a
 skipped gate is worse than an absent one because it looks like coverage.
 
 **And the honest residue, stated before somebody else has to.** `tsgo:test:src`
 covers `src/`. It does not cover `ui/`, `test/`, `packages/` or `extensions/`,
 each with its own upstream config. The claim is **"every test under `src/` is
-typechecked"**, not "the tests are typechecked" — which is finding 148's lesson
+typechecked"**, not "the tests are typechecked", which is finding 148's lesson
 applied to finding 148's own fix.
 
 #### Part two: the ledger's honesty rested on three lines of upstream code
@@ -8328,14 +8328,14 @@ two ids exist so an auditor can count **what leaked** apart from **what was
 stopped**.
 
 If the audit half read the _unfiltered_ result, every successfully withheld path
-would also be recorded as reached — the ledger reporting a leak for exactly the
+would also be recorded as reached. The ledger reporting a leak for exactly the
 cases where prevention worked.
 
 It does not, because `agent-loop.ts` runs `finalizeExecutedToolCall`, which
 applies `afterToolCall`, **before** `emitToolExecutionEnd`. The audit half reads
 already-filtered text.
 
-**The finding is that nothing said so** — not a comment at either call site, not
+**The finding is that nothing said so**, not a comment at either call site, not
 the design write-up, not a test. And the failure would have been invisible:
 
 > **Reverse that ordering and every existing test stays green.** The filter's
@@ -8346,7 +8346,7 @@ the design write-up, not a test. And the failure would have been invisible:
 **This is the fourth instance of one pattern**, and Chapter 4 should say so
 plainly: findings **81, 120, 152 and 164** are all the enforcement being right
 while the **evidence** goes wrong. A control whose value is retrospective fails
-silently, because nothing is broken until somebody asks — and by then the moment
+silently, because nothing is broken until somebody asks, and by then the moment
 it was describing has passed.
 
 **Closed by making it loud rather than by changing it**, since the behaviour is
@@ -8357,7 +8357,7 @@ contradictory entries that would result. Notes at both ends state the dependency
 
 **Why a test and not just a comment.** The ordering is not this fork's to keep. A
 comment informs a reader who is already looking; a failing test informs one who
-is not — and the person who reverses that ordering will be working in a different
+is not, and the person who reverses that ordering will be working in a different
 repository, on something unrelated, with no reason to look here at all.
 
 ### 3.5.66 Granting a folder with exceptions, and what an affordance is allowed to promise
@@ -8391,7 +8391,7 @@ That sentence is the design, and every decision below follows from it.
 Kinan set it explicitly: **do not remove the ability to write the two rules by
 hand.** The new control is additive. The add-rule form is untouched; deny still
 beats allow; and, most importantly, **everything the control produces is an
-ordinary rule** — its own id, its own row in the list, removable on its own.
+ordinary rule**. Its own id, its own row in the list, removable on its own.
 Delete the exception and the folder stays granted; delete the grant and the
 exception stays denied.
 
@@ -8410,15 +8410,15 @@ entry, and cannot drift from what the ordinary path does. Assembling
 `PolicyRule` objects directly would have been a second way to write policy, and
 two ways to write one thing is how they come to disagree.
 
-**Exceptions are written before the grant.** Evaluation does not depend on it —
-deny beats allow whenever both exist — but _failure_ does. If writing stops
+**Exceptions are written before the grant.** Evaluation does not depend on it,
+deny beats allow whenever both exist, but _failure_ does. If writing stops
 half-way, having written the denials leaves the agent with **less** access than
 intended; the grant first would leave it with more, for as long as nobody
 noticed. **When a partial result is possible, the safe half goes first.**
 
 **An exception is never narrowed by `access`, even when the grant is.** A
 read-narrowed grant plus a read-narrowed exception would leave the excepted path
-_writable_ — the opposite of what "except this" means to the person who typed
+_writable_. The opposite of what "except this" means to the person who typed
 it. An exception is an exception to the whole folder.
 
 #### The decision that needed the operator: what may it promise?
@@ -8436,18 +8436,18 @@ an agent that may run there?
 
 Three answers were put to Kinan, and the case for each is worth Chapter 4:
 
-|                                     | What it buys                            | What it costs                                                                      |
-| ----------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------- |
-| **A — author it, state the limit**  | The capability plus an honest interface | Relies on the reader                                                               |
-| **B — refuse the combination**      | "Exception" means one thing everywhere  | Removes a real combination; couples a policy edit to an agent's engine setting     |
-| **C — author it, show it inactive** | Honest without removing the capability  | Introduces rules that exist but do not apply, which every future reader must learn |
+|                                    | What it buys                            | What it costs                                                                      |
+| ---------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------- |
+| **A, author it, state the limit**  | The capability plus an honest interface | Relies on the reader                                                               |
+| **B, refuse the combination**      | "Exception" means one thing everywhere  | Removes a real combination; couples a policy edit to an agent's engine setting     |
+| **C, author it, show it inactive** | Honest without removing the capability  | Introduces rules that exist but do not apply, which every future reader must learn |
 
 **A was chosen**, and one correction moved the recommendation there. The
 shorthand "with Codex on we record but not prevent" had been travelling as a
 general statement; re-reading the code showed it is true only of **searches**.
 A denial still refuses a direct open on Codex, because the gate runs before every
 tool call there and a block is a real refusal. An exception on that backend is
-therefore **mostly enforced with one named hole** — which makes B an
+therefore **mostly enforced with one named hole**, which makes B an
 over-correction: refusing to write a rule that still blocks direct access, and
 pushing operators toward hand-writing the same rules anyway.
 
@@ -8455,8 +8455,8 @@ pushing operators toward hand-writing the same rules anyway.
 worth defending. A policy is written once and read for months, usually by
 somebody who did not write it. A caveat shown only at the moment of authoring
 would be finding 150 again on a delay: a true statement, in a place nobody
-returns to. It is shown only where all three conditions hold — a path denial, an
-installation offering Codex, and an agent actually permitted onto it — because a
+returns to. It is shown only where all three conditions hold, a path denial, an
+installation offering Codex, and an agent actually permitted onto it, because a
 warning that appears where it does not apply is a warning operators learn to
 skip.
 
@@ -8466,7 +8466,7 @@ Four defects, all in code written the same day, and **three of the four were
 caught by a check that already existed rather than by inspection**:
 
 - **The escape trap (165).** `pattern-match.ts` exports `escapeRegExp`, which
-  does not only escape — it also anchors, because its job is turning a literal
+  does not only escape. It also anchors, because its job is turning a literal
   into a pattern matching only that value. Used inside a larger expression it
   produced a doubly-anchored pattern that compiles and matches nothing, so every
   folder grant would have bound no paths at all. The module's own tests caught it
@@ -8475,14 +8475,14 @@ caught by a check that already existed rather than by inspection**:
   site.
 - **Unvalidated patterns (166).** `addRuleChecked` does _not_ validate patterns;
   the HTTP add-rule route calls `validateRulePattern` itself. So this control
-  wrote patterns the dashboard's own form would have refused — two surfaces
+  wrote patterns the dashboard's own form would have refused, two surfaces
   applying one rule two ways, this project's most-found defect class, introduced
   by the person who had spent the week cataloguing it. Fixed in the **domain
   function**, not the route, so the CLI inherits it too.
 - **Unbounded exceptions (167).** Nothing capped them, so one request could write
   unbounded rules, each taking the write lock and each appended to the ledger.
 - **The explainer promised something unbuilt (168).** The disclosure text said
-  affected agents "are marked in the rule list" — written in the same hour as the
+  affected agents "are marked in the rule list". Written in the same hour as the
   panel, and the marking did not exist yet. **Finding 150 exactly, committed by
   the author of finding 150's write-up, in text about the feature finding 150 was
   about.** It was fixed by building the marking rather than softening the text,
@@ -8490,7 +8490,7 @@ caught by a check that already existed rather than by inspection**:
 
 ### 3.5.67 Deleting an organisation, and a guard that was right to refuse
 
-**The request.** Root should be able to delete any account, and its own — the
+**The request.** Root should be able to delete any account, and its own. The
 second taking the organisation and every account and agent below it.
 
 **What the system already did.** Deleting any _other_ account in the
@@ -8502,18 +8502,18 @@ because every design for one ends in a window where the account that governs all
 the others is either duplicated or absent."
 
 **The design decision.** The argument is correct and was kept. What it protects
-against is **leaving accounts behind with no Root above them** — unrecoverable on
+against is **leaving accounts behind with no Root above them**. Unrecoverable on
 an installation with no password reset and no second bootstrap. It is not an
 argument that the Root account is sacred. Deleting Root's row and deleting the
 organisation are therefore two different acts:
 
-| Act                       | Leaves                           | Verdict   |
-| ------------------------- | -------------------------------- | --------- |
-| Delete Root's account row | accounts answering to nobody     | refused   |
-| Delete the organisation   | nothing — everybody goes at once | permitted |
+| Act                       | Leaves                          | Verdict   |
+| ------------------------- | ------------------------------- | --------- |
+| Delete Root's account row | accounts answering to nobody    | refused   |
+| Delete the organisation   | nothing. Everybody goes at once | permitted |
 
-They are separated at every level — a separate domain module, a separate route,
-a separate command, a separate panel — rather than folded into `users/delete`
+They are separated at every level, a separate domain module, a separate route,
+a separate command, a separate panel, rather than folded into `users/delete`
 with a wider filter. Two meanings behind one path, distinguished only by which id
 happened to be posted, is how a mis-click becomes an unrecoverable installation.
 
@@ -8529,11 +8529,11 @@ happened to be posted, is how a mis-click becomes an unrecoverable installation.
    step (M6's rule). Failing there leaves the organisation intact and the
    operator still able to retry; the reverse order strands a half-deleted
    organisation with nobody left to finish it. A partial deletion therefore
-   always leaves _more_ than intended, never less — and the result says which
+   always leaves _more_ than intended, never less, and the result says which
    agents already went.
 3. **The audit ledger is kept; everything else in the group directory goes.** An
    operator who can erase the trail by deleting the organisation it covers has a
-   one-click way to destroy every record of everything their agents ever did —
+   one-click way to destroy every record of everything their agents ever did,
    the exact capability an append-only, HMAC-keyed hash chain exists to deny
    them. Requirement #6 is a property of the installation, not a courtesy
    extended to organisations that still exist. Keeping it also keeps the
@@ -8548,7 +8548,7 @@ happened to be posted, is how a mis-click becomes an unrecoverable installation.
 
 **Fail-closed afterwards.** A still-running agent has no registry record, and
 mandatory registration (M5) means the gate refuses an agent it has no record of
-— so anything surviving the host deletion is stopped at its next tool call.
+so anything surviving the host deletion is stopped at its next tool call.
 
 **A reset, not a brick.** Every account gone means the one-organisation cap no
 longer holds the installation, so `bootstrap-root` mints a fresh Root and a fresh
@@ -8557,7 +8557,7 @@ group and the sign-in screen becomes the create-the-first-account form.
 **Recorded twice, deliberately.** `governance.organisation.delete-request` before
 the first destructive step, into the organisation's own retained chain, so a
 deletion killed half-way still shows who asked; then `governance.organisation.delete`
-into that chain **and** into the installation chain — the second copy being what
+into that chain **and** into the installation chain. The second copy being what
 an operator finds once the organisation's own directory is no longer somewhere
 they would think to look.
 
@@ -8587,24 +8587,24 @@ would never match.
 
 Eight places had the gap. In descending order of consequence:
 
-| Where                                 | Consequence                                                                                                    |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| The kill switch                       | **The stop reported success and did nothing** — see below                                                      |
-| An agent-scoped rule (`rule.agentId`) | Bound nothing: an allow that did not grant and a **deny that did not forbid**                                  |
-| `promptAgent`'s lockdown check        | The kill switch stopped binding at the prompt door — "an emergency stop that does not stop", in its own header |
-| `policy.agentMode` / `agentAsk`       | Per-agent posture and escalation overrides saved, displayed, never applied                                     |
-| An account's `assignedAgents`         | The assignee could not see, prompt, stop or write policy for the agent they had been given                     |
-| `governanceSessionKey`                | A transcript written under one spelling and unreadable under the other                                         |
-| `agentPolicyView`                     | The panel answering "why is my agent blocked?" reporting `lockedDown: false` for a locked agent                |
-| `runsForAgent` (Gateway)              | No runs matched, which produced the false confirmation above                                                   |
+| Where                                 | Consequence                                                                                                   |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| The kill switch                       | **The stop reported success and did nothing**, see below                                                      |
+| An agent-scoped rule (`rule.agentId`) | Bound nothing: an allow that did not grant and a **deny that did not forbid**                                 |
+| `promptAgent`'s lockdown check        | The kill switch stopped binding at the prompt door, "an emergency stop that does not stop", in its own header |
+| `policy.agentMode` / `agentAsk`       | Per-agent posture and escalation overrides saved, displayed, never applied                                    |
+| An account's `assignedAgents`         | The assignee could not see, prompt, stop or write policy for the agent they had been given                    |
+| `governanceSessionKey`                | A transcript written under one spelling and unreadable under the other                                        |
+| `agentPolicyView`                     | The panel answering "why is my agent blocked?" reporting `lockedDown: false` for a locked agent               |
+| `runsForAgent` (Gateway)              | No runs matched, which produced the false confirmation above                                                  |
 
 **The kill-switch chain in full**, because it is what makes this a requirement
 failure rather than an inconvenience. Engaging the stop on `Scout`, for an agent
 whose id is `scout`:
 
 1. the route took the id **raw from the request body**;
-2. `canManageAgent` passed — an Administrator has unlimited agent scope;
-3. `requireAgentInGroup` passed — `findAgent` canonicalises for its own lookup,
+2. `canManageAgent` passed. An Administrator has unlimited agent scope;
+3. `requireAgentInGroup` passed, `findAgent` canonicalises for its own lookup,
    finds `scout`, and returns a boolean rather than the canonical id;
 4. `lockAgent` wrote `lockedAgents: ["Scout"]`;
 5. the gate asked `lockedAgents.includes("scout")` → **false**, so the agent was
@@ -8612,7 +8612,7 @@ whose id is `scout`:
 6. the Gateway's run registry, keyed canonically, matched no runs;
 7. `terminateAgentRuns` saw zero aborted runs and returned
    **`stoppedConfirmed: true`**, because zero aborted runs is read as "nothing
-   was in flight" — the honest reading of that number, and the wrong conclusion.
+   was in flight". The honest reading of that number, and the wrong conclusion.
 
 The dashboard rendered "Lockdown engaged". Requirement #7 reported success for an
 emergency stop that did nothing.
@@ -8629,18 +8629,18 @@ holds the typed spelling: it starts working on this build rather than waiting fo
 somebody to notice.
 
 **Why it survived so long, which is the part for Chapter 4.** Every individual
-failure was _safe_ — the missing fold could only ever withhold access or fail to
+failure was _safe_. The missing fold could only ever withhold access or fail to
 find a row, never grant something. Nothing crashed, nothing logged an error, and
 every affected control returned `200 OK` with the value the operator had typed
 echoed back. The project's own severity order names this class first: _silent
 failure > crash > missing feature._
 
 And the diagnosis generalises past this defect. The account axis of these same
-structures had been folded years of findings ago — `policy.userAsk` through
+structures had been folded years of findings ago, `policy.userAsk` through
 `canonicalAccountName`, the conversation's account segment, the attachment
 store's owner key. One half of one document was repaired and the half beside it
-was never looked at. Finding 116's lesson — _a fix is not audited as hard as the
-thing it fixes_ — applied to a whole class rather than to one function.
+was never looked at. Finding 116's lesson, _a fix is not audited as hard as the
+thing it fixes_, applied to a whole class rather than to one function.
 
 **The question that found it** is worth stating as method: not "does this
 comparison work?" but "**what else has the shape of the last thing we fixed?**"
@@ -8649,7 +8649,7 @@ comparison work?" but "**what else has the shape of the last thing we fixed?**"
 
 **Chapter 4 material, and the strongest single argument for how this project was
 verified.** Three disjoint 20% segments had already been swept when a fourth
-drew the modules that exist to _be_ defences — the audit ledger, the login
+drew the modules that exist to _be_ defences. The audit ledger, the login
 throttle, the regex safety checker, path normalisation. It found two security
 defects (**207**, **208**), both in files whose comments are long, careful and
 **correct about the case they describe**.
@@ -8657,7 +8657,7 @@ defects (**207**, **208**), both in files whose comments are long, careful and
 Neither was reachable by reading. One needed a stopwatch; one needed a real
 symbolic link on a real filesystem.
 
-#### 207 — the checker did not model `?`
+#### 207: the checker did not model `?`
 
 `regex-safety.ts` refuses catastrophic backtracking in operator-authored
 patterns, and states its threat model exactly: the pattern "is written by the
@@ -8669,38 +8669,38 @@ It modelled `*`, `+` and `{n,m}` as making a group body variable-length, and not
 
 | pattern      | verdict      | elapsed, non-matching input |
 | ------------ | ------------ | --------------------------- |
-| `^(a+)+$`    | refused      | —                           |
+| `^(a+)+$`    | refused      | -                           |
 | `^(a?){18}$` | **accepted** | 176 ms                      |
 | `^(a?){22}$` | **accepted** | 2,718 ms                    |
 | `^(a?){26}$` | **accepted** | **44,513 ms**               |
 
 **The growth is the finding, not the number.** Time doubles per increment of `n`,
 and `n` is chosen by the rule's author, so 44 seconds is a floor rather than a
-worst case. During it the Gateway's single thread serves nothing — not the
+worst case. During it the Gateway's single thread serves nothing, not the
 dashboard, not the ledger, not the kill switch.
 
 The gap is finding 79's, on the sibling function. Finding 79 taught
 `isQuantified` that a **fixed count** of a variable-length body is still
 dangerous; `containsQuantifier` was never taught the matching lesson about an
 **optional** body. One half of one idea was corrected and the half beside it was
-not — the same shape as findings 200/202 a day earlier, and as finding 116
+not. The same shape as findings 200/202 a day earlier, and as finding 116
 before them.
 
 **The fix is bounded by the module's own stated policy**, that over-rejecting
 "would push operators toward catch-alls, which is a worse outcome than missing
 an exotic case". Two exclusions are therefore kept and argued: a `?` immediately
 after `(` opens `(?:` / `(?=` / `(?!` / `(?<` and quantifies nothing, and `{n}`
-on a fixed-length body stays fixed-length. Verified in both directions — eight
+on a fixed-length body stays fixed-length. Verified in both directions, eight
 dangerous shapes refused, twelve patterns operators actually write still
 accepted.
 
-#### 208 — path confinement, walked around by two missing components
+#### 208: path confinement, walked around by two missing components
 
 `path-normalize.ts` provides the property the whole path axis rests on, in its
 own words: _"an escape stops matching precisely because it stops being
 workspace-relative."_
 
-Resolving a path that does not exist yet is the ordinary case — `write` creating
+Resolving a path that does not exist yet is the ordinary case, `write` creating
 a new file. The module handled it by resolving the **parent** and re-attaching
 the last segment, "so a link in a directory component is still followed for a
 file that has not been created yet". It tried exactly one level.
@@ -8713,15 +8713,15 @@ write "data/newdir/evil.conf"     neither newdir nor the file exists
 `realpath` failed on the file; `realpath` failed on `data/newdir`; the raw path
 was returned with the link unresolved; and the gate matched its rules against
 `data/newdir/evil.conf`, which reads as workspace-relative. The `write` tool then
-created the missing directories with `mkdir(dir, { recursive: true })` — which
-follows the link — and the file landed outside the workspace.
+created the missing directories with `mkdir(dir, { recursive: true })`, which
+follows the link, and the file landed outside the workspace.
 
 **Reachability was checked in the host rather than assumed**, which is the step
 that turns a hypothesis into a finding: `write.ts` really does create parents
 recursively.
 
 Fixed by walking up to the deepest ancestor that exists and re-attaching the
-segments below it — the generalisation of the fallback's own stated intent rather
+segments below it. The generalisation of the fallback's own stated intent rather
 than a new rule. The regression test was **run against the unfixed code and
 fails there**, returning `data/newdir/evil.conf`.
 
@@ -8729,12 +8729,12 @@ fails there**, returning `data/newdir/evil.conf`.
 
 Both defects lived in code that had been reviewed and whose documentation was
 accurate about everything it discussed. What the documentation did not discuss
-was the case that was missing — which is precisely what documentation cannot do.
+was the case that was missing, which is precisely what documentation cannot do.
 
 So the two claims worth separating in the report are:
 
-- **"This module has been reviewed"** — true of both, and worth little.
-- **"This module has been measured against the property it claims"** — false of
+- **"This module has been reviewed"**: true of both, and worth little.
+- **"This module has been measured against the property it claims"**. False of
   both until this segment, and what found them.
 
 The project's verification set is six commands and a test suite; neither of these
@@ -8755,9 +8755,9 @@ comment names the contract it relies on:
 > (400), so deliberately empty credentials distinguish the two states without
 > ever creating anything.
 
-M3 removed that check — correctly, because a Root then owned an organisation
+M3 removed that check. Correctly, because a Root then owned an organisation
 rather than the installation, so there was nothing left to race for. The
-one-organisation cap (2026-08-30) restored the refusal — correctly, and in the
+one-organisation cap (2026-08-30) restored the refusal. Correctly, and in the
 right place, inside `createUser` where every other account rule lives. Neither
 change was wrong.
 
@@ -8775,12 +8775,12 @@ sound decisions and one inference nobody re-checked.
 the page was inferring an answer from a status the route did not promise, which
 is a second copy of a rule. Making the route answer the question first turns the
 inference into a contract. The refusal also became a 409 for real second
-attempts, which is the correct class — a well-formed request conflicting with the
+attempts, which is the correct class. A well-formed request conflicting with the
 state of the installation is not a malformed request.
 
 **Finding 206 is why it survived**, and is the more uncomfortable half. The
-end-to-end account suite asserted that a second bootstrap **succeeds** — shipped
-behaviour for six days, contradicted since 30 August — and stayed green because
+end-to-end account suite asserted that a second bootstrap **succeeds**, shipped
+behaviour for six days, contradicted since 30 August, and stayed green because
 importing the shared fixture calls `setMultiOrganisationAllowedForTests(true)` as
 a module side effect. The one file a reader would open to learn what bootstrap
 does was describing the fixture. Had it asserted the shipped rule, 205 could not
@@ -8801,7 +8801,7 @@ Four times in this layer, one fact is deliberately stored in two places:
 | -------------------------------- | ---------------- | ----------------------- | ----------------------------------------------------------------- |
 | May this account write policy?   | `users.json`     | the session record      | an authorization check on every request must not cost a file read |
 | Which agents is it assigned?     | `users.json`     | the session record      | the same                                                          |
-| Is this agent in my scope?       | `permissions.ts` | —                       | one comparison, two spellings of the argument                     |
+| Is this agent in my scope?       | `permissions.ts` | -                       | one comparison, two spellings of the argument                     |
 | The same question, for rendering | `permissions.ts` | `identity.ts` (browser) | a page should not offer a control the server will refuse          |
 
 Every one of those reasons is good, and every one of them is **written down in
@@ -8813,8 +8813,8 @@ In all four cases the maintenance was partial, and in all four cases the gap was
 invisible at the site of the defect:
 
 - **209.** `setUserPolicyAuthoring` updates live sessions and argues in its own
-  comment that not doing so would be wrong. `issueSession` — a different file,
-  a different author's afternoon — never copied the field, so a withheld
+  comment that not doing so would be wrong. `issueSession`, a different file,
+  a different author's afternoon, never copied the field, so a withheld
   permission was restored by signing out and back in.
 - **210.** Finding 200 folded agent ids at the account store. The route that
   mirrors the same list onto the session passed the request body unfolded, so
@@ -8824,28 +8824,28 @@ invisible at the site of the defect:
   answered `["Scout"].includes("scout")` → `false`. The fix folded the data; the
   named comparison was never touched.
 - **215.** The browser twin of that comparison, which the file explicitly calls a
-  twin, was left comparing raw strings — where it disabled the emergency stop
+  twin, was left comparing raw strings. Where it disabled the emergency stop
   for an agent the operator does manage.
 
 #### The result for the report
 
 **A duplicated fact is a design decision with two halves, and this project
 consistently recorded one of them.** The justification for the copy is present
-and well argued in every case. The invariant the copy creates — _these must be
-written together_ — is present in none.
+and well argued in every case. The invariant the copy creates, _these must be
+written together_, is present in none.
 
 That is a more useful finding than "somebody forgot", because it is
 structural and it suggests a structural answer: where a fact is mirrored for
 performance, the mirror should be written through **one function that owns
 both**, so that forgetting is not reachable. Two of the four fixes are exactly
-that shape — the fold moved into `updateSessionsAssignedAgents` rather than into
+that shape. The fold moved into `updateSessionsAssignedAgents` rather than into
 its callers, and `visibleAgents` reduced to a call to `canViewAgent` rather than
 a second copy of its comparison.
 
 #### The second-order result, which is about method
 
 **Findings 200 and 202 were about this exact class**, were investigated
-thoroughly, and were fixed at the account store and the policy document — and
+thoroughly, and were fixed at the account store and the policy document, and
 reached none of the three copies beside them. This is the third recorded
 instance of **finding 116** (_a fix is not audited as hard as the thing it
 fixes_), and the first where the missed site is quoted verbatim in the earlier
@@ -8862,7 +8862,7 @@ the scene of the last defect does not.
 
 **211** is the segment's other security finding and belongs with requirement #6.
 `organisation-deletion.ts` retains the audit ledger when an organisation is
-deleted, arguing — correctly, and at length — that an operator able to erase the
+deleted, arguing, correctly, and at length, that an operator able to erase the
 trail by deleting what it covers has a one-click way to destroy the requirement.
 Attachments live inside the directory that deletion purges, so the trail was kept
 and every file its entries name was destroyed, by the Root those entries would
@@ -8871,7 +8871,7 @@ incriminate.
 The rule it broke was already stated in the module next door: `releaseAttachment`
 refuses to discard an attachment once it has been sent, _"because a ledger entry
 names it and the store is the evidence behind that entry"_. The fix applies that
-same rule at the deletion rather than inventing a second one — which is the
+same rule at the deletion rather than inventing a second one, which is the
 correct shape, and the shape §3.5.71's first half says was missing elsewhere.
 
 **The sentence in the file header is where it is visible in hindsight**: the
@@ -8905,8 +8905,8 @@ governance module with no evidence of having been read has been read. That is
 the coverage claim Chapter 3 can make, and it is now a claim about a set rather
 than about a sampling rate.
 
-**Six findings, 216–221 — five fixed, 221 open**, and taken with §3.5.71's four
-they identify a _second_ recurring failure mode, distinct from the duplicated-fact one — with
+**Six findings, 216–221, five fixed, 221 open**, and taken with §3.5.71's four
+they identify a _second_ recurring failure mode, distinct from the duplicated-fact one, with
 **220 sitting in both**, being one value copied six ways of which two were
 maintained.
 
@@ -8916,39 +8916,39 @@ maintained.
 moves.** The record does not move with it, and because it was written carefully
 it goes on being believed.
 
-| Finding | What the statement said                                                                                        | What was true                                                                                                              |
-| ------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| **212** | (implicit) the dashboard's deletion message describes the outcome                                              | It omitted that the ledger — and later the retained evidence — survived                                                    |
-| **214** | "Root only: the deployment and network posture"                                                                | Sat above a **Viewer**-tier route after the one it described moved files                                                   |
-| **216** | "the **HTTP layer** decides whether the caller may ask"                                                        | There were two callers, and the other one asked nothing                                                                    |
-| **218** | `canAuthorPolicyForAgent` covers "setting that agent's posture and escalation overrides"                       | Both moved to an Administrator floor; no caller of the predicate can reach them                                            |
-| **219** | The CLI reference: `agent transcript` shows "the `cli` thread — not what a User has said … from the dashboard" | T5 moved conversations from the machine to the account, so one person sees **one** thread on both surfaces                 |
-| **220** | The documented harness baseline: "0 failed / **192** passed" in four documents                                 | The command runs two files and the baseline is **263** (192 + 71); the 2026-09-02 correction reached two of the six copies |
+| Finding | What the statement said                                                                                       | What was true                                                                                                              |
+| ------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **212** | (implicit) the dashboard's deletion message describes the outcome                                             | It omitted that the ledger, and later the retained evidence, survived                                                      |
+| **214** | "Root only: the deployment and network posture"                                                               | Sat above a **Viewer**-tier route after the one it described moved files                                                   |
+| **216** | "the **HTTP layer** decides whether the caller may ask"                                                       | There were two callers, and the other one asked nothing                                                                    |
+| **218** | `canAuthorPolicyForAgent` covers "setting that agent's posture and escalation overrides"                      | Both moved to an Administrator floor; no caller of the predicate can reach them                                            |
+| **219** | The CLI reference: `agent transcript` shows "the `cli` thread, not what a User has said … from the dashboard" | T5 moved conversations from the machine to the account, so one person sees **one** thread on both surfaces                 |
+| **220** | The documented harness baseline: "0 failed / **192** passed" in four documents                                | The command runs two files and the baseline is **263** (192 + 71); the 2026-09-02 correction reached two of the six copies |
 
-**218 had three copies**: `permissions.ts`, and `GOVERNANCE.md` twice — its
+**218 had three copies**: `permissions.ts`, and `GOVERNANCE.md` twice. Its
 policy-authority table and the paragraph beneath it. A claim duplicated three
 ways is a claim nobody owns, which is the first mode (§3.5.71) meeting the
 second.
 
 **218's sharpest detail is that both specification documents were right.**
-`ROLE-MODEL.md` says "**Cannot** switch an assigned agent into `monitor` — may
-_request_ it — tier floor: administrator (T4)", and `PERMISSION-SPEC.md`'s
+`ROLE-MODEL.md` says "**Cannot** switch an assigned agent into `monitor`, may
+_request_ it, tier floor: administrator (T4)", and `PERMISSION-SPEC.md`'s
 authorization table has said `administrator` for both per-agent switches since
-T4. The two that were wrong were `permissions.ts` — the file a developer opens
-— and `GOVERNANCE.md`, the build's own summary of itself.
+T4. The two that were wrong were `permissions.ts`, the file a developer opens
+and `GOVERNANCE.md`, the build's own summary of itself.
 
 **So the specification held and the implementation's description of itself
 drifted.** That is exactly the result a written specification is for, and it
 carries a matching limitation for the report: the spec being right did nothing
 on its own for four QA rounds. What converted it into a correction was somebody
-reading the two artefacts _against each other_ — which is the argument for
+reading the two artefacts _against each other_, which is the argument for
 treating "audit the documentation against the code" as a recurring activity
 rather than a one-off task.
 
 **219 is the one with a reader outside the project.** The other three live in
 source comments, where the audience is whoever next edits the file; that one is
 the operator's handbook, and it stated the opposite of what the system does about
-a privacy property — whether two surfaces share a transcript. The command's own
+a privacy property. Whether two surfaces share a transcript. The command's own
 `--help` string carried the same stale model, so the two places a user looks
 agreed with each other and disagreed with the code. The code comment at the site
 of the change (`agent prompt`) was correct throughout.
@@ -8962,8 +8962,8 @@ in the permissive direction.
 #### Why this is a result rather than an embarrassment
 
 The honest framing matters for the write-up. This layer documents its reasoning
-far more heavily than a typical codebase — most decisions carry a paragraph
-saying why the alternative was rejected — and **that is exactly why this failure
+far more heavily than a typical codebase, most decisions carry a paragraph
+saying why the alternative was rejected, and **that is exactly why this failure
 mode is visible here at all.** Every one of these findings was reached by
 reading a comment against the code it sits on. A codebase without the comment
 would have had the same defect and no means of detecting it.
@@ -8971,7 +8971,7 @@ would have had the same defect and no means of detecting it.
 The correct conclusion is therefore not "write fewer comments" but a narrower
 one: **a comment that states an invariant, a tier, or a delegation is a
 load-bearing artefact and should move when its subject does.** The three
-mechanical repairs applied here follow from that — 214's block moved to the
+mechanical repairs applied here follow from that, 214's block moved to the
 route it argues for, 216's sentence made plural, 218's enumeration reduced to
 what is actually reachable.
 
@@ -8980,7 +8980,7 @@ what is actually reachable.
 **Finding 204 was that the harness baseline was stale.** Its own correction on
 2026-09-02 was that the corrected figure named one of the two files the command
 runs: the baseline is 263, not 192. That correction was applied to
-`GOVERNANCE.md`'s testing block and `HANDOFF.md` §4's row — **and the same figure
+`GOVERNANCE.md`'s testing block and `HANDOFF.md` §4's row, **and the same figure
 lives in four other places, all of which still said 192**, including **finding
 204's own write-up**.
 
@@ -8990,7 +8990,7 @@ misled by the finding.
 
 For the report this is worth more than its severity. It is:
 
-- **finding 116** — _a fix is not audited as hard as the thing it fixes_ — for
+- **finding 116**, _a fix is not audited as hard as the thing it fixes_, for
   the fourth recorded time;
 - the **duplicated-fact mode** (§3.5.71) applied to a _number_ rather than a
   field: one value, six copies, two maintained;
@@ -9000,9 +9000,9 @@ For the report this is worth more than its severity. It is:
   rather than as a plausible figure. **A number that carries its own derivation
   resists the failure mode that a bare number invites.**
 
-#### 221 — a verification step that could not fail
+#### 221: a verification step that could not fail
 
-**CLOSED 2026-09-03** — all 38 fixed, both shards exit `0`. Still the most
+**CLOSED 2026-09-03**. All 38 fixed, both shards exit `0`. Still the most
 useful of the five for Chapter 3's methodology section, because it is about the
 evidence rather than about the system, and because **the same question asked
 twice more the day it closed found two further defects in the same gate**:
@@ -9011,13 +9011,13 @@ finding 237, `git-hooks/pre-commit` does not run the gate and never did. The row
 below records the 2026-09-02 measurement that produced 221 and is kept as
 history.
 
-| Command                                                                           | Result, 2026-09-02               |
-| --------------------------------------------------------------------------------- | -------------------------------- |
-| `oxlint --config .oxlintrc.json src ui/src` — what the verification set documents | **exit 0**                       |
-| `node scripts/run-lint.mjs` — the gate, and what `git-hooks/pre-commit` runs      | **two shards FAILED, 38 errors** |
+| Command                                                                          | Result, 2026-09-02               |
+| -------------------------------------------------------------------------------- | -------------------------------- |
+| `oxlint --config .oxlintrc.json src ui/src`, what the verification set documents | **exit 0**                       |
+| `node scripts/run-lint.mjs`, the gate, and what `git-hooks/pre-commit` runs      | **two shards FAILED, 38 errors** |
 
 > **Both rows above say "what `git-hooks/pre-commit` runs", and that was never
-> true — finding 237, 2026-09-03.** The hook runs `oxfmt --write` and
+> true. Finding 237, 2026-09-03.** The hook runs `oxfmt --write` and
 > `oxlint --config .oxlintrc.json` over staged files, and never invokes
 > `run-lint.mjs` at all. The comparison this table draws is real and stands;
 > only the claim that anything _enforces_ the right-hand column is wrong. The
@@ -9028,7 +9028,7 @@ history.
 The 38 are invisible for two independent reasons, and the pair is the point:
 
 1. **34 are type-aware rules** (`typescript(<rule>)`), needing the TypeScript
-   program — and the cause is isolated by a clean A/B, _same config, same
+   program, and the cause is isolated by a clean A/B, _same config, same
    `--tsconfig`, same targets, only the wrapper differing_:
 
    | Invocation                                | Result                        |
@@ -9038,10 +9038,10 @@ The 38 are invisible for two independent reasons, and the pair is the point:
 
    The runner prepares the tool first; without that the type-aware pass cannot
    resolve the program and **silently does nothing**, reporting zero and exiting
-   `0`. So this is not a wrong flag or a wrong scope — it is a tool unable to do
+   `0`. So this is not a wrong flag or a wrong scope. It is a tool unable to do
    its work and not saying so, which is the more dangerous kind of quiet.
 
-2. **4 are in `scripts/`**, which the documented command never targets — three of
+2. **4 are in `scripts/`**, which the documented command never targets, three of
    them ordinary non-type-aware rules, in **governance's own Linux verification
    script**.
 
@@ -9053,10 +9053,10 @@ is the documented lint command running a subset of the rules and passing.
 
 **The methodological result, which is what Chapter 3 should take:** a
 verification step's value is bounded by whether it _can_ fail, and neither of
-these could — so neither was measuring anything. Both were found the same way,
+these could, so neither was measuring anything. Both were found the same way,
 by running the thing the command is a proxy for rather than the command. The
 practical form of that is narrow enough to act on: **a verification command
-should be recorded together with the observable that proves it ran** — a file
+should be recorded together with the observable that proves it ran**. A file
 count, a test count, an elapsed time. 203's fix added a file count; 221's is the
 **~500-second core shard**, which is the entire visible difference between a run
 that checked and a run that did not, and needs no output to read. The
@@ -9075,38 +9075,38 @@ type is right. Scope, not difficulty.
 write, phrased as the accomplished change: `codex backend disabled -> enabled`.
 `replaceConfigFile` takes a base hash and throws when the config moved
 underneath, so a failed toggle left the tamper-evident trail asserting that the
-installation had begun accepting the Codex enforcement gap — the very question
+installation had begun accepting the Codex enforcement gap. The very question
 the module's own comment says this entry exists to answer.
 
 Recording **before** the attempt is correct and was kept; the defect is that one
-entry was doing two jobs. Both sibling operations already use a pair — a request
+entry was doing two jobs. Both sibling operations already use a pair, a request
 before, a completion after (`organisationDeleteRequest`/`organisationDelete`,
-`agentProvision`/`registerAgent`) — and this now does too.
+`agentProvision`/`registerAgent`), and this now does too.
 
 **The test is the part worth putting in the report.** A test named _"records
 before it writes, so a failed change still leaves a trail"_ already existed, and
 asserted that an entry was present and correctly attributed. It never asserted
 what the entry **said**. For an append-only audit trail whose entire value is
 that its contents are true, _a test that verifies a record exists but not that
-it is accurate is testing the wrong property_ — and it is the same shape as
+it is accurate is testing the wrong property_, and it is the same shape as
 finding 206, where a test documented the fixture instead of the product.
 
 #### 216, and what it says about the parity audits
 
 `cli-agent-control-parity.test.ts` opens by describing itself as coming "from a
 sweep that read every governance command's gate beside its HTTP counterpart's",
-and that sweep found four gaps on 2026-08-31. It missed `agent transcript` — the
+and that sweep found four gaps on 2026-08-31. It missed `agent transcript`. The
 command **directly below** one of the four it found, in the same file.
 
 For Chapter 3 this is a methodological data point rather than a bug report: an
 audit that describes itself as exhaustive is making a claim that nothing checks.
-The mechanical draws are the counterweight — they do not depend on the reviewer
-having remembered every command — and this is the case where the two
+The mechanical draws are the counterweight, they do not depend on the reviewer
+having remembered every command, and this is the case where the two
 methodologies disagreed and the draw was right.
 
 ### 3.5.73 Changing the axis of the sweep, and what that alone found
 
-**The module pool closed after the eighth segment** — every governance module
+**The module pool closed after the eighth segment**. Every governance module
 with no evidence of having been read had been read, across five mutually
 disjoint mechanical draws. That is a coverage claim worth making, and it is also
 a dead end: there is nothing left to draw on that axis.
@@ -9133,7 +9133,7 @@ being "a wrong line in a module" some time ago.
 #### The universe, and why it is extracted rather than listed
 
 `grep` over `governance-dashboard-*.ts` for `route === "…"` yields **44
-capabilities**. Twelve were drawn by seeded hash — 27%.
+capabilities**. Twelve were drawn by seeded hash, 27%.
 
 That extraction is itself the method's advantage, and it is what found finding 223. `CLI-REFERENCE.md` §2d is a hand-maintained register of "every capability
 deliberately absent from the command line". Comparing it against a list derived
@@ -9141,21 +9141,21 @@ from source showed it named one exception where there were three.
 
 #### The two findings
 
-**222** — §1.6 splits escalation between an Administrator (per agent) and Root
+**222**, §1.6 splits escalation between an Administrator (per agent) and Root
 (per account). The per-agent half had a command since 2026-08-11, under a
 changelog note reading _"CLI parity closed… no known CLI gaps remain against the
 dashboard"_. The per-account half had the route and the dashboard and no command,
-so an operator over SSH could set an agent's escalation and not a person's — on
+so an operator over SSH could set an agent's escalation and not a person's, on
 the surface §2b argues matters most, because it works before the dashboard's
 tunnel exists. Built, and gated by `canManageAccounts` rather than
 `canManageGlobalPolicy`: the tiers differ because the axes differ, and reaching
 for the neighbouring predicate would have merged two controls the design keeps
 apart.
 
-**223** — the register of exceptions was missing two of its three entries. One
+**223**. The register of exceptions was missing two of its three entries. One
 was 222, which had no reason. The other, releasing an unsent attachment, has a
-good reason — storing and sending are one act on the command line, so the state
-the control exists for cannot arise there — recorded in `attachment-store.ts`
+good reason, storing and sending are one act on the command line, so the state
+the control exists for cannot arise there, recorded in `attachment-store.ts`
 rather than in the section that promises _"the reasons are here"_.
 
 #### The recommendation this produces
@@ -9163,8 +9163,8 @@ rather than in the section that promises _"the reasons are here"_.
 **A document that asserts completeness should be generated from, or checked
 against, the artefact it claims to cover.** §2d is maintained by hand and makes a
 universal claim; the route table it is implicitly about is one `grep`. This is
-the second instance in two days — finding 216 was a parity audit that described
-itself as exhaustive and missed the command directly below one it found — which
+the second instance in two days, finding 216 was a parity audit that described
+itself as exhaustive and missed the command directly below one it found, which
 is enough to state it as a practice rather than an observation.
 
 #### 3.5.74 A performance assertion that measured the host
@@ -9173,7 +9173,7 @@ is enough to state it as a practice rather than an observation.
 could not detect**, and the clearest of them.
 
 `complete-record.test.ts` guards the fix that stopped the audit ledger being
-quadratic to write. It asserted `lateMs < 50` — milliseconds per append — under
+quadratic to write. It asserted `lateMs < 50`, milliseconds per append, under
 a comment stating the intent explicitly:
 
 > assert a generous ceiling rather than a tight number **so the test is about
@@ -9202,21 +9202,21 @@ written for, for its entire life.
 **Fixed by counting the operation instead of timing it.** `readChainHead`
 increments a counter on the slow path, exposed as `fullChainReadsForTests()`; the
 test asserts the count does not grow across two windows of appends. Against the
-broken implementation it fails `expected 59 to be +0` — one extra full read per
+broken implementation it fails `expected 59 to be +0`, one extra full read per
 append. Machine-independent, and 35 s → 7 s as a side effect.
 
 **The general statement for §4:** a property about _complexity_ asserted in
 wall-clock time is asserted against the host. Where the claim is "this does not
 grow with n", the honest instrument counts the operation that would grow. This
 test carried the right intent in its own comment and the wrong instrument
-underneath it — which is the same gap between stated and actual property that
+underneath it, which is the same gap between stated and actual property that
 findings 130, 132, 214 and 218 record, here in a test rather than in production
 code.
 
 ### 3.5.75 A third axis: not what is sampled, but what counts as evidence
 
 The eighth sweep exhausted the module pool; the ninth changed the sampling axis
-from modules to capabilities. **The tenth changes something else — the kind of
+from modules to capabilities. **The tenth changes something else. The kind of
 evidence a review is allowed to accept.**
 
 #### Why, and it follows from the previous three sweeps' own data
@@ -9236,7 +9236,7 @@ and see whether the suite objects.
 #### The design of the sweep
 
 **Six features, chosen by one criterion: reading proves nothing about them.** The
-property depends on the clock, on two processes colliding, or on cryptography —
+property depends on the clock, on two processes colliding, or on cryptography,
 sign-in throttling, session lifecycle, password storage, ledger tamper detection,
 the cross-process lock, rule expiry. These are precisely the places where a
 confident-looking test can be measuring nothing, which is what 224 turned out to
@@ -9257,18 +9257,18 @@ from the end).
 
 That is worth stating as a distinct claim for §4, because it is not the claim a
 green suite makes. A green suite says the code satisfies the tests. This says
-**the tests are load-bearing** — they would fail if the code stopped keeping the
-promise — for the six subsystems where the project's security argument actually
+**the tests are load-bearing**, they would fail if the code stopped keeping the
+promise, for the six subsystems where the project's security argument actually
 rests. Against the backdrop of 206, 221 and 224 it is the strongest positive
 evidence this project has produced about its own verification.
 
 #### Findings 225–228
 
-**225 — the memory bound was the throttle's off switch, and it is 104 inverted.**
+**225. The memory bound was the throttle's off switch, and it is 104 inverted.**
 `login-throttle.ts` caps its table at 1,000 keys. Finding 104 had fixed one
 version: filling the table evicted the _lockouts_, so a thousand throwaway logins
 released the account under attack. The repair shed unlocked records first and
-kept lockouts — and that is exactly the move the attacker wanted. Fill the table
+kept lockouts, and that is exactly the move the attacker wanted. Fill the table
 with lockouts on **invented** usernames (the key is `canonicalAccountName` of
 whatever was submitted, so the account need not exist), and from then on a real
 account's first failure is the sole unlocked record; `prune` deletes it on the
@@ -9288,7 +9288,7 @@ Roughly 5,000 requests to arm, and it disables the control for every account on
 the installation.
 
 **Who can reach it, stated precisely.** The governance login sits _behind_ the
-Gateway's own Control-UI gate — `authorizeControlUiReadRequest` runs first — so
+Gateway's own Control-UI gate, `authorizeControlUiReadRequest` runs first, so
 this is not reachable by a stranger on the internet. It is reachable by anyone
 holding the shared secret, a device token, or the SSH tunnel, **and no governance
 account at all**. That is exactly the population the dashboard login exists to
@@ -9298,34 +9298,34 @@ Defeating the throttle collapses the second gate into "guess as fast as you
 like".
 
 Two changes, neither sufficient alone: the key currently being handled is exempt
-from eviction, and the victim is the least protective record — **unlocked before
+from eviction, and the victim is the least protective record, **unlocked before
 locked** (104's property preserved), **soonest-to-lapse** within each class. The
 second replaces a stated justification that was false: a record is inserted on
 the first failure and locked on the fifth, so the oldest-inserted lockout is
 routinely the last to lapse, and the spread between those two timestamps is
 widest for the account under sustained attack.
 
-**The residual is recorded as a result, not deferred as a gap** — the same
+**The residual is recorded as a result, not deferred as a gap**. The same
 treatment T7's prevention half received on the native Codex harness (§3.5.61).
 An attacker interleaving one junk failure per guess can still displace a counter,
 and **no eviction policy fixes it**: any shape treated as valuable is imitable by
 a flood that mints usernames for free, and refusing new keys when full means the
 victim is never counted at all. The bound that would work is per-_source_, which
 is the Gateway transport layer's to own. What the fix buys is that the attack
-must be continuous rather than one-shot, and — via 226 — that it is recorded.
+must be continuous rather than one-shot, and, via 226, that it is recorded.
 
-**226 — an authentication failure with no record, on one of two surfaces.**
+**226. An authentication failure with no record, on one of two surfaces.**
 `auditLoginFailure` had **one** production caller. `openclaw governance login`
 called `authenticate`, printed `Invalid credentials.`, and returned: no throttle
-(structurally impossible — the table is Gateway-process memory and each command
+(structurally impossible. The table is Gateway-process memory and each command
 is a new process), no lockout, and no ledger entry. `auth-audit.ts`'s own header
 names ISO 27001 and OWASP's Secure Coding Practices for logging authentication
 failures as well as successes, and states the gap it was written to close: _"the
 first question asked after an incident ('who was in the system, and when?') had
 no answer."_ On this surface it still had none.
 
-The `cli-identity.ts` disclaimer — the command line is not a security boundary,
-the filesystem is — **argues the other way here.** Editing `users.json` is a
+The `cli-identity.ts` disclaimer, the command line is not a security boundary,
+the filesystem is, **argues the other way here.** Editing `users.json` is a
 visible act; recovering the plaintext password by guessing is not, and the
 plaintext then authenticates on the dashboard as a routine sign-in by its owner.
 Where enforcement is honestly unavailable, the record is the entire remaining
@@ -9335,13 +9335,13 @@ control, and the record was absent precisely where an attack would appear.
 command make the checks its route makes?" and searched for an absent gate.
 `login` is the single command that correctly has no gate, because it runs before
 an identity exists. _An audit shaped around a missing check is blind to the case
-that is supposed to be missing one_ — the same structural blindness as finding
+that is supposed to be missing one_. The same structural blindness as finding
 216, where a sweep describing itself as exhaustive missed the command directly
 below one it found.
 
 **227 and 228 are the documentation pair, and they share a mechanism.** 227: the
 "tree is not clean, 56 files uncommitted" warning survived in four live places
-across `HANDOFF.md` and `PROJECT-SUMMARY.md` for a day after the commits landed —
+across `HANDOFF.md` and `PROJECT-SUMMARY.md` for a day after the commits landed,
 and the commit that falsified it, `f01526eb06d`, is the one whose message reads
 _"the handoff documents brought level for handoff"_. 228: `GOVERNANCE.md`'s
 defect register stops at **221**, so the ninth sweep's findings were never entered
@@ -9350,7 +9350,7 @@ it fixed (re-measured: `scripts/run-lint.mjs` exits 0).
 
 **The statement for §4 is one sentence covering both:** a fact recorded in prose,
 in more than one document, drifts at the rate the documents are edited and not at
-the rate the fact changes — and the worst case is a number written into prose _by
+the rate the fact changes, and the worst case is a number written into prose _by
 the change that alters the number_, which is stale before the commit finishes.
 This is the fourth instance (with 136, 148, 150 and 220), which is enough to stop
 treating it as a lapse and treat it as a property of the format. The
@@ -9368,7 +9368,7 @@ changes which half of each module is looked at.**
 `AGENTS.md` states the severity order explicitly: **silent failure > crash >
 missing feature**, and _"every user or agent action ends in a visible outcome or
 a recorded, intentional non-outcome."_ Every sweep so far has sampled _modules_,
-_capabilities_, or _tests_. None has sampled by **control-flow reachability** —
+_capabilities_, or _tests_. None has sampled by **control-flow reachability**,
 and the failure branch of a governed operation is, by construction, the code
 with the fewest executions per line in the repository.
 
@@ -9379,21 +9379,21 @@ thrown). Three findings, one axis, never swept deliberately.
 
 #### The six, and the question asked of each
 
-| Feature                  | Module                     | Verdict                                          |
-| ------------------------ | -------------------------- | ------------------------------------------------ |
-| Governance state writes  | `state-file.ts`            | Sound — one writer, both modes stated once       |
-| Emergency stop           | `kill-switch.ts`           | Sound — `auditError` returned beside the outcome |
-| Denied-search filtering  | `search-audit.ts`          | Sound — fails closed and says so to the model    |
-| Deleting one agent       | `agent-provisioning.ts`    | **Defect** — the last step unguarded             |
-| Attachment store         | `attachment-store.ts`      | Sound — refuses on a damaged index               |
-| Deleting an organisation | `organisation-deletion.ts` | **Defect** — five unguarded steps                |
+| Feature                  | Module                     | Verdict                                         |
+| ------------------------ | -------------------------- | ----------------------------------------------- |
+| Governance state writes  | `state-file.ts`            | Sound, one writer, both modes stated once       |
+| Emergency stop           | `kill-switch.ts`           | Sound, `auditError` returned beside the outcome |
+| Denied-search filtering  | `search-audit.ts`          | Sound, fails closed and says so to the model    |
+| Deleting one agent       | `agent-provisioning.ts`    | **Defect**, the last step unguarded             |
+| Attachment store         | `attachment-store.ts`      | Sound, refuses on a damaged index               |
+| Deleting an organisation | `organisation-deletion.ts` | **Defect**, five unguarded steps                |
 
 Two of the four sound ones are sound _because they were repaired_ (195, 156),
 and both carry the principle in prose. That is the finding behind the finding:
 **the module that had been bitten states the rule, and the module written
 afterwards does not follow it.**
 
-#### Finding 229 — a completed irreversible act reported as a failure
+#### Finding 229: a completed irreversible act reported as a failure
 
 `deleteOrganisation` is the most destructive operation in the layer: it removes
 every account, every agent, and the Root that could have reversed it. Its header
@@ -9403,8 +9403,8 @@ a step fails part-way**", and names `agent-provisioning.ts` as its model.
 The order is right. The reporting stops exactly where it starts to matter.
 
 **The point of no return is `deleteGroupAccounts`.** Everything before it is
-guarded and returns a typed failure with a remedy. Everything after it — five
-awaits — was unguarded:
+guarded and returns a typed failure with a remedy. Everything after it, five
+awaits, was unguarded:
 
 1. `revokeSessionsForUser` per account
 2. the group-scope completion entry
@@ -9415,11 +9415,11 @@ awaits — was unguarded:
 A throw from any of 1, 2, 3 or 5 propagated out of the function. Neither surface
 catches it: the CLI prints a generic error, the route returns 500. **The operator
 is told the deletion failed while the organisation is gone**, which is finding
-195 exactly, one act further up the scale of consequence — and worse than 195,
+195 exactly, one act further up the scale of consequence, and worse than 195,
 because a kill switch can be re-engaged and an organisation cannot be restored.
 
 **The trigger is real, not injected, and it is instructive.** `readIndex` throws
-`AttachmentIndexUnreadableError` on a damaged attachment index — deliberately,
+`AttachmentIndexUnreadableError` on a damaged attachment index. Deliberately,
 under a comment explaining that treating it as empty _"would discard the record
 of every attachment already stored."_ Correct for a store being asked what to
 keep. Reached from here, that refusal cannot protect anything, because what it
@@ -9430,13 +9430,13 @@ help is a fail-closed dependency that only breaks the outcome.**
 Fixed by folding each post-point-of-no-return step into an `incomplete: string[]`
 on the **success** arm, each entry a sentence an operator can act on rather than
 a stack trace, and surfaced on all three surfaces (CLI lines, a 200 field, a
-dashboard notice). `residue` — leftover _files_ — already worked this way; this
+dashboard notice). `residue`, leftover _files_, already worked this way; this
 is the same treatment for leftover _bookkeeping_.
 
 **Two siblings had the same shape in miniature, and both are fixed as part of the
 class rather than left as one-sided proof.** `deprovisionAgent` guards every
 fallible step except its final `recordAdminAction`, by which point the agent is
-gone from the host _and_ from governance — and since `deleteOrganisation` calls
+gone from the host _and_ from governance, and since `deleteOrganisation` calls
 it in a loop reading `ok`, that throw also escaped the loop's per-agent handling.
 `setCodexBackendEnabled` writes its completion entry after `replaceConfigFile`
 and the registry refresh have already landed the new stance; a throw there
@@ -9448,14 +9448,14 @@ matching `kill-switch.ts` field-for-field.
 
 **Before the point of no return, fail loudly; after it, never throw.** The two
 halves of an operation have opposite correct behaviours, and the boundary is not
-a matter of taste — it is the line past which an error message stops being
+a matter of taste. It is the line past which an error message stops being
 information and becomes a false statement. The more irreversible the act, the
 more the false statement costs, because the operator's next action is chosen on
 the strength of it.
 
 **And the meta-observation for §4:** every one of these lines runs only when
-something else has already gone wrong. Five sweeps read these modules — segments
-four through eight covered every one of them — and none exercised the branch,
+something else has already gone wrong. Five sweeps read these modules, segments
+four through eight covered every one of them, and none exercised the branch,
 because reading a `catch`-less `await` looks exactly like reading a guarded one
 unless you are asking this specific question. _Coverage of a module is not
 coverage of its failure path_, which is the same distinction findings 206, 221

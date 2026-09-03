@@ -2,7 +2,7 @@
 // says about it.
 //
 // **Found by the second 20% segment draw, 2026-09-01.** `ledger-key.ts` is
-// careful about the key it reads from disk — finding 78 established that a
+// careful about the key it reads from disk. Finding 78 established that a
 // damaged key file must stop the process rather than silently degrade the chain
 // to an unkeyed one, and `decodeStoredKey` validates the text is hexadecimal, of
 // even length, and decodes to exactly 32 bytes.
@@ -12,23 +12,23 @@
 //
 //     OPENCLAW_GOVERNANCE_LEDGER_KEY=x
 //
-// gives a one-byte key, and the chain's whole claim — *recomputing the forward
-// hashes requires the key* — becomes a claim about guessing one character.
+// gives a one-byte key, and the chain's whole claim, *recomputing the forward
+// hashes requires the key*, becomes a claim about guessing one character.
 //
 // **The asymmetry is the finding, not the missing check.** The file path is the
 // default and is validated; the override is the path this module's own header
-// recommends for hardening — *"supplied from outside the machine … which is what
-// makes the separation meaningful rather than notional"* — and it was the
+// recommends for hardening, *"supplied from outside the machine … which is what
+// makes the separation meaningful rather than notional"*, and it was the
 // unvalidated one. The route an operator takes because they are being careful
 // was the route with no floor under it.
 //
 // And `deployment-status.ts` made it worse rather than catching it: it reported
-// **"pass — Ledger key is held off-host"** for any non-empty value, so an
+// **"pass, Ledger key is held off-host"** for any non-empty value, so an
 // installation with a one-character key was told it had improved on the default.
 // A report that upgrades a warning to a pass on the presence of a variable is
 // measuring configuration, not security. **That half is asserted in
 // `deployment-status.test.ts`**, which already owns the injected-environment
-// harness — duplicating that fixture here is how the two would come to disagree.
+// harness. Duplicating that fixture here is how the two would come to disagree.
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

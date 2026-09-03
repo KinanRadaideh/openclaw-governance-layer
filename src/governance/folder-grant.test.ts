@@ -213,7 +213,7 @@ describe("bounds, found by QA on this module rather than designed in", () => {
   it("refuses more exceptions than one grant may carry", async () => {
     // Nothing bounded this. A single request could write unbounded rules, each
     // taking the policy write lock and each appended to the tamper-evident
-    // ledger — from one click.
+    // ledger, from one click.
     const many = Array.from({ length: 51 }, (_, i) => `work/x${i}`);
     await expect(
       grantFolderWithExceptions(
@@ -225,7 +225,7 @@ describe("bounds, found by QA on this module rather than designed in", () => {
   });
 
   it("refuses a path too long to express as a rule, rather than storing one", async () => {
-    // `addRuleChecked` does not validate patterns — the HTTP add-rule route
+    // `addRuleChecked` does not validate patterns. The HTTP add-rule route
     // does that itself, so this module validating in its *callers* would have
     // left the CLI writing rules the dashboard would refuse. Validating here
     // means every surface inherits it, and the operator is told at the point

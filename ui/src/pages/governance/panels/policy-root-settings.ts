@@ -1,4 +1,5 @@
-// The two policy settings only Root may change.
+// The two installation-wide policy settings that live below the main policy
+// rows: the escalation timeout and the per-account ask override.
 //
 // Split out of `policy-panels.ts` on 2026-08-28, and the reason is a small piece
 // of evidence in its own right: adding these controls took that file to 702
@@ -7,12 +8,18 @@
 // this exact limit being crossed unnoticed, with the documentation asserting it
 // was clean. Here it is doing its job on the first change after it was built.
 //
-// They are a coherent unit rather than an arbitrary cut: both are Root-only,
-// both are installation-wide rather than per-agent, and both were unreachable
-// from any surface until finding 140.
+// They were a coherent unit when this file was written because both were
+// Root-only. **That stopped being true on 2026-09-03**, when the escalation
+// timeout was widened to Administrator and above at Kinan's direction: the
+// tier that answers an escalation is the tier that should be able to say how
+// long one waits, and every other installation-wide policy setting
+// (`policy/mode`, `policy/ask`) is already Administrator. The account override
+// stays Root, because naming a *person* is account administration rather than
+// policy. So the two rows now carry two different gates, and the file name is
+// kept rather than churned.
 //
-// **Hiding them below Root is a courtesy, never the control.** The routes refuse
-// a non-Root caller regardless of what this file renders.
+// **Hiding a row below its tier is a courtesy, never the control.** The routes
+// refuse an under-privileged caller regardless of what this file renders.
 import { html, nothing, type TemplateResult } from "lit";
 import { renderSettingsRow, renderSettingsStatus } from "../../../components/settings-ui.ts";
 import { t } from "../../../i18n/index.ts";
@@ -22,6 +29,8 @@ import type { PanelEffects } from "./account-panels.ts";
 export type RootPolicySettingsProps = PanelEffects & {
   policy: GovernancePolicyDocument;
   isRoot: boolean;
+  /** Administrator and above. Gates the escalation timeout row only. */
+  canAdminister: boolean;
   busy: boolean;
   /** Accounts in this group, used only to flag an override that names nobody. */
   users: readonly GovernanceUserRecord[];
@@ -30,23 +39,24 @@ export type RootPolicySettingsProps = PanelEffects & {
 };
 
 /**
- * The Root-only rows, in the order the policy panel renders them.
+ * The two rows, in the order the policy panel renders them. The escalation
+ * timeout is Administrator and above; the account override is Root.
  *
- * Returns an array so the caller can spread it into its own row list — the
+ * Returns an array so the caller can spread it into its own row list. The
  * settings section takes a flat list of rows, and nesting a section inside it
  * would put a heading between two settings that belong together.
  */
 export function renderRootPolicySettings(
   props: RootPolicySettingsProps,
 ): Array<TemplateResult | typeof nothing> {
-  const { policy, isRoot } = props;
+  const { policy, isRoot, canAdminister } = props;
   return [
-    // --- Two Root-only settings that the server has always accepted and no
-    // surface ever offered (finding 140, 2026-08-28). Requirement 2 asks for a
+    // --- Two settings the server has always accepted and no surface ever
+    // offered (finding 140, 2026-08-28). Requirement 2 asks for a
     // dashboard that lets administrators *configure* policy; a setting
     // reachable only from the command line does not satisfy that. Same argument
     // the eleventh QA pass made about the per-agent monitor toggle.
-    isRoot
+    canAdminister
       ? renderSettingsRow({
           title: t("governance.policy.hitlTimeout"),
           description: t("governance.policy.hitlTimeoutHint"),
@@ -129,7 +139,7 @@ export function renderRootPolicySettings(
           `,
         })
       : nothing,
-    // **An override can be set for an account that does not exist** — the server
+    // **An override can be set for an account that does not exist**. The server
     // accepts any well-formed name, deliberately, so an override can be placed
     // before the person is onboarded. The cost is that a typo looks identical to
     // success: a 200, an audit entry, and a row here, while the account the

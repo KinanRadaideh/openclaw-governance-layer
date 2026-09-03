@@ -4,7 +4,7 @@
 // same gate as every other Control UI HTTP route), so each request carries
 // the Bearer credential the UI already holds. On top of that, the governance
 // endpoints enforce their own named-account session via an HttpOnly cookie
-// issued by /control-ui/governance/login — hence `credentials: "same-origin"`.
+// issued by /control-ui/governance/login. Hence `credentials: "same-origin"`.
 import type { GovernanceRole } from "../../../../src/governance/roles.ts";
 import type { GovernanceUserRecord, OrganisationDeletionResponse } from "./api.accounts.ts";
 
@@ -92,7 +92,7 @@ export type GovernancePolicyDocument = {
    * Per-agent posture overrides; absent key means the agent follows `mode`.
    *
    * `off` can appear here on an installation whose `policy.json` was hand
-   * edited — the API refuses to set it, because a per-agent `off` also removes
+   * edited: the API refuses to set it, because a per-agent `off` also removes
    * the kill switch and the core denials from that agent.
    */
   agentMode: Record<string, "enforce" | "monitor" | "off">;
@@ -202,7 +202,7 @@ export type GovernanceLedgerEntry = {
   resource: string;
   ruleId: string;
   /**
-   * `ungoverned` marks an action the policy layer did not evaluate — a tool with
+   * `ungoverned` marks an action the policy layer did not evaluate. A tool with
    * no resource extractor. It was missing from this union while the server had
    * emitted it since complete-record logging landed, so the dashboard's own type
    * disagreed with the data it was rendering.
@@ -214,13 +214,13 @@ export type GovernanceLedgerEntry = {
    * What the model said it was doing on the turn that produced this call.
    *
    * §1.6's sixth "Granular Event Tracking" field, and the only one that comes
-   * from the *model* rather than the runtime — so it is the only field that
+   * from the *model* rather than the runtime, so it is the only field that
    * lets the trail be read as "the agent said it was doing X, and then did Y".
    *
    * **Absent far more often than present, and that is normal rather than an
    * error**: a turn with no narration, a harness that reports none, a restart
    * between the model speaking and the tool running, or any call not made by a
-   * model at all — the CLI, a test, an administrative action.
+   * model at all, the CLI, a test, an administrative action.
    *
    * A Viewer receives the placeholder rather than the text (finding 133):
    * narration names files the agent is about to touch and quotes what it has
@@ -228,7 +228,7 @@ export type GovernanceLedgerEntry = {
    *
    * **Declared here only on 2026-08-28.** The server had recorded and returned
    * it since round twenty-one; this type omitted it, so the dashboard could not
-   * render it even as a read-only fact — the same omission `userAsk` had.
+   * render it even as a read-only fact, the same omission `userAsk` had.
    */
   intent?: string;
   /** Present only on administrative entries (policy and account changes). */
@@ -240,7 +240,7 @@ export type GovernanceLedgerEntry = {
 };
 
 /**
- * A rule that is valid but grants more than it appears to — an unanchored
+ * A rule that is valid but grants more than it appears to. An unanchored
  * pattern, or one whose body matches everything. Advisory, never blocking.
  */
 export type GovernanceRuleWarning = { code: string; message: string };
@@ -320,40 +320,21 @@ export type GovernanceSystemStatus = {
  * The Root-tier deployment report (backlog item A7).
  *
  * Mirrored by hand from `src/governance/deployment-status.ts`, like every other
- * type in this file — the dashboard bundle does not import from `src/`.
+ * type in this file: the dashboard bundle does not import from `src/`.
  */
-export type GovernanceDeploymentCheckStatus = "pass" | "warn" | "fail" | "unknown";
+// Imported as well as re-exported: `export type { ... } from` forwards a name
+// without binding it locally, and the client method below annotates with it.
+import type { GovernanceDeploymentStatus } from "./api.deployment.ts";
 
-export type GovernanceDeploymentCheck = {
-  id: string;
-  title: string;
-  status: GovernanceDeploymentCheckStatus;
-  detail: string;
-  remediation?: string;
-  /** `gateway-audit` rows carry the host security audit's own wording. */
-  source: "governance" | "gateway-audit";
-};
-
-export type GovernanceDeploymentFacts = {
-  platform: string;
-  totalMemoryBytes: number;
-  bind: string;
-  port: number;
-  authMode: string;
-  tailscaleMode: string;
-  governanceDir: string;
-  governanceDirRelocated: boolean;
-  gatewayNotes: string[];
-};
-
-export type GovernanceDeploymentStatus = {
-  /** Null when the Gateway configuration could not be read at all. */
-  facts: GovernanceDeploymentFacts | null;
-  checks: GovernanceDeploymentCheck[];
-  summary: { pass: number; warn: number; fail: number; unknown: number };
-  overall: "pass" | "warn" | "fail";
-  sampledAt: string;
-};
+// The deployment report's shapes live in `api.deployment.ts` and are
+// re-exported here, so every module importing them from `./api.ts` keeps
+// working and there is still one name to import from.
+export type {
+  GovernanceDeploymentCheck,
+  GovernanceDeploymentCheckStatus,
+  GovernanceDeploymentFacts,
+  GovernanceDeploymentStatus,
+} from "./api.deployment.ts";
 
 // Account shapes live in `api.accounts.ts` and are re-exported here, so the
 // dozen modules that import them from `./api.ts` keep working and there is
@@ -365,7 +346,7 @@ const BASE = "/control-ui/governance";
 /**
  * What the kill switch actually achieved.
  *
- * The lockdown always lands — it is a policy write. Terminating the run already
+ * The lockdown always lands: it is a policy write. Terminating the run already
  * in flight is separate and can fail to be available at all (no terminator
  * registered: the gateway is still starting, or the request came from a context
  * that does not own the run registry). Discarding this and reporting a flat
@@ -382,7 +363,7 @@ export type GovernanceKillResult = {
    * True when every signalled run was observed to end.
    *
    * False means either that nothing could watch, or that runs were still going
-   * when the wait expired — so the headline time must not be presented as the
+   * when the wait expired: so the headline time must not be presented as the
    * time the agent stopped.
    */
   stoppedConfirmed?: boolean;
@@ -405,8 +386,8 @@ export type GovernanceKillResult = {
  * What the server records about an attachment, and all it ever returns.
  *
  * No content and no URL to fetch content: nothing in this layer renders an
- * attachment back. An SVG is a script, and the governance dashboard — which
- * holds the session that administers the installation — is the worst place in
+ * attachment back. An SVG is a script, and the governance dashboard, which
+ * holds the session that administers the installation, is the worst place in
  * it to run one.
  */
 export type GovernanceAttachment = {
@@ -419,8 +400,8 @@ export type GovernanceAttachment = {
 /**
  * Who can reach one agent, by assignment.
  *
- * `assignedTo` being empty is a real and important answer — an agent nobody
- * has been given — and is rendered as such rather than as an absent section.
+ * `assignedTo` being empty is a real and important answer, an agent nobody
+ * has been given, and is rendered as such rather than as an absent section.
  */
 export type GovernanceAgentAccess = {
   agentId: string;
@@ -445,7 +426,7 @@ export type GovernanceAgentEntry = {
    * Whether this agent may run on the Codex backend (§3.5.62).
    *
    * Shown to **every tier that can see the agent**, Viewers included. It is a
-   * permission rather than a secret, and a Viewer's job is oversight — noticing
+   * permission rather than a secret, and a Viewer's job is oversight. Noticing
    * that an agent is permitted onto a runtime where denials are not fully
    * enforced is precisely what oversight is for.
    */
@@ -554,7 +535,7 @@ export class GovernanceApi {
    * Whether agents may run on the Codex backend, and whether anybody chose it.
    *
    * `explicit: false` means nobody has decided and the safe default stands,
-   * which the panel shows differently from a deliberate "off" — consent is a
+   * which the panel shows differently from a deliberate "off". Consent is a
    * different thing from a setting happening to be in the safe position.
    */
   codexBackend(): Promise<{ enabled: boolean; explicit: boolean }> {
@@ -563,7 +544,7 @@ export class GovernanceApi {
 
   /**
    * `auditError` is present only when the change took and its completion entry
-   * did not (finding 229). It is not a failure — `enabled` is authoritative —
+   * did not (finding 229). It is not a failure, `enabled` is authoritative,
    * so a caller shows it beside the new state rather than instead of it.
    */
   setCodexBackend(
@@ -579,7 +560,7 @@ export class GovernanceApi {
    * How long an escalation waits for a human before it times out (§1.6's HITL).
    *
    * Root only, 5-86400 seconds. **Reachable from the dashboard only since
-   * 2026-08-28 (finding 140)** — the route, the store write and the audit entry
+   * 2026-08-28 (finding 140)**: the route, the store write and the audit entry
    * all existed from the start, and no surface called them. Requirement 2 asks
    * for a dashboard that lets administrators *configure* policy; a setting
    * reachable only from the command line does not satisfy that, which is the
@@ -660,6 +641,21 @@ export class GovernanceApi {
     return this.request<GovernanceActiveSessionsView>("sessions");
   }
 
+  /**
+   * One agent's escalation timeout, in seconds. Pass null to clear it and
+   * follow the installation value again.
+   *
+   * The User tier reaches this for the agents assigned to it, which is the
+   * whole reason the per-agent axis exists: a single installation-wide number
+   * cannot express "this agent waits longer" for one person's workload.
+   */
+  setAgentHitlTimeout(agentId: string, seconds: number | null): Promise<GovernancePolicyDocument> {
+    return this.request<GovernancePolicyDocument>("policy/agent-hitl-timeout", {
+      method: "POST",
+      body: { agentId, seconds },
+    });
+  }
+
   /** Pass null for `ask` to clear the override and follow the default again. */
   setAgentAsk(agentId: string, ask: "off" | "on-miss" | null): Promise<GovernancePolicyDocument> {
     return this.request<GovernancePolicyDocument>("policy/agent-ask", {
@@ -702,7 +698,7 @@ export class GovernanceApi {
    * not ship a multipart parser, and a raw body lets it refuse **while
    * reading** instead of buffering the whole upload before checking its size.
    *
-   * The filename goes in a header, base64-encoded — not in the URL, because a
+   * The filename goes in a header, base64-encoded, not in the URL, because a
    * URL is written to browser history and proxy logs and a filename is user
    * data; and base64 because a header cannot carry the non-ASCII characters
    * most of the world's filenames contain.
@@ -754,7 +750,7 @@ export class GovernanceApi {
    * only as a fallback (M4).
    *
    * The page used to build its agent list by hand from live sessions, locked
-   * agents, assignments and the policy document — everywhere an id happened to
+   * agents, assignments and the policy document: everywhere an id happened to
    * appear. That could never show an agent nobody had yet written a rule for,
    * which is precisely the agent a newly provisioned one is. This asks the
    * question directly instead, and the server folds the old reconstruction in
@@ -802,7 +798,7 @@ export class GovernanceApi {
    * Hands an agent to another Administrator.
    *
    * Releases it from every account managed by the previous owner, because
-   * assignment is constrained to agents your own Administrator owns — leaving
+   * assignment is constrained to agents your own Administrator owns. Leaving
    * them holding it would leave the account file contradicting the registry.
    */
   setAgentOwner(agentId: string, adminId: string): Promise<GovernanceAgentEntry> {
@@ -898,7 +894,7 @@ export class GovernanceApi {
    * Sends one prompt and reports the reply as it arrives.
    *
    * A POST rather than an `EventSource`, deliberately: `EventSource` can only
-   * issue GET, which would put the prompt text in a query string — and a URL is
+   * issue GET, which would put the prompt text in a query string, and a URL is
    * written to browser history, proxy logs and the Gateway's own access log,
    * while the prompt is text this layer redacts before it will even store it.
    * So the body stays a body and the stream is read by hand.
@@ -926,7 +922,7 @@ export class GovernanceApi {
         message,
         stream: true,
         // Hashes only. The bytes were uploaded already, and the server reads
-        // every fact it records from its own index rather than from here —
+        // every fact it records from its own index rather than from here,
         // so a client cannot describe a file as something it is not.
         ...(attachments.length > 0 ? { attachments } : {}),
       }),
@@ -953,7 +949,7 @@ export class GovernanceApi {
 
     // Minimal SSE framing: events are separated by a blank line, and this
     // endpoint only ever sends single-line `data:`. Deliberately not a general
-    // parser — one that accepts more than the server sends is one more pair of
+    // parser, one that accepts more than the server sends is one more pair of
     // things that can disagree.
     const consume = (chunk: string): void => {
       buffer += chunk;
@@ -994,7 +990,7 @@ export class GovernanceApi {
     consume(decoder.decode());
 
     if (!outcome) {
-      // The stream ended without a verdict — the Gateway restarted, or the
+      // The stream ended without a verdict, the Gateway restarted, or the
       // connection dropped. Reported as an unknown outcome rather than a
       // success or a failure, because the run may still be going and saying
       // either would be a guess.
@@ -1073,7 +1069,7 @@ export class GovernanceApi {
 
   /**
    * `managedBy` is required when the new role is `user` or `viewer` and the
-   * account does not already have a manager — the server refuses otherwise, and
+   * account does not already have a manager: the server refuses otherwise, and
    * this client omitted it entirely until finding 197.
    */
   setUserRole(userId: string, role: GovernanceRole, managedBy?: string): Promise<{ ok: true }> {
@@ -1120,7 +1116,7 @@ export class GovernanceApi {
   }
 
   /**
-   * Root: delete the whole organisation — every account including your own, and
+   * Root: delete the whole organisation: every account including your own, and
    * every agent.
    *
    * `confirm` is the Root username, typed by the operator. Passed straight
@@ -1139,7 +1135,7 @@ export class GovernanceApi {
    * Sets an account's password. Root only, and Root may set its own.
    *
    * The route existed and was enforced from the day the scrypt parameters
-   * became upgradeable, and **no surface called it** — not this client, not the
+   * became upgradeable, and **no surface called it**, not this client, not the
    * page, not the CLI. So the one account that governs every other one had a
    * password that could never be changed after it was chosen, on a page whose
    * bootstrap step is already irreversible. That is the same
@@ -1149,7 +1145,7 @@ export class GovernanceApi {
    *
    * Every session for the account is revoked server-side, because a password
    * change is usually a response to it being compromised. When Root changes its
-   * own, that includes the session making the request — so the caller is signed
+   * own, that includes the session making the request, so the caller is signed
    * out and must sign in again with the new password. The page says so before
    * asking.
    */

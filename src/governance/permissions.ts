@@ -1,12 +1,12 @@
 // What "manage" means at each tier, in one place.
 //
-// The hierarchy is scoped by *subject*, not merely by strength — each tier
+// The hierarchy is scoped by *subject*, not merely by strength, each tier
 // governs a different thing, and inherits everything below it:
 //
-//   Root          manages PEOPLE     — accounts, roles, agent assignments
-//   Administrator manages ALL AGENTS — global policy, posture, any agent
-//   User          manages ONE AGENT  — the agents an Administrator assigned them
-//   Viewer        views ONE AGENT    — the same assignment, read-only, masked
+//   Root          manages PEOPLE, accounts, roles, agent assignments
+//   Administrator manages ALL AGENTS, global policy, posture, any agent
+//   User          manages ONE AGENT, the agents an Administrator assigned them
+//   Viewer        views ONE AGENT, the same assignment, read-only, masked
 //
 // Two independent questions therefore decide every request:
 //   1. Is the caller's *tier* high enough for this kind of operation?
@@ -29,7 +29,7 @@ export type GovernanceActor = {
    * Whether Root has granted this account the ability to **write** policy.
    *
    * Absent means yes, which is what keeps every account issued before this
-   * existed working exactly as it did. Consulted for the User tier only —
+   * existed working exactly as it did. Consulted for the User tier only,
    * Administrator and above manage every agent by role, and a Viewer writes
    * nothing regardless.
    */
@@ -49,19 +49,19 @@ export function hasUnlimitedAgentScope(role: GovernanceRole): boolean {
  * *stored* assignment list at `user-store.ts`'s choke point, and its own
  * write-up named the comparison below as the thing that had been answering
  * `["Scout"].includes("scout")` → `false`. The data was folded; the comparison
- * was not, so the identical mismatch stayed reachable from the other side — a
+ * was not, so the identical mismatch stayed reachable from the other side. A
  * canonical assignment and a query typed the way an operator types it. Both
  * surfaces hand this module a raw string: the CLI passes `options.agent?.trim()`
  * and the route passes `agentId.trim()`.
  *
- * This is finding 202's rule — *fold at each boundary that owns a question* —
+ * This is finding 202's rule, *fold at each boundary that owns a question*,
  * applied to the boundary that owns "is this agent inside your scope?".
  *
  * **Filtered before folding**, exactly as `normalizeAgentIds` does it.
  * `normalizeAgentId` is a coercion rather than a validator and answers `main`
  * for anything with no canonical form of its own, so folding unconditionally
  * would turn a query for `###` into a query for the installation's default
- * agent — finding 129's trap, arriving at the permission check. An id with no
+ * agent: finding 129's trap, arriving at the permission check. An id with no
  * canonical form matches nothing, which is the direction this function has to
  * fail in.
  */
@@ -91,7 +91,7 @@ export function canViewAgent(actor: GovernanceActor, agentId: string): boolean {
 }
 
 /**
- * True when this actor may *change* the given agent's policy — add or remove
+ * True when this actor may *change* the given agent's policy. Add or remove
  * agent-scoped rules, and lock or release that agent.
  *
  * Viewer is excluded by tier even for an assigned agent: assignment grants
@@ -117,20 +117,20 @@ export function canManageAgent(actor: GovernanceActor, agentId: string): boolean
  *
  * So the two questions stay separate, and every call site has to pick one:
  *
- *   - **`canManageAgent`** — *may this actor act on this agent?* The kill
+ *   - **`canManageAgent`**: *may this actor act on this agent?* The kill
  *     switch, prompting it, reading its transcript and runs, deciding a held
  *     escalation. None of these change the rules; they exercise authority the
  *     tier already has over a workload it is responsible for.
- *   - **`canAuthorPolicyForAgent`** — *may this actor change the rules this
+ *   - **`canAuthorPolicyForAgent`**: *may this actor change the rules this
  *     agent is judged by?* Adding and removing agent-scoped rules, and the
  *     folder grants that compile into them.
  *
  * **This list said "and setting that agent's posture and escalation overrides"
  * until finding 218, and had been wrong since those two moved to Administrator.**
- * `policy/agent-ask` argues the move at length in its own comment — an
+ * `policy/agent-ask` argues the move at length in its own comment, an
  * escalation override converts a hard refusal into a request somebody might
  * grant, which is a widening made by the tier the paper gives the least
- * authority — and the capability was *relocated* rather than removed: a User
+ * authority, and the capability was *relocated* rather than removed: a User
  * submits an `agent-setting` rule request and an Administrator decides it. Both
  * surfaces enforce the Administrator floor, so no caller of this predicate can
  * reach `setAgentMode` or `setAgentAsk`.
@@ -139,7 +139,7 @@ export function canManageAgent(actor: GovernanceActor, agentId: string): boolean
  * reader checking what a User may do reads it here, and it over-stated the tier
  * in the permissive direction. Note also that `policy/agent-ask` and
  * `policy/agent-mode` still call this predicate *behind* that floor, where it
- * can no longer refuse anything — kept as defence in depth, but it is the
+ * can no longer refuse anything: kept as defence in depth, but it is the
  * `requireRole` above it that decides.
  */
 export function canAuthorPolicyForAgent(actor: GovernanceActor, agentId: string): boolean {
@@ -154,7 +154,7 @@ export function canAuthorPolicyForAgent(actor: GovernanceActor, agentId: string)
  *
  *   - **Administrator and Root** always may. The flag is not consulted for
  *     them, because they manage every agent by role and a Root who could
- *     revoke their own authority would be a lockout waiting to happen — the
+ *     revoke their own authority would be a lockout waiting to happen. The
  *     class `account-guards.ts` exists to prevent.
  *   - **Viewer** never may, flag or no flag.
  *   - **User** may unless Root has withheld it. `ROLE-MODEL.md` §3.7 widened
@@ -207,7 +207,7 @@ export function canManageAccounts(actor: GovernanceActor): boolean {
  * Root, and the tier was argued rather than copied from a neighbour. A backend
  * stance writes **OpenClaw's own configuration** (`plugins.entries.*`) rather
  * than governance's, which §1.6 puts under Root's deployment configuration, and
- * its blast radius reaches outside governance entirely — disabling Codex
+ * its blast radius reaches outside governance entirely. Disabling Codex
  * withdraws its model catalogue, media understanding and prompt overlays.
  *
  * Named separately from `canManageAccounts` despite testing the same tier: the
@@ -229,7 +229,7 @@ export function canManageBackends(actor: GovernanceActor): boolean {
  *
  * The tier is argued rather than inherited from its neighbour `system`. The
  * report gives the bind mode, port, gateway auth mode and governance directory
- * — a map of how to reach and attack the installation — which is why the route
+ *a map of how to reach and attack the installation, which is why the route
  * is Root while the status beside it is Viewer. Until 2026-08-31 the command
  * line asked no tier question here at all, so the map was readable by any
  * signed-in account.
@@ -258,7 +258,7 @@ export function visibleAgents(
   agentIds: readonly string[],
 ): readonly string[] {
   // Filtered through `canViewAgent` rather than repeating its comparison, so
-  // the list and the single-agent question cannot come to differ — which is the
+  // the list and the single-agent question cannot come to differ, which is the
   // shape finding 213 was.
   return hasUnlimitedAgentScope(actor.role)
     ? agentIds

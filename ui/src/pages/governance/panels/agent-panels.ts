@@ -5,7 +5,7 @@
 //
 // The third seam the HTTP routes were split along on the same day.
 // `governance-dashboard-agent-control.ts` states one rule for its whole
-// contents — *User tier or above, and you must manage this agent* — and this
+// contents, *User tier or above, and you must manage this agent*, and this
 // file renders exactly what that route serves. The kill switch travels with the
 // conversation panels here for the same reason it travels with the prompt
 // routes there: stopping an agent is **acting on a workload you are responsible
@@ -29,8 +29,8 @@
 //    `engageKillSwitch`, `openConversation`.
 //
 // That last group is not plumbing for its own sake. Each of those manages
-// state a panel cannot see — an in-flight run id, a streaming buffer, the
-// attachment quota already spent — and putting them behind a named callback is
+// state a panel cannot see, an in-flight run id, a streaming buffer, the
+// attachment quota already spent, and putting them behind a named callback is
 // what keeps a panel from acquiring a second copy of it. `sendPrompt` in
 // particular owns the streaming lifecycle; a panel that re-implemented it would
 // be the second place a cancelled run has to be cleaned up.
@@ -153,7 +153,7 @@ export function renderKillNotice(
   }
   // Distinguish "confirmed stopped" from "signal sent". Reporting one number
   // for both let an operator read "we asked in 4ms" as "the agent stopped in
-  // 4ms" — the claim requirement #7 actually makes.
+  // 4ms". The claim requirement #7 actually makes.
   if (notice.stoppedConfirmed === false) {
     return html`<div class="settings-empty" role="alert">
       ${t("governance.kill.noticeUnconfirmed")} ${aborted}
@@ -179,7 +179,7 @@ export function renderKillNotice(
  * resumes following a later change to the installation posture.
  *
  * `off` is never offered. It is not a third posture but the absence of the
- * gate — the kill switch and the core denials stop applying — and the server
+ * gate, the kill switch and the core denials stop applying, and the server
  * refuses it at every tier, so a button for it could only ever produce an
  * error. See `ROLE-MODEL.md`.
  */
@@ -257,7 +257,7 @@ export function renderActiveSessionsSection(
     return nothing;
   }
   if (!view.supported) {
-    // Distinguish "cannot see" from "nothing running" — they mean very
+    // Distinguish "cannot see" from "nothing running". They mean very
     // different things to somebody deciding whether to intervene.
     return renderSettingsSection({ title: t("governance.sessions.title") }, [
       renderSettingsRow({
@@ -286,7 +286,7 @@ export function renderActiveSessionsSection(
               // typed into a box, and the moment somebody wants to observe an
               // agent is the moment they are looking at it running. A control
               // that exists and is not where the decision is made is only
-              // marginally better than one that does not exist — which is the
+              // marginally better than one that does not exist, which is the
               // state this feature was found in.
               //
               // Authority is the server's to decide and it does
@@ -320,7 +320,7 @@ export function renderActiveSessionsSection(
               : nothing}
             ${
               // The release control used to live only in the kill-switch
-              // section, which is Administrator-gated — so a User could stop
+              // section, which is Administrator-gated, so a User could stop
               // their own agent and then had to find an administrator to
               // start it again. Whoever is trusted to stop an agent is
               // trusted to undo that.
@@ -347,14 +347,14 @@ export function renderKillSwitchSection(props: KillSwitchProps): TemplateResult 
   // This was `canAdminister`, and the hint beside it said "Root only", while
   // the `POST kill` route admitted a User and checked `canManageAgent`. Three
   // surfaces, three answers, on the one control the design calls an emergency
-  // stop — and the panel was the strictest of the three, so the person most
+  // stop, and the panel was the strictest of the three, so the person most
   // likely to be watching their own agent misbehave was the one without a
   // button, on the surface they were most likely to be looking at.
   //
   // The decision (Kinan, 2026-09-01) was to make the dashboard match the route.
   // It also makes this section agree with the **active-sessions panel two
   // hundred lines up**, which has offered a User a Stop button for their own
-  // sessions since the release control moved there — with a comment saying
+  // sessions since the release control moved there, with a comment saying
   // "whoever is trusted to stop an agent is trusted to undo that". That comment
   // was already the argument for this change; nobody had applied it here.
   if (!props.canManageAnyAgent) {
@@ -369,7 +369,7 @@ export function renderKillSwitchSection(props: KillSwitchProps): TemplateResult 
   // only the caller's agents, and `GET policy` filters `agentMode`, `agentAsk`,
   // the agent-scoped rules **and `lockedAgents`** before it answers. A User is
   // therefore never told an agent they cannot act on exists, which is
-  // deliberate — it is what stops this page becoming an enumeration oracle for
+  // deliberate. It is what stops this page becoming an enumeration oracle for
   // the rest of the organisation.
   //
   // Kept anyway, as the header of `identity.ts` argues: these helpers decide
@@ -410,7 +410,7 @@ export function renderKillSwitchSection(props: KillSwitchProps): TemplateResult 
             // checking it against the agents this page has already loaded, so
             // stopping `agent-1` when the agent is `agent1` returned 200 OK,
             // wrote a lockdown entry to the ledger, and reported
-            // `abortedRunIds: []` — which the notice below renders as "no runs
+            // `abortedRunIds: []`, which the notice below renders as "no runs
             // stopped", indistinguishable from "the agent was idle". For the
             // one control that exists for emergencies, needing to spell
             // something correctly with no help and no feedback is the wrong
@@ -418,7 +418,7 @@ export function renderKillSwitchSection(props: KillSwitchProps): TemplateResult 
             //
             // The datalist offers what is known; the warning covers the case
             // where the operator means an agent that is real but idle, which
-            // is legitimate and must stay possible — so this informs rather
+            // is legitimate and must stay possible, so this informs rather
             // than blocks.
             typed && !props.isKnownAgentId(typed)
               ? html`<div class="settings-empty" role="status" style="flex-basis:100%">
@@ -436,7 +436,7 @@ export function renderKillSwitchSection(props: KillSwitchProps): TemplateResult 
           }
           <datalist id="governance-known-agents">
             ${
-              // The label is the option's *text*, the id stays its value — so
+              // The label is the option's *text*, the id stays its value, so
               // a registered name helps the operator find the right agent
               // while what lands in the field is still the id every rule and
               // ledger entry uses (M4).
@@ -480,7 +480,7 @@ export function renderKillSwitchSection(props: KillSwitchProps): TemplateResult 
  * strictly prompt the agents for task execution").
  *
  * Rendered inside the sessions panel, under the agent it belongs to, because
- * an agent is the subject of both — its runs and the conversation that starts
+ * an agent is the subject of both: its runs and the conversation that starts
  * them are one thing seen from two sides.
  */
 export function renderConversation(
@@ -496,7 +496,7 @@ export function renderConversation(
     //
     // `openConversation` sets `promptError` and leaves `transcript` null when
     // the fetch fails, and this early return came *before* the block that
-    // renders that error — so any failure showed "Loading the conversation…"
+    // renders that error, so any failure showed "Loading the conversation…"
     // for ever, with the explanation rendered nowhere. Observed by opening a
     // conversation whose request was refused: a spinner that never resolves
     // and no way to find out why.
@@ -597,7 +597,7 @@ export function renderConversation(
               // tab to. Every other control in this composer is a `<button>`;
               // this one only looked like one.
               //
-              // Same class as finding 103, and found the same way — by driving
+              // Same class as finding 103, and found the same way, by driving
               // the page rather than by reading it.
               //
               // **Moved out of the template on 2026-09-01 (T43.)** It was an
@@ -670,7 +670,7 @@ export function renderConversation(
  * A separate section from the live-sessions panel on purpose: that one lists
  * agents that are *currently running*, and the commonest thing a User wants
  * to do is start one that is not. Listing the assignment answers "which
- * agents are mine" without the operator having to know an id — which for the
+ * agents are mine" without the operator having to know an id, which for the
  * User tier, the one tier that is handed specific agents rather than all of
  * them, is the whole point.
  *

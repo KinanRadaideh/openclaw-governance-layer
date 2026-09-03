@@ -4,7 +4,7 @@
 //
 // They are the same subject seen from either side of a session: the form that
 // starts one, and the row that ends one. Nothing else on the page renders while
-// `renderLogin` is showing — `render()` returns it instead of the dashboard —
+// `renderLogin` is showing, `render()` returns it instead of the dashboard,
 // so keeping it beside the identity row is what makes the pair legible as
 // "session", rather than filing the form under "forms" and the row under
 // "header".
@@ -22,12 +22,13 @@
 // `onSignOut` is a callback rather than three assignments for the same reason.
 // Signing out clears the identity *and* the policy and ledger already on
 // screen, because leaving them rendered after the session ends is the exact
-// defect `markSessionExpired` was written for — the operator can no longer act,
+// defect `markSessionExpired` was written for. The operator can no longer act,
 // and cannot tell that what they are reading is stale. Which state that clears
 // is the page's business; the button only says it happened.
 import { html, nothing, type TemplateResult } from "lit";
 import {
   renderDocsLink,
+  renderSettingsEmpty,
   renderSettingsPage,
   renderSettingsRow,
   renderSettingsSection,
@@ -38,7 +39,12 @@ import type { GovernanceIdentity } from "../api.ts";
 import type { PanelEffects } from "./account-panels.ts";
 
 /** Where the sign-in form points an operator who wants the architecture behind the gate. */
-const SECURITY_DOCS_URL = "https://docs.openclaw.ai/gateway/security";
+/**
+ * The sign-in screen's "Learn more", which has to be the same destination as
+ * the signed-in page's. Upstream's security docs describe upstream, and this
+ * layer is a fork whose gate is not documented there.
+ */
+const GOVERNANCE_REPO_URL = "https://github.com/KinanRadaideh/openclaw-governance-layer";
 
 /** The sign-in fields, which the page owns so a failed attempt can keep them. */
 export type LoginDrafts = {
@@ -113,7 +119,7 @@ export function renderLogin(props: LoginPanelProps): TemplateResult {
             <!--
               Named via aria-label, not by the placeholder. A placeholder is
               not a label: it is not reliably exposed as an accessible name,
-              and it disappears the moment the field has content — so the hint
+              and it disappears the moment the field has content, so the hint
               vanishes exactly when someone reviewing what they typed needs it.
               aria-label rather than a visually-hidden <label> because this
               page has no global sr-only class to hide one with, and an
@@ -191,7 +197,7 @@ export function renderLogin(props: LoginPanelProps): TemplateResult {
     ),
     {
       intro: html`${t("governance.intro")}
-      ${renderDocsLink(SECURITY_DOCS_URL, t("common.learnMore"))}`,
+      ${renderDocsLink(GOVERNANCE_REPO_URL, t("common.learnMore"))}`,
     },
   );
 }
@@ -217,4 +223,44 @@ export function renderIdentityRow(props: IdentityRowProps): TemplateResult {
       </button>`,
     }),
   ]);
+}
+
+/**
+ * The page before you are signed in: loading, or the sign-in form.
+ *
+ * Moved off `governance-page.ts` (2026-09-04) because adding the section
+ * jump-nav and the per-agent timeout took that file past the 700-line limit,
+ * and T16's answer to that limit is to move a subject out whole rather than to
+ * suppress the rule. This is a coherent subject: everything the page shows
+ * while it has no identity to show anything about.
+ *
+ * Returns `null` when there *is* an identity, so the caller reads as "the gate,
+ * or the page".
+ */
+export function renderGovernanceGate(props: {
+  loading: boolean;
+  identity: GovernanceIdentity | null;
+  busy: boolean;
+  error: string | null;
+  needsBootstrap: boolean;
+  sessionExpired: boolean;
+  drafts: { loginUsername: string; loginPassword: string; loginConfirm: string };
+  onDraft: (patch: Record<string, unknown>) => void;
+  performLogin: (bootstrapping: boolean) => Promise<void>;
+}): TemplateResult | null {
+  if (props.loading) {
+    return renderSettingsPage(renderSettingsEmpty(t("governance.loading")));
+  }
+  if (props.identity) {
+    return null;
+  }
+  return renderLogin({
+    busy: props.busy,
+    error: props.error,
+    needsBootstrap: props.needsBootstrap,
+    sessionExpired: props.sessionExpired,
+    drafts: props.drafts,
+    onDraft: props.onDraft,
+    performLogin: props.performLogin,
+  });
 }

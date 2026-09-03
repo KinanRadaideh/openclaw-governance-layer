@@ -1,16 +1,16 @@
-// M2 — "who can reach this agent", through the route an operator's dashboard
+// M2, "who can reach this agent", through the route an operator's dashboard
 // calls.
 //
 // `findUsersForAgent` has existed in `user-store.ts` since assignment was built
 // and nothing ever called it. The dashboard could always answer "which agents
-// does this account have?" and never "which people does this agent have?" —
+// does this account have?" and never "which people does this agent have?",
 // which is the question an Administrator asks before changing a rule or handing
 // an agent over, and the one the requested ecosystem panel is built around.
 //
 // The two properties worth pinning are the scope check and the empty answer.
 // Without the first the route is an enumeration oracle: any account could ask
 // about any agent id and map the installation's staffing. The second is a real
-// answer rather than a missing one — an agent nobody has been assigned is
+// answer rather than a missing one. An agent nobody has been assigned is
 // running under Administrator authority alone, which is worth seeing.
 import { mkdtemp, rm } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -202,7 +202,7 @@ describe("who can reach an agent", () => {
   it("does not name another group's people who use the same agent id (M3)", async () => {
     // Agent ids are free-form and are not owned by a group until M4, so two
     // organisations can independently assign the same one. Without the group
-    // filter this route would answer with the other organisation's staff —
+    // filter this route would answer with the other organisation's staff,
     // isolation defeated by a coincidence of naming rather than by an attack.
     await assignedAccount("malek", "user", ["agent-shared"]);
     const otherRoot = await createUser(

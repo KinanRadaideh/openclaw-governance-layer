@@ -72,7 +72,7 @@ describe("indefinite rules", () => {
     const indefinite = rule();
     expect(isRuleIndefinite(indefinite)).toBe(true);
     expect(isRuleExpired(indefinite, NOW)).toBe(false);
-    // Far into the future — an indefinite grant must still hold.
+    // Far into the future. An indefinite grant must still hold.
     expect(isRuleExpired(indefinite, NOW + 100 * 365 * 24 * 3600 * 1000)).toBe(false);
     expect(ruleTimeRemainingMs(indefinite, NOW)).toBeUndefined();
   });
@@ -95,7 +95,7 @@ describe("time-limited rules", () => {
   it("apply before expiry and stop after", async () => {
     // A command no shipped baseline rule covers. `ls` would be allowed by the
     // baseline set regardless of this rule's expiry, so the test would pass
-    // whatever expiry did — it has to exercise a grant that is genuinely the
+    // whatever expiry did. It has to exercise a grant that is genuinely the
     // only thing permitting the action.
     const pattern = "^deploy-service$";
     await addRule(
@@ -218,7 +218,7 @@ describe("the ruleset is bounded", () => {
 
   it("recovers on its own when the ceiling was reached through lapsed rules", async () => {
     // Pruning runs before the check, so an installation full of expired grants
-    // is not told it is full — it simply cleans up and accepts the new rule.
+    // is not told it is full. It simply cleans up and accepts the new rule.
     const longAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const doc = defaultPolicyDocument();
     doc.rules = Array.from({ length: MAX_POLICY_RULES }, (_unused, index) => ({

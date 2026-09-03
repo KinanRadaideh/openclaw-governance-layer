@@ -5,7 +5,7 @@
 // rule you may write depends on the second:
 //
 //   - A **global** rule (no `agentId`) binds every agent, so it is not
-//     "managing your agent" — it is managing everyone's. Administrator and Root.
+//     "managing your agent". It is managing everyone's. Administrator and Root.
 //   - An **agent-scoped** rule binds one workload. User and above, for the
 //     agents an Administrator assigned them.
 //   - A **Viewer** writes nothing at all, at either scope, however many agents
@@ -171,7 +171,7 @@ describe("Administrator and Root may add and change policy", () => {
     });
 
     it(`${role} may set a per-agent escalation and posture directly (T4)`, async () => {
-      // Root reaches these by **inheritance** — `roleAtLeast` treats the tiers
+      // Root reaches these by **inheritance**, `roleAtLeast` treats the tiers
       // as a ladder and nothing in the route names Root. Asserted rather than
       // assumed, because "the ladder covers it" is exactly the kind of claim
       // this project has been wrong about before.
@@ -219,7 +219,7 @@ describe("a User may author policy for their own assigned agents", () => {
     expect(res.status).toBe(200);
     const created = (await loadPolicy(TEST_GROUP)).rules.find((r) => r.pattern === "^echo hi$");
     expect(created?.agentId).toBe("mine");
-    // Recorded against the person, not the tier — the trail has to answer who
+    // Recorded against the person, not the tier. The trail has to answer who
     // widened the rules, and "a user did" is not an answer.
     expect(created?.createdBy).toBe("user");
   });
@@ -345,7 +345,7 @@ describe("a Viewer writes nothing, at either scope", () => {
       aRule({ agentId: "mine" }),
     );
     expect(res.status).toBe(403);
-    // Not "no rules at all" — an installation ships with a tiered baseline
+    // Not "no rules at all". An installation ships with a tiered baseline
     // (§G), so the assertion is that *this* rule was not written.
     expect((await loadPolicy(TEST_GROUP)).rules.some((r) => r.pattern === "^echo hi$")).toBe(false);
   });
@@ -420,7 +420,7 @@ describe("Root decides whether a User may write policy at all", () => {
   it("a withheld User can still stop their agent", async () => {
     // The emergency stop is not policy authoring. An operator who may not
     // rewrite the rules must still be able to pull the handle on a runaway
-    // agent they are responsible for — withholding the first and removing the
+    // agent they are responsible for. Withholding the first and removing the
     // second would be a safety regression dressed as a permission.
     const stop = await send("POST", "kill", withheld(["mine"]), { agentId: "mine" });
     expect(stop.status).toBe(200);

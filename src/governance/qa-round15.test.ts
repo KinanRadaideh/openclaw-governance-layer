@@ -1,4 +1,4 @@
-// Fifteenth QA round — B1: the configuration that never entered the gate.
+// Fifteenth QA round, B1: the configuration that never entered the gate.
 //
 // Every previous round tested the gate. This one tests whether the host is
 // obliged to *call* it, in the one configuration where it was not: the native
@@ -6,8 +6,8 @@
 // governance only if the host installs a relay hook into that process's
 // configuration.
 //
-// The finding was that the relay decision had a single input — a predicate
-// counting *plugin* before-tool-call policies — and this governance layer is
+// The finding was that the relay decision had a single input, a predicate
+// counting *plugin* before-tool-call policies, and this governance layer is
 // compiled into the fork rather than installed as a plugin. So on a plugin-free
 // install the host concluded there was nothing to relay to, omitted the hook,
 // and the harness ran tools with no policy check, no ledger entry and no reach
@@ -49,7 +49,7 @@ function codexRelay(options?: { preToolUseLoopDetection?: boolean }) {
   });
 }
 
-describe("B1 — governance obliges the native harness to relay tool calls", () => {
+describe("B1. Governance obliges the native harness to relay tool calls", () => {
   it("requires the relay on an installation", () => {
     process.env.OPENCLAW_GOVERNANCE_DIR = dir;
     expect(governanceRequiresNativeToolRelay()).toBe(true);
@@ -68,7 +68,7 @@ describe("B1 — governance obliges the native harness to relay tool calls", () 
     try {
       // `undefined` is "no matcher", i.e. every tool. A concrete list here
       // would mean the tools outside it reach the harness ungoverned while the
-      // relay is present and looks correct — the same hole one level down.
+      // relay is present and looks correct. The same hole one level down.
       expect(relay.toolMatcherForEvent("pre_tool_use")).toBeUndefined();
     } finally {
       relay.unregister();
@@ -90,7 +90,7 @@ describe("B1 — governance obliges the native harness to relay tool calls", () 
   });
 });
 
-describe("B1 — the relay requirement and the shipped posture cannot drift apart", () => {
+describe("B1. The relay requirement and the shipped posture cannot drift apart", () => {
   // The reason this round exists at all is that two parts of the system
   // disagreed about whether governance was present. Asserting the fix in the
   // relay layer alone would repeat the mistake: it would be one more claim
@@ -112,7 +112,7 @@ describe("B1 — the relay requirement and the shipped posture cannot drift apar
     // No OPENCLAW_GOVERNANCE_DIR. This is OpenClaw's own harness suite: it
     // predates governance, has no operator and no policy, and `loadPolicy`
     // hands it `off` for exactly that reason. Relaying here would spawn
-    // processes to reach a gate that is switched off — and forcing it on is
+    // processes to reach a gate that is switched off, and forcing it on is
     // what made the naive one-line fix break thirty host tests.
     expect(isUnconfiguredTestRun()).toBe(true);
     const policy = await loadPolicy(TEST_GROUP);
@@ -124,7 +124,7 @@ describe("B1 — the relay requirement and the shipped posture cannot drift apar
     // Round thirteen's lesson, applied to this round's own guard: a check makes
     // a silent claim about what it compares against. This one's claim is that
     // `isUnconfiguredTestRun()` is the single definition of "not an
-    // installation" — the same function `loadPolicy` consults when it decides
+    // installation". The same function `loadPolicy` consults when it decides
     // to hand out `off`. If a future change gives either side its own copy of
     // that condition, the two tests above stop agreeing and this suite fails.
     process.env.OPENCLAW_GOVERNANCE_DIR = dir;
@@ -134,7 +134,7 @@ describe("B1 — the relay requirement and the shipped posture cannot drift apar
   });
 });
 
-describe("B1 — the fix does not widen the plugin predicate", () => {
+describe("B1. The fix does not widen the plugin predicate", () => {
   it("leaves loop-detection-only registrations alone", () => {
     // The loop detector's own opt-out still decides its own relay. Governance
     // adds a reason to relay; it does not remove anybody else's.
@@ -150,7 +150,7 @@ describe("B1 — the fix does not widen the plugin predicate", () => {
   it("does not claim work for post_tool_use or before_agent_finalize", () => {
     // Governance evaluates *before* a tool runs. Claiming the other events
     // would spawn relay processes for hooks this layer does not implement, and
-    // would misreport what governance covers — the search-tool recursion gap is
+    // would misreport what governance covers. The search-tool recursion gap is
     // still open precisely because there is no after-the-fact governance.
     process.env.OPENCLAW_GOVERNANCE_DIR = dir;
     const relay = codexRelay();

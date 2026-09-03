@@ -1,4 +1,4 @@
-// Which organisation does this agent belong to? — the question M5 made the
+// Which organisation does this agent belong to? the question M5 made the
 // gate ask on every tool call.
 //
 // ## Why this exists
@@ -17,8 +17,8 @@
 // to answer a question whose answer almost never changes.
 //
 // So the registry is held in memory and dropped whenever it is written. That is
-// safe because **this process is the only writer** — every mutation goes through
-// `agent-registry.ts`, which calls `invalidateAgentGroupCache` — and because the
+// safe because **this process is the only writer**, every mutation goes through
+// `agent-registry.ts`, which calls `invalidateAgentGroupCache`, and because the
 // failure mode of a stale entry is bounded: an agent's group changes only by an
 // explicit re-registration, and the write that changes it clears the cache
 // before it returns.
@@ -30,7 +30,7 @@
 //
 // M5 decided that an agent with no registry record is **refused** rather than
 // falling back to a shared document (the alternative kept M4's ownership hole
-// open — `assertAssignable` skips an agent it has no record of, so the rule
+// open, `assertAssignable` skips an agent it has no record of, so the rule
 // could be sidestepped by never registering). That makes this function total in
 // the sense the gate needs: it either names a group or refuses the call. There
 // is no third answer that quietly picks a rulebook.
@@ -50,7 +50,7 @@ type AgentsFileShape = { agents?: readonly RegistryRow[] };
  * defensive padding: `agentsFilePath()` depends on `OPENCLAW_GOVERNANCE_DIR`,
  * so the *same* module can be asked about two different installations in one
  * process. That happens constantly under a test runner, where each suite points
- * the environment variable at its own temporary directory — and it produced
+ * the environment variable at its own temporary directory, and it produced
  * exactly the failure you would predict, a suite passing alone and failing in a
  * full run because it inherited the previous file's registry.
  *
@@ -86,7 +86,7 @@ async function loadCache(): Promise<Map<string, string>> {
   const file = await readJsonIfExists<AgentsFileShape>(path);
   const next = new Map<string, string>();
   // Ids seen more than once after canonicalisation. Their group is **withdrawn**
-  // rather than guessed — see below.
+  // rather than guessed. See below.
   const ambiguous = new Set<string>();
   for (const row of file?.agents ?? []) {
     // A row missing either half is skipped rather than defaulted. An agent with
@@ -103,7 +103,7 @@ async function loadCache(): Promise<Map<string, string>> {
       // **Two rows, one agent, two different organisations (finding 145).**
       //
       // `Map.set` would keep the last row read, so which organisation governs a
-      // real agent would be decided by file order — silently, and differently
+      // real agent would be decided by file order. Silently, and differently
       // after any rewrite. That is the one outcome this module exists to
       // prevent: its own header says there is "no third answer that quietly
       // picks a rulebook", and quietly picking one of two is exactly that.
@@ -137,7 +137,7 @@ export async function resolveAgentGroup(agentId: string | undefined): Promise<st
   }
   // Canonicalised on **both** sides (finding 128). The registry now stores the
   // canonical id, and the gate already asks with one, so in practice these
-  // agree — but the whole defect was two sides applying different rules to the
+  // agree, but the whole defect was two sides applying different rules to the
   // same string while each looked correct alone, and one of them changing again
   // is exactly the way it would come back.
   return (await loadCache()).get(normalizeAgentId(trimmed));
@@ -147,7 +147,7 @@ export async function resolveAgentGroup(agentId: string | undefined): Promise<st
  * Every group that has at least one registered agent.
  *
  * For the surfaces that have to act across groups without a session to scope
- * them — the expiry sweep, the deployment report, chain verification — each of
+ * them, the expiry sweep, the deployment report, chain verification, each of
  * which previously worked on one document and now has to visit several.
  */
 export async function listAgentGroups(): Promise<string[]> {

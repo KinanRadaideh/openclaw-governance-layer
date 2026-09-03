@@ -8,7 +8,7 @@
 // the action does not proceed. Timing out into "allow" would mean an
 // unattended installation silently degrades into no governance at all, which
 // is the opposite of a default-deny system. So a timeout denies, and the
-// unanswered question is preserved here rather than discarded — otherwise the
+// unanswered question is preserved here rather than discarded. Otherwise the
 // operator never learns what their agent was blocked from doing, and the
 // silent-failure class the design doctrine treats as the worst outcome is
 // exactly what they get.
@@ -47,7 +47,7 @@ export type PendingDecision = {
    * A wedged agent retries the identical action on a loop, so the store filled
    * with thousands of copies of one question. Collapsing repeats into a count
    * is better than dropping them: the operator still sees every *distinct*
-   * question, and the repetition itself becomes visible information — "this has
+   * question, and the repetition itself becomes visible information, "this has
    * timed out 400 times" is the symptom of a stuck agent, which a wall of
    * identical rows conveys far less clearly.
    */
@@ -61,7 +61,7 @@ type PendingDecisionsFile = { version: 1; decisions: PendingDecision[] };
 /**
  * Retained entries. Bounded because a wedged agent could otherwise time out
  * repeatedly and grow the file without limit. Pending entries are never
- * pruned — an undecided question is the whole point of the stack.
+ * pruned: an undecided question is the whole point of the stack.
  */
 export const MAX_STORED_PENDING_DECISIONS = 500;
 
@@ -69,7 +69,7 @@ async function ensureHomeDir(groupId: string): Promise<void> {
   // The **group's** directory, not just the installation root (M5).
   //
   // Every file this module touches now lives under `groups/<groupId>/`, and
-  // `withFileLock` creates its lock beside the file it guards — so a first write
+  // `withFileLock` creates its lock beside the file it guards, so a first write
   // for a brand-new organisation failed with ENOENT on the *lock*, before the
   // write it was protecting was ever attempted. A fresh group is the one state
   // every installation passes through exactly once, which is precisely the kind
@@ -87,14 +87,14 @@ async function readFileOrEmpty(groupId: string): Promise<PendingDecisionsFile> {
  *
  * Deliberately separate from the overall cap. Pending entries were exempt from
  * pruning entirely, on the reasoning that an unanswered question is the whole
- * point of the stack — correct in principle, and unbounded in practice: an
+ * point of the stack: correct in principle, and unbounded in practice: an
  * agent stuck in a retry loop against an unattended installation grew the file
  * without limit, and every append rewrote the whole file, so the cost was
  * quadratic in the number of times nobody was watching.
  *
  * Collapsing repeats (see `sameQuestion`) removes almost all of that growth,
  * because a wedged agent asks the *same* question. This cap is the backstop for
- * the remaining case — many genuinely distinct unanswered questions — where
+ * the remaining case, many genuinely distinct unanswered questions, where
  * something is badly wrong anyway and an operator will not read 2000 rows.
  */
 export const MAX_PENDING_UNDECIDED = 200;
@@ -102,7 +102,7 @@ export const MAX_PENDING_UNDECIDED = 200;
 /**
  * True when two entries represent the same question, so a repeat can be counted
  * rather than stored again. The decision an operator would make depends on the
- * agent, the tool and the resource — not on when it was asked.
+ * agent, the tool and the resource: not on when it was asked.
  */
 function sameQuestion(a: PendingDecision, b: PendingDecision): boolean {
   return (
@@ -183,7 +183,7 @@ export async function listPendingDecisions(groupId: string): Promise<PendingDeci
 /**
  * Records a late answer to a timed-out escalation.
  *
- * Answering does **not** retroactively run the blocked action — that turn is
+ * Answering does **not** retroactively run the blocked action. That turn is
  * long gone. It records the operator's judgement, and an `allowed` answer is
  * the operator's cue to add a rule so the next attempt succeeds. Pretending to
  * resume a dead run would be worse than being clear that it cannot.
@@ -201,13 +201,13 @@ export async function decidePendingDecision(
      *
      * Carried beside the name rather than folded into it because the two have
      * different destinations: the stored record keeps a name, and the ledger
-     * keeps the **authority the action was taken under** — the claim T5 Part B
+     * keeps the **authority the action was taken under**. The claim T5 Part B
      * added `actorRole` for. Recording only the name made this one of three
      * administrative actions that quietly did not meet it (2026-08-31); the
      * other two are in `rule-requests.ts`.
      *
-     * Optional so that a caller with genuinely no tier — a test, or a path with
-     * no authenticated account — records none rather than inventing one, which
+     * Optional so that a caller with genuinely no tier, a test, or a path with
+     * no authenticated account, records none rather than inventing one, which
      * is the rule `splitAuditActor` enforces.
      */
     decidedByRole?: GovernanceRole;

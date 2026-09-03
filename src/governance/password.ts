@@ -1,5 +1,5 @@
 // Password hashing for governance dashboard accounts, using Node's built-in
-// scrypt (no new dependency — the design doc's economic/manufacturability
+// scrypt (no new dependency. The design doc's economic/manufacturability
 // constraints favor open-source, low-cost, low-dependency components).
 //
 // **Why the stored format carries its own parameters (QA finding B9).** The
@@ -7,8 +7,8 @@
 // and nothing about how hard it was told to work. Every verification therefore
 // had to assume the parameters in force today. That made the cost permanently
 // unraisable: increasing it would re-derive every existing password with
-// settings they were never hashed under, every comparison would fail, and —
-// with no reset path — the installation would be locked out irrecoverably. A
+// settings they were never hashed under, every comparison would fail, and,
+// with no reset path, the installation would be locked out irrecoverably. A
 // security parameter you can never increase is one you chose once, forever, at
 // the moment you understood the least.
 //
@@ -16,7 +16,7 @@
 // stored password is verified under the settings it was actually created with,
 // so the default can move whenever hardware does. `needsRehash` then reports
 // which stored passwords are behind, and the login path upgrades them in place
-// the next time their owner signs in — no reset, no coordination, no window
+// the next time their owner signs in, no reset, no coordination, no window
 // where anybody is locked out.
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
@@ -37,7 +37,7 @@ const SCHEME = "scrypt";
  * Cost in force for newly hashed passwords.
  *
  * Raise these as hardware improves. Existing passwords keep verifying under
- * whatever they were created with, and upgrade on next sign-in — which is the
+ * whatever they were created with, and upgrade on next sign-in, which is the
  * whole point of recording the parameters.
  */
 export const CURRENT_SCRYPT_PARAMS: ScryptParams = { N: 16_384, r: 8, p: 1 };
@@ -138,7 +138,7 @@ export async function verifyPassword(password: string, stored: string): Promise<
 
 /**
  * True when this stored password was hashed more weakly than the current
- * setting, so it should be re-hashed the next time the plaintext is available —
+ * setting, so it should be re-hashed the next time the plaintext is available,
  * which is exactly once, during a successful sign-in.
  *
  * Compares every parameter rather than just `N`: lowering `r` while raising `N`

@@ -1,9 +1,9 @@
-// Round nineteen — the M-series audited as one system (2026-08-27).
+// Round nineteen. The M-series audited as one system (2026-08-27).
 //
 // The first eighteen rounds reviewed the single-tenant layer. This one reviews
 // the feature added on top of it: groups (M3), the agent registry (M4),
 // per-group storage (M5) and provisioning (M6), asked as one question rather
-// than four — **can one organisation reach, affect, or be confused with
+// than four, **can one organisation reach, affect, or be confused with
 // another, and does an agent that looks governed actually get governed?**
 //
 // Run the way rounds 13 and 14 were: requirements first, system attacked
@@ -13,12 +13,12 @@
 //
 // ## What this round found
 //
-//   - **128** — the registry stored `id.trim()` while the gate resolved
+//   - **128**. The registry stored `id.trim()` while the gate resolved
 //     `normalizeAgentId(...)`. A capitalised or spaced id registered fine, was
 //     shown as owned and governed, and was refused on every tool call with
 //     nothing explaining why. It also made `DuplicateAgentError` bypassable by
-//     case, so installation-wide agent-id uniqueness — kept deliberately in M5
-//     because session keys are global — did not actually hold.
+//     case, so installation-wide agent-id uniqueness, kept deliberately in M5
+//     because session keys are global, did not actually hold.
 //
 // Everything else below passed, and is pinned so it keeps passing. Several of
 // these are properties the M-series argued for in prose and had never asserted.
@@ -92,10 +92,10 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-describe("finding 128 — the id the registry stores is the id the gate looks up", () => {
+describe("finding 128. The id the registry stores is the id the gate looks up", () => {
   it("governs an agent registered under a capitalised id", async () => {
     // The reproduction. Before the fix this registered, appeared in the panel as
-    // owned and registered, and resolved to no group — so the gate refused every
+    // owned and registered, and resolved to no group, so the gate refused every
     // call it made, and nothing anywhere said why.
     await registerAgent({ id: "Scout", displayName: "Scout", ...alpha }, ACTOR);
     resetAgentGroupCacheForTests();
@@ -121,8 +121,8 @@ describe("finding 128 — the id the registry stores is the id the gate looks up
   });
 
   it("refuses a second registration that differs only in case", async () => {
-    // The security half. Installation-wide uniqueness is deliberate — session
-    // keys are `agent:<id>:…` and global — and case made it bypassable, so two
+    // The security half. Installation-wide uniqueness is deliberate, session
+    // keys are `agent:<id>:…` and global, and case made it bypassable, so two
     // groups could hold one real agent between them.
     await registerAgent({ id: "Scout", displayName: "One", ...alpha }, ACTOR);
 
@@ -217,8 +217,8 @@ describe("mandatory registration, as the gate depends on it", () => {
   it("stops resolving the moment the record is written, without a manual cache drop", async () => {
     // The cache is dropped by the write itself (`invalidateAgentGroupCache`),
     // deliberately placed next to the write so a future mutation cannot forget
-    // it. Asserted here because the alternative — a stale group on the hot path
-    // — is a security answer served from memory after the fact changed.
+    // it. Asserted here because the alternative, a stale group on the hot path
+    //, is a security answer served from memory after the fact changed.
     await registerAgent({ id: "cached", displayName: "C", ...alpha }, ACTOR);
     expect(await resolveAgentGroup("cached")).toBe(alpha.groupId);
 
@@ -227,12 +227,12 @@ describe("mandatory registration, as the gate depends on it", () => {
   });
 });
 
-describe("finding 129 — a name with no usable characters becomes the default agent", () => {
+describe("finding 129. A name with no usable characters becomes the default agent", () => {
   it("refuses to register an id that canonicalises to the host default", async () => {
     // `normalizeAgentId` is a coercion, not a validator: nothing survives the
     // filter, so it returns `main`. Once 128 made the registry store the
     // canonical form, this quietly claimed **the installation's default agent**
-    // — ownership, assignment and this group's rulebook governing it — for an
+    //, ownership, assignment and this group's rulebook governing it, for an
     // operator who typed punctuation.
     for (const junk of ["###", "!!!", "--", "✓✓"]) {
       await expect(
@@ -253,8 +253,8 @@ describe("finding 129 — a name with no usable characters becomes the default a
   it("was introduced by the fix for 128, which is the point", async () => {
     // Before 128 the registry stored `"###"` verbatim: ungoverned, but nobody
     // else's. The repair is what turned it into a claim on `main`. Findings 116
-    // and 117 have the same shape — *a fix is not audited as hard as the thing
-    // it fixes* — and this test exists so the guard is not removed as redundant.
+    // and 117 have the same shape, *a fix is not audited as hard as the thing
+    // it fixes*, and this test exists so the guard is not removed as redundant.
     await expect(
       registerAgent({ id: "   ", displayName: "Blank", ...alpha }, ACTOR),
     ).rejects.toThrow();
@@ -330,7 +330,7 @@ describe("the trail lands in the right organisation's ledger", () => {
 describe("unregistration repairs what it invalidates", () => {
   it("releases the agent from the accounts holding it", async () => {
     // The property finding 127 turned on: unregistering is not a row deletion,
-    // it revokes assignments too — which is why deletion had to be reordered.
+    // it revokes assignments too, which is why deletion had to be reordered.
     const holder = await createUser(
       {
         username: "alpha-user",
@@ -374,7 +374,7 @@ describe("input boundaries", () => {
   });
 });
 
-describe("M5 — per-group storage, checked on disk rather than in prose", () => {
+describe("M5, per-group storage, checked on disk rather than in prose", () => {
   it("gives each organisation its own policy document and ledger file", async () => {
     // The claim M5 is named for. Asserted against the filesystem because
     // "isolation enforced by the layer" was the *previous* arrangement, and the
@@ -400,7 +400,7 @@ describe("M5 — per-group storage, checked on disk rather than in prose", () =>
 
   it("verifies each chain independently, on one installation-wide key", async () => {
     // The constraint that shaped M5: per-group ledger *files*, one key, one
-    // checkpoint keyed by group — so requirement #6's claim stayed literally
+    // checkpoint keyed by group, so requirement #6's claim stayed literally
     // true rather than being restated per group.
     await registerAgent({ id: "alpha-one", displayName: "A1", ...alpha }, ACTOR);
     await registerAgent({ id: "beta-one", displayName: "B1", ...beta }, ACTOR);

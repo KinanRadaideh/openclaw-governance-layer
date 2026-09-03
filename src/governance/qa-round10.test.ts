@@ -1,7 +1,7 @@
 // Tenth QA pass: the interactions the tier model created.
 //
 // Adding an `effect` to a language that had only ever granted is the kind of
-// change whose defects live in the seams — between the new deny pass and the
+// change whose defects live in the seams. Between the new deny pass and the
 // existing agent scoping, expiry, conflict detection and escalation paths. Each
 // test below targets a seam rather than a feature.
 import { mkdtemp, rm } from "node:fs/promises";
@@ -41,7 +41,7 @@ function verdict(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>)
   if ("block" in decision) {
     return "block";
   }
-  // T23 — absence is no longer the only way the engine says "allow". A call
+  // T23. Absence is no longer the only way the engine says "allow". A call
   // whose path was redirected comes back carrying `params` (the canonical path
   // the tool should open), and reading that as "ask" would report an
   // escalation that never happened. Ask the question directly instead of
@@ -68,7 +68,7 @@ describe("a deny rule outside the core tier must not be silently ignored", () =>
   it("enforces an admin-tier deny", async () => {
     // The dangerous shape: the deny pass looked only at `tier === "core"`, and
     // the allow pass excludes anything with `effect: "deny"`. A deny rule at any
-    // other tier therefore fell between them and was dropped entirely — an
+    // other tier therefore fell between them and was dropped entirely. An
     // operator would see their restriction listed in the policy and have it do
     // nothing at all.
     await withRules([
@@ -199,15 +199,15 @@ describe("the clash detector must not describe a deny as a grant", () => {
   it("does not report an identical deny rule as already allowing the action", () => {
     // `detectRuleConflicts` was written when every rule was an allowance, so it
     // reported "an identical rule already allows this" against a rule that
-    // denies — telling an operator their new permission is redundant when in
+    // denies. Telling an operator their new permission is redundant when in
     // fact it is being overridden.
     //
     // Round 10 fixed that by making the detector ignore denials, and this test
     // asserted silence. Round 11 found that silence is its own defect: the rule
     // is accepted, appears in the policy list, and does nothing, with no way to
     // learn why except by reading the ledger. So the assertion is now about the
-    // property the test was always named for — the detector must not describe a
-    // denial as a grant — rather than about saying nothing at all.
+    // property the test was always named for, the detector must not describe a
+    // denial as a grant, rather than about saying nothing at all.
     const conflicts = detectRuleConflicts(
       [rule({ pattern: "^deploy$", effect: "deny", tier: "core", id: "core-deny" })],
       { resourceKind: "command", pattern: "^deploy$" },
@@ -227,7 +227,7 @@ describe("the clash detector must not describe a deny as a grant", () => {
 
   it("does not treat a deny catch-all as covering a new allowance", () => {
     // Same correction as above: a deny catch-all must not be reported as
-    // "already allows every command", but it must still be reported — it is the
+    // "already allows every command", but it must still be reported. It is the
     // reason the new rule will do nothing.
     const conflicts = detectRuleConflicts(
       [rule({ pattern: ".*", effect: "deny", tier: "core", id: "core-all" })],

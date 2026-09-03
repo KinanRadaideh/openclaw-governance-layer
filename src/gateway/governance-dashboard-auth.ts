@@ -3,8 +3,8 @@
 // gate from the design doc's Figure 1.1, sitting in front of the governance
 // pages served by the Control UI. It is intentionally a second, independent
 // gate layered on top of the Gateway's existing shared-secret/device auth
-// (src/gateway/auth.ts) — reaching these routes at all already requires
-// passing that gate (see the request-stage wiring in server-http.ts) — not a
+// (src/gateway/auth.ts), reaching these routes at all already requires
+// passing that gate (see the request-stage wiring in server-http.ts), not a
 // replacement for it. Named human accounts and roles do not exist anywhere
 // else in OpenClaw; this file and src/governance/* are what add them.
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -60,7 +60,7 @@ function setSessionCookie(res: ServerResponse, token: string, maxAgeSeconds: num
   // No `Secure` attribute: the Gateway's HTTP listener is loopback-only by
   // default (src/gateway/control-ui.ts network binding), and access from
   // another machine is expected to go through an SSH tunnel per the design
-  // doc's architecture, not app-layer TLS — so requiring HTTPS here would
+  // doc's architecture, not app-layer TLS, so requiring HTTPS here would
   // just break the common case without adding real protection.
   res.setHeader(
     "Set-Cookie",
@@ -91,12 +91,12 @@ export type GovernanceAuthRouteOptions = {
  * Handles `/control-ui/governance/*` requests. Returns true when handled
  * (matching the GatewayHttpRequestStage contract used in server-http.ts).
  *
- * Every route here first passes through `authorizeControlUiReadRequest` —
+ * Every route here first passes through `authorizeControlUiReadRequest`,
  * the same shared-secret/device-token/SSH-tunnel gate that already protects
  * the rest of the Control UI. The dashboard login below is a *second*,
  * independent gate stacked on top of that one (named account -> role),
  * matching the design doc's layered "SSH Tunnel -> Web Dashboard -> RBAC"
- * architecture — it deliberately does not replace the existing gate.
+ * architecture: it deliberately does not replace the existing gate.
  */
 export async function handleGovernanceAuthRequest(
   req: IncomingMessage,
@@ -182,8 +182,8 @@ export async function handleGovernanceAuthRequest(
     const token = readCookie(req, SESSION_COOKIE_NAME);
     if (token) {
       // Resolved *before* revoking, because after revocation there is nothing
-      // left to say who was signed out. A token that no longer verifies —
-      // expired, already revoked, forged — yields no session and therefore no
+      // left to say who was signed out. A token that no longer verifies,
+      // expired, already revoked, forged, yields no session and therefore no
       // entry, which is correct: nobody was signed out by this request.
       const ending = await verifySession(token);
       await revokeSession(token);
@@ -205,9 +205,9 @@ export async function handleGovernanceAuthRequest(
     sendJson(res, 200, {
       username: session.username,
       role: session.role,
-      // The caller's *own* assignment. No disclosure concern — they can
+      // The caller's *own* assignment. No disclosure concern, they can
       // already see which agents they are scoped to through every other read
-      // route — and the dashboard needs it to list the agents this account
+      // route, and the dashboard needs it to list the agents this account
       // may talk to without first guessing an id.
       assignedAgents: session.assignedAgents,
     });
@@ -215,7 +215,7 @@ export async function handleGovernanceAuthRequest(
   }
 
   // Bootstrap: create the first Root account, and with it the installation's
-  // one organisation. Refused once that organisation exists — see the 409
+  // one organisation. Refused once that organisation exists. See the 409
   // below, which is also the signal the dashboard reads to decide which form to
   // show. Ordinary account creation after that point is a Root dashboard action
   // (`createUser`), not this endpoint.
@@ -223,7 +223,7 @@ export async function handleGovernanceAuthRequest(
   // _(This comment read "One-time bootstrap … refuses once any account exists"
   // while the block immediately below it explained that M3 had made it **not**
   // one-time. Two comments in one route contradicting each other, and the one
-  // that was wrong was the one a reader meets first — corrected 2026-09-01 with
+  // that was wrong was the one a reader meets first, corrected 2026-09-01 with
   // finding 205.)_
   if (pathname === `${GOVERNANCE_AUTH_PATH_PREFIX}bootstrap-root` && req.method === "POST") {
     // ------------------------------------------------------------------
@@ -231,7 +231,7 @@ export async function handleGovernanceAuthRequest(
     //
     // This used to refuse once any account existed, and both the refusal and
     // the re-check inside the write lock existed to make
-    // the very first account unraceable — the one moment on a fresh install
+    // the very first account unraceable, the one moment on a fresh install
     // when an attacker beating the operator to it takes the whole layer.
     //
     // Groups change what that moment is. A Root now owns one organisation
@@ -243,8 +243,8 @@ export async function handleGovernanceAuthRequest(
     // **What that costs, stated plainly rather than discovered later:** anyone
     // who can reach this endpoint can create a group and become a Root in it.
     // That is defensible only because of the architecture the design doc
-    // already assumes — the Gateway binds loopback-only and is reached through
-    // an SSH tunnel — so "anyone who can reach the dashboard" already means
+    // already assumes, the Gateway binds loopback-only and is reached through
+    // an SSH tunnel, so "anyone who can reach the dashboard" already means
     // "anyone who can reach the host". On a deployment that exposes this port
     // directly, this endpoint is self-service Root and must be fronted by
     // something that decides who may ask.
@@ -265,7 +265,7 @@ export async function handleGovernanceAuthRequest(
     // the status: a refusal that means "already claimed" tells it to show
     // sign-in, and a complaint about the body tells it the installation is
     // unclaimed. Its comment said the server answered the first question first.
-    // It did not — M3 deleted that check, and the one-organisation cap restored
+    // It did not, M3 deleted that check, and the one-organisation cap restored
     // the *behaviour* inside `createUser`, which runs after body validation and
     // reports 400 like any malformed request. **Both states answered 400, so
     // every visitor to an established installation was offered the bootstrap
@@ -273,7 +273,7 @@ export async function handleGovernanceAuthRequest(
     // organisation".
     //
     // 409 rather than 400 because it is a conflict with the state of the
-    // installation and not a fault in the request — the same distinction the
+    // installation and not a fault in the request. The same distinction the
     // account routes already draw with `would_lock_out`. It discloses one bit,
     // *is this installation claimed*, which the form's own refusal disclosed
     // already and which the operator must be told in order to be shown the
@@ -283,7 +283,7 @@ export async function handleGovernanceAuthRequest(
       sendJson(res, 409, {
         error: {
           message:
-            "This installation already hosts an organisation. Sign in instead — " +
+            "This installation already hosts an organisation. Sign in instead, " +
             "a second organisation needs a second installation.",
           type: "conflict",
         },
@@ -305,7 +305,7 @@ export async function handleGovernanceAuthRequest(
     try {
       user = await createUser(
         { username, password, role: "root", groupId: newGroupId() },
-        // No authenticated actor exists yet — this call is what establishes the
+        // No authenticated actor exists yet. This call is what establishes the
         // first one. Attributing it to the account being created would read as
         // if that account had authorised its own existence.
         BOOTSTRAP_ACTOR,

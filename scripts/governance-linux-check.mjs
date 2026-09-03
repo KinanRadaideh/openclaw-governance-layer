@@ -10,9 +10,9 @@
 // The paragraph that used to sit here said this needed "nothing but `node`",
 // because "the modules exercised here import only Node built-ins". Both halves
 // were wrong, and **the file had therefore never run once** between being
-// written on 2026-08-11 and 2026-08-28 (finding 137) — while
+// written on 2026-08-11 and 2026-08-28 (finding 137), while
 // `CHAPTER3-MATERIAL.md` §4.x.9 recorded "Dedicated platform harness
-// (14 checks) — All passed" as evidence for design requirement #9.
+// (14 checks), All passed" as evidence for design requirement #9.
 //
 // Three separate things stop bare `node`, and each one only appears after the
 // last is fixed, which is why the claim survived: `permissions.ts` imports
@@ -20,14 +20,14 @@
 // not rewrite; the graph reaches `@openclaw/acp-core`, a workspace package pnpm
 // does not hoist to the root `node_modules`; and `src/config/env-substitution.ts`
 // uses a constructor parameter property, which Node's strip-only mode cannot
-// transform at all. `tsx` — already a devDependency — handles all three.
+// transform at all. `tsx`, already a devDependency, handles all three.
 //
 // So it needs `pnpm install` first. It does not need `pnpm build`, and it is
 // still a practical smoke test for a candidate deployment target;
 // `scripts/vps-install.sh` runs it as the last step of the install.
 //
 // Why these specific checks: every cross-platform defect found so far has been
-// in exactly this surface — POSIX vs. Windows file semantics (the `EPERM`
+// in exactly this surface, POSIX vs. Windows file semantics (the `EPERM`
 // lock bug), path separators, and file permissions, which are advisory on
 // Windows but actually enforced on Linux. Requirement #9 specifies a Linux
 // VPS, so these behaviours need proving on Linux rather than assuming.
@@ -79,7 +79,7 @@ const { matchesPattern } = await import("../src/governance/pattern-match.ts");
 const dir = await mkdtemp(join(tmpdir(), "governance-linux-"));
 process.env.OPENCLAW_GOVERNANCE_DIR = dir;
 
-console.log(`OpenClaw governance — Linux verification`);
+console.log(`OpenClaw governance, Linux verification`);
 console.log(`platform=${process.platform} node=${process.version} tmp=${dir}\n`);
 
 // --- Cross-process locking -------------------------------------------------
@@ -147,7 +147,7 @@ await check("governance directory is created 0700 (owner only)", async () => {
 
 await check("a written state file is 0600 (owner read/write only)", async () => {
   // **The group id is required, and its absence here was finding 138.** M5 made
-  // storage per-group on 2026-08-26, so `ledgerFilePath` took a `groupId` — and
+  // storage per-group on 2026-08-26, so `ledgerFilePath` took a `groupId`, and
   // this call kept passing nothing, resolving to the literal string
   // "undefined", which the path guard refuses outright. The call had been stale
   // for two days and nobody knew, because finding 137 meant this file could not
@@ -184,7 +184,7 @@ await check("scrypt hashing verifies and rejects correctly", async () => {
 await check("hashes are salted (same input, different output)", async () => {
   const a = await hashPassword("same");
   const b = await hashPassword("same");
-  assert(a !== b, "identical hashes for the same password — salt missing");
+  assert(a !== b, "identical hashes for the same password. Salt missing");
 });
 
 // --- Authorization rules ---------------------------------------------------
@@ -262,6 +262,6 @@ await rm(dir, { recursive: true, force: true });
 
 console.log(results.join("\n"));
 console.log(
-  `\n${failures === 0 ? "ALL CHECKS PASSED" : `${failures} CHECK(S) FAILED`} — ${results.length} total\n`,
+  `\n${failures === 0 ? "ALL CHECKS PASSED" : `${failures} CHECK(S) FAILED`}, ${results.length} total\n`,
 );
 process.exit(failures === 0 ? 0 : 1);

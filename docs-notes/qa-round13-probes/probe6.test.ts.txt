@@ -1,4 +1,4 @@
-// TEMPORARY QA probe 6 — what the canonicaliser actually produces.
+// TEMPORARY QA probe 6. What the canonicaliser actually produces.
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,7 +16,7 @@ afterEach(async () => {
   await rm(workspace, { recursive: true, force: true });
 });
 
-describe("PROBE 16b — canonical forms", () => {
+describe("PROBE 16b. Canonical forms", () => {
   it("prints canonical form and which core deny matches", async () => {
     const denies = CORE_RULES.filter((rule) => rule.resourceKind === "path");
     for (const spelling of [".ENV", "NEW.ENV", "ID_RSA", "id_rsa", "server.PEM", "server.pem", "sub/.ENV"]) {

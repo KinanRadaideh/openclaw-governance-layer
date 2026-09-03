@@ -1,6 +1,6 @@
 // The rule-request queue's command-line surface (T40).
 //
-// **One file, one subject** — the seam every governance command module is split
+// **One file, one subject**. The seam every governance command module is split
 // along: *everything here submits to, reads, or decides the rule-request queue.*
 //
 // ## Why this was the last surface gap, and why the reason for leaving it was
@@ -8,8 +8,8 @@
 //
 // `CLI-REFERENCE.md` §2d recorded two capabilities as deliberately
 // dashboard-only. The argument for this one was flagged as the weaker at the
-// time it was written: the obvious case — *a rule request is a conversation
-// between two people, which a scriptable surface serves badly* — is contradicted
+// time it was written: the obvious case, *a rule request is a conversation
+// between two people, which a scriptable surface serves badly*, is contradicted
 // by `governance pending list` and `pending decide`, which are exactly that
 // shape for timed-out escalations and have existed since T5.
 //
@@ -18,24 +18,24 @@
 // between a request and the rule it produced, not the capability. That link is
 // the whole audit value of the queue. Granting a request by hand leaves
 // `createdRuleId` unset, the requester's row pending for ever, and two ledger
-// entries — a submit and an unrelated rule-add — that nothing joins.
+// entries, a submit and an unrelated rule-add, that nothing joins.
 //
 // ## The authorization is the routes', deliberately not a re-derivation
 //
 // Each command asks the question its HTTP counterpart asks, through the same
 // `permissions.ts` helpers:
 //
-//   - **list** — Viewer and above, filtered by `canViewAgent`. A request with no
+//   - **list**, Viewer and above, filtered by `canViewAgent`. A request with no
 //     agent is installation-wide and visible to anyone who can read the queue.
 //     Unscoped, the queue lets an account limited to one agent enumerate every
 //     other agent's id, the patterns being asked for, and the free-text reasons
-//     — which routinely name internal hosts and paths.
-//   - **submit** — User and above, and `canManageAgent` for an agent-scoped
+//, which routinely name internal hosts and paths.
+//   - **submit**, User and above, and `canManageAgent` for an agent-scoped
 //     request. Requesting is not authoring, so this is `canManageAgent` rather
 //     than `canAuthorPolicyForAgent`: a User whose Root has withheld authoring
 //     may still ask, and asking is precisely the fallback withholding leaves
 //     them.
-//   - **decide** — Administrator and above, matching the floor that keeps the
+//   - **decide**, Administrator and above, matching the floor that keeps the
 //     security property intact: no privilege is ever created by a
 //     non-Administrator.
 //
@@ -115,7 +115,7 @@ export function registerGovernanceRuleRequestCommands(governance: Command): void
         if (visible.length === 0) {
           // Said in words rather than printed as an empty list. "Nothing is
           // waiting" is a real answer an operator checks for deliberately, and
-          // an empty array is indistinguishable from a failed read — the defect
+          // an empty array is indistinguishable from a failed read. The defect
           // finding 102 was, and finding 117 nearly repeated.
           defaultRuntime.log(
             options.pending
@@ -145,7 +145,7 @@ export function registerGovernanceRuleRequestCommands(governance: Command): void
           return;
         }
         // The same validator the dashboard and `policy add-rule` use, so the
-        // command line cannot file a request nobody could ever grant — length,
+        // command line cannot file a request nobody could ever grant. Length,
         // compilability and backtracking safety are checked at submit rather
         // than discovered by the Administrator at approval.
         const validated = validateRulePattern(options.pattern);
@@ -200,8 +200,8 @@ export function registerGovernanceRuleRequestCommands(governance: Command): void
   requests
     .command("decide <id>")
     .description("Administrator: approve a request (creating the rule) or reject it")
-    .option("--approve", "grant it — writes the rule or applies the setting")
-    .option("--reject", "refuse it — records the decision and creates nothing")
+    .option("--approve", "grant it, writes the rule or applies the setting")
+    .option("--reject", "refuse it, records the decision and creates nothing")
     .action(async (id: string, options: { approve?: boolean; reject?: boolean }) => {
       await runCommandWithRuntime(defaultRuntime, async () => {
         if (Boolean(options.approve) === Boolean(options.reject)) {

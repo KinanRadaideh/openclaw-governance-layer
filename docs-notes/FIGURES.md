@@ -1,16 +1,16 @@
-# Figures — three forms of each, and a keep/cut recommendation
+# Figures: three forms of each, and a keep/cut recommendation
 
 **Written 2026-08-30 (T17).** Every "Figure candidate" marked in
 `CHAPTER3-MATERIAL.md`, in three interchangeable forms:
 
-- **Prose** — a paragraph that carries the same argument with no figure at all.
+- **Prose**: a paragraph that carries the same argument with no figure at all.
   Use this where the figure would not earn its page.
-- **Mermaid** — for drafting, for the repository documents, and for anything you
+- **Mermaid**: for drafting, for the repository documents, and for anything you
   want to keep editable as the design moves.
-- **TikZ** — for the report itself. Native LaTeX, so it uses the thesis fonts and
+- **TikZ**: for the report itself. Native LaTeX, so it uses the thesis fonts and
   stays sharp at any zoom or print size.
 
-Each entry carries a recommendation. **They are advice, not decisions** — the
+Each entry carries a recommendation. **They are advice, not decisions**. The
 brief was to give you all three for every candidate so the choice is yours while
 writing.
 
@@ -24,21 +24,21 @@ understands something faster from the picture than from the paragraph.
 ### Reviewed against the code, 2026-09-01
 
 Every figure re-read against what the system now does. **Where a recommendation
-changed, the new one is added beside the old rather than replacing it** — F2 and
+changed, the new one is added beside the old rather than replacing it**, F2 and
 F17 carry an "Updated suggestion" block, and the reasoning in each is written in
 plain terms.
 
-|                                               |                                                                                                                                                                                                                                                                                                                                                                                                                |
-| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **F2 corrected, and it is the important one** | It put the emergency stop at **Root**. The route has admitted a **User** acting on their own agents since T5 — `T42` exists because three surfaces described that tier three ways, and this figure was a **fourth**, the only one bound for the report. It also said one machine "may hold several Roots", which stopped being true when the one-organisation cap landed on 2026-08-30. All three forms fixed. |
-| **F2's recommendation reversed**              | From _cut_ to _keep it, and keep it small_ — because it was wrong, and a four-box picture is where that class of error gets noticed                                                                                                                                                                                                                                                                            |
-| **F17's recommendation reversed**             | From _keep_ to _cut and replace_: its data table is still empty after months, because no register records how old code was when a defect was found. The replacement it now proposes is computable from data the project already has                                                                                                                                                                            |
-| **F14 and F17 gained real Mermaid**           | Both said "Mermaid has no bar chart". True when written; `xychart-beta` exists now                                                                                                                                                                                                                                                                                                                             |
-| **F22 added**                                 | The folder grant (T32) had no figure at all — the newest operator-facing feature, and the only control that writes an allow and a deny as one act, which is exactly the confusion that produced finding 178                                                                                                                                                                                                    |
-| **Everything else verified accurate**         | 21 figures, each with prose, Mermaid and TikZ. F18 is a cross-reference and correctly has none                                                                                                                                                                                                                                                                                                                 |
+|                                               |                                                                                                                                                                                                                                                                                                                                                                                                               |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **F2 corrected, and it is the important one** | It put the emergency stop at **Root**. The route has admitted a **User** acting on their own agents since T5, `T42` exists because three surfaces described that tier three ways, and this figure was a **fourth**, the only one bound for the report. It also said one machine "may hold several Roots", which stopped being true when the one-organisation cap landed on 2026-08-30. All three forms fixed. |
+| **F2's recommendation reversed**              | From _cut_ to _keep it, and keep it small_, because it was wrong, and a four-box picture is where that class of error gets noticed                                                                                                                                                                                                                                                                            |
+| **F17's recommendation reversed**             | From _keep_ to _cut and replace_: its data table is still empty after months, because no register records how old code was when a defect was found. The replacement it now proposes is computable from data the project already has                                                                                                                                                                           |
+| **F14 and F17 gained real Mermaid**           | Both said "Mermaid has no bar chart". True when written; `xychart-beta` exists now                                                                                                                                                                                                                                                                                                                            |
+| **F22 added**                                 | The folder grant (T32) had no figure at all. The newest operator-facing feature, and the only control that writes an allow and a deny as one act, which is exactly the confusion that produced finding 178                                                                                                                                                                                                    |
+| **Everything else verified accurate**         | 21 figures, each with prose, Mermaid and TikZ. F18 is a cross-reference and correctly has none                                                                                                                                                                                                                                                                                                                |
 
 **Counts in figure captions and cautions were re-derived rather than trusted.**
-F17's own warning about stale numbers said "148 findings" when there were 182 —
+F17's own warning about stale numbers said "148 findings" when there were 182,
 a stale count inside a caution about stale counts.
 
 ### Re-checked against the seventh and eighth segment sweeps, 2026-09-02
@@ -51,13 +51,13 @@ different fix:
 
 |                                     |                                                                                                                                                                                                                                                                                                  |
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **F2 stayed correct — narrowly**    | Its User box reads "prompt, request rules, and stop **my** agents", which is right and does **not** claim posture. `permissions.ts` and `GOVERNANCE.md` both did claim it (finding 218). The figure corrected on 2026-09-01 was therefore the artefact that stayed true while two others drifted |
+| **F2 stayed correct. Narrowly**     | Its User box reads "prompt, request rules, and stop **my** agents", which is right and does **not** claim posture. `permissions.ts` and `GOVERNANCE.md` both did claim it (finding 218). The figure corrected on 2026-09-01 was therefore the artefact that stayed true while two others drifted |
 | **F21 unaffected**                  | It draws the two runtime gates, not the ledger. Finding 217 split `governance.backend.codex` into a request/completion pair, which is a record shape rather than a decision path                                                                                                                 |
 | **F10 (prompt lifecycle) verified** | It shows the four checks the prompt path makes. Finding 216 was that the **transcript** command made two of them; the figure was already drawing the route's behaviour, which is what both surfaces now do                                                                                       |
-| **F19 (tenant model) verified**     | Finding 211 changed what survives a deletion — the ledger **and the attachments its entries name** — which the figure does not enumerate                                                                                                                                                         |
+| **F19 (tenant model) verified**     | Finding 211 changed what survives a deletion, the ledger **and the attachments its entries name**, which the figure does not enumerate                                                                                                                                                           |
 
 **One caption is worth adding if F2 is used**: the emergency stop sits at User,
-_scoped to the agents assigned to that account_ — and finding 215 was the
+_scoped to the agents assigned to that account_, and finding 215 was the
 dashboard disabling that very button for an agent the operator does hold,
 because it compared the typed id without folding it. The figure's claim was
 right and the implementation of it was not, which is the case a reviewer looking
@@ -114,7 +114,7 @@ keeps every figure's type at the same relative scale.
 
 # Chapter 3 figures
 
-## F1 — Governance layer within the OpenClaw Gateway
+## F1: Governance layer within the OpenClaw Gateway
 
 **Source:** §3.5.1 · **Proposed number:** Figure 3.1
 
@@ -148,7 +148,7 @@ organisation's policy document, ledger, rule requests and attachments live under
 ```mermaid
 flowchart TB
   subgraph Browser["Operator browser (via SSH tunnel)"]
-    UI["Control UI — Settings → Governance"]
+    UI["Control UI, Settings → Governance"]
   end
   subgraph GW["OpenClaw Gateway process"]
     AUTH["Gate 1: Gateway credential"]
@@ -232,7 +232,7 @@ flowchart TB
 
 ---
 
-## F2 — RBAC hierarchy with inherited permissions
+## F2: RBAC hierarchy with inherited permissions
 
 **Source:** §3.5.4 · **Proposed number:** Figure 3.2
 
@@ -242,12 +242,12 @@ material says everything the figure says and a great deal more. A four-node chai
 is one of the clearest signs of a figure included because a figure felt expected.
 Spend the page on the table instead. The forms are here in case you disagree.
 
-> **Updated suggestion, 2026-09-01 — KEEP it, and keep it small.** _(Added
+> **Updated suggestion, 2026-09-01, KEEP it, and keep it small.** _(Added
 > beside the original, not replacing it.)_
 >
 > **Why I changed my mind: this figure was wrong, and being wrong is the
 > argument for drawing it.** It said the kill switch belongs to Root. It does
-> not — the route has admitted a **User** acting on their own agents since T5,
+> not. The route has admitted a **User** acting on their own agents since T5,
 > and `T42` (2026-09-01) had to be raised because _three separate surfaces_ were
 > each describing that tier differently. This figure was a fourth, and the only
 > one bound for the report.
@@ -259,7 +259,7 @@ Spend the page on the table instead. The forms are here in case you disagree.
 > the figure is better _review_, and this project's own history says review is
 > what the tier model needed.
 >
-> Keep both, and put the figure first — one column wide, no more than the four
+> Keep both, and put the figure first, one column wide, no more than the four
 > boxes and one capability each.
 
 ### Prose form
@@ -268,14 +268,14 @@ The four tiers are strictly cumulative. A **Viewer** may read the policy and the
 sanitised ledger and verify the chain's integrity; it is oversight only and
 writes nothing. A **User** inherits all of that and gains the capabilities that
 concern _the agents assigned to it_: unmasked ledger resources, prompting those
-agents, asking an Administrator for a rule through the request queue, and —
-the one most often misstated — **stopping and releasing those agents with the
+agents, asking an Administrator for a rule through the request queue, and,
+the one most often misstated, **stopping and releasing those agents with the
 emergency kill switch**. An **Administrator** inherits both and manages agents
 rather than one agent: creating and registering them, assigning them to accounts,
 editing rules, changing the posture, and deciding rule requests. **Root**
 inherits everything and adds the capabilities that concern the installation
 itself: account management, the approval timeout, switching a shipped core denial
-off, the agent backend, the deployment report, and — since T44 — **deleting the
+off, the agent backend, the deployment report, and, since T44, **deleting the
 organisation**, the one act that removes Root's own account. Because each tier is
 a superset of the one below, no capability needs to be listed twice, and the only
 question at any endpoint is which tier it requires.
@@ -287,7 +287,7 @@ and a second organisation cannot be created on one installation, so the two rule
 together make Root unique per machine.
 
 _(Corrected 2026-09-01. This paragraph placed the kill switch at Root, which the
-route has never required — `T42` exists because three surfaces disagreed about
+route has never required, `T42` exists because three surfaces disagreed about
 that same tier, and this was a fourth. It also said one machine "may hold several
 Roots who are invisible to one another", which stopped being true on 2026-08-30
 when the one-organisation-per-installation cap landed.)_
@@ -309,10 +309,10 @@ flowchart BT
 \begin{figure}[htbp]
 \centering
 \begin{tikzpicture}[node distance=5mm]
-  \node[gbox, minimum width=86mm] (v) {\textbf{Viewer} — read policy, read sanitised ledger, verify chain};
-  \node[gbox, minimum width=86mm, above=of v] (u) {\textbf{User} — \textit{and} prompt, request rules, and stop \emph{my} agents};
-  \node[gbox, minimum width=86mm, above=of u] (a) {\textbf{Administrator} — \textit{and} create and assign agents, edit rules, decide requests};
-  \node[gbox, minimum width=86mm, above=of a] (r) {\textbf{Root} — \textit{and} manage accounts, core denials, backend, deployment report};
+  \node[gbox, minimum width=86mm] (v) {\textbf{Viewer}, read policy, read sanitised ledger, verify chain};
+  \node[gbox, minimum width=86mm, above=of v] (u) {\textbf{User}, \textit{and} prompt, request rules, and stop \emph{my} agents};
+  \node[gbox, minimum width=86mm, above=of u] (a) {\textbf{Administrator}, \textit{and} create and assign agents, edit rules, decide requests};
+  \node[gbox, minimum width=86mm, above=of a] (r) {\textbf{Root}, \textit{and} manage accounts, core denials, backend, deployment report};
   \draw[gflow] (v) -- (u);
   \draw[gflow] (u) -- (a);
   \draw[gflow] (a) -- (r);
@@ -325,7 +325,7 @@ flowchart BT
 
 ---
 
-## F3 — Policy decision sequence
+## F3: Policy decision sequence
 
 **Source:** §3.5.5 · **Proposed number:** Figure 3.3
 
@@ -377,7 +377,7 @@ sequenceDiagram
   alt not registered
     R-->>G: no record
     G->>L: append deny (installation trail)
-    G-->>P: block — register the agent first
+    G-->>P: block. Register the agent first
   end
   R-->>G: groupId
   G->>G: agent locked down?
@@ -438,7 +438,7 @@ and the other two when none does, depending on whether escalation is enabled. An
 
 ---
 
-## F4 — Two-gate authentication
+## F4: Two-gate authentication
 
 **Source:** §3.5.6 · **Proposed number:** would have been Figure 3.4
 
@@ -512,13 +512,13 @@ flowchart LR
 
 ---
 
-## F5 — Path normalisation pipeline
+## F5: Path normalisation pipeline
 
 **Source:** §3.5.8 · **Proposed number:** Figure 3.4 (renumbered)
 
 **Recommendation: KEEP.** A short linear pipeline with a concrete example
 travelling through it, ending in a rule that no longer matches. It supports one
-of your strongest findings — that three separate bypasses were one defect — and
+of your strongest findings, that three separate bypasses were one defect, and
 the example path does the explaining. Cheap to draw, high value.
 
 **Note the draft has a bug:** the Mermaid in `CHAPTER3-MATERIAL.md` declares
@@ -589,13 +589,13 @@ to, not against what the agent typed.}
 
 ---
 
-## F6 — The governed prompt path
+## F6: The governed prompt path
 
 **Source:** §3.5.11 · **Proposed number:** Figure 3.5
 
-**Recommendation: KEEP, simplified.** This carries a real design argument — that
+**Recommendation: KEEP, simplified.** This carries a real design argument, that
 prompting reuses the host's ordinary ingress rather than opening a second way in
-— and that argument is about a path, so a path diagram earns its place. The draft
+and that argument is about a path, so a path diagram earns its place. The draft
 has eleven nodes, which is two or three too many; the versions below drop the
 "no runtime attached" branch to a caption note.
 
@@ -664,9 +664,9 @@ silently.}
 
 ---
 
-## F7 — The deployment-status seam
+## F7: The deployment-status seam
 
-**Source:** §3.5.14 · **Proposed number:** —
+**Source:** §3.5.14 · **Proposed number:**,
 
 **Recommendation: CUT.** Your own note argues it "illustrates the project's
 layering discipline better than any prose", and I disagree: the layering claim is
@@ -677,7 +677,7 @@ design argument a reader will carry forward. The page is better spent on F11.
 ### Prose form
 
 The deployment check is split at a deliberate seam. Everything that must touch
-the running Gateway — its configuration and its security audit — stays on the
+the running Gateway, its configuration and its security audit, stays on the
 Gateway side and produces a plain data record. That record crosses one boundary
 into the governance side, where a single pure function turns it into the
 deployment verdict. The payoff is larger than tidiness: because the verdict
@@ -691,11 +691,11 @@ and the agent terminator.
 
 ```mermaid
 flowchart LR
-  subgraph GW["Gateway side — impure"]
+  subgraph GW["Gateway side, impure"]
     CFG["Configuration"]
     SEC["Security audit"]
   end
-  subgraph GOV["Governance side — pure"]
+  subgraph GOV["Governance side, pure"]
     FN["readDeploymentStatus()"]
     OUT["Deployment verdict"]
   end
@@ -735,14 +735,14 @@ flowchart LR
 
 ---
 
-## F8 — Two paths through the host to the gate
+## F8: Two paths through the host to the gate
 
 **Source:** §3.5.15 · **Proposed number:** Figure 3.6
 
 **Recommendation: KEEP, and it has become more important twice over.** When this
 was marked it illustrated finding B1. As of 2026-08-30 it also explains the T7
 limitation, since the in-process and native-harness split is exactly why a search
-result can be filtered on one path and not the other — and that split is now a
+result can be filtered on one path and not the other, and that split is now a
 built control on one side and a documented impossibility on the other. One
 figure, three arguments, across two chapters.
 
@@ -832,9 +832,9 @@ hook was installed.}
 
 ---
 
-## F9 — Four modules, one definition
+## F9: Four modules, one definition
 
-**Source:** §3.5.16 · **Proposed number:** —
+**Source:** §3.5.16 · **Proposed number:**,
 
 **Recommendation: CUT.** A before-and-after of a refactoring. It is a good
 engineering story and it belongs in the prose, but the picture is four boxes
@@ -903,14 +903,14 @@ flowchart LR
 
 ---
 
-## F10 — The prompt lifecycle
+## F10: The prompt lifecycle
 
-**Source:** §3.5.17 · **Proposed number:** —
+**Source:** §3.5.17 · **Proposed number:**,
 
 **Recommendation: MERGE into F6.** F6 shows the same journey as structure; this
 shows it as time. Two figures of one path, a few pages apart, will read as a
 duplication the reader has to reconcile. If you would rather keep this one and
-cut F6, that also works — but not both.
+cut F6, that also works, but not both.
 
 ### Prose form
 
@@ -972,7 +972,7 @@ flowchart LR
 
 ---
 
-## F11 — The check-then-open window
+## F11: The check-then-open window
 
 **Source:** §3.5.29 (T23) · **Proposed number:** Figure 3.7
 
@@ -1045,7 +1045,7 @@ preamble for the brace.)_
 
 ---
 
-## F12 — Two groups on one installation
+## F12: Two groups on one installation
 
 **Source:** §3.5.30 (M3) · **Proposed number:** Figure 3.8
 
@@ -1130,9 +1130,9 @@ flowchart TB
 
 ---
 
-## F13 — Two entry points, one gate
+## F13: Two entry points, one gate
 
-**Source:** §4.x.19 · **Proposed number:** —
+**Source:** §4.x.19 · **Proposed number:**,
 
 **Recommendation: MERGE into F8.** Both figures make the claim "however the work
 arrives, it reaches the same gate". F8 makes it about execution arrangements and
@@ -1204,7 +1204,7 @@ flowchart LR
 
 # Chapter 4 figures
 
-## F14 — Tool coverage, before and after
+## F14: Tool coverage, before and after
 
 **Source:** §4.x.20 · **Proposed number:** Figure 4.1
 
@@ -1239,14 +1239,14 @@ which is what made the earlier gap one of coverage rather than of mechanism.
 > **Do not "correct" 52 to 56.** The `GOVERNED_TOOLS` registry has twenty-two
 > entries and `qa-round11.test.ts` checks fifty-six names, because four governed
 > tools (the search tools and an alias) are in the session-tool barrel and not in
-> `tool-catalog.ts`. Both framings are internally consistent — 18 + 34 = 52 and
-> 22 + 34 = 56 — and the documents use the catalogue framing throughout.
+> `tool-catalog.ts`. Both framings are internally consistent, 18 + 34 = 52 and
+> 22 + 34 = 56, and the documents use the catalogue framing throughout.
 > `QA-IN-PLAIN-TERMS.md` §on round thirteen explains the discrepancy, which is
 > itself part of how the original coverage gap stayed invisible.
 
 ### Mermaid form
 
-**Mermaid can draw this now** — `xychart-beta` post-dates the note that used to
+**Mermaid can draw this now**, `xychart-beta` post-dates the note that used to
 sit here saying it could not. It has no _stacked_ bar, so the honest rendering is
 the governed count against the constant catalogue size, which is the comparison
 the figure is actually making:
@@ -1303,9 +1303,9 @@ an unmeasured gap.}
 
 ---
 
-## F15 — Tool catalogue, governed entries highlighted
+## F15: Tool catalogue, governed entries highlighted
 
-**Source:** §4.x.20 · **Proposed number:** —
+**Source:** §4.x.20 · **Proposed number:**,
 
 **Recommendation: MERGE into F14 (or cut).** This is the same data as F14 drawn
 differently. A two-column list of fifty-two tool names is also hard to read at
@@ -1321,7 +1321,7 @@ appendix as a table with a "governed" column, not as a figure.
 
 ```mermaid
 flowchart LR
-  subgraph C["Host tool catalogue — 52 tools"]
+  subgraph C["Host tool catalogue, 52 tools"]
     G["18 governed<br/>file, exec, network,<br/>process, computer, code execution"]
     N["34 ungoverned<br/>each with a written reason"]
   end
@@ -1346,9 +1346,9 @@ flowchart LR
 
 ---
 
-## F16 — Rule row, before and after
+## F16: Rule row, before and after
 
-**Source:** §4.x.24 · **Proposed number:** —
+**Source:** §4.x.24 · **Proposed number:**,
 
 **Recommendation: CUT as a drawn figure. Use two screenshots instead.** This is a
 user-interface change, and a redrawn approximation of a UI is strictly worse
@@ -1401,7 +1401,7 @@ flowchart TB
 
 ---
 
-## F17 — Defects by the age of the code containing them
+## F17: Defects by the age of the code containing them
 
 **Source:** §4.x.29 · **Proposed number:** Figure 4.2
 
@@ -1413,7 +1413,7 @@ makes itself.
 
 **One caution, and it is the reason this figure is dangerous as well as
 valuable.** Your note says "across all seventeen rounds". There are now
-**182 findings** _(this sentence said 148 until 2026-09-01 — a stale count
+**182 findings** _(this sentence said 148 until 2026-09-01. A stale count
 inside the caution about stale counts, which is the joke this project keeps
 making at its own expense)_, so the figure would misreport the
 project if drawn from the old note. Worse, the classification is not mechanically
@@ -1424,25 +1424,25 @@ they are, do not put this figure in a draft anyone else reads. A chart carries
 more apparent authority than a sentence, which is exactly why an unverified one
 is worse than none.
 
-> **Updated suggestion, 2026-09-01 — CUT, and replace it with a claim you can
+> **Updated suggestion, 2026-09-01, CUT, and replace it with a claim you can
 > actually compute.** _(Added beside the original, not replacing it.)_
 >
 > The original recommendation has now stood unfilled for the life of the
 > document: the table below is still **empty**, across two rounds of editing and
 > 182 findings. That is information. A figure nobody has been able to fill in
 > during months of work is not waiting on effort, it is waiting on data that
-> does not exist — no register records how old the code was when a defect was
+> does not exist, no register records how old the code was when a defect was
 > found, so every one of the 182 would have to be re-read and judged, by hand,
 > under deadline, to produce four numbers.
 >
 > In lay terms: you would be spending a day of the last week manufacturing a
 > statistic, and a reader who asks "how did you classify these?" gets "I decided,
-> afterwards" — which is the weakest possible footing for the one chart in the
+> afterwards", which is the weakest possible footing for the one chart in the
 > chapter.
 >
 > **What to draw instead, from data the project already has:** findings per QA
-> round, over time. It is mechanically derivable from `REMAINING-WORK.md` — the
-> rounds are numbered and the findings are numbered — it needs no judgement, and
+> round, over time. It is mechanically derivable from `REMAINING-WORK.md`, the
+> rounds are numbered and the findings are numbered, it needs no judgement, and
 > it supports the same argument better. It shows review finding defects _at a
 > steady rate that does not fall off_, which is the actual claim: the reviews
 > never stopped paying. The last four rounds alone found 21, 11 and 2 defects in
@@ -1468,7 +1468,7 @@ review of older code could ever have caught.
 
 ### Mermaid form
 
-**Mermaid can draw this now** — `xychart-beta` post-dates the note that used to
+**Mermaid can draw this now**, `xychart-beta` post-dates the note that used to
 sit here. The shape, once the counts exist:
 
 ```mermaid
@@ -1505,7 +1505,7 @@ first:
   x tick label style={font=\small},
 ]
   % PLACEHOLDER VALUES. These four numbers sum to 148, the current finding
-  % total, but the split between the buckets is NOT measured — it has to be
+  % total, but the split between the buckets is NOT measured. It has to be
   % assigned by reading each finding. Replace before use.
   \addplot+[fill=black!45, draw=black!55]
     coordinates {(Same day,21) (Same week,58) (Earlier,44) (Inherited,25)};
@@ -1520,18 +1520,18 @@ once.}
 
 ---
 
-## F18 — The M-series as a whole (cross-reference)
+## F18: The M-series as a whole (cross-reference)
 
-**Source:** §3.5.51 · **Proposed number:** —
+**Source:** §3.5.51 · **Proposed number:**,
 
-**Recommendation: CUT — it is not a figure.** This candidate is a pointer saying
+**Recommendation: CUT. It is not a figure.** This candidate is a pointer saying
 "see §3.5.56", which is F19. Delete the marker so the count of figures stops
 being inflated by a cross-reference. No forms are given because there is nothing
 here to draw that F19 does not draw.
 
 ---
 
-## F19 — The tenant model
+## F19: The tenant model
 
 **Source:** §3.5.56 · **Proposed number:** Figure 3.9
 
@@ -1559,17 +1559,17 @@ made.
 
 ```mermaid
 flowchart TB
-  subgraph M3["M3 — the group"]
+  subgraph M3["M3, the group"]
     G["Group<br/>one Root, its own accounts"]
   end
-  subgraph M4["M4 — the registry"]
+  subgraph M4["M4, the registry"]
     A["Agent record<br/>id, name, groupId, owning Admin"]
   end
-  subgraph M5["M5 — storage isolation"]
+  subgraph M5["M5, storage isolation"]
     S["groups/&lt;groupId&gt;/<br/>policy · ledger · requests · attachments"]
     K["One installation-wide key,<br/>one checkpoint keyed by group"]
   end
-  subgraph M6["M6 — panel and provisioning"]
+  subgraph M6["M6, panel and provisioning"]
     P["Provision<br/>host roster + registry, transactional"]
     UI["Administrator panel"]
   end
@@ -1611,9 +1611,9 @@ flowchart TB
 
 ---
 
-## F20 — The same secret, several spellings
+## F20: The same secret, several spellings
 
-**Source:** §3.5.60 · **Proposed number:** —
+**Source:** §3.5.60 · **Proposed number:**,
 
 **Recommendation: CUT the figure, keep the table.** I marked this candidate
 myself when writing §3.5.60, and on reflection the table already in that section
@@ -1673,25 +1673,25 @@ flowchart LR
 | #   | Figure                         | Recommendation        | Where           |
 | --- | ------------------------------ | --------------------- | --------------- |
 | F1  | Governance layer in Gateway    | **Keep** (absorb F4)  | Fig 3.1         |
-| F2  | RBAC hierarchy                 | Cut, keep the table   | —               |
+| F2  | RBAC hierarchy                 | Cut, keep the table   | -               |
 | F3  | Policy decision sequence       | **Keep**              | Fig 3.3 → 3.2   |
-| F4  | Two-gate authentication        | Merge into F1         | —               |
+| F4  | Two-gate authentication        | Merge into F1         | -               |
 | F5  | Path normalisation             | **Keep**              | Fig 3.3         |
 | F6  | Governed prompt path           | **Keep** (absorb F10) | Fig 3.4         |
-| F7  | Deployment-status seam         | Cut                   | —               |
+| F7  | Deployment-status seam         | Cut                   | -               |
 | F8  | Two paths to the gate          | **Keep** (absorb F13) | Fig 3.5         |
-| F9  | Four modules, one definition   | Cut                   | —               |
-| F10 | Prompt lifecycle               | Merge into F6         | —               |
+| F9  | Four modules, one definition   | Cut                   | -               |
+| F10 | Prompt lifecycle               | Merge into F6         | -               |
 | F11 | Check-then-open window         | **Keep**              | Fig 3.6         |
 | F12 | Two groups on one installation | **Keep**              | Fig 3.7         |
-| F13 | Two entry points, one gate     | Merge into F8         | —               |
+| F13 | Two entry points, one gate     | Merge into F8         | -               |
 | F14 | Tool coverage before/after     | **Keep** (absorb F15) | Fig 4.1         |
-| F15 | Tool catalogue highlighted     | Merge into F14        | —               |
-| F16 | Rule row before/after          | Cut — use screenshots | Fig 4.x (photo) |
+| F15 | Tool catalogue highlighted     | Merge into F14        | -               |
+| F16 | Rule row before/after          | Cut, use screenshots  | Fig 4.x (photo) |
 | F17 | Defects by age of code         | **Keep**, re-derive   | Fig 4.2         |
-| F18 | M-series cross-reference       | Cut — not a figure    | —               |
+| F18 | M-series cross-reference       | Cut, not a figure     | -               |
 | F19 | The tenant model               | **Keep**              | Fig 3.8         |
-| F20 | Same secret, several spellings | Cut, keep the table   | —               |
+| F20 | Same secret, several spellings | Cut, keep the table   | -               |
 | F21 | Two-layer Codex permission     | **Keep**              | Fig 3.10        |
 
 **Eleven figures: nine in Chapter 3, two in Chapter 4**, plus one screenshot pair
@@ -1701,13 +1701,13 @@ paragraph explains worse.
 
 ---
 
-## F21 — The two-layer Codex permission
+## F21: The two-layer Codex permission
 
 **Source:** §3.5.62 · **Proposed number:** Figure 3.10
 
 **Recommendation: KEEP.** Added 2026-08-30. Two gates in series is a shape prose
-handles badly and a picture handles in one glance, and the claim it carries —
-_they compose in the safe direction_ — is exactly the sort a reader accepts
+handles badly and a picture handles in one glance, and the claim it carries,
+_they compose in the safe direction_, is exactly the sort a reader accepts
 visually and doubts in a sentence. It also does double duty: it shows the tier
 split, which is the strongest evidence in the report that the role model is
 applied rather than asserted.
@@ -1767,7 +1767,7 @@ runtime needs neither.}
 
 ---
 
-## F22 — Grant a folder, except… (added 2026-09-01)
+## F22: Grant a folder, except… (added 2026-09-01)
 
 **Source:** §3.5.66 · **Proposed number:** Figure 3.10
 
@@ -1779,7 +1779,7 @@ operator-facing feature had no figure at all.
 **two opposite kinds of rule as a single act**, and that is precisely what a
 reader gets wrong. In lay terms: an operator types "let the agent have `/srv/app`
 but not `/srv/app/secrets`", and what actually lands in the policy is one
-_allow_ and one _deny_ — after which the deny wins wherever the two overlap,
+_allow_ and one _deny_. After which the deny wins wherever the two overlap,
 because forbid always beats allow regardless of the order the rules are in. Three
 sentences of prose, or one picture of a box with a hole in it.
 
@@ -1790,7 +1790,7 @@ opposite in meaning_, because the entry never recorded which direction a rule
 went. The confusion the figure removes is the confusion that already cost a
 defect.
 
-**If you are short of pages, this is a better cut than F5 or F11** — but do not
+**If you are short of pages, this is a better cut than F5 or F11**, but do not
 cut it in favour of F16, which is a screenshot of a table row.
 
 ### Prose form
@@ -1813,7 +1813,7 @@ denials are written **before** the allow, so that a failure part-way through
 leaves less access than intended rather than more. And an exception is never
 narrowed to reads or writes even when the grant is: "except this" means the whole
 path is out, and a read-only exception inside a read-only grant would leave the
-excepted path writable — the opposite of what was typed.
+excepted path writable. The opposite of what was typed.
 
 Finally, the exception must lie inside the folder being granted. One outside it
 is almost always a typo, and its effect would be to write a denial somewhere the
@@ -1826,7 +1826,7 @@ written.
 flowchart TB
   IN["Operator types:<br/>folder = /srv/app<br/>except = /srv/app/secrets"]
   CHK{"Is every exception<br/>inside the folder?"}
-  REF["Refused — nothing written<br/><small>a denial outside the grant is a typo</small>"]
+  REF["Refused. Nothing written<br/><small>a denial outside the grant is a typo</small>"]
   D["1 · DENY  ^/srv/app/secrets(/|$)<br/><small>written first: a partial failure leaves less access</small>"]
   A["2 · ALLOW ^/srv/app(/|$)<br/><small>narrowable to read or write</small>"]
   OUT["Two ordinary rules in the policy<br/><small>editable and removable one at a time</small>"]

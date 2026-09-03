@@ -4,7 +4,7 @@
 // These deliberately exercise the real filesystem rather than a mocked one.
 // The defect being fixed was that path handling agreed with our idea of how
 // paths behave instead of how they actually behave, and a test built on the
-// same assumption as the code would have passed while the hole stayed open —
+// same assumption as the code would have passed while the hole stayed open,
 // the round-five lesson recorded in GOVERNANCE.md.
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
@@ -59,7 +59,7 @@ function verdict(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>)
   if ("block" in decision) {
     return "block";
   }
-  // T23 — absence is no longer the only way the engine says "allow". A call
+  // T23. Absence is no longer the only way the engine says "allow". A call
   // whose path was redirected comes back carrying `params` (the canonical path
   // the tool should open), and reading that as "ask" would report an
   // escalation that never happened. Ask the question directly instead of
@@ -74,7 +74,7 @@ describe("path normalization (B5: which form rules match)", () => {
 
   it("uses forward slashes for a Windows-style separator, and only where one exists", async () => {
     // **Platform-dependent on purpose, and asserting only the Windows half was
-    // a defect this suite carried until 2026-09-01** — found by running the
+    // a defect this suite carried until 2026-09-01**. Found by running the
     // governance suite on Linux for the first time, the night before the first
     // VPS deployment. Finding 148's class exactly, in a governance file rather
     // than an upstream one.
@@ -82,12 +82,12 @@ describe("path normalization (B5: which form rules match)", () => {
     // The behaviour under test is not "convert backslashes". On Windows a
     // backslash **is** a separator, so the two spellings name one file and must
     // normalise together. On POSIX a backslash is an ordinary, legal character
-    // in a filename, so it names a single component and a *different* file —
+    // in a filename, so it names a single component and a *different* file,
     // and converting it there would be a real bypass rather than a tidy-up: a
     // rule reading `^src/allowed[.]ts$` would match a tool call for the
     // backslash spelling, and the gate would allow a file the operator never
-    // granted. That is T23's property — the path judged must be the path
-    // opened — so the correct POSIX answer is to leave it alone, which is what
+    // granted. That is T23's property, the path judged must be the path
+    // opened, so the correct POSIX answer is to leave it alone, which is what
     // the code does. Verified by character code on Ubuntu: 92 in, 92 out.
     const input = "src\\app.ts";
     const normalised = await normalizeGovernedPath(input, workspace);
@@ -205,12 +205,12 @@ describe("symbolic links", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Finding 208 — the link fallback stopped one level up, and two missing
+// Finding 208. The link fallback stopped one level up, and two missing
 // components walked around path confinement.
 //
 // `canonicalize` resolved the full path, and on failure tried the parent. With
 // *two* non-existent components the parent failed too, so it returned the raw
-// path with the symlink unresolved — and the gate matched its rules against
+// path with the symlink unresolved, and the gate matched its rules against
 // something that still read as workspace-relative.
 //
 // It is reachable because the `write` tool creates missing directories with
@@ -230,7 +230,7 @@ describe("a link is followed however many components are missing (finding 208)",
       await symlink(outside, join(linkWorkspace, "data"), "junction");
     } catch {
       // Creating a link needs privileges this machine may not grant. Skipped
-      // rather than silently passing — the same honesty `state-file-permissions`
+      // rather than silently passing. The same honesty `state-file-permissions`
       // applies to POSIX modes on Windows.
       return;
     }
@@ -252,7 +252,7 @@ describe("a link is followed however many components are missing (finding 208)",
   });
 
   it("still returns the path when nothing above it resolves", async () => {
-    // No link can be followed, so the value is returned as it stands — already
+    // No link can be followed, so the value is returned as it stands. Already
     // absolute with `..` collapsed. The walk must terminate here rather than
     // looping at the root.
     const resolved = await normalizeGovernedPath(

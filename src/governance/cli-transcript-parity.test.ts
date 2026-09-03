@@ -8,7 +8,7 @@
 //
 // The route (`agent/transcript`) makes four checks: the **User** floor,
 // `requireGroup`, `canManageAgent`, and `requireAgentInGroup`. The command made
-// two — signed in, and holding a group — so on the command line a Viewer could
+// two, signed in, and holding a group, so on the command line a Viewer could
 // read a transcript the design defines their tier out of, and a User could read
 // one for an agent nobody ever assigned them.
 //
@@ -18,9 +18,9 @@
 // caller while it had two, which is the shape of the defect as much as the
 // missing checks are.
 //
-// What the reads actually return is narrow — a conversation is keyed by
+// What the reads actually return is narrow, a conversation is keyed by
 // account, so what leaks is the caller's own past thread with an agent they no
-// longer manage — and that is why it survived. The class is the point: a check
+// longer manage, and that is why it survived. The class is the point: a check
 // present on one surface and absent on the other is finding 174, and this is
 // the fifth instance of it.
 import { mkdtemp, rm } from "node:fs/promises";
@@ -111,10 +111,10 @@ async function runGovernance(args: readonly string[]): Promise<void> {
 
 const output = () => printed.join("\n");
 
-describe("governance agent transcript — the checks its route makes", () => {
+describe("governance agent transcript. The checks its route makes", () => {
   it("refuses a Viewer, whose tier the route floors out", async () => {
     // The route requires `user`. §1.6 gives a Viewer oversight of an agent, not
-    // a conversation with it — and `prompt`, which creates the transcript, is
+    // a conversation with it, and `prompt`, which creates the transcript, is
     // already closed to them, so a Viewer reading one is reading something the
     // tier could not have produced.
     await signIn("watcher", "viewer", [MINE]);

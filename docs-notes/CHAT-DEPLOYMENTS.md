@@ -1,7 +1,7 @@
 # Running the fork through Discord, Telegram, Slack or WhatsApp
 
 The governance fork is a **hard fork of OpenClaw, not a replacement for it**.
-Everything upstream OpenClaw can do, this fork still does — including being
+Everything upstream OpenClaw can do, this fork still does, including being
 reached through a chat channel. Setting up a channel is unchanged: follow
 OpenClaw's own documentation (`docs/channels/discord.md`,
 `docs/channels/telegram.md`, and so on). Nothing in this layer asks to be
@@ -13,14 +13,14 @@ it deliberately does not cover.
 
 Verified by `src/governance/qa-round12.test.ts`, which drives the gate with
 session keys built by the **host's own** `buildAgentPeerSessionKey` rather than
-strings this project invented — the distinction that the fifth QA round was
+strings this project invented. The distinction that the fifth QA round was
 about.
 
 ---
 
 ## 1. Why it works at all
 
-Every tool call in OpenClaw — whatever started it — funnels through
+Every tool call in OpenClaw, whatever started it, funnels through
 `runBeforeToolCallHook`, and the governance gate is attached there. A Discord
 message and a dashboard prompt reach the same function by different routes, so
 neither needs the gate to know about it.
@@ -41,7 +41,7 @@ All of them parse under `parseAgentSessionKey`, so the agent id is recovered in
 every case. This is asserted per channel in round 12 rather than assumed,
 because if it were ever untrue the failure would be silent and severe: on the
 deployment people actually use, the kill switch would not fire, agent-scoped
-rules would not bind, and the ledger would attribute nothing — while every other
+rules would not bind, and the ledger would attribute nothing, while every other
 test in the suite stayed green.
 
 ---
@@ -49,8 +49,8 @@ test in the suite stayed green.
 ## 2. What an operator should expect
 
 **The agent works on first boot.** The shipped baseline (see
-`BASELINE-RULES.md`) permits ordinary inspection work — reading project files,
-listing directories, a handful of read-only commands — so a chat user asking the
+`BASELINE-RULES.md`) permits ordinary inspection work, reading project files,
+listing directories, a handful of read-only commands, so a chat user asking the
 agent to look at something gets an answer immediately. This is the same property
 the baseline was written for; round 12 checks it holds on a channel run and not
 only in a dashboard one.
@@ -58,7 +58,7 @@ only in a dashboard one.
 **Anything outside the baseline asks a human.** The default posture is `enforce`
 with `ask: on-miss`, so an unlisted command escalates rather than failing. The
 escalation is handed to **OpenClaw's own approval machinery**, not to something
-this project reimplemented — which is why it renders as Discord's native
+this project reimplemented, which is why it renders as Discord's native
 button-based approval (`docs/channels/discord.md`). A chat user sees the prompt
 they would see for any other OpenClaw approval.
 
@@ -69,7 +69,7 @@ channel click past the tier that exists to be unclickable.
 
 > **Closed in QA round 13 (finding 83): the escalation offers two buttons,
 > `allow-once` and `deny`.** It used to offer a third, `allow-always`, and
-> `onResolution` called `addRule` — so the middle button **wrote a permanent
+> `onResolution` called `addRule`, so the middle button **wrote a permanent
 > rule into `policy.json`**, scoped to the agent and attributed to
 > `hitl-approval`. The person clicking it holds no
 > governance account, is not any of the four tiers, and is authenticated only by
@@ -82,7 +82,7 @@ channel click past the tier that exists to be unclickable.
 > channel-originated turns. Simpler, and better: it removes policy authorship
 > from the escalation path entirely, and the per-channel version would have
 > needed the turn source plumbed into the engine for a distinction that does
-> not really hold — the dashboard's approval machinery reports a decision
+> not really hold. The dashboard's approval machinery reports a decision
 > without an identity too.
 >
 > Nothing is lost operationally. `allow-once` still unblocks the agent with no
@@ -90,7 +90,7 @@ channel click past the tier that exists to be unclickable.
 > pending-decision stack for an operator to answer properly. What changed is
 > that making a grant _permanent_ now happens on a surface that knows who is
 > asking. The callback also refuses to write a rule even if the host's approval
-> machinery — a separate component with its own view of what it may send —
+> machinery, a separate component with its own view of what it may send,
 > hands it the withdrawn decision anyway.
 
 **Nobody answering means denied.** An escalation times out after
@@ -121,7 +121,7 @@ Stated plainly, because a chat deployment makes one of them matter more than it
 does anywhere else.
 
 **Outbound messages are ungoverned.** The policy language has three resource
-kinds — command, path, network — and none of them describes "post this text into
+kinds, command, path, network, and none of them describes "post this text into
 a Discord channel". An agent that legitimately reads a permitted file can repeat
 its contents into chat, and no rule is consulted.
 
@@ -138,7 +138,7 @@ Discord server or a Telegram chat is an operator deciding it should speak there.
 A gate that then refused would be overriding the grant it was handed. The
 specification agrees: §1.3 names three resource categories and messaging is not
 one of them, while the one place it mentions chat platforms (§2.1.1.3) casts
-them as the _interface users interact through_ — the recommended alternative to
+them as the _interface users interact through_. The recommended alternative to
 exposing a port, not an egress to police.
 
 So this is no longer listed as future work. It was carried as "needs a fourth
@@ -149,8 +149,8 @@ attributed to the agent, which is the same property that made the round-eleven
 coverage gaps findable in the first place. Round 12 pins it, so it cannot
 silently become `allow`.
 
-**The harness bypass (B1) applies here too.** One configuration — the native
-(Codex) harness, plugin-free, with loop-detection relay disabled — never enters
+**The harness bypass (B1) applies here too.** One configuration, the native
+(Codex) harness, plugin-free, with loop-detection relay disabled, never enters
 `runBeforeToolCallHook` at all. In-process sessions, which is every
 configuration used so far, are unaffected. See `mg/REMAINING-WORK.md` §B1.
 
@@ -166,7 +166,7 @@ built and is not claimed.
 
 ## 4. Where a chat deployment shows up in the dashboard
 
-Nothing extra to configure — a channel-driven agent appears in the same places
+Nothing extra to configure. A channel-driven agent appears in the same places
 as any other:
 
 | Panel                 | What you see                                                          |

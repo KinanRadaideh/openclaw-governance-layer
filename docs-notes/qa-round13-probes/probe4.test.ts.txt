@@ -1,4 +1,4 @@
-// TEMPORARY QA probe 4 — ReDoS, CLI escape, misc. Delete after the review.
+// TEMPORARY QA probe 4, ReDoS, CLI escape, misc. Delete after the review.
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -29,7 +29,7 @@ function verdict(d: Awaited<ReturnType<typeof evaluateGovernancePolicy>>): strin
   return "block" in d ? "block" : "ask";
 }
 
-describe("PROBE 12 — ReDoS patterns the validator accepts", () => {
+describe("PROBE 12, ReDoS patterns the validator accepts", () => {
   const patterns = [
     "^(a|a)+$",
     "^(a|ab)+$",
@@ -54,7 +54,7 @@ describe("PROBE 12 — ReDoS patterns the validator accepts", () => {
   }
 });
 
-describe("PROBE 13 — reaching the governance CLI from a shell", () => {
+describe("PROBE 13. Reaching the governance CLI from a shell", () => {
   const commands = [
     "node openclaw.mjs governance policy set-mode off",
     "npx openclaw governance policy set-mode off",
@@ -89,7 +89,7 @@ describe("PROBE 13 — reaching the governance CLI from a shell", () => {
   }
 });
 
-describe("PROBE 14 — rule count and pattern-cache pressure", () => {
+describe("PROBE 14. Rule count and pattern-cache pressure", () => {
   it("keeps evaluation fast with a full ruleset", async () => {
     const doc = await loadPolicy();
     const many = Array.from({ length: 500 }, (_, index) => ({
@@ -112,7 +112,7 @@ describe("PROBE 14 — rule count and pattern-cache pressure", () => {
   });
 });
 
-describe("PROBE 15 — resource shapes the extractor may miss", () => {
+describe("PROBE 15. Resource shapes the extractor may miss", () => {
   const cases: Array<[string, Record<string, unknown>]> = [
     ["exec array command", { command: ["sudo", "-i"] }],
     ["exec nested", { command: { toString: "sudo" } }],

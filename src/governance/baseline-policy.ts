@@ -18,7 +18,7 @@
 // **The security argument for commands is the allowlist, not the denylist.**
 // Worth being explicit, because it is easy to read the core denials as the
 // protection. They are not. A shell can reach a forbidden file through
-// indirection no pattern will catch — `c""at $HOME/.ssh/id_rsa`, a variable, a
+// indirection no pattern will catch, `c""at $HOME/.ssh/id_rsa`, a variable, a
 // script, base64. Enumerating bad commands is a losing game. What actually
 // confines the agent is that the baseline *allows* a short list of anchored,
 // argument-constrained commands and denies everything else by default. The core
@@ -36,7 +36,7 @@ export type SeedRule = Omit<PolicyRule, "id" | "createdAt">;
  * Leans on the canonical form established in path-normalize.ts: a path inside
  * the workspace is rendered workspace-relative, and anything else is rendered
  * absolute. So "outside the project" is exactly "starts with `/`, or with a
- * Windows drive letter" — no traversal check, no denylist of parent
+ * Windows drive letter": no traversal check, no denylist of parent
  * directories. The property falls out of the representation.
  */
 const OUTSIDE_WORKSPACE = "^([A-Za-z]:/|/)";
@@ -46,17 +46,17 @@ const OUTSIDE_WORKSPACE = "^([A-Za-z]:/|/)";
  *
  * **Why this is needed (QA round 13, finding 85).** The shipped path denials
  * were case-sensitive and the filesystems they protect are not. Reading an
- * *existing* `.env` spelled `.ENV` was already denied — `path-normalize.ts`
+ * *existing* `.env` spelled `.ENV` was already denied, `path-normalize.ts`
  * resolves the real on-disk name before matching, which was verified rather
- * than assumed — but a path that does not exist yet cannot be resolved, so
+ * than assumed, but a path that does not exist yet cannot be resolved, so
  * `canonicalize` falls back to the parent plus the basename **as the agent
  * typed it**. A `write` to `ID_RSA`, `NEW.ENV` or `server.PEM` therefore
  * matched no core rule, and the file it created then kept that casing for every
  * later read.
  *
  * Done in the pattern rather than by case-folding the canonical path, because
- * folding would change the form every operator rule is written against —
- * `^src/App\.ts$` would stop matching — to fix a problem that only exists for
+ * folding would change the form every operator rule is written against,
+ * `^src/App\.ts$` would stop matching, to fix a problem that only exists for
  * this handful of shipped filenames. The rule language has no flags field, so
  * the alternation is spelled out; `anyCase` keeps the source readable and the
  * expansion mechanical.
@@ -76,13 +76,13 @@ function anyCase(literal: string): string {
  *
  * Deliberately matched by filename rather than by location: a private key
  * copied into the project directory is still a private key, and a rule keyed to
- * `~/.ssh` alone would wave it through. Matched in any capitalisation — see
+ * `~/.ssh` alone would wave it through. Matched in any capitalisation. See
  * `anyCase`.
  */
 const CREDENTIAL_FILES =
   // `.*\.env` rather than `\.env`, so `prod.env` and `staging.env` are covered
   // as well as the dotfile. **This is an extension beyond QA round 13's finding
-  // 85, not part of it** — `new.env` was denied in no capitalisation, so it was
+  // 85, not part of it**, `new.env` was denied in no capitalisation, so it was
   // never a case-sensitivity gap. It is fixed here because the asymmetry it
   // exposed is real: `.pem`, `.pfx`, `.p12` and `.keystore` were already
   // matched with a `.*` prefix and `.env` was not, for no reason anyone
@@ -120,7 +120,7 @@ const CREDENTIAL_DIRS =
  * which is the same move `path-normalize.ts` and `canonicalHostname` already
  * make for their resources.
  *
- * It blocks more than strictly intended — `echo "not sudo"` matches — and that
+ * It blocks more than strictly intended, `echo "not sudo"` matches, and that
  * is the documented trade in this file's header: blocking more than intended is
  * safer than blocking less. The header's larger point stands unchanged: the
  * denylist is a backstop, and the anchored allowlist is what actually confines
@@ -161,7 +161,7 @@ export const CORE_RULES: readonly SeedRule[] = Object.freeze([
     effect: "deny",
     tier: "core",
     pattern: CREDENTIAL_FILES,
-    description: "Credential files (.env, private keys, .npmrc, .netrc) — read or write",
+    description: "Credential files (.env, private keys, .npmrc, .netrc). Read or write",
   },
   {
     resourceKind: "path",
@@ -184,7 +184,7 @@ export const CORE_RULES: readonly SeedRule[] = Object.freeze([
     resourceKind: "command",
     effect: "deny",
     tier: "core",
-    // Backstop only — see the file header. The real protection against these is
+    // Backstop only. See the file header. The real protection against these is
     // that the baseline allowlist does not permit a shell in the first place.
     pattern: commandNamed("sudo", "su", "doas", "runas", "pkexec"),
     description: "Privilege escalation (sudo, su, doas, runas, pkexec)",
@@ -194,8 +194,8 @@ export const CORE_RULES: readonly SeedRule[] = Object.freeze([
     effect: "deny",
     tier: "core",
     // Both separators. The pattern spelled the path with `/` only, so the
-    // plain Windows spelling — `type %USERPROFILE%\.openclaw\governance\
-    // policy.json` — was not matched, on the platform this project is
+    // plain Windows spelling, `type %USERPROFILE%\.openclaw\governance\
+    // policy.json`, was not matched, on the platform this project is
     // developed on (QA round 13, finding 74).
     pattern: "\\.openclaw[\\\\/]+governance",
     selfProtecting: true,
@@ -211,8 +211,8 @@ export const CORE_RULES: readonly SeedRule[] = Object.freeze([
     // `openclaw governance policy set-mode off` disables the entire gate, needs
     // no login, and was covered by nothing: the rule above protects the
     // governance *directory*, and this is a *command*. So any operator rule
-    // broad enough to let the agent run the project — `^(node|npm|npx|pnpm)
-    // .*$` is the first rule most people write — let the agent switch off its
+    // broad enough to let the agent run the project, `^(node|npm|npx|pnpm)
+    // .*$` is the first rule most people write, let the agent switch off its
     // own governance. Four spellings were measured against the gate and all
     // four were allowed.
     //
@@ -249,8 +249,8 @@ export const CORE_RULES: readonly SeedRule[] = Object.freeze([
     // ---------------------------------------------------------------------
     // Widened in QA round 13 (finding 75).
     //
-    // Round eleven canonicalised four *IPv4* spellings of `169.254.169.254` —
-    // trailing dot, single integer, dotted-hex, dotted-octal — and the IPv6
+    // Round eleven canonicalised four *IPv4* spellings of `169.254.169.254`,
+    // trailing dot, single integer, dotted-hex, dotted-octal, and the IPv6
     // family was never considered. `canonicalIpv4` returns `undefined` for
     // anything containing a colon, so these passed through as written and the
     // anchored pattern did not match:
@@ -264,7 +264,7 @@ export const CORE_RULES: readonly SeedRule[] = Object.freeze([
     //
     // The dotted IPv4-mapped form is now folded to dotted-decimal by
     // `canonicalHostname`, so it is covered by the first alternative rather
-    // than by a spelling of its own — the same "fix the representation, not the
+    // than by a spelling of its own. The same "fix the representation, not the
     // pattern" move the rest of this layer makes. The hex forms cannot be
     // folded without an IPv6 parser, so they are named.
     // ---------------------------------------------------------------------
@@ -282,7 +282,7 @@ export const CORE_RULES: readonly SeedRule[] = Object.freeze([
  * Unlike core rules these are a **starting point**: an Administrator may remove
  * or narrow any of them. They are the answer to "what does an agent need in
  * order to be useful before anybody has written a policy?", and the answer is
- * kept deliberately small — read the project, look around the filesystem inside
+ * kept deliberately small: read the project, look around the filesystem inside
  * it, and run a handful of read-only inspection commands.
  *
  * Every command pattern is fully anchored and excludes shell metacharacters, so
@@ -296,7 +296,7 @@ export const BASELINE_RULES: readonly SeedRule[] = Object.freeze([
     tier: "baseline",
     // **Read only.** The brief describes a baseline that permits "reading
     // permitted project files", and until the access dimension existed this
-    // rule granted writes as well — quietly more permissive than the design it
+    // rule granted writes as well. Quietly more permissive than the design it
     // was implementing.
     //
     // Modifying the project is a deliberate grant an operator makes, not
@@ -305,7 +305,7 @@ export const BASELINE_RULES: readonly SeedRule[] = Object.freeze([
     // strict `ask`), which is the correct treatment for an action that changes
     // state on first contact.
     access: "read",
-    // Anything the canonical form rendered workspace-relative — i.e. inside the
+    // Anything the canonical form rendered workspace-relative. I.e. inside the
     // project. Core denials still apply on top, so a `.env` in the project is
     // matched here and refused there.
     pattern: `^(?!${OUTSIDE_WORKSPACE.slice(1)}).+$`,
@@ -335,7 +335,7 @@ export const BASELINE_RULES: readonly SeedRule[] = Object.freeze([
     // optional group: `( --[a-z-]{1,20}){0,3}` nests a quantifier inside a
     // quantified group, which this project's own regex-safety check rejects as
     // a backtracking risk. The shipped rules are held to the same standard as
-    // an operator's, which is the point — a validator the defaults would fail
+    // an operator's, which is the point. A validator the defaults would fail
     // is a validator nobody believes.
     pattern: "^git (status|branch|diff|log)$",
     description: "Read-only git inspection",
@@ -367,8 +367,8 @@ function escapeLiteral(value: string): string {
  * **The defect this closes (QA round 13, finding 86.)** `GOVERNANCE_STATE` and
  * the matching command denial both spell the literal `.openclaw/governance`.
  * `paths.ts` documents `OPENCLAW_GOVERNANCE_DIR` as a supported deployment
- * feature — "so a deployment can place the ledger on separate storage… without
- * a code change" — and taking that option silently removed the agent's
+ * feature, "so a deployment can place the ledger on separate storage… without
+ * a code change", and taking that option silently removed the agent's
  * inability to read the policy, the accounts, the audit ledger and its signing
  * key. The protection was written against a path constant rather than against
  * the directory the installation is really using, so the documented deployment
@@ -386,7 +386,7 @@ function escapeLiteral(value: string): string {
  */
 export function governanceStateRules(): readonly SeedRule[] {
   // The canonical form path rules are matched against: forward slashes, and
-  // absolute whenever the target is outside the workspace — which the
+  // absolute whenever the target is outside the workspace, which the
   // governance directory always is.
   const home = governanceHomeDir().replaceAll("\\", "/").replace(/\/+$/, "");
   if (!home) {

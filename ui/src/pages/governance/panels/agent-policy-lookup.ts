@@ -1,4 +1,4 @@
-// "Which policies bind this agent?" — the operator-facing half of T26's
+// "Which policies bind this agent?". The operator-facing half of T26's
 // bidirectional policy view, and the roster of who can reach the agent (M2).
 //
 // ## Why this is not part of `policy-panels.ts`
@@ -7,7 +7,7 @@
 // together. It is grouped by **question** instead, and the two questions are
 // genuinely different jobs:
 //
-//  - `policy-panels.ts` shows the policy **document** — what has been written,
+//  - `policy-panels.ts` shows the policy **document**. What has been written,
 //    and the form for writing more. It is where an operator edits.
 //  - This file answers a **lookup** about one agent: what is in force for it,
 //    who holds it, and which agents a given rule reaches. It is where an
@@ -20,7 +20,7 @@
 // interprets it invites the two to drift.
 //
 // It also keeps `policy-panels.ts` under the line limit, which is the immediate
-// reason the cut happened here rather than somewhere else — but the seam was
+// reason the cut happened here rather than somewhere else, but the seam was
 // available because the subjects really are distinct, not because a number
 // needed reducing. Where those two things disagree, the subject wins: see the
 // T16 write-up on why the rule list, its filter and its form stayed together
@@ -73,7 +73,7 @@ export function renderRuleTargets(
  * Separate from the rule list rather than folded into it, because the two
  * answer different questions. The rule list is the policy *document*: what
  * has been written. This is what is in *force* for one workload, which is the
- * question anyone actually has when they open the page — and it cannot be
+ * question anyone actually has when they open the page, and it cannot be
  * read off the document by eye, because an absent agent id means "binds
  * everyone" rather than "binds nobody".
  */
@@ -123,7 +123,7 @@ export function renderAgentPolicySection(props: PolicyPanelProps): TemplateResul
         description: t("governance.agentPolicy.accessHint"),
         // "Nobody" is rendered as a sentence, never as an empty space. An
         // agent with no User or Viewer assigned is a real and interesting
-        // state — it is running under Administrator authority alone — and an
+        // state, it is running under Administrator authority alone, and an
         // empty region would read as a section that failed to load, which is
         // exactly the confusion finding 102 was about.
         control: access
@@ -192,7 +192,7 @@ export function renderAgentPolicySection(props: PolicyPanelProps): TemplateResul
     for (const { rule, scope } of view.rules) {
       rows.push(
         renderSettingsRow({
-          // The rule's own sentence, not its regular expression — finding 99,
+          // The rule's own sentence, not its regular expression. Finding 99,
           // applied here rather than rediscovered.
           title: rule.description || rule.pattern,
           description: `${rule.resourceKind} · ${rule.pattern}${

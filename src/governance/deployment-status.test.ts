@@ -1,4 +1,4 @@
-// Tests for backlog item A7 — the Root-tier deployment and network report.
+// Tests for backlog item A7. The Root-tier deployment and network report.
 //
 // Almost everything here is driven through injected inputs rather than the real
 // host, which is the point: the checks assert claims about a *deployment*, and a
@@ -8,7 +8,7 @@
 // Linux alike.
 //
 // Two tests deliberately touch the real filesystem, and both assert the *branch
-// taken* rather than a value — see "dispatch" below.
+// taken* rather than a value. See "dispatch" below.
 import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -66,7 +66,7 @@ function conformingInput(
  * `statPath` is injected by default too, and that is not incidental. Claiming
  * `platform: "linux"` while letting the real filesystem answer means reading
  * *Windows* mode bits through the POSIX branch, which fails on Windows and
- * passes on Linux — a test that reports on the machine it ran on rather than on
+ * passes on Linux: a test that reports on the machine it ran on rather than on
  * the code. Tests that are actually about permissions override this; the one
  * test about platform dispatch removes the `platform` override instead.
  */
@@ -109,7 +109,7 @@ function checkFor(
   return found;
 }
 
-describe("A7 — the report's shape", () => {
+describe("A7. The report's shape", () => {
   it("gives every check an id, a title and an observation", async () => {
     const status = await statusOf();
     expect(status.checks.length).toBeGreaterThan(5);
@@ -139,7 +139,7 @@ describe("A7 — the report's shape", () => {
 
   it("reports a fully conforming deployment as passing overall", async () => {
     // "Fully" includes the ledger key being held off-host. With the key on this
-    // disk the report warns — correctly, and deliberately: that is the residual
+    // disk the report warns. Correctly, and deliberately: that is the residual
     // risk `ledger-key.ts` documents, and a deployment view that stayed green
     // through it would be hiding the one thing an operator can still act on.
     process.env.OPENCLAW_GOVERNANCE_LEDGER_KEY = "a-secret-from-a-vault";
@@ -165,7 +165,7 @@ describe("A7 — the report's shape", () => {
     expect(checkFor(await statusOf(), "deployment.ledger_key_source").status).toBe("pass");
   });
 
-  it("warns — not fails — on an otherwise conforming deployment holding its key on disk", async () => {
+  it("warns, not fails, on an otherwise conforming deployment holding its key on disk", async () => {
     const status = await statusOf();
     expect(status.overall).toBe("warn");
     expect(status.summary.fail).toBe(0);
@@ -173,7 +173,7 @@ describe("A7 — the report's shape", () => {
 
   it("does not let an undeterminable check turn a clean deployment amber", async () => {
     // `unknown` is reported separately and excluded from `overall`. Three
-    // checks that could not run on this platform must not read as a problem —
+    // checks that could not run on this platform must not read as a problem,
     // and must not be hidden either.
     const status = await statusOf({}, { platform: "win32" });
     expect(status.summary.unknown).toBeGreaterThan(0);
@@ -181,7 +181,7 @@ describe("A7 — the report's shape", () => {
   });
 });
 
-describe("A7 — the architecture claims from §1.6", () => {
+describe("A7. The architecture claims from §1.6", () => {
   it.each([
     ["loopback" as const, "pass"],
     ["tailnet" as const, "warn"],
@@ -218,7 +218,7 @@ describe("A7 — the architecture claims from §1.6", () => {
       const check = checkFor(await statusOf(override), "deployment.tunnel_required");
       expect(check.status).toBe("warn");
       // The detail must say what the other way in *is*. "No tunnel detected"
-      // would be both unactionable and unverifiable — no process can observe
+      // would be both unactionable and unverifiable, no process can observe
       // whether a human typed `ssh -L`.
       expect(check.detail).toContain(mentioned);
     },
@@ -231,7 +231,7 @@ describe("A7 — the architecture claims from §1.6", () => {
   });
 });
 
-describe("A7 — the stated constraints", () => {
+describe("A7. The stated constraints", () => {
   it("accepts a genuine 8 GB host, which reports less than 8 GiB", async () => {
     // The regression test for the units trap. A vendor's "8 GB" VPS reports
     // roughly 7.6–7.9 GiB after firmware reservation, so a `1024 ** 3`
@@ -266,7 +266,7 @@ describe("A7 — the stated constraints", () => {
   });
 });
 
-describe("A7 — governance state", () => {
+describe("A7. Governance state", () => {
   it("passes a fresh installation with no ledger and no checkpoint", async () => {
     // Neither file exists yet. Reporting that as a warning would make every new
     // deployment start amber for a condition that is simply "nothing has
@@ -285,7 +285,7 @@ describe("A7 — governance state", () => {
 
   it("passes when both are present", async () => {
     await writeFile(ledgerFilePath(TEST_GROUP), "{}\n", "utf8");
-    // Keyed by group since M5 — an empty object is a file with no checkpoint
+    // Keyed by group since M5. An empty object is a file with no checkpoint
     // for anybody, which is what "no checkpoint" now looks like.
     await writeFile(
       ledgerCheckpointFilePath(),
@@ -308,11 +308,11 @@ describe("A7 — governance state", () => {
   });
 });
 
-describe("A7 — file permissions, tested without depending on the host's", () => {
+describe("A7. File permissions, tested without depending on the host's", () => {
   /**
    * Two layers, because `chmod` on Windows silently ignores group and world
    * bits. A test that chmods a real directory to 0700 and asserts `pass` is
-   * meaningful on Linux and vacuous on Windows — it would pass either way.
+   * meaningful on Linux and vacuous on Windows: it would pass either way.
    *
    * So the **logic** is driven through an injected `statPath` with synthetic
    * modes (full coverage, identical on both platforms), and one **dispatch**
@@ -348,7 +348,7 @@ describe("A7 — file permissions, tested without depending on the host's", () =
     // Asserts the branch, never a mode value. On Windows the honest answer is
     // that POSIX bits are not meaningful; anywhere else a verdict is expected.
     //
-    // Neither `platform` nor `statPath` is injected here — that is the whole
+    // Neither `platform` nor `statPath` is injected here. That is the whole
     // point of this one test, and injecting either would make it assert the
     // fixture rather than the dispatch.
     const status = await readDeploymentStatus(TEST_GROUP, conformingInput(), {
@@ -364,7 +364,7 @@ describe("A7 — file permissions, tested without depending on the host's", () =
   });
 });
 
-describe("A7 — folding in the host's own security audit", () => {
+describe("A7. Folding in the host's own security audit", () => {
   const finding = (over: Partial<SecurityAuditFinding> = {}): SecurityAuditFinding => ({
     checkId: "gateway.bind_no_auth",
     severity: "critical",
@@ -421,7 +421,7 @@ describe("A7 — folding in the host's own security audit", () => {
   });
 });
 
-describe("A7 — secrets do not reach the report", () => {
+describe("A7. Secrets do not reach the report", () => {
   /**
    * The single most valuable test here. `resolveGatewayAuth` returns the
    * plaintext token and password on the same object as the mode, one field away
@@ -444,7 +444,7 @@ describe("A7 — secrets do not reach the report", () => {
 
   it("home-shortens the governance directory it reports", async () => {
     const status = await readDeploymentStatus(TEST_GROUP, conformingInput(), options());
-    // Root may see where the directory is — that is the point of the check, and
+    // Root may see where the directory is. That is the point of the check, and
     // QA round 13 finding 86 showed the location is materially important. What
     // it should not do is print an absolute home path when a `~` will do.
     expect(status.facts.governanceDir).not.toMatch(/\/home\/[a-z]/i);

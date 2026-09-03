@@ -7,14 +7,14 @@
 // `governance-dashboard-api.ts` after that split is "the policy document, and
 // the dispatcher", and this file is its view. Everything here reads or edits
 // the same object: the rules, their scope, their lifetime, the posture that
-// frames them, and the two answers `policy-projection.ts` gives about them —
+// frames them, and the two answers `policy-projection.ts` gives about them,
 // *what binds this agent?* and *which agents does this rule bind?*
 //
 // It is the largest panel module, and deliberately not split further. The rule
 // list, the filter above it and the form below it are one screen an operator
 // works in a single motion: write a rule, see it appear, narrow the list to
 // check it. Splitting a workflow across files to even out line counts is the
-// mistake the T16 write-up warns about — the seam is the subject, not the size.
+// mistake the T16 write-up warns about. The seam is the subject, not the size.
 //
 // ## The two notices, and why they live here rather than at the top of the page
 //
@@ -23,7 +23,7 @@
 // rule and mean nothing without it. A conflict names the earlier rule that
 // already decides the pattern; a warning names what a rule would grant. Keeping
 // them beside the form that raises them is what stops the wording drifting
-// away from the control it describes — the failure mode the "Add an allow rule"
+// away from the control it describes. The failure mode the "Add an allow rule"
 // heading had after R5 made denials authorable, found by writing the first
 // component tests.
 //
@@ -62,6 +62,7 @@ import { renderRuleTargets } from "./agent-policy-lookup.ts";
 import { type CodexBackendState, renderCodexBackendPanel } from "./codex-backend-panel.ts";
 import { renderFolderGrantPanel } from "./folder-grant-panel.ts";
 import { formatDuration } from "./format.ts";
+import { renderAgentTimeoutRow } from "./policy-agent-timeout.ts";
 import { renderRootPolicySettings } from "./policy-root-settings.ts";
 
 /**
@@ -69,7 +70,7 @@ import { renderRootPolicySettings } from "./policy-root-settings.ts";
  *
  * Mirrored by hand from `selfProtecting` in `src/governance/baseline-policy.ts`
  * for the same reason every type in `api.ts` is: the dashboard bundle does not
- * import from `src/`. The server refuses these regardless — this list only
+ * import from `src/`. The server refuses these regardless. This list only
  * decides whether a *button* appears, so the worst case of it drifting is a
  * control that produces an honest 403 rather than a silent failure. Pinned by
  * `src/governance/core-rule-mirror.contract.test.ts` all the same.
@@ -89,13 +90,13 @@ const CORE_RULES_ROOT_CANNOT_DISABLE = [
  */
 function formatRuleLifetime(expiresAt: string | undefined): string {
   if (!expiresAt) {
-    return ` — ${t("governance.policy.indefinite")}`;
+    return `, ${t("governance.policy.indefinite")}`;
   }
   const remainingMs = Date.parse(expiresAt) - Date.now();
   if (!Number.isFinite(remainingMs) || remainingMs <= 0) {
-    return ` — ${t("governance.policy.expired")}`;
+    return `, ${t("governance.policy.expired")}`;
   }
-  return ` — ${t("governance.policy.expiresIn")} ${formatDuration(Math.round(remainingMs / 1000))}`;
+  return `, ${t("governance.policy.expiresIn")} ${formatDuration(Math.round(remainingMs / 1000))}`;
 }
 
 function tierLabel(tier: GovernancePolicyRule["tier"]): string {
@@ -115,8 +116,8 @@ function tierLabel(tier: GovernancePolicyRule["tier"]): string {
  *
  *   1. It is a **path denial**. Allowances are unaffected, and command or
  *      network rules have nothing to do with search results.
- *   2. The installation **offers Codex at all**. With the backend off — the
- *      default — no agent can be on it and there is nothing to say.
+ *   2. The installation **offers Codex at all**. With the backend off, the
+ *      default, no agent can be on it and there is nothing to say.
  *   3. An agent it binds is **actually permitted** onto Codex. A global rule
  *      qualifies if any agent is; an agent-scoped rule only if that agent is.
  *
@@ -158,6 +159,10 @@ export type PolicyDrafts = {
     written: { pattern: string; effect: string }[] | null;
   };
   postureAgentId: string;
+  /** Which agent the per-agent escalation timeout control is aimed at. */
+  agentTimeoutAgentId: string;
+  /** The seconds typed into it, kept as text so a half-typed number survives. */
+  agentTimeoutSeconds: string;
   agentPolicyAgentId: string;
   /** Root-only settings, reachable from the dashboard only since finding 140. */
   hitlTimeoutDraft: string;
@@ -194,7 +199,7 @@ export type PolicyPanelProps = PanelEffects & {
    * Reports a change that took while its audit entry did not (finding 229).
    *
    * The page owns the notice band, and the shared `confirmThen`/`run` pair
-   * discards results by design — so a panel with something to say about a
+   * discards results by design: so a panel with something to say about a
    * *success* is given a way to say it, as the organisation panel is.
    */
   onAuditWarning: (message: string) => void;
@@ -241,9 +246,7 @@ export function renderConflictNotice(props: PolicyPanelProps): TemplateResult | 
       >
       <ul style="margin:0.5rem 0 0.5rem 1rem">
         ${conflicts.map(
-          (conflict) => html`<li>
-            <code>${conflict.existingPattern}</code> — ${conflict.message}
-          </li>`,
+          (conflict) => html`<li><code>${conflict.existingPattern}</code>-${conflict.message}</li>`,
         )}
       </ul>
       <button
@@ -262,7 +265,7 @@ export function renderConflictNotice(props: PolicyPanelProps): TemplateResult | 
  * Filter controls for the rule list (Q-89).
  *
  * A shipped installation already carries the core and baseline tiers, so this
- * list is never short — and the panel is where somebody answers "what
+ * list is never short, and the panel is where somebody answers "what
  * actually permits this?" during an incident. A ruleset you cannot search is
  * a control you cannot audit.
  *
@@ -373,8 +376,9 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
   // Posture and global rules are Administrator-level; agent-scoped rule
   // editing reaches down to the User tier.
   const canEditGlobal = props.canAdminister && !props.busy;
-  // Both settings below are Root-only server-side; hiding them for lower tiers
-  // is a courtesy, never the control. See the note above the rows themselves.
+  // The account override below is Root-only server-side; the escalation
+  // timeout is Administrator and above since 2026-09-03. Hiding either for a
+  // lower tier is a courtesy, never the control. See the note above the rows.
   const isRoot = props.identity?.role === "root";
   const canEditRules = props.canManageAnyAgent && !props.busy;
   return renderSettingsSection({ title: t("governance.policy.title") }, [
@@ -390,12 +394,12 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
           { value: "monitor", label: t("governance.policy.modeMonitor") },
           { value: "off", label: t("governance.policy.modeOff") },
         ],
-        // QA round 13, finding 87 — the risk gradient on this page was
+        // QA round 13, finding 87. The risk gradient on this page was
         // inverted. Deleting a single rule, which is recoverable in seconds,
         // opened a confirmation dialog styled as dangerous. Switching the
-        // installation to `off` — which stops every protection for every
+        // installation to `off`, which stops every protection for every
         // agent, including the core denials the whole tier model exists to
-        // make unconditional — was a third segment in a toggle with no
+        // make unconditional, was a third segment in a toggle with no
         // dialog, no distinct styling and no confirmation at all.
         //
         // Only `off` is gated. `monitor` still records every decision and
@@ -437,7 +441,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
     }),
     // Root-only, installation-wide, and unreachable from any surface until
     // finding 140. Split into its own module when adding them took this file
-    // over the 700-line limit — and the pre-commit gate refused the commit,
+    // over the 700-line limit, and the pre-commit gate refused the commit,
     // which is that gate doing its job on the first change after it was built.
     ...renderRootPolicySettings({
       api: props.api,
@@ -445,6 +449,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
       confirmThen: props.confirmThen,
       policy,
       isRoot,
+      canAdminister: props.canAdminister,
       busy: props.busy,
       users: props.users,
       drafts: props.drafts,
@@ -469,8 +474,8 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
         })
       : nothing,
     // Which backend agents may run on, and the gap that comes with one of them.
-    // Beside the posture controls because it answers the same question they do —
-    // what this installation's governance can enforce — and in its own module
+    // Beside the posture controls because it answers the same question they do,
+    // what this installation's governance can enforce, and in its own module
     // for the reason the row above gives about the 700-line limit.
     renderCodexBackendPanel({
       api: props.api,
@@ -515,7 +520,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
       }),
     ),
     // Per-agent posture. Monitor stopped being the shipped default when the
-    // tier model landed and became an opt-in observation tool — but the only
+    // tier model landed and became an opt-in observation tool, but the only
     // way to turn it on was a store function nothing called, so the tool the
     // supervisor's brief describes could not be used. Design requirement #2
     // asks for a dashboard that configures policy, and a setting reachable
@@ -593,11 +598,12 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
           `,
         })
       : nothing,
+    renderAgentTimeoutRow(props),
     // **Two things an operator has to know to read this list correctly, said
     // on the page rather than in a tooltip.**
     //
     // Both were already true and neither was visible. Precedence lived in the
-    // `title=` attribute of the effect dropdown in the form below — hover-only,
+    // `title=` attribute of the effect dropdown in the form below. Hover-only,
     // absent on touch, and gone entirely once you are reading rules rather than
     // writing one. The search limitation was in the backlog and the report and
     // nowhere a person using the page could see it.
@@ -611,7 +617,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
     // The second is a disclosed limitation rather than a warning about a
     // mistake, and it is worded as one. An interface that lets somebody express
     // "this folder, except that subfolder" while a search walks straight
-    // through the exception is making a promise the gate does not keep — the
+    // through the exception is making a promise the gate does not keep. The
     // failure this project has recorded four times in code (findings 112, 113,
     // 120, T28) and would here be making to a person, in words they chose. It
     // stays visible until T7's prevention half closes it, and then it goes.
@@ -628,7 +634,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
     // The filter (Q-89). Rendered above the list rather than beside the
     // heading so it reads as belonging to the rows beneath it.
     policy.rules.length > 0 ? renderRuleFilter(policy.rules, props) : nothing,
-    // Core rules first, then baseline, then operator rules — the order the
+    // Core rules first, then baseline, then operator rules, the order the
     // engine evaluates them in, so the list reads the way the system thinks.
     ...filterRules(policy.rules, props.drafts.ruleFilter).map((rule) =>
       renderSettingsRow({
@@ -637,8 +643,8 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
         // This was the other way round, and driving the page by hand is what
         // made the cost obvious: a shipped installation opens on ten core
         // denials whose titles are case-folded regular expressions up to two
-        // hundred characters long, with the one human-readable sentence —
-        // "Credential files (.env, private keys, .npmrc, .netrc)" — buried
+        // hundred characters long, with the one human-readable sentence,
+        // "Credential files (.env, private keys, .npmrc, .netrc)", buried
         // after the kind, the tier and the scope. An operator scanning for
         // "what stops the agent reading secrets?" has to parse
         // `[eE][nN][vV]` to find it.
@@ -646,7 +652,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
         // A regular expression is what the *engine* matches on; it is not
         // what a person recognises a rule by. So the description becomes the
         // title, and the pattern moves to a monospace line beneath it, still
-        // complete and still exact — nothing is hidden, the emphasis is
+        // complete and still exact. Nothing is hidden, the emphasis is
         // simply put where a human reads. An operator-written rule with no
         // description falls back to its pattern, which is then genuinely the
         // best name it has.
@@ -678,7 +684,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
           // against a direct open on every backend; what Codex cannot do is
           // remove the file from a *search result*. An operator who wrote this
           // rule weeks ago, reading the list today, is the person who needs to
-          // know that — the moment of authoring is not where the
+          // know that. The moment of authoring is not where the
           // misunderstanding happens, which is finding 150's whole lesson.
           //
           // Shown only where it is true: a path denial, on an installation that
@@ -802,8 +808,8 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
                 <option value="deny">${t("governance.policy.effectDeny")}</option>
               </select>
               ${
-                // Read/write narrowing is only consulted for path rules — a
-                // command is not a read or a write, it is whatever it does —
+                // Read/write narrowing is only consulted for path rules, a
+                // command is not a read or a write, it is whatever it does,
                 // so the control appears only where it means something. The
                 // server refuses the field on other kinds rather than
                 // ignoring it, and a form offering a choice the server
@@ -844,7 +850,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
                 // an Administrator, and the form has to say so.**
                 //
                 // Leaving it blank means "global rule", which the server
-                // refuses below Administrator — so for a User the empty form
+                // refuses below Administrator, so for a User the empty form
                 // is a guaranteed 403. That is the shape of finding 100, where
                 // the account form offered a `root` role the server always
                 // rejects: an interface that lets somebody complete an action

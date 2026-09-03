@@ -4,7 +4,7 @@
 //
 // Every command-line change was recorded against the literal actor `cli`. The
 // audit trail could say *a change was made from this machine* and never *by
-// whom*, which is half of what an administrative trail is for — and the half a
+// whom*, which is half of what an administrative trail is for, and the half a
 // panel asks about first. It was recorded as limitation A6 and described there
 // as an attribution problem, which understated it: with no identity there was
 // also no authorization, so the command line ignored the tier model entirely.
@@ -23,7 +23,7 @@
 //
 // **It does not make the command line a security boundary, and the report must
 // not say it does.** Anyone who can run these commands can read and write the
-// governance directory directly — `policy.json`, `users.json`, the ledger — and
+// governance directory directly, `policy.json`, `users.json`, the ledger, and
 // no login can change that. What this buys is a real control against mistakes
 // and casual misuse, an honest trail of who did what, and consistency between
 // surfaces. What it does not buy is protection from a determined local
@@ -80,7 +80,7 @@ export type CliIdentity = {
    * what the operator can see at all, and the id answers "is this my agent?",
    * which is the question that decides whether they may rename, re-own or
    * unregister it. Resolving those from the username instead would be a second
-   * lookup that could disagree with the session — and a session is already the
+   * lookup that could disagree with the session: and a session is already the
    * one place both facts are authoritative.
    *
    * Optional because a session issued before M3 carries no group. That session

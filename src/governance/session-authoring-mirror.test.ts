@@ -9,8 +9,8 @@
 // so the restriction applied to *current* sessions and to no later one. Signing
 // out and back in returned the power Root had taken away.
 //
-// These drive the real sign-in path — `authenticate` then `issueSession`, the
-// two calls both the dashboard route and `governance login` make — rather than
+// These drive the real sign-in path, `authenticate` then `issueSession`, the
+// two calls both the dashboard route and `governance login` make, rather than
 // constructing a session by hand, because the defect lived in the seam between
 // them.
 import { mkdtemp, rm } from "node:fs/promises";
@@ -101,7 +101,7 @@ describe("policy-authoring withheld by Root", () => {
     await seedManagedUser();
     const record = await authenticate("malek", PASSWORD);
     const session = await issueSession(record!);
-    // Absent means allowed — the property that keeps every account issued
+    // Absent means allowed. The property that keeps every account issued
     // before the flag existed working exactly as it did.
     expect(session.canAuthorPolicy).toBeUndefined();
     expect(canWritePolicy({ ...session })).toBe(true);
@@ -112,8 +112,8 @@ describe("policy-authoring withheld by Root", () => {
 //
 // Finding 200 folded agent ids at the account store's choke point, so an
 // Administrator assigning `Scout` for an agent whose id is `scout` is stored
-// canonically. The *session* copy of that same list — the one every
-// authorization check actually reads, because it exists to save a file read —
+// canonically. The *session* copy of that same list, the one every
+// authorization check actually reads, because it exists to save a file read,
 // was written straight from the route's trimmed request body, so the two copies
 // of one fact disagreed and `canViewAgent` answered `["Scout"].includes("scout")`.
 //

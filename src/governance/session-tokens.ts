@@ -29,7 +29,7 @@ export type GovernanceSession = {
    * a second file read. `updateSessionsPolicyAuthoring` keeps it current when
    * Root changes it mid-session.
    *
-   * Absent means allowed, matching the account field it mirrors — so a session
+   * Absent means allowed, matching the account field it mirrors, so a session
    * issued before this existed keeps working exactly as it did.
    */
   canAuthorPolicy?: boolean;
@@ -61,7 +61,7 @@ function isExpired(session: GovernanceSession, nowMs: number): boolean {
  *
  * A session token is a bearer credential: whoever holds it *is* the account
  * until it expires. Storing it in the clear made `sessions.json` as valuable as
- * the password file — anyone who could read it could impersonate every signed-in
+ * the password file: anyone who could read it could impersonate every signed-in
  * operator, without needing to crack anything. Passwords were already hashed;
  * this closes the same hole on the other credential (QA finding B12).
  *
@@ -69,7 +69,7 @@ function isExpired(session: GovernanceSession, nowMs: number): boolean {
  * deliberately slow because a password is low-entropy and guessable; a token is
  * 256 bits from a cryptographic RNG, so there is nothing to guess and no
  * dictionary to resist. What is needed is a one-way function, and adding a work
- * factor here would only make every request slower — session lookup runs on
+ * factor here would only make every request slower. Session lookup runs on
  * every dashboard call, unlike a login.
  */
 function fingerprintToken(token: string): string {
@@ -106,8 +106,8 @@ export async function issueSession(user: {
       expiresAt: new Date(now + SESSION_TTL_MS).toISOString(),
       assignedAgents: [...(user.assignedAgents ?? [])],
       // Tested against `undefined` rather than for truthiness, unlike the two
-      // below it. `false` is the only value that means anything here — absent
-      // means allowed — so a truthy test would drop precisely the restriction
+      // below it. `false` is the only value that means anything here, absent
+      // means allowed, so a truthy test would drop precisely the restriction
       // this field exists to carry.
       ...(user.canAuthorPolicy !== undefined ? { canAuthorPolicy: user.canAuthorPolicy } : {}),
       // Mirrored for the same reason `assignedAgents` is: every route has to
@@ -193,7 +193,7 @@ export async function revokeSessionsForUser(userId: string): Promise<number> {
  *
  * **Folded here rather than trusted from the caller (finding 210).** This is the
  * session copy's choke point exactly as `readUsersFile` and the setters are the
- * account file's, and the two copies answer the same question — `canViewAgent`
+ * account file's, and the two copies answer the same question, `canViewAgent`
  * reads whichever one the surface happens to hold. The dashboard's assignment
  * route passed the request body trimmed but not folded, so an Administrator
  * assigning `Scout` for an agent whose id is `scout` wrote a session list that

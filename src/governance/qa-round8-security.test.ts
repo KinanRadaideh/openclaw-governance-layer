@@ -25,7 +25,7 @@ import { createUser } from "./user-store.js";
  * Accounts that were Viewers or Users before M3 are Administrators here unless
  * the tier is the subject of the test. A User or Viewer now requires an
  * Administrator answerable for it, which would mean creating a second account
- * inside tests about username folding, token storage and Root invariants — and
+ * inside tests about username folding, token storage and Root invariants, and
  * changing the counts several of them assert. The tier was incidental; the
  * ceremony would not have been.
  */
@@ -176,7 +176,7 @@ describe("agent-controlled keys cannot reach object internals", () => {
         { toolName, params: { command: "rm -rf /" } },
         { agentId: "agent-a" },
       );
-      // Not governed, so not blocked — but it must be *recorded*, which is what
+      // Not governed, so not blocked, but it must be *recorded*, which is what
       // keeps the gap visible rather than silent.
       expect(decision, toolName).toBeUndefined();
     }

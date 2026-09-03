@@ -5,15 +5,15 @@
 // a command already executing keeps running, which is precisely the runaway
 // case the requirement exists for.
 //
-// OpenClaw can already do the hard part — `abortChatRunById` fires an
+// OpenClaw can already do the hard part, `abortChatRunById` fires an
 // AbortController, and a spawned subprocess is terminated through the OS
 // process tree. That machinery lives in the Gateway and needs a per-request
 // context, so governance cannot call it directly without importing Gateway
 // internals and inverting the dependency direction.
 //
 // Instead the Gateway *registers* a terminator at startup. Governance calls it
-// if present and records the outcome. When nothing is registered — the CLI, a
-// unit test, a Gateway that has not finished starting — lockdown still applies
+// if present and records the outcome. When nothing is registered, the CLI, a
+// unit test, a Gateway that has not finished starting, lockdown still applies
 // and the result says plainly that no in-flight run could be reached, rather
 // than pretending the agent was stopped.
 
@@ -174,16 +174,16 @@ export async function terminateAgentRuns(agentId: string): Promise<TerminationOu
   // that was not.**
   //
   // This function's own contract two paragraphs up says it *never throws*, and
-  // the terminator call above is wrapped precisely to honour that. The probe —
+  // the terminator call above is wrapped precisely to honour that. The probe,
   // supplied by the same Gateway registration, reading the same live run
   // registry, and equally capable of throwing while that registry is being torn
-  // down — was called bare, three times, in a loop.
+  // down, was called bare, three times, in a loop.
   //
   // What a throw here cost was not the measurement. `lockDownAgent` has already
   // applied the lockdown by this point and has not yet written the ledger entry,
   // so the rejection propagated out through the route as a 500: **the emergency
   // stop landed, the trail did not record it, and the operator was told the stop
-  // had failed** — during the one incident where they would then reach for
+  // had failed**. During the one incident where they would then reach for
   // something more drastic. The abort itself was already sent.
   //
   // Reported as an unconfirmed stop with the reason attached, which is exactly

@@ -7,7 +7,7 @@
 # `curl -fsSL https://openclaw.ai/install.sh | bash` and
 # `npm install -g openclaw@latest` fetch upstream's published npm package;
 # the governance layer lives only in this repository. So the install is the
-# README's own "Development" path — clone, install, build — run to completion
+# README's own "Development" path, clone, install, build, run to completion
 # and then linked onto PATH so the host ends up with the same `openclaw`
 # command a normal install would give it.
 #
@@ -74,14 +74,14 @@ MEM_GB=$(( MEM_KB / 1024 / 1024 ))
 if [ "$MEM_GB" -ge 8 ]; then
   ok "${MEM_GB} GB RAM"
 else
-  warn "${MEM_GB} GB RAM — the design constraint asks for 8 GB; the build is the memory-hungry part"
+  warn "${MEM_GB} GB RAM. The design constraint asks for 8 GB; the build is the memory-hungry part"
 fi
 
 FREE_GB="$(df -Pk . | awk 'NR==2 {print int($4/1024/1024)}')"
 if [ "${FREE_GB:-0}" -ge 5 ]; then
   ok "${FREE_GB} GB free on this filesystem"
 else
-  warn "${FREE_GB} GB free — node_modules plus the build wants about 5 GB"
+  warn "${FREE_GB} GB free. Node_modules plus the build wants about 5 GB"
 fi
 
 # --------------------------------------------------------------------------
@@ -103,7 +103,7 @@ else
     CURRENT="node is not installed"
   fi
   if [ "$WITH_NODE" -eq 1 ]; then
-    warn "$CURRENT — installing Node 22 LTS via nvm"
+    warn "$CURRENT. Installing Node 22 LTS via nvm"
     export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
     if [ ! -s "$NVM_DIR/nvm.sh" ]; then
       command -v curl >/dev/null 2>&1 || die "curl is needed to fetch nvm; install it or install Node yourself"
@@ -119,7 +119,7 @@ else
     # Put the runtime itself on the system PATH (finding 231).
     #
     # nvm installs into ~/.nvm/versions/node/<v>/bin and makes it reachable
-    # through a hook in ~/.bashrc — which the *current* shell has not sourced,
+    # through a hook in ~/.bashrc: which the *current* shell has not sourced,
     # and which **systemd does not read**. That is the same argument the
     # "Command" step below writes down for `openclaw`, and leaving it half-done
     # is worse than not making it: `openclaw` is a symlink to `openclaw.mjs`,
@@ -138,7 +138,7 @@ else
       # *second* install rather than the first: with node reachable from
       # /usr/local/bin the Node phase is satisfied, so nvm is never sourced, so
       # the pnpm phase below cannot find corepack and fails with
-      # "corepack is missing; it ships with Node 16.9+ — check the Node install".
+      # "corepack is missing; it ships with Node 16.9+: check the Node install".
       # A fix that links a runtime must link the tools that runtime ships with.
       for tool in node npm npx corepack; do
         [ -x "$NODE_BIN_DIR/$tool" ] || continue
@@ -163,7 +163,7 @@ else
     printf '\n  %s%s.%s This fork needs %s.\n\n' "$BOLD" "$CURRENT" "$RESET" \
       ">=22.22.3 <23, >=24.15.0 <25, or >=25.9.0"
     printf '  Install it, then re-run this script. Either:\n\n'
-    printf '    %s# nvm — per-user, no root, easiest to change later%s\n' "$DIM" "$RESET"
+    printf '    %s# nvm, per-user, no root, easiest to change later%s\n' "$DIM" "$RESET"
     printf '    curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash\n'
     printf '    . "$HOME/.nvm/nvm.sh" && nvm install 22\n\n'
     printf '    %s# or let this script do exactly that for you%s\n' "$DIM" "$RESET"
@@ -177,9 +177,9 @@ step "pnpm"
 
 # The repository pins its package manager in package.json. corepack reads that
 # pin, so the version is never a guess. Plain `npm install` at the root is not
-# supported here — this is a pnpm workspace.
+# supported here: this is a pnpm workspace.
 if ! command -v corepack >/dev/null 2>&1; then
-  die "corepack is missing; it ships with Node 16.9+ — check the Node install"
+  die "corepack is missing; it ships with Node 16.9+. Check the Node install"
 fi
 corepack enable >/dev/null 2>&1 || warn "corepack enable needed root; continuing with corepack pnpm"
 PNPM="corepack pnpm"
@@ -197,7 +197,7 @@ ok "workspace installed"
 # --------------------------------------------------------------------------
 step "Build"
 
-# openclaw.mjs refuses to start without dist/entry.js — "missing dist/entry.(m)js
+# openclaw.mjs refuses to start without dist/entry.js: "missing dist/entry.(m)js
 # (build output)". This is the step that has never run on Linux before.
 $PNPM build
 [ -f dist/entry.js ] || [ -f dist/entry.mjs ] || die "build finished but dist/entry.(m)js is missing"
@@ -230,7 +230,7 @@ step "Command"
 # A symlink into /usr/local/bin, in preference to `pnpm link --global`.
 #
 # `pnpm link --global` puts the command in a per-user directory and then needs
-# that directory on PATH, which means editing a shell profile — and **systemd
+# that directory on PATH, which means editing a shell profile: and **systemd
 # does not read shell profiles**. The unit `openclaw daemon install` writes would
 # still not find `openclaw`, so the link would look like success and solve
 # nothing for the deployment that matters. /usr/local/bin is always on PATH, for

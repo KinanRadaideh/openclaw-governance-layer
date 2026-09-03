@@ -12,7 +12,7 @@
 // login attempts out of persistent storage.
 //
 // **The command line's `governance login` is not throttled, and cannot be by
-// this module** — it runs in its own process, so every invocation would start
+// this module**. It runs in its own process, so every invocation would start
 // with an empty table. That is not a gap being deferred: the command line is not
 // a security boundary (`cli-identity.ts` states why, and the filesystem is the
 // real one there), so what that surface owes is a *record* rather than a
@@ -31,7 +31,7 @@ type AttemptRecord = { failures: number; firstFailureAtMs: number; lockedUntilMs
 const attempts = new Map<string, AttemptRecord>();
 
 /**
- * When a record would lapse on its own — the moment it stops protecting anything.
+ * When a record would lapse on its own: the moment it stops protecting anything.
  *
  * A locked record lapses when the lockout ends; an unlocked one lapses when its
  * failure window closes. Evicting by this, rather than by lock state or by
@@ -51,7 +51,7 @@ function lapsesAtMs(record: AttemptRecord): number {
  *
  * The original defect (104/105) was that a thousand throwaway logins evicted a
  * real account's *lockout*. The repair protected lockouts by shedding unlocked
- * records first — which handed the attacker a better move. Fill the table with
+ * records first: which handed the attacker a better move. Fill the table with
  * lockouts on **invented** usernames, and from then on a real account's first
  * failure is the only unlocked record present, so it is deleted on the very next
  * call and the counter restarts at one. Measured: with the table full, `root`
@@ -62,12 +62,12 @@ function lapsesAtMs(record: AttemptRecord): number {
  *
  *   1. **The active key is exempt**, so an account being tried can always
  *      accumulate its own failures.
- *   2. Among the rest the victim is the least protective — **unlocked before
+ *   2. Among the rest the victim is the least protective, **unlocked before
  *      locked**, which is 104/105's property kept, and within each class the one
  *      that **lapses soonest**. That last part was previously claimed for
  *      "oldest" and was not true of it: a record is inserted on the first
  *      failure and locked on the fifth, so the oldest-inserted lockout is
- *      routinely the *last* to lapse — and it is the account under sustained
+ *      routinely the *last* to lapse: and it is the account under sustained
  *      attack whose two timestamps are furthest apart.
  *
  * ## What this does not fix, and why no eviction order can
@@ -75,8 +75,8 @@ function lapsesAtMs(record: AttemptRecord): number {
  * An attacker who keeps a throwaway failure interleaved between every guess can
  * still push a victim's in-progress counter out, because the table is keyed on a
  * username the attacker invents freely and every slot is contested. No choice of
- * victim helps: whatever shape is treated as worth keeping — most failures,
- * newest, oldest, locked — can be imitated by the flood, and refusing to admit
+ * victim helps: whatever shape is treated as worth keeping, most failures,
+ * newest, oldest, locked, can be imitated by the flood, and refusing to admit
  * new keys when full simply means the victim is never counted at all. **A
  * username-keyed table with a hard bound cannot survive an opponent who mints
  * usernames**; that is a property of the key, not of the policy.
@@ -84,15 +84,15 @@ function lapsesAtMs(record: AttemptRecord): number {
  * The reach is worth stating exactly, because it is neither trivial nor
  * catastrophic: `authorizeControlUiReadRequest` runs before this route, so a
  * stranger on the internet cannot get here. Somebody holding the shared secret,
- * a device token or the SSH tunnel — and **no governance account** — can. That
+ * a device token or the SSH tunnel, and **no governance account**, can. That
  * is precisely the population this login exists to stop, since it is a second
  * gate stacked on the first (see `handleGovernanceAuthRequest`), so defeating
  * the throttle collapses it into unlimited guessing.
  *
  * What changed is the cost and the visibility. Before, one flood of five
  * thousand requests disabled the throttle for every account permanently and
- * unattended. Now it must be *sustained* — a thousand lockouts refreshed every
- * fifteen minutes, plus one extra request per guess, per target — and every one
+ * unattended. Now it must be *sustained*, a thousand lockouts refreshed every
+ * fifteen minutes, plus one extra request per guess, per target, and every one
  * of those failures reaches the tamper-evident ledger (`auth-audit.ts`), where
  * that pattern is what an investigation is looking for. The defence that would
  * actually bound an anonymous flood is a per-source limit, which belongs to the
@@ -138,7 +138,7 @@ function prune(nowMs: number, activeKey?: string): void {
  * Must fold the same way account lookup does. It previously used only
  * `trim().toLowerCase()` while `user-store` resolved accounts through NFKC, so
  * `adｍin` (fullwidth U+FF4D) authenticated against the real `admin` account
- * while counting against a *separate* throttle bucket — one fresh five-attempt
+ * while counting against a *separate* throttle bucket, one fresh five-attempt
  * quota per Unicode variant, of which there are thousands.
  */
 export function loginThrottleKey(username: string): string {
@@ -167,7 +167,7 @@ export function checkLoginAllowed(key: string, nowMs = Date.now()): ThrottleStat
  * Outcome of recording one failure.
  *
  * `lockedOut` is true on the single attempt that *trips* the lockout, not on
- * the attempts refused afterwards — those never reach here, because
+ * the attempts refused afterwards: those never reach here, because
  * `checkLoginAllowed` turns them away first. That makes it exactly the edge an
  * audit entry should be written on: once per lockout rather than once per
  * rejected request, which is the difference between a signal and a flood.

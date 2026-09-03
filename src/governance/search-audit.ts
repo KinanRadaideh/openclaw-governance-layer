@@ -1,9 +1,9 @@
-// T7 — recording when a search reached a path a denial names, and withholding it.
+// T7. Recording when a search reached a path a denial names, and withholding it.
 //
 // ## The gap, and the two halves that answer it
 //
 // `grep`, `find` and `ls` are governed at their **root**. `extractSearchPaths`
-// resolves the path the agent named — defaulting to `.` when it named none —
+// resolves the path the agent named, defaulting to `.` when it named none,
 // and the gate judges that one string. The tools then **recurse**, so a search
 // rooted at an allowed workspace still reads files a `deny` rule names, and the
 // gate never sees them. A core denial on `.env` does not stop
@@ -18,7 +18,7 @@
 // cannot disagree about what counts as a path.
 //
 // **Both are needed, because they cover different runtimes.** The filter runs at
-// `afterToolCall`, whose return value replaces a tool result — reachable only on
+// `afterToolCall`, whose return value replaces a tool result. Reachable only on
 // the in-process runtime. On the native Codex harness the hook protocol has no
 // field for substituting a result, so there the reach can be recorded and not
 // prevented. That limit is in a separate program and is not reachable by forking
@@ -31,11 +31,11 @@
 //
 // ## Why this is a direct call and not a plugin hook
 //
-// `after_tool_call` exists (`hook-types.ts:1327`) and always has — the backlog
+// `after_tool_call` exists (`hook-types.ts:1327`) and always has. The backlog
 // carried T7 as blocked on it, which was wrong in the same way T6's blocker was
 // wrong. But the governance layer is **built into the core precisely so that it
 // cannot be switched off by configuration**, and both firing sites gate the
-// hook on `hasHooks("after_tool_call")` — with no plugin loaded, nothing runs.
+// hook on `hasHooks("after_tool_call")`, with no plugin loaded, nothing runs.
 // Registering governance as a plugin would make the audit trail depend on a
 // plugin being present, which is the property this layer exists not to have.
 // So the two call sites invoke this directly, above that check, exactly as
@@ -59,7 +59,7 @@ import { isRuleExpired, type PolicyRule } from "./policy-types.js";
  * The tools this applies to, and why it is exactly these three.
  *
  * They are the entries in `GOVERNED_TOOLS` whose extractor is
- * `extractSearchPaths` — the ones that take a root and walk below it. A tool
+ * `extractSearchPaths`: the ones that take a root and walk below it. A tool
  * that reads exactly the path it names has no gap to record, because the gate
  * already judged the path it read.
  */
@@ -74,13 +74,13 @@ const SEARCH_TOOLS: ReadonlySet<string> = new Set(["grep", "find", "ls"]);
  * its own result limit), so the bound is a backstop rather than a filter.
  *
  * **The backstop used to fail open, and that was finding 156.** `filterSearchResult`
- * examined `text.split("\n", MAX_RESULT_LINES)` — which truncates the array
- * rather than chunking it — and then returned `undefined` when nothing in those
+ * examined `text.split("\n", MAX_RESULT_LINES)`, which truncates the array
+ * rather than chunking it, and then returned `undefined` when nothing in those
  * lines was denied, handing the model the **whole** untruncated result including
  * everything past the bound. A denied path at line 2,001 of a search result
  * reached the model, which is precisely the case T7 prevention exists for: large
  * recursive searches. The likelihood was low because the tools cap themselves
- * first, and the direction of the failure was wrong regardless — this module's
+ * first, and the direction of the failure was wrong regardless. This module's
  * own catch block already states the principle, that a filter which fails open
  * defeats itself.
  *
@@ -108,7 +108,7 @@ const GREP_LINE = /^(.+?):(\d+):/;
  * The tool renders a match as `path:N: text` and the lines around it as
  * `path-N- text` (`src/agents/sessions/tools/grep.ts`). Only the first form was
  * recognised, so under the old fallback a context line became a candidate
- * *whole* — path, separator and the file's text together — and under the new
+ * *whole*, path, separator and the file's text together, and under the new
  * rule it would have been dropped, losing a denied file that a search reached
  * but only surrounded. Reading both forms records the path and never the text.
  */
@@ -147,7 +147,7 @@ function resultText(result: unknown): string {
  *
  * **A sentence used to sit here that was wrong, and it is finding 131.** It read
  * "a line that is not a path is simply one that will normalize to something no
- * denial matches". True only while no denial is broad — and a denial written to
+ * denial matches". True only while no denial is broad, and a denial written to
  * confine an agent to its workspace matches nearly everything under it. So a
  * non-path line *did* match, and grep's matched content was recorded as a
  * governed resource, in plaintext, against requirement 8.
@@ -176,7 +176,7 @@ function candidatePaths(result: unknown, toolName: string): string[] {
  * Extracted from `candidatePaths` so that `filterSearchResult` decides line by
  * line using **the same rule** the audit uses to decide path by path. Two
  * copies of this judgement would eventually disagree, and the disagreement
- * would be a path recorded as reached that the filter had not removed — the
+ * would be a path recorded as reached that the filter had not removed. The
  * ledger and the model's context telling different stories about one search.
  */
 function candidateFromLine(line: string, toolName: string): string | undefined {
@@ -187,7 +187,7 @@ function candidateFromLine(line: string, toolName: string): string | undefined {
   }
   // **`grep` returns matched file *content*, and content is not a candidate**
   // (finding 131). Its lines are `path:line:text` when it searched more than
-  // one file, and bare `line:text` — or bare text — when it searched one. This
+  // one file, and bare `line:text`, or bare text, when it searched one. This
   // used to fall back to the whole line whenever the prefix was absent, so a
   // single-file grep handed this function the matched text itself, which was
   // resolved as a path and, under a broad denial, written verbatim into the
@@ -196,7 +196,7 @@ function candidateFromLine(line: string, toolName: string): string | undefined {
   //
   // Requiring the prefix costs nothing T7 exists to catch: the gap T7 records
   // is a **recursive** search reaching below a root the gate judged, and a
-  // grep over a single named file is not recursive — the gate already judged
+  // grep over a single named file is not recursive. The gate already judged
   // that exact path on the way in.
   const prefixed =
     GREP_LINE.exec(trimmed)?.[1]?.trim() ?? GREP_CONTEXT_LINE.exec(trimmed)?.[1]?.trim();
@@ -206,8 +206,8 @@ function candidateFromLine(line: string, toolName: string): string | undefined {
 /**
  * The denials that could bind a path this search read.
  *
- * Mirrors the gate's own deny pass: **every** tier, not only `core` — the tiers
- * differ in mutability, not in force — expiry applied, and agent scoping
+ * Mirrors the gate's own deny pass: **every** tier, not only `core`, the tiers
+ * differ in mutability, not in force, expiry applied, and agent scoping
  * applied so a denial written for one agent is not reported against another.
  * `access` is checked as `read`, because reading is what a search does.
  */
@@ -236,7 +236,7 @@ function applicableDenials(
  *
  * `cwd` is not carried on either after-tool-call site, so it falls back to the
  * process. Where that is wrong the paths resolve somewhere no rule names and
- * the reach goes **unrecorded** — under-reporting, which is the direction this
+ * the reach goes **unrecorded**: under-reporting, which is the direction this
  * file is allowed to be wrong in. Threading a real `cwd` through both sites
  * would tighten it and is not needed for the gap to be visible.
  */
@@ -254,8 +254,8 @@ function searchBaseDir(toolParams: Record<string, unknown> | undefined, cwd?: st
  *
  * Never throws and never blocks: it runs after the tool, so there is nothing
  * left to prevent, and a failure here must not turn a completed tool call into
- * an error the agent sees. A gate that throws does not deny — the same lesson
- * `session-lineage.ts` records — and an audit that throws is worse than one
+ * an error the agent sees. A gate that throws does not deny, the same lesson
+ * `session-lineage.ts` records, and an audit that throws is worse than one
  * that is silent, because it converts a recording gap into a broken tool.
  */
 export async function auditSearchReach(params: {
@@ -272,7 +272,7 @@ export async function auditSearchReach(params: {
   try {
     // The T7 audit runs after a tool call, so like the gate it has only an
     // agent id and must resolve the group itself (M5). Unresolvable means the
-    // agent is unregistered — the gate refused the call, so there was no search
+    // agent is unregistered. The gate refused the call, so there was no search
     // and there is nothing to audit.
     const groupId = await resolveAgentGroup(params.agentId);
     if (!groupId) {
@@ -319,7 +319,7 @@ export async function auditSearchReach(params: {
         ruleId: SEARCH_REACHED_DENIED,
         // `ungoverned` is the honest verdict and already means this in the
         // ledger: the action happened without the gate having judged it. It is
-        // the same value the engine writes when a tool has no extractor —
+        // the same value the engine writes when a tool has no extractor,
         // coverage gaps recorded as gaps rather than dressed up as decisions.
         decision: "ungoverned",
       });
@@ -336,7 +336,7 @@ export async function auditSearchReach(params: {
  * control** (finding 164). `search-reached-denied` means the model saw the
  * path; this one means it did not. On the in-process runtime both halves run,
  * and they avoid contradicting each other only because `agent-loop.ts` applies
- * `afterToolCall` — where the filter lives — before it emits
+ * `afterToolCall`, where the filter lives, before it emits
  * `tool_execution_end`, which is what the audit half observes. The audit half
  * therefore reads the already-filtered text and finds nothing left to report.
  *
@@ -350,7 +350,7 @@ const SEARCH_WITHHELD = "search-withheld";
  * What replaces the lines that were removed.
  *
  * **The agent is told, deliberately.** Silently shortening a result teaches the
- * model that the file does not exist, and it may then act on that belief —
+ * model that the file does not exist, and it may then act on that belief,
  * reporting a clean scan, or writing a file it thinks is absent. Saying "some
  * results were withheld" is both true and the only version that leaves the
  * agent able to reason correctly about what it does not have.
@@ -375,7 +375,7 @@ function textContent(text: string): FilteredSearchResult {
  * `auditSearchReach` records that a recursive search reached a denied path. This
  * removes those entries from the result on their way to the model. The file is
  * still read from disk by the search process, so this does **not** prevent the
- * read — it prevents the *disclosure*, which for a containment layer is the line
+ * read: it prevents the *disclosure*, which for a containment layer is the line
  * that matters and is the line the report should claim. Anything stronger would
  * need the tool to accept an exclusion set, and §3.5.41 records why that route
  * cannot express this project's rules.
@@ -391,7 +391,7 @@ function textContent(text: string): FilteredSearchResult {
  *
  * If the comparison throws, this returns a refusal rather than the original
  * result. That is the opposite of `auditSearchReach`, which swallows everything
- * — and the difference is the point. An audit that fails silently loses a
+ *and the difference is the point. An audit that fails silently loses a
  * record; a *filter* that fails silently hands the model the very content it
  * exists to withhold. The blast radius is bounded to three tools, and by the
  * time this runs the policy was readable moments earlier, because the gate read
@@ -433,8 +433,8 @@ export async function filterSearchResult(params: {
     // One pass over the rendered lines, keeping what survives and remembering
     // what did not. `candidateFromLine` is the same extraction the audit half
     // uses, so a path this removes is exactly a path that would have been
-    // recorded as reached — the two halves cannot disagree about what counts.
-    // Split whole, then bound — `split(sep, limit)` truncates the array, so the
+    // recorded as reached. The two halves cannot disagree about what counts.
+    // Split whole, then bound, `split(sep, limit)` truncates the array, so the
     // old form could not tell "there was no more" from "we stopped looking".
     // Finding 156.
     const allLines = text.split("\n");
@@ -493,7 +493,7 @@ export async function filterSearchResult(params: {
     }
     if (unchecked > 0) {
       // Said in the result rather than only in the ledger, because the agent is
-      // the party that can act on it — narrowing the search is the remedy, and
+      // the party that can act on it. Narrowing the search is the remedy, and
       // an agent that believes it saw everything will not narrow anything.
       notices.push(
         `[${unchecked} further ${unchecked === 1 ? "result" : "results"} were not checked ` +

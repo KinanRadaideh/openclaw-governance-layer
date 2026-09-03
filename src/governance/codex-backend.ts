@@ -4,7 +4,7 @@
 //
 // T7's prevention half removes search results a denial covers before the model
 // sees them (§3.5.61). It works at `afterToolCall`, whose return value replaces
-// a tool result — reachable only on the **in-process** runtime. On the native
+// a tool result. Reachable only on the **in-process** runtime. On the native
 // Codex harness Codex executes its own tools in its own process and the hook
 // protocol has **no field for substituting a result**, which upstream states at
 // `native-hook-relay-events.ts`. So on that backend the reach can be recorded
@@ -16,7 +16,7 @@
 // are equivalent. **Codex is off unless an operator has explicitly turned it
 // on**, and turning it on is a recorded, attributed decision to accept a stated
 // enforcement gap. That is informed consent plus a complete audit trail, which
-// is a defensible security posture — and a more honest one than either refusing
+// is a defensible security posture, and a more honest one than either refusing
 // every recursive search on that backend or leaving the difference undisclosed.
 //
 // ## Why it composes the host rather than writing config itself
@@ -25,7 +25,7 @@
 // wrote to OpenClaw rather than merely observing: **compose the host's own
 // mutators**. So this reads the config snapshot, calls
 // `setPluginEnabledInConfig`, writes through `replaceConfigFile`, and refreshes
-// the registry through `refreshPluginRegistryAfterConfigMutation` — the exact
+// the registry through `refreshPluginRegistryAfterConfigMutation`. The exact
 // sequence `openclaw plugins disable` performs. Governance decides *whether*;
 // the host decides *how*, and keeps its own invariants about entry merging,
 // alias folding and config-size guards.
@@ -33,7 +33,7 @@
 // **The trust direction reverses here, as it did for M6**, and Chapter 3 should
 // say so: a compromised layer that can only refuse things is fail-closed, while
 // one that can rewrite host configuration is not. The mitigation is the same as
-// M6's — the change is **Root-gated**, taken from the session rather than the
+// M6's. The change is **Root-gated**, taken from the session rather than the
 // request, and recorded before it is attempted. Root rather than Administrator
 // because this writes OpenClaw's configuration rather than governance's own, and
 // its consequences reach outside governance entirely: the Codex-managed model
@@ -104,7 +104,7 @@ export async function readCodexBackendState(): Promise<CodexBackendState> {
  *
  * **Recorded before the write is attempted**, matching `registerAgent` and M6's
  * provisioning: an attempt that fails part-way still leaves a trail, and the
- * alternative — recording only success — hides exactly the events an
+ * alternative, recording only success, hides exactly the events an
  * investigation wants.
  *
  * The ledger entry is administrative and carries the actor's tier, like
@@ -120,13 +120,13 @@ export type CodexBackendChangeResult = {
    *
    * The config already holds the new stance by the time that entry is
    * attempted, so a throw here reported an accepted enforcement gap as a
-   * failed change — and this is the direction that matters, because an
+   * failed change: and this is the direction that matters, because an
    * operator told the enable failed believes Codex is still refused when the
    * installation has begun offering it.
    *
    * Reported rather than thrown, the way `kill-switch.ts` carries `auditError`
    * and `deleteOrganisation` carries `incomplete`. The `requested` entry above
-   * is already in the trail, so an investigation is not left with nothing —
+   * is already in the trail, so an investigation is not left with nothing,
    * what would be lost is the entry that says the change *took*.
    */
   auditError?: string;
@@ -142,7 +142,7 @@ export async function setCodexBackendEnabled(
     enabled ? "enabled" : "disabled"
   }`;
   // **Two entries, and the first one says "requested"** (finding 217). Recording
-  // before the write is right and stays — a change that fails part-way is
+  // before the write is right and stays. A change that fails part-way is
   // exactly the event an investigation wants. Recording it *as the change* was
   // not: `replaceConfigFile` takes a base hash and throws when the config moved
   // under us, and the trail then asserted that this installation had begun
@@ -184,7 +184,7 @@ export async function setCodexBackendEnabled(
   // and the one above answers "who asked, and did it take?".
   //
   // Past the point of no return for this call: the config is written and the
-  // registry refreshed, so failing here cannot un-accept the gap — it can only
+  // registry refreshed, so failing here cannot un-accept the gap. It can only
   // misreport it (finding 229).
   try {
     await recordAdminAction(groupId, {

@@ -60,7 +60,7 @@ export type AgentRouteContext = {
  *
  * Ownership, not merely tier. An Administrator who could rename, re-own or
  * unregister another Administrator's agent would make the ownership column a
- * label rather than a boundary — and unregistration is destructive of the very
+ * label rather than a boundary: and unregistration is destructive of the very
  * fact that says whose it was.
  *
  * Root passes for the reason Root exists: it manages the people who own agents,
@@ -75,7 +75,7 @@ function mayAdministerAgent(session: GovernanceSession, ownerId: string): boolea
  * Translates a registry refusal into a status code.
  *
  * `UnknownAgentError` is a 404 and covers "not registered" and "registered to
- * another group" alike — the registry reports both as absence deliberately, so
+ * another group" alike: the registry reports both as absence deliberately, so
  * the route must not undo that by distinguishing them here.
  */
 function sendRegistryError(res: ServerResponse, err: unknown): void {
@@ -96,7 +96,7 @@ function sendRegistryError(res: ServerResponse, err: unknown): void {
 
 /**
  * Handles the agent routes. Returns true when handled, false when the path
- * belongs to another module — the same contract the account routes use.
+ * belongs to another module: the same contract the account routes use.
  */
 export async function handleGovernanceAgentRoutes(
   req: IncomingMessage,
@@ -110,7 +110,7 @@ export async function handleGovernanceAgentRoutes(
   // ---------------------------------------------------------------------
   // Viewer and above: the group's agents.
   //
-  // Registry first, `knownAgentIds()` as the fallback — the inversion M4 is
+  // Registry first, `knownAgentIds()` as the fallback. The inversion M4 is
   // named for. Before this the set of agents was reconstructed from whatever
   // the policy document happened to mention, so an agent that existed and had
   // never been written a rule was invisible everywhere, and an operator asking
@@ -160,7 +160,7 @@ export async function handleGovernanceAgentRoutes(
   // The owner defaults to the caller and only Root may name somebody else.
   // An Administrator registering an agent *into another Administrator's name*
   // is a statement about who answers for a workload, which is people
-  // management — the Root side of the split this project has drawn since the
+  // management. The Root side of the split this project has drawn since the
   // role model was written.
   // ---------------------------------------------------------------------
   if (route === "agents/register" && req.method === "POST") {
@@ -354,7 +354,7 @@ export async function handleGovernanceAgentRoutes(
       // 409 for "something already holds this name", 400 for everything else.
       // The body carries `stage`, `remedy` and `rolledBack` because a failure
       // an operator cannot act on is the failure mode this project treats as a
-      // defect — see `agent-provisioning.ts`.
+      // defect. See `agent-provisioning.ts`.
       const conflict = result.code === "already-registered" || result.code === "host-has-id";
       sendJson(res, conflict ? 409 : 400, {
         error: {
@@ -384,7 +384,7 @@ export async function handleGovernanceAgentRoutes(
   //
   // Two outcomes behind one route, chosen by an explicit flag rather than
   // inferred. `agents/unregister` still exists and still means exactly what it
-  // meant in M4 — drop the record, leave the agent running — because changing
+  // meant in M4, drop the record, leave the agent running, because changing
   // what an existing action does to an operator who already relies on it is a
   // worse failure than adding a second action.
   // ---------------------------------------------------------------------
@@ -495,7 +495,7 @@ export async function handleGovernanceAgentRoutes(
   // this is an agent's security boundary, which §1.6 makes the Administrator's.
   // Root reaches it by inheritance, as everywhere else. Distinct from Root's
   // installation-wide switch, which decides whether the backend exists on this
-  // machine at all — an agent permitted here still cannot use a backend Root
+  // machine at all. An agent permitted here still cannot use a backend Root
   // has not enabled.
   if (route === "agents/codex" && req.method === "POST") {
     if (!requireRole(res, session, "administrator")) {

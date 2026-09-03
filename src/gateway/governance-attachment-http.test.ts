@@ -7,7 +7,7 @@
 // true, and all measured one layer below anything an operator touches. The
 // project's three-surface rule is a claim about the *feature*, and the feature
 // is "an operator attaches a file to a prompt and the ledger records what it
-// was" — which runs through a role check, an agent-scope check, a raw-body
+// was", which runs through a role check, an agent-scope check, a raw-body
 // read, the store, then a second request that resolves hashes back to facts.
 //
 // The most important assertion in the file is the one about **whose facts get
@@ -174,7 +174,7 @@ async function upload(
   bytes: Uint8Array,
   chunks = 1,
 ): Promise<Reply> {
-  // Split across chunks so the stream really is a stream — a single-chunk body
+  // Split across chunks so the stream really is a stream. A single-chunk body
   // would let a "read it all then check" implementation pass.
   const size = Math.ceil(bytes.byteLength / chunks) || 1;
   const parts: Buffer[] = [];
@@ -227,7 +227,7 @@ describe("uploading an attachment over HTTP", () => {
     const reply = await upload(session("user", "kinan", ["agent-a"]), "agent-a", "shot.png", PNG);
     expect(reply.status).toBe(200);
     expect(reply.body.attachment.bytes).toBe(PNG.byteLength);
-    // Sniffed, not taken from the Content-Type the caller sent — which was
+    // Sniffed, not taken from the Content-Type the caller sent, which was
     // application/octet-stream.
     expect(reply.body.attachment.mimeType).toBe("image/png");
     expect(reply.body.attachment.declaredName).toBe("shot.png");
@@ -322,7 +322,7 @@ describe("sending a prompt that names attachments", () => {
 
   it("reads the facts from the store, not from the request", async () => {
     // The security-relevant assertion. A caller who could declare the size and
-    // type would be writing their own description into a tamper-evident log —
+    // type would be writing their own description into a tamper-evident log,
     // the trail would read like an observation and record an assertion.
     const actor = session("user", "kinan", ["agent-a"]);
     const sha256 = await uploadOne(actor);
@@ -420,14 +420,14 @@ describe("sending a prompt that names attachments", () => {
 });
 
 // ---------------------------------------------------------------------------
-// QA round seventeen — regressions for what reviewing this feature found.
+// QA round seventeen. Regressions for what reviewing this feature found.
 // ---------------------------------------------------------------------------
 
 describe("round 17 regressions", () => {
   const actor = () => session("user", "kinan", ["agent-a"]);
 
   it("refuses a malformed name header instead of decoding it to mojibake (112)", async () => {
-    // `Buffer.from(value, "base64")` never throws — it discards anything
+    // `Buffer.from(value, "base64")` never throws. It discards anything
     // outside the alphabet. The first version of this route wrapped it in a
     // try/catch, which read as validation and was unreachable code.
     const reply = await uploadWithRawName(actor(), "agent-a", "not!!base64");
@@ -438,7 +438,7 @@ describe("round 17 regressions", () => {
   it("refuses a duplicated name header rather than picking one (112)", async () => {
     // Node hands a repeated header over as an array. Joined with ", " it used
     // to decode to a run of NUL bytes, because base64 discards both `,` and
-    // the space — a filename of control characters, in a tamper-evident log.
+    // the space. A filename of control characters, in a tamper-evident log.
     const reply = await uploadWithRawName(actor(), "agent-a", ["QQ==", "QQ=="]);
     expect(reply.status).toBe(400);
     expect(await listAttachments(TEST_GROUP)).toHaveLength(0);
@@ -461,7 +461,7 @@ describe("round 17 regressions", () => {
 
   it("bounds the agent id, which canManageAgent cannot do for an Administrator (115)", async () => {
     // An Administrator manages every agent by role, so the scope check cannot
-    // reject an invented id — without a length rule the string lands in the
+    // reject an invented id, without a length rule the string lands in the
     // store index and from there in the ledger.
     const admin = session("administrator", "amina");
     const reply = await upload(admin, "a".repeat(500), "x.png", PNG);

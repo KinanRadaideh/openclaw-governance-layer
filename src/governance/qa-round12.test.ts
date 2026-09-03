@@ -1,4 +1,4 @@
-// QA round 12 — the fork as a normal OpenClaw deployment, and A1 under attack.
+// QA round 12. The fork as a normal OpenClaw deployment, and A1 under attack.
 //
 // Two concerns, and the first had never been tested at all.
 //
@@ -9,7 +9,7 @@
 // (src/routing/session-key.ts). If the gate could not recover the agent id from
 // that shape, then on the deployment people actually use, the kill switch would
 // not fire, agent-scoped rules would not bind, and the ledger would attribute
-// nothing — while every test in the suite stayed green. That is the round-five
+// nothing, while every test in the suite stayed green. That is the round-five
 // failure exactly: testing against our own idea of the host.
 //
 // **A1 adversarially.** Prompting is the newest surface and the only one that
@@ -71,7 +71,7 @@ function verdict(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>)
   if ("block" in decision) {
     return "block";
   }
-  // T23 — absence is no longer the only way the engine says "allow". A call
+  // T23. Absence is no longer the only way the engine says "allow". A call
   // whose path was redirected comes back carrying `params` (the canonical path
   // the tool should open), and reading that as "ask" would report an
   // escalation that never happened. Ask the question directly instead of
@@ -86,7 +86,7 @@ async function enforceStrictly(): Promise<void> {
 
 /**
  * Session keys exactly as the host builds them for chat deployments, via the
- * host's own builder rather than a string this file invented — which is the
+ * host's own builder rather than a string this file invented, which is the
  * whole point of the exercise.
  */
 const CHANNEL_KEYS = [
@@ -104,7 +104,7 @@ const CHANNEL_KEYS = [
   },
 ];
 
-describe("qa round 12 — the gate works on a real chat deployment", () => {
+describe("qa round 12. The gate works on a real chat deployment", () => {
   for (const spec of CHANNEL_KEYS) {
     it(`recovers the agent id from a ${spec.channel} session key`, () => {
       const sessionKey = buildAgentPeerSessionKey({
@@ -129,7 +129,7 @@ describe("qa round 12 — the gate works on a real chat deployment", () => {
       peerId: "1234567890",
     });
     await lockDownAgent(TEST_GROUP, "agent-a", "root");
-    // No explicit agentId — the case that matters, because it is the one where
+    // No explicit agentId. The case that matters, because it is the one where
     // the id has to come out of the session key.
     const decision = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "ls" } },
@@ -226,7 +226,7 @@ describe("qa round 12 — the gate works on a real chat deployment", () => {
   });
 });
 
-describe("qa round 12 — A1 under attack", () => {
+describe("qa round 12, A1 under attack", () => {
   it("does not let a prompt choose its own session key", async () => {
     // The caller supplies an agent id and a message and nothing else; the key
     // is derived server-side from the agent and the authenticated account. If a
@@ -296,7 +296,7 @@ describe("qa round 12 — A1 under attack", () => {
       (entry) => entry.toolName === "governance.agent.prompt",
     );
     expect(prompts).toHaveLength(3);
-    // The chain must still be intact — concurrent appends are the case that
+    // The chain must still be intact. Concurrent appends are the case that
     // corrupted it once before.
     const { verifyLedgerChain } = await import("./audit-ledger.js");
     expect((await verifyLedgerChain(TEST_GROUP)).ok).toBe(true);
@@ -339,7 +339,7 @@ describe("qa round 12 — A1 under attack", () => {
 
   it("still blocks the tool calls of a run that started before the lockdown", async () => {
     // Defence in depth. The door check cannot help a run already in flight, so
-    // the gate underneath has to catch it — which is the kill switch's actual
+    // the gate underneath has to catch it, which is the kill switch's actual
     // guarantee.
     clearAgentRunner();
     registerAgentRunner(async (request) => {
@@ -373,11 +373,11 @@ describe("qa round 12 — A1 under attack", () => {
   });
 });
 
-describe("qa round 12 — escalation on a chat deployment", () => {
+describe("qa round 12, escalation on a chat deployment", () => {
   it("escalates rather than silently failing, so a Discord user gets an approval prompt", async () => {
     // The gate returns the host's own `requireApproval` shape, which
     // `resolveBeforeToolCallApprovalOutcome` hands to OpenClaw's existing
-    // approval machinery — the same machinery that renders Discord's
+    // approval machinery, the same machinery that renders Discord's
     // button-based approvals (docs/channels/discord.md). Governance
     // deliberately does not reimplement that, so an unlisted action over chat
     // behaves like any other OpenClaw approval instead of failing mutely.
@@ -398,7 +398,7 @@ describe("qa round 12 — escalation on a chat deployment", () => {
     expect(approval?.severity).toBe("warning");
     // `allow-always` was withdrawn in QA round 13 (finding 83). It called
     // `addRule`, so one button in a Discord thread wrote a permanent rule into
-    // `policy.json` — authored by someone holding no governance account, in
+    // `policy.json`. Authored by someone holding no governance account, in
     // none of the four tiers, authenticated only by that platform. Granting the
     // action in the moment is what an escalation is for and `allow-once` still
     // does it; making a grant permanent is policy authorship and belongs on a
@@ -443,11 +443,11 @@ describe("qa round 12 — escalation on a chat deployment", () => {
   });
 });
 
-describe("qa round 12 — what the gate does not cover on a chat deployment", () => {
+describe("qa round 12, what the gate does not cover on a chat deployment", () => {
   it("records an outbound message as ungoverned rather than silently allowing it", async () => {
-    // **A settled decision, pinned so it stays true — T8, closed 2026-08-26.**
+    // **A settled decision, pinned so it stays true, T8, closed 2026-08-26.**
     //
-    // The policy language has three resource kinds — command, path, network —
+    // The policy language has three resource kinds, command, path, network,
     // and none of them describes "post this text into a Discord channel". So an
     // agent that legitimately reads a permitted file can repeat its contents to
     // chat, and no rule in this system is consulted.
@@ -457,14 +457,14 @@ describe("qa round 12 — what the gate does not cover on a chat deployment", ()
     // requirements 3 and 4 name exactly the three resource categories that
     // exist, twice, and messaging is not among them. §2.1.1.3 presents chat
     // platforms as the *interface users interact through* rather than as an
-    // egress. **Connecting an agent to a channel is itself the permission** —
+    // egress. **Connecting an agent to a channel is itself the permission**,
     // an operator who attached it meant it to speak there, and refusing would
     // override the grant. Refusing by default would also stop the agent
     // answering the user who asked, and on a chat deployment the reply *is*
     // the product.
     //
     // So what is pinned here is no longer a gap that might close. It is the
-    // shape of the decision: **allowed, and recorded** — the send passes, and
+    // shape of the decision: **allowed, and recorded**. The send passes, and
     // the ledger carries who sent it and where to. This fails if the pass
     // silently becomes `allow` (which would lose the record) or if the
     // destination stops being captured (which would lose the audit).
@@ -478,7 +478,7 @@ describe("qa round 12 — what the gate does not cover on a chat deployment", ()
       { toolName: "message", params: { action: "send", to: "#other-channel", text: "secrets" } },
       { sessionKey, cwd: workspace },
     );
-    // Not blocked — the agent must still be able to reply.
+    // Not blocked. The agent must still be able to reply.
     expect(verdict(decision)).toBe("allow");
     const entry = (await tailLedger(TEST_GROUP, 20)).at(-1);
     expect(entry?.decision).toBe("ungoverned");
@@ -487,7 +487,7 @@ describe("qa round 12 — what the gate does not cover on a chat deployment", ()
     expect(entry?.agentId).toBe("agent-a");
     // **And the destination, which is the half the decision rests on.** The
     // position "the integration is the permission" is only defensible while an
-    // operator can see afterwards where the agent actually sent things — a
+    // operator can see afterwards where the agent actually sent things. A
     // record naming the tool but not the channel would make "we do not gate
     // this, we record it" an empty claim.
     expect(entry?.resource).toContain("#other-channel");

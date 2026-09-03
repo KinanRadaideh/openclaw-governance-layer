@@ -1,16 +1,16 @@
 // How an audit ledger is presented to a particular account.
 //
 // Three independent transformations, in this order:
-//   1. Scope   — drop entries for agents this actor may not see at all.
-//   2. Detail  — mask the resource string for tiers that get "sanitized" logs.
-//   3. Authorship — mask a *prompt body* belonging to another account, for
+//   1. Scope. Drop entries for agents this actor may not see at all.
+//   2. Detail. Mask the resource string for tiers that get "sanitized" logs.
+//   3. Authorship. Mask a *prompt body* belonging to another account, for
 //      tiers below Administrator (QA round 13, finding 84).
 //
 // Extracted from the HTTP handler so the rule that decides who sees what is a
 // pure function with tests, rather than three lines buried in a route. The
 // ordering matters and is deliberate: filtering happens before masking, so a
 // Viewer never receives even a redacted placeholder for an agent outside their
-// assignment — the *existence* of that agent's activity is itself information
+// assignment. The *existence* of that agent's activity is itself information
 // they are not entitled to.
 //
 // Steps 2 and 3 are mutually exclusive rather than cumulative: a Viewer's
@@ -19,7 +19,7 @@
 //
 // Nothing here changes what is *written*. The ledger on disk and the hash chain
 // over it always hold the real bytes; this file narrows the view. That
-// separation is what keeps verification meaningful — a masked reader cannot
+// separation is what keeps verification meaningful. A masked reader cannot
 // recompute the chain from what they were shown, which is exactly why
 // verification is a server-side endpoint returning a verdict rather than
 // something a client does for itself.
@@ -47,13 +47,13 @@ type Disclosure = "masked" | "visible";
  *
  * **This table is the guard finding 133 needed, and it lives here rather than
  * in a test on purpose.** `tsconfig.core.json` excludes test files, so the
- * same table written in a test file would be typechecked by nothing — vitest
+ * same table written in a test file would be typechecked by nothing. Vitest
  * strips types without checking them. A guard that looks like it works and does
  * not is this project's most-repeated defect; putting the table in the module
  * the type checker actually reads is what stops this one joining the list.
  *
  * Because it is `Record<keyof Required<LedgerEntry>, …>`, **adding a field to
- * `LedgerEntry` fails `pnpm tsgo:core` until somebody classifies it** — and
+ * `LedgerEntry` fails `pnpm tsgo:core` until somebody classifies it**, and
  * `Required` strips optionality deliberately, since `intent` was optional and
  * optional is exactly how it slipped past.
  *
@@ -79,7 +79,7 @@ const VIEWER_DISCLOSURE: Record<keyof Required<LedgerEntry>, Disclosure> = {
   // the hash covers the resource, and the resource is what was replaced.
   prevHash: "visible",
   hash: "visible",
-  // Model narration, which discloses strictly more than `resource` — it names
+  // Model narration, which discloses strictly more than `resource`. It names
   // files it is about to touch, describes the project, and quotes what it has
   // already read (finding 133).
   intent: "masked",
@@ -99,8 +99,8 @@ const MASKS: Record<string, string> = {
  * Masks the fields `VIEWER_DISCLOSURE` marks, leaving the rest intact.
  *
  * Absent fields stay absent: an entry with no `intent` must not gain a
- * placeholder implying the model said something. That case is the common one —
- * most entries carry no intent — so it must not be the path that only works by
+ * placeholder implying the model said something. That case is the common one,
+ * most entries carry no intent, so it must not be the path that only works by
  * accident.
  *
  * Chain verification for a Viewer is therefore server-side, via
@@ -134,7 +134,7 @@ export const REDACTED_PROMPT = "[prompt text visible to its author and to admini
  * **`agentPromptCancel` is deliberately not here**, even though it is a third
  * prompt action. Its resource says that a run was stopped and names the run;
  * it carries none of the prompt's text. Masking it would hide *who stopped
- * whose work* — which is the opposite of what this function is for, since the
+ * whose work*: which is the opposite of what this function is for, since the
  * canceller may be an Administrator acting on somebody else's run and that is
  * precisely the fact an investigation needs. Stated rather than left to be
  * inferred from the absence, because "which entries carry private text" is a
@@ -152,8 +152,8 @@ function isPromptEntry(entry: LedgerEntry): boolean {
  * Hides a prompt body from a *peer* of the account that sent it.
  *
  * **The disagreement this settles (QA round 13, finding 84).** A1 claims
- * isolation by account — "two Users assigned the same agent cannot read each
- * other's prompts" — and `readConversation` honours it, keying the transcript
+ * isolation by account, "two Users assigned the same agent cannot read each
+ * other's prompts", and `readConversation` honours it, keying the transcript
  * on (agent, account). The ledger did not: a prompt is recorded by
  * `recordAdminAction` with the full text in `resource` and the agent's id in
  * `agentId`, and `projectLedgerForActor` filters by **agent** scope, so any
@@ -167,7 +167,7 @@ function isPromptEntry(entry: LedgerEntry): boolean {
  *     intent", and a prompt is that intent. Dropping it to protect privacy
  *     would trade a requirement for a property nobody asked for.
  *   - **Accountability does not need every reader to see it.** A peer still
- *     sees that a prompt happened, when, by whom, and against which agent —
+ *     sees that a prompt happened, when, by whom, and against which agent,
  *     which is the whole of what an audit trail is for. The body is what the
  *     person *said*, and being a co-manager of an agent is not a reason to read
  *     somebody's messages.
@@ -179,7 +179,7 @@ function isPromptEntry(entry: LedgerEntry): boolean {
  *
  * Masking the view rather than the record also keeps verification honest: the
  * chain still covers the real bytes, so a Viewer or a peer cannot recompute the
- * hashes from what they were shown — the same property `sanitizeLedgerEntry`
+ * hashes from what they were shown: the same property `sanitizeLedgerEntry`
  * already relies on.
  */
 function sanitizePromptEntry(entry: LedgerEntry): LedgerEntry {
@@ -203,12 +203,12 @@ export function projectLedgerForActor(
   }
   // **Folded, because this is an identity comparison** (finding 198).
   // `account-name.ts` states the rule: the canonical form anywhere an account is
-  // a key, the stored spelling only for display — and "is this entry mine?" is a
+  // a key, the stored spelling only for display, and "is this entry mine?" is a
   // key comparison wearing an `===`.
   //
   // It happened to be right, and only by coincidence: both sides are the stored
   // spelling from the same `users.json` record, so they agree today. Recorded
-  // rather than left alone because the coincidence is the problem — the two
+  // rather than left alone because the coincidence is the problem. The two
   // sides have different provenances (a ledger entry written at some point in
   // the past, and a live session) and nothing keeps them in step. The failure
   // would at least be safe rather than leaking: a mismatch masks an author's

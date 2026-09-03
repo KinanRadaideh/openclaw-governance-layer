@@ -2,14 +2,14 @@
 //
 // **The question this answers.** The policy document is stored as one flat list
 // of rules, each either global (no `agentId`) or written for one agent. That
-// shape is right for evaluation — the engine filters the list once per call —
+// shape is right for evaluation, the engine filters the list once per call,
 // and wrong for every question an operator actually asks:
 //
 //   - *What is this agent allowed to do?* Answering it from the raw document
 //     means reading every rule and working out, per rule, whether an absent
 //     `agentId` means "not this agent" or "every agent including this one".
 //   - *Who does this rule affect?* Answering it means knowing which agents
-//     exist, which the document only records incidentally — an agent appears in
+//     exist, which the document only records incidentally. An agent appears in
 //     it only once somebody has written a rule, set a posture, or locked it.
 //
 // Both are one join away from the data and neither was available anywhere: not
@@ -25,7 +25,7 @@
 // `visibleAgents` and `canViewAgent` in `permissions.ts`. Keeping projection
 // and authorization apart means the interesting logic is testable without
 // constructing a session, and it means there is exactly one place that decides
-// who sees what — rather than a second, subtly different copy living here.
+// who sees what. Rather than a second, subtly different copy living here.
 import { normalizeAgentId } from "../routing/session-key.js";
 import {
   isRuleExpired,
@@ -42,7 +42,7 @@ import {
  * `global` and `agent` are not a detail of presentation. They are the
  * difference between "removing this affects everyone" and "removing this
  * affects one workload", and an operator about to delete a rule needs to know
- * which of those they are doing before they do it — not after.
+ * which of those they are doing before they do it, not after.
  */
 export type RuleScope = "global" | "agent";
 
@@ -57,7 +57,7 @@ export type AppliedRule = {
  * The predicate is deliberately the *same expression* the engine uses to select
  * rules (`policy-engine.ts`: `rule.agentId === undefined || rule.agentId ===
  * agentId`). If this view and the engine disagreed about which rules apply, the
- * view would be worse than not having one — an operator would be reassured by a
+ * view would be worse than not having one: an operator would be reassured by a
  * list that was not what the gate consults. That is this project's most
  * frequently found defect class, so the agreement is pinned by a test that
  * evaluates real calls against the projection rather than by this comment.
@@ -83,7 +83,7 @@ export type RuleTargets = {
    * Agents known to this installation that the rule currently binds.
    *
    * For an agent-scoped rule this is exactly one id, and it is listed even if
-   * that agent has never been seen — the rule names it, which is what makes it
+   * that agent has never been seen: the rule names it, which is what makes it
    * known.
    */
   agentIds: string[];
@@ -122,7 +122,7 @@ export function agentsForRule(rule: PolicyRule, allKnownAgentIds: readonly strin
  * which is exactly the configuration somebody auditing an installation most
  * wants to find.
  *
- * Callers may pass additional ids — from live sessions or account assignments —
+ * Callers may pass additional ids, from live sessions or account assignments,
  * because an agent that is running but has no policy entry at all is precisely
  * the one an operator should be told about, and the document cannot know it.
  */
@@ -174,7 +174,7 @@ export type AgentPosture = {
  * Since §G the installation default is `enforce` with a shipped baseline
  * ruleset, and `monitor` is an opt-in per-agent tool. An agent showing
  * `mode: "monitor", modeIsOverride: true` is therefore someone's deliberate
- * choice to observe rather than enforce for that workload — worth surfacing
+ * choice to observe rather than enforce for that workload. Worth surfacing
  * plainly, because it is the one configuration in which this agent's policy
  * decisions are recorded and not acted upon.
  */
@@ -209,7 +209,7 @@ export function agentPolicyView(
   // Folded at the one entry point both surfaces use (finding 202). The document
   // is keyed canonically; asking about it with the spelling an operator typed
   // reported no overrides and `lockedDown: false` for an agent that was in fact
-  // locked — on the panel whose whole job is answering "why is my agent
+  // locked, on the panel whose whole job is answering "why is my agent
   // blocked?".
   const agentId = normalizeAgentId(rawAgentId);
   const rules = rulesForAgent(doc, agentId, nowMs);

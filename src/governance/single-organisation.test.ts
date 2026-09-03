@@ -30,7 +30,7 @@ import {
 /**
  * A minimal actor of a given tier (T37).
  *
- * These assertions passed a bare `{ role }`, which is not a `GovernanceActor` —
+ * These assertions passed a bare `{ role }`, which is not a `GovernanceActor`,
  * it lacks `username` and `assignedAgents`. It typechecked only because no test
  * file was typechecked (finding 162). The tier is the thing under test, so the
  * rest is filled in rather than the assertion weakened.
@@ -87,7 +87,7 @@ describe("one organisation per installation", () => {
   it("leaves the one-Root rule doing its own job", async () => {
     // The two caps are independent and both apply. A second Root inside the one
     // organisation is refused by the Root cap, not by this one, and the error
-    // says which — an operator who reads "there can be only one organisation"
+    // says which. An operator who reads "there can be only one organisation"
     // when they meant to add a Root would go and look in the wrong place.
     const groupId = newGroupId();
     await makeRoot("haitham", groupId);

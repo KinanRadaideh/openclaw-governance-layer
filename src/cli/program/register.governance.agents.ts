@@ -12,7 +12,7 @@
 // Its own file rather than more lines in `register.governance.ts`, which was
 // already 163 lines past the project's 700-line limit before M4 (T16). The seam
 // is the one the HTTP routes were split along and it holds here too: **one
-// file, one statable authorization rule** — agent management is the
+// file, one statable authorization rule**. Agent management is the
 // Administrator tier, and an Administrator administers the agents they own,
 // with Root exempt from the ownership half because Root manages the people who
 // own them.
@@ -129,14 +129,14 @@ export function registerGovernanceAgentCommands(governance: Command): void {
           // see which runtime an agent actually runs on, only which it is
           // allowed to. Shown here because `agents set-codex` changes it from
           // this surface, and a setting you can change but not read back is one
-          // an operator has to take on trust — the dashboard shows it on every
+          // an operator has to take on trust. The dashboard shows it on every
           // agent row for the same reason. Phrased as the dashboard phrases it,
           // so the two surfaces cannot drift into describing one fact two ways.
           const engine = row.codexAllowed ? "built-in or Codex" : "built-in only";
           defaultRuntime.log(
             row.registered
               ? `  ${row.agentId}  "${row.displayName}"  owner ${row.adminId}  engine: ${engine}`
-              : `  ${row.agentId}  (not registered — predates the registry, owned by nobody)`,
+              : `  ${row.agentId}  (not registered. Predates the registry, owned by nobody)`,
           );
         }
       });
@@ -239,7 +239,7 @@ export function registerGovernanceAgentCommands(governance: Command): void {
           defaultRuntime.log("  Denials, the audit ledger and the kill switch still apply there.");
           // Finding 154. The dashboard's confirmation has said this since the
           // control shipped and the command line did not, so the same act
-          // explained itself on one surface and not the other — the asymmetry
+          // explained itself on one surface and not the other. The asymmetry
           // this project has found more often than any other kind of defect.
           // Without it, an operator who permits an agent and then watches it be
           // refused has no way to learn that a second switch exists.
@@ -274,7 +274,7 @@ export function registerGovernanceAgentCommands(governance: Command): void {
         }
         const holders = await findUsersForAgent(agentId, identity.groupId ?? "");
         if (holders.length === 0) {
-          // In words, not an empty list — the distinction between "nobody" and
+          // In words, not an empty list. The distinction between "nobody" and
           // "the request failed" is invisible when both render as blank
           // (finding 117), and "nobody can reach this agent" is a real answer
           // an operator may be checking for deliberately.

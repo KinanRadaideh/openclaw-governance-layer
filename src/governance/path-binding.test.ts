@@ -1,4 +1,4 @@
-// T23 — binding the decision to the path the gate actually judged.
+// T23. Binding the decision to the path the gate actually judged.
 //
 // `path-toctou.test.ts` demonstrates the gap: the gate resolves the agent's
 // string, decides on the file that string named at that instant, and hands the
@@ -6,7 +6,7 @@
 // and the file that opens was never judged.
 //
 // This file asserts the fix. The gate now returns `params` carrying the
-// canonical absolute path, which the host applies to the call — so there is no
+// canonical absolute path, which the host applies to the call, so there is no
 // second resolution to race. The link is followed once and never looked at
 // again.
 //
@@ -86,7 +86,7 @@ function boundParams(
   return undefined;
 }
 
-describe("T23 — the gate binds the call to the path it judged", () => {
+describe("T23. The gate binds the call to the path it judged", () => {
   it("leaves an ordinary path untouched, which is nearly every call", async () => {
     // The blast-radius property. If this fails, T23 has changed the shape of
     // calls it was never meant to touch, and the parameters stop being
@@ -106,7 +106,7 @@ describe("T23 — the gate binds the call to the path it judged", () => {
   });
 
   it("does not rebind a call it refused", async () => {
-    // A blocked call is not going to be made, so binding it would be noise —
+    // A blocked call is not going to be made, so binding it would be noise,
     // and a `params` field on a veto invites a reader to think the veto is
     // conditional.
     await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce", ask: "off" });
@@ -205,7 +205,7 @@ describe("T23 — the gate binds the call to the path it judged", () => {
   it("hands back a path with no link left in it, which is what removes the race", async () => {
     // The structural property, stated directly: whatever the gate returns must
     // resolve to itself. If it did not, the tool would still have a link to
-    // follow and the swap would still be live — the substitution would look
+    // follow and the swap would still be live. The substitution would look
     // like a fix while changing nothing.
     const linkPath = join(workspace, "via-link-4");
     if (!(await link(join(workspace, "safe"), linkPath))) {
@@ -230,7 +230,7 @@ describe("T23 — the gate binds the call to the path it judged", () => {
     // The whole point, end to end.
     //
     // Decide on via-link-5/notes.txt while the link points at the harmless
-    // file. Repoint it at the secret — the move `path-toctou.test.ts`
+    // file. Repoint it at the secret. The move `path-toctou.test.ts`
     // demonstrates. Before T23 the tool would re-resolve the agent's string and
     // open the secret. Now it is holding an absolute path to the file that was
     // judged, and the swap has nothing left to act on.

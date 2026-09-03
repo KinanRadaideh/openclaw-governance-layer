@@ -12,6 +12,8 @@ import { withFileLock } from "./file-lock.js";
 import { newGovernanceId } from "./ids.js";
 import { ensureGroupDir, isUnconfiguredTestRun, policyFilePath } from "./paths.js";
 import {
+  MAX_HITL_TIMEOUT_SECONDS,
+  MIN_HITL_TIMEOUT_SECONDS,
   defaultPolicyDocument,
   isAskMode,
   type GovernanceMode,
@@ -28,7 +30,7 @@ import { writeGovernanceJson } from "./state-file.js";
  *
  * Every read and write below is now inside one group, so the directory that has
  * to exist is the group's rather than the root. `ensureGroupDir` validates the
- * id on the way through — see `paths.ts`, where a group id becomes a path
+ * id on the way through, see `paths.ts`, where a group id becomes a path
  * segment and therefore has to be checked like one.
  */
 async function ensureGroup(groupId: string): Promise<void> {
@@ -40,7 +42,7 @@ async function ensureGroup(groupId: string): Promise<void> {
  *
  * The merge below is shallow, so a field present but of the wrong type
  * (hand-edited file, truncated write, older format) survives it and then throws
- * somewhere far away — `doc.rules.filter is not a function` inside the policy
+ * somewhere far away, `doc.rules.filter is not a function` inside the policy
  * engine. Because the tool-call hook treats a governance throw as a block, that
  * turns one malformed field into "every tool call fails", with a stack trace
  * that points nowhere useful. Falling back to the safe default keeps the gate
@@ -61,7 +63,7 @@ export async function loadPolicy(groupId: string): Promise<PolicyDocument> {
     return {
       ...defaults,
       // A test process that never asked for a governance directory is not an
-      // installation and has no operator to answer an escalation — see
+      // installation and has no operator to answer an escalation. See
       // `isUnconfiguredTestRun`. Narrow by construction: production and this
       // project's own governance tests both miss it.
       ...(isUnconfiguredTestRun() ? { mode: "off" as const } : {}),
@@ -82,7 +84,7 @@ export async function loadPolicy(groupId: string): Promise<PolicyDocument> {
     rules: coerce(merged.rules, Array.isArray, defaults.rules)
       .filter((rule) => typeof rule?.pattern === "string" && typeof rule?.resourceKind === "string")
       // An agent-scoped rule binds by `rule.agentId === agentId`, against the
-      // canonical id the gate resolved — so a rule scoped to `Scout` bound
+      // canonical id the gate resolved, so a rule scoped to `Scout` bound
       // nothing (finding 202). This is the worst of the four in one direction
       // and the best in the other: an **allow** scoped that way silently did
       // not grant, and a **deny** scoped that way silently did not forbid.
@@ -96,7 +98,7 @@ export async function loadPolicy(groupId: string): Promise<PolicyDocument> {
     //
     // The kill switch took its agent id **raw from the request body**, and
     // every check between there and here canonicalised for its own lookup
-    // without passing the canonical form on — `findAgent` did,
+    // without passing the canonical form on, `findAgent` did,
     // `requireAgentInGroup` did, and then `lockAgent` stored what was typed. So
     // engaging the emergency stop on `Scout`, for an agent whose id is `scout`:
     //
@@ -128,7 +130,7 @@ export async function loadPolicy(groupId: string): Promise<PolicyDocument> {
     // why: the engine returns before the lockdown check, so a per-agent `off`
     // removes the kill switch and the core denials from that agent as well as
     // its ordinary rules, and leaves no ledger entry saying so. That refusal
-    // guarded the route and not the file — so the property "core rules survive
+    // guarded the route and not the file, so the property "core rules survive
     // a hand-edited policy.json", which `reassertCoreRules` below exists to
     // provide, was defeated one field away. You did not remove the protections;
     // you switched off the agent they applied to.
@@ -154,13 +156,13 @@ export async function loadPolicy(groupId: string): Promise<PolicyDocument> {
         // engine reads `doc.agentMode[agentId]` with the canonical id, so an
         // override stored under the spelling an operator typed was written,
         // displayed, and never consulted. Two spellings of one agent collapse
-        // into one entry, the last read winning — a repair of a state the write
+        // into one entry, the last read winning. A repair of a state the write
         // path no longer produces.
         .map(([agentId, mode]) => [normalizeAgentId(agentId), mode]),
     ),
     // Coerced as a container *and* per entry. Validating only the container let
     // an unparseable per-agent value through to the engine, where it resolved
-    // to the more permissive branch — see `resolveAskMode`. Dropping the bad
+    // to the more permissive branch. See `resolveAskMode`. Dropping the bad
     // entry here means the agent inherits the installation default, which is
     // the documented meaning of having no override.
     agentAsk: Object.fromEntries(
@@ -197,6 +199,30 @@ export async function loadPolicy(groupId: string): Promise<PolicyDocument> {
       (v) => typeof v === "number" && Number.isFinite(v) && v > 0,
       defaults.hitlTimeoutSeconds,
     ),
+    // Coerced as a container and per entry, for the reason `agentAsk` states:
+    // an unparseable per-agent value must not reach the engine. A dropped entry
+    // means the agent follows the installation timeout, which is the documented
+    // meaning of having no override. Bounds are the route's, restated here
+    // because a hand-edited `policy.json` never passed through the route.
+    agentHitlTimeout: Object.fromEntries(
+      Object.entries(
+        coerce<Record<string, number>>(
+          merged.agentHitlTimeout,
+          (v) => typeof v === "object" && v !== null && !Array.isArray(v),
+          defaults.agentHitlTimeout,
+        ),
+      )
+        .filter(
+          ([agentId, seconds]) =>
+            typeof agentId === "string" &&
+            typeof seconds === "number" &&
+            Number.isFinite(seconds) &&
+            seconds >= MIN_HITL_TIMEOUT_SECONDS &&
+            seconds <= MAX_HITL_TIMEOUT_SECONDS,
+        )
+        // Folded like every other agent key in this document (finding 202).
+        .map(([agentId, seconds]) => [normalizeAgentId(agentId), seconds]),
+    ),
   };
   return { ...loaded, rules: reassertCoreRules(loaded.rules, loaded.disabledCoreRules ?? []) };
 }
@@ -222,14 +248,14 @@ function reassertCoreRules(
   const core = coreRules()
     .map((rule) => materialiseSeedRule(rule))
     // T24: Root may switch off a core rule that is not self-protecting. The
-    // reassertion guarantee is unchanged for everything else — the rules are
+    // reassertion guarantee is unchanged for everything else. The rules are
     // still declared in source and still rebuilt on every load; what the stored
     // document now carries is a *decision*, not an edit, and one the setter has
     // already refused to record for a self-protecting rule.
     //
     // Checked here as well as at the setter, deliberately. A `disabledCoreRules`
     // entry naming a self-protecting rule can only arrive by hand-editing
-    // `policy.json` — which is exactly the attack the core tier exists to
+    // `policy.json`, which is exactly the attack the core tier exists to
     // survive, so the load path must not trust the file either.
     .filter((rule) => !(disabled.has(rule.id) && !rule.selfProtecting));
   return [...core, ...withoutCore];
@@ -252,7 +278,7 @@ export class SelfProtectingCoreRuleError extends Error {
     super(
       `Core rule "${ruleId}" protects the governance layer itself and cannot be disabled. ` +
         "Disabling it would let a governed agent reach the policy, the accounts, the ledger, " +
-        "or the command line that switches the gate off — after which no other control, " +
+        "or the command line that switches the gate off. After which no other control, " +
         "including this one, would mean anything.",
     );
     this.name = "SelfProtectingCoreRuleError";
@@ -273,7 +299,7 @@ export class NotACoreRuleError extends Error {
  * **Why this exists.** The core tier was wholly immutable, on the reasoning
  * that a floor nobody can lower is the strongest claim a policy layer can
  * make. That is right about the three rules protecting the layer from the agent
- * and wrong about the other five, which are ordinary security opinions —
+ * and wrong about the other five, which are ordinary security opinions,
  * sensible defaults that an operator with a real deployment may legitimately
  * disagree with. An installation whose agent genuinely needs `sudo` for its job
  * had no way to say so and would have ended up switching the whole gate off,
@@ -390,14 +416,14 @@ export async function pruneExpiredPolicyRules(groupId: string): Promise<number> 
  *     governance.policy.rule.add path ^C:/srv/app/secrets(/|$) (all agents, indefinite)
  *
  * A tamper-evident record of policy changes that cannot say whether a change
- * *granted* or *forbade* is not recording the decision — and requirement #5
+ * *granted* or *forbade* is not recording the decision, and requirement #5
  * asks for policy decisions, not for the patterns they mention. `access` is
  * here for the same reason: allowing **write** and allowing **read** on a path
  * are different grants, and the difference is invisible in the pattern.
  *
  * **The effect is stated in both directions rather than only for denials.**
  * Leaving an allowance silent would mean an auditor has to know that absence
- * means allow — a convention that cannot be checked from the entry, and one an
+ * means allow: a convention that cannot be checked from the entry, and one an
  * entry truncated or partially read would get backwards.
  *
  * Existing entries are untouched and still verify: this changes the text of the
@@ -419,7 +445,7 @@ function describeRule(rule: PolicyRule): string {
  * `actor` is required on every mutator in this file, and on the account
  * mutators in user-store.ts, so that changing governance state without
  * recording who did it is a compile error rather than an oversight. Ledger
- * writes happen *after* the policy lock is released — holding one file lock
+ * writes happen *after* the policy lock is released. Holding one file lock
  * while taking another is how lock-ordering deadlocks are built.
  */
 /**
@@ -429,7 +455,7 @@ function describeRule(rule: PolicyRule): string {
  * matching kind, so the ruleset is on the hot path of the security gate and an
  * unbounded one degrades every action the agent takes. Nothing capped it
  * before, and nothing removed indefinite rules, so a long-lived installation
- * accumulated them permanently — each "allow always" approval adds one.
+ * accumulated them permanently: each "allow always" approval adds one.
  *
  * 1000 is far above any plausible hand-written policy and far below the point
  * where matching becomes noticeable. Hitting it means either an automated loop
@@ -454,7 +480,7 @@ export class TooManyRulesError extends Error {
  *
  * `conflicts` is returned rather than thrown because an earlier rule winning is
  * not an error: the write succeeds and the operator is *told*. Design doc §1.6
- * asks for exactly that — "notifying users when such a conflict appears so it
+ * asks for exactly that: "notifying users when such a conflict appears so it
  * may be resolved".
  */
 export type AddRuleResult = { rule: PolicyRule; conflicts: RuleConflict[] };
@@ -476,7 +502,7 @@ export async function addRuleChecked(
   // undefined, producing a rule that could never be removed by id.
   if (rule.tier === "core") {
     // Otherwise the API becomes a way to mint rules carrying the authority of a
-    // shipped restriction — including a core-tier *allow*, which would override
+    // shipped restriction, including a core-tier *allow*, which would override
     // the denials this tier exists to guarantee.
     throw new ImmutableRuleError();
   }
@@ -484,7 +510,7 @@ export async function addRuleChecked(
     ...rule,
     // Always `admin`, whatever the caller asked for. `core` is refused above;
     // `baseline` is coerced rather than refused because it is not an attack so
-    // much as a category error — but an operator rule presenting itself as one
+    // much as a category error, but an operator rule presenting itself as one
     // the installation shipped would be indistinguishable from a vouched-for
     // default in the dashboard and in the audit trail.
     tier: "admin",
@@ -518,13 +544,13 @@ export async function addRuleChecked(
     // Both authoring surfaces used to call `detectRuleConflicts` on a policy
     // they had loaded a moment earlier, then call `addRule`. Two administrators
     // adding the same rule at the same instant therefore both read a ruleset
-    // without it, both saw no clash, and both wrote — leaving a duplicate that
+    // without it, both saw no clash, and both wrote. Leaving a duplicate that
     // neither was warned about. The same read-then-write shape as the rule-count
     // ceiling above, which is already checked inside the lock for exactly this
     // reason, and the same shape as the rule-request double-approval fixed in
     // round six.
     //
-    // The consequence was mild — identical patterns grant identical access — but
+    // The consequence was mild, identical patterns grant identical access, but
     // the *warning* is the product here: an operator who is told "this clashes
     // with an earlier rule" behaves differently from one who is told nothing,
     // and silence was the wrong answer whenever the race was lost.
@@ -560,7 +586,7 @@ export async function addRule(
  * top of the hierarchy can lift on a whim is a default, not an invariant, and
  * the tier exists precisely to hold when somebody with full authority has been
  * persuaded or compromised. Changing these means changing
- * `baseline-policy.ts` and redeploying — a reviewable act, not a click.
+ * `baseline-policy.ts` and redeploying. A reviewable act, not a click.
  */
 export class ImmutableRuleError extends Error {
   constructor() {
@@ -700,7 +726,7 @@ export async function setAgentAskMode(
 
 /**
  * Lock and release carry no actor and write no administrative entry, because
- * their caller — `lockDownAgent` / `releaseAgentLockdown` in kill-switch.ts —
+ * their caller, `lockDownAgent` / `releaseAgentLockdown` in kill-switch.ts,
  * already records the emergency stop with its actor. Recording here as well
  * would double-count an incident in the trail an investigation reads.
  */
@@ -748,8 +774,8 @@ export async function setUserAskMode(
  *
  * Passing `undefined` clears the override so the agent follows the
  * installation setting. Authority is enforced at the API boundary by the
- * existing scope rules — a User may set this for an agent assigned to them,
- * an Administrator for any agent — so no new permission concept is needed.
+ * existing scope rules, a User may set this for an agent assigned to them,
+ * an Administrator for any agent, so no new permission concept is needed.
  */
 export async function setAgentMode(
   groupId: string,
@@ -779,6 +805,40 @@ export async function setAgentMode(
   });
 }
 
+/**
+ * Sets or clears one agent's escalation timeout.
+ *
+ * `undefined` clears, exactly as `setAgentMode` and `setAgentAskMode` do, so
+ * "follow the installation value" is expressed by the absence of a key rather
+ * than by a sentinel number that the engine would have to know about.
+ */
+export async function setAgentHitlTimeout(
+  groupId: string,
+  rawAgentId: string,
+  seconds: number | undefined,
+  actor: AuditActorInput,
+): Promise<void> {
+  const agentId = normalizeAgentId(rawAgentId);
+  let previous: number | undefined;
+  await updatePolicy(groupId, (doc) => {
+    previous = doc.agentHitlTimeout[agentId];
+    if (seconds === undefined) {
+      delete doc.agentHitlTimeout[agentId];
+      return;
+    }
+    doc.agentHitlTimeout[agentId] = seconds;
+  });
+  await recordAdminAction(groupId, {
+    actor,
+    action: ADMIN_ACTIONS.agentHitlTimeoutChange,
+    agentId,
+    target:
+      seconds === undefined
+        ? "escalation timeout override cleared (follows the installation value)"
+        : `escalation timeout ${previous === undefined ? "default" : `${previous}s`} -> ${seconds}s`,
+  });
+}
+
 /** Test-only accessor so a suite can inspect the document on disk. */
 export function policyFilePathForTests(groupId: string): string {
   return policyFilePath(groupId);
@@ -786,7 +846,7 @@ export function policyFilePathForTests(groupId: string): string {
 
 /**
  * Locks an agent down. Folds the id on the way in (finding 202), so the entry
- * written matches the canonical id the gate compares against — the read side
+ * written matches the canonical id the gate compares against. The read side
  * folds too, which repairs documents written before this, but a store that only
  * worked because its reader repaired it would be one refactor from breaking.
  */

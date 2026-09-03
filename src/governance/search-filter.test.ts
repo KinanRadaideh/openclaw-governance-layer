@@ -1,4 +1,4 @@
-// T7 prevention — denied results removed before the model sees them.
+// T7 prevention. Denied results removed before the model sees them.
 //
 // The audit half (`search-audit.test.ts`) proves the reach is *recorded*. This
 // proves it is *stopped*: the covered paths do not appear in the result handed
@@ -78,7 +78,7 @@ describe("filtering a search result", () => {
     expect(text).not.toContain("hunter2brown");
     expect(text).not.toContain(".env:1:");
     // The legitimate results survive, including one that merely mentions the
-    // denied filename — the rule covers the file, not the word.
+    // denied filename. The rule covers the file, not the word.
     expect(text).toContain("src/app.ts:10:");
     expect(text).toContain("README.md:3:");
   });
@@ -139,7 +139,7 @@ describe("filtering a search result", () => {
   it("enforces the shipped core denials with no operator rule written", async () => {
     // No `denyPath` call here. The default document ships credential-file
     // denials, which is why an installation is protected before anybody
-    // authors anything — and why the earlier tests' explicit rules prove the
+    // authors anything, and why the earlier tests' explicit rules prove the
     // operator path rather than the only path.
     const filtered = await filterSearchResult({
       toolName: "grep",
@@ -168,13 +168,13 @@ describe("filtering a search result", () => {
   });
 });
 
-describe("a result longer than the bound — finding 156", () => {
+describe("a result longer than the bound. Finding 156", () => {
   // The bound exists because the result is agent-influenced text and the work
   // has to be bounded by something other than trust. It used to fail **open**:
   // `split("\n", limit)` truncates, so lines past the bound were never examined,
   // and when nothing in the examined prefix was denied the function returned
   // `undefined` and the model got the whole untruncated result. A denied path at
-  // line 2,001 reached the model — the exact case T7 prevention exists for.
+  // line 2,001 reached the model. The exact case T7 prevention exists for.
 
   /** One line per entry, longer than the bound, with the denied file last. */
   function longResult(deniedLast: boolean): ReturnType<typeof grepResult> {
@@ -245,7 +245,7 @@ describe("what it deliberately leaves alone", () => {
       agentId: AGENT,
       cwd: dir,
     });
-    // `undefined` means "pass the original through byte-identical" — the same
+    // `undefined` means "pass the original through byte-identical". The same
     // principle T23 established for parameter binding.
     expect(filtered).toBeUndefined();
   });
@@ -328,7 +328,7 @@ describe("what the ledger says about it", () => {
     });
     // Finding 131 was exactly this mistake in the audit half: matched file
     // content recorded as a governed resource. The filter shares that half's
-    // extraction, so it inherits the fix — asserted rather than assumed.
+    // extraction, so it inherits the fix. Asserted rather than assumed.
     const raw = JSON.stringify(await tailLedger(TEST_GROUP));
     expect(raw).not.toContain("hunter2brown");
   });

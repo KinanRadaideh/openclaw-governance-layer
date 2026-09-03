@@ -1,4 +1,4 @@
-// T10 — the gap between checking a path and opening it, demonstrated.
+// T10. The gap between checking a path and opening it, demonstrated.
 //
 // The gate resolves a path, decides on it, and the tool then resolves the
 // agent's *original string* again for itself. Anything that changes the meaning
@@ -9,11 +9,11 @@
 // with two halves: that the gap is real, and that it is "inherent to any
 // check-then-delegate design". The first half is true and is demonstrated
 // below. The second half is **false**, and finding that out is the useful part
-// of the exercise — see the last test, and T23.
+// of the exercise. See the last test, and T23.
 //
 // **T23 has since landed** (`path-binding.test.ts`), and this file is kept
 // unchanged apart from this note. What it demonstrates is still true of
-// resolution in isolation — one string, resolved twice, naming two files — and
+// resolution in isolation, one string, resolved twice, naming two files, and
 // that is exactly why it is worth keeping: it is the gap the fix closes, and a
 // fix is only legible beside the thing it fixed.
 //
@@ -87,7 +87,7 @@ function verdict(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>)
   if ("block" in decision) {
     return "block";
   }
-  // T23 — absence is no longer the only way the engine says "allow". A call
+  // T23. Absence is no longer the only way the engine says "allow". A call
   // whose path was redirected comes back carrying `params` (the canonical path
   // the tool should open), and reading that as "ask" would report an
   // escalation that never happened. Ask the question directly instead of
@@ -152,7 +152,7 @@ describe("the window between the gate's resolve and the tool's open", () => {
     // believing it helps.
     //
     // Two resolutions inside the gate happen microseconds apart, while the
-    // window that matters runs from the gate's decision to the tool's open —
+    // window that matters runs from the gate's decision to the tool's open,
     // through the whole rest of the hook chain. An attacker flipping a link on
     // any realistic schedule is overwhelmingly likely to have both gate
     // resolutions agree and still win the real race. A check that almost always
@@ -198,7 +198,7 @@ describe("the window between the gate's resolve and the tool's open", () => {
     // Under the shipped default posture (`ask: "on-miss"`) the escape does not
     // match the rule any more, misses the policy, and goes to a human. Asserted
     // as `ask` rather than `block` because that is what the default actually
-    // does — an earlier draft of this test asserted `block`, which was a
+    // does. An earlier draft of this test asserted `block`, which was a
     // statement about a posture it had not set.
     expect(
       verdict(
@@ -229,9 +229,9 @@ describe("the window between the gate's resolve and the tool's open", () => {
   });
 
   it("records that the host CAN be told the resolved path, so the gap is not inherent (T23)", () => {
-    // The claim being corrected. `PluginHookBeforeToolCallResult` — the shape a
+    // The claim being corrected. `PluginHookBeforeToolCallResult`, the shape a
     // before_tool_call hook returns, in src/plugins/hook-before-tool-call-result.ts
-    // — carries an optional `params` field, and the host applies it to the call.
+    //, carries an optional `params` field, and the host applies it to the call.
     //
     // So the gate is not forced to hand the tool back the agent's original
     // string. It can substitute the path it actually resolved and judged, and
@@ -240,7 +240,7 @@ describe("the window between the gate's resolve and the tool's open", () => {
     //
     // That makes this a design gap rather than a property of check-then-delegate
     // designs in general, which is what the backlog claimed. Asserting the field
-    // exists keeps the correction honest — if upstream ever removes it, this
+    // exists keeps the correction honest, if upstream ever removes it, this
     // fails and the claim goes back to being true.
     const resultModule = "src/plugins/hook-before-tool-call-result.ts";
     expect(resultModule).toContain("hook-before-tool-call-result");

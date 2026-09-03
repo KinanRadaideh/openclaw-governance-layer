@@ -1,7 +1,7 @@
 // **An installation has exactly one Root, and it is permanent.**
 //
-// The invariant was previously spread across two guards in two files —
-// `LastRootError` capping it below, `DuplicateRootError` capping it above — with
+// The invariant was previously spread across two guards in two files,
+// `LastRootError` capping it below, `DuplicateRootError` capping it above, with
 // no test asserting the thing they jointly guarantee. Each half had tests; the
 // property did not. That is the shape of defect this project has hit repeatedly
 // (a bug in a *relationship*, invisible from either side), so the property is
@@ -32,7 +32,7 @@ import {
  * Accounts that were Viewers or Users before M3 are Administrators here unless
  * the tier is the subject of the test. A User or Viewer now requires an
  * Administrator answerable for it, which would mean creating a second account
- * inside tests about username folding, token storage and Root invariants — and
+ * inside tests about username folding, token storage and Root invariants, and
  * changing the counts several of them assert. The tier was incidental; the
  * ceremony would not have been.
  */
@@ -68,7 +68,7 @@ async function roleCounts(): Promise<Record<string, number>> {
   return counts;
 }
 
-describe("exactly one Root — the upper bound", () => {
+describe("exactly one Root. The upper bound", () => {
   it("refuses a second Root at creation", async () => {
     await seedRoot();
     await expect(
@@ -147,7 +147,7 @@ describe("exactly one Root — the upper bound", () => {
   });
 });
 
-describe("the Root account is permanent — the lower bound", () => {
+describe("the Root account is permanent. The lower bound", () => {
   it("cannot be deleted", async () => {
     const rootId = await seedRoot();
     await createUser(
@@ -172,8 +172,8 @@ describe("the Root account is permanent — the lower bound", () => {
 
   it("cannot be deleted by itself", async () => {
     const rootId = await seedRoot();
-    // The HTTP layer refuses this twice over — self-deletion and Root
-    // permanence — and the second guard must hold on its own.
+    // The HTTP layer refuses this twice over, self-deletion and Root
+    // permanence, and the second guard must hold on its own.
     expect(guardDeletion(await listUsers(), rootId, rootId).allowed).toBe(false);
     expect(guardDeletion(await listUsers(), rootId, "someone-else").allowed).toBe(false);
   });
@@ -185,7 +185,7 @@ describe("the Root account is permanent — the lower bound", () => {
       throw new Error("expected a refusal, and the guard allowed it");
     }
     // The old message said "promote another account to Root before demoting
-    // it", which the upper bound refuses — two guards each right, together
+    // it", which the upper bound refuses, two guards each right, together
     // telling the operator to do something impossible.
     expect(guard.reason).not.toMatch(/promote another account to Root/);
     expect(guard.reason).toMatch(/permanent/);

@@ -5,7 +5,7 @@
 // own file. The seam is the same one the HTTP routes were split along, and it
 // holds here for the same reason: **one file, one subject.**
 //
-//   *Everything here reads or edits the policy document* — the posture, the
+//   *Everything here reads or edits the policy document*. The posture, the
 //   escalation mode, the rules, the core denials, the per-agent overrides, the
 //   two projections, and a User's request to change any of them.
 //
@@ -15,7 +15,7 @@
 // makes the file coherent is its subject. Every command asks its question
 // through `requireCliActor` and the same `permissions.ts` helpers the HTTP
 // routes use, so the two surfaces cannot drift into different answers about who
-// may do what — the property T5 introduced this gate for.
+// may do what. The property T5 introduced this gate for.
 import type { Command } from "commander";
 import { coreRules, seedRuleId } from "../../governance/baseline-policy.js";
 import { currentCliIdentity, toCliActor } from "../../governance/cli-identity.js";
@@ -40,10 +40,17 @@ import {
   setAgentMode,
   setAskMode,
   setCoreRuleEnabled,
+  setAgentHitlTimeout,
   setHitlTimeout,
   setMode,
 } from "../../governance/policy-store.js";
-import type { AskMode, GovernanceMode, ResourceKind } from "../../governance/policy-types.js";
+import {
+  MAX_HITL_TIMEOUT_SECONDS,
+  MIN_HITL_TIMEOUT_SECONDS,
+  type AskMode,
+  type GovernanceMode,
+  type ResourceKind,
+} from "../../governance/policy-types.js";
 import { describeRequest, submitRuleRequest } from "../../governance/rule-requests.js";
 import {
   describeRuleRisks,
@@ -54,7 +61,7 @@ import {
 } from "../../governance/rule-validation.js";
 import { defaultRuntime } from "../../runtime.js";
 import { runCommandWithRuntime } from "../cli-utils.js";
-import { requireCliActor } from "./governance-cli-gate.js";
+import { requireCliActor, requireManagedAgent } from "./governance-cli-gate.js";
 
 export function registerGovernancePolicyCommands(governance: Command): void {
   const policy = governance.command("policy").description("Inspect or edit the policy document");
@@ -69,7 +76,7 @@ export function registerGovernancePolicyCommands(governance: Command): void {
         // Not a new permission so much as a newly answerable question: with one
         // policy document, "print the policy" had an unambiguous subject. With a
         // document per organisation it does not, and the only honest source for
-        // *which* is the signed-in account — the same rule the HTTP surface
+        // *which* is the signed-in account. The same rule the HTTP surface
         // applies in `requireGroup`. `() => true` is the viewer tier: any
         // signed-in account may read its own organisation's rulebook.
         const actor = await requireCliActor(defaultRuntime, "read the policy", () => true);
@@ -96,7 +103,7 @@ export function registerGovernancePolicyCommands(governance: Command): void {
             defaultRuntime.log(`value must be one of: ${allowed.join(", ")}`);
             return;
           }
-          // Requesting is not authoring, so the check is `canManageAgent` — a
+          // Requesting is not authoring, so the check is `canManageAgent`. A
           // User whose authoring Root has withheld may still ask.
           const requester = await currentCliIdentity();
           if (!requester) {
@@ -149,7 +156,7 @@ export function registerGovernancePolicyCommands(governance: Command): void {
           if (!actor) {
             return;
           }
-          // Off asks, on does not — the same asymmetry as `set-mode`, and the
+          // Off asks, on does not. The same asymmetry as `set-mode`, and the
           // same one the dashboard already draws for this control.
           if (enabled === "false" && !options.yes) {
             const rule = coreRules().find((candidate) => seedRuleId(candidate) === ruleId);
@@ -216,7 +223,7 @@ export function registerGovernancePolicyCommands(governance: Command): void {
         // Not a new permission so much as a newly answerable question: with one
         // policy document, "print the policy" had an unambiguous subject. With a
         // document per organisation it does not, and the only honest source for
-        // *which* is the signed-in account — the same rule the HTTP surface
+        // *which* is the signed-in account. The same rule the HTTP surface
         // applies in `requireGroup`. `() => true` is the viewer tier: any
         // signed-in account may read its own organisation's rulebook.
         const actor = await requireCliActor(defaultRuntime, "read an agent's policy", () => true);
@@ -233,7 +240,7 @@ export function registerGovernancePolicyCommands(governance: Command): void {
           `  escalate  ${posture.ask}${posture.askIsOverride ? " (per-agent override)" : " (installation default)"}`,
         );
         if (posture.lockedDown) {
-          defaultRuntime.log("  LOCKED DOWN — the kill switch is engaged for this agent");
+          defaultRuntime.log("  LOCKED DOWN. The kill switch is engaged for this agent");
         }
         defaultRuntime.log(
           `  rules     ${summary.total} in force (${summary.global} global, ${summary.agentSpecific} agent-scoped; ${summary.allows} allow, ${summary.denies} deny)`,
@@ -242,7 +249,7 @@ export function registerGovernancePolicyCommands(governance: Command): void {
           const expiry = rule.expiresAt ? ` until ${rule.expiresAt}` : "";
           defaultRuntime.log(
             // `effect` is optional on the stored shape and defaults to allow,
-            // matching how the engine reads it — a rule without one is an
+            // matching how the engine reads it. A rule without one is an
             // allowance, not an unprintable.
             `    [${scope === "global" ? "global" : "agent "}] ${(rule.effect ?? "allow").padEnd(5)} ${rule.resourceKind.padEnd(7)} ${rule.pattern}${expiry}  (${rule.tier}, ${rule.id})`,
           );
@@ -279,7 +286,7 @@ export function registerGovernancePolicyCommands(governance: Command): void {
         }
         // Said before the list, not after it. A reader who sees three ids and
         // then a footnote has already formed the wrong impression.
-        defaultRuntime.log("  GLOBAL — binds every agent, including ones not yet created");
+        defaultRuntime.log("  GLOBAL. Binds every agent, including ones not yet created");
         defaultRuntime.log(
           targets.agentIds.length > 0
             ? `  currently known: ${targets.agentIds.join(", ")}`
@@ -309,7 +316,7 @@ export function registerGovernancePolicyCommands(governance: Command): void {
         // it spells out the two consequences a reader would not guess from
         // "disables the gate": the shipped **core denials** go with it, and so
         // does the **kill switch**. The command line said `mode set to off` and
-        // nothing else — and this is the surface where it matters more, because
+        // nothing else, and this is the surface where it matters more, because
         // it is reached through shell history, autocomplete and runbook
         // copy-paste rather than through a form somebody is looking at.
         //
@@ -323,7 +330,7 @@ export function registerGovernancePolicyCommands(governance: Command): void {
             "This switches governance off for EVERY agent in the installation, not just one.",
           );
           defaultRuntime.log(
-            "Nothing will be checked, blocked, or recorded — including the shipped core denials " +
+            "Nothing will be checked, blocked, or recorded, including the shipped core denials " +
               "on credentials and the governance directory, and including the kill switch.",
           );
           defaultRuntime.log(
@@ -364,7 +371,7 @@ export function registerGovernancePolicyCommands(governance: Command): void {
     // the tier model landed and the shipped core rules *are* denials, but no
     // surface could create one, so an operator's own restriction meant editing
     // policy.json by hand.
-    .option("--effect <effect>", "allow (default) | deny — a deny rule beats every allowance")
+    .option("--effect <effect>", "allow (default) | deny, a deny rule beats every allowance")
     .option("--access <access>", "path rules only: read | write (omit for both directions)")
     .option("--description <text>", "human-readable note")
     .option("--ttl-minutes <n>", "expire this rule after N minutes (omit for indefinite)")
@@ -382,7 +389,7 @@ export function registerGovernancePolicyCommands(governance: Command): void {
         await runCommandWithRuntime(defaultRuntime, async () => {
           assertResourceKind(options.kind);
           // Same validator the dashboard uses, so the CLI cannot author a rule
-          // the dashboard would refuse — length, compilability, backtracking
+          // the dashboard would refuse, length, compilability, backtracking
           // safety, and the TTL bound (see governance/rule-validation.ts).
           const validated = validateRulePattern(options.pattern);
           if (!validated.ok) {
@@ -452,7 +459,7 @@ export function registerGovernancePolicyCommands(governance: Command): void {
               conflict.kind === "overridden-by-deny"
                 ? "warning: a deny rule overrides this, so it will never take effect"
                 : "warning: an earlier rule already covers this";
-            defaultRuntime.log(`${lead} (${conflict.existingPattern}) — ${conflict.message}`);
+            defaultRuntime.log(`${lead} (${conflict.existingPattern}), ${conflict.message}`);
           }
         });
       },
@@ -474,6 +481,47 @@ export function registerGovernancePolicyCommands(governance: Command): void {
         if (!removed) {
           defaultRuntime.exit(1);
         }
+      });
+    });
+
+  policy
+    .command("set-agent-hitl-timeout <agentId> <seconds>")
+    .description(
+      "Per-agent escalation timeout in seconds, or 'default' to follow the installation value",
+    )
+    .action(async (agentId: string, seconds: string) => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        // **`requireManagedAgent`, which is the User floor plus agent scope plus
+        // the group check.** This is the one escalation setting a User may
+        // change, and only for an agent assigned to them, so a tier predicate
+        // alone would be too coarse in both directions: it would let a User set
+        // it for somebody else's agent, and it would refuse the User the axis
+        // exists for.
+        const actor = await requireManagedAgent(
+          defaultRuntime,
+          `set agent "${agentId}"'s escalation timeout`,
+          agentId,
+        );
+        if (!actor) {
+          return;
+        }
+        if (seconds === "default") {
+          await setAgentHitlTimeout(actor.groupId, agentId, undefined, actor);
+          defaultRuntime.log(`agent "${agentId}" now follows the installation escalation timeout`);
+          return;
+        }
+        const value = Number(seconds);
+        if (
+          !Number.isFinite(value) ||
+          value < MIN_HITL_TIMEOUT_SECONDS ||
+          value > MAX_HITL_TIMEOUT_SECONDS
+        ) {
+          throw new Error(
+            `seconds must be a number between ${MIN_HITL_TIMEOUT_SECONDS} and ${MAX_HITL_TIMEOUT_SECONDS}, or "default"`,
+          );
+        }
+        await setAgentHitlTimeout(actor.groupId, agentId, Math.round(value), actor);
+        defaultRuntime.log(`agent "${agentId}" escalation timeout set to ${Math.round(value)}s`);
       });
     });
 
@@ -512,14 +560,14 @@ export function registerGovernancePolicyCommands(governance: Command): void {
         // §1.6 splits escalation two ways: an Administrator controls it per
         // *agent*, Root controls it per *account*. `policy/user-ask` is the
         // second, so it sits with account administration even though it writes
-        // the policy document — which is why this command asks
+        // the policy document, which is why this command asks
         // `canManageAccounts` while its per-agent twin above asks
         // `canManageGlobalPolicy`.
         //
         // **This command did not exist until 2026-09-02 (finding 222.)** The
         // route and the dashboard have had it since the axis was built; the
-        // command line never did, and `CLI-REFERENCE.md` §2d — which promises
-        // to name every dashboard-only capability — did not list it. An
+        // command line never did, and `CLI-REFERENCE.md` §2d, which promises
+        // to name every dashboard-only capability, did not list it. An
         // operator over SSH could set an agent's escalation and not a person's.
         const actor = await requireCliActor(
           defaultRuntime,
@@ -586,8 +634,13 @@ export function registerGovernancePolicyCommands(governance: Command): void {
         if (!Number.isFinite(value) || value < 5 || value > 86_400) {
           throw new Error("seconds must be a number between 5 and 86400");
         }
+        // `canManageGlobalPolicy`, not `canManageAccounts`: the timeout is an
+        // installation-wide *policy* setting, and it was widened from Root to
+        // Administrator on 2026-09-03. Reaching for the accounts predicate here
+        // would have kept it at the Root tier by a different route and quietly
+        // reintroduced the split finding 222 warned about.
         const actor = await requireCliActor(defaultRuntime, "change the escalation timeout", (a) =>
-          canManageAccounts(a),
+          canManageGlobalPolicy(a),
         );
         if (!actor) {
           return;
@@ -672,8 +725,8 @@ export function registerGovernancePolicyCommands(governance: Command): void {
   // Talking to an agent (backlog item A1).
   //
   // The dashboard is the surface the paper describes, but the capability is
-  // not Gateway-owned — running a prompt needs the agent stack and nothing
-  // else — so it is offered here too. **The attribution caveat is gone (T5):**
+  // not Gateway-owned, running a prompt needs the agent stack and nothing
+  // else, so it is offered here too. **The attribution caveat is gone (T5):**
   // a prompt from a terminal is recorded against the signed-in account and its
   // tier, exactly as from the dashboard, and the conversation belongs to that
   // account rather than to the machine. Before T5 two operators sharing a host

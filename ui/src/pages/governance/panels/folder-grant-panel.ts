@@ -39,7 +39,7 @@ export type FolderGrantPanelProps = {
  * Written to answer three questions in the order an operator asks them: what
  * does this button do, why is it not just the rule form, and how does it relate
  * to the thing they have already read about searches. **No internal task codes
- * appear anywhere in it** — those are our filing system, not the operator's, and
+ * appear anywhere in it**: those are our filing system, not the operator's, and
  * a dashboard that cites them is asking the reader to hold our backlog in their
  * head.
  */
@@ -56,7 +56,7 @@ function renderExplainer(): TemplateResult {
         </p>
         <p>
           <strong>It is a shortcut, not a new mechanism.</strong> You can write exactly the same
-          rules by hand in the form above, and many people will — this exists because doing it by
+          rules by hand in the form above, and many people will. This exists because doing it by
           hand means writing two regular expressions and knowing which one wins. Everything created
           here appears in the rule list below as ordinary rules, each with its own entry, each
           removable on its own. Delete the exception and the folder stays allowed; delete the
@@ -75,7 +75,7 @@ function renderExplainer(): TemplateResult {
           <strong>One limit worth knowing.</strong> Removing forbidden results from a search works
           on the built-in engine. On the Codex engine it cannot: that program runs its own tools and
           gives no way to correct what they return, so a search there is recorded but not trimmed.
-          <em>Opening a forbidden file directly is still refused on both engines</em> — the limit is
+          <em>Opening a forbidden file directly is still refused on both engines</em>. The limit is
           about search results, not about your rules generally. Agents affected by it are marked in
           the rule list.
         </p>

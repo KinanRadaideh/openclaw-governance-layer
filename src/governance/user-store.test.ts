@@ -39,8 +39,8 @@ const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
  * Every account belongs to a group (M3); these tests all live in one.
  *
  * The accounts below are Administrators rather than Viewers, which they were
- * before M3. Nothing here is about the tier — these are tests of hashing,
- * username folding, session propagation and password resets — and a User or
+ * before M3. Nothing here is about the tier, these are tests of hashing,
+ * username folding, session propagation and password resets, and a User or
  * Viewer now requires an Administrator answerable for it, which would mean
  * creating a second account in every one of them and changing the counts they
  * assert. The tier was incidental; the ceremony would not have been.
@@ -291,7 +291,7 @@ describe("session tokens", () => {
     );
     // Somebody has to answer for a Viewer since M3, and it cannot be the
     // account being demoted. This test is about session propagation, so the
-    // manager is scaffolding — but the demotion is refused without it, which is
+    // manager is scaffolding, but the demotion is refused without it, which is
     // the invariant doing its job.
     const manager = await createUser(
       {
@@ -384,7 +384,7 @@ describe("password cost can be raised later (B9)", () => {
   it("verifies a password hashed at a weaker setting than today's", async () => {
     // The defect: without recorded parameters, raising the cost re-derived every
     // existing password with settings it was never hashed under, so every
-    // comparison failed and — with no reset path — the installation was locked
+    // comparison failed and, with no reset path, the installation was locked
     // out for good.
     const weak = await hashPassword("correct-horse-battery", { N: 1024, r: 8, p: 1 });
     expect(await verifyPassword("correct-horse-battery", weak)).toBe(true);
@@ -469,13 +469,13 @@ describe("password cost can be raised later (B9)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Finding 200 — the assignment list was the one identifier kept as typed.
+// Finding 200. The assignment list was the one identifier kept as typed.
 //
 // Every id it is compared against is canonical: the host mints session keys
 // through `normalizeAgentId`, the registry stores canonical ids, and the gate
 // resolves an agent id out of a session key. This list trimmed and nothing
 // else, so an assignment typed with different case was accepted, stored, echoed
-// back and never consulted — `account-name.ts`'s sentence about a governance
+// back and never consulted, `account-name.ts`'s sentence about a governance
 // control that silently does nothing, on the other identifier.
 // ---------------------------------------------------------------------------
 describe("assigned agent ids are folded the way every other id is (finding 200)", () => {

@@ -49,7 +49,7 @@ export function registerGovernanceCommands(program: Command): void {
 
   // ---------------------------------------------------------------------
   // Identity (T5). Before this, every command-line change was recorded against
-  // the literal actor `cli` and no tier was checked at all — so the audit trail
+  // the literal actor `cli` and no tier was checked at all, so the audit trail
   // could not name a person and the command line ignored the role model that
   // the dashboard enforces.
   // ---------------------------------------------------------------------
@@ -139,7 +139,7 @@ export function registerGovernanceCommands(program: Command): void {
         // **`actor.groupId`, which this command did not pass until finding
         // 234.** `requireCliActor` returns the caller's organisation precisely
         // so a command cannot "obtain permission to act and then quietly act on
-        // a different organisation's files" — its own words — and this was the
+        // a different organisation's files", its own words, and this was the
         // one account command that took the permission and dropped the group.
         // The HTTP route refuses a foreign account id with a 404; the command
         // accepted it and wrote.
@@ -155,7 +155,7 @@ export function registerGovernanceCommands(program: Command): void {
         // **Only when the write happened.** `updateSessionsPolicyAuthoring`
         // takes an account id and no group, so calling it unconditionally
         // rewrote the live session of an account the write above had just
-        // refused — the same cross-organisation reach, one layer along.
+        // refused. The same cross-organisation reach, one layer along.
         if (ok) {
           await updateSessionsPolicyAuthoring(userId, allowed === "true");
         }
@@ -200,7 +200,7 @@ export function registerGovernanceCommands(program: Command): void {
         }
         if (!options.delete) {
           // Deliberately two steps. This removes credentials, and the only
-          // recovery is a password nobody has — so the destructive form has to
+          // recovery is a password nobody has, so the destructive form has to
           // be typed rather than defaulted into.
           defaultRuntime.log(`${orphans.length} account(s) would be deleted:`);
           for (const account of orphans) {
@@ -212,13 +212,13 @@ export function registerGovernanceCommands(program: Command): void {
         }
         // Attributed to the signed-in operator when there is one. On an
         // installation whose only accounts predate groups there is nobody left
-        // who *can* sign in, which is precisely the state this repairs — so the
+        // who *can* sign in, which is precisely the state this repairs, so the
         // command still runs, attributed to the command line itself.
         const identity = await currentCliIdentity();
         const removed = await deleteUnmigratedAccounts(
           // **Finding 161.** This read `{ name: "cli", role: "root" }`, so a
           // destructive account deletion was recorded as the act of a **Root**
-          // — a tier no authenticated account held, on the one code path that
+          //. A tier no authenticated account held, on the one code path that
           // exists precisely because nobody can sign in. `AuditActorInput`'s
           // own doc forbids it in as many words: the labelled actors "are not
           // accounts and hold no role, and supplying one would invent an
@@ -236,7 +236,7 @@ export function registerGovernanceCommands(program: Command): void {
 
   // The agent registry (M4) lives in its own module: it added a command group
   // to a file already 163 lines past the project's 700-line limit (T16), and
-  // the seam is the same one the HTTP routes were split along — one file, one
+  // the seam is the same one the HTTP routes were split along, one file, one
   // statable authorization rule.
   // The policy document's commands live in their own module for the reason the
   // agent-registry commands do: one file, one subject, and this file was 848
@@ -250,7 +250,7 @@ export function registerGovernanceCommands(program: Command): void {
   // the installation, and its own module for the same reason theirs is.
   registerGovernanceBackendCommands(governance);
 
-  // The rule-request queue (T40) — the User tier's escalation path, and the
+  // The rule-request queue (T40). The User tier's escalation path, and the
   // last capability `CLI-REFERENCE.md` §2d listed as deliberately
   // dashboard-only. Its own module for the same reason as the three above: the
   // queue is one subject, and it is the only one whose three commands sit at
@@ -259,7 +259,7 @@ export function registerGovernanceCommands(program: Command): void {
 
   // Deleting the organisation, including the Root running the command. Its own
   // module because it is the only capability in the tree whose authorization
-  // rule is an identity rather than a tier — see its header.
+  // rule is an identity rather than a tier. See its header.
   registerGovernanceOrganisationCommands(governance);
 
   // ---------------------------------------------------------------------
@@ -289,8 +289,8 @@ export function registerGovernanceCommands(program: Command): void {
           //
           // These four checks used to sit *below* the agent-stack import, so a
           // caller who was about to be refused still paid for loading the whole
-          // agent runtime first. Wrong on its own terms — a cheap check belongs
-          // before costly work, and an authorization check especially — and it
+          // agent runtime first. Wrong on its own terms, a cheap check belongs
+          // before costly work, and an authorization check especially, and it
           // had a measurable cost: the refusal tests in
           // `cli-agent-control-parity.test.ts` each imported the agent stack to
           // reach a decision made without it, and one of them timed out at 120
@@ -326,8 +326,8 @@ export function registerGovernanceCommands(program: Command): void {
           }
 
           // Registered lazily, on use. Importing the agent stack at module load
-          // would make every `openclaw governance ...` invocation — including
-          // `policy show` — pay for a capability almost none of them need.
+          // would make every `openclaw governance ...` invocation, including
+          // `policy show`, pay for a capability almost none of them need.
           const { installGovernanceAgentRunner } =
             await import("../../agents/governance-agent-runner.js");
           installGovernanceAgentRunner();
@@ -338,7 +338,7 @@ export function registerGovernanceCommands(program: Command): void {
           // **This is the only way to stop a run started here**, and the reason
           // is architectural: the in-flight run table is per **process**, and
           // this command runs the agent in its own. `governance agent cancel`
-          // exists as of T34, but it reaches the *Gateway's* run registry — it
+          // exists as of T34, but it reaches the *Gateway's* run registry. It
           // can stop a run somebody started from the dashboard and cannot see
           // this one at all. (This comment said "there is no
           // `governance agent cancel` command" for a day after T34 added one.)
@@ -406,7 +406,7 @@ export function registerGovernanceCommands(program: Command): void {
                       // a terminal shows a reply being written rather than the
                       // same text repeatedly. A snapshot shorter than what was
                       // already printed is a retraction, which a terminal cannot
-                      // unprint — so it starts a fresh line rather than silently
+                      // unprint, so it starts a fresh line rather than silently
                       // dropping the correction.
                       if (replySoFar.length < printed) {
                         defaultRuntime.log("");
@@ -442,7 +442,7 @@ export function registerGovernanceCommands(program: Command): void {
     .description("Prompt runs in flight, and who started them")
     .action(async () => {
       await runCommandWithRuntime(defaultRuntime, async () => {
-        // **Tier floor User, matching `agent/runs` — and until finding 235 this
+        // **Tier floor User, matching `agent/runs`, and until finding 235 this
         // said so and passed `() => true`.** A Viewer was admitted by the check
         // and then excluded by accident, because `includeOthers` is false at
         // that tier and a Viewer cannot start a run to own one. A control that
@@ -475,7 +475,7 @@ export function registerGovernanceCommands(program: Command): void {
           // failed request look identical when both render as nothing.
           //
           // **And the second line is finding 238.** `prompt-runs.ts` keeps its
-          // table in a module-level `Map`, so it is per **process** — measured,
+          // table in a module-level `Map`, so it is per **process**. Measured,
           // not reasoned: a parent holding a run and a child process started
           // from it see `["gov-run-probe"]` and `[]` respectively. Every
           // invocation of this command is a fresh process, so it can only ever
@@ -527,7 +527,7 @@ export function registerGovernanceCommands(program: Command): void {
           runId: runId.trim(),
           username: identity.username,
           // Cancelling somebody else's run is an operator act, not an ordinary
-          // one — the same split the HTTP route draws.
+          // one. The same split the HTTP route draws.
           mayCancelOthers: canManageGlobalPolicy(toCliActor(identity)),
           groupAgentIds: (await listGroupAgents(groupId)).map((entry) => entry.id),
         });
@@ -544,7 +544,7 @@ export function registerGovernanceCommands(program: Command): void {
         // in this process's table and the honest answer is "I cannot see it",
         // not "it does not exist". `CLI-REFERENCE.md` argued in its own prose
         // that a command which "looked like it could reach the Gateway's runs
-        // would be reporting a power it does not have" — and then the command
+        // would be reporting a power it does not have", and then the command
         // was built without that paragraph being revisited.
         defaultRuntime.log(`no run "${runId}" is in flight in this process`);
         defaultRuntime.log(
@@ -560,7 +560,7 @@ export function registerGovernanceCommands(program: Command): void {
     .command("transcript <agentId>")
     // "your account's", not "this machine's" (finding 219). T5 moved
     // conversations from being owned by `cli` to being owned by the signed-in
-    // account — the comment in `prompt` above records the change — and this
+    // account, the comment in `prompt` above records the change, and this
     // string, the reference table row and the reference prose all kept the old
     // model. The prose went further and told operators the command line and the
     // dashboard were separate threads, which stopped being true at the same
@@ -577,7 +577,7 @@ export function registerGovernanceCommands(program: Command): void {
         // signed-in account holding a group, so a Viewer could read a
         // transcript their tier cannot produce and a User could read one for an
         // agent nobody assigned them. `requireManagedAgent` is the command
-        // line's half of that set and is what `kill` already uses — the gap was
+        // line's half of that set and is what `kill` already uses. The gap was
         // that this command was written before it existed and never moved onto
         // it.
         const reader = await requireManagedAgent(
@@ -610,7 +610,7 @@ export function registerGovernanceCommands(program: Command): void {
   // this is the surface that matters more of the two: §1.6 expects the
   // dashboard to be reachable only through an SSH local port forward, so the
   // moment you most need to know whether the listener is exposed is over a
-  // plain SSH session *before* any tunnel exists — when the dashboard is, by
+  // plain SSH session *before* any tunnel exists. When the dashboard is, by
   // design, unreachable.
   //
   // Read-only. Changing a bind address or an auth mode is a server-admin act;
@@ -625,7 +625,7 @@ export function registerGovernanceCommands(program: Command): void {
       await runCommandWithRuntime(defaultRuntime, async () => {
         // **Root, as the route is.** `governance-privilege-matrix.test.ts` writes
         // the reason out: this report gives the bind mode, port, gateway auth
-        // mode and governance directory — a map of how to reach and attack the
+        // mode and governance directory. A map of how to reach and attack the
         // installation. The command's own comment above argues that the
         // *surface* must exist here, because §1.6 expects the dashboard to be
         // reachable only through an SSH tunnel and this is what you run before
@@ -691,8 +691,8 @@ export function registerGovernanceCommands(program: Command): void {
         }
 
         // Exit 0 by default, matching `security audit`. A command that exits
-        // non-zero on every developer machine — where the platform check warns
-        // and the permission checks cannot run — is a command people learn to
+        // non-zero on every developer machine, where the platform check warns
+        // and the permission checks cannot run, is a command people learn to
         // ignore. `--strict` is for provisioning scripts, where failing the
         // build on a `fail` is exactly what you want.
         if (options.strict && status.summary.fail > 0) {
@@ -710,7 +710,7 @@ export function registerGovernanceCommands(program: Command): void {
         // with full Root visibility on the premise that the command line had no
         // login and its only boundary was filesystem access. The premise is no
         // longer true, and leaving it would have made the CLI a way for a User
-        // to enumerate every agent in the installation — the same disclosure
+        // to enumerate every agent in the installation. The same disclosure
         // the dashboard's own scoping exists to prevent.
         const viewer = await currentCliIdentity();
         if (!viewer) {
@@ -744,15 +744,15 @@ export function registerGovernanceCommands(program: Command): void {
 
   // **Both commands ask what their routes ask, and did not until 2026-08-31.**
   //
-  // They were the last two governance commands gated on `() => true` — any
-  // signed-in account — while `pending-decisions` GET and
+  // They were the last two governance commands gated on `() => true`, any
+  // signed-in account, while `pending-decisions` GET and
   // `pending-decisions/decide` each ask two further questions: a **User** floor
   // rather than a Viewer one, and, for the write, `canManageAgent` against the
   // **stored** entry's agent. Two surfaces answering one question two ways is
   // this project's most-found defect, and here it had three separate costs: a
   // Viewer could record a decision, a User could record one on an agent they do
-  // not hold, and the read printed the whole organisation's stack — agent ids,
-  // tool names and the resources they were blocked on — to accounts that cannot
+  // not hold, and the read printed the whole organisation's stack, agent ids,
+  // tool names and the resources they were blocked on, to accounts that cannot
   // see those agents anywhere else.
 
   pending
@@ -835,7 +835,7 @@ export function registerGovernanceCommands(program: Command): void {
         const decided = await decidePendingDecision(groupId, {
           id,
           allow: Boolean(options.allow),
-          // The signed-in operator, not the literal `cli` — finding 149 in a
+          // The signed-in operator, not the literal `cli`. Finding 149 in a
           // second place, and here it did not merely lose the attribution. T35's
           // guard rejects a *named* actor called `cli`, and the decision is
           // written under a file lock before the ledger entry is appended, so
@@ -905,8 +905,8 @@ export function registerGovernanceCommands(program: Command): void {
         // the administrative entry recording it both land in that organisation.
         //
         // **Three checks, and until 2026-08-31 this command made none of them**
-        // while its route made all three. A Viewer — strictly read-only
-        // oversight in §1.6 — could stop any agent and keep it stopped; a User
+        // while its route made all three. A Viewer, strictly read-only
+        // oversight in §1.6, could stop any agent and keep it stopped; a User
         // could stop one they were never assigned; and an operator of one
         // organisation could stop another's, which is **finding 144 on a second
         // surface**: the lockdown terminates from the Gateway's
@@ -929,7 +929,7 @@ export function registerGovernanceCommands(program: Command): void {
           defaultRuntime.exit(1);
           return;
         }
-        // Finding 149 — both calls passed the literal `"cli"` and threw away the
+        // Finding 149, both calls passed the literal `"cli"` and threw away the
         // identity resolved two lines above, so the emergency stop was the one
         // administrative action on this surface that could not say who took it.
         // T5 made the command line attributable; this pair of call sites was

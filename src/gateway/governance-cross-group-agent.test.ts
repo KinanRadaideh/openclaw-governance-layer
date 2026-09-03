@@ -3,7 +3,7 @@
 // ## The gap these tests close
 //
 // Two different questions were being confused. `canManageAgent` asks *"is this
-// person senior enough, or assigned?"* — and for an Administrator the answer is
+// person senior enough, or assigned?"*, and for an Administrator the answer is
 // **yes for any agent id in the world**, because unlimited agent scope is a
 // statement about rank, not about which organisation you belong to. It was
 // written before organisations existed and was never wrong; it was simply being
@@ -17,7 +17,7 @@
 // It protects nothing that acts on the **running system**, which has no idea
 // organisations exist. That is where both findings live: the live-session view
 // read the whole machine's activity (139), and the emergency stop *terminates*
-// from that same whole-machine list (144) — so an administrator of one
+// from that same whole-machine list (144), so an administrator of one
 // organisation could stop another organisation's work by naming its agent.
 import { mkdtemp, rm } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -52,7 +52,7 @@ afterEach(async () => {
   delete process.env.OPENCLAW_GOVERNANCE_DIR;
 });
 
-/** An Administrator of `OURS` — the most privileged tier below Root. */
+/** An Administrator of `OURS`. The most privileged tier below Root. */
 function ourAdministrator(): GovernanceSession {
   return {
     token: "t",
@@ -119,7 +119,7 @@ async function post(
 
 describe("an administrator cannot reach another organisation's agent", () => {
   it("refuses to stop it (finding 144)", async () => {
-    // The severe one. The emergency stop does not merely write a flag — it
+    // The severe one. The emergency stop does not merely write a flag. It
     // terminates whatever that agent is currently running, from a list kept by
     // the machine rather than by any organisation. Left open, this is one
     // organisation switching off another organisation's work.
@@ -132,7 +132,7 @@ describe("an administrator cannot reach another organisation's agent", () => {
 
   it("still lets it stop its own", async () => {
     // The other half of the pair. A refusal is only evidence if the permitted
-    // case succeeds beside it — otherwise the control could simply be broken.
+    // case succeeds beside it. Otherwise the control could simply be broken.
     const reply = await post(ourAdministrator(), "kill", {
       agentId: "our-agent",
       locked: true,
@@ -154,7 +154,7 @@ describe("an administrator cannot reach another organisation's agent", () => {
     // The refusal must not become a lookup service. If "not in your
     // organisation" read differently from "no such agent", an administrator
     // could discover which agent names other organisations use by trying them
-    // — the same reason the sign-in page refuses to say whether an account
+    //. The same reason the sign-in page refuses to say whether an account
     // exists.
     const theirs = await post(ourAdministrator(), "kill", {
       agentId: "their-agent",

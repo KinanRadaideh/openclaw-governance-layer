@@ -44,7 +44,7 @@ function verdict(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>)
   if ("block" in decision) {
     return "block";
   }
-  // T23 — absence is no longer the only way the engine says "allow". A call
+  // T23. Absence is no longer the only way the engine says "allow". A call
   // whose path was redirected comes back carrying `params` (the canonical path
   // the tool should open), and reading that as "ask" would report an
   // escalation that never happened. Ask the question directly instead of
@@ -130,7 +130,7 @@ describe("requirement 4: time-limited permissions actually lapse", () => {
   });
 
   it("treats the same rule differently either side of its expiry", async () => {
-    // The before/after narrative, kept — but by moving the boundary rather than
+    // The before/after narrative, kept, but by moving the boundary rather than
     // the clock, so it is deterministic.
     const pattern = "^deploy$";
     await addRule(
@@ -150,7 +150,7 @@ describe("requirement 4: time-limited permissions actually lapse", () => {
       // The spread is the point: the document loaded above must not be mutated
       // underneath the caller, and this rule's suggested in-place fix would do
       // exactly that. Same reasoning as the three production sites that carry
-      // this disable — active-sessions.ts, attachment-store.ts, user-store.ts.
+      // this disable. Active-sessions.ts, attachment-store.ts, user-store.ts.
       // oxlint-disable-next-line no-map-spread
       rules: doc.rules.map((rule) =>
         rule.pattern === pattern

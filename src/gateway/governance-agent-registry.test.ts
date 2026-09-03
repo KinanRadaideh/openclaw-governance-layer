@@ -1,4 +1,4 @@
-// M4 — the agent registry, through the routes an operator's dashboard calls.
+// M4. The agent registry, through the routes an operator's dashboard calls.
 //
 // `agent-registry.test.ts` pins the store's rules. This pins the half only the
 // HTTP surface owns, which is a different question in three places:
@@ -6,7 +6,7 @@
 //   1. **Who may name the owner.** The tier check says "Administrator", and the
 //      owner check says "yours". An Administrator registering an agent *into
 //      another Administrator's name* is a statement about who answers for a
-//      workload — people management, the Root side of the split this project
+//      workload. People management, the Root side of the split this project
 //      has drawn since the role model was written.
 //   2. **What a refusal reveals.** An agent in another group is reported as
 //      absent, never as forbidden, so the route does not become a probe for
@@ -17,7 +17,7 @@
 //      say it.
 //
 // The fourth property is the assignment constraint, tested through
-// `users/agents` rather than the registry's own routes — because that is the
+// `users/agents` rather than the registry's own routes, because that is the
 // route an Administrator actually uses, and a rule enforced only in the store
 // is a rule the surface can forget to call.
 import { mkdtemp, rm } from "node:fs/promises";
@@ -61,7 +61,7 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-/** A Root, two Administrators and a User under the first — the smallest fixture with a boundary in it. */
+/** A Root, two Administrators and a User under the first. The smallest fixture with a boundary in it. */
 async function organisation(prefix: string) {
   const groupId = newGroupId();
   const root = await createUser(
@@ -157,7 +157,7 @@ describe("listing agents", () => {
       { id: "agent-known", displayName: "Known", groupId: org.groupId, adminId: org.admin.id },
       "alpha-admin",
     );
-    // An agent that exists only because a rule names it — the pre-registry
+    // An agent that exists only because a rule names it. The pre-registry
     // world. The **listing** still surfaces it, marked unregistered, so an
     // operator can see what needs registering; what changed at M5 is that such
     // an agent can no longer act or be assigned, not that it becomes invisible.
@@ -317,7 +317,7 @@ describe("administering an agent you own", () => {
 
   it("lets Root act on an agent it does not own, so a departure is recoverable", async () => {
     // Without this an agent whose owning Administrator has left is one nobody
-    // can ever re-home — a lockout with extra steps, and the class
+    // can ever re-home. A lockout with extra steps, and the class
     // `account-guards.ts` exists to prevent.
     const org = await organisation("alpha");
     await registerAgent(
@@ -365,7 +365,7 @@ describe("assignment through the route an Administrator actually uses", () => {
     expect(stored?.assignedAgents).toEqual([]);
   });
 
-  it("refuses an id that is not registered, over HTTP too — M5", async () => {
+  it("refuses an id that is not registered, over HTTP too, M5", async () => {
     /**
      * **This expected 200 until M5.** Its comment read: every existing
      * installation's agents are unregistered, refusing them would break
@@ -374,7 +374,7 @@ describe("assignment through the route an Administrator actually uses", () => {
      * does not exist".
      *
      * Both halves stopped being true at once. There are no installations to
-     * break — M5 was built before any deployment existed — and the second half
+     * break, M5 was built before any deployment existed, and the second half
      * was never quite the point: the cost was not theft, it was that the
      * ownership rule could be **sidestepped by not registering**. Mandatory
      * registration removes the sidestep, and an unregistered agent can no longer

@@ -4,20 +4,20 @@
 // coherence is a *workflow* rather than a single tier. One sentence still
 // covers the file:
 //
-//   *One queue, read by Viewers, added to by Users, decided by Administrators —
+//   *One queue, read by Viewers, added to by Users, decided by Administrators,
 //   and scoped to the caller's agents at every step.*
 //
 // The three floors differ on purpose, because they are three roles in one
 // process rather than three unrelated permissions: §1.6 gives the User tier
 // "limited, scoped permissions", interpreted here as *may propose, may not
-// grant*. That is what keeps the security property intact — no privilege is
-// ever created by a non-Administrator — while giving the tier a real job, and
+// grant*. That is what keeps the security property intact, no privilege is
+// ever created by a non-Administrator, while giving the tier a real job, and
 // it closes the product gap where an operator whose legitimate action was
 // denied had no in-product way to ask for access.
 //
 // The scoping is load-bearing at every floor and was a defect once: an unscoped
 // queue let an account limited to one agent enumerate every other agent's id,
-// the patterns being requested for them, and the free-text reasons — which
+// the patterns being requested for them, and the free-text reasons, which
 // routinely name internal hosts and paths.
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { canManageAgent, canViewAgent, type GovernanceActor } from "../governance/permissions.js";
@@ -76,7 +76,7 @@ export async function handleGovernanceRuleRequestRoutes(
   // Viewer and above may see the queue (it is oversight information), scoped
   // the same way every other read route is. An unscoped queue let an account
   // limited to one agent enumerate every other agent's id, the patterns being
-  // requested for them, and the free-text reasons — which routinely name
+  // requested for them, and the free-text reasons, which routinely name
   // internal hosts and paths. A request with no agent is installation-wide, so
   // it is visible to anyone who can see the queue at all.
   if (route === "rule-requests" && req.method === "GET") {
@@ -126,7 +126,7 @@ export async function handleGovernanceRuleRequestRoutes(
     // **An agent-setting request takes a different branch (T4).** A User can no
     // longer set their agent's escalation or posture directly; this is how they
     // ask. Distinguished by `setting` being present rather than by a separate
-    // route, so the whole request queue — submit, review, decide, audit — stays
+    // route, so the whole request queue, submit, review, decide, audit, stays
     // one mechanism with one review surface.
     const settingRaw = (body as { setting?: unknown }).setting;
     if (settingRaw !== undefined) {
@@ -277,7 +277,7 @@ export async function handleGovernanceRuleRequestRoutes(
       // reviewed, not what the approving client says was reviewed.
       //
       // The approver is the actor, not the requester. They are the one whose
-      // authority the change is made under, and the ledger has to say so —
+      // authority the change is made under, and the ledger has to say so,
       // the requester is already named in the rule's description and in the
       // submit entry.
       try {

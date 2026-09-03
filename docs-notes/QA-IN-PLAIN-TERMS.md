@@ -2,18 +2,18 @@
 
 A companion to the defect tables in `GOVERNANCE.md`. Those tables are written
 for someone reading the code. This document explains the same findings in
-ordinary language — what broke, why it mattered, and what was done about it.
+ordinary language. What broke, why it mattered, and what was done about it.
 
 It focuses on **round six**, the multi-agent audit, because that round found the
 most and taught the most. Rounds one to five are summarised at the end.
 
-> **How to navigate this file — added 2026-08-27.** Sections are in the order
+> **How to navigate this file. Added 2026-08-27.** Sections are in the order
 > they were **written**, not in numeric order, because each new pass appended to
 > the end. Three consequences, all of them things a reader hits rather than an
 > author notices:
 >
 > - **§6 ("Rounds one to five, in one line each") sits in the middle**, between
->   §5.7 and §5.8 — not at the end, despite the sentence above saying "at the
+>   §5.7 and §5.8, not at the end, despite the sentence above saying "at the
 >   end".
 > - **§7 ("The single lesson") also sits in the middle**, after §5.33. It is the
 >   document's conclusion and roughly eleven sections precede it in the file
@@ -29,13 +29,13 @@ most and taught the most. Rounds one to five are summarised at the end.
 > deleting an organisation, the four randomly-drawn sweeps after it, the pass
 > over everything they left, and a final review that changed **what it sampled**
 > once there was nothing left to draw. _(This line said "§5.42–5.44 (M5)" for
-> four days while forty sections had been added past it — which is this
+> four days while forty sections had been added past it, which is this
 > document's own subject arriving in its navigation note.)_
 >
 > **If you read one section, read §5.87**: the emergency stop that reported
 > success and stopped nothing. **§5.89 second**, because four of its seven
 > problems are the same mistake in four places. **§5.90** closes the pool and the
-> argument. **§5.91 is the one about method** — reviewing by _capability_ rather
+> argument. **§5.91 is the one about method**. Reviewing by _capability_ rather
 > than by _file_, and the test that turned out to be unable to fail for the
 > reason it existed.
 
@@ -52,12 +52,12 @@ differently.
 | Reviewer | Area                               | Why separate                                     |
 | -------- | ---------------------------------- | ------------------------------------------------ |
 | 1        | Where our code plugs into OpenClaw | Bugs here are invisible from inside our own code |
-| 2        | The dashboard web page             | A different skill set — screens, not logic       |
+| 2        | The dashboard web page             | A different skill set. Screens, not logic        |
 | 3        | The supporting logic modules       | Deep, narrow, easy to skim past                  |
 | 4        | **The tests themselves**           | Asks "would these tests actually catch a bug?"   |
 
 Each was told the same thing: _do not guess_. Every finding had to come with an
-exact file and line number, and a concrete story of how it goes wrong — specific
+exact file and line number, and a concrete story of how it goes wrong. Specific
 inputs producing a specific bad outcome.
 
 Then I reproduced every finding myself before touching anything. That mattered.
@@ -77,7 +77,7 @@ rounds never noticed.**
 The reason is embarrassing and worth stating plainly: every previous round ran
 _our_ tests. All 650 of them passed, every time. Nobody ran **OpenClaw's**
 tests. Our code sits inside their program, so of course it can break their
-things — but we had never once checked.
+things, but we had never once checked.
 
 I only found it because this round I ran their test files, saw 28 failures, and
 then did the one thing that turns a symptom into an answer: I checked out the
@@ -86,12 +86,12 @@ failed there. So nine were pre-existing and not ours; **nineteen were ours.**
 
 ### What was actually wrong
 
-The system starts in **"enforce"** mode — block anything not explicitly allowed
-— and a brand-new install has **zero rules written yet**.
+The system starts in **"enforce"** mode, block anything not explicitly allowed
+and a brand-new install has **zero rules written yet**.
 
 Put those together: from the second you install it, the agent can't read a file,
 can't run a command, can't do anything at all. And you can't write sensible
-rules to fix that, because you have no record of what the agent actually needs —
+rules to fix that, because you have no record of what the agent actually needs,
 you'd be guessing.
 
 An analogy: it's a building with a keycard system where nobody has been issued a
@@ -115,7 +115,7 @@ weakened the system and we did not:
 So after a day of normal work you have an honest list of everything the agent
 does, and you write your rules from evidence instead of imagination. Then you
 flip one switch to enforce. This is the standard way real security tools are
-deployed, and it is what our own operator guide already told people to do — the
+deployed, and it is what our own operator guide already told people to do. The
 software just wasn't set up to make it easy.
 
 ---
@@ -127,14 +127,14 @@ software just wasn't set up to make it easy.
 > **Superseded, and worth reading anyway.** Monitor came out of round six as the
 > fix for the "bricked on install" problem, and for a while it was the posture
 > every installation started in. It no longer is. An installation now starts in
-> **enforce, with rules already in it** — see `docs-notes/BASELINE-RULES.md`.
+> **enforce, with rules already in it**. See `docs-notes/BASELINE-RULES.md`.
 >
 > The reasoning below was sound but rested on a wrong premise: enforcement is
 > only unusable when it starts _empty_. Ship a starting policy and the
 > installation is usable and restricted in the same second, with no need to
 > choose. Monitor survives as an **opt-in, per-agent** tool for discovering
-> rules — watch one agent, read what would have been refused, promote the
-> legitimate entries — and it never suspends a core denial.
+> rules, watch one agent, read what would have been refused, promote the
+> legitimate entries, and it never suspends a core denial.
 >
 > The section is kept because the argument it makes about unusable controls
 > being switched off wholesale is still correct, and because the reversal is
@@ -152,14 +152,14 @@ The system runs in exactly one of three states at a time:
 | `monitor` | **yes**  | **no**                | **yes**         |
 | `enforce` | yes      | yes                   | yes             |
 
-`off` is genuinely off — nothing is evaluated and nothing is recorded, because
+`off` is genuinely off. Nothing is evaluated and nothing is recorded, because
 recording would imply an oversight that is not happening.
 
 `enforce` is the finished state: unlisted actions are blocked or escalated to a
 human.
 
-`monitor` is the interesting one. The gate does the **entire** job — it works
-out whether each action is allowed, exactly as it would in enforce — and then
+`monitor` is the interesting one. The gate does the **entire** job, it works
+out whether each action is allowed, exactly as it would in enforce, and then
 lets the action proceed anyway, having written the verdict down.
 
 ### The property that makes it useful
@@ -170,7 +170,7 @@ actually reached**, not "allowed because we let it through".
 That sounds like a small detail. It is the whole point. It means the log is a
 truthful prediction: every line marked `deny` is a line that _would have been
 blocked_ had you been in enforce. So you can read yesterday's log and know
-precisely what switching on enforcement would do — before you switch it on.
+precisely what switching on enforcement would do. Before you switch it on.
 
 This was not free. An earlier version of the code recorded "allow" in monitor
 mode because the action was in fact allowed to proceed, which produced a log
@@ -184,13 +184,13 @@ anything. It is fixed and there is a test for it.
    list in advance. Monitor produces it from real work.
 2. **A control that blocks everything gets switched off entirely.** Starting in
    enforce with no rules means the agent is useless on day one, and the
-   realistic response is not "let me carefully author a policy" — it is "turn
+   realistic response is not "let me carefully author a policy". It is "turn
    this thing off". Half a control is better than a control someone disabled.
 3. **It gives a safe rehearsal.** You can watch for a week, tighten rules until
    the log shows no unexpected denials, and only then enforce. Deployments that
    go straight to blocking tend to get rolled back after the first outage.
 4. **It preserves the requirement.** The paper asks for a default-deny policy
-   model. Monitor keeps default-deny _semantics_ completely intact — no rule
+   model. Monitor keeps default-deny _semantics_ completely intact, no rule
    still means no permission, and the verdict recorded is `deny`. What is
    deferred is enforcement, not the model.
 
@@ -211,7 +211,7 @@ unclear about whether they are being protected or merely observed.
 One thing is **not** suspended by monitor mode, and this was fixed in round six
 as a direct consequence of making monitor the default.
 
-Locking down an agent — the emergency stop — blocks that agent in every posture
+Locking down an agent, the emergency stop, blocks that agent in every posture
 except `off`. The reasoning: monitor means "policy _decisions_ are recorded
 rather than acted on", and the kill switch is not a policy decision. It is a
 person deciding, during an incident, that this agent stops now.
@@ -220,7 +220,7 @@ Before the fix, the stop was advisory in monitor mode: it aborted whatever was
 running, then let the agent carry straight on with its next action. That was a
 tolerable quirk while monitor was something you opted into deliberately. During
 the period when monitor was the shipped default, it meant every fresh
-installation came with an emergency stop that did not stop anything — so it had
+installation came with an emergency stop that did not stop anything, so it had
 to change.
 
 **Monitor is opt-in again, and off by default.** Making observation the default
@@ -228,7 +228,7 @@ had solved one problem by creating a bigger one: a system advertised as
 "refuses by default" that, as delivered, refused nothing. The real fix was to
 ship a starter set of rules so a new installation can be strict _and_ usable on
 day one. Monitor is now something an operator switches on for one agent when
-they want to watch it — which is the job it was always suited to. The kill-switch
+they want to watch it, which is the job it was always suited to. The kill-switch
 exception is kept regardless, because the reasoning never rested on the default:
 choosing to watch one agent is not a decision that the emergency stop should
 stop working.
@@ -240,7 +240,7 @@ stop working.
 OpenClaw already has several layers of protection that run one after another,
 like a series of checkpoints. We added ours at the front.
 
-The bug: when a human approved one of our prompts — clicking "Allow once" — our
+The bug: when a human approved one of our prompts, clicking "Allow once", our
 code returned "approved" and **stopped the chain there**. The remaining
 checkpoints never ran.
 
@@ -252,17 +252,17 @@ request carries on to the other checkpoints as it should.
 
 ### 4.2 A permission rule that could freeze the whole system
 
-Rules are written as _patterns_ — a compact way of describing "commands that
+Rules are written as _patterns_. A compact way of describing "commands that
 look like this". Certain patterns are pathological: they look tiny but take
 astronomically long to check.
 
 We already blocked the famous version of this. The reviewer found a second
 family we'd missed. I measured it:
 
-| Input length  | Time to check one pattern                        |
-| ------------- | ------------------------------------------------ |
-| 26 characters | 19 seconds                                       |
-| 28 characters | still running after **13 minutes** — I killed it |
+| Input length  | Time to check one pattern                       |
+| ------------- | ----------------------------------------------- |
+| 26 characters | 19 seconds                                      |
+| 28 characters | still running after **13 minutes**, I killed it |
 
 That last one is not an exaggeration; a background process sat pinned at 100% of
 a CPU core the entire time, and it's what proved the finding.
@@ -276,7 +276,7 @@ input and fails if it takes more than 50 milliseconds.
 
 ### 4.3 Two clicks at the same moment could lock everyone out permanently
 
-Deleting or demoting the last Root account is refused — we check first. But the
+Deleting or demoting the last Root account is refused. We check first. But the
 check and the change were two separate steps.
 
 Two administrators acting at the same instant both pass the check ("there are
@@ -286,7 +286,7 @@ exist. **The installation is unrecoverable.**
 
 The check now happens _inside_ the same lock as the change, so the second
 request sees the first one's result. Same shape of bug as one fixed last round
-in a different place — a good reminder that this category comes in families.
+in a different place. A good reminder that this category comes in families.
 
 While fixing it I found the rule was slightly wrong anyway: deleting the very
 _last account of all_ is fine, because with no accounts at all the setup screen
@@ -308,7 +308,7 @@ accounts are now discarded last.
 
 A related one: the lockout counter and the account lookup disagreed about how to
 read a username. Certain look-alike Unicode characters produce a name that signs
-in to the real account but counts against a _different_ lockout counter — a
+in to the real account but counts against a _different_ lockout counter. A
 fresh five guesses for each variant, and there are thousands of variants.
 
 ### 4.5 The dashboard quietly granted far more than anyone approved
@@ -321,7 +321,7 @@ the web page produced a rule applying to **every agent in the system**. The
 approval screen showed the pattern and the reason but not the scope, so the
 Administrator had no way to notice.
 
-This is the same privilege-escalation bug I fixed two rounds ago on the server —
+This is the same privilege-escalation bug I fixed two rounds ago on the server,
 defeated by the web page simply never filling in the field. The form now asks
 for it, and the approval row says the scope in plain words, with
 installation-wide flagged as a warning.
@@ -337,20 +337,20 @@ doing nothing. On the sign-in screen of a security console.
 replies with real detail: how many running tasks were aborted, and whether
 aborting was even possible in that situation. The page threw all of it away and
 showed "locked down". In the case where aborting isn't available, **the runaway
-task keeps running** — the exact opposite of what an emergency stop must tell
+task keeps running**. The exact opposite of what an emergency stop must tell
 you. The page now distinguishes "stopped 2 tasks", "nothing matched that name",
 and "couldn't stop anything, it's still going".
 
 ### 4.7 Our tests were writing into the real audit log
 
-Test runs are supposed to use a temporary folder. That works — for tests that
+Test runs are supposed to use a temporary folder. That works, for tests that
 know to ask for one.
 
 Our security check runs inside a function that _every_ OpenClaw test touches,
 and those tests were written years before this project. They didn't ask. So they
 used the real one: reading the real policy (meaning unrelated tests could pass
 or fail depending on rules I'd written by hand) and writing to the real audit
-log, which had swollen to 340 KB of test noise — inside the one file whose whole
+log, which had swollen to 340 KB of test noise. Inside the one file whose whole
 purpose is being a trustworthy record.
 
 Now, when running under a test runner with no folder specified, a throwaway
@@ -366,8 +366,8 @@ so this is the complete accounting, split by _why_ each was left.
 
 Two kinds of entry appear below, and the difference matters:
 
-- **Verified** — I reproduced it myself.
-- **Reported** — an auditor gave a file, a line, and an argument that reads
+- **Verified**, I reproduced it myself.
+- **Reported**: an auditor gave a file, a line, and an argument that reads
   correctly, but I did not independently reproduce it. Treat these as strong
   leads, not established facts.
 
@@ -377,7 +377,7 @@ Two kinds of entry appear below, and the difference matters:
 
 OpenClaw can run an agent through an external "harness" process instead of
 in-process. Whether that harness reports tool calls back to us is decided by a
-function that asks "is any before-tool-call policy installed?" — and it counts
+function that asks "is any before-tool-call policy installed?", and it counts
 only _plugin_ policies. Ours is not a plugin; it is built into the fork. So it
 answers "no", the reporting is skipped, and in that configuration tools run with
 no policy check, no log entry, and no kill switch.
@@ -393,12 +393,12 @@ conversation about which of those thirty tests are now wrong. Slipping it into a
 QA pass would have been the wrong call.
 
 It is recorded here, and there is a test in `gate-attachment.test.ts` that
-asserts the **current, wrong answer** — so the gap shows up in the suite rather
+asserts the **current, wrong answer**, so the gap shows up in the suite rather
 than only in a document, and whoever fixes it has to come and delete that test
 on purpose. Every configuration used in this project so far runs in-process and
 is unaffected.
 
-> **Fixed on 20 August 2026 — see §5.10 below.** The paragraphs above are left exactly as
+> **Fixed on 20 August 2026. See §5.10 below.** The paragraphs above are left exactly as
 > they were written, because the reason given for not fixing it turned out to be
 > the description of the right fix. And the thirty broken tests were not the
 > price of the repair; they were the sign that the repair was being made in the
@@ -409,12 +409,12 @@ is unaffected.
 These need somebody to choose what the behaviour _should_ be, which is not a QA
 call.
 
-| #   | Finding                                                                                                                                                                   | Status                   | Why it needs a decision                                                                                                                                                                                                                                                |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | When the agent patches a file, the path checked is absolute (`C:/Users/.../src/app.ts`), but every test and every doc example uses a short relative path (`src/app.ts`).  | Reported                 | Someone must decide which form rules match against. Both are defensible; the docs, tests, and code must then agree. Until then a documented path rule may silently never fire on a real patch.                                                                         |
-| 2   | The tamper-evident log's chain is not secret-keyed, so an attacker who edits an entry and recalculates every fingerprint after it produces a file that verifies as clean. | Verified by inspection   | Fixing it properly needs an external anchor — a copy of the latest fingerprint kept off the machine, or a signing key. That is a feature, and it interacts with how the VPS is deployed. Currently documented as a limitation alongside the known tail-truncation gap. |
-| 3   | There is no cap on how many rules a policy may hold, and indefinite rules are never pruned.                                                                               | Verified (no cap exists) | Every rule is re-checked on every action, so an unbounded ruleset slowly degrades the gate. But a cap that silently refuses a legitimate rule is its own hazard. Needs a chosen limit and a chosen behaviour at the limit.                                             |
-| 4   | A locked-down agent whose id is absent from the call context is not blocked.                                                                                              | Verified                 | The kill switch's termination path deliberately recovers the id from the session key when the field is missing; the policy check does not. Making them agree is right, but touches how agent identity flows through the host.                                          |
+| #   | Finding                                                                                                                                                                   | Status                   | Why it needs a decision                                                                                                                                                                                                                                               |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | When the agent patches a file, the path checked is absolute (`C:/Users/.../src/app.ts`), but every test and every doc example uses a short relative path (`src/app.ts`).  | Reported                 | Someone must decide which form rules match against. Both are defensible; the docs, tests, and code must then agree. Until then a documented path rule may silently never fire on a real patch.                                                                        |
+| 2   | The tamper-evident log's chain is not secret-keyed, so an attacker who edits an entry and recalculates every fingerprint after it produces a file that verifies as clean. | Verified by inspection   | Fixing it properly needs an external anchor. A copy of the latest fingerprint kept off the machine, or a signing key. That is a feature, and it interacts with how the VPS is deployed. Currently documented as a limitation alongside the known tail-truncation gap. |
+| 3   | There is no cap on how many rules a policy may hold, and indefinite rules are never pruned.                                                                               | Verified (no cap exists) | Every rule is re-checked on every action, so an unbounded ruleset slowly degrades the gate. But a cap that silently refuses a legitimate rule is its own hazard. Needs a chosen limit and a chosen behaviour at the limit.                                            |
+| 4   | A locked-down agent whose id is absent from the call context is not blocked.                                                                                              | Verified                 | The kill switch's termination path deliberately recovers the id from the session key when the field is missing; the policy check does not. Making them agree is right, but touches how agent identity flows through the host.                                         |
 
 ### 5.3 Left because they are real but lower severity
 
@@ -424,7 +424,7 @@ reproduced unless marked.
 **Correctness**
 
 - The "this rule clashes with an earlier one" notice can fire with a message
-  that is the opposite of the truth — telling an operator their new rule changes
+  that is the opposite of the truth. Telling an operator their new rule changes
   nothing, in the one case where it actually _extends_ access. An existing test
   asserts the wrong behaviour, so it locks the bug in.
 - The catch-all detector misses trivially universal patterns like `^` and `.+`.
@@ -455,7 +455,7 @@ reproduced unless marked.
 
 **Dashboard**
 
-- No confirmation prompt on any destructive action — deleting an account,
+- No confirmation prompt on any destructive action. Deleting an account,
   removing a rule, stopping an agent. Changing someone's role fires on a single
   click. The codebase has a confirmation-dialog component used elsewhere; this
   page does not use it.
@@ -477,7 +477,7 @@ keep passing even if the code broke. Two were fixed in round six. The rest:
 
 - Several authorization checks are pinned only by "the response was some 4xx",
   which cannot tell a permission refusal from a validation error. Six specific
-  privilege escalations would not be caught — including an Administrator
+  privilege escalations would not be caught, including an Administrator
   promoting themselves to Root.
 - The entire login and session-establishment surface has **no tests at all**.
   Every other test fabricates a session object directly, so nothing proves a
@@ -498,8 +498,8 @@ matter.
 
 ### The search tools were never being checked
 
-The agent has seven built-in tools for touching files. Four of them — open,
-write, change, patch — went through the permission check. Three did not:
+The agent has seven built-in tools for touching files. Four of them, open,
+write, change, patch, went through the permission check. Three did not:
 **search, find, and list**.
 
 Searching a file returns the lines that matched. Point it at a password file
@@ -510,7 +510,7 @@ Listing and finding were the same story one step down: they reveal what exists
 in a folder the agent was supposed to be kept out of.
 
 Nothing was hidden about this. Every one of those calls had been recorded in the
-audit log as `ungoverned` — the system's own word for "I did not check this" —
+audit log as `ungoverned`, the system's own word for "I did not check this",
 for the entire life of the project. The record was doing its job; nobody had
 read it looking for this.
 
@@ -525,7 +525,7 @@ deciding is still allowed.
 ### A shell has two doors, and only one was watched
 
 The agent can open a terminal. Opening it takes a command, and that command was
-checked. But once the terminal is open, the agent can type into it — and typing
+checked. But once the terminal is open, the agent can type into it, and typing
 was not checked at all.
 
 So the sequence "open a terminal, then type `sudo -i`" defeated the entire
@@ -543,7 +543,7 @@ the agent can ask for.
 `169.254.169.254` is a special address: on a cloud server it hands out the
 machine's credentials to anything that asks. It is on the built-in forbidden
 list. But the same machine also answers to `169.254.169.254.` with a trailing
-dot, to the plain number `2852039166`, and to a hexadecimal spelling — and the
+dot, to the plain number `2852039166`, and to a hexadecimal spelling, and the
 rule only recognised the first.
 
 The same defect had a friendlier face that was, if anything, more likely to bite
@@ -557,8 +557,8 @@ be fooled and cannot be accidentally missed.
 
 ### A feature that existed and could not be used
 
-Monitor mode — watch one agent without blocking it, so you can learn what rules
-it needs — was redesigned to be switched on per agent. The function to do it was
+Monitor mode, watch one agent without blocking it, so you can learn what rules
+it needs, was redesigned to be switched on per agent. The function to do it was
 written, tested, and documented as "turned on from the web dashboard".
 
 There was no button, no command, and no web address that called it. The only
@@ -567,12 +567,12 @@ thing that had ever called it was its own test.
 That is worth recording as its own category of defect. It is not a bug: the code
 was correct and the tests passed. It is a gap between what the system can do and
 what anyone can _reach_, and the specification is explicit that policy must be
-configurable from the dashboard — so a setting only a test can change does not
+configurable from the dashboard, so a setting only a test can change does not
 satisfy the requirement, however well it works.
 
 **Two more things were in exactly this state, and are now fixed too
-(2026-08-19).** The system understood rules that _forbid_ — the built-in
-protections are all forbid rules — and an operator could not write one; and it
+(2026-08-19).** The system understood rules that _forbid_, the built-in
+protections are all forbid rules, and an operator could not write one; and it
 understood "may read but not write", which the shipped starting policy itself
 uses, and an operator could not set it. Both needed a dropdown and a command-line
 flag, not new machinery. The lesson is that this category is worth _hunting_
@@ -588,8 +588,8 @@ happening to refuse something and the policy saying it always will.
 
 It is now on all three surfaces: dashboard, command line, and API. One thing is
 refused on all three, including for the top-level account: you cannot set a
-single agent to "off". "Off" is not a gentler setting, it is no gate at all —
-including no emergency stop and none of the built-in restrictions — and since an
+single agent to "off". "Off" is not a gentler setting, it is no gate at all,
+including no emergency stop and none of the built-in restrictions, and since an
 ordinary user can change their own agent's setting, allowing it would have made
 "disable every protection on my agent" a one-click operation. Turning the system
 off entirely is still possible, but only installation-wide, only for an
@@ -597,18 +597,18 @@ administrator, and it gets written down.
 
 ### Two rules that were each right and together wrong
 
-The system is meant to have exactly one Root — the top account, the one that
+The system is meant to have exactly one Root. The top account, the one that
 manages people. Two separate safety rules protect it. One refuses to create a
 second Root. The other refuses to remove the last one.
 
 Read either on its own and it is obviously correct. Read them together and they
 say something neither of them says: because a second Root can never exist, the
-"but another Root remains" escape in the second rule can never happen — so **the
+"but another Root remains" escape in the second rule can never happen, so **the
 Root account can never be deleted, demoted, or handed to anyone else.**
 
 That permanence is the behaviour we want. The problem was that nothing said so,
 and one thing said the opposite: when you tried to demote Root, the error told
-you to "promote another account to Root first" — which the other rule always
+you to "promote another account to Root first", which the other rule always
 refuses. The product was giving instructions it would not accept. A comment in
 the code described a two-step handover that had never once been possible.
 
@@ -637,7 +637,7 @@ true of three lists out of four, because the fourth was added later.
 restriction already forbids something, a permission you write for it is stored,
 appears in your list, and does nothing at all. Previously you were told nothing;
 the only way to find out was to read the audit log. Now you are told at the
-moment you write it — under a different heading from the ordinary "you already
+moment you write it. Under a different heading from the ordinary "you already
 had this" notice, because the two mean opposite things: one says your rule adds
 nothing, the other says your rule _does_ nothing.
 
@@ -651,8 +651,8 @@ The system simply did not do one of the things the paper said it did.
 
 The paper gives four roles. The User is the one handed _specific_ agents, and
 §1.6 says a User "may strictly prompt the agents for task execution". We built
-everything else that sentence implies — a User could write their agent's rules,
-read its logs unmasked, stop it, watch it — and could not send it a single
+everything else that sentence implies, a User could write their agent's rules,
+read its logs unmasked, stop it, watch it, and could not send it a single
 message. They could govern an agent they had no way to speak to.
 
 The reason is worth stating plainly because it is a normal way for projects to
@@ -664,8 +664,8 @@ finished.
 
 ### How it was closed, and why that shape
 
-The prompt is handed to **OpenClaw's own agent entry point** — the same one its
-existing HTTP API uses — rather than to a new run path built for the dashboard.
+The prompt is handed to **OpenClaw's own agent entry point**, the same one its
+existing HTTP API uses, rather than to a new run path built for the dashboard.
 That is the whole safety argument in one sentence: because it is the same path,
 every tool call the agent makes still goes through the permission gate exactly as
 before. **Prompting gives the agent nothing new.** It gives a person a way to
@@ -676,7 +676,7 @@ governance dashboard the least governed way to use the system.
 Three things happen that an ordinary chat box would not do:
 
 **The ledger now records who set the agent going.** It could already say what an
-agent did, and — since the administrative-audit work — who wrote the rules it was
+agent did, and, since the administrative-audit work, who wrote the rules it was
 judged by. It could not say who started it. The prompt is written to the
 tamper-evident log with the account name _before_ the run begins, so even a
 crash mid-run leaves the attempt on record. The paper asks the log to capture
@@ -686,7 +686,7 @@ where a chain of agent actions can be traced back to a person.
 **A stopped agent refuses to be talked to.** If an operator has hit the kill
 switch, the prompt is refused before the model is ever reached. Without that,
 "stop this agent" would still have let someone start it thinking, spend money,
-and get an answer back — which is not a stop.
+and get an answer back, which is not a stop.
 
 **Each person gets their own conversation with each agent.** Two Users assigned
 the same agent cannot read each other's messages. "Scope" has meant _which
@@ -701,7 +701,7 @@ local command-line use, where that is correct. Setting it on here would have
 been a privilege escalation in a single word: a governance prompt comes over the
 network, from the least privileged tier that can do anything at all, from an
 account whose entire purpose is to be constrained. It is set **off**, and that is
-the sort of decision worth a sentence in the report — the dangerous ones do not
+the sort of decision worth a sentence in the report. The dangerous ones do not
 always look dangerous.
 
 ### What is honestly still missing
@@ -716,13 +716,13 @@ records one.
 
 ---
 
-## 5.7 Round twelve — is it still OpenClaw?
+## 5.7 Round twelve: is it still OpenClaw?
 
 A different question from the previous rounds. Those asked whether the security
 layer worked. This one asks whether the thing we bolted it onto still works the
 way people actually use it.
 
-OpenClaw is normally reached through a chat app — you message the bot on Discord
+OpenClaw is normally reached through a chat app. You message the bot on Discord
 or Telegram and it does things for you. Our whole project has been tested
 through the dashboard we built. So: **does the fork still work over Discord?**
 
@@ -743,7 +743,7 @@ check reads it out of the conversation's identifier instead. That worked.
 Every test we had used an identifier we made up ourselves. If reading the agent
 out of a real Discord identifier had _not_ worked, then on the setup people
 actually use, the emergency stop would not have stopped anything and none of the
-per-agent rules would have applied — and every test would still have passed.
+per-agent rules would have applied, and every test would still have passed.
 
 It was correct. But "correct" and "checked" are different things, and until this
 round it was only the first. It is now tested against all four chat apps, using
@@ -752,14 +752,14 @@ look like.
 
 That is a refinement of the lesson running through this whole project. Ten
 rounds found bugs where two parts of the system **disagreed**. This round found
-an **agreement nobody had checked** — the same risk, one step earlier, and
+an **agreement nobody had checked**. The same risk, one step earlier, and
 invisible to the method that had caught all the others. _An untested agreement
 is not a working one; it is an unexamined one._
 
 ### What a Discord user actually experiences
 
-The agent works straight away for ordinary things — reading project files,
-listing a folder — because those are in the shipped starting policy. Anything
+The agent works straight away for ordinary things, reading project files,
+listing a folder, because those are in the shipped starting policy. Anything
 outside it pauses and asks a human, and because we hand that question to
 OpenClaw's own approval system rather than inventing our own, it shows up as
 Discord's normal approve/deny buttons. The handful of things on the permanent
@@ -774,12 +774,12 @@ towards _less_ access, never more.
 
 We attacked the new "talk to your agent" feature rather than demonstrating it,
 and found one: if the file storing conversation history got corrupted, the whole
-feature died — every message and every attempt to read the history failed, until
+feature died. Every message and every attempt to read the history failed, until
 someone found and deleted the file.
 
 The mistake is instructive. Failing safely is the right instinct, but it was
 applied to the wrong thing. Failing safely protects a _control_; conversation
-history is a convenience, and the real record — the tamper-evident log — is
+history is a convenience, and the real record, the tamper-evident log, is
 written separately and was never at risk. Losing your scrollback should not cost
 you the feature.
 
@@ -793,7 +793,7 @@ We could not fix this the way we fixed the search tools, and the reason is the
 interesting bit: **the reply is the whole point.** Blocking the agent from
 sending messages would stop it answering the person who asked it something. Doing
 this properly needs a new kind of rule that can tell "reply where you were
-spoken to" apart from "send this somewhere else" — a design change, not a
+spoken to" apart from "send this somewhere else". A design change, not a
 one-line addition.
 
 So it is written down rather than hidden, it shows up in the audit log marked as
@@ -802,7 +802,7 @@ quietly starts counting as approved.
 
 ---
 
-## 5.9 Round fourteen — the agent that could rename itself
+## 5.9 Round fourteen: the agent that could rename itself
 
 Round thirteen ended by saying one problem was too big to patch at the end of a
 review and deserved its own round. This was it.
@@ -810,7 +810,7 @@ review and deserved its own round. This was it.
 ### An agent could escape its own restrictions by starting a copy of itself
 
 Agents can start other agents. When one does, it can say **which agent the new
-one should be** — and the system identifies agents by name.
+one should be**, and the system identifies agents by name.
 
 Every restriction in this project is attached to a name. "This agent may not run
 `curl`" means "the agent called `agent-a` may not run `curl`". So an agent that
@@ -820,7 +820,7 @@ inherit that other name's permissions instead of its own.
 It is the difference between a locked door and a locked door that anyone can walk
 around by changing their badge.
 
-The fix is not to forbid starting other agents — that is a legitimate feature.
+The fix is not to forbid starting other agents. That is a legitimate feature.
 It is that **which name you start it under is now itself a permission**. An agent
 may start a copy of itself freely; starting one under somebody else's name has to
 be granted explicitly, by a person, in advance.
@@ -829,7 +829,7 @@ be granted explicitly, by a person, in advance.
 
 Stopping an agent still does not stop a copy it started under a _different_ name
 before you pressed the button. The parent's name is nowhere in the child's
-records, so this layer has nothing to trace the relationship with — it needs
+records, so this layer has nothing to trace the relationship with. It needs
 OpenClaw itself to report who asked for the child.
 
 What bounds it: because of the fix above, a differently-named child only exists
@@ -842,15 +842,15 @@ find that test failing and be sent straight to the explanation.
 ### Who is allowed to read your messages to an agent
 
 Two people can be assigned the same agent. The private transcript kept their
-conversations separate — but the audit log did not, so a colleague could read the
+conversations separate, but the audit log did not, so a colleague could read the
 full text of everything you had asked the agent to do.
 
 Settling it meant deciding which behaviour was _right_, not just making them
-match. The report requires the text to be **recorded** — that is not optional.
+match. The report requires the text to be **recorded**. That is not optional.
 But accountability does not require every colleague to **read** it. So the record
 stays complete and the _view_ narrows: you see your own messages, a colleague
-sees that you sent one and when, and administrators — who are given investigative
-powers explicitly — see everything.
+sees that you sent one and when, and administrators, who are given investigative
+powers explicitly, see everything.
 
 ### Two administrators, one rule, no warning
 
@@ -865,19 +865,19 @@ the conflict warning is to tell somebody their new rule is redundant.
 
 | Round | What it was                            | Headline finding                                                                                                                                                           |
 | ----- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1–2   | Reading my own code for mistakes       | The gate sat _after_ a shortcut that skips checks when no plugins exist — so it did nothing on a default install                                                           |
+| 1–2   | Reading my own code for mistakes       | The gate sat _after_ a shortcut that skips checks when no plugins exist, so it did nothing on a default install                                                            |
 | 3     | Edge cases and abuse                   | Approving a request always created an everyone-rule (privilege escalation); pattern-based freeze attack; login timing revealed valid usernames                             |
-| 4     | After making the log record everything | Recording agent-supplied text with no size limit — fill the disk and destroy the audit trail                                                                               |
+| 4     | After making the log record everything | Recording agent-supplied text with no size limit, fill the disk and destroy the audit trail                                                                                |
 | 5     | Checking against the real OpenClaw     | **Our list of governed tools named two tools that don't exist.** File access was ungoverned the whole time, while the dashboard accepted file rules that could never match |
-| 6     | Four parallel reviewers                | See above — 14 defects, and the discovery that we'd broken 19 of OpenClaw's own tests                                                                                      |
+| 6     | Four parallel reviewers                | See above, 14 defects, and the discovery that we'd broken 19 of OpenClaw's own tests                                                                                       |
 
 ---
 
-## 5.8 Round thirteen — attacking the build instead of reading it
+## 5.8 Round thirteen: attacking the build instead of reading it
 
 > **Where this ended up: 18 of the 24 problems below are fixed.** Everything in
 > this section is written as it was found, because that is what makes it worth
-> reading — but the build no longer behaves this way. The six left open are
+> reading, but the build no longer behaves this way. The six left open are
 > listed at the end, with the reason each was left. The test suite grew from
 > 1,264 checks to 1,297, and every fix carries a test that would catch the
 > problem coming back.
@@ -891,7 +891,7 @@ question, not by spotting something in the code.
 ### The check that was supposed to prevent this could not fail
 
 Round eleven found that three tools which read files had never been governed,
-fixed them, and — correctly — decided that the durable fix was not the three
+fixed them, and, correctly, decided that the durable fix was not the three
 names but a **test that compares our list of governed tools against OpenClaw's
 own list** on every run. That is the right instinct and it is the best idea in
 the project.
@@ -899,7 +899,7 @@ the project.
 The test compares against the wrong list.
 
 OpenClaw has two things that look like "the list of tools". One is the barrel
-file for the seven _editing_ tools — read, write, edit, and the three search
+file for the seven _editing_ tools. Read, write, edit, and the three search
 tools round eleven had just added. The other is the real catalogue the host uses
 to decide what an agent is allowed to have: fifty-six tools, including running
 processes, controlling a desktop, spawning other agents, and scheduling work for
@@ -910,7 +910,7 @@ eleven had just registered, and it will pass forever.
 
 Counting against the real catalogue: **seven of its fifty-two tools were
 governed and forty-five were not.** (The list of governed tools had eleven
-entries, but four of them — the search tools and an alias — are not in that
+entries, but four of them, the search tools and an alias, are not in that
 catalogue at all, which is part of how the mismatch stayed invisible.)
 
 That has since been fixed: eighteen are governed now, and the other thirty-four
@@ -919,13 +919,13 @@ each carry a written reason for being left alone.
 This is the most important thing found in the whole review, and not because of
 the number. A guard is a promise that a class of mistake cannot happen again.
 This guard was green while the mistake it names was happening on a scale nobody
-had measured — because nobody had asked what the guard was comparing against.
+had measured, because nobody had asked what the guard was comparing against.
 
 ### The ones that matter most among the forty-five
 
 - **`process`.** Start a shell in the background with `exec`, then use `process`
   to type into it. This is precisely the defect round eleven found in the
-  `terminal` tool — a shell has two doors and only one was watched — on the
+  `terminal` tool, a shell has two doors and only one was watched, on the
   sibling tool, missed because the fix was applied to the tool that was found
   rather than to the idea behind it. Typing `sudo -i` this way is allowed.
 - **`computer`.** Moves the mouse and types on a real desktop. An agent that is
@@ -937,7 +937,7 @@ had measured — because nobody had asked what the guard was comparing against.
   reading the gateway's own configuration.
 
 None of these needs a new idea to fix. Each needs a line in the registry and a
-short function saying what resource it touches — the same shape as the fix for
+short function saying what resource it touches. The same shape as the fix for
 `grep`. What is missing is the coverage, not the mechanism.
 
 ### The command line is a way around all of it
@@ -950,7 +950,7 @@ The bigger consequence was not written down. `openclaw governance policy
 set-mode off` switches the entire gate off, and the core rule that protects the
 governance files matches the **folder path**, not the **command**. So if an
 operator has ever written a rule broad enough to let their agent run the project
-— `node …`, `npm …`, `pnpm …`, which is the first rule most people write — the
+`node …`, `npm …`, `pnpm …`, which is the first rule most people write, the
 agent can turn its own governance off in one command. Tested with four
 spellings; all four allowed.
 
@@ -965,16 +965,16 @@ Three ways around it do not need the secret at all.
 1. **Cut off the end and delete the checkpoint.** The checkpoint file exists
    precisely because a chain cannot notice its own tail being cut off. Delete it
    as well and the verifier says everything is fine. The comment above that code
-   says a missing checkpoint "is itself reported rather than passing quietly" —
+   says a missing checkpoint "is itself reported rather than passing quietly",
    it is not; it is skipped.
 2. **Rewrite the whole thing in the old format.** The log supports entries from
    before the secret existed, so those verify without it. There is a guard
-   against _switching_ to the old format halfway — but rebuild the file from the
+   against _switching_ to the old format halfway, but rebuild the file from the
    beginning and there is no switch to notice. It just looks like an old log.
 3. **Damage the key.** The key file is read as hexadecimal, and if it contains
    anything that is not hexadecimal the reader silently keeps the valid part and
    discards the rest. Fill it with rubbish and the key becomes **zero bytes
-   long** — no error, no warning, nothing in the log. Every entry after that is
+   long**, no error, no warning, nothing in the log. Every entry after that is
    fingerprinted with a secret that is not secret, so forgery works again. And
    the way in is scribbling on a file, not reading one.
 
@@ -991,14 +991,14 @@ because it "cannot blow up".
 `^(.*a){20}$` passes the check. Tested against a 31-character line that does not
 match, one comparison took **142 seconds**. JavaScript cannot interrupt a
 running pattern, so for those two and a half minutes the gateway, the dashboard
-and every other agent are stopped. A User — the second-lowest tier — can write
+and every other agent are stopped. A User, the second-lowest tier, can write
 this rule.
 
 ### Turning off all protection is one click; deleting one rule asks twice
 
 On the dashboard, deleting a single rule opens a confirmation dialog styled as
-dangerous. Switching the whole installation to "off" — every protection, every
-agent — is a segment in a three-way toggle with no dialog at all. The two
+dangerous. Switching the whole installation to "off", every protection, every
+agent, is a segment in a three-way toggle with no dialog at all. The two
 controls are the wrong way round.
 
 ### The emergency stop succeeds when you mistype the agent's name
@@ -1006,7 +1006,7 @@ controls are the wrong way round.
 Every place the dashboard asks for an agent is a plain text box, and nothing
 compares what you type against the agents the page has already listed on screen.
 Stop `agent-1` when the agent is called `agent1` and you get a green result, a
-line in the audit log saying the agent was locked down, and "no runs stopped" —
+line in the audit log saying the agent was locked down, and "no runs stopped",
 which reads exactly like "it wasn't doing anything". The agent keeps working.
 
 For the one control in the system that exists for emergencies, needing to spell
@@ -1044,11 +1044,11 @@ assumptions and that has to apply to the attacker too.
 Windows does not care about capital letters in filenames, so reading `.ENV`
 should have slipped past a rule written as `.env`. It does not: the code resolves
 the path to the real name on disk first, and the real name is lower case. The
-only gap left is a file that **doesn't exist yet** — an agent creating
+only gap left is a file that **doesn't exist yet**. An agent creating
 `ID_RSA` is not stopped, and once it exists that becomes its real name.
 
 Windows also ignores a full stop at the end of a filename, so `.env.` should be
-another way to name the same file. At the operating system level it is — but
+another way to name the same file. At the operating system level it is, but
 Node refuses to open it, so nothing the agent can actually call reaches the file.
 Reporting either of these as a break-in would have been false, and both looked
 completely convincing from reading the code.
@@ -1086,7 +1086,7 @@ that when OpenClaw counted the plug-ins, it counted zero, decided nobody needed
 to be asked, and did not hand over the note.
 
 In that setup the agent could do anything at all. No rule was checked. Nothing
-was written in the log — not even a line saying "something happened that we
+was written in the log, not even a line saying "something happened that we
 could not judge", because an action that never reaches the checkpoint cannot be
 recorded as anything. And the emergency stop button did not work, because it is
 enforced at that same checkpoint.
@@ -1098,7 +1098,7 @@ Everything on the dashboard would have looked perfectly normal.
 There was an obvious fix: change the answer to that question to "yes, always".
 One line. It works.
 
-It also broke **thirty of OpenClaw's own tests** — because that same question is
+It also broke **thirty of OpenClaw's own tests**, because that same question is
 what lets OpenClaw skip the note in setups where somebody has deliberately asked
 it to. Answering "yes, always" doesn't just tell OpenClaw about us; it overrules
 everybody else too.
@@ -1117,8 +1117,8 @@ for _"is there anyone who needs to be asked?"_ Those are the same question only
 as long as everyone who needs asking is a plug-in.
 
 So the fix was not to change the answer. It was to ask the second question
-separately. OpenClaw now checks two things — "are there plug-ins?" and "is the
-built-in security layer here?" — and hands over the note if either says yes. The
+separately. OpenClaw now checks two things, "are there plug-ins?" and "is the
+built-in security layer here?", and hands over the note if either says yes. The
 plug-in question keeps its old meaning and its old answer, so nobody else's
 setup changes.
 
@@ -1136,14 +1136,14 @@ decision itself.
 OpenClaw also writes a list on the note saying which actions to phone home
 about, and it builds that list from what the plug-ins asked for. So on a machine
 with one plug-in that only cares about, say, running commands, the note would
-have said "ask about commands" — and every other action would have sailed past,
+have said "ask about commands", and every other action would have sailed past,
 _while the note was there and everything looked correct_. That is worse than the
 original problem, because it looks fixed. The note now says "ask about
 everything".
 
 **And what happens when the phone call fails?** The note carries an instruction
 for that case, and it said: go ahead anyway. Which is the right instruction when
-there is genuinely nobody to ask — and OpenClaw decided that from the very same
+there is genuinely nobody to ask, and OpenClaw decided that from the very same
 mis-asked question. So a governed machine now leaves that instruction off, and an
 agent that cannot reach the checkpoint is refused instead of waved through. That
 one fixed itself the moment the question was fixed, which is a small argument for
@@ -1152,7 +1152,7 @@ repairing the cause rather than patching each thing that depends on it.
 ### What we still cannot promise
 
 We can now guarantee the note is handed over and that it covers every action. We
-cannot guarantee the separate program _obeys_ the note — it is somebody else's
+cannot guarantee the separate program _obeys_ the note. It is somebody else's
 program, and a guard living inside our house can order our house around, not the
 neighbour's. What we can do is refuse when no answer comes back, which is what
 the second fix above does.
@@ -1168,24 +1168,24 @@ about what a question meant.
 The second is about the backlog rather than the code:
 
 > A problem you leave alone on purpose, with the reason written down, is not the
-> same as a problem you missed — and the difference is entirely the writing down.
+> same as a problem you missed, and the difference is entirely the writing down.
 
 When this was finally fixed, nothing had to be worked out again. The severity,
 the exact setup, the fix that had been tried and rejected, and _why_ it was
-rejected were all sitting there — and the recorded reason for rejecting the easy
+rejected were all sitting there, and the recorded reason for rejecting the easy
 fix turned out to be a description of the correct one.
 
 ---
 
 ## 5.11 The setting that was saved, shown, and never used
 
-Not a QA round. This came out of ordinary building work — and that is the
+Not a QA round. This came out of ordinary building work, and that is the
 interesting part.
 
 ### What was being built
 
 Root can say, about a _person_: "when this person's agent tries something the
-rules do not cover, do not bother asking me — just refuse it." There is a
+rules do not cover, do not bother asking me. Just refuse it." There is a
 matching setting about an _agent_, and the stricter of the two always wins, so
 neither can be used to loosen the other.
 
@@ -1205,8 +1205,8 @@ To use the setting, you have to read it. Reading it showed that it was being
 **saved under one name and looked up under another**.
 
 When Root types a name into the box, the setting was filed under exactly what
-they typed — `MALEK`. When the system later asked "does this person have a
-setting?", it looked under the name stored on their account — `Malek`. Different
+they typed, `MALEK`. When the system later asked "does this person have a
+setting?", it looked under the name stored on their account, `Malek`. Different
 spelling, different drawer, nothing found.
 
 So the setting was saved. It came back from the server. The dashboard showed it
@@ -1218,20 +1218,20 @@ as switched on. And nothing ever read it.
 The reason it happened is the same one that runs through this whole project.
 Three other parts of the system already had to answer "is this the same account?"
 and each of them had written out the same three-step answer separately. All three
-agreed — which is the only reason nothing else had broken. They were three
+agreed, which is the only reason nothing else had broken. They were three
 copies of one idea, and when a fourth part needed the same idea, it wrote a
 different version. Now there is one version and four users of it.
 
 ### One trap while fixing it
 
 Tidying the names up means lowercasing them. There are a few special words that
-mean something dangerous to the underlying machinery when used as a label —
-`__proto__` is the famous one — and there was already a check refusing them.
+mean something dangerous to the underlying machinery when used as a label,
+`__proto__` is the famous one, and there was already a check refusing them.
 
 But the check ran _before_ the lowercasing. So `__PROTO__` sailed past the check
 and arrived as `__proto__` afterwards. It had been harmless only because the name
 was also being _stored_ in its original spelling. Tidying the names without
-moving the check would have opened the exact hole the check exists to close —
+moving the check would have opened the exact hole the check exists to close,
 a fix creating the problem it was cleaning up after. The check now runs on the
 final version of the name.
 
@@ -1241,7 +1241,7 @@ Two people, Kinan and Malek, both look after the same agent. Root has restricted
 Malek.
 
 Before: Kinan sends the agent a task, the agent tries something the rules do not
-cover, and it is refused outright — because _Malek_ is restricted. Kinan's work
+cover, and it is refused outright, because _Malek_ is restricted. Kinan's work
 is being governed by a decision somebody made about a different person.
 
 After: Kinan's message is Kinan's, and Kinan's own setting applies.
@@ -1251,7 +1251,7 @@ report that hides one is not worth reading. The argument for it is simple: if
 you want to restrict what an _agent_ can do, there is a separate setting for
 exactly that, it is untouched, and the stricter of the two still wins. The
 per-person setting had quietly become a second, badly-aimed version of the
-per-agent one. A restriction that lands on the wrong person is not a safeguard —
+per-agent one. A restriction that lands on the wrong person is not a safeguard,
 it is a control nobody can reason about.
 
 ---
@@ -1264,7 +1264,7 @@ Three problems that look like polish and are not.
 
 You typed a message to the agent, and the screen said "Working…". That was all
 it said, for however long the task took. There was no way to stop it. If you
-closed the tab, the agent carried on regardless — and the only way to reach it
+closed the tab, the agent carried on regardless, and the only way to reach it
 was the emergency stop, which shuts the agent down completely and has to be
 switched back on by hand. And nothing limited how many of these you could start
 at once.
@@ -1276,14 +1276,14 @@ agent task: it thinks, it uses tools, it costs money, and it occupies the one
 program that also runs the entire security checkpoint.
 
 So the least powerful account on the system could make the whole thing
-unresponsive — for everybody, including the owner. **The cheapest way to attack a
+unresponsive, for everybody, including the owner. **The cheapest way to attack a
 security layer is not to break it; it is to make it unavailable, and it stops
 being available exactly when it is busiest.** This is the third time this project
 has found a version of that same problem, which is why it is worth naming.
 
 The fix is two limits, not one. There is a limit for the whole installation, and
 a smaller one per account. The per-account one is the important half: without it,
-one person could take every slot and leave the owner unable to do anything — the
+one person could take every slot and leave the owner unable to do anything. The
 least powerful account deciding whether the most powerful one gets to act.
 
 ### Now
@@ -1301,13 +1301,13 @@ mistyped something, it stops being treated as an emergency.
 **Cancelling asks the task to stop; it does not pretend it already has.** The
 slot it was using is not handed to somebody else until the task actually finishes
 unwinding. Otherwise you could cancel and immediately resend, over and over, and
-end up with far more work running than the limit allows — while every screen
+end up with far more work running than the limit allows, while every screen
 insisted the limit was being respected.
 
 **What you see on screen is censored the same way the log is.** The system hides
 things that look like passwords and keys before writing them into its permanent
 record. The live view now hides them too. Strictly speaking the rule only covers
-the log — but a live view that shows what the record hides is just a way of
+the log, but a live view that shows what the record hides is just a way of
 reading the censored part, and it is the same person looking at both.
 
 ### And one thing that stayed on the list
@@ -1316,7 +1316,7 @@ The reply is sent as a _whole snapshot_ each time rather than as "here are the
 next few words". That sounds wasteful and there are two good reasons for it.
 
 Models sometimes take back what they just said and rewrite it. If you are
-sending "the next few words", you cannot un-send words already delivered — the
+sending "the next few words", you cannot un-send words already delivered. The
 system's other interface has to give up and fail the whole reply when that
 happens. Sending the whole thing each time makes a correction ordinary.
 
@@ -1327,13 +1327,13 @@ caught.
 
 ### One last thing, about a test rather than the system
 
-While checking all this, one of the new tests started failing — but only when
+While checking all this, one of the new tests started failing, but only when
 the whole suite ran, never on its own.
 
 The test fills up an account's allowance and then checks that one more request
 is turned away. Sending a message to the agent is not instant: before the system
 counts it against the limit, it has to read the rules, write the log entry and
-save the message. So "send two, then send a third" turned out to be a race —
+save the message. So "send two, then send a third" turned out to be a race,
 the third message could reach the counter _first_, take a slot, and leave one of
 the first two to be refused. The test then sat waiting for a reply that was never
 coming.
@@ -1362,7 +1362,7 @@ A set of rules you cannot search is a control you cannot check.
 There is now a search box and four filters. One deliberate choice inside it: the
 search looks for the letters you typed, and does **not** treat what you type as a
 pattern. The rules themselves are patterns, and the single most useful search
-anyone does here is looking for `.*` — the symbol meaning "anything at all",
+anyone does here is looking for `.*`. The symbol meaning "anything at all",
 which is what an over-broad rule looks like. If the search treated your typing as
 a pattern, searching for "anything at all" would match every rule, and the one
 search that finds dangerous rules would instead find all of them.
@@ -1375,7 +1375,7 @@ search that finds dangerous rules would instead find all of them.
 English-only, and the other twenty-one languages fall back word by word". It is
 now a decision rather than an unfinished job: this is an English-only product.
 Translating a _security console_ into twenty languages nobody on the team can
-read is not a feature — a mistranslated "deny" is a control somebody misreads at
+read is not a feature. A mistranslated "deny" is a control somebody misreads at
 the worst possible moment.
 
 **Attachments are on hold, and the reason is written down.** You still cannot
@@ -1391,8 +1391,8 @@ key on it contains that key as _a picture of letters_. There is no way to scan
 for it. The same is true of a PDF, or a Word document, or anything zipped.
 
 So the question is not "how do we censor an attachment". It is **what are we
-willing to have a permanent record that cannot see?** Three possible answers —
-store the file, store only a fingerprint of it, or refuse attachments — and the
+willing to have a permanent record that cannot see?** Three possible answers,
+store the file, store only a fingerprint of it, or refuse attachments, and the
 list of things that could go wrong with each is written up in the remaining-work
 document. That is a decision for the team, not something to settle by starting
 to code.
@@ -1403,7 +1403,7 @@ to code.
 
 Everything this project had ever said about the dashboard came from tests of the
 machinery _underneath_ it. Nobody had sat down and used it. So somebody did:
-build it, start it for real, and go through it the way a new operator would —
+build it, start it for real, and go through it the way a new operator would,
 create the owner account, sign in, read the rules, try to add a colleague, open
 a conversation.
 
@@ -1419,11 +1419,11 @@ being inspected, not in the page: Governance is there, in the menu, between
 _Privacy & Security_ and _Approvals_.
 
 **"The Delete button on the owner account can never work."** The owner account is
-permanent — it cannot be demoted, and there can never be a second one — so a
+permanent, it cannot be demoted, and there can never be a second one, so a
 Delete button on it looked pointless. Leaving it alone was the right call, but
 the reason first written down here was wrong, and it is worth correcting rather
 than quietly editing: the first explanation was that deleting the only account
-is how you wipe the slate and start again. It isn't — the system refuses that on
+is how you wipe the slate and start again. It isn't. The system refuses that on
 two separate grounds. The real reason the button is fine is much simpler and had
 been missed: **it is already greyed out on your own row**, with a tooltip
 explaining that you cannot delete the account you are signed in with.
@@ -1437,8 +1437,8 @@ than read it. Reading produced two confident, wrong conclusions in one sitting.
 ### What was really wrong
 
 **The rules list was written for the computer, not for the reader.**
-Each rule was labelled with the pattern the system matches on. One of them —
-the rule that stops the agent reading your passwords and keys — is over two
+Each rule was labelled with the pattern the system matches on. One of them,
+the rule that stops the agent reading your passwords and keys, is over two
 hundred characters of things like `[eE][nN][vV]`. The plain-English description
 of what the rule was _for_ existed, but it had been pushed to the end of a line
 of small print.
@@ -1451,7 +1451,7 @@ reads.
 
 **A button that could never work.**
 The "create an account" form let you choose the role _owner_. There can only
-ever be one owner, and the system refuses a second one — so choosing it always
+ever be one owner, and the system refuses a second one, so choosing it always
 produced an error and nothing else. The same page already gets this right one
 panel up, where built-in rules have no Delete button because deleting them would
 be refused. Now the owner role is not offered, and the owner's own row simply
@@ -1459,23 +1459,23 @@ says _permanent, cannot be changed_.
 
 **The one step you cannot undo had the weakest safety net.**
 The very first thing a new installation asks for is the owner's password. There
-is no way to reset it afterwards — not by email, not from the system, nothing.
+is no way to reset it afterwards, not by email, not from the system, nothing.
 If you mistype it, you are locked out of your own security system, and the only
 way back in is to delete a file on the server by hand.
 
 That screen had a single password box, no confirmation, and did not mention that
-passwords must be at least eight characters — even though the _ordinary_
+passwords must be at least eight characters. Even though the _ordinary_
 account form further down the same page already said so. So: one mistyped
 keystroke, permanent lockout, no warning.
 
 It now asks twice, says the length rule before you submit rather than after, and
 warns that this password cannot be reset. The second box appears _only_ on that
-screen — asking twice every time you sign in would be irritating and pointless,
+screen. Asking twice every time you sign in would be irritating and pointless,
 because getting a normal sign-in wrong costs you one more try.
 
 **A spinner that never stopped.**
 If loading a conversation failed, the panel showed "Loading the conversation…"
-for ever. The error explaining what went wrong was being produced correctly —
+for ever. The error explaining what went wrong was being produced correctly,
 it just had nowhere to appear, because the code showed the loading message and
 stopped before reaching the part that shows errors.
 
@@ -1483,7 +1483,7 @@ stopped before reaching the part that shows errors.
 > because it tells the person to keep waiting.
 
 **Ten boxes with no name.**
-Seven text boxes and three dropdowns had no label for screen readers — they
+Seven text boxes and three dropdowns had no label for screen readers. They
 relied on the grey hint text inside them, which vanishes as soon as you type.
 The sign-in box on the very same page has a comment written next to it
 explaining why that is the wrong thing to do. The rest of the page had not
@@ -1492,9 +1492,9 @@ followed its own advice. All ten now have proper labels.
 ### The lesson
 
 All five of these sat underneath a fully passing test suite, and none of the
-tests was wrong. The system correctly refused to create a second owner — and the
+tests was wrong. The system correctly refused to create a second owner, and the
 page offered the button anyway. The system correctly reported that a
-conversation could not be loaded — and the page showed a spinner instead.
+conversation could not be loaded, and the page showed a spinner instead.
 
 > **Testing the engine is not testing the dashboard.** They are two different
 > things, and only one of them is what a person actually touches.
@@ -1522,7 +1522,7 @@ every device using that account afterwards. Nothing about it was wrong.
 **Nothing ever called it.** Not the dashboard, not the command line. It was a
 working mechanism with no button attached to it anywhere.
 
-So the owner's password — the one account that controls everything else — could
+So the owner's password, the one account that controls everything else, could
 never be changed after the moment it was first typed in. And the moment it is
 first typed in is the setup screen, which cannot be redone. If you suspected that
 password had been seen by someone else, the product had no answer for you.
@@ -1530,7 +1530,7 @@ password had been seen by someone else, the product had no answer for you.
 There is now a password box on every account in the list, including your own. It
 asks you to confirm first, and the confirmation says the two things you need to
 know: everyone signed in as that account gets signed out, and if it is _your_
-account that means you, immediately — so have the new password written down
+account that means you, immediately, so have the new password written down
 before you click.
 
 It was tested the only way worth testing it: change the owner's password in the
@@ -1541,8 +1541,8 @@ browser, get signed out, try the old password (refused), try the new one (works)
 Worth checking anyway, because "true" and "checked" are different things.
 
 **Only one owner, ever.** There are four ways somebody might end up with a second
-one — create it, promote somebody, demote the existing one out of the way, or
-delete it — and each was blocked by its own separate rule. Each rule had only
+one, create it, promote somebody, demote the existing one out of the way, or
+delete it, and each was blocked by its own separate rule. Each rule had only
 ever been tested on its own. That is exactly how, a few rounds ago, two of these
 rules ended up giving contradictory advice in their error messages: both were
 right, and nobody had checked what they said together. So now all four are tried
@@ -1552,7 +1552,7 @@ exactly one, and that it is the same one.
 **Ready to work, but still locked down by default.** This one is a balance, and
 both halves have to be checked together or the test is worthless. A brand-new
 installation now has to prove it can list a directory and read a project file
-with nobody having written a single rule — _and_, in the same breath, that it
+with nobody having written a single rule, _and_, in the same breath, that it
 still refuses `sudo`, still refuses to read a password file, still refuses to
 call the cloud service that hands out credentials, and still refuses a command
 nobody mentioned.
@@ -1585,7 +1585,7 @@ It could not answer the first question anyone actually asks after something goes
 wrong: **who was signed in?**
 
 Signing in to the dashboard, getting the password wrong, being locked out after
-five wrong guesses, signing out — none of it was written down anywhere. The
+five wrong guesses, signing out, none of it was written down anywhere. The
 system was perfectly capable of _noticing_ these things: it counts failed
 passwords well enough to lock an account after five. It just kept the count in
 its own memory, forgot it when the program restarted, and never told anybody.
@@ -1595,7 +1595,7 @@ everything about what the robot did, and nothing about which human was holding
 the controls.
 
 Both of the standards this project measures itself against expect exactly this
-to be recorded. It is not an exotic requirement — it is one of the first things
+to be recorded. It is not an exotic requirement. It is one of the first things
 on the list in either of them.
 
 ### What it does now
@@ -1616,7 +1616,7 @@ thinking was: **what happens when someone attacks it?**
 
 Here is the problem. Signing in successfully requires a password, so an attacker
 cannot make those entries happen. But _failing_ to sign in requires nothing at
-all — anybody who can reach the page can fail, forever, as fast as they like.
+all. Anybody who can reach the page can fail, forever, as fast as they like.
 And the audit log deliberately never deletes anything, because a log that throws
 away old history is not much of a log.
 
@@ -1631,7 +1631,7 @@ guesses at a thousand names that were never accounts in the first place.
 
 So there is a ceiling: two hundred failed sign-ins recorded in any fifteen
 minutes across the whole installation. A real office of people getting their
-passwords wrong will never come close. An attack sails past it in seconds — and
+passwords wrong will never come close. An attack sails past it in seconds, and
 when it does, the ones over the ceiling are counted rather than written, and the
 count is written as a single line saying how many were left out.
 
@@ -1643,7 +1643,7 @@ much it did not write down.
 ### Three smaller decisions, each of which could have gone wrong
 
 **A failed sign-in is not blamed on the account.** If someone types "alice" and
-the wrong password, the entry does not say alice did something — because nobody
+the wrong password, the entry does not say alice did something, because nobody
 demonstrated they are alice. That is the whole point of the entry. It says an
 unidentified person tried the name alice. The distinction sounds pedantic until
 you imagine reading the log during an investigation and seeing a colleague's
@@ -1657,7 +1657,7 @@ distinguish them either. An investigator loses nothing: what they need is the
 pattern of attempts, and that is there either way.
 
 **If the log cannot be written, you can still sign in.** Everywhere else in this
-system, a change that cannot be recorded is a change that does not happen — you
+system, a change that cannot be recorded is a change that does not happen. You
 cannot add a rule if adding it cannot be logged. Applying that rule here would
 mean that a full disk locks _everyone_ out of the dashboard, including the one
 administrator whose job is to go in and fix the full disk. An outage in the
@@ -1669,7 +1669,7 @@ are best-effort, and this is written down rather than glossed over.
 The dashboard has buttons for filtering the log, and one of them is labelled
 "Policy changes". Sign-in entries are technically the same _kind_ of entry as
 policy changes, so without any further thought they would have appeared under
-that button — and there are far more of them.
+that button, and there are far more of them.
 
 Which would have done to "who removed that rule?" precisely what the unfiltered
 log already did to everything: buried it. The button would still work, and would
@@ -1682,7 +1682,7 @@ something new arrived underneath it.**
 
 ---
 
-## 5.18 The sixteenth review — when a safety limit becomes a hiding place
+## 5.18 The sixteenth review: when a safety limit becomes a hiding place
 
 Four problems, all fixed. Three of them were in code the project had already
 looked at and been happy with, and two were in code written the same morning.
@@ -1705,7 +1705,7 @@ no idea. Nobody told it the sign had been taken down. It carried on working,
 believing it had the room to itself, while somebody else worked in there too.
 
 Then it got worse. On finishing, the first worker did what it always does on the
-way out — took down the sign. But that was not its sign any more. It was the new
+way out. Took down the sign. But that was not its sign any more. It was the new
 occupant's. So it walked out and left the door open behind someone else, who now
 also believed they had the room to themselves, and who would in turn do the same
 thing to the next person.
@@ -1714,13 +1714,13 @@ Three changes fix it. The worker now checks in periodically, so "no sign of
 life" means what it says instead of "taking a while". The sign has a name on it,
 and nobody can take down a sign with somebody else's name. And if a worker
 finishes and finds its sign already gone, it now says so loudly rather than
-reporting success — because work that was supposed to be protected and wasn't is
+reporting success, because work that was supposed to be protected and wasn't is
 not work you should trust.
 
 ### The fix that locked everyone out for four minutes
 
 Requiring a name on the sign had an obvious consequence that was not obvious at
-the time: what about a sign with **no** name on it? Those exist — one left by an
+the time: what about a sign with **no** name on it? Those exist, one left by an
 older version of the system, or by a crash that happened between hanging the
 sign and writing on it.
 
@@ -1738,7 +1738,7 @@ about the problem it was aimed at, and everything about the fix.
 
 This one is the most interesting, and it is worth following slowly.
 
-That morning, sign-in events had been added to the audit log — including failed
+That morning, sign-in events had been added to the audit log, including failed
 passwords. That raised a problem immediately: **anyone can fail to sign in.** You
 do not need a password to get a password wrong. And the audit log never deletes
 anything, on purpose, because a log that forgets is not much of a log.
@@ -1753,7 +1753,7 @@ left out. Sensible. A real office never comes close to two hundred.
 Here is what that missed. **The attacker gets to decide what goes in the two
 hundred.**
 
-Send two hundred sign-in attempts for invented names — `zzz1`, `zzz2`, and so on.
+Send two hundred sign-in attempts for invented names, `zzz1`, `zzz2`, and so on.
 The ceiling is now full. Then quietly start guessing the administrator's
 password, four attempts at a time, staying below the five that would lock the
 account and raise an alarm. None of it is recorded. The audit log ends up
@@ -1763,8 +1763,8 @@ about the one account that does.
 The limit written to stop an attack had become a tool for carrying one out.
 
 The fix comes from noticing that the two behaviours look different. **Flooding
-needs new names every time** — that is what makes it flooding. **Guessing needs
-the same name over and over** — that is what makes it guessing. So the budget is
+needs new names every time**. That is what makes it flooding. **Guessing needs
+the same name over and over**. That is what makes it guessing. So the budget is
 split in two. Most of it is available to names being seen for the first time.
 The rest is held back for names that have come up before, and a flood cannot
 touch that part without repeating itself, at which point it has stopped being a
@@ -1778,7 +1778,7 @@ that changed is which failures are judged worth writing down.
 To know whether a name had come up before, the new code kept a list. The list
 had to have a size limit, so when it filled up, the oldest entry was dropped.
 
-The oldest entry is the administrator's account — because the attacker
+The oldest entry is the administrator's account, because the attacker
 mentioned it first and has been patiently returning to it ever since. The list
 built to catch the attack would have thrown away the only entry that mattered.
 
@@ -1795,7 +1795,7 @@ problem; fixing one of them is not the answer.
 
 If someone types their password into the username box by mistake, it gets
 written into the audit log. There is no way around this: nothing can tell a
-mistyped password apart from a username — they are both just text arriving in the
+mistyped password apart from a username. They are both just text arriving in the
 same field.
 
 So it is recorded here as a known limit rather than solved. Only administrators
@@ -1810,7 +1810,7 @@ silent claim about what it compares against._
 This one produced its twin: **a limit makes a silent claim about which of the
 things it throws away were the ones worth keeping.**
 
-Both of the limits in this round — two hundred entries, fifteen minutes — were
+Both of the limits in this round, two hundred entries, fifteen minutes, were
 put there for good reasons and were right about the thing they protected. Both
 were completely silent about the choice they were making, and in both cases
 someone who understood that choice could steer it. A limit looks like a technical
@@ -1820,7 +1820,7 @@ detail. It is a decision about what you will not know.
 
 ## 5.19 Two decisions about who is allowed to change what
 
-Not defects — decisions, taken deliberately, and recorded here because the
+Not defects. Decisions, taken deliberately, and recorded here because the
 reasoning is the part that will matter later.
 
 ### Which of the shipped rules are the operator's to change
@@ -1828,12 +1828,12 @@ reasoning is the part that will matter later.
 Every installation ships with two sets of rules, and they are easy to confuse
 because both arrive before anybody has configured anything.
 
-**The baseline set** is six _permissions_ — read files in the project, run a
+**The baseline set** is six _permissions_. Read files in the project, run a
 handful of harmless inspection commands, look at the git history. They exist so
 an agent can do useful work on the first day. An administrator has always been
 able to narrow or delete any of them, and that has never been in question.
 
-**The core set** is eight _prohibitions_ — no credential files, no `.ssh`
+**The core set** is eight _prohibitions_, no credential files, no `.ssh`
 directory, no `sudo`, no wiping the disk, no reaching the cloud provider's
 credential service, and no touching the governance system itself. These were
 absolutely fixed. Nobody could change them, including the most privileged
@@ -1846,7 +1846,7 @@ The line is not "how dangerous is this rule". A credential prohibition is
 enormously important and it is now adjustable. The line is **what being able to
 lift the rule would let somebody reach**. Three of the eight exist to stop the
 agent getting at the governance system's own files, its own command line, and
-its own records. Remove those and nothing else means anything any more —
+its own records. Remove those and nothing else means anything any more,
 including the list of which rules have been switched off, which the agent could
 then simply edit.
 
@@ -1855,7 +1855,7 @@ So those three stay fixed, and they are what keep the other five honest.
 **Why not leave all eight fixed?** Because this project already learned what
 happens to a control that cannot bend. Early on, the system shipped in its
 strictest setting with no permissions at all, and the agent could do nothing.
-The reaction was not to write better rules — it was to switch the whole thing
+The reaction was not to write better rules. It was to switch the whole thing
 into observe-only mode. An operator whose agent genuinely needs one of these
 five would have faced the same choice: accept a system that does not work, or
 turn the whole thing off. Given those two options people turn it off.
@@ -1867,13 +1867,13 @@ turn the whole thing off. Given those two options people turn it off.
   back the moment somebody switches it on again.
 - **It cannot be done quietly.** The change is written into the tamper-evident
   log against the person who made it, naming the rule in full. And the system's
-  own health report starts saying the installation is **failing** — not
-  "warning" — for as long as any of them is off. That report is evidence in the
+  own health report starts saying the installation is **failing**, not
+  "warning", for as long as any of them is off. That report is evidence in the
   final write-up, so it has to say what is actually true.
 - **Switching off a prohibition does not permit anything.** This reads backwards
   and is worth sitting with. The system refuses everything by default. A
   prohibition is an override that beats permissions. Turning one off does not
-  grant the action — it just stops the override, so the action goes back to
+  grant the action. It just stops the override, so the action goes back to
   being refused until somebody writes an explicit permission for it. The
   practical effect is to convert "forbidden, full stop" into "forbidden unless
   you say otherwise, in writing, on the record".
@@ -1882,7 +1882,7 @@ turn the whole thing off. Given those two options people turn it off.
 
 The User role was widened earlier in the project: rather than only _proposing_
 changes for an administrator to approve, a User genuinely manages the agents
-assigned to them — writing rules, setting how cautious the agent should be,
+assigned to them. Writing rules, setting how cautious the agent should be,
 reading its full logs, stopping it.
 
 That is right for most installations and wrong for some. An organisation running
@@ -1890,7 +1890,7 @@ several teams might reasonably want some team leads managing their agents and
 others only watching them.
 
 Before, the only way to get the narrower behaviour was to demote the person to
-the read-only role — which also took away reading full logs, talking to the
+the read-only role, which also took away reading full logs, talking to the
 agent, and **stopping it**. Three things that have nothing to do with writing
 rules.
 
@@ -1902,14 +1902,14 @@ themselves.
 
 **And building it introduced a bug that the safety net caught.** The first
 version wired the new switch into the function that answers "may this person act
-on this agent?" — which turned out to be answering that question for eight
+on this agent?", which turned out to be answering that question for eight
 different things at once. So withholding somebody's ability to _edit rules_ also
 silently removed their ability to _stop their own agent_.
 
 That is a genuinely dangerous kind of mistake: a restriction that quietly
 removes a safety control, in a way nobody would think to check, because the two
 things sound unrelated. It was caught because a test had been written first
-asking exactly that — "can a restricted person still hit the emergency stop?"
+asking exactly that, "can a restricted person still hit the emergency stop?"
 
 The fix was not to special-case the stop button. It was to split the question
 into two: _may this person act on this agent?_ and _may this person change the
@@ -1936,7 +1936,7 @@ project's design document puts them with the administrator, and that turned out
 to matter rather than being a technicality.
 
 Here is why. "Refuse it" is a wall. "Ask a person" is a doorbell. Moving the
-switch from the first to the second does not open the door — but it creates the
+switch from the first to the second does not open the door, but it creates the
 possibility that somebody opens it, and it was the least-privileged role that
 could create that possibility, for their own agent, without telling anyone.
 
@@ -1950,7 +1950,7 @@ member still knows their agent best, and they are the one who notices it needs a
 different setting. So the capability moved rather than disappeared: **they ask,
 and an administrator says yes or no.**
 
-That request goes into the queue that already existed for asking about rules —
+That request goes into the queue that already existed for asking about rules,
 not a new one beside it. An administrator reviewing what their team has asked
 for should have one list to read. Two lists is two places to look, and two
 places to forget to look.
@@ -1969,7 +1969,7 @@ Three small things about how the asking works:
 ### The command line finally knows who you are
 
 Every change made from a terminal used to be recorded as having been made by
-"cli". Not a person — the machine. The log could say a change happened here and
+"cli". Not a person. The machine. The log could say a change happened here and
 never who made it.
 
 That was already on the known-limitations list. What the list understated is
@@ -1978,8 +1978,8 @@ account was read-only could open a terminal and change things the web page would
 have refused them.
 
 There is now a proper sign-in. It asks for a password without showing it on
-screen, remembers you between commands in a file only you can read, and — the
-part that matters — checks your permissions using **the same code the web page
+screen, remembers you between commands in a file only you can read, and, the
+part that matters, checks your permissions using **the same code the web page
 uses**. Two places asking the same question in two different ways is how they
 end up giving two different answers.
 
@@ -1991,8 +1991,8 @@ moment.
 commands can also open the settings files and edit them directly. A sign-in on
 the command line is a real protection against mistakes and casual misuse, and it
 is **not** a wall against someone determined who already has access to the
-machine. That was true before and is still true. There is a test that proves it —
-it edits a settings file with no sign-in at all and checks that the edit works —
+machine. That was true before and is still true. There is a test that proves it,
+it edits a settings file with no sign-in at all and checks that the edit works,
 because the honest thing is to have the test suite state the limitation rather
 than let twelve other tests quietly imply it away.
 
@@ -2004,7 +2004,7 @@ time_.
 This sounds minor and is not. Roles change. If somebody is an administrator in
 March and demoted in June, an investigation in July needs to know they were an
 administrator when they made the March change. Looking their role up later gives
-the wrong answer — so it is written down at the moment, and never looked up
+the wrong answer, so it is written down at the moment, and never looked up
 afterwards.
 
 The awkward part was that this had to be added to the tamper-proof chain, which
@@ -2037,7 +2037,7 @@ showing an API key contains that key as an image. There is no pattern to match.
 The same is true of a PDF, a Word document, or anything zipped.
 
 So the question was never "how do we censor an attachment". It was **what the
-record is allowed to be unable to see** — and there were three possible answers:
+record is allowed to be unable to see**, and there were three possible answers:
 
 1. **Store the file in the log.** Best possible record, worst possible idea: it
    turns the audit log into a filing cabinet of uncensored secrets, and that log
@@ -2053,7 +2053,7 @@ record is allowed to be unable to see** — and there were three possible answer
 record what the thing is and where it went, and you keep the thing itself
 somewhere appropriate.
 
-The files live inside the governance system's own folder — and that is not
+The files live inside the governance system's own folder, and that is not
 housekeeping. The agent is already forbidden from touching that folder by one of
 the three protections nobody, not even the most privileged account, can switch
 off. So attachments are protected by a rule that **cannot be removed**, rather
@@ -2065,11 +2065,11 @@ was written:
 
 - **The filename.** A name like `../../.ssh/authorized_keys` is a classic way to
   write a file somewhere it should not go. The answer is that the name **is never
-  used as a filename** — files are stored under their own fingerprint, and the
+  used as a filename**. Files are stored under their own fingerprint, and the
   name is kept only as a note. The attack is not blocked; it is impossible.
 - **The size.** Someone could upload enormous files until the disk holding the
   audit log fills up. There is a limit, and it is applied **while the file is
-  arriving** rather than after it has all been read — otherwise the uploader
+  arriving** rather than after it has all been read. Otherwise the uploader
   still gets to decide how much memory the system uses before being told no.
   There is also a per-person allowance, so one person cannot spoil it for
   everybody.
@@ -2090,7 +2090,7 @@ finished.
 ## 5.21 The week the documentation was audited instead of the code
 
 Engineering detail and the defect table for these four are in `GOVERNANCE.md`,
-"Documentation audit (2026-08-24) — findings 108-111".
+"Documentation audit (2026-08-24). Findings 108-111".
 
 Every earlier round in this document attacked the _system_. This one read the
 project's own paperwork against the working tree, and found four things wrong
@@ -2107,7 +2107,7 @@ They had not. They had re-added the **totals** at the bottom, which came out
 looking plausible, and left the individual rows alone. Counting them properly
 found **twenty-one of thirty-seven rows wrong**, some of them badly: one file
 was listed at 144 lines and is actually 545. Eleven more files were missing from
-the table altogether — around three thousand lines of the system simply absent
+the table altogether. Around three thousand lines of the system simply absent
 from the list of what the system is made of.
 
 **Why it survived.** The totals were genuinely recalculated and they looked
@@ -2121,13 +2121,13 @@ unchecked as the detail did._
 The project's headline claim is "1,794 tests pass across 87 files". Both halves
 are true of what the command prints and misleading about what exists.
 
-Ten of the test files are run three times over — deliberately, under three
+Ten of the test files are run three times over. Deliberately, under three
 different configurations, because those files test something that has to work in
 three arrangements. Every test inside them is therefore counted three times.
 There are **67 files, not 87**, and **1,156 distinct tests, not 1,794**.
 
 The uncomfortable part is not the mistake. It is that the project had **already
-found this exact mistake, written it down, and warned about it** — a few
+found this exact mistake, written it down, and warned about it**. A few
 paragraphs away, about a different suite, where a figure of "9 failures" turned
 out to be 18 because that suite runs under two configurations. The warning says:
 compare like for like, and record the command beside any number worth keeping.
@@ -2146,7 +2146,7 @@ that ability had deliberately been moved up to an administrator. Anyone
 following the guide would have been refused by the system and had no way of
 knowing which was right.
 
-This one had been _noticed_ — the handoff said the section "needs rewriting".
+This one had been _noticed_. The handoff said the section "needs rewriting".
 What the note underestimated was the difference between a document that is
 **incomplete** and one that is **wrong**. Prose that lags is a chore; a table
 that states the opposite of the code is a defect, and it had been filed as the
@@ -2154,9 +2154,9 @@ first.
 
 ### Two finished features that were never written down
 
-Two working parts of the system — being able to ask "what is this agent allowed
+Two working parts of the system, being able to ask "what is this agent allowed
 to do?" and "which agents does this rule affect?", and a switch letting the
-owner withhold rule-writing from a team lead — existed, were tested, and
+owner withhold rule-writing from a team lead, existed, were tested, and
 appeared in no list of what the project contains.
 
 The reason is ordinary and worth stating: the backlog was kept as a list of
@@ -2166,7 +2166,7 @@ and incomplete as an inventory, and nothing in the routine told the two apart.
 
 ## 5.22 Asking the same question twice and only listening to the first answer
 
-This one is a fix rather than a finding — the last thing on the list that
+This one is a fix rather than a finding. The last thing on the list that
 changed how safe the system actually is, rather than how well it is described.
 
 ### The problem, with no code in it
@@ -2177,15 +2177,15 @@ meeting room, and says: fine, go ahead. Then the guard hands the card back and
 the visitor walks off to find Room 12 themselves.
 
 In between, somebody changes what "Room 12" points to. The sign now leads to the
-records office. The visitor follows the card — the same card the guard
-approved — and ends up somewhere the guard would never have allowed.
+records office. The visitor follows the card, the same card the guard
+approved, and ends up somewhere the guard would never have allowed.
 
 Nobody lied. The guard checked properly. The visitor followed the card exactly.
 The problem is that **the card was read twice**, and only the first reading was
 checked.
 
-That is precisely what the system was doing with file paths. A shortcut — a
-"symbolic link", one name that points at another file — could be repointed
+That is precisely what the system was doing with file paths. A shortcut, a
+"symbolic link", one name that points at another file, could be repointed
 between the moment the system approved it and the moment the file was opened.
 
 ### The fix that does not work, and why it is tempting
@@ -2197,7 +2197,7 @@ It does not work, and it is worth understanding why, because it is the answer
 most people reach for first. The two checks happen a fraction of a second apart.
 Anyone capable of changing the sign in that gap is capable of waiting for the
 second check to pass and _then_ changing it. You have not removed the problem;
-you have made it happen less often — which is worse than leaving it alone,
+you have made it happen less often, which is worse than leaving it alone,
 because now it is rare enough to slip through testing and still show up in real
 use.
 
@@ -2218,7 +2218,7 @@ second look-up.
 ### Why it only does this occasionally, on purpose
 
 Almost every file an agent opens has no shortcut in it at all. For those, the
-system changes nothing whatsoever — the request goes through exactly as written,
+system changes nothing whatsoever. The request goes through exactly as written,
 character for character.
 
 This was a deliberate constraint rather than an optimisation. The path a request
@@ -2235,7 +2235,7 @@ The system used to signal "this is allowed" by **saying nothing at all**. No
 objection meant go ahead.
 
 Now an allowed request sometimes comes back carrying the corrected file path.
-Something _is_ returned — and fifteen places in the test suite had been reading
+Something _is_ returned, and fifteen places in the test suite had been reading
 "nothing came back" as "it was allowed". One of them immediately reported a
 perfectly ordinary request as though a human had been asked to approve it.
 
@@ -2245,14 +2245,14 @@ those two questions gave the same answer for as long as they happened to.
 
 This is the same lesson the project has now found more than a hundred times, and
 this is the cleanest example of it: **when you let silence stand for a meaning,
-you have made an assumption — and it is exactly as unchecked as everything else
+you have made an assumption, and it is exactly as unchecked as everything else
 was before someone looked.**
 
 ### What it still cannot stop
 
 Worth being straight about. The system now opens the exact file it approved. If
 somebody _replaces that file itself_ in the meantime, the system opens the
-replacement, and no amount of care about names would prevent it — that attack
+replacement, and no amount of care about names would prevent it. That attack
 needs the ability to overwrite the actual file, which is a different and much
 larger privilege than repointing a shortcut.
 
@@ -2265,7 +2265,7 @@ someone to find.
 
 The seventeenth review looked at everything built in the previous few days
 rather than at the older parts of the system. Six problems, and **five of them
-were in code written that same week** — two in code written that same day.
+were in code written that same week**, two in code written that same day.
 
 That keeps happening, and it is worth saying rather than hiding: the riskiest
 code in this project has never been the oldest. It has been the newest.
@@ -2278,12 +2278,12 @@ The code that decoded it was wrapped in a safety net: if the encoding is
 malformed, reject the request.
 
 The safety net could never catch anything. The decoder does not report a
-problem — when it meets a character it does not recognise it quietly throws that
+problem. When it meets a character it does not recognise it quietly throws that
 character away and carries on with whatever is left. So a malformed name was not
 rejected; it was turned into gibberish and written into the permanent audit
 record as the file's name.
 
-Worse, if the name arrived twice — which some intermediaries do by accident —
+Worse, if the name arrived twice, which some intermediaries do by accident,
 the two were joined with a comma and a space, both of which the decoder
 discards, producing a filename made entirely of invisible characters.
 
@@ -2295,7 +2295,7 @@ tell you that it is not.
 ### The replacement, which was also wrong
 
 The fix was a proper check of the encoding, written by hand. It rejected almost
-everything — including every filename that is not in English, which is precisely
+everything, including every filename that is not in English, which is precisely
 what it had been added to protect.
 
 The error was one step of counting, in the part that handles the padding
@@ -2310,20 +2310,20 @@ run.**
 ### A fix that reintroduced the problem it fixed
 
 The previous session closed a gap where the system worked out which file a
-request meant, approved it, and then let the tool work it out a second time —
+request meant, approved it, and then let the tool work it out a second time,
 giving an attacker a moment to change the answer in between. The repair was to
 stop asking twice.
 
 Reviewing it found that the repair asked twice.
 
-Not in the same place — the tool no longer looks anything up. But inside the
+Not in the same place. The tool no longer looks anything up. But inside the
 system's own approval step, the file was worked out once to check it against the
 rules, and worked out _again_ to decide what to hand over. Two lookups, a
 sliver of time apart, with the same gap between them in miniature.
 
 Nobody would have argued for that if it had been described in those words. It
 survived because the two lookups were written minutes apart for different
-reasons, and because the change was plainly better than what it replaced — which
+reasons, and because the change was plainly better than what it replaced, which
 is exactly the state in which nobody goes looking for a problem. **A fix does
 not get inspected as hard as the thing it fixes.**
 
@@ -2341,7 +2341,7 @@ permanently, with no way to undo it, because nothing in the system could delete
 anything.
 
 Now an upload that has not been sent can be taken back. One that _has_ been sent
-cannot — at that point the audit record refers to it, and a record whose evidence
+cannot, at that point the audit record refers to it, and a record whose evidence
 can be removed by the person it describes is not a record.
 
 **The general point:** a limit is a statement about how people work. Add a new
@@ -2351,7 +2351,7 @@ single line of it changing.
 ### One name for one account
 
 An account called `Kinan` and one called `kinan` are the same person, and the
-system has a single shared place that says so — with a note in it explaining
+system has a single shared place that says so, with a note in it explaining
 that everything which looks an account up must go through it. Eight parts of the
 system do. The file store, written last, did not: it filed uploads under
 whichever spelling appeared, which would have given one person two separate
@@ -2368,21 +2368,21 @@ driven directly, the browser's encoding was checked against the server's
 decoder, and the on-screen pieces were tested in isolation. Nobody had opened
 the actual page in an actual browser and used it.
 
-Doing that took about an hour and found one thing — and it was a thing none of
+Doing that took about an hour and found one thing, and it was a thing none of
 the earlier checks could have found.
 
 ### The button that only worked for people with a mouse
 
 The "Attach" control looked like every other button on the page and behaved
 like one when clicked. It was not a button. It was a _label_ wrapped around a
-hidden file box — a common web trick, because the browser's own file-picking
+hidden file box. A common web trick, because the browser's own file-picking
 control is famously ugly and cannot be restyled.
 
 The trick has a cost that is invisible unless you go looking. Hiding the file
 box the way this did removes it from the list of things you can reach by
 pressing Tab, and the label wrapped around it was never in that list to begin
-with. So there was nothing to land on. Anyone navigating by keyboard — which
-includes every screen-reader user, and anyone who cannot use a mouse — could
+with. So there was nothing to land on. Anyone navigating by keyboard, which
+includes every screen-reader user, and anyone who cannot use a mouse, could
 not attach a file at all. The button was there, it was visible, and it was
 unreachable.
 
@@ -2392,7 +2392,7 @@ is what the rest of the page already did.
 ### How it was noticed, which matters more than the bug
 
 The tool used to inspect the page reads it the way assistive technology does.
-It listed the message box, "Send" and "Cancel" — and no attach control. The
+It listed the message box, "Send" and "Cancel", and no attach control. The
 page's own markup plainly contained one.
 
 That gap _was_ the bug. A control that the author can see and the accessibility
@@ -2413,27 +2413,27 @@ substitutes for that.
 
 Most of it worked, and several things could only be confirmed here:
 
-- A filename in Arabic — `تقرير-الربع.png` — went from the browser, through
+- A filename in Arabic, `تقرير-الربع.png`, went from the browser, through
   the encoding, across the network, into storage, and back onto the screen
   intact. That is the exact case the encoding exists for, and the one a bug
   found in the previous round had nearly broken.
 - The server worked out that the file was an image by _looking at it_, not by
   believing the label the browser attached to it.
 - Removing a file really gave the space back. The file left the disk and the
-  index emptied — a fix from the previous round, working in the real thing
+  index emptied. A fix from the previous round, working in the real thing
   rather than in a test.
 - Sending recorded the file's name, type, size and fingerprint in the permanent
-  log, **and nothing of its contents** — the central promise of the whole
+  log, **and nothing of its contents**. The central promise of the whole
   feature, watched happening rather than asserted.
-- The agent run itself _failed_ — the test agent did not exist — and the file
+- The agent run itself _failed_, the test agent did not exist, and the file
   was still recorded. That is deliberate: the person handed the file over, and
   whether the agent then succeeded is a separate fact. It had never been seen.
 
 ### Two red herrings, kept on purpose
 
 The browser reported two errors, and neither was one. The page asked "who am I?"
-before anyone had signed in and was told nobody — correct. It then offered to
-create the first Root account and was refused, because one already existed —
+before anyone had signed in and was told nobody. Correct. It then offered to
+create the first Root account and was refused, because one already existed,
 that is a security control doing its job, showing up in a list of errors.
 
 Worth recording because a future reader scanning that list would otherwise spend
@@ -2453,7 +2453,7 @@ ever used something.
 There are now **groups**. A group is one organisation's whole world: its owner,
 its administrators, the people under them, and (soon) its agents. Anyone can
 create an owner account, and doing so creates a new group around it. People in
-one group cannot see people in another — not their names, not their accounts,
+one group cannot see people in another, not their names, not their accounts,
 nothing.
 
 Two new rules come with it:
@@ -2471,7 +2471,7 @@ an exception.
 
 There used to be a hard rule: one owner per installation, permanently. It had a
 good reason behind it. The owner is the account that manages everybody else, so
-a second owner could delete the first — and once two exist, "you can't remove
+a second owner could delete the first, and once two exist, "you can't remove
 the last owner" stops protecting the person who set the system up.
 
 Every word of that is still true. **None of it was ever an argument about
@@ -2492,7 +2492,7 @@ real trade and it is worth being blunt about.
 It is acceptable here because of how this system is meant to be reached: the
 dashboard listens only on the machine itself, and remote access goes through an
 encrypted tunnel. So "anyone who can reach the page" already means "anyone who
-can reach the computer" — and someone in that position had other options
+can reach the computer", and someone in that position had other options
 already.
 
 If anyone ever exposes this to the open internet, that stops being true, and
@@ -2510,13 +2510,13 @@ without breaking what already existed.
 Groups look exactly like a fourth case, and they are the opposite.
 
 A missing tier means "not recorded". A missing group means **"nobody knows which
-organisation this person belongs to"** — and there is no way to work it out.
+organisation this person belongs to"**, and there is no way to work it out.
 Treating it as "the first group" would quietly file people into an organisation
 nobody put them in.
 
 So accounts from before groups existed simply cannot sign in. The password still
 works; the account does not. An operator clears them with a single command that
-deletes them, and that command deliberately does not run by itself — it removes
+deletes them, and that command deliberately does not run by itself. It removes
 people's credentials, and doing that automatically the first time a new version
 starts is not a decision software should make on its own.
 
@@ -2540,7 +2540,7 @@ Nothing about that feature changed. The world around it did.
 
 No test could have found this, because until groups existed there was no second
 organisation to leak to. It was found by re-reading the older feature while
-building the newer one — and the lesson is worth keeping: **adding a boundary to
+building the newer one, and the lesson is worth keeping: **adding a boundary to
 a system does not automatically apply it to everything that was written before
 the boundary existed.** Every earlier feature has to be re-asked the question.
 
@@ -2548,7 +2548,7 @@ the boundary existed.** Every earlier feature has to be re-asked the question.
 
 The first version had a dead end nobody spotted while writing it. Moving an
 administrator down to an ordinary user required naming who would look after
-them — and there was no way to say. So an administrator could never be demoted
+them, and there was no way to say. So an administrator could never be demoted
 at all.
 
 An existing test demoted one and failed immediately. That is what a test suite
@@ -2596,7 +2596,7 @@ each covers what the other cannot:
 - The **rulebook scan** knows about agents that were already running before the
   register existed.
 
-Drop either one and something real disappears from the screen — in the second
+Drop either one and something real disappears from the screen, in the second
 case including from the emergency stop control, which would be the worst
 possible thing to quietly shorten.
 
@@ -2615,7 +2615,7 @@ while the world did another.
 There is a hole in that rule, and it is easier to defend than to hide.
 
 Agents that were running before the register existed are not in it, so nobody
-owns them — and the system still allows those to be handed out freely. Which
+owns them, and the system still allows those to be handed out freely. Which
 means the ownership rule can be side-stepped by simply not registering an agent.
 
 Closing it would mean refusing to work with any unregistered agent. That would
@@ -2630,14 +2630,14 @@ code in six months mistakes the rule for a stronger one than it is.
 ### The same blank, read two opposite ways
 
 Last week's change, groups, decided that an account with no organisation
-recorded **cannot sign in** — because there is no way to work out which
+recorded **cannot sign in**, because there is no way to work out which
 organisation somebody belonged to, and guessing would file people into a company
 nobody put them in.
 
 This week's change decides the opposite for agents: an agent with no record
 **works exactly as before**.
 
-The two look identical in the data — a field that is simply not there — and the
+The two look identical in the data, a field that is simply not there, and the
 answers are opposites. What separates them is not the field. It is what the
 missing answer would cost:
 
@@ -2657,20 +2657,20 @@ When an agent is handed from one administrator to another, everyone the previous
 administrator had given it to loses it automatically.
 
 That could look like housekeeping. It is not. The rule above says people may
-only hold their own administrator's agents — so if the old holders kept it, the
+only hold their own administrator's agents, so if the old holders kept it, the
 records would immediately contradict each other. The system would be stating
 something that was true when it was written and became false a second later.
 
 This project has already been bitten by exactly that shape once: a setting that
 was saved, shown on screen as active, and never actually consulted. The fix both
-times is the same principle — **put the record right at the moment the thing
+times is the same principle, **put the record right at the moment the thing
 changes, rather than expecting everyone who reads it later to work out that it
 is stale.**
 
 ### What a refusal is allowed to give away
 
 If an administrator in one organisation asks to rename an agent belonging to a
-different organisation, the system says **"no such agent"** — not "that is not
+different organisation, the system says **"no such agent"**, not "that is not
 yours".
 
 The second answer would be more helpful and would also confirm that the name is
@@ -2687,7 +2687,7 @@ small leak that "that username is taken" has always had.
 ### Leaving the code tidier than it was found
 
 Two files in this project have been over their own size limit for a while, and
-this change was going to make both of them worse — it adds a set of web
+this change was going to make both of them worse. It adds a set of web
 addresses and a set of terminal commands, and both would have landed in files
 that were already too long.
 
@@ -2720,7 +2720,7 @@ is that problem.
 What the other eight actually were:
 
 - **Six** are about quote marks. A Windows command line wants `"like this"` and
-  a Mac or Linux one wants `'like this'`. The program gets this right — it
+  a Mac or Linux one wants `'like this'`. The program gets this right. It
   checks which system it is on and quotes accordingly. The _test_ only ever
   learned the Mac version, so on Windows it compared the right answer against
   the wrong expectation and called it a failure.
@@ -2730,7 +2730,7 @@ What the other eight actually were:
   did not match.
 
 In every one of those eight cases **the program was right and the test was
-wrong** — which is the opposite of what a failing test normally means, and part
+wrong**, which is the opposite of what a failing test normally means, and part
 of why nobody looked closer.
 
 ### How a wrong explanation survived for two weeks
@@ -2740,14 +2740,14 @@ This is the part worth keeping.
 Both files have **exactly nine failing tests**. Nine.
 
 The note reasoned: nine distinct failures, the suite runs each one twice, nine
-times two is eighteen — which is exactly the number on screen. The arithmetic
+times two is eighteen, which is exactly the number on screen. The arithmetic
 checked out perfectly. Every time somebody re-read the note, it still added up.
 
 Nobody checked the file name.
 
 > **A number that adds up is not proof that it is a number about the thing you
 > think it is.** The sum was right, the reasoning was right, and the subject was
-> wrong — and because the sum kept being right, the subject never got
+> wrong, and because the sum kept being right, the subject never got
 > questioned.
 
 This is the third time this project has caught itself doing a version of this.
@@ -2760,7 +2760,7 @@ hard to re-verify slowly stops being checked at all.**
 
 A permanent list of "known failures" costs something every single time anyone
 runs the tests. A new failure has to be looked up against the list before anyone
-can tell whether it matters — and this project has already lost weeks to exactly
+can tell whether it matters, and this project has already lost weeks to exactly
 that, when nineteen genuine breakages hid behind a habit of only running part of
 the suite.
 
@@ -2779,7 +2779,7 @@ the rule out independently is the only thing that lets the test ever disagree.
 
 ## 5.28 Splitting a file by what it is allowed to do
 
-One file in this project had been too long for a while — about 1,200 lines of
+One file in this project had been too long for a while. About 1,200 lines of
 web endpoints, against a house limit of 700. It is now 613.
 
 The usual way to fix that is to cut it roughly in half. That was not the rule
@@ -2800,7 +2800,7 @@ Two placement calls show why the sentence matters more than the line count:
 
 - **The emergency stop button moved in with the "talk to your agent"
   endpoints**, not with the rule-editing ones. Stopping an agent is _acting on
-  something you are responsible for_, not _changing the rules it is judged by_ —
+  something you are responsible for_, not _changing the rules it is judged by_,
   a distinction this project learned the hard way once, when taking away
   somebody's ability to write rules accidentally took away their ability to stop
   their own agent.
@@ -2826,7 +2826,7 @@ harmless:
 
 - Everything above it always finishes and answers. The line is leftover. Delete
   it.
-- Something above it answers **too early** — a case that should have fallen
+- Something above it answers **too early**: a case that should have fallen
   through to the bottom is quietly being handled somewhere else. Then the line
   is a symptom, and deleting it hides the real problem.
 
@@ -2836,14 +2836,14 @@ two-second job, so it was booked as one.
 
 ### It was the harmless kind
 
-The decision process has eight ways out — the system is switched off, the agent
+The decision process has eight ways out. The system is switched off, the agent
 has been emergency-stopped, the tool is one nothing knows how to judge, nothing
 could be extracted to check, a rule forbids it, everything was permitted, it is
 unlisted and the setting says refuse, or it is unlisted and the setting says ask
 a human. All eight answer. Nothing falls off the end.
 
 The leftover line has a small history. The last section used to be written as
-"if there is still an unanswered item, handle it" — and an "if" needs something
+"if there is still an unanswered item, handle it", and an "if" needs something
 after it in case the "if" is not taken. Later the check moved higher up, so by
 the time you reach that section there is _always_ an unanswered item. The "if"
 became unnecessary, and the line beneath it became unreachable and stayed.
@@ -2854,14 +2854,14 @@ became unnecessary, and the line beneath it became unreachable and stayed.
 
 So the dead line was not a harmless leftover. It was a _permit everything_
 instruction sitting at the bottom of the gate, correct only because nothing
-could reach it. One careless edit above — deleting a line while changing a
-nearby rule, say — and the system would have started quietly allowing exactly
+could reach it. One careless edit above, deleting a line while changing a
+nearby rule, say, and the system would have started quietly allowing exactly
 the things it exists to refuse, with nothing in the log to say why.
 
 This is the third time this project has found code that advertised something it
 did not do. Once, a check that rejected bad input had a rejection step that
 could never run. Once, a cleanup routine nobody ever called. Now, a final
-fallback that could not fire — and this one meant _yes_.
+fallback that could not fire, and this one meant _yes_.
 
 ### What actually protects it now
 
@@ -2876,13 +2876,13 @@ future change ever lets a case slip through to the bottom, the answer becomes
 "allowed" and one of those eight fails loudly.
 
 That guard was then checked rather than trusted: the code was deliberately
-broken — one refusal was made to fall through instead of refusing — and twelve
+broken, one refusal was made to fall through instead of refusing, and twelve
 tests failed, including the new one. Then it was put back.
 
 **Credit where it is due:** most of those twelve already existed and already
 covered that route well. What is genuinely new is having all eight exits
 asserted _together_, in one place, under a heading that says what the property
-is — so that the next person reading the file can see the promise being made,
+is, so that the next person reading the file can see the promise being made,
 rather than having to reconstruct it from a dozen scattered tests.
 
 ## 5.30 Finishing the split on the command line
@@ -2895,7 +2895,7 @@ One thing is worth saying plainly, because it would have been easy to claim
 otherwise.
 
 The web endpoints were split so that **each file has one permission rule that
-can be said in a sentence** — "the owner manages people", "you may act on an
+can be said in a sentence**, "the owner manages people", "you may act on an
 agent that is yours". That is what makes a file checkable in one go.
 
 The policy commands do **not** have that. Reading the current settings is open
@@ -2903,13 +2903,13 @@ to anyone; changing a built-in protection is owner-only; there are four or five
 different levels in between. Writing "one permission rule" on that file would
 have been the tidy sentence and the false one.
 
-What holds it together is its **subject** — everything in it reads or edits the
-policy document — and every command still asks "may this person do this?"
+What holds it together is its **subject**, everything in it reads or edits the
+policy document, and every command still asks "may this person do this?"
 through the same shared checks the website uses, so the two cannot drift into
 different answers.
 
 So the rule that survives is narrower than it first looked: **a file should have
-one subject; where it can also have one permission rule, say so — and where it
+one subject; where it can also have one permission rule, say so, and where it
 cannot, do not pretend.**
 
 One file is still too long: the dashboard page, at around 2,400 lines. It is a
@@ -2926,7 +2926,7 @@ though the rule turned out not to be ours.
 ### The rule is inherited, and nothing here enforces it
 
 The size limit comes from **OpenClaw's own settings file**, which arrived with
-the fork. It is not one of this project's nine requirements — none of those says
+the fork. It is not one of this project's nine requirements, none of those says
 anything about how long a file may be. And nothing in this repository actually
 checks it: the automatic check that runs before each save only reformats code,
 and the online checks are switched off to avoid the bill. The limit only appears
@@ -2942,7 +2942,7 @@ Because the size was pointing at something the size was not itself about.
 
 Earlier the same week, the web endpoints were split so each file could state, in
 one sentence, **who is allowed to use everything in it**. That made each one
-checkable as a whole rather than line by line — a real benefit for a security
+checkable as a whole rather than line by line. A real benefit for a security
 project, and nothing to do with length.
 
 The dashboard now matches that shape. The panel showing the audit log sits in
@@ -2958,7 +2958,7 @@ Only two of the nine dashboard sections had any tests. Moving seven untested
 sections and then saying "the tests still pass" would have been a statement
 about the tests, not about the sections.
 
-So 24 tests were written first — against the dashboard exactly as it was, run
+So 24 tests were written first. Against the dashboard exactly as it was, run
 until green, and only then was anything moved. That ordering matters: they
 describe behaviour that already existed, so any difference afterwards is a
 mistake by definition rather than an argument about what it should do.
@@ -2976,8 +2976,8 @@ reached a browser.
 Several panels are tested twice: once with data, once with none. That is
 deliberate, and it is the same lesson this project keeps relearning. A section
 that shows nothing looks identical whether it _has_ nothing or _failed to load_.
-So the tests check for the actual sentence — "No audit entries yet", "Live
-session view unavailable" — rather than merely that something appeared. In
+So the tests check for the actual sentence, "No audit entries yet", "Live
+session view unavailable", rather than merely that something appeared. In
 particular, "no agents are running" and "this system cannot tell you what is
 running" are different facts an operator would act on differently, and the tests
 now make sure they cannot quietly become the same blank space.
@@ -3000,7 +3000,7 @@ The note said this needed OpenClaw itself to pass along who requested the work,
 and OpenClaw was somebody else's project.
 
 That reasoning had a flaw nobody caught: **this project is a fork of OpenClaw.**
-And it turned out the information was already there — OpenClaw records who
+And it turned out the information was already there, OpenClaw records who
 spawned each session in its own session file. What was missing was that one
 field being _handed to_ the security check. But a fork does not have to wait to
 be handed things; it can go and read them.
@@ -3014,8 +3014,8 @@ Nothing in OpenClaw was changed to fix this.
 
 ### How it works now, and what it costs
 
-When something is stopped, the check now follows the chain upward — who started
-this, and who started _them_ — and refuses the action if anyone in that chain
+When something is stopped, the check now follows the chain upward, who started
+this, and who started _them_, and refuses the action if anyone in that chain
 has been stopped. The reason shown names the nearest one, because during an
 incident an operator needs the cause, not the oldest ancestor.
 
@@ -3030,7 +3030,7 @@ Three deliberate limits:
 - **When it cannot tell, it refuses.** If the record cannot be read while an
   emergency stop is active, the action is blocked rather than allowed. That
   errs on the side of stopping one unrelated thing rather than letting through
-  something that might be the very thing being stopped — and it only ever
+  something that might be the very thing being stopped, and it only ever
   applies during an incident.
 
 The other half matters just as much: an unrelated agent keeps working normally
@@ -3046,7 +3046,7 @@ this test fail, and it will send them here to read why.
 That is exactly what happened. The test failed, the note explained itself, and
 it has now been rewritten to assert the fix. It is the best argument this
 project has produced for pinning a known problem with a test instead of only
-writing it in a document — the document said what to do, and the test made sure
+writing it in a document. The document said what to do, and the test made sure
 somebody read it.
 
 ## 5.33 The other search hole: why finding the tool did not fix it
@@ -3055,7 +3055,7 @@ The third known gap is that search commands are only checked where they are
 pointed. Search a whole folder and it reads everything underneath, including
 files a rule forbids.
 
-The note said this needed a particular OpenClaw feature — a way to report which
+The note said this needed a particular OpenClaw feature. A way to report which
 files a tool actually opened. Having just learned that "OpenClaw doesn't do it"
 deserves checking, it was checked.
 
@@ -3068,17 +3068,17 @@ already on their way back.
 
 So the gap splits into two, where the note had treated it as one:
 
-- **Recording it** — noting that a search reached a forbidden file, so the blind
+- **Recording it**: noting that a search reached a forbidden file, so the blind
   spot is visible instead of silent. That _is_ possible now, with no changes to
   OpenClaw.
-- **Preventing it** — stopping the search reading the file at all. That is not,
+- **Preventing it**: stopping the search reading the file at all. That is not,
   by this route.
 
 Preventing it would need either the search tool to accept a list of things to
 skip, or the security check to quietly narrow the search before it runs. The
 second is possible in this project today. It is also a security control changing
 what an operator asked for without saying so, which is a decision worth making
-deliberately rather than in passing — so it has been written down as a choice,
+deliberately rather than in passing, so it has been written down as a choice,
 not implemented on the way past.
 
 ## 7. The single lesson
@@ -3096,7 +3096,7 @@ Both times the tests were green and both times that meant nothing, because the
 tests and the code shared a blind spot.
 
 Round eleven made the same point a third time and then did something about it.
-The list of governed tools had drifted from the host's real list _again_ — the
+The list of governed tools had drifted from the host's real list _again_. The
 opposite way round, but from the same cause: a list that is only ever read
 against itself. The fix that matters is not the three names that were added, it
 is the test that now compares the two lists automatically. A shared assumption
@@ -3107,7 +3107,7 @@ a machine do it.
 > A security control has to be tested against the system it protects, not
 > against its own idea of that system. If the tests and the code were written
 > from the same assumption, passing tests only prove the assumption is
-> self-consistent — not that it is true.
+> self-consistent, not that it is true.
 
 And then round thirteen finished the thought, in the least comfortable way
 available: **the machine was comparing against the wrong list.** The test written
@@ -3129,7 +3129,7 @@ That is the finding, and it is better than "we found ninety-three bugs":
 
 > A check makes a silent claim about what it is comparing against, and that
 > claim starts out exactly as unexamined as the code did. Automating a
-> comparison does not make it true — it only makes it repeat. Every guard should
+> comparison does not make it true. It only makes it repeat. Every guard should
 > be able to say, in writing, which artefact is its source of truth and why that
 > artefact is the authority. Round eleven's could not, and for two rounds nobody
 > asked.
@@ -3150,7 +3150,7 @@ want.
 
 The same trick on the _other_ half gave a much worse answer. That half is
 supposed to handle the case where the records needed to trace an agent's family
-tree cannot be read at all — during an emergency, "I cannot tell" should mean
+tree cannot be read at all. During an emergency, "I cannot tell" should mean
 "stop", not "carry on". Switching that behaviour off broke **nothing**. All 867
 tests still passed.
 
@@ -3161,27 +3161,27 @@ If the entire filing cabinet has been thrown in a skip, it also says "nothing
 there". The code was listening for a noise that never happens.
 
 So the effect, tested properly: stop an agent, and a job it started is correctly
-refused. Damage the records and try the same job again — it goes through, and
+refused. Damage the records and try the same job again. It goes through, and
 nothing anywhere notes that the safety net was missing.
 
 Two honest qualifications. As shipped, an agent cannot cause this: it is not
 allowed to write anywhere by default, and the records in question sit outside
 the folder it is specifically forbidden from touching. It needs someone to have
-written an unusually broad permission, or an ordinary computer problem — a
+written an unusually broad permission, or an ordinary computer problem. A
 corrupted file, a cleanup that stopped halfway, a failing disk.
 
 It is the fourth time this project has found the same shape of bug: code that
 looks right, reads right, and never actually runs. The difference matters, and
 it is the sentence worth remembering:
 
-> The first three were **safety nets nobody needed** — harmless precisely
+> The first three were **safety nets nobody needed**. Harmless precisely
 > because nothing ever reached them. This one is a safety net that **is**
 > needed, and it is not there.
 
 **It has been fixed, and the way it was fixed is the useful part.**
 
 The obvious fix was the bad one. "During an emergency, refuse anything we cannot
-trace" does close the hole — and it also stops perfectly innocent agents that
+trace" does close the hole, and it also stops perfectly innocent agents that
 simply have no records on file. Being _narrow_ is exactly what makes an
 emergency stop trustworthy instead of a panic button, so that fix would have
 swapped one good property for another and looked like an improvement.
@@ -3189,7 +3189,7 @@ swapped one good property for another and looked like an improvement.
 The real fix was to ask a better question instead of applying a stricter rule.
 The old code asked the filing system "do you have this specific file?", and
 "no" came back for both _there is no such file_ and _the cabinet is gone_. The
-new code asks a different question — "list this agent's files" — and the two
+new code asks a different question, "list this agent's files", and the two
 cases finally look different: an empty list when there genuinely are none, and
 an outright error when the cabinet cannot be opened. So the hole closes and
 nothing innocent gets caught. The slower question is only asked when the quick
@@ -3198,7 +3198,7 @@ one already came back empty, so normal work is unaffected.
 Two problems were fixed rather than one. Records are kept per agent, so tracing
 a family tree across three agents means opening three cabinets. The check is now
 done at every step. Checking only the first would have left a missing cabinet in
-the _middle_ quietly ending the trace with a confident "nothing to see here" —
+the _middle_ quietly ending the trace with a confident "nothing to see here",
 the same bug, two steps further along.
 
 And it was checked the same way it was found: deliberately breaking the new
@@ -3219,7 +3219,7 @@ That has now been half-fixed, and it is worth being precise about which half.
 **What is fixed:** every forbidden file a search actually turned up is now
 written into the permanent record. Someone can now ask "did any search reach
 something it shouldn't have?" and get an answer. Before, that question had no
-answer at all — which is worse than a bad answer, because there was nothing to
+answer at all, which is worse than a bad answer, because there was nothing to
 look at.
 
 **What is not fixed:** the search still reads the file. This records; it does
@@ -3242,12 +3242,12 @@ tempting option would have looked better and been dishonest:
 
 Actually stopping the read is still open, and it is a real question rather than
 a missing part: the only way to do it from here is to quietly narrow the
-agent's search before running it — which means a safety system changing what was
+agent's search before running it, which means a safety system changing what was
 asked for without saying so. That deserves a decision, not a shrug.
 
 ## 5.36 Three times "we're blocked", three times we were not
 
-The project's to-do list had three items marked "we cannot fix this — it needs a
+The project's to-do list had three items marked "we cannot fix this. It needs a
 change to the original software this is built on". All three have now been
 checked. **All three were wrong.**
 
@@ -3268,27 +3268,27 @@ to it, so somebody has to choose what the sensible default is.
 The pattern is the finding, and it is the most transferable thing in this
 project:
 
-> Every one of the three was a true statement about **one specific doorway** —
+> Every one of the three was a true statement about **one specific doorway**,
 > written down in words that sounded like a statement about the whole building.
 
 This is a modified copy of the original software. When you own the copy, "that
 door is locked" is not the same as "there is no way in", and the difference is
 easy to lose the moment you write the note down. Each of these was re-read many
 times without being re-checked. Reading a note is not the same as testing
-whether it is still true — and the one that sat there longest was fixed in a
+whether it is still true, and the one that sat there longest was fixed in a
 single day once somebody finally asked.
 
 ## 5.37 Counting our own bug list, and finding we had miscounted
 
 The project says how many defects it found and fixed. That number goes in the
-report, so somebody can check it — which is a good reason to check it first.
+report, so somebody can check it, which is a good reason to check it first.
 
 It was wrong by one. Two completely different problems, both written up on the
 same day by two different pieces of work, had both been labelled number 104: one
 about file locking, one about the top-level administrator being unable to change
 their own password. So the list looked like 120 problems and was actually 121.
 
-Fixing it was easy — one of them was renumbered. The interesting part is how it
+Fixing it was easy, one of them was renumbered. The interesting part is how it
 lasted.
 
 **The wrong number had already spread to two other documents.** Nobody copied a
@@ -3300,8 +3300,8 @@ something that looked perfectly consistent everywhere you checked.
 Every reviewer read them. None counted them, because the total was written at
 the top, and reading a total is much less effort than recounting a list.
 
-That is the same lesson this project has now run into several times — _reading
-something again is not the same as checking it_ — except this time it had
+That is the same lesson this project has now run into several times, _reading
+something again is not the same as checking it_, except this time it had
 attached itself to our own record of that very lesson. Which is either
 embarrassing or the best possible evidence that the lesson is real, depending on
 how you present it.
@@ -3309,16 +3309,16 @@ how you present it.
 One thing was cleared up rather than fixed. This plain-language document never
 uses the finding numbers at all, on purpose: a number means nothing to the
 person this is written for. So "is every finding covered in all three documents"
-cannot be answered by matching numbers here — it needs actually reading, and
+cannot be answered by matching numbers here. It needs actually reading, and
 that part has not been done yet.
 
 ## 5.38 A test that took two minutes, and one that proved nothing
 
 The system keeps a tamper-proof log. When that log file gets big, it is filed
-away and a fresh one started — and the important thing is that the tamper-proof
+away and a fresh one started, and the important thing is that the tamper-proof
 seal carries across the join, so nobody can slip anything in at the boundary.
 
-Two tests checked this. Both did it by **actually filling the log up** — writing
+Two tests checked this. Both did it by **actually filling the log up**. Writing
 eight megabytes, a few thousand entries, each one locking a file and adding a
 link to the chain. They were given two minutes to finish. One of them regularly
 ran out of time on a busy laptop.
@@ -3329,7 +3329,7 @@ busy the computer is has stopped telling you anything about the code.
 The fix was to notice that "does the seal survive the join?" has nothing to do
 with eight megabytes. Turn the threshold down for the test and the same question
 gets answered with a dozen entries in under a second. The one thing the slow
-version was checking by accident — that the real limit is eight megabytes — is
+version was checking by accident, that the real limit is eight megabytes, is
 now checked directly on its own line, so making the test faster cannot hide a
 change to the real setting.
 
@@ -3349,12 +3349,12 @@ opposite of what you would expect:
 
 > **Making the test cheaper is what made it honest.** The usual argument for a
 > slow, realistic test is that it is closer to the real thing. Here, the price
-> of realism was that nobody could afford to check enough — and what slipped
+> of realism was that nobody could afford to check enough, and what slipped
 > through was a test that passed with the feature turned off.
 
 One more thing was cleaned up. The handover notes already warned that _one_ of
 these tests times out on a busy machine, and to re-run it before believing a
-failure. True, helpful — and it named one of the two. Anyone who hit the other
+failure. True, helpful, and it named one of the two. Anyone who hit the other
 one got no warning at all, and anyone who had taken the warning to heart might
 have shrugged off a real problem. **A warning that covers some of the cases
 quietly teaches people to ignore the ones it misses.** Both tests are reliable
@@ -3368,11 +3368,11 @@ the output of a full test run.
 **The dashboard was announcing itself twice.** Web pages let you register a new
 kind of element under a name. Doing it twice with the same name is an error. The
 dashboard's main file registered itself without first checking whether it had
-already been registered — so when two test files that both use it happened to
+already been registered, so when two test files that both use it happened to
 run in the same slot, the second one **failed to even load**. On its own it
 passed perfectly.
 
-The revealing part: every other component in this codebase — all 121 of them —
+The revealing part: every other component in this codebase, all 121 of them,
 checks first. This one file did not, and it is one of the few we wrote
 ourselves rather than inherited. A convention that everything else follows is
 evidence, not decoration, and the odd one out was ours.
@@ -3383,7 +3383,7 @@ The fourth was not.
 
 When the system cannot get exclusive access to a file, it eventually gives up
 and reports "timed out waiting for the lock". It was throwing away the _original_
-error underneath — the one that says whether the file was busy, or already
+error underneath. The one that says whether the file was busy, or already
 existed, or something else. So on the single occasion anyone goes looking, the
 message told you a deadline had passed and silently discarded the reason why.
 It now carries the original error along with it.
@@ -3394,7 +3394,7 @@ in the morning.
 
 ## 5.40 Should we police what the agent says? The spec says no
 
-The agent can send messages out — to Discord, Telegram, wherever it is connected.
+The agent can send messages out, to Discord, Telegram, wherever it is connected.
 Nothing checks those. In principle an agent allowed to read a file could simply
 retype that file into a public channel.
 
@@ -3407,19 +3407,19 @@ them, and the list appears twice, worded the same way both times. So governing
 outbound messages would be building something the project was never asked for.
 
 The one place the spec mentions Telegram or Slack, it describes them as the
-_way people talk to the agent_ — the safer alternative to putting the thing on
+_way people talk to the agent_. The safer alternative to putting the thing on
 the open internet. They are the front door the design recommends, not a leak it
 warns about.
 
 There is one requirement that sounds related and is not: sensitive data must
 never be written into log files in plain text. That is about the logs, and it is
-already handled — everything written to the audit log goes through a redaction
+already handled. Everything written to the audit log goes through a redaction
 step that cannot be switched off.
 
 Worth knowing: **outbound messages are already recorded.** They are not blocked,
 but every send is written to the audit log with its destination. So the "record
 everything the agent does" requirement is already met for them. What does not
-exist is a way to _refuse_ one — which is the part nobody asked for.
+exist is a way to _refuse_ one, which is the part nobody asked for.
 
 **The decision: connecting the agent to an app is the permission.** If you
 plugged it into that Discord server, you meant for it to talk there. Doing the
@@ -3428,7 +3428,7 @@ overruling the person who set it up.
 
 This is now **closed rather than parked**. Closing it took one real change, and
 it was not to the enforcement. The behaviour was already there and already had a
-test — but that test checked _who_ sent a message and _that_ it was recorded,
+test, but that test checked _who_ sent a message and _that_ it was recorded,
 and never checked that the record says _where it went_. The whole argument for
 not blocking these is that you can look afterwards and see where things were
 sent. That was an assumption, not a tested fact, so it is now tested.
@@ -3442,7 +3442,7 @@ sound completely different when somebody asks.**
 ## 5.41 "Give it this folder, but not that subfolder"
 
 A request: when someone grants an agent access to a folder, they should be able
-to carve out exceptions — this folder yes, but not that subfolder, not that file.
+to carve out exceptions. This folder yes, but not that subfolder, not that file.
 
 **The system can already do this**, which we checked rather than assumed. Grant
 the folder, forbid the subfolder, and forbidding wins. Reading an ordinary file
@@ -3450,7 +3450,7 @@ in the folder works; reading the excepted file is refused.
 
 So the feature is mostly about the _interface_. Right now doing this means
 writing two rules by hand, in a pattern language, and knowing that "forbid"
-always beats "allow" — which is true, and which nothing on the screen tells you.
+always beats "allow", which is true, and which nothing on the screen tells you.
 
 **But there is a catch, and it is the important part.** If the agent _searches_
 the granted folder instead of opening a file directly, the search still reads the
@@ -3461,8 +3461,8 @@ excepted subfolder. That is a known hole, separately tracked, and it means:
 > was set, and it would not hold. They would have written the restriction
 > themselves, in their own words, and been given a false assurance in return.
 
-That is the same mistake this project keeps finding — something that claims a
-protection it does not provide — except aimed at a person rather than buried in
+That is the same mistake this project keeps finding, something that claims a
+protection it does not provide, except aimed at a person rather than buried in
 code, which makes it far harder to notice.
 
 So the order matters: fix the search hole first, then build the button. There is
@@ -3473,14 +3473,14 @@ information the search fix needs in order to work. The two jobs fit together.
 
 Until now the system kept **one** rulebook, **one** logbook and **one** list of
 people, for everybody. We had already said that each account and each agent
-belongs to a particular organisation — but the files underneath were shared, so
+belongs to a particular organisation, but the files underneath were shared, so
 keeping organisations apart depended on every single piece of code remembering
 to ask "and is this one _yours_?" before showing anything.
 
 We already know what that costs. One earlier bug did exactly this: a screen
 asking "who can use this agent?" searched _everybody on the whole system_, so a
 manager in one organisation was shown the names of people in another. The code
-was not sloppy — it was written when there was only one organisation, and quietly
+was not sloppy. It was written when there was only one organisation, and quietly
 became a leak when that stopped being true.
 
 **Remembering to filter is a rule. Separate files are a wall.** This work builds
@@ -3488,8 +3488,8 @@ the wall.
 
 ### The awkward part, and what settled it
 
-Before designing anything we checked the project specification. Multi-tenancy —
-several organisations on one system — **is not in it**. It is a feature we chose
+Before designing anything we checked the project specification. Multi-tenancy,
+several organisations on one system, **is not in it**. It is a feature we chose
 to add. But _tamper-proof logging_ is requirement number six, and that is not
 optional.
 
@@ -3497,7 +3497,7 @@ So we get a rule instead of an argument: **when keeping organisations apart
 clashes with something the specification demands, the specification wins.**
 
 That immediately answered the hardest question. Splitting the logbook per
-organisation naturally suggests splitting its security key too — and our
+organisation naturally suggests splitting its security key too, and our
 strongest security claim is that the log is sealed with **one** key for the whole
 installation, so rewriting history needs the actual secret, not just knowing how
 the seal works. Splitting the key would turn one secret into many and force us to
@@ -3509,13 +3509,13 @@ Separate logbooks, **shared key**, and one shared "how far did each logbook get"
 note.
 
 Sharing the key gives nothing away, because **no account can read it in the first
-place** — people use the system through its screens and commands, never by
+place**. People use the system through its screens and commands, never by
 opening files, and the key sits in a folder the agent is permanently forbidden
 from touching. Every organisation has exactly the access it had before: none.
 
 And it quietly improves things. To convincingly delete the recent end of one
 organisation's log, you now have to also edit a file that lives _outside that
-organisation's folder_ — so the two edits the design always required are now in
+organisation's folder_, so the two edits the design always required are now in
 two different places rather than side by side.
 
 ### The bug we avoided by thinking about it
@@ -3523,7 +3523,7 @@ two different places rather than side by side.
 The system remembers "where did the log get up to" so it can chain the next entry
 onto the last. That memory was a single value, which was fine with one log. Left
 shared, the next entry for organisation B would have chained itself onto
-**organisation A's** last entry — not merely out of date, but claiming to follow
+**organisation A's** last entry, not merely out of date, but claiming to follow
 something that isn't in its own logbook. It would have shown up much later as a
 "this log has been tampered with" alarm that nobody could explain. It is now
 remembered per organisation.
@@ -3539,14 +3539,14 @@ than the plan.
 Every function that now needs to know _which organisation_ was made to demand
 it, rather than accepting a polite default. That meant the code would not build
 until every single place that reads or writes a file had answered the question
-"whose is this?" — seventy-eight of them. A default would have compiled
+"whose is this?". Seventy-eight of them. A default would have compiled
 everywhere, quietly written to a shared file wherever someone forgot, and failed
 in the direction of leaking. **Refusing to build is a much better way to find
 seventy-eight decisions than reading the code hoping to spot them.**
 
 ### Some things belong to nobody, and we nearly had nowhere to put them
 
-If an agent isn't registered, the system now refuses it — but we also promise to
+If an agent isn't registered, the system now refuses it, but we also promise to
 record _everything_ an agent does. You cannot file that refusal in the agent's
 organisation's records, because not having one is the whole reason it was
 refused. Without a shared "belongs to no one" record, the single event that says
@@ -3560,7 +3560,7 @@ must not get to pick which organisation's log records the attack on it.**
 ### A memory shortcut that remembered the wrong building
 
 To avoid re-reading the agent list on every single action, the system keeps it in
-memory and throws it away whenever it changes. Correct — except the _location_ of
+memory and throws it away whenever it changes. Correct. Except the _location_ of
 that list can change too, and under the test runner it changes constantly. A test
 would pass on its own and fail when run with the others, because it had inherited
 the previous test's agent list. The fix was to remember _where_ the list came
@@ -3569,8 +3569,8 @@ from, so looking somewhere new automatically counts as not knowing.
 ### Our test setup accidentally performed the attack
 
 This one is almost funny. Test setup registers a few agents, which correctly gets
-written into the tamper-proof log — so the setup cleared the log to give each test
-a clean slate. But it left the _separate note_ recording how long the log was —
+written into the tamper-proof log, so the setup cleared the log to give each test
+a clean slate. But it left the _separate note_ recording how long the log was,
 and that note is deliberately kept somewhere else, precisely so that deleting the
 log cannot erase the evidence that it was deleted.
 
@@ -3583,7 +3583,7 @@ support code is part of the security system whether you meant it to be or not.
 
 The agent list had a known gap, written down honestly: an unregistered agent
 could still be handed to someone, so the ownership rule could be dodged by simply
-never registering — and closing it "needs the agent-creation feature built
+never registering, and closing it "needs the agent-creation feature built
 first."
 
 That turned out to rest on treating two different things as one: _recording_ an
@@ -3602,28 +3602,28 @@ fixed one status light. All three had the same problem: they were written when
 something else was true.
 
 **A refusal that could no longer happen.** There was a rule saying: while an
-agent is stopped, also refuse anything the system cannot trace back to an agent —
+agent is stopped, also refuse anything the system cannot trace back to an agent,
 because an emergency stop that works on some routes and not others is not an
 emergency stop. Good rule. But the check now sits _after_ the system works out
 which organisation the caller belongs to, and it works that out _from_ the
-identity — so the "no identity" case can never reach it. The refusal still
+identity, so the "no identity" case can never reach it. The refusal still
 happens, earlier and for a broader reason. The dead check was deleted.
 
 Something else changed quietly along with it. That refusal used to apply **only
-during an emergency**. Now it applies always — because with a separate rulebook
+during an emergency**. Now it applies always, because with a separate rulebook
 per organisation, there is no longer a shared rulebook to judge an anonymous
 caller by. Nobody decided to make it stricter; it became stricter because the
 thing it depended on moved.
 
 **A rule that skipped exactly what it was meant to catch.** The check stopping
 you from handing out someone else's agent quietly ignored any agent it had no
-record of — which meant the whole rule could be dodged by not registering. This
+record of, which meant the whole rule could be dodged by not registering. This
 was written down honestly, along with "we can't fix this until the agent-creation
 feature exists". It turned out we could: _recording_ an agent and _creating_ one
 are different things, and recording has worked from every screen for weeks.
 
 **A green tick for a protection that wasn't there.** The health report checked
-"does the tamper-detection file exist?" — correct when there was one log. Now
+"does the tamper-detection file exist?". Correct when there was one log. Now
 that one file holds an entry per organisation, it exists the moment _anybody_
 writes, so an organisation with no protection at all was shown a green tick. It
 now checks whether _your_ organisation has an entry.
@@ -3638,14 +3638,14 @@ Everything this project has built so far does one of two things: it watches what
 an agent does, or it stops it. It has never _changed_ the machine it sits on.
 
 This piece does. An administrator can now type a name into the dashboard and get
-a real, working agent — created inside OpenClaw, and governed from the moment it
+a real, working agent. Created inside OpenClaw, and governed from the moment it
 exists.
 
 **That is a bigger change than it sounds, and it is worth being honest about
 it.** Up to now, if somebody broke into the governance system, the worst they
 could do was be obstructive: block things that should have been allowed. Annoying,
 but nothing gets destroyed, and the safe direction is the one it fails in. Now
-that the system can create agents, somebody who broke into it could create one —
+that the system can create agents, somebody who broke into it could create one,
 and an agent is a thing that runs commands on a real computer. The danger is
 genuinely larger, and the report says so out loud rather than hoping nobody
 notices.
@@ -3653,7 +3653,7 @@ notices.
 Nothing new was invented to contain it. The protections are the ones that were
 already there: only administrators can do it, they can only do it inside their
 own organisation, and **every attempt is written into the tamper-proof log
-before it is attempted** — including the ones that fail. That last detail matters
+before it is attempted**, including the ones that fail. That last detail matters
 more than it looks. If you only record successes, you can never answer the
 question "who kept trying to create agents and being refused?", and that is
 exactly the pattern somebody investigating a break-in is hunting for.
@@ -3665,7 +3665,7 @@ so the agent exists, and our records, so it is allowed to do anything. Either
 write can fail.
 
 If the first works and the second doesn't, you would be left with an agent that
-exists but is frozen out — present on the machine, refused every time it tries to
+exists but is frozen out. Present on the machine, refused every time it tries to
 do anything, and confusing to everyone.
 
 **The decision was: both or neither.** If anything fails, put everything back the
@@ -3677,7 +3677,7 @@ small idea that turned out to apply well beyond this feature.
 **Do the risky thing first.** The two writes are not equally likely to fail. The
 OpenClaw settings file is large, the operator edits it by hand, other parts of the
 program write to it, and it is checked against a strict format. Our own record is
-a small file that only we write. So the risky write goes first — because if it is
+a small file that only we write. So the risky write goes first, because if it is
 going to fail, it is much better for it to fail while there is still nothing to
 undo.
 
@@ -3689,7 +3689,7 @@ record is **refused**. So during that gap the agent can do nothing at all. A
 safety rule chosen for one purpose paid for itself somewhere nobody was looking.
 
 **Undoing a record is not always possible.** Our log is designed so that nothing
-can ever be deleted from it — that is the whole point of it. So if we had written
+can ever be deleted from it. That is the whole point of it. So if we had written
 our record first and then had to undo it, the log would permanently contain
 "agent created" followed by "agent removed" for an agent that never existed. That
 is a _true_ record of something that did not happen, which is worse than no
@@ -3700,7 +3700,7 @@ just by which one is likelier to break.
 might mean by "add an agent": _"this agent already exists, start governing it"_
 and _"make me a new agent"_. They are different, and the system keeps them
 separate. If you ask it to create an agent that already exists, it refuses and
-tells you to use the other option. That sounds like tidiness. It isn't — it is
+tells you to use the other option. That sounds like tidiness. It isn't. It is
 what makes undoing safe. Because creating only ever _creates_, undoing only ever
 deletes something we just made. If creating could quietly adopt an agent that was
 already there, then a failure later would delete somebody else's working agent.
@@ -3709,7 +3709,7 @@ already there, then a failure later would delete somebody else's working agent.
 
 The plan said: _"create the agent by writing it into OpenClaw's settings file."_
 
-Doing exactly that would have been wrong in four separate ways — and OpenClaw
+Doing exactly that would have been wrong in four separate ways, and OpenClaw
 already handles all four itself. It already checks whether the name is valid,
 whether it is reserved, whether it clashes with an existing agent. It already
 creates the agent's folder and its identity file. It already stops two parts of
@@ -3745,10 +3745,10 @@ that is about the worst bug available.
 
 The instruction was: handle it properly if you can, and refuse safely if you
 can't. It turned out OpenClaw can already follow that pointer and write to the
-right file in the common case — so we use that. In the one uncommon arrangement
+right file in the common case, so we use that. In the one uncommon arrangement
 it cannot handle, we refuse and tell the operator exactly which file owns their
 list. **The line between "handle it" and "refuse" is OpenClaw's own line, not one
-we drew** — which also means we behave the same way OpenClaw itself does in that
+we drew**, which also means we behave the same way OpenClaw itself does in that
 situation, instead of disagreeing with it.
 
 ## 5.48 "Saved" and "it exists" are not the same thing
@@ -3765,7 +3765,7 @@ green tick means _the file was written_. The person reading it thinks it means
 _the agent is there_. Usually those are the same. When they aren't, the operator
 is looking at a success message for something that didn't happen.
 
-This project has done that exactly once before — a status screen that reported a
+This project has done that exactly once before. A status screen that reported a
 safety feature was working by checking whether a file existed, when it should have
 checked whether _that organisation_ had an entry in it. It showed a green tick for
 a protection that wasn't there. We treat that as the worst kind of bug we make,
@@ -3778,7 +3778,7 @@ seconds, it says so plainly instead of claiming otherwise.
 
 One detail is the whole idea in miniature: the dashboard checks with the
 **running program**, not by re-reading the file it just wrote. Re-reading its own
-file would have confirmed only that its own save worked — which was never in
+file would have confirmed only that its own save worked, which was never in
 doubt. **A check whose answer is guaranteed by the thing it is checking is not a
 check.**
 
@@ -3794,32 +3794,32 @@ terminal.
 
 This is the fourth time on this project that something was fully built and
 completely unreachable. It happened with the rule-writing controls, with a
-per-agent setting, and with the password change for the owner account — where the
+per-agent setting, and with the password change for the owner account. Where the
 one account that governs all the others had a password that could not be changed
 after the moment it was first typed.
 
 The lesson has been written down so it stops recurring:
 
-> **A feature is finished when somebody can click it — not when the server
+> **A feature is finished when somebody can click it, not when the server
 > returns "OK".**
 
 ### Removing an agent now asks what you mean
 
 "Remove" used to mean one thing: stop governing this agent, leave it running.
 Now that the system can also delete agents outright, one button doing both would
-be dangerous — somebody who had safely used "remove" many times would suddenly
+be dangerous. Somebody who had safely used "remove" many times would suddenly
 destroy a working agent with the same click.
 
 So clicking remove now opens two clearly labelled choices, each explaining what it
 does and what it costs:
 
-- **Remove from governance** — stops governing it; the agent and its files stay.
+- **Remove from governance**: stops governing it; the agent and its files stay.
   Reversible.
-- **Delete the agent** — removes it from OpenClaw entirely, including its folder
+- **Delete the agent**: removes it from OpenClaw entirely, including its folder
   and its history. Cannot be undone.
 
 Whichever you pick, a second confirmation appears and says in words whether the
-action can be undone. Not a red button — a sentence. A colour is not an
+action can be undone. Not a red button. A sentence. A colour is not an
 explanation, and the person reading it is about to destroy somebody's work.
 
 ## 5.50 A button that looked perfect and did nothing
@@ -3828,7 +3828,7 @@ One bug found while building this is worth recording, because of how it hid.
 
 The dashboard builds one shared bundle of information and hands it to several
 panels. Each panel can put a "the operator typed something" handler into that
-bundle. Two panels used **the same name** for that handler — and when both went
+bundle. Two panels used **the same name** for that handler, and when both went
 into the same bundle, one quietly replaced the other.
 
 The result: the Remove button appeared, looked right, was in the right place,
@@ -3839,7 +3839,7 @@ nobody was looking at.
 Two things about this are worth keeping.
 
 **The automatic checks could not catch it.** The tool that checks the code for
-mistakes was perfectly happy, because both handlers had the same _shape_ — both
+mistakes was perfectly happy, because both handlers had the same _shape_, both
 were "a function that receives an update". They just meant different things. The
 shapes agreed and the meanings did not, and only a test that actually clicked the
 button noticed.
@@ -3848,12 +3848,12 @@ button noticed.
 a second panel uses it. Right up until that moment, nothing was wrong and nothing
 looked risky. That is the general form and it is the same shape as several
 earlier findings in this document: **a thing that works fine with one user is not
-therefore safe — it is untested for the case that matters.**
+therefore safe. It is untested for the case that matters.**
 
 ## 5.51 "Undo" that could not undo everything
 
 Deleting an agent was first built in what looked like the careful order: remove
-our record first, then ask OpenClaw to delete the agent — and if OpenClaw
+our record first, then ask OpenClaw to delete the agent, and if OpenClaw
 refused, put our record back.
 
 That "put it back" does not work, and finding out why was the useful part.
@@ -3865,26 +3865,26 @@ record back only puts the _record_ back. The people who had been given access do
 not get it back.
 
 So if OpenClaw had refused the deletion, the operator would have been told
-"nothing changed" — while several people had quietly lost access to an agent they
+"nothing changed", while several people had quietly lost access to an agent they
 use. An action that ends in an invisible side effect is the exact thing this
 project treats as its worst kind of bug, and this one was about to be introduced
 by the code meant to prevent a different version of it.
 
 The fix was not to handle the case better. It was to **ask OpenClaw to delete
-first**. Then, if OpenClaw refuses, genuinely nothing has happened — there is
+first**. Then, if OpenClaw refuses, genuinely nothing has happened. There is
 nothing to undo, so there is nothing to get wrong.
 
 The lesson generalises past this one button:
 
 > **"Reversible" is a claim about what something actually does, not about what
 > its name suggests.** "Unregister" sounds like the exact opposite of "register".
-> It isn't — one of them has a side effect the other cannot put back.
+> It isn't, one of them has a side effect the other cannot put back.
 
 ## 5.52 The nineteenth review: an agent that looked governed and was not
 
 The first eighteen reviews looked at the system as one organisation with one
-operator. This one looked at the part added on top — several organisations, each
-with its own agents, rules and records — and asked one question:
+operator. This one looked at the part added on top, several organisations, each
+with its own agents, rules and records, and asked one question:
 
 > Can one organisation reach or interfere with another, and does an agent that
 > _looks_ governed actually get governed?
@@ -3901,8 +3901,8 @@ if you tell OpenClaw about an agent called `Scout`, OpenClaw thinks of it as
 Our records did not do that tidying. They stored exactly what was typed.
 
 The result: register an agent as **`Scout`**, and the dashboard shows it as
-registered, owned by you, with your rules applying to it. The security check —
-which asks OpenClaw's tidied name, `scout` — finds no record at all. And "no
+registered, owned by you, with your rules applying to it. The security check,
+which asks OpenClaw's tidied name, `scout`, finds no record at all. And "no
 record" means **refuse**. So the agent is blocked from doing anything, forever,
 while every screen tells its owner it is set up correctly.
 
@@ -3916,8 +3916,8 @@ than 64 characters.
 
 This is the part with a security consequence.
 
-Agent names have to be unique across the whole installation — not just within
-one organisation — and that was a deliberate decision, because the system uses
+Agent names have to be unique across the whole installation, not just within
+one organisation, and that was a deliberate decision, because the system uses
 the agent's name internally to keep track of what each agent is doing. Two
 organisations using the same name would tangle those records together.
 
@@ -3927,7 +3927,7 @@ The check for "is this name already taken?" compared the typed spellings. So
 Now two organisations each have a record for what is really **one agent**. The
 one whose spelling happens to match OpenClaw's wins: its rules apply. The other
 organisation's administrator sees the agent in their list, can hand it to their
-staff, and can write rules for it — **and none of those rules ever take effect.**
+staff, and can write rules for it, **and none of those rules ever take effect.**
 They are writing policy into a document nothing reads, with no sign that anything
 is wrong.
 
@@ -3944,24 +3944,24 @@ a problem once will solve it again only where somebody remembers to ask.
 ### Fixing that broke something else, which is a pattern by now
 
 OpenClaw's tidying function has a quirk: if you give it something with no usable
-characters at all — `###`, or `--`, or just spaces — it does not fail. It returns
+characters at all, `###`, or `--`, or just spaces, it does not fail. It returns
 `main`, the name of the default agent every installation has.
 
 That was harmless while we stored what was typed. The moment we started storing
 the tidied version, registering an agent called `###` **silently claimed the
-installation's main agent** — ownership, staff access, and that organisation's
+installation's main agent**. Ownership, staff access, and that organisation's
 rules now governing it. Nobody asked for that, and nobody would see it: the list
 would just show a row called `main`.
 
 There was supposed to be a guard against this. It checked whether the tidied name
-came out empty — which it never does, because it comes out as `main` instead. The
+came out empty, which it never does, because it comes out as `main` instead. The
 guard could not fire.
 
 Now an unusable name is refused and says so. Deliberately typing `main` still
 works, because claiming the default agent is exactly what somebody moving an
 existing installation into this system needs to do first.
 
-**This is the third time a fix has introduced its own bug** — and each time it
+**This is the third time a fix has introduced its own bug**, and each time it
 was caught. The lesson is stated plainly in the report: _a fix does not get
 looked at as hard as the thing it fixes_, because by the time you write it you
 have already decided you understand the problem.
@@ -3970,12 +3970,12 @@ have already decided you understand the problem.
 
 Creating an agent does two things: makes it in OpenClaw, and records it here. The
 decision was that both happen or neither. To make failures rare, everything that
-_can_ be checked first is checked first — and there is a comment in the code
+_can_ be checked first is checked first, and there is a comment in the code
 saying exactly that.
 
 One check was missing from it: whether the person you named as the agent's owner
 is actually allowed to own it. That was only discovered afterwards, by which
-point a real agent had been created — with its own folder and files — and then
+point a real agent had been created, with its own folder and files, and then
 had to be deleted again.
 
 Nothing was left broken; the undo worked. But it was an avoidable change to
@@ -3991,12 +3991,12 @@ checked:
 - One organisation cannot see, rename, delete, assign or take ownership of
   another's agents.
 - Asking about somebody else's agent gets "no such agent" rather than "not
-  allowed" — so the system cannot be used to find out which agent names exist
+  allowed", so the system cannot be used to find out which agent names exist
   elsewhere.
 - An unregistered agent really is refused, and stops being refused the instant it
   is registered, with no stale answer left in memory.
-- **Each organisation genuinely has its own files on disk** — its own rulebook,
-  its own tamper-proof record — and each record verifies on its own, including
+- **Each organisation genuinely has its own files on disk**, its own rulebook,
+  its own tamper-proof record, and each record verifies on its own, including
   when two organisations are writing at the same time. This is the central claim
   of that piece of work and it had only been written down, never tested.
 
@@ -4015,11 +4015,11 @@ The system can record when an agent's search reached a file it was not supposed
 to read. Search tools print results as `filename:linenumber: the matching text`,
 and the code pulled the filename off the front of each line.
 
-When `grep` searches a **single** file it does not repeat the filename — there is
+When `grep` searches a **single** file it does not repeat the filename. There is
 only one, and you already know it. So its output is just `12: the matching text`.
 
 The code did not handle that. When it could not find a filename at the front of
-the line, it fell back to treating **the entire line as a filename** — text
+the line, it fell back to treating **the entire line as a filename**. Text
 included.
 
 So an agent that ran a search for the word `password` produced entries like this
@@ -4041,7 +4041,7 @@ There was a comment in the code explaining why this was safe. It said that a lin
 which is not a filename will simply not match any of the rules, so nothing gets
 recorded.
 
-That is true — as long as no rule is broad. But the most ordinary rule an
+That is true, as long as no rule is broad. But the most ordinary rule an
 administrator writes is a broad one: _this agent may not read anything outside
 its own folder_. Against a rule like that, almost every line matches. The
 comment was correct about a situation nobody actually configures.
@@ -4057,7 +4057,7 @@ entirely. Content can no longer be mistaken for a filename.
 
 Nothing is lost, and the reason is worth stating: this record exists to catch a
 search that **spread out** from a folder into files nobody approved. A search of
-one named file has not spread anywhere — the system already checked that exact
+one named file has not spread anywhere. The system already checked that exact
 file when it was asked for. So the lines being dropped were never the ones this
 feature was watching for.
 
@@ -4068,7 +4068,7 @@ Those were either leaking content too (before the fix) or being thrown away
 
 ### The thing worth telling an examiner
 
-The record already runs everything through a redactor — a filter that strips out
+The record already runs everything through a redactor. A filter that strips out
 secrets before they are written. **And these secrets went straight through it.**
 
 That is not a fault in the redactor. It is built to catch secrets the system
@@ -4079,7 +4079,7 @@ version of it could be.
 The honest statement is:
 
 > The system meets that requirement by **not putting file contents into the log**
-> — not by cleaning them up afterwards. A redactor is a second line of defence.
+> not by cleaning them up afterwards. A redactor is a second line of defence.
 > Treating it as the first is exactly how content ends up in front of it.
 
 ### A mistake I made while testing this
@@ -4089,7 +4089,7 @@ turning up in my own work.
 
 Deliberately breaking the code showed that one rule was untested: the system is
 supposed to ignore rules that have **expired**, and nothing was checking that. I
-wrote the missing test using an expired rule about a file called `key.pem` — and
+wrote the missing test using an expired rule about a file called `key.pem`, and
 the test failed, which looked like the expiry check being broken.
 
 It was not. `.pem` files are covered by one of the system's **built-in**
@@ -4102,27 +4102,27 @@ testing what it says it is.**
 ### What was checked and found working
 
 - The requirement that an agent can be stopped **within one second** is not just
-  measured, it is asserted — in three places, including a full end-to-end test.
+  measured, it is asserted, in three places, including a full end-to-end test.
 - The safety check added last week, after an earlier review found it could never
   fire, is now genuinely held: breaking it on purpose fails two tests.
 - The test-only shortcut that makes the record-rotation tests fast **cannot
   weaken the real setting**, and the real setting is checked separately.
 - Splitting the command-line tool into smaller files did not lose any permission
   checks. Two commands deliberately have none, and both only touch accounts that
-  are already unable to sign in — which is the situation those commands exist to
+  are already unable to sign in, which is the situation those commands exist to
   clean up.
 
 ## 5.54 Recording _why_ the agent did something, not just what
 
 The specification asks the log to record six things about every action. Five were
 already there: when it happened, which agent, what it tried to do, what the rules
-decided, and who approved it if a person was asked. The sixth was missing — **the
+decided, and who approved it if a person was asked. The sixth was missing, **the
 agent's own explanation of what it was trying to do**.
 
 That is now recorded. When the model produces a turn, whatever it said about its
 reasoning is captured and attached to the tool calls that turn produces. The log
 can now be read as _"the agent said it was checking the config file, and then it
-opened the config file"_ — or, more usefully, _"the agent said it was checking the
+opened the config file"_, or, more usefully, _"the agent said it was checking the
 config file, and then it opened something else entirely."_ No other field lets
 you make that comparison.
 
@@ -4137,14 +4137,14 @@ those four wrong.
 fingerprint has to be computed carefully so two different entries can never
 produce the same one. I wrote a note claiming the design closed a specific hole
 an agent could exploit. Deliberately breaking that protection and re-running the
-tests showed everything still passed — because the hole was not reachable in the
+tests showed everything still passed, because the hole was not reachable in the
 first place. The protection stays (it is cheap, and the assumption keeping it
 unnecessary is only an assumption), but the note now says what is true.
 
 **The read-only role could see the agent's narration.** Viewers are deliberately
 shown less: they can see that an action happened and how it was judged, but not
 the exact file or command, because those reveal things about the system they are
-not entitled to. The new field went straight past that filter — and narration
+not entitled to. The new field went straight past that filter, and narration
 reveals _more_ than a filename, because the model tends to explain what it is
 looking for and what it already found. Now masked.
 
@@ -4155,7 +4155,7 @@ same file saying exactly this, written a month earlier about a different field.
 It was written down and still not followed.
 
 **A function nobody called.** I wrote a tidy-up routine to forget an agent's
-intent when its session ended, exported it, and never called it — the limit on
+intent when its session ended, exported it, and never called it. The limit on
 how much is remembered already handles that. This is the fourth time this project
 has found a fully written, exported, unreachable function. It was deleted rather
 than given something to do, with a note explaining why there is deliberately
@@ -4163,7 +4163,7 @@ nothing there.
 
 ### One honest limit
 
-The end-to-end path — the model speaks, then its tool calls run — has not been
+The end-to-end path, the model speaks, then its tool calls run, has not been
 watched with a real language model behind it, because that still has not happened
 anywhere in this project. The pieces are tested individually and the ordering is
 what the code's structure implies, but it is reasoned rather than observed.
@@ -4175,7 +4175,7 @@ attached to the session that produced it.
 ## 5.55 Checking our own paperwork against the code, and finding it wrong
 
 The day before, a long stretch of work was written up: what passed, what was
-counted, what was clean. This round did something the project had never done —
+counted, what was clean. This round did something the project had never done,
 it took each of those written claims and re-ran the command that was supposed to
 justify it.
 
@@ -4185,7 +4185,7 @@ Most held exactly. Two did not, and one of them is embarrassing in a useful way.
 
 The project inherits a limit on how long any one file may be. One dashboard file
 had been split up specifically to get under it. A later change added a few lines
-back and pushed it **over** — and the write-up of that very change said, in as
+back and pushed it **over**, and the write-up of that very change said, in as
 many words, that the limit was clean everywhere.
 
 Both sentences were committed together. Nobody ran the check. A tidy-up pass the
@@ -4193,7 +4193,7 @@ next day repeated the claim without running it either.
 
 The fix is the interesting part. The limit could have been cleared by moving any
 four lines anywhere. What actually moved was the one piece of the file that had
-been in the wrong place since the original split — a small display helper sitting
+been in the wrong place since the original split. A small display helper sitting
 in a file that was supposed to hold no display code at all. **The thing that
 broke the limit pointed straight at the thing that had never belonged.**
 
@@ -4201,8 +4201,8 @@ broke the limit pointed straight at the thing that had never belonged.**
 
 A new field was inserted into the record definition, and it landed _between_
 another field and the note describing it. The note ended up attached to nothing,
-and the field it described — the one distinguishing an administrator's action
-from an agent's — silently lost its explanation. In the file that defines what
+and the field it described, the one distinguishing an administrator's action
+from an agent's, silently lost its explanation. In the file that defines what
 the tamper-proof record actually contains.
 
 ### The part worth keeping
@@ -4215,7 +4215,7 @@ page later in the same document said it was not, and a note calling a feature
 None of these were bugs in the system. All of them were things a reader would
 have believed. **The lesson the project keeps relearning is that a statement
 which was true once, written in words that sound permanent, is indistinguishable
-from a statement that is true now** — unless somebody re-runs the command.
+from a statement that is true now**, unless somebody re-runs the command.
 
 ## 5.56 The check that had never once run
 
@@ -4223,14 +4223,14 @@ Putting the system on a Linux server for the first time turned up something
 better than a deployment problem.
 
 There is a script whose whole job is to prove that the parts of the system which
-behave differently on Linux actually work there — file locking, file permissions,
+behave differently on Linux actually work there. File locking, file permissions,
 path handling. It is cited in the report as evidence for one of the nine design
 requirements, and recorded as "fourteen checks, all passed".
 
 **It had never run. Not once, in the seventeen days since it was written.**
 
 It died immediately on startup, every time, for three separate reasons stacked
-behind one another — each only visible once the one before it was fixed. Its own
+behind one another, each only visible once the one before it was fixed. Its own
 opening comment explained why it needed nothing but a plain runtime to work, and
 that explanation was wrong in every clause.
 
@@ -4244,7 +4244,7 @@ since that change and nothing said so.
 That is the point, and it is worth stating carefully:
 
 > **A check that never runs does not merely fail to catch new problems. It also
-> stops telling you when it has itself gone out of date — while continuing to
+> stops telling you when it has itself gone out of date, while continuing to
 > look, on every page that mentions it, exactly like coverage.**
 
 This one sat in the project as a green row in a table of requirements while the
@@ -4253,13 +4253,13 @@ code underneath it moved twice.
 ## 5.57 Who can see what is running right now
 
 Each organisation using this system is supposed to be sealed off from the others.
-Earlier work moved every stored file — rules, logs, accounts — into a separate
+Earlier work moved every stored file, rules, logs, accounts, into a separate
 area per organisation, and that quietly solved most of the problem.
 
 **It did not solve the live view.** The panel showing which agents are working at
 this moment does not read a file. It asks the running system directly, and the
 running system does not know that organisations exist. The only filter applied
-was "is this person senior enough to see agent activity" — and an administrator
+was "is this person senior enough to see agent activity", and an administrator
 is senior enough to see _any_ agent.
 
 So an administrator of one organisation could open that panel and see every other
@@ -4277,7 +4277,7 @@ design said that, because nobody had drawn the distinction.
 
 ### A choice worth explaining
 
-The fix could have been optional — a setting each of the five places might pass.
+The fix could have been optional. A setting each of the five places might pass.
 It was made **required** instead, so the code will not compile until every place
 that asks this question says which organisation it is asking on behalf of. That
 turned a hunt into a list: the compiler named all five immediately. Optional
@@ -4291,7 +4291,7 @@ An earlier review had already established what that sentence really demands: a
 setting you can only change by editing code or typing a command **does not
 count**, because the person the requirement names cannot reach it.
 
-This round asked that question of every feature at once — by listing everything
+This round asked that question of every feature at once, by listing everything
 the system can do over its web interface, listing everything the dashboard
 actually asks for, and comparing the two.
 
@@ -4308,7 +4308,7 @@ neither had a single button anywhere.
 
 One was worse than merely missing: the dashboard's own description of what a
 rules file contains **left the setting out entirely**, so even an override set
-from the command line was invisible on screen. Not restricted — invisible.
+from the command line was invisible on screen. Not restricted. Invisible.
 
 Both now have controls, and existing overrides are listed where you would look
 for them.
@@ -4317,7 +4317,7 @@ for them.
 
 Four features looked missing and were not; they were being reached in a way the
 first pass did not recognise. And three things are only available from the
-command line **on purpose** — including listing every organisation on the
+command line **on purpose**, including listing every organisation on the
 installation, which is precisely the cross-organisation leak §5.57 had just been
 fixed for.
 
@@ -4332,7 +4332,7 @@ different reviews.
 ## 5.59 The emergency stop reached into other organisations
 
 Each organisation on this system is meant to be sealed off from the others.
-Earlier work gave every organisation its own files — rules, logs, accounts — and
+Earlier work gave every organisation its own files, rules, logs, accounts, and
 that quietly solved most of the problem. §5.57 explained what it did **not**
 solve: anything acting on the running machine, which has no idea organisations
 exist.
@@ -4342,7 +4342,7 @@ live work. This one is the destructive half, and it was sitting one screen away.
 
 **The emergency stop takes an agent's name, checks that you are senior enough,
 and then stops whatever that agent is running.** "Senior enough" is a statement
-about your rank, not about which organisation you are in — an administrator is
+about your rank, not about which organisation you are in. An administrator is
 senior enough for any agent anywhere. And the list of running work it consults
 belongs to the machine, not to any organisation.
 
@@ -4352,7 +4352,7 @@ stopping things.
 
 ### Why the multi-tenancy review missed it
 
-That review looked at the multi-tenancy work itself — the organisation records,
+That review looked at the multi-tenancy work itself. The organisation records,
 the separated files, the new screens. All of it concerns information that is
 **filed away**, which is exactly what the separation had just fixed.
 
@@ -4377,7 +4377,7 @@ tell you whether an account exists.
 ### And a detour that nearly produced the wrong answer
 
 The first run of the new tests said the fix did not work. It did. The test's own
-scaffolding was reading the result in a way that missed every refusal — so a
+scaffolding was reading the result in a way that missed every refusal, so a
 correctly refused request arrived looking like a success, with a response that
 said "forbidden" attached to a status that said "fine".
 
@@ -4385,10 +4385,10 @@ Worth remembering in both directions: **scaffolding that cannot see a refusal
 will report a working control as broken, and on a worse day will report a broken
 one as working.**
 
-## 5.60 One agent, one organisation — and a fix we did not make
+## 5.60 One agent, one organisation: and a fix we did not make
 
 The question was simple: can an agent belong to more than one organisation? The
-answer is no, and it is no in four separate places — the record has a single
+answer is no, and it is no in four separate places. The record has a single
 slot for it, names are unique across the whole installation, the system looks the
 answer up on every single action, and handing an agent to someone in another
 organisation is refused outright.
@@ -4404,15 +4404,15 @@ them case-sensitive.
 
 They ignore capital letters because **OpenClaw decided so**, not us. The
 underlying framework lowercases every agent name to build what it calls a
-"filesystem-safe" form, and around nine hundred places across the framework —
-message routing, session identity, folder names — depend on that. On Windows and
+"filesystem-safe" form, and around nine hundred places across the framework,
+message routing, session identity, folder names, depend on that. On Windows and
 Macs, the folder for `Scout` and the folder for `scout` are the same folder no
 matter what the code thinks.
 
 Making our part case-sensitive would recreate a bug we had already fixed once. The
 framework would file the agent's activity under `scout`, our checks would look for
 `Scout`, the two would never meet, and the agent would appear correctly set up
-while being refused on every single action — with nothing anywhere explaining
+while being refused on every single action, with nothing anywhere explaining
 why. That was one of the worse bugs this project has had.
 
 So the request was declined, and the actual gap underneath it was fixed instead.
@@ -4422,7 +4422,7 @@ So the request was declined, and the actual gap underneath it was fixed instead.
 When registering an agent, the check for "is this name taken?" compared the
 tidied-up new name against each stored name **exactly as it was written down**.
 Since the earlier fix every name is stored tidied-up, so the two always matched
-— but a records file written _before_ that fix could still contain `Scout`, and
+but a records file written _before_ that fix could still contain `Scout`, and
 `Scout` does not look equal to `scout`.
 
 So two entries could exist for one real agent, owned by two different
@@ -4443,7 +4443,7 @@ fixes it by deleting the stale line. That is much better than it quietly working
 under the wrong organisation's rules.
 
 Two things deliberately still work. Two entries that **agree** on the
-organisation are untidy rather than contradictory, so they still resolve — there
+organisation are untidy rather than contradictory, so they still resolve. There
 is only one right answer, and refusing would cost somebody their agent over a
 messy file. And the refusal is targeted: one bad pair does not take unrelated
 agents down with it, which would turn a stale line into an outage.
@@ -4454,7 +4454,7 @@ Found by running the whole suite at the end of the session rather than by
 reading anything: **one test failed in the full run and passed on its own.**
 
 The test proves that old, already-answered requests get cleaned up once the
-store gets too full. It proved it by actually filling the store — 525 requests,
+store gets too full. It proved it by actually filling the store, 525 requests,
 each one submitted and then answered, and every single one of those steps
 rewrites the whole file and waits for the disk to confirm it. Seventy-six seconds
 on its own, and a timeout when run alongside everything else competing for the
@@ -4472,7 +4472,7 @@ rather than shrugged off.
 This was a third file with the same problem, and the note did not cover it.
 
 > **A warning that names some of the cases teaches people to dismiss the ones it
-> does not.** That was the exact reason the original note was written — and it
+> does not.** That was the exact reason the original note was written, and it
 > happened anyway, to the note itself.
 
 ### The fix
@@ -4494,7 +4494,7 @@ that if a command has a password sitting in the middle of it, the password would
 be written into a record that is designed never to be edited afterwards.
 
 So before anything is written down, the text goes through a hider. It looks for
-words that mean "a secret comes next" — `password`, `token`, `api-key` — and
+words that mean "a secret comes next", `password`, `token`, `api-key`, and
 replaces whatever follows with `***`.
 
 **It only recognised those words when they stood completely alone.**
@@ -4505,8 +4505,8 @@ hider simply did not see it.
 
 ### It was recorded as one missing word, and it was all of them
 
-An earlier check had spotted this, tried exactly one example — `--http-password`
-— and written it up as "one key to add, a couple of minutes of work".
+An earlier check had spotted this, tried exactly one example, `--http-password`
+and written it up as "one key to add, a couple of minutes of work".
 
 Nobody tried a second example. When we did, every single prefixed form leaked:
 `--db-password`, `--admin-password`, `--gateway-password`, `--http-token`. And
@@ -4528,14 +4528,14 @@ bigger footprint, write our own second hider in our own code and leave theirs
 broken, or write the gap down as a known limitation and change nothing.
 
 Kinan chose to fix the shared one. A second hider of our own would eventually
-drift out of step with theirs, and the leak is real in the original project too —
+drift out of step with theirs, and the leak is real in the original project too,
 patching only the part we get marked on would be fixing the exam rather than the
 problem.
 
 ### The fix turned out to be their idea, not ours
 
 Here is the part worth remembering. The original project **already** handles
-prefixes correctly in two other places — for settings files, and for environment
+prefixes correctly in two other places, for settings files, and for environment
 variables. `DB_PASSWORD` as an environment variable was always hidden properly.
 
 They had simply never applied the same rule to command-line flags.
@@ -4549,7 +4549,7 @@ it had not reached.
 It would have been easy to hide more and feel safer. We deliberately did not.
 
 `--sort-key=name` and `--first-pass=2` are ordinary instructions, not secrets.
-`--password-file=/etc/pw.txt` is a filename — knowing which file was read is
+`--password-file=/etc/pw.txt` is a filename. Knowing which file was read is
 exactly what an investigator needs, and the file's contents were never in the
 command anyway.
 
@@ -4558,7 +4558,7 @@ command anyway.
 > one that occasionally shows a password you can go and change. The hider's job
 > is to be accurate, not aggressive.
 
-The same reasoning is why the short form `mysql -phunter2` is still not hidden —
+The same reasoning is why the short form `mysql -phunter2` is still not hidden,
 a lone `-p` means "create the folders" to one program and "keep the permissions"
 to another, so hiding it would make the record describe something that did not
 happen. That remains a stated limitation rather than a fix.
@@ -4566,7 +4566,7 @@ happen. That remains a stated limitation rather than a fix.
 ### Proving it
 
 Two tests were added. The first checks five prefixed password flags never reach
-the record — remove the fix and it fails, which is what makes it worth having.
+the record. Remove the fix and it fails, which is what makes it worth having.
 
 The second checks the opposite: that the innocent lookalikes are still written
 down exactly as typed. That one passes whether the fix is there or not, so it
@@ -4578,13 +4578,13 @@ commands.
 
 While checking the work above, two other tests were run that are **not part of
 the five commands the project uses to verify itself**. Both failed. Both also
-failed with the new change removed, so neither was caused by it — they have been
+failed with the new change removed, so neither was caused by it. They have been
 failing for some time.
 
 Neither is a real fault in the system. One expects a file path to use forward
 slashes; Windows uses backslashes. The other expects a file to be locked down to
 owner-only permissions; Windows does not have that concept in the same form. The
-code is right on both counts and behaves correctly per platform — it is the tests
+code is right on both counts and behaves correctly per platform. It is the tests
 that assume everyone is on Linux.
 
 **The problem is not the two tests. It is that the handover notes say "no
@@ -4685,7 +4685,7 @@ stronger.
 ### Three things that were decided rather than defaulted
 
 **The agent is told.** Quietly returning a shorter list would teach the model
-that the file does not exist, and it might then act on that — reporting a clean
+that the file does not exist, and it might then act on that. Reporting a clean
 search, or creating a file it believes is missing. Saying "some results were
 withheld" is both true and the only version it can reason with correctly.
 
@@ -4719,7 +4719,7 @@ different language, maintained elsewhere.
 There is a wider version of it worth knowing. OpenClaw has a general feature for
 changing a tool's result before the model sees it. On that same path the feature
 _runs_, produces its changed result, and the changed result is then given only to
-things that are watching — the model receives the original. Anyone relying on
+things that are watching. The model receives the original. Anyone relying on
 that feature there is getting nothing, silently. Our problem turned out to be one
 instance of a bigger one.
 
@@ -4729,7 +4729,7 @@ A second change, made for a different reason but on the same day.
 
 The system can hold several separate organisations, each unable to see the
 others. That was built in August. The trouble is that some settings belong to the
-_whole machine_ rather than to one organisation — whether the Codex backend is
+_whole machine_ rather than to one organisation. Whether the Codex backend is
 allowed at all is one of them. With several organisations sharing a machine, an
 administrator of one could flip a switch affecting organisations they cannot see
 and are not responsible for.
@@ -4794,7 +4794,7 @@ anything, which is the safe way round.
 ### It is enforced, not merely recorded
 
 A permission nothing checks is a setting, not a control. So the gate was taught
-to tell the two runtimes apart — it previously could not — and it now refuses
+to tell the two runtimes apart, it previously could not, and it now refuses
 every tool call from an agent running on Codex without permission, saying why and
 naming who can fix it. The refusal is written to the permanent log.
 
@@ -4816,7 +4816,7 @@ dialog on the safe direction too would just teach people to click through both.
 ### Saying yes is recorded, and stays visible
 
 Every change writes an entry to the tamper-evident log with the account, the tier
-they held at the time, and both ends of the change — written _before_ the change
+they held at the time, and both ends of the change. Written _before_ the change
 is attempted, so an attempt that fails halfway still leaves a trace. The two
 kinds are recorded separately, so "who allowed this agent onto that backend?" can
 be answered without wading through machine-level changes.
@@ -4848,7 +4848,7 @@ exception is making a promise the system does not keep.
 **Hours after the search fix landed, the note became false** for the way almost
 every agent actually runs. Denied results are now removed before the model sees
 them. An operator reading that page would have been told their rules are weaker
-than they are — by the very warning built to stop the interface overstating
+than they are, by the very warning built to stop the interface overstating
 itself.
 
 ### The tripwire that did not go off
@@ -4860,7 +4860,7 @@ why the sentence existed, and remove it.
 
 The test kept passing.
 
-The reason is worth more than the mistake. The note did not become **untrue** —
+The reason is worth more than the mistake. The note did not become **untrue**,
 it became **half** true. Results are removed on the built-in engine and still
 cannot be on the Codex one. Every sentence the test checked for was still on the
 page, so nothing failed.
@@ -4875,7 +4875,7 @@ of those three things had to be wrong.
 
 ### Fixed by narrowing, which was the real question
 
-The obvious move — delete the note, the fix is in — would have been wrong. It
+The obvious move, delete the note, the fix is in, would have been wrong. It
 would have told anyone using the Codex engine that a forbid rule protects them
 from searches, which is the precise false promise the note existed to prevent.
 
@@ -4894,12 +4894,12 @@ The first one always worked. The second one did not, for one particular kind of
 agent.
 
 We had just added a rule about which agents are allowed to run on a second
-engine — a different program we hand work to, where some of our protections
+engine. A different program we hand work to, where some of our protections
 cannot reach. The gate checks that rule. The problem was **when** it checked it:
 before it checked whether the agent had been stopped.
 
 So if you had pressed the stop button on an agent that also was not allowed on
-that engine, the agent was refused — and the logbook said _"this agent is not
+that engine, the agent was refused, and the logbook said _"this agent is not
 allowed on that engine"_. Which was true. It was just not the answer to the
 question you would be asking, which is _did my stop button work?_
 
@@ -4912,7 +4912,7 @@ We moved the check so the stop button answers first.
 why it keeps happening. All three times the stop button _worked_. All three times
 what was wrong was the **evidence it left behind**. A protection that you only
 consult afterwards fails silently, because nothing goes wrong at the moment it
-fails — it goes wrong later, when somebody asks, and by then the moment has
+fails. It goes wrong later, when somebody asks, and by then the moment has
 passed.
 
 ## 5.70 The search that stopped looking and did not say so
@@ -4925,7 +4925,7 @@ That part was intended. What was not intended was what happened after line two
 thousand.
 
 If the filter found nothing to remove in those first two thousand lines, it
-concluded there was nothing to remove **at all** — and handed over the entire
+concluded there was nothing to remove **at all**, and handed over the entire
 result, including the eighty thousand lines it had never looked at. A forbidden
 file appearing at line 2,001 went straight through.
 
@@ -4933,8 +4933,8 @@ The mistake was one character of meaning in one function. The code asked for the
 first two thousand lines, and then treated "I did not find anything" and "I did
 not look" as the same answer.
 
-It has always been unlikely to happen — the search tools cut themselves off well
-before two thousand lines — but the direction of the failure was the wrong one.
+It has always been unlikely to happen, the search tools cut themselves off well
+before two thousand lines, but the direction of the failure was the wrong one.
 A limit that gives up and hands everything over is not a limit. The same file
 already says this in another place: _a filter that fails open defeats itself._
 
@@ -4949,7 +4949,7 @@ While checking the search filter we thought we had found a second problem: if
 some other part of the system deliberately blanked out a result, our filter might
 put the contents back.
 
-That would have been bad in an unusually embarrassing way — the component whose
+That would have been bad in an unusually embarrassing way. The component whose
 whole job is removing things, un-removing something another component removed.
 
 **It was not real.** We tested it by breaking our own fix and running the tests
@@ -4959,7 +4959,7 @@ and read the actual data type, and found that a blanked-out result is an empty
 we described could not occur.
 
 We wrote it down anyway, because how we caught it is the useful part. A fix for a
-problem that does not exist looks exactly like a fix whose test does not work —
+problem that does not exist looks exactly like a fix whose test does not work,
 in both cases, breaking the fix changes nothing. The only way to tell them apart
 is to go and look, and it would have been easy not to.
 
@@ -4969,13 +4969,13 @@ The report has a table listing the nine things the project promised to do, with
 whether each was done. The table was right. The paragraph underneath it was six
 days out of date.
 
-It said three problems remained. Two of them had been solved — one on the 25th,
+It said three problems remained. Two of them had been solved, one on the 25th,
 one the day before.
 
 This is the kind of stale sentence nobody catches, because it fails in the
 flattering-to-check direction: it makes the project sound _worse_ than it is. A
 claim that oversells gets caught, because sooner or later somebody tests it. A
-claim that undersells just sits there being modest — until an examiner follows it
+claim that undersells just sits there being modest, until an examiner follows it
 up, finds the code doing more than the document admits, and reasonably wonders
 what else the author has not kept track of.
 
@@ -4987,7 +4987,7 @@ and none of them removed.
 ## 5.73 A rule we told ourselves we followed
 
 The project has a rule: anything you can do should be doable in all three
-places — the web page, the command line, and the programming interface. It is
+places. The web page, the command line, and the programming interface. It is
 written in the code as a standard.
 
 We checked it for the first time. It is not true. Four things are missing from
@@ -4998,7 +4998,7 @@ running.
 **Some of those are probably fine.** Creating accounts from a terminal may be
 deliberately wrong, because anyone with a terminal on that machine could then
 create themselves an administrator. The point is not that all four must be
-built — it is that **not one of the four had a reason written down anywhere**, so
+built. It is that **not one of the four had a reason written down anywhere**, so
 the rule was stated as if it were universal and had never once been checked.
 
 That is the third time this project has found a rule it had asserted and never
@@ -5018,7 +5018,7 @@ when we added exactly that sign-in. The section kept saying it for a week.
 
 **The part worth telling is how it survived.** The day before, we went through
 this very file looking for that same wrong claim, and we found it twice and fixed
-it both times — once under one command, once under another. We did not touch the
+it both times. Once under one command, once under another. We did not touch the
 section titled "Authorization", three paragraphs further up, which said it three
 more times.
 
@@ -5028,7 +5028,7 @@ the one a reader hits first, because it is near the top and the others are
 hundreds of lines down.
 
 The consequence was not cosmetic. Someone reading that page would conclude the
-whole permission system does not apply to the command line — so they would not
+whole permission system does not apply to the command line, so they would not
 sign in, and would not look for a check that is actually there. **The document
 was arguing that the project is less secure than it is, in the section whose
 entire job is to describe how secure it is.**
@@ -5036,7 +5036,7 @@ entire job is to describe how secure it is.**
 Two more things in the same header turned out to be wrong the same way: the list
 of available commands was missing four whole groups added since it was written,
 and the claim that the command line can do everything the web page can had never
-once been checked. When we checked it, it could not — four things are missing.
+once been checked. When we checked it, it could not, four things are missing.
 Whether all four should be built is now a decision for Kinan.
 
 ## 5.75 The clean-up command that signed the deletion as the boss
@@ -5048,8 +5048,8 @@ removes people's logins, and there is no way back.
 When it ran, the logbook recorded who did it. If nobody was signed in, it wrote
 down that **the owner of the whole installation** had done it.
 
-Nobody had. That command's normal situation is that nobody is signed in — the
-accounts it repairs are the reason nobody can sign in — so the usual entry was a
+Nobody had. That command's normal situation is that nobody is signed in, the
+accounts it repairs are the reason nobody can sign in, so the usual entry was a
 deletion attributed to a person who does not exist.
 
 **Recording nothing would have been better than recording that.** An entry
@@ -5068,7 +5068,7 @@ dressed up as a person with a rank.
 The obvious way to prevent all of this is to make the computer reject the wrong
 kind of value before the program will even run.
 
-We built it, and then we counted what it cost. Eight changes in the real code —
+We built it, and then we counted what it cost. Eight changes in the real code,
 **none of which was a bug**; all eight were perfectly good names being written in
 a slightly different style. And three hundred and eleven complaints across about
 thirty test files, because that style is how the tests have always been written.
@@ -5090,13 +5090,13 @@ This project runs two type-checkers, and **neither of them looks at a single tes
 file**. All 115 of them are outside.
 
 We found it by falling into it. Writing a new test, I referred to a setting that
-does not exist — I used the wrong name for it. The test passed anyway. The value
+does not exist, I used the wrong name for it. The test passed anyway. The value
 came out as "nothing", the entry was written with a blank where the action should
 be, and every check in that test still succeeded, because none of them happened
 to look at that field.
 
 **A test that passes while asserting the wrong thing is the exact failure this
-whole review process exists to catch** — and the tool that would have caught it
+whole review process exists to catch**, and the tool that would have caught it
 in one second was switched off.
 
 It is the same shape as something we found two days ago, one level up. Then it
@@ -5104,7 +5104,7 @@ was two failing tests sitting outside the checks. This time it is an entire kind
 of checking sitting outside them, covering every test in the project.
 
 Turning it on reports 189 existing problems, so it is a day's careful work rather
-than a quick fix — and it needs care, because a test that no longer compiles may
+than a quick fix, and it needs care, because a test that no longer compiles may
 be one that is asserting something no longer true, and forcing it to compile
 would throw away a real warning.
 
@@ -5115,13 +5115,13 @@ be attributed to a person. It stopped being true on the 24th of August.
 
 We have now corrected it **four times, in four different documents, over seven
 days**. Twice on the 30th in one file. A third time on the 31st, in the section
-of that same file that _defines_ it — which the previous day's pass walked past,
+of that same file that _defines_ it, which the previous day's pass walked past,
 because it had been searching for places the claim was _used_. And a fourth time
 the same afternoon, in the table that lists what the project promised and whether
 it delivered.
 
 Every one of those passes was careful. That is what makes it worth writing down.
-The problem is not that somebody was sloppy — three thorough passes already
+The problem is not that somebody was sloppy, three thorough passes already
 looked. **The problem is that one fact lives in four places and nothing connects
 them**, so each restatement has to be found and fixed on its own, by someone who
 happens to be looking in the right file on the right day.
@@ -5138,7 +5138,7 @@ in each one the tests looked stronger than they were:
 **Ninety-seven places forgot to say who was acting.** Five of our functions
 require you to name the person performing an action, because that name goes into
 the permanent log. The tests left it out. So every one of those actions was
-recorded as done by "unknown" — meaning the tests were exercising the emergency
+recorded as done by "unknown". Meaning the tests were exercising the emergency
 fallback of our record-keeping, while appearing to exercise the normal path.
 
 **Thirty places had quietly stopped checking anything.** Three test helpers were
@@ -5155,11 +5155,11 @@ answer is nothing. Those tests were passing for the wrong reason.
 We fixed all 189. **The important number is a different one: 2,338 tests passed
 before we started and 2,338 passed afterwards.** Across roughly 140 edits, not a
 single test changed its mind about anything. That was the thing to be careful
-about — a clean-up like this can destroy a real warning by forcing a stale test
+about. A clean-up like this can destroy a real warning by forcing a stale test
 to compile, and the only proof it did not is that nothing moved.
 
 Then we added the check to the list of things that must pass before work is
-considered done — but only _after_ getting it to zero. A check that fails from
+considered done, but only _after_ getting it to zero. A check that fails from
 the day it arrives teaches everyone to ignore it, and an ignored check is worse
 than no check, because it looks like protection.
 
@@ -5176,14 +5176,14 @@ things, and telling them apart is the entire point of having two.
 Both of them run. So why doesn't the second one report a leak every time the
 first one prevents one?
 
-Because of the order two lines run in — **inside OpenClaw's code, which is not
+Because of the order two lines run in, **inside OpenClaw's code, which is not
 ours.** The removal happens first, so by the time the second part looks, there is
 nothing left to report. Correct, and entirely accidental as far as our own code
 knows.
 
 **Nothing anywhere said this.** And if that order ever changed, the failure would
 be invisible: every single one of our tests would still pass. The only thing that
-would change is what the log _means_ — and only for someone reading it months
+would change is what the log _means_, and only for someone reading it months
 later, asking the one question those two notes exist to answer.
 
 That is now the fourth time we have found this exact shape: the protection works,
@@ -5191,7 +5191,7 @@ the **record** of the protection is wrong. It is a nasty kind of bug, because
 nothing appears broken until somebody needs the answer, and by then the moment
 has gone.
 
-We did not change the behaviour — it is right. We wrote a test that fails loudly
+We did not change the behaviour. It is right. We wrote a test that fails loudly
 if that order ever reverses, including a demonstration of what the log would say
 if it did. A comment would only warn someone already looking here; the person who
 might change that order will be working somewhere else entirely.
@@ -5205,7 +5205,7 @@ knowing that the forbidding one wins.
 Now there is a form: name the folder, list what stays off-limits, done.
 
 **It is a shortcut, not a new mechanism**, and that distinction is the whole
-design. The system has always worked this way — the form just says it for you.
+design. The system has always worked this way. The form just says it for you.
 Everything it creates shows up in your rule list as ordinary rules, each on its
 own line, each removable by itself. Remove the exception and the folder stays
 allowed. Remove the allowance and the exception stays forbidden. You can still
@@ -5218,7 +5218,7 @@ We were asked not to take that away, and we didn't.
 **The pattern it wrote matched nothing at all.** We used a helper called "escape
 this text", not noticing it also pins the text to the start and end of whatever
 it is matched against. Used inside a bigger pattern, the result was a pattern
-that is perfectly valid and can never match anything — so every folder grant
+that is perfectly valid and can never match anything, so every folder grant
 would have allowed exactly nothing, while looking like it worked. The tests we
 wrote for the module caught it before it went anywhere.
 
@@ -5227,14 +5227,14 @@ does a second thing is a trap for whoever reads the call and sees only the first
 
 **It skipped a safety check the other form applies.** The existing rule form
 checks a pattern's length and complexity before saving it. We assumed the shared
-save function did that. It doesn't — the form does it itself. So the new control
+save function did that. It doesn't. The form does it itself. So the new control
 could write rules the old form would have rejected: **two ways of doing one
 thing, giving two answers**, which is the single most common mistake this project
 has found. Written, this time, by the person who had spent the week cataloguing
 it.
 
 We fixed it in the shared layer rather than in the web page, so the command line
-gets the check too — otherwise we would have recreated the same split one floor
+gets the check too. Otherwise we would have recreated the same split one floor
 down.
 
 **One click could write unlimited rules.** Nothing capped how many exceptions you
@@ -5242,7 +5242,7 @@ could list. Each becomes a rule, each takes a lock and writes a permanent log
 entry. Capped at fifty.
 
 **The help text promised something that did not exist.** The explainer says
-affected agents are marked in the rule list. They weren't — the marking was part
+affected agents are marked in the rule list. They weren't. The marking was part
 of the plan and had not been built yet, and the description of it was written
 first.
 
@@ -5250,7 +5250,7 @@ That is _exactly_ the mistake we found and wrote up two days ago: text describin
 a feature drifting away from what the feature does. Same author, same week, and
 this time the text ran ahead of the code instead of behind it. **Knowing the
 failure mode did not prevent it.** What caught it was deliberately going back
-over the new work — the review, not the knowledge.
+over the new work. The review, not the knowledge.
 
 We fixed it by building the marking, not by softening the sentence, because the
 sentence described what had been agreed.
@@ -5266,7 +5266,7 @@ summary and the name was thrown away.
 We are writing this down rather than shrugging it off. This project has already
 had three tests that failed only when the machine was busy, so an occasional
 failure here has precedent and a likely cause. And the honest sentence is _"one
-unexplained failure was seen, and two later runs were clean"_ — which is not the
+unexplained failure was seen, and two later runs were clean"_, which is not the
 same as "everything passes", and the difference is precisely the kind of thing
 this whole document exists to keep straight.
 
@@ -5276,7 +5276,7 @@ diagnosis, and it cost nothing to have kept it.
 ## 5.84 Two commands that were missing for no reason, and two that weren't
 
 The project told itself a rule: anything you can do should work in all three
-places — the web page, the command line, and the programming interface. Nobody
+places. The web page, the command line, and the programming interface. Nobody
 had checked it. When we did, four things were missing from the command line.
 
 Rather than build all four, we wrote down _why_ each one was missing first. That
@@ -5301,26 +5301,26 @@ agent**, and seeing **what an agent is doing right now and stopping one job**.
 That second one was actively a problem. There was already a command to stop an
 agent _completely_ and keep it stopped, and no command to end a single job. So
 someone dealing with a problem over a remote connection had only the heavy hammer
-— which pushes people toward using it.
+which pushes people toward using it.
 
 **The rule itself changed, and that matters more than the two commands.** It now
 reads: everything reaches all three places _unless a written reason says
-otherwise_ — and the reasons are in the reference guide. A rule stated as
+otherwise_, and the reasons are in the reference guide. A rule stated as
 absolute and never checked does the opposite of its job: it makes real gaps
 invisible, because someone who believes it doesn't go looking.
 
 ## 5.85 A review of a randomly chosen fifth of the system
 
 You asked for a thorough review of a random slice of the project. To keep it
-honest we picked the slice **mechanically** — a random draw over the 48 main
-files, taking nine — so it couldn't drift toward parts I already knew well. Six
+honest we picked the slice **mechanically**, a random draw over the 48 main
+files, taking nine, so it couldn't drift toward parts I already knew well. Six
 of the nine were untouched by anything done this week.
 
 **Two problems, and neither is a bug in what the code does.**
 
 **A comment that outlived its behaviour.** There is a label the system uses for
 "this rule was created by someone approving a prompt in the moment". The
-explanation next to it describes that as something the system does. It doesn't —
+explanation next to it describes that as something the system does. It doesn't,
 we deliberately removed it weeks ago, because on a chat app that approval button
 is pressed by someone with no account here at all, and letting them create a
 permanent rule was letting an unnamed person write policy.
@@ -5330,13 +5330,13 @@ inviting the next person to build the thing we removed.
 
 **A safety property that was true for a reason living outside the file.** One
 function looked up "which agents does this administrator own" without checking
-which organisation they belonged to — the only lookup in that file that didn't.
+which organisation they belonged to. The only lookup in that file that didn't.
 It was still _correct_, because account identifiers are unique, so knowing the
 account already tells you the organisation. But that argument lives nowhere in
 the code, in a file where every neighbouring lookup states the boundary out loud.
 That is precisely the shape of a real leak we found earlier this month.
 
-Worse: **nothing calls that function, but it has a passing test** — so it reads
+Worse: **nothing calls that function, but it has a passing test**, so it reads
 as working, covered code.
 
 **Seven files came back clean**, including the ones handling login tokens, file
@@ -5345,13 +5345,13 @@ they'd be vulnerable to rather than just read.
 
 **The pattern worth noticing:** two findings, and neither is the code doing the
 wrong thing. Both are the code and its description drifting apart. That is now
-comfortably the most common kind of problem in this project — and it is exactly
+comfortably the most common kind of problem in this project, and it is exactly
 the kind that tests cannot catch.
 
 ## 5.86 Deleting an account, and the one that couldn't be deleted
 
 You asked for account deletion: the boss can delete anyone, and can delete
-themselves — which takes the whole organisation down with it.
+themselves, which takes the whole organisation down with it.
 
 **Half of it already worked.** The boss could always delete anybody else. What
 was refused was deleting _themselves_, and the refusal was right for a reason
@@ -5370,7 +5370,7 @@ Three things about it are worth saying plainly, because they are the parts
 somebody would otherwise be surprised by:
 
 **The agents are really deleted**, from OpenClaw itself, not just "no longer
-governed". And they go **first**, while the boss still exists — so if one of them
+governed". And they go **first**, while the boss still exists, so if one of them
 refuses to go, nothing else has happened yet and you can try again. A
 half-finished deletion always leaves _more_ than intended, never less.
 
@@ -5378,7 +5378,7 @@ half-finished deletion always leaves _more_ than intended, never less.
 removed; the record of what its agents did stays. This is deliberate, and it is
 the one place we knowingly did not do what you might expect. If deleting your
 organisation also deleted the log of everything that happened in it, then anyone
-running one has a one-click way to destroy the evidence — which is the exact
+running one has a one-click way to destroy the evidence, which is the exact
 thing a tamper-proof log exists to prevent. It is not the operator's to delete.
 
 **Afterwards the installation is empty, not broken.** No account exists, so the
@@ -5394,24 +5394,24 @@ of them is the most serious thing this project has found.
 
 ### The emergency stop that said it worked and did nothing
 
-Agents have an id — a short name like "scout". The system stores those ids in
+Agents have an id. A short name like "scout". The system stores those ids in
 lower case everywhere, because that is what the underlying runtime does.
 
 The emergency stop took the id **exactly as you typed it**. So if you typed
 "Scout" instead of "scout":
 
 - it wrote down that "Scout" is stopped, and the checker later asked "is scout
-  stopped?" and was told no — **the agent was never blocked**;
+  stopped?" and was told no, **the agent was never blocked**;
 - it looked for "Scout"'s running work, found none, because the running work is
   filed under "scout";
-- and because it found nothing running, it reported **"stopped, confirmed"** —
+- and because it found nothing running, it reported **"stopped, confirmed"**,
   which is the honest reading of "nothing was running" and completely the wrong
   conclusion here.
 
 The screen said "Lockdown engaged". The agent carried on.
 
 This is the worst kind of failure this project recognises: not a crash, not a
-missing feature, but a control that reports success while doing nothing — on the
+missing feature, but a control that reports success while doing nothing, on the
 one control whose entire purpose is stopping something dangerous immediately.
 
 The same missing step turned out to affect **everything else that names an
@@ -5430,14 +5430,14 @@ system accepted it, showed it as saved, and then never matched it against
 anything: the person could not see that agent's log, talk to it, stop it, or
 write rules for it. Nothing anywhere said there was a problem.
 
-It failed in the safe direction — people got _less_ access than intended, never
-more — which is exactly why nobody noticed.
+It failed in the safe direction, people got _less_ access than intended, never
+more, which is exactly why nobody noticed.
 
 ### The upload store that could lose what it was holding
 
 Attachments you send to an agent are recorded in an index. Every other store in
 the system takes a lock before writing; this one did not. Two uploads at the same
-moment meant one of them vanished from the index while its file stayed on disk —
+moment meant one of them vanished from the index while its file stayed on disk,
 so it stopped counting against your storage limit, and the limit could be walked
 past by uploading several at once.
 
@@ -5446,14 +5446,14 @@ That flag is the only thing stopping someone deleting a file the audit log point
 at. Losing it re-opens the ability to delete your own evidence.
 
 And if the index file was ever damaged, the store read it as "empty" and then
-saved that emptiness — silently forgetting every attachment it held. It now
+saved that emptiness. Silently forgetting every attachment it held. It now
 refuses to continue instead, and the health report says so.
 
 ### The emergency stop that said it failed when it had worked
 
 The opposite mistake, in the same feature. Two things could go wrong _after_ the
-agent had already been stopped — a hiccup reading the list of running work, or
-the audit log being unwritable — and either one made the whole request report an
+agent had already been stopped, a hiccup reading the list of running work, or
+the audit log being unwritable, and either one made the whole request report an
 error. So the agent was stopped, and the operator was told the stop had failed,
 at the exact moment they would reach for something more drastic.
 
@@ -5464,11 +5464,11 @@ not be written, it says that too, beside the success rather than instead of it.
 
 Administrators manage people. If you demoted or deleted an administrator, the
 people who reported to them were left reporting to somebody who no longer had
-that job — silently, with nothing refusing it and nothing fixing it. Both are now
+that job. Silently, with nothing refusing it and nothing fixing it. Both are now
 refused, and the refusal lists exactly who you need to move first.
 
 While closing that, we found that **demoting an administrator from the dashboard
-had never worked at all** — it always returned a server error, because the page
+had never worked at all**. It always returned a server error, because the page
 never sent the one piece of information the server required. Fixed on all three
 surfaces, and the page no longer offers the option when there is nobody available
 to take over.
@@ -5488,7 +5488,7 @@ were two descriptions of one thing, and one of them had drifted into nonsense.
 ### Two smaller ones
 
 An identifier comparison that was correct only by coincidence, and a way of
-generating ids that could — very rarely — produce two identical ones. Neither was
+generating ids that could, very rarely, produce two identical ones. Neither was
 exploitable; both were the kind of thing that is right today and wrong after the
 next change, so both were made right on purpose instead.
 
@@ -5496,7 +5496,7 @@ next change, so both were made right on purpose instead.
 
 **Eight of these nine are the same shape**: something is stored the way it was
 typed, and compared against something stored a different way. The system already
-had a file whose entire job is to say "fold a name before you use it as a key" —
+had a file whose entire job is to say "fold a name before you use it as a key",
 written after exactly this bug, for _account_ names. Account names were folded
 everywhere. Agent names were folded nowhere.
 
@@ -5518,11 +5518,11 @@ more situation.
 
 ### The pattern checker that could be handed a 44-second pattern
 
-Operators write rules using patterns. Some patterns are pathological — they look
+Operators write rules using patterns. Some patterns are pathological. They look
 innocent and take a computer an astronomically long time to evaluate. The system
 has a checker that refuses them, and it refuses the classic examples correctly.
 
-It did not know that `?` — "this part is optional" — makes a pattern
+It did not know that `?`, "this part is optional", makes a pattern
 open-ended in the same way `*` does. So a pattern meaning roughly "twenty-six
 optional letters in a row" was **accepted as safe** and, on a non-matching
 input, took:
@@ -5534,13 +5534,13 @@ input, took:
 | twenty-six         | **44.5 s** |
 
 Doubling with each one added, and the number is chosen by whoever writes the
-rule. During those 44 seconds the server does nothing else at all — not the
+rule. During those 44 seconds the server does nothing else at all, not the
 dashboard, not the audit log, not the emergency stop. The person who can write
 such a rule is the _least privileged_ one who can write any rule.
 
 Fixed, and checked in both directions: every dangerous shape we could construct
-is now refused, and twelve patterns operators genuinely write — including ones
-with `?` in them, like "ls optionally followed by anything" — are still accepted.
+is now refused, and twelve patterns operators genuinely write, including ones
+with `?` in them, like "ls optionally followed by anything", are still accepted.
 Refusing too much would push people toward writing catch-all rules, which is
 worse than the problem.
 
@@ -5550,14 +5550,14 @@ The system keeps an agent inside its workspace by resolving what a path _really_
 points at before checking the rules. Shortcuts (symbolic links) are followed, so
 a link named `data` pointing at a system folder cannot be used to sneak out.
 
-When the file does not exist yet — which is the normal case for writing a new
-file — it resolved the containing folder instead. **But only one level up.** So
+When the file does not exist yet, which is the normal case for writing a new
+file, it resolved the containing folder instead. **But only one level up.** So
 if the agent wrote to `data/newfolder/thing.conf`, where neither `newfolder` nor
 the file existed, the link was never followed at all, and the rules were checked
 against a path that still looked like it was inside the workspace.
 
-The write tool then creates missing folders as it goes — which _does_ follow the
-link — and the file landed outside.
+The write tool then creates missing folders as it goes, which _does_ follow the
+link, and the file landed outside.
 
 Fixed by walking up until something real is found, however many levels that
 takes. The test for it was run against the old code first and fails there, which
@@ -5572,7 +5572,7 @@ empty form it was sent. That answer had been removed months earlier, and the
 equivalent check moved somewhere that answers after the complaint instead.
 
 So both cases looked identical, and **every visitor to a working installation
-was shown the create-the-first-account form** — and, if they filled it in, told
+was shown the create-the-first-account form**, and, if they filled it in, told
 their installation already had one. The first screen anybody sees, showing the
 wrong thing.
 
@@ -5582,7 +5582,7 @@ Fixed on the server, by making it answer the question the page was asking.
 
 While fixing that, we found why nobody had noticed: the end-to-end test file for
 accounts contained a test named "creates a second organisation rather than
-refusing" — asserting **success**. That stopped being true on 30 August, when
+refusing". Asserting **success**. That stopped being true on 30 August, when
 one-organisation-per-installation landed.
 
 It kept passing because the shared test fixture quietly switches that rule off
@@ -5596,7 +5596,7 @@ switching the rule off _explicitly and saying why_.
 ### What this one says about the method
 
 Three fifths of this system had already been swept when this one found two
-security defects. Both were in files that had been read carefully — the comments
+security defects. Both were in files that had been read carefully. The comments
 in them are long and thoughtful and correct. Neither would have been found by
 reading again.
 
@@ -5609,8 +5609,8 @@ different claims, and only the second one found these.**
 ## 5.89 A seventh random fifth, and four copies of one mistake
 
 Four fifths of the system had now been reviewed, each drawn at random and none
-overlapping the others. This one drew what was left: mostly the smaller pieces —
-the command-line commands, the web routes, the dashboard panels — rather than
+overlapping the others. This one drew what was left: mostly the smaller pieces,
+the command-line commands, the web routes, the dashboard panels, rather than
 the big stores of data.
 
 **Seven problems, all fixed. Two are security.** And the interesting thing is
@@ -5620,8 +5620,8 @@ not any one of them: **four of the seven are the same mistake in four places.**
 
 Some facts about an account are stored twice on purpose.
 
-When somebody signs in, the system writes down a few things about them — which
-agents they may touch, whether they are allowed to write rules — and keeps that
+When somebody signs in, the system writes down a few things about them, which
+agents they may touch, whether they are allowed to write rules, and keeps that
 copy alongside the sign-in itself. It does that because the alternative is
 opening the account file on every single click, which would make the dashboard
 slow.
@@ -5632,7 +5632,7 @@ different spots only one of the two was being maintained.
 
 ### The withheld permission that came back on the next sign-in
 
-The owner of an installation can take away one person's ability to write rules —
+The owner of an installation can take away one person's ability to write rules,
 narrowing them to "may ask an administrator" instead. When they do that, the
 system carefully updates the person's _current_ sign-in so the change takes
 effect immediately. There is a comment beside that code explaining why doing
@@ -5641,7 +5641,7 @@ believe had taken hold when it had not.
 
 **But the code that creates a _new_ sign-in never copied the setting at all.**
 
-So the restriction held until that person signed out and signed back in — and
+So the restriction held until that person signed out and signed back in, and
 then it was gone. On the website and on the command line both. Not because
 anything overrode it, but because the new sign-in simply did not know about it,
 and "not known" was read as "allowed".
@@ -5650,7 +5650,7 @@ This is the same sentence as the comment, with "later" and "now" swapped.
 
 ### The evidence that was deleted along with the organisation
 
-An installation's owner can delete their whole organisation — every account,
+An installation's owner can delete their whole organisation. Every account,
 every agent. The system deliberately **keeps the audit log** when they do, and
 the reasoning is written out at length: somebody who can erase the record by
 deleting the thing the record is about has a one-click way to destroy the entire
@@ -5658,7 +5658,7 @@ point of having a tamper-proof log.
 
 The audit log refers to files people attached and sent to agents. **Those files
 lived inside the folder the deletion emptied.** So the log was kept and
-everything it pointed at was deleted — by exactly the person the log would
+everything it pointed at was deleted, by exactly the person the log would
 incriminate, in one command.
 
 What makes this clearly a bug rather than a judgement call is that the system
@@ -5668,7 +5668,7 @@ the evidence behind the entry. Somebody who could not delete one file could
 delete all of them by deleting the organisation.
 
 Now the files the log names are kept with the log, and files nobody ever sent
-are deleted with everything else — which is the same rule, applied in both
+are deleted with everything else, which is the same rule, applied in both
 places instead of one.
 
 ### The capital letter that disabled the emergency stop
@@ -5677,7 +5677,7 @@ Agent names are stored in lower case. When somebody types one, the system is
 supposed to treat `Scout` and `scout` as the same agent.
 
 A previous review found this and fixed it where the names are _stored_. It did
-not fix the place that _compares_ them — even though that comparison is quoted
+not fix the place that _compares_ them. Even though that comparison is quoted
 by name in that review's own write-up.
 
 So somebody who had been given the agent `scout`, typing `Scout`, was told they
@@ -5685,7 +5685,7 @@ did not manage it. Mostly that is an irritation. In one place it is not: the
 emergency stop has a free-text box for the agent's name, and the button was
 switched off by this comparison, over the words "not your agent". The one
 control that exists for emergencies told the operator it was not theirs to press
-— before they pressed it — on an agent they hold.
+before they pressed it, on an agent they hold.
 
 Fixed on the server and in the browser, both using the same single function to
 decide what "the same agent" means, so the two cannot drift apart again.
@@ -5697,7 +5697,7 @@ disjoint from the ones before, so that "we have now reviewed 80% of the system,
 randomly, without overlap" is a true sentence.
 
 The three previous sweeps recorded **how many** pieces they drew and never
-recorded **which**. So the claim could not actually be checked — only inferred
+recorded **which**. So the claim could not actually be checked. Only inferred
 from what the write-ups happened to mention. This one records the exact recipe
 used to draw it.
 
@@ -5709,7 +5709,7 @@ disjointness is something the report claims.
 
 Every one of the four copies exists for a good, written-down reason. None of
 them is a shortcut somebody took carelessly. What was missing in each case was
-the _other half_ of the reason — that a second copy has to be kept in step —
+the _other half_ of the reason, that a second copy has to be kept in step,
 and that is not something you notice by reading either file on its own.
 
 You notice it by reading the sign-in code and the permission code in the same
@@ -5718,7 +5718,7 @@ not.
 
 ---
 
-## 5.90 The last fifth — and what the two closing reviews say together
+## 5.90 The last fifth: and what the two closing reviews say together
 
 This one was not a random draw. It was **everything the four random fifths had
 left**: eleven pieces, including the biggest web-route file, the biggest
@@ -5738,26 +5738,26 @@ organisation.
 The command-line version of the same thing asked two: are you signed in, and do
 you belong to an organisation.
 
-What that actually exposed is narrow — a conversation is stored per person, so
+What that actually exposed is narrow. A conversation is stored per person, so
 what you could reach was your _own_ past conversation with an agent you no
 longer manage. But the gap is the point: two front doors to the same room with
 different locks.
 
 **The uncomfortable part is that we already went looking for exactly this.** On
 31 August a review read every command's checks beside its website counterpart's
-and found four gaps. It missed this one — which sits directly below one of the
+and found four gaps. It missed this one, which sits directly below one of the
 four it found, in the same file. A review that sounds exhaustive and is not.
 
 ### The log entry that described something that had not happened
 
 An installation's owner can turn the Codex backend on. Doing so accepts a stated
-limitation — on that backend one protection can be recorded but not enforced —
+limitation, on that backend one protection can be recorded but not enforced,
 so it is written into the tamper-proof log, deliberately, before the change is
 attempted. Writing it before is right: a change that fails half-way is exactly
 the event you want a record of.
 
-But the entry said "codex backend disabled → enabled". When the change failed —
-and it can, if the configuration file moved underneath — the permanent record
+But the entry said "codex backend disabled → enabled". When the change failed,
+and it can, if the configuration file moved underneath, the permanent record
 said the installation had started accepting that limitation, and it had not.
 
 Two similar operations elsewhere in the system already do this correctly: they
@@ -5772,7 +5772,7 @@ true, is not testing the thing that matters about a record.**
 
 ### The rulebook that described a power it had taken away
 
-One file is the authority on what each role may do — it is what you read, and
+One file is the authority on what each role may do. It is what you read, and
 what the report will quote, to learn the model. It listed one role as able to
 "set that agent's posture and escalation overrides".
 
@@ -5780,7 +5780,7 @@ That stopped being true a while ago. Those two settings were moved up a level,
 deliberately and with the reasoning written out: letting the lowest role change
 them turns a firm refusal into a request somebody might approve, which is a
 widening made by the role with the least authority. The ability was not removed
-but _relocated_ — that role now asks, and an administrator decides.
+but _relocated_. That role now asks, and an administrator decides.
 
 Both the website and the command line enforce the higher level. So the sentence
 described a permission nobody has, in the file most likely to be believed, and
@@ -5793,9 +5793,9 @@ operator's reference said that the command line shows you a _different_
 conversation from the one the website shows you.
 
 It used to. Conversations were once owned by the machine you were sitting at, so
-two people sharing a computer shared a transcript. **We changed that** — the
+two people sharing a computer shared a transcript. **We changed that**, the
 conversation now belongs to the account, precisely so those two people stop
-sharing one — and after that change the command line and the website show you
+sharing one, and after that change the command line and the website show you
 the same thread. What stays separate is _other people's_ conversations, which is
 what the paragraph's last sentence was actually describing.
 
@@ -5813,13 +5813,13 @@ We keep a short list of commands that must be run before anything is called
 verified, each with the number it is expected to produce. One of them runs a
 suite belonging to OpenClaw itself.
 
-On 1 September we found that this expected number was stale — it told a reader
+On 1 September we found that this expected number was stale. It told a reader
 to accept eighteen failures that had been fixed six days earlier. On 2 September
 we found that the _corrected_ number was **half the suite**: the command runs two
 files, and the figure we had written down was the first file's total.
 
 We fixed that in two documents. **The same number appears in six**, and the four
-we did not touch went on saying the old value — including **inside the write-up
+we did not touch went on saying the old value, including **inside the write-up
 of the original finding**, which is the one about a stale number.
 
 So the document diagnosing the problem was handing out the wrong figure. All six
@@ -5836,7 +5836,7 @@ The project keeps a short list of commands that must pass before anything is
 called verified. One of them checks code style and common mistakes.
 
 Running the command as written: **clean, no problems.** Running the **actual
-check** — the one that runs automatically before every commit — **38 problems**,
+check**, the one that runs automatically before every commit, **38 problems**,
 and it refuses.
 
 Two different reasons, and both are the same shape as a problem we found the day
@@ -5846,7 +5846,7 @@ before:
   slow (about eight minutes). Invoked the way our own instructions describe, it
   skips that work and finishes in seconds, reporting nothing. It does not say it
   skipped anything.
-- **The other 4 are in a folder the written command never looks at** — including
+- **The other 4 are in a folder the written command never looks at**, including
   three ordinary problems in the script this project wrote to verify its own
   Linux install.
 
@@ -5855,7 +5855,7 @@ thing about the test command: on Windows it silently ran half the tests and
 exited successfully, which looks exactly like a pass. This is that, one layer
 along.
 
-None of the 38 came from this work — we checked, and one of the files is
+None of the 38 came from this work. We checked, and one of the files is
 byte-for-byte identical to the last commit and still fails. **They are recorded
 and left open**: fixing 14 files across three areas, none of them in the parts
 this review covered, is a separate job, and quietly turning a review into one is
@@ -5874,7 +5874,7 @@ decision properly and then the thing they described moves.
 This project writes down its reasoning more thoroughly than most, which is why
 the second kind shows up so often here. That is worth stating plainly rather
 than defensively: **every one of these was found by reading the explanation
-against the code — which is only possible because the explanation was there to
+against the code, which is only possible because the explanation was there to
 disagree with.** A codebase with no comments would have had the same defects and
 no way to notice them.
 
@@ -5885,8 +5885,8 @@ no way to notice them.
 The five random-fifths reviews had covered every piece of the system, so there
 was nothing left to draw. This one changes what it draws.
 
-Instead of picking **files**, it picks **capabilities** — "delete an
-organisation", "set an agent's posture", "read the audit log" — and asks of each
+Instead of picking **files**, it picks **capabilities**, "delete an
+organisation", "set an agent's posture", "read the audit log", and asks of each
 one the same four questions:
 
 1. Can you do it from all three places (the website, the command line, the
@@ -5901,7 +5901,7 @@ once.** A file-by-file review finds those only by accident, because the two
 halves are in different files. A capability-by-capability review puts them next
 to each other deliberately.
 
-The list of capabilities was not written by hand — it was extracted from the
+The list of capabilities was not written by hand. It was extracted from the
 code, which gives **44**. Twelve were drawn at random.
 
 **Two problems, both fixed.**
@@ -5917,13 +5917,13 @@ never did.** It worked on the website and it worked programmatically, and there
 was simply no command for it.
 
 That matters more than it sounds, because the command line is the surface that
-works when the website does not — the website is reachable only through a secure
+works when the website does not. The website is reachable only through a secure
 tunnel, and the moment you most need to change something is often before that
 tunnel exists. So an operator logged into the server could adjust an agent's
 approval behaviour and could not adjust a person's.
 
 Now built, and deliberately gated by the _account_ permission rather than the
-_policy_ permission — because using the neighbouring one would have quietly
+_policy_ permission, because using the neighbouring one would have quietly
 merged two settings the design keeps apart.
 
 ### The list of exceptions was missing two exceptions
@@ -5933,7 +5933,7 @@ that is deliberately not on the command line, and why."** It listed one. There
 were three.
 
 One was the setting above, which had no reason because there was none. The other
-was releasing a file you had attached but not yet sent — and that one has a
+was releasing a file you had attached but not yet sent, and that one has a
 _good_ reason: on the command line, attaching and sending are the same action, so
 a not-yet-sent attachment cannot exist there and there is nothing to release. The
 reason was written down in the code and not in the section that promises to hold
@@ -5947,7 +5947,7 @@ directly below one it found.
 The lesson is the same both times, and it is worth more than either problem:
 **a document that claims to be complete should be generated or checked against
 the code, not maintained by hand.** The list of capabilities this review used was
-extracted in one line — which is how the gap was found.
+extracted in one line, which is how the gap was found.
 
 ### The test that could not fail
 
@@ -5957,20 +5957,20 @@ out to be the most interesting thing found all day.
 
 There is a test called **"does not re-read the whole file on every append"**. The
 audit log is written to constantly, and an early version re-read the entire file
-every time it added a line — which gets slower and slower as the log grows. That
+every time it added a line, which gets slower and slower as the log grows. That
 was fixed, and a test was added to make sure it stayed fixed.
 
 The test worked by **timing** it: append 100 entries, and require each one to
 take under 50 milliseconds.
 
 **That is a measurement of how fast the computer is**, not of whether the code
-re-reads the file — and the test's own comment said, in as many words, that it
+re-reads the file, and the test's own comment said, in as many words, that it
 was deliberately _not_ doing that. On an idle machine it measured 51.6. Under
 load, 84. It had been passing because this machine happened to sit just under
 the line.
 
-The obvious repair — compare early appends against later ones, so machine speed
-cancels out — **did not work either**, and finding out why is the point. We put
+The obvious repair, compare early appends against later ones, so machine speed
+cancels out, **did not work either**, and finding out why is the point. We put
 the old, slow behaviour back and measured both:
 
 | version    | early   | late    |
@@ -5986,7 +5986,7 @@ it could not avoid measuring.
 So we checked directly: **we broke the code on purpose and ran the test. It
 passed.** The test had never been able to detect the problem it existed for.
 
-It now **counts** instead of timing — how many times the file gets fully read —
+It now **counts** instead of timing, how many times the file gets fully read,
 which is exactly the thing that would grow. Broken code makes it fail with "59
 when it should be 0". It is also machine-independent and five times faster.
 
@@ -5996,7 +5996,7 @@ measures the computer.
 
 ## 5.92 A tenth sweep: break it on purpose and see if anything complains
 
-The ninth review changed what it sampled — capabilities instead of files —
+The ninth review changed what it sampled, capabilities instead of files,
 because the module pool had run out. This one changes something else: **what
 counts as evidence.**
 
@@ -6019,7 +6019,7 @@ still pass, they never depended on the promise.
 
 Six features, chosen on one rule: **the ones where reading proves nothing.**
 Anything that depends on timing, on two processes colliding, on cryptography, or
-on the clock cannot be verified by looking at it — those are exactly the places
+on the clock cannot be verified by looking at it. Those are exactly the places
 where a confident-looking test can be measuring nothing.
 
 | Feature                  | The promise                                                                      |
@@ -6031,7 +6031,7 @@ where a confident-looking test can be measuring nothing.
 | The cross-process lock   | Two writers cannot overlap                                                       |
 | Time-limited permissions | A rule stops applying when it lapses                                             |
 
-Fifteen deliberate breakages in all — some blunt ("delete this check"), some
+Fifteen deliberate breakages in all. Some blunt ("delete this check"), some
 subtle ("let one entry be removed from the end without noticing"). Each one was
 applied, the relevant tests were run, and the code was put back.
 
@@ -6039,13 +6039,13 @@ applied, the relevant tests were run, and the code was put back.
 
 Every single break was detected. Sessions that never expired, a log that no
 longer noticed a deleted checkpoint, a lock that deleted somebody else's lock, a
-permission that outlived its own expiry — all of them failed the suite
+permission that outlived its own expiry. All of them failed the suite
 immediately.
 
 **That is the most reassuring thing this project has measured**, and it is worth
 stating precisely, because it is a different claim from "the tests pass". The
 tests passing says the code does what the tests describe. This says **the tests
-would notice if it stopped** — which is the property that was missing in each of
+would notice if it stopped**, which is the property that was missing in each of
 the last three reviews' findings.
 
 ### And then the reading found four things anyway
@@ -6058,7 +6058,7 @@ came out of checking this project’s own paperwork against itself.
 
 The dashboard limits password guessing: five wrong passwords for an account and
 that account is refused for fifteen minutes. It remembers this in a table in
-memory, and the table has a size limit — a thousand accounts — so that somebody
+memory, and the table has a size limit, a thousand accounts, so that somebody
 throwing junk at it cannot use up all the memory in the machine.
 
 **That size limit was the whole defence's off switch.**
@@ -6068,11 +6068,11 @@ table threw away the _lockouts_ first, so a thousand junk sign-in attempts
 unlocked whoever you were attacking. The repair was to throw away the
 **not-yet-locked** records first and keep the lockouts.
 
-Read that repair from the attacker's side. Lock out a thousand usernames — and
+Read that repair from the attacker's side. Lock out a thousand usernames, and
 **they do not have to be real usernames**, because the table is keyed on
 whatever was typed in the box. The table is now full of lockouts. Now start
 guessing a real password. Your first wrong guess creates the only not-yet-locked
-record in the table, so it is the one thrown away — on your very next request.
+record in the table, so it is the one thrown away, on your very next request.
 The count restarts at one. Every time. **It can never reach five, so the lockout
 is never created, so there is nothing left to throw away.**
 
@@ -6084,21 +6084,21 @@ We measured it rather than arguing about it:
 | full of junk lockouts | **500+**        | **1**           | **no**      |
 
 Five hundred is where we stopped counting; there is no limit. The setup costs
-about five thousand failed logins, needs **no account and no password** — and
+about five thousand failed logins, needs **no account and no password**, and
 after it the guessing limit is off for **every** account on the installation.
 
 **One thing this is not, and it matters.** It is not reachable by a stranger on
 the internet: the dashboard sits behind the server's own front door (a shared
 secret, a device token, or the SSH tunnel), and that door is checked first. What
 it _is_ reachable by is somebody who got through that door and has no account
-here — which is the entire reason the account login exists as a **second** door.
+here, which is the entire reason the account login exists as a **second** door.
 Switching off the guessing limit turns the second door into one you can try as
 fast as you can type.
 
 **The fix, and the part of it that is a confession.** The account being tried is
 now never the one thrown away, and among the rest the system discards whatever
 is closest to expiring anyway rather than whatever arrived first. That closes
-the free, permanent version above — the same measurement now reads five guesses
+the free, permanent version above. The same measurement now reads five guesses
 and a lockout, exactly like an empty table.
 
 It does not close it completely, and we would rather write that down than imply
@@ -6110,8 +6110,8 @@ attacker can make their junk records that shape. The table is keyed on a name
 they invent for free. What actually bounds this is a limit per _source_ rather
 than per _username_, and that lives in a different layer of the program.
 
-What did change is that the attack now has to be continuous, and — because of
-the second finding below — every one of those attempts now leaves a mark.
+What did change is that the attack now has to be continuous, and, because of
+the second finding below, every one of those attempts now leaves a mark.
 
 ### Signing in at the terminal left no trace when it failed
 
@@ -6122,13 +6122,13 @@ lockout, writes a line into the tamper-evident log saying an attempt failed, and
 writes a second line if that attempt was the one that tripped the lockout.
 
 The command line, on a wrong password, printed `Invalid credentials.` on the
-screen and did **nothing else at all.** No count, no lockout, and — the part that
-matters — **no entry in the log.** A successful sign-in was recorded. A thousand
+screen and did **nothing else at all.** No count, no lockout, and, the part that
+matters, **no entry in the log.** A successful sign-in was recorded. A thousand
 failed ones were not recorded anywhere.
 
 **Why that is not excused by the usual argument.** The obvious objection is that
 anybody who can run these commands already has a shell on the machine and could
-just edit the account file — which is true, and the project says so in as many
+just edit the account file, which is true, and the project says so in as many
 words. But it argues the _opposite_ way round. Editing the account file is a
 change somebody can see afterwards. Guessing the password is not, and what it
 gets you is the real password, which then works on the dashboard, where it looks
@@ -6138,7 +6138,7 @@ So the trail is the entire value this surface can honestly offer, and the trail
 had a hole in it exactly where an attack would be.
 
 **Why five earlier reviews walked past it.** Each of them asked the same
-question — "does this command check what its web-page twin checks?" — and went
+question, "does this command check what its web-page twin checks?", and went
 looking for a missing permission check. `login` is the one command that
 correctly has no permission check, because it is what runs _before_ anybody has
 an identity. **A review shaped around finding a missing check cannot see the
@@ -6167,7 +6167,7 @@ when deciding whether their work is at risk.
 
 The way it happened is the reason it is worth recording. The commit that made
 those sentences false is the commit whose message says it brought the handover
-notes level — it landed the work _and_ the note describing that work as
+notes level. It landed the work _and_ the note describing that work as
 unlanded. **A number written into prose by the same change that alters the
 number is stale the moment it is written**, which is the fourth time this project
 has recorded that exact shape.
@@ -6182,9 +6182,9 @@ Every problem this project finds gets a number and an entry in a few places, so
 that somebody reading any one of them gets the whole picture. One of those places
 is `GOVERNANCE.md`, the main engineering document.
 
-**Its list stops at 221.** The three problems found the previous day — including
+**Its list stops at 221.** The three problems found the previous day, including
 the one whose entire lesson is _"a document claiming to be complete should be
-checked against the thing it describes, not maintained by hand"_ — were written
+checked against the thing it describes, not maintained by hand"_, were written
 into five documents and not into that one.
 
 Worse, its last row still describes problem 221 as **open**. Three other
@@ -6204,14 +6204,14 @@ The tenth review broke the code on purpose to see whether the tests noticed.
 They did, all fifteen times. This one asks a question that exercise cannot: not
 _"does the code do the right thing?"_ but **"what does it say when it can't?"**
 
-Every piece of this system has two halves — the part that runs when everything
+Every piece of this system has two halves. The part that runs when everything
 works, and the part that runs when a disk is full, a file is corrupt, or two
 programs want the same file at once. The second half is written once, read
 rarely, and almost never run. It is also where this project's own rulebook says
 the worst bugs live: **an action that ends with nothing explaining what
 happened is ranked above a crash and above a missing feature.**
 
-So: six features, and for each one the same question — **if a step fails
+So: six features, and for each one the same question, **if a step fails
 half-way, is what the operator is told actually true?**
 
 ### The five that were right
@@ -6225,13 +6225,13 @@ half-way, is what the operator is told actually true?**
 | The attachment store       | Refuses to run on a damaged index rather than guessing                 |
 
 Two of those are right **because they were wrong before** and somebody fixed
-them — the emergency stop reported a stop that had worked as a failure, and the
+them. The emergency stop reported a stop that had worked as a failure, and the
 search filter used to let results through when it could not check them. Both
 now carry a written explanation of the principle.
 
 ### The one that was not: deleting an organisation
 
-This is the biggest, most irreversible thing the system can do — it removes
+This is the biggest, most irreversible thing the system can do. It removes
 every account, every agent, and the Root account that could have undone it. Its
 own opening comment says its whole job is _"the order, and what is reported when
 a step fails part-way."_
@@ -6239,7 +6239,7 @@ a step fails part-way."_
 It gets the order right. It does not get the reporting right, and the mistake is
 all in one place: **after the point of no return.**
 
-The deletion happens in stages. Agents, then accounts, then five smaller steps —
+The deletion happens in stages. Agents, then accounts, then five smaller steps,
 sign people out, write the completion record, tidy the attachment store, remove
 the leftover files, write a second copy of the record where an operator will
 find it. The first two stages are carefully handled: if they fail, nothing has
@@ -6250,7 +6250,7 @@ threw the error straight out, past everything, to the screen. And by then the
 accounts and the agents are already gone.
 
 So the operator sees an error. What they conclude is that the deletion did not
-happen. What actually happened is that **it did** — completely, irreversibly —
+happen. What actually happened is that **it did**, completely, irreversibly,
 and one piece of tidying afterwards did not.
 
 That is the same mistake the emergency stop made, one act further down the scale
@@ -6262,15 +6262,15 @@ is now what this does too.
 
 The step most likely to go wrong is the one that tidies up attachments, and the
 reason is almost funny: **it refuses to run on a damaged index, deliberately and
-correctly.** Its own comment explains why — treating an unreadable index as
+correctly.** Its own comment explains why. Treating an unreadable index as
 empty would throw away the record of every file the organisation ever sent.
 
 That refusal is exactly right when somebody is asking the store what to keep. It
 is useless here, because by the time it is asked, everything it might have
 protected is already gone. All the refusal can still do is destroy the report.
 
-So the test does not fake anything. It writes a corrupt index file — the state a
-crash mid-write would leave — and deletes the organisation. Before the fix, the
+So the test does not fake anything. It writes a corrupt index file, the state a
+crash mid-write would leave, and deletes the organisation. Before the fix, the
 whole thing threw. After it, the deletion completes and the result says, in a
 sentence: the attachment store could not be reduced to the files the ledger
 names, so it was left whole beside the retained trail.
@@ -6279,7 +6279,7 @@ names, so it was left whole beside the retained trail.
 
 Once the pattern was named, two siblings had it in miniature.
 
-**Deleting a single agent** wrapped every fallible step but the last one — the
+**Deleting a single agent** wrapped every fallible step but the last one. The
 line that writes the deletion into the audit log. The agent is gone from both
 places by then, so a log that would not take the entry turned a completed
 deletion into a reported failure. And because deleting an organisation deletes
@@ -6289,7 +6289,7 @@ its agents in a loop, that error escaped the loop's own careful handling too.
 That switch accepts a known enforcement gap, and it writes two log entries: one
 saying the change was _requested_, one saying it _took_. The second is written
 after the configuration is already saved. If it failed, the operator was told
-the change failed — while the installation had in fact begun offering the
+the change failed, while the installation had in fact begun offering the
 backend. Being told a security setting is off when it is on is the wrong way
 round to be wrong.
 
@@ -6299,13 +6299,13 @@ from the record.
 ### The rule worth keeping
 
 **Past the point where an action cannot be undone, nothing may throw.** Before
-that line, failing loudly is right — nothing is lost and the operator can retry.
+that line, failing loudly is right. Nothing is lost and the operator can retry.
 After it, an error message is simply false, and the more irreversible the act
 the more damage the false message does, because the operator's next move is
 based on it.
 
 Every one of these was a step that only runs when something else has already
-gone wrong — which is why five careful reviews walked past them. **Code that
+gone wrong, which is why five careful reviews walked past them. **Code that
 only runs on a bad day is the code least likely to have been watched running.**
 
 ## 5.94 The three things a cold machine found in one evening
@@ -6323,7 +6323,7 @@ found by reading the code.** That is the point of the section.
 of "where to find each imported module". A change on 2026-09-02 added one import
 to the dashboard and nobody added the matching line to that list, so the build
 had been broken for a day. Nothing noticed because the check that _looks_ like it
-covers this — the type checker — finds modules a completely different way, and
+covers this, the type checker, finds modules a completely different way, and
 was perfectly happy. And the build itself is not one of the six commands the
 project treats as its verification.
 
@@ -6338,7 +6338,7 @@ system-wide folder, under a comment explaining that background services never
 read shell startup files. It made the correct argument and then applied it to
 only half of what needed it.
 
-Then the fix did the same thing on a smaller scale — it copied three tools and
+Then the fix did the same thing on a smaller scale. It copied three tools and
 missed a fourth, which broke the _second_ install rather than the first. Worse
 way round, and worth recording.
 
@@ -6354,7 +6354,7 @@ immediately and reported success.
 The cause is that the program decides _how_ to talk to the system's service
 manager by checking three environment values together. On a normal computer,
 logging in sets all three for you. On a server you SSH into as the root account,
-one of them is never set — and the program's rescue for that case skipped the
+one of them is never set, and the program's rescue for that case skipped the
 root account specifically. With one value missing it silently talked to a
 different service manager, which genuinely could not see the file.
 
@@ -6366,7 +6366,7 @@ you to look for a missing file that is not missing.
 
 **Nobody had ever walked the new operator's path to the end.**
 
-Every previous check ran on a machine that already had the pieces — the runtime
+Every previous check ran on a machine that already had the pieces. The runtime
 already reachable, the login session already established, the dashboard already
 built. Each of those is invisible until it is absent, and it is only absent on a
 machine that has never done any of this before.
@@ -6381,7 +6381,7 @@ has never seen them.
 
 Three defects in the deployment path, found before the demonstration rather than
 during it. All three are fixed, and the fixes are in the instructions as steps
-rather than in a troubleshooting section at the bottom — which is the difference
+rather than in a troubleshooting section at the bottom, which is the difference
 between a runbook that works and one that works if you already know the answers.
 
 The third one is not even this project's bug. It is in the underlying OpenClaw
@@ -6391,7 +6391,7 @@ separately to be reported upstream.
 ## 5.95 Two sweeps, and the discovery that the safety inspector had never shown up
 
 Six problems on the evening of 3 September. Four of them are about the system,
-and two are about **the thing that is supposed to check the system** — which is
+and two are about **the thing that is supposed to check the system**, which is
 the more uncomfortable pair, and the more useful.
 
 ### It started with two pages of our own notes disagreeing
@@ -6401,19 +6401,19 @@ fixed. Another page of the **same document** said they were still there and stil
 broken. Both had been written by us, a day apart.
 
 The rule this project has learned the hard way is: when two records disagree,
-don't decide which one sounds right — go and measure. So we ran the check.
+don't decide which one sounds right. Go and measure. So we ran the check.
 
 Neither page was right.
 
 ### The check had never finished running on this computer
 
 The project has a "gate": one command that runs every code-quality check in
-sequence. Three steps — a translation check, the main code check, and last a
+sequence. Three steps. A translation check, the main code check, and last a
 check on the dashboard's visual styling.
 
 The command reported failure. Not because of anything wrong with the code: the
 first two steps passed completely. It failed on the third step with an error
-meaning **"I cannot find the styling checker"** — even though the styling checker
+meaning **"I cannot find the styling checker"**. Even though the styling checker
 was installed and working perfectly.
 
 The cause is a Windows detail. The tool is installed in a folder as a file with
@@ -6428,14 +6428,14 @@ reason that looks exactly like "your code is bad".
 We fixed it, and then ran the styling check by hand for the first time. It
 passes. Nothing was hiding behind it.
 
-**And then the repaired check immediately caught four mistakes — in the repair
+**And then the repaired check immediately caught four mistakes, in the repair
 itself.** The first time the whole gate ran end to end, it failed, on four
 problems introduced by the very fixes we had made that evening: a name declared
 twice in the same file, four times over. Nothing else noticed. The type checkers
 were happy, every test passed, and the basic checker the automatic guard runs
 does not look for that.
 
-**A check that has never run looks exactly like a check with nothing to find** —
+**A check that has never run looks exactly like a check with nothing to find**,
 right up until the first time it runs.
 
 **But that is luck, and it is worth being clear about why.** "The check passes"
@@ -6446,7 +6446,7 @@ looked.
 ### And then the worse one: the automatic guard doesn't run the gate
 
 Every document we have describes that command as _"the gate, and what the
-pre-commit hook runs"_ — the pre-commit hook being the automatic guard that
+pre-commit hook runs"_. The pre-commit hook being the automatic guard that
 inspects your work every time you save it into the project's history.
 
 We read the hook. It runs two things: a formatter, and a **basic** version of the
@@ -6455,18 +6455,18 @@ code checker, looking only at the files you just changed.
 It has never run the gate. Not once.
 
 That matters because of what the basic version skips. It skips the deeper checks
-that need to understand the whole program — the ones that catch, for instance, a
+that need to understand the whole program. The ones that catch, for instance, a
 value being used in a way its own definition forbids. It skips an entire folder
 of the project's own scripts. And it skips the styling check entirely.
 
 So the honest picture is: **the deeper checks are not enforced by anything.**
 They are a command a person has to remember to type. And the previous problem
-shows exactly what happens to a command nobody is required to run — it can break
+shows exactly what happens to a command nobody is required to run. It can break
 completely and stay broken, because nothing is depending on it.
 
 We have written this down rather than quietly making the hook slower. Running the
-full gate takes about ten minutes, so where it belongs — the hook, a server, or a
-person's checklist — is a decision, and it is now on the list as one.
+full gate takes about ten minutes, so where it belongs, the hook, a server, or a
+person's checklist, is a decision, and it is now on the list as one.
 
 ### The two problems in the system itself
 
@@ -6475,7 +6475,7 @@ today.** They are recorded as real anyway, and the reason is worth understanding
 
 The system was built to hold several separate organisations at once, each unable
 to see the others. Then, in August, a decision was made that **one installation
-holds exactly one organisation** — several organisations means several servers.
+holds exactly one organisation**. Several organisations means several servers.
 That decision was recorded as a _product_ choice, not a security boundary, and
 alongside it we wrote that the separation machinery was "untouched and still
 enforced".
@@ -6484,14 +6484,14 @@ In two places, it wasn't.
 
 **The first.** There is a setting where the owner can take away a person's
 ability to write rules. On the website, the system checks that the person you
-named actually belongs to your organisation, and refuses if not — there is even a
+named actually belongs to your organisation, and refuses if not. There is even a
 comment explaining that this is precisely the dangerous case. On the command
 line, the same setting **skipped that check** and would happily change the setting
 for anybody on the whole machine. It then went one step further and rewrote that
 person's live session too, whether or not the change had been allowed.
 
 **The second.** When somebody asks an agent to do something, that request is
-tracked in a list so it can be cancelled. That list is **machine-wide** — every
+tracked in a list so it can be cancelled. That list is **machine-wide**. Every
 request, from every organisation. The two places that read it filtered by "are
 you allowed to manage this agent?", and for an administrator that question always
 answers _yes_, for every agent that exists. So the filter that looked like the
@@ -6500,7 +6500,7 @@ boundary did nothing at the exact level where it mattered.
 We have made this mistake before, in August, on a _different_ machine-wide list.
 We fixed it there and wrote a careful note explaining that we had made the
 organisation a **required** piece of information so no place could forget it. That
-worked — for that one list. Nobody asked whether there was a second list of the
+worked, for that one list. Nobody asked whether there was a second list of the
 same kind. There was.
 
 Three comments in that area also claimed protections that were not there: one
@@ -6508,15 +6508,15 @@ promised "the check that follows" where nothing followed, and two said the
 command was restricted to a certain level of user while the code let anybody in.
 That last one happened to be harmless, because a second, unrelated filter caught
 the case anyway. **A protection that works because something else happens to cover
-it is not a protection** — it is a coincidence that has not been tested.
+it is not a protection**. It is a coincidence that has not been tested.
 
 Both are fixed, both have tests, and we deliberately broke the fixes afterwards to
 confirm the tests notice.
 
 ### A sixth: two commands that were never able to do their job
 
-This one came from asking the dullest question on the list — **does the handbook
-describe this correctly?** — and it turned out to be the biggest of the six.
+This one came from asking the dullest question on the list, **does the handbook
+describe this correctly?**, and it turned out to be the biggest of the six.
 
 The handbook says, in one place, that there is deliberately **no** command for
 cancelling a running request from the terminal, and explains why: the list of
@@ -6535,7 +6535,7 @@ first saw the request. The second saw nothing.
 
 Every time you type one of these commands you get a brand-new program. So
 `agent runs` always says nothing is running, and `agent cancel` always says
-**"no request by that name is in flight"** — including when the request is very
+**"no request by that name is in flight"**, including when the request is very
 much in flight, in the server, which is where every request sent from the website
 actually lives.
 
@@ -6545,20 +6545,20 @@ a file. The list of in-flight requests is the one piece of this system that live
 only in memory.
 
 **Why no test caught it.** Every test of these two commands checks the
-"nothing is running" case — because that is the only case they have. A test that
+"nothing is running" case, because that is the only case they have. A test that
 started a request and cancelled it would pass, in the one program running the
 test, and would prove nothing at all about the command an operator types.
 
 Nothing dangerous happens: it refuses to cancel rather than cancelling the wrong
 thing. But it fails at the worst possible moment. We decided earlier this year
 that the terminal is the surface that matters most, because the website is only
-reachable through a secure tunnel — and an emergency is exactly when that tunnel
+reachable through a secure tunnel, and an emergency is exactly when that tunnel
 does not exist. So the person who most needs to stop a runaway request is the
 person most likely to be told nothing is running.
 
 Both commands now say plainly what they cannot see, and point at the two things
 that do work. Making them work properly would mean letting the terminal talk to
-the server over the network — something no other command here needs, because
+the server over the network. Something no other command here needs, because
 everything else is stored in files. That is a design decision, and it is on the
 list rather than quietly made.
 
@@ -6567,10 +6567,124 @@ list rather than quietly made.
 **Everything here was described somewhere before it was measured.** A comment said
 a check followed. A document said a hook ran a command. A register said errors
 were still open. In every case the description was written honestly by somebody
-who believed it, and in every case it had stopped being true — or had never been
-true — and nothing in the world objected.
+who believed it, and in every case it had stopped being true, or had never been
+true, and nothing in the world objected.
 
 The three sweeps before this one each said a version of the same thing about
 tests. This one says it about **the machinery that checks the code, and about the
 notes we keep on ourselves.** Those are the last places anybody thinks to look,
 because they are what you look _with_.
+
+## 5.96 What happened when somebody actually used it
+
+Everything in this section came from Kinan signing in as Root on the real server
+and trying to do the first thing anybody would do: create an agent.
+
+That is worth pausing on. The day before, installing the system on a clean
+machine found three problems that no amount of reading the code could have
+found. This is the same lesson one step further along: **not "does it install"
+but "can a person use it"**. Both problems below are invisible to every test we
+have, because both are about what is on the screen.
+
+### The agent that could not be created
+
+He filled in the form, pressed the button, and the system said:
+
+> The agent could not be given an owner: agents are owned by an Administrator
+
+That refusal is **correct**. The rule is that every agent has exactly one
+Administrator answerable for it, and the Root account is deliberately not
+allowed to be that person, because letting it would mean two rules instead of
+one.
+
+The problem is that the form gave him no way to satisfy the rule. There was
+nothing to pick an owner with, and no message saying what to do instead. A dead
+end with a correct explanation is still a dead end.
+
+**The capability was already there, everywhere except the screen.** The
+programmatic interface has accepted an owner since the feature was built, and
+the command line has had an option for it just as long. The form's own code even
+carried a note describing "the owner picker" as though it existed. It did not.
+
+This is the fourth time this project has built a working feature with no button
+that reaches it, and the file this one is in **says so at the top**: a capability
+is finished when somebody can click it, not when the code returns success. The
+warning was in the right file and the file was the counterexample.
+
+Now: a dropdown of the Administrators in the organisation, shown only to Root,
+because an Administrator creating an agent already owns it. If there are no
+Administrators yet, the form says **"First create an Administrator account in
+Accounts"** instead of offering an empty list, and the button stays switched off
+until an owner is picked, so it is not possible to send the server a request it
+is going to refuse.
+
+### Boxes that could not show their own writing
+
+Two versions of one problem. Placeholder text was cut off mid-word, so a box
+that should read "Optional, OpenClaw chooses one" read "Optional, OpenClaw ch".
+And on the accounts row, the **"Create account" button was drawn past the right
+edge of the screen** and could not be clicked at all.
+
+Both come from the same cause. The settings screen these panels live in was
+built for short labels with a small control on the right. Our panels put long
+descriptions and four controls in a row into it. In a stacked form, a setting
+meant to centre things sideways ended up telling every box to shrink to its
+_default_ size, which has nothing to do with the words it was given. In a
+sideways row, a rule that stops controls wrapping onto a second line meant the
+last one had nowhere to go, so it went off the edge.
+
+**Fixed two ways, and both are needed.** Where there is room, the box is now big
+enough: stacked forms stretch to the full width, every box has a minimum size,
+and crowded rows wrap onto a second line rather than pushing a button off the
+screen. Where there is not room, hovering over the box now shows the full text in
+a tooltip.
+
+The second half is the interesting one, because the obvious way to detect "this
+text is too long for its box" does not work. The standard check only looks at
+what somebody has **typed**, and the text being cut off is almost always the
+**hint** shown in an empty box. An empty box therefore always reports that
+everything fits, however long its hint. So the code measures the text itself
+against the box's own font.
+
+We tested it in a real browser rather than the simulated one, because the
+simulated one reports every box as zero pixels wide, and the same test there
+would pass happily against a page where every single box was cut off. That is a
+mistake this project has made before and now has a name for.
+
+And we checked the test can fail: switching the tooltip off breaks three of the
+six checks.
+
+### The rest, which were requests rather than faults
+
+- The Governance page now has a **title at the top** in the same orange-red and
+  the same font as the rest of the app, a one-line description, and a **Learn
+  more** link that points at this project rather than at the original OpenClaw's
+  documentation, which does not describe anything we added.
+- The sections are **in a more useful order**: Accounts first, the emergency stop
+  directly under the list of what is currently running, and the deployment report
+  last.
+- There is a **list of the sections down the side** that you can click to jump
+  between them. It reads the page it is on rather than a list kept separately, so
+  it can never offer somebody a link to a section their account is not allowed
+  to see.
+- The **approval timeout** can now be set by an Administrator, not only Root, and
+  a User can set it for the agents assigned to them. That second half needed a
+  new setting rather than a wider permission: the old one was a single number for
+  the whole installation, and "my agents wait longer" cannot be written on a
+  number that belongs to everybody.
+- **Em dashes are gone** from everything this project wrote: 7,983 of them across
+  234 files. Left alone in the 42 files we inherited and only patched, which is
+  recorded so the next reader knows the ones still there are not ours.
+- The **README** now describes this project instead of the one it was forked
+  from.
+
+### The thread running through both defects
+
+Neither could have been found by a test, a type checker or a review, because
+neither is about what the code computes. One is a control that was missing from
+a screen while existing everywhere else; the other is text that did not fit in a
+box. **You find those by using the thing.**
+
+That is now three consecutive days where the most valuable findings came from
+somewhere other than reading: a cold machine, then the verification tooling
+itself, and now an operator with a keyboard.

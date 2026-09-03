@@ -6,7 +6,7 @@
 // all: every other suite fabricates a `GovernanceSession` object directly, so
 // nothing proved that a real sign-in produces a correct one, or that an account
 // created through the dashboard can actually be used. A fabricated session
-// tests the authorization rules while assuming away authentication — which is
+// tests the authorization rules while assuming away authentication, which is
 // half the system, and the half a user notices first.
 //
 // Nothing here constructs a session by hand. Every session used comes from a
@@ -68,7 +68,7 @@ async function call(
   // Starts at 0, and an unhandled route is reported as 599 rather than
   // inheriting a default 200. An earlier version of this harness defaulted to
   // 200, so a mistyped path looked like a passing request that merely happened
-  // to set no cookie — the harness invented a success the server never sent.
+  // to set no cookie. The harness invented a success the server never sent.
   const captured: Captured = { status: 0, body: undefined, setCookie: [] };
   const headers = new Map<string, unknown>();
   const res = {
@@ -140,12 +140,12 @@ describe("bootstrap", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Finding 206 — this test asserted the opposite of what ships, and stayed
+  // Finding 206. This test asserted the opposite of what ships, and stayed
   // green because the fixture disabled the rule it was contradicting.
   //
   // It read "creates a second group rather than refusing a second Root (M3)"
   // and expected **200**. That was shipped behaviour for six days. The
-  // one-organisation cap landed on 2026-08-30 and made it a refusal — and this
+  // one-organisation cap landed on 2026-08-30 and made it a refusal, and this
   // test kept passing, because importing `test-group.ts` calls
   // `setMultiOrganisationAllowedForTests(true)` as a module side effect, for
   // every suite that imports it.
@@ -193,7 +193,7 @@ describe("bootstrap", () => {
 
   it("does not show one group's accounts to another group's Root (M3)", async () => {
     // Needs two organisations, so it says so rather than relying on the
-    // fixture's side effect — the property under test is isolation, and a
+    // fixture's side effect. The property under test is isolation, and a
     // reader must be able to see why two exist here at all.
     setMultiOrganisationAllowedForTests(true);
     const first = await bootstrapRoot("org-a-root");
@@ -264,7 +264,7 @@ describe("Root creates accounts that can then sign in", () => {
         body: { username: `person-${role}`, password: USER_PASSWORD },
       });
       expect(login.status, `login as ${role}`).toBe(200);
-      // The role the account signs in with is the role it was created with —
+      // The role the account signs in with is the role it was created with,
       // the tier checks everywhere else are meaningless if this drifts.
       expect(login.body, `role of ${role}`).toMatchObject({ role });
     }
@@ -292,7 +292,7 @@ describe("Root creates accounts that can then sign in", () => {
       cookie: cookieFrom(adminLogin),
       body: { username: "sneaky", password: USER_PASSWORD, role: "viewer" },
     });
-    // Specifically 403 — "not allowed", not merely "some 4xx". Backlog item E
+    // Specifically 403, "not allowed", not merely "some 4xx". Backlog item E
     // notes that assertions on a bare 4xx cannot distinguish a refusal from a
     // malformed request, which is how a privilege escalation hides.
     expect(attempt.status).toBe(403);
@@ -328,7 +328,7 @@ describe("only one Root", () => {
   // second Root can be created outright, or made by promoting any account.
   //
   // Both bounds are now enforced (B11). Transferring the role means demoting
-  // the current Root first — deliberate, so handing over an installation is an
+  // the current Root first. Deliberate, so handing over an installation is an
   // explicit two-step act rather than something that happens by accident.
   it("refuses to create a second Root account", async () => {
     const rootCookie = await bootstrapRoot();
@@ -371,16 +371,16 @@ describe("only one Root", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Finding 197 — demoting an Administrator returned 500 from every surface.
+// Finding 197. Demoting an Administrator returned 500 from every surface.
 //
 // The store gained a `managedBy` parameter specifically to close a dead end its
 // own comment names: "an Administrator could never be demoted at all". The
 // route never mapped the refusal that parameter answers, and the dashboard
-// client never sent it — so the dead end moved out of the store and into the
+// client never sent it, so the dead end moved out of the store and into the
 // two surfaces above it, wearing a server error instead of a message.
 // ---------------------------------------------------------------------------
 describe("demoting an Administrator", () => {
-  /** Root, plus two Administrators — the smallest organisation where one can go. */
+  /** Root, plus two Administrators. The smallest organisation where one can go. */
   async function twoAdministrators(): Promise<{
     rootCookie: string;
     firstId: string;
@@ -471,13 +471,13 @@ describe("demoting an Administrator", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Finding 205 — the sign-in screen was replaced by the bootstrap form.
+// Finding 205. The sign-in screen was replaced by the bootstrap form.
 //
 // The dashboard chooses between "sign in" and "create the first account" by
 // calling `bootstrap-root` with empty credentials and reading the status. Its
 // comment said the server answers "already claimed" **before** it validates the
 // body. M3 deleted that check, and the one-organisation cap restored the
-// behaviour inside `createUser` — after validation, reported as 400 like any
+// behaviour inside `createUser`. After validation, reported as 400 like any
 // malformed request.
 //
 // So both states answered 400, the probe returned "needs bootstrap"
@@ -536,7 +536,7 @@ describe("the bootstrap probe distinguishes a claimed installation (finding 205)
   it("still lets an installation holding only pre-group accounts be claimed", async () => {
     setMultiOrganisationAllowedForTests(false);
     try {
-      // An account with no group belongs to no organisation — the state
+      // An account with no group belongs to no organisation. The state
       // `governance migrate` repairs, and one in which bootstrap must still
       // work. Counting accounts rather than organisations would refuse it.
       const { readFile, writeFile } = await import("node:fs/promises");

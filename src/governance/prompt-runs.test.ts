@@ -52,7 +52,7 @@ describe("concurrency is bounded per account and per installation", () => {
 
   it("does not let one account exhaust the installation for everybody else", () => {
     // The security argument for having a per-account cap at all. Without it a
-    // single User could hold every slot and lock out Root — a resource limit
+    // single User could hold every slot and lock out Root. A resource limit
     // inverted into a privilege inversion, where the least privileged tier
     // decides whether the most privileged one may act.
     for (let i = 0; i < MAX_CONCURRENT_PROMPTS_PER_ACCOUNT; i += 1) {
@@ -261,7 +261,7 @@ describe("the organisation boundary (finding 235)", () => {
   // This table is module-level and therefore installation-wide: every run on
   // the host, of every organisation. Before the fix the only scope its two
   // readers applied was `canManageAgent`, and `hasUnlimitedAgentScope` makes
-  // that unconditionally true for an Administrator or Root — so the filter that
+  // that unconditionally true for an Administrator or Root, so the filter that
   // looked like the boundary was a no-op at precisely the tier that can see
   // other people's runs.
   //
@@ -300,7 +300,7 @@ describe("the organisation boundary (finding 235)", () => {
     //
     // "not-found", not "forbidden". A run in another organisation must not be
     // distinguishable from one that never existed, or a run id becomes an
-    // existence oracle across the boundary — the distinction the ownership
+    // existence oracle across the boundary. The distinction the ownership
     // refusal above it deliberately does draw, because there both parties are
     // inside the same organisation.
     expect(outcome).toMatchObject({ cancelled: false, reason: "not-found" });

@@ -1,4 +1,4 @@
-// PROBE — round sixteen. Attacks on the authentication auditing added as T9,
+// PROBE. Round sixteen. Attacks on the authentication auditing added as T9,
 // written before reading that code again, from the requirements it claims to
 // serve rather than from its implementation.
 //
@@ -41,7 +41,7 @@ async function entriesFor(action: string): Promise<LedgerEntry[]> {
   return (await tailLedger(3000)).filter((e) => e.toolName === action);
 }
 
-// ATTACK 107 — use the flood bound to hide which account is being attacked.
+// ATTACK 107. Use the flood bound to hide which account is being attacked.
 //
 // The cap is global. An attacker who wants a real guessing attempt against
 // `root` to go unrecorded can first exhaust the window with throwaway
@@ -56,7 +56,7 @@ it("ATTACK 107: a flood of junk names hides the account actually being attacked"
   for (let index = 0; index < MAX_FAILURE_ENTRIES_PER_WINDOW; index += 1) {
     await auditLoginFailure(`throwaway-${index}`, now);
   }
-  // The real target, four times — below the lockout threshold.
+  // The real target, four times. Below the lockout threshold.
   for (let index = 0; index < 4; index += 1) {
     await auditLoginFailure("root", now);
   }
@@ -68,7 +68,7 @@ it("ATTACK 107: a flood of junk names hides the account actually being attacked"
   expect(mentionsRoot).toBe(true);
 });
 
-// ATTACK 108 — a password typed into the username box.
+// ATTACK 108. A password typed into the username box.
 //
 // A tired operator types their password where the username goes. The gate
 // records the submitted name verbatim in the resource. Requirement #8 says no
@@ -78,11 +78,11 @@ it("ATTACK 108: a secret typed into the username field is recorded verbatim", as
   await auditLoginFailure("hunter2-correct-horse-battery-staple");
   const [entry] = await entriesFor(ADMIN_ACTIONS.authLoginFailed);
   // Nothing can distinguish a mistyped password from a username, so this is
-  // arguably unfixable — but see whether redaction catches anything at all.
+  // arguably unfixable, but see whether redaction catches anything at all.
   expect(entry?.resource).toBeDefined();
 });
 
-// ATTACK 109 — the suppressed counter as a cross-window smuggler.
+// ATTACK 109. The suppressed counter as a cross-window smuggler.
 //
 // The window rolls on the *next* failure. If an attacker floods, then stops,
 // the notice is written whenever the next authentication event happens, which
@@ -98,12 +98,12 @@ it("ATTACK 109: the suppressed count survives a long quiet period", async () => 
   const [notice] = await entriesFor(ADMIN_ACTIONS.authFailuresSuppressed);
   // NOTE after the fix for 107: with a repeat reserve the general budget is
   // 150, so 230 distinct names leave 80 suppressed rather than 30. The probe is
-  // kept with the corrected number — the behaviour it was testing (the count
+  // kept with the corrected number. The behaviour it was testing (the count
   // survives and is reported truthfully) holds either way.
   expect(notice?.resource).toContain("80");
 });
 
-// ATTACK 110 — does a new window silently discard an unflushed count?
+// ATTACK 110. Does a new window silently discard an unflushed count?
 it("ATTACK 110: rolling into a new window does not lose the previous count", async () => {
   const now = Date.now();
   for (let index = 0; index < MAX_FAILURE_ENTRIES_PER_WINDOW + 7; index += 1) {
@@ -115,7 +115,7 @@ it("ATTACK 110: rolling into a new window does not lose the previous count", asy
   expect(notice?.resource).toContain("7");
 });
 
-// ATTACK 111 — lockout entries must never be suppressible, since they are the
+// ATTACK 111. Lockout entries must never be suppressible, since they are the
 // entry an investigation searches for.
 it("ATTACK 111: a lockout is recorded even when the window is exhausted", async () => {
   const now = Date.now();

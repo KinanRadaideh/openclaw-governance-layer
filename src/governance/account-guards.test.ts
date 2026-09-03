@@ -14,7 +14,7 @@ describe("guardRoleChange", () => {
     }
     // Asserts the rule the refusal states, not its old phrasing. The message
     // used to say "promote another account to Root first", which the upper
-    // bound refuses — so the test now also pins that the advice is gone.
+    // bound refuses, so the test now also pins that the advice is gone.
     expect(result.reason).toMatch(/exactly one Root/);
     expect(result.reason).not.toMatch(/promote another account to Root/);
   });

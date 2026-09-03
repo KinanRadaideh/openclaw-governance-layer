@@ -3,7 +3,7 @@
 // Every tier/scope decision the dashboard enforces lives in this handler, and
 // until now it was verified only by hand with curl. These tests drive the
 // handler directly with fake req/res objects so the tier × scope matrix is
-// checked on every run — including the negative cases, which are the ones that
+// checked on every run, including the negative cases, which are the ones that
 // matter for a security control.
 import { mkdtemp, rm } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -194,7 +194,7 @@ describe("agent scope", () => {
   });
 
   it("refuses a User creating a global rule", async () => {
-    // No agentId means the rule binds every agent — Administrator territory.
+    // No agentId means the rule binds every agent, Administrator territory.
     const result = await call("POST", "policy/rules", session("user", ["agent-a"]), {
       resourceKind: "command",
       pattern: "^ls$",
@@ -367,7 +367,7 @@ describe("per-agent posture", () => {
   it("lets an Administrator switch an agent into monitor (T4)", async () => {
     // Moved from the User tier on 2026-08-24. A User putting their own agent
     // into monitor stops policy decisions being *acted on* for that agent,
-    // which is a wider grant than the escalation toggle T4 is named for — so
+    // which is a wider grant than the escalation toggle T4 is named for, so
     // both moved together, and a User requests instead.
     const result = await call("POST", "policy/agent-mode", session("administrator"), {
       agentId: "agent-a",
@@ -388,7 +388,7 @@ describe("per-agent posture", () => {
   });
 
   it("refuses a tier below Administrator whatever agent it names", async () => {
-    // Scope no longer decides this route — tier does. Kept as a distinct case
+    // Scope no longer decides this route. Tier does. Kept as a distinct case
     // because "refused because it is not yours" and "refused because you are
     // not an Administrator" were different answers before T4, and a reader of
     // this file should see that they are now the same one.
@@ -404,7 +404,7 @@ describe("per-agent posture", () => {
     // difference is worth asserting rather than flattening to "some 4xx". A
     // User is turned away by the tier check (403) before the value is ever
     // examined; an Administrator reaches the validation and is turned away by
-    // it (400). Collapsing the two would hide a tier check going missing —
+    // it (400). Collapsing the two would hide a tier check going missing,
     // the exact failure the privilege matrix exists to catch.
     expect(
       (
@@ -478,7 +478,7 @@ describe("scoped reads of the policy document", () => {
 //
 // The design doc (§1.6) gives the Viewer "strictly read-only access": monitor
 // active agent operations, view system resource states, and read sanitized
-// audit logs — without being able to interact with an agent or change any
+// audit logs, without being able to interact with an agent or change any
 // configuration. Enumerated here rather than described, so the boundary is a
 // fact about the build and not a claim about it.
 // ---------------------------------------------------------------------
@@ -508,7 +508,7 @@ describe("Viewer visibility", () => {
     });
     const policy = await call("GET", "policy", session("viewer", ["agent-a"]));
     const rules = (policy.body as { rules: Array<{ pattern: string; agentId?: string }> }).rules;
-    // Its own agent's rules, plus global rules — which bind its agent too, so
+    // Its own agent's rules, plus global rules, which bind its agent too, so
     // withholding them would misrepresent what governs it.
     expect(rules.some((rule) => rule.pattern === "^echo agent-a$")).toBe(true);
     expect(rules.some((rule) => rule.pattern === "^echo global$")).toBe(true);
@@ -539,11 +539,11 @@ describe("Viewer visibility", () => {
 });
 
 // ---------------------------------------------------------------------
-// A1 — prompting an agent from the dashboard.
+// A1. Prompting an agent from the dashboard.
 //
 // §1.6 gives the User tier "targeted access to interact with specific,
 // pre-configured agents". The authorization shape is the same pair used
-// everywhere else — tier floor plus agent scope — so these tests are mostly
+// everywhere else, tier floor plus agent scope, so these tests are mostly
 // about proving that the pair was applied, and that a Viewer is excluded by
 // tier because the paper says a Viewer "cannot interact with the agent".
 // ---------------------------------------------------------------------
@@ -682,7 +682,7 @@ describe("reading a conversation back", () => {
 });
 
 // ---------------------------------------------------------------------
-// R5 — authoring a rule that forbids, and one narrowed to a direction.
+// R5. Authoring a rule that forbids, and one narrowed to a direction.
 //
 // The engine enforced both from the moment the tier model landed; no surface
 // could create either, so an operator's own restriction meant hand-editing
@@ -705,7 +705,7 @@ describe("authoring a deny rule", () => {
   });
 
   it("holds a global denial to the same Administrator floor as a global allowance", async () => {
-    // A denial narrows rather than widens, so it needs no *new* authorization —
+    // A denial narrows rather than widens, so it needs no *new* authorization,
     // but "global" still means every agent, which is not a User's to decide.
     const asUser = await call("POST", "policy/rules", session("user", ["agent-a"]), {
       resourceKind: "command",

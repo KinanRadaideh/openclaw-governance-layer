@@ -1,22 +1,22 @@
 /* @vitest-environment jsdom */
 
-// T15 — the first tests of the governance dashboard *component*.
+// T15. The first tests of the governance dashboard *component*.
 //
 // Its extracted logic has always been tested (`ledger-filter.ts`,
 // `rule-filter.ts`, `policy-projection.ts`), and the component itself never
 // was. That gap has cost six defects so far, every one found by a person
 // looking at the page rather than by the suite:
 //
-//   99  — rule rows titled with the raw regular expression instead of the
+//   99, rule rows titled with the raw regular expression instead of the
 //         sentence saying what the rule was for
-//   100 — the account form offered a `root` role the server always refuses
-//   101 — Root creation had no confirmation field and did not state the
+//   100, the account form offered a `root` role the server always refuses
+//   101, Root creation had no confirmation field and did not state the
 //         password minimum the ordinary form already printed
-//   102 — a failed transcript load rendered as a permanent "Loading…"
-//   103 — ten controls with no accessible name
+//   102, a failed transcript load rendered as a permanent "Loading…"
+//   103, ten controls with no accessible name
 //   (2026-08-22) the add-rule agent field was optional for a User, for whom the
 //         empty form is a guaranteed 403
-//   (2026-08-22) the authoring form was still headed "Add an allow rule" —
+//   (2026-08-22) the authoring form was still headed "Add an allow rule",
 //         found by writing these tests. R5 made denials authorable and put an
 //         allow/deny selector in that very form, and the heading above it kept
 //         saying the form did one thing. The seventh in the list, and the
@@ -25,7 +25,7 @@
 // Every one is a *rendering* decision, which is why none of them could be
 // caught below the component. These tests pin the ones that are cheap to pin,
 // and they are deliberately about what an operator sees rather than about
-// implementation detail — a test asserting the internal shape of a template
+// implementation detail. A test asserting the internal shape of a template
 // would break on every restyle and catch none of the six.
 import { beforeEach, describe, expect, it } from "vitest";
 import type { GovernanceIdentity, GovernancePolicyDocument, GovernancePolicyRule } from "./api.ts";
@@ -88,7 +88,7 @@ async function mount(state: Partial<PageState>): Promise<PageState> {
   document.body.append(page);
   // State is assigned *after* connecting, not before. `connectedCallback`
   // kicks off a load that calls `whoami`, fails without a server, and clears
-  // `identity` — so a page configured before connection renders the sign-in
+  // `identity`, so a page configured before connection renders the sign-in
   // form and every assertion below would be about the wrong screen. Assigning
   // afterwards is also closer to what the component does in life: it renders
   // empty, then fills in.
@@ -127,7 +127,7 @@ describe("the page explains how rules are read (2026-08-26)", () => {
     // The consequence, spelled out, because it is the thing an operator wants
     // and would otherwise have to infer: a narrow forbid carves an exception
     // out of a broad allow.
-    expect(text).toContain("grant a folder, forbid one subfolder");
+    expect(text).toContain("Grant a folder, forbid one subfolder");
   });
 
   it("says where a forbid rule reaches and where it only records", async () => {
@@ -135,7 +135,7 @@ describe("the page explains how rules are read (2026-08-26)", () => {
     //
     // This test was written to fail when T7's prevention half landed, so that
     // whoever closed T7 would come here, see why the sentence existed, and
-    // remove it. T7's prevention half landed on 2026-08-30 (§3.5.61) — and the
+    // remove it. T7's prevention half landed on 2026-08-30 (§3.5.61), and the
     // caveat did *not* become untrue, it became **half** untrue. On the
     // in-process runtime denied results are now withheld; on the native Codex
     // backend they still cannot be, because that protocol has no field for
@@ -149,7 +149,7 @@ describe("the page explains how rules are read (2026-08-26)", () => {
     // Worth keeping as a note about the device itself: a test written to fail
     // on a future change assumes the change will make its subject wholly
     // obsolete. This one made it *more specific*, which the trip-wire could not
-    // express — it kept passing, and the staleness was caught by reading the
+    // express. It kept passing, and the staleness was caught by reading the
     // handoff's own claim that it would fail.
     const el = await mount({
       identity: identity("administrator"),
@@ -160,7 +160,7 @@ describe("the page explains how rules are read (2026-08-26)", () => {
     expect(text).toContain("grep and find are judged on the folder they start from");
     // The half that is now prevented, named as such.
     expect(text).toContain("removed before the agent sees them");
-    // The half that is not, and why — so the disclosure does not read as a shrug.
+    // The half that is not, and why, so the disclosure does not read as a shrug.
     expect(text).toContain("On the Codex backend they cannot be removed");
     expect(text).toContain("written to the audit trail");
   });
@@ -193,7 +193,7 @@ describe("rule rows say what the rule is for (finding 99)", () => {
 
     const text = el.textContent ?? "";
     expect(text).toContain("Directory listing with simple flags");
-    // The pattern is still shown — an operator needs it — but the sentence is
+    // The pattern is still shown, an operator needs it, but the sentence is
     // what the row is titled with. The shipped credential denial is 200+
     // characters of case-folded alternation, and a panel read during an
     // incident cannot be a wall of those.
@@ -221,7 +221,7 @@ describe("the add-rule form matches what the server will accept (2026-08-22)", (
     const list = el.querySelector("datalist#governance-new-rule-agents");
     expect(list).not.toBeNull();
     // An empty agent field means "global rule", which the server refuses below
-    // Administrator — so for a User the natural empty form is a guaranteed 403.
+    // Administrator, so for a User the natural empty form is a guaranteed 403.
     const required = [...el.querySelectorAll<HTMLInputElement>("input[required]")];
     expect(required.length).toBeGreaterThan(0);
     expect(agentInput ?? required[0]).toBeTruthy();
@@ -277,7 +277,7 @@ describe("the core-rule switch appears only where it can work (T24)", () => {
   });
 
   it("offers no switch on a self-protecting core rule", async () => {
-    // Refused by the server regardless, so a button here would always fail —
+    // Refused by the server regardless, so a button here would always fail,
     // the shape of finding 100. No control at all is the honest rendering.
     const el = await mount({ identity: identity("root"), policy: policy([selfProtecting]) });
     expect(el.textContent).not.toContain("Switch off");
@@ -337,7 +337,7 @@ describe("what each tier is shown", () => {
 });
 
 // ---------------------------------------------------------------------------
-// T14 — the dashboard half of attachments.
+// T14. The dashboard half of attachments.
 //
 // The store, the bounds and the HTTP route are asserted elsewhere
 // (`attachment-store.test.ts`, `governance-attachment-http.test.ts`). What can
@@ -442,7 +442,7 @@ describe("attaching files to a prompt (T14)", () => {
   });
 
   it("will not send while bytes are still uploading", async () => {
-    // Sending mid-upload would silently drop whichever files had not landed —
+    // Sending mid-upload would silently drop whichever files had not landed,
     // the prompt would go out naming fewer attachments than the operator
     // attached, and nothing on screen would say so.
     const el = await mount(
@@ -456,13 +456,13 @@ describe("attaching files to a prompt (T14)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// M2 — who can reach an agent.
+// M2, who can reach an agent.
 //
 // The route is asserted in `governance-agent-access.test.ts`. What only the
 // component can show is the empty answer, which is the state the requested
 // ecosystem panel specifically calls out: an agent nobody has been assigned,
 // running under Administrator authority alone. Rendering that as blank space
-// would read as a section that failed to load — finding 102, where a failed
+// would read as a section that failed to load. Finding 102, where a failed
 // transcript rendered as a permanent "Loading…".
 // ---------------------------------------------------------------------------
 

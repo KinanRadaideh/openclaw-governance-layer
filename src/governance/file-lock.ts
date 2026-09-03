@@ -12,7 +12,7 @@
 // the backlog recorded the obvious risk: a critical section slower than that on
 // a loaded host gets its lock taken away. Probing it found the risk was real and
 // that it was the smaller half of the problem. Nothing told a reaped holder it
-// had been reaped, so it ran on believing it held the lock — and then, on its
+// had been reaped, so it ran on believing it held the lock, and then, on its
 // way out, `rm(lockPath, { force: true })` deleted whichever lock file happened
 // to be there, which by then belonged to somebody else. One slow writer did not
 // merely lose its own exclusion; it unlocked the process that replaced it.
@@ -23,7 +23,7 @@
 //      so staleness means "the holder stopped responding" rather than "the
 //      holder is slow". This is what makes the threshold safe to keep.
 //   2. **An identity.** The lock file carries a token naming its holder, and
-//      **every removal checks it** — on release and on reaping alike. A caller
+//      **every removal checks it**, on release and on reaping alike. A caller
 //      can now only ever delete its own lock.
 //   3. **A report.** If a holder discovers at release time that the lock is no
 //      longer its own, the critical section ran unprotected. That is surfaced
@@ -47,14 +47,14 @@ export const DEFAULT_TIMEOUT_MS = 30_000;
  *
  * The point of the heartbeat is to decouple the staleness threshold from the
  * length of the longest critical section. Before it, `STALE_LOCK_MS` had to
- * exceed every legitimate critical section, and the file said so — "those are
+ * exceed every legitimate critical section, and the file said so, "those are
  * all short ... milliseconds in practice". That was true of a small JSON
  * read-modify-write and false of the case the backlog worried about: an append
  * to the ledger on a cold cache reads and parses the whole active segment,
  * which is allowed to reach eight megabytes before rotation.
  *
  * With a heartbeat the threshold answers a different and much more stable
- * question — *is the holder still alive?* — so a critical section may take as
+ * question, *is the holder still alive?*, so a critical section may take as
  * long as it legitimately needs.
  */
 const HEARTBEAT_INTERVAL_MS = 2_000;
@@ -66,7 +66,7 @@ const HEARTBEAT_INTERVAL_MS = 2_000;
  * wait, which made the self-healing path unreachable: a process that crashed
  * holding the lock left every later writer to give up at 30s, while the lock did
  * not become reclaimable until 60s. The reaper existed, and no waiter ever lived
- * long enough to run it — so a crash wedged governance writes until somebody
+ * long enough to run it: so a crash wedged governance writes until somebody
  * deleted the file by hand.
  *
  * **And must stay comfortably above `HEARTBEAT_INTERVAL_MS`**, or an ordinary
@@ -101,7 +101,7 @@ if (STALE_LOCK_MS <= HEARTBEAT_INTERVAL_MS * 3) {
  *
  * Means the section ran without the exclusion it asked for: another process
  * judged this holder dead and took the lock while it was still working. With a
- * heartbeat that should require the holder to have been stopped outright — a
+ * heartbeat that should require the holder to have been stopped outright. A
  * suspended process, a machine that slept, an event loop blocked for fifteen
  * seconds by synchronous work.
  *
@@ -142,7 +142,7 @@ function retryDelayMs(attempt: number): number {
  *
  * `EEXIST` is the ordinary case. Windows additionally reports `EPERM` (and
  * occasionally `EBUSY`/`EACCES`) when a file is opened while a concurrent
- * delete of the same path is still settling — the exact window this lock
+ * delete of the same path is still settling: the exact window this lock
  * creates on every release. Treating those as fatal made contended writes fail
  * outright; they are contention, not corruption, so they retry.
  */
@@ -189,7 +189,7 @@ async function releaseLockIfOwned(lockPath: string, token: string): Promise<bool
     const current = await readLockToken(lockPath);
     if (current === undefined) {
       // Already gone: reaped, or removed by a crash-recovery path. Either way
-      // there is nothing of ours to remove — and nothing of anyone else's to
+      // there is nothing of ours to remove, and nothing of anyone else's to
       // destroy.
       return false;
     }
@@ -220,7 +220,7 @@ async function releaseLockIfOwned(lockPath: string, token: string): Promise<bool
  * is only removed if it is still the same one that was judged. Without that
  * second read, two waiters that both saw the same stale lock would both call
  * `rm`, and the second would land after the first had already won and created a
- * fresh file under the same name — deleting a live lock as a side effect of
+ * fresh file under the same name: deleting a live lock as a side effect of
  * cleaning up a dead one.
  */
 async function reapStaleLock(lockPath: string): Promise<void> {
@@ -241,7 +241,7 @@ async function reapStaleLock(lockPath: string): Promise<void> {
     // no readable token is either from a version of this code that predates
     // tokens, or from a crash between creating the file and writing into it.
     // Refusing to reap it because it has no identity to compare would make it
-    // permanently unreclaimable — precisely the wedge this file's staleness
+    // permanently unreclaimable. Precisely the wedge this file's staleness
     // reaper exists to prevent, reintroduced by the fix for a different bug.
     // Unchanged-and-old is the condition; an absent token is not a reason to
     // spare it, because the freshness check has already spared any lock whose
@@ -257,7 +257,7 @@ async function reapStaleLock(lockPath: string): Promise<void> {
  *
  * Stops touching the file the moment it stops being ours, so a holder that has
  * already been reaped does not resurrect a lock that now belongs to somebody
- * else — the heartbeat must not reintroduce the bug the ownership checks close.
+ * else: the heartbeat must not reintroduce the bug the ownership checks close.
  *
  * `unref` so a pending beat can never hold the process open: this is
  * bookkeeping around someone else's work, and it must not change when the
@@ -288,16 +288,16 @@ function startHeartbeat(lockPath: string, token: string): () => void {
  *
  * Only failures from *acquiring* the lock are eligible for retry. The critical
  * section's own errors propagate untouched, even when they carry one of the
- * contention codes — an EACCES on the ledger file is a permission problem, not
+ * contention codes: an EACCES on the ledger file is a permission problem, not
  * a busy lock, and treating it as contention re-ran a non-idempotent append in
  * a loop and then reported a misleading "timed out waiting for lock".
  *
  * **Residual limitation, stated rather than implied.** The heartbeat is a timer
  * on this process's event loop, so a critical section that blocks the loop
  * synchronously for longer than `STALE_LOCK_MS` cannot beat and can still be
- * reclaimed. Nothing in `src/governance/` does that — every critical section
+ * reclaimed. Nothing in `src/governance/` does that, every critical section
  * here awaits async filesystem work, and password hashing runs on the
- * threadpool — but a future caller that does synchronous work inside the lock
+ * threadpool, but a future caller that does synchronous work inside the lock
  * would reopen the window. It would now at least be told, via
  * `GovernanceLockLostError`, rather than corrupting the ledger silently.
  */
@@ -321,8 +321,8 @@ export async function withFileLock<T>(
       if (Date.now() > deadline) {
         // `cause` carries the contention error that actually ended the wait.
         // Without it the timeout reports only that a deadline passed, and the
-        // EBUSY/EEXIST underneath — the thing that says *why* the lock could
-        // not be taken — is dropped on the one path an operator investigates.
+        // EBUSY/EEXIST underneath, the thing that says *why* the lock could
+        // not be taken, is dropped on the one path an operator investigates.
         throw new Error(`Timed out waiting for governance lock: ${lockPath}`, { cause: err });
       }
       await reapStaleLock(lockPath);
@@ -335,7 +335,7 @@ export async function withFileLock<T>(
     try {
       // Written before the handle closes, so the lock is never observable
       // without its identity. A reader that catches it mid-write sees an empty
-      // or partial token, which fails every comparison — the safe direction:
+      // or partial token, which fails every comparison. The safe direction:
       // nobody mistakes it for their own.
       await handle.write(token);
     } finally {

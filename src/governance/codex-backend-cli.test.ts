@@ -2,7 +2,7 @@
 //
 // **Why these run at the CLI level.** `codex-backend.test.ts` already asserts
 // that `setCodexBackendEnabled` records its actor and writes the plugin entry,
-// and it would pass against a command that never checked a tier at all — it
+// and it would pass against a command that never checked a tier at all. It
 // calls the function directly, with an actor it supplies. The thing worth
 // pinning here is the seam above it: that the command **refuses an
 // Administrator**, and that the account it authenticated is the account it
@@ -16,7 +16,7 @@
 // `kill-switch-cli-attribution.test.ts` states: `HANDOFF.md` §4's verification
 // set runs `src/governance/` and `src/gateway/governance-*.test.ts`, so a test
 // under `src/cli/` would sit outside every command this project uses to check
-// itself — finding 148 exactly.
+// itself. Finding 148 exactly.
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -43,7 +43,7 @@ let written: Array<Record<string, unknown>>;
 let printed: string[];
 
 vi.mock("../config/config.js", () => ({
-  // Synchronous, matching the real `loadConfig` — see finding 221.
+  // Synchronous, matching the real `loadConfig`. See finding 221.
   loadConfig: () => fakeConfig,
   readConfigFileSnapshot: async () => ({ config: fakeConfig, sourceConfig: fakeConfig }),
   replaceConfigFile: async (params: { nextConfig: Record<string, unknown> }) => {
@@ -130,7 +130,7 @@ function entryEnabled(): boolean | undefined {
     : undefined;
 }
 
-describe("governance backend set-codex — the Root half, on the command line", () => {
+describe("governance backend set-codex. The Root half, on the command line", () => {
   it("lets Root offer the backend, and records who decided", async () => {
     await signIn("kinan", "root");
 
@@ -200,7 +200,7 @@ describe("governance backend set-codex — the Root half, on the command line", 
 
   it("records both ends of the change, including a restatement", async () => {
     // Restatements are recorded on purpose, so the trail can answer "who last
-    // confirmed this?" — the same rule `setAgentCodexAllowed` follows.
+    // confirmed this?". The same rule `setAgentCodexAllowed` follows.
     await signIn("kinan", "root");
 
     await runGovernance(["backend", "set-codex", "on"]);

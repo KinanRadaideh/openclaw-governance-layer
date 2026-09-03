@@ -20,6 +20,10 @@ __pycache__/
 .DS_Store
 **/.DS_Store
 ui/src/ui/__screenshots__/
+# Vitest browser-mode failure screenshots. The two entries below this were
+# path-specific, so a browser test added anywhere else left its artefacts
+# untracked-but-visible; this covers wherever one is written.
+**/__screenshots__/
 ui/playwright-report/
 ui/test-results/
 packages/dashboard-next/.next/

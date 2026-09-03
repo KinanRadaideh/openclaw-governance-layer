@@ -1,14 +1,14 @@
 // Authoring a rule that **forbids**, and one narrowed to read or write (R5).
 //
 // The engine has enforced `effect: "deny"` at every tier since the tier model
-// landed, and the core rules an installation ships with *are* denials — but
+// landed, and the core rules an installation ships with *are* denials, but
 // until now no surface could create one, so an operator wanting "this agent
 // must never touch billing" had to hand-edit `policy.json`. The same was true
 // of the `access` narrowing, which the shipped baseline itself uses.
 //
 // That is the pattern round eleven named: **a mechanism that works and no
-// surface that reaches it.** Nothing a test could have caught — the code was
-// correct, the tests passed, the documentation was accurate — because the gap
+// surface that reaches it.** Nothing a test could have caught, the code was
+// correct, the tests passed, the documentation was accurate, because the gap
 // was between the capability and the way in.
 //
 // These tests cover the half that is genuinely new: that an authored denial
@@ -64,7 +64,7 @@ function verdict(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>)
   if ("block" in decision) {
     return "block";
   }
-  // T23 — absence is no longer the only way the engine says "allow". A call
+  // T23. Absence is no longer the only way the engine says "allow". A call
   // whose path was redirected comes back carrying `params` (the canonical path
   // the tool should open), and reading that as "ask" would report an
   // escalation that never happened. Ask the question directly instead of
@@ -168,7 +168,7 @@ describe("an operator's own denial behaves like a shipped one", () => {
     );
     expect(rule.tier).toBe("admin");
     expect(rule.effect).toBe("deny");
-    // Core and admin denials differ in *mutability*, not in force — both halves
+    // Core and admin denials differ in *mutability*, not in force, both halves
     // of that sentence need to be true.
     expect(await removeRule(TEST_GROUP, rule.id, "kinan")).toBe(true);
   });
@@ -244,7 +244,7 @@ describe("a rule narrowed to one direction", () => {
     expect(await pathVerdict("write", "notes/a.txt")).toBe("block");
   });
 
-  it("forbids only the direction it names — the surprising case", async () => {
+  it("forbids only the direction it names. The surprising case", async () => {
     await enforceStrictly();
     await addRule(TEST_GROUP, { resourceKind: "path", pattern: "^notes/.*$" }, "kinan");
     await addRule(
@@ -341,7 +341,7 @@ describe("the clash detector respects direction", () => {
 
   it("does not tell an operator their new denial is already allowed", () => {
     // The inversion this module has been corrected for twice. An existing
-    // allowance never makes a new denial redundant — the denial wins.
+    // allowance never makes a new denial redundant. The denial wins.
     expect(
       detectRuleConflicts([rule({ pattern: "^deploy$" })], {
         resourceKind: "command",

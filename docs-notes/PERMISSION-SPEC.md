@@ -35,7 +35,7 @@ type PolicyDocument = {
 | `ask`                | Installation default for an unmatched action                                                                   |
 | `agentMode`          | Per-agent override of `mode`. Absent key ⇒ inherit `mode`                                                      |
 | `agentAsk`           | Per-agent override of `ask`. Absent key ⇒ inherit `ask`                                                        |
-| `userAsk`            | Per-**account** override of `ask`, set by Root. Combined with `agentAsk` by taking the stricter — see §5       |
+| `userAsk`            | Per-**account** override of `ask`, set by Root. Combined with `agentAsk` by taking the stricter. See §5        |
 | `hitlTimeoutSeconds` | Escalation wait before timeout. Timeout ⇒ deny                                                                 |
 | `lockedAgents`       | Kill-switch set; evaluated before rules                                                                        |
 
@@ -45,7 +45,7 @@ inherits the installation default. A per-agent `off` returns before the
 lockdown check (§5 step 3), so it would remove the kill switch and the core
 denials from that agent, not merely its ordinary rules, and would write
 nothing to the ledger recording that it had. Until QA round 13 (finding 80)
-only the routes refused it, so a hand-edited `policy.json` reintroduced it —
+only the routes refused it, so a hand-edited `policy.json` reintroduced it,
 one field away from `reassertCoreRules`, which exists precisely so that
 hand-editing cannot remove the core tier. Switching the gate off is an
 installation-wide `mode` change, which is Administrator-level and audited.
@@ -84,7 +84,7 @@ granting exactly what it granted.
 **`agentId` is canonical, on the way in and on the way out (finding 202,
 2026-09-01).** It is compared against the id the gate resolves from the session
 key, which the host mints lowercased, so a rule scoped as written bound nothing:
-an `allow` that did not grant and — worse — a `deny` that did not forbid. It is
+an `allow` that did not grant and, worse, a `deny` that did not forbid. It is
 now folded through `normalizeAgentId` when a rule is stored **and** when the
 document is read, so a `policy.json` already holding the typed spelling starts
 binding on this build. The same fold now applies to `lockedAgents`, `agentMode`
@@ -117,14 +117,14 @@ so narrowing can never weaken a restriction in the other direction.
 Exactly one string per resource is derived from a tool invocation and matched
 against `pattern`.
 
-| `resourceKind` | Tools                                                                                                                                       | Access  | Derived string                                                                                                                                  |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `command`      | `exec`, `bash`                                                                                                                              | —       | `params.command`, verbatim                                                                                                                      |
-| `command`      | `terminal`                                                                                                                                  | —       | `params.command` **and** `params.data` (trailing newline stripped); `terminal:open` when the action is `open` and neither is present — see §3.2 |
-| `command`      | `process`, `computer`, `mobile_ui`, `screen`, `browser`, `nodes`, `gateway`, `automations`, `sessions_spawn`, `subagents`, `code_execution` | —       | `<tool>:<action>`, **plus** each literal payload the call carries — see §3.4                                                                    |
-| `path`         | `read`, `grep`, `find`, `ls`                                                                                                                | `read`  | each host-derived path, or `params.path` / `params.file_path`, **canonicalised** — see §3.1                                                     |
-| `path`         | `write`, `edit`, `apply_patch`                                                                                                              | `write` | as above                                                                                                                                        |
-| `network`      | `web_fetch`                                                                                                                                 | —       | the destination hostname, **canonicalised** — see §3.3                                                                                          |
+| `resourceKind` | Tools                                                                                                                                       | Access  | Derived string                                                                                                                                 |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `command`      | `exec`, `bash`                                                                                                                              | -       | `params.command`, verbatim                                                                                                                     |
+| `command`      | `terminal`                                                                                                                                  | -       | `params.command` **and** `params.data` (trailing newline stripped); `terminal:open` when the action is `open` and neither is present, see §3.2 |
+| `command`      | `process`, `computer`, `mobile_ui`, `screen`, `browser`, `nodes`, `gateway`, `automations`, `sessions_spawn`, `subagents`, `code_execution` | -       | `<tool>:<action>`, **plus** each literal payload the call carries, see §3.4                                                                    |
+| `path`         | `read`, `grep`, `find`, `ls`                                                                                                                | `read`  | each host-derived path, or `params.path` / `params.file_path`, **canonicalised**, see §3.1                                                     |
+| `path`         | `write`, `edit`, `apply_patch`                                                                                                              | `write` | as above                                                                                                                                       |
+| `network`      | `web_fetch`                                                                                                                                 | -       | the destination hostname, **canonicalised**, see §3.3                                                                                          |
 
 More than one resource MAY be derived from a single invocation (a multi-path
 patch, or a `terminal` call carrying both a `command` and `data`). Every one is
@@ -132,24 +132,24 @@ evaluated and recorded before a verdict is returned (§5).
 
 For `grep`, `find` and `ls` the `path` parameter is optional and the tool
 defaults to the working directory. An omitted path therefore derives `.` rather
-than deriving nothing — "no resource" means `ungoverned`, which passes the gate,
+than deriving nothing, "no resource" means `ungoverned`, which passes the gate,
 so extracting nothing would have made the commonest spelling of each tool the
 one that escaped the policy.
 
 ### 3.1 Path canonicalisation
 
 `path` resources are canonicalised before matching
-(`src/governance/path-normalize.ts`). The pipeline is ordered and total — every
+(`src/governance/path-normalize.ts`). The pipeline is ordered and total. Every
 path resource passes through all of it:
 
-1. **Expand and absolutise** — `~` and `file://` expanded; relative paths
+1. **Expand and absolutise**, `~` and `file://` expanded; relative paths
    resolved against the workspace root (`HookContext.cwd`); `..` segments
    collapsed by `path.resolve`.
-2. **Dereference** — symbolic links resolved via async `realpath`. When the
+2. **Dereference**. Symbolic links resolved via async `realpath`. When the
    target does not exist (a `write` creating a new file), the **parent**
    directory is dereferenced and the basename re-attached; when neither
    resolves, the absolutised path from step 1 is used.
-3. **Project** — `formatPathRelativeToCwdOrAbsolute` renders the result
+3. **Project**, `formatPathRelativeToCwdOrAbsolute` renders the result
    workspace-relative when it is inside the workspace root, absolute otherwise.
    Separators are POSIX (`/`) on every platform. Capped at 2048 characters.
 
@@ -162,7 +162,7 @@ appear to be outside.
 - A pattern anchored at a workspace-relative prefix (`^src/`) MUST NOT be
   assumed to constrain a path outside the workspace; such a path is rendered
   absolute and therefore cannot match that prefix. This is the mechanism by
-  which traversal is prevented — it is a property of the derived string, not a
+  which traversal is prevented. It is a property of the derived string, not a
   filter applied to it.
 - A pattern written as an absolute path is machine-specific and will not port
   between hosts. Requirement #9 (Linux deployment) makes the relative form the
@@ -175,7 +175,7 @@ appear to be outside.
 
 `terminal` accepts a command on **two** parameters and both are derived.
 `action: "open"` takes `command`, the shell command the new session starts with.
-`action: "input"` takes `data`, "Raw terminal input" — keystrokes typed into a
+`action: "input"` takes `data`, "Raw terminal input". Keystrokes typed into a
 session that is already open. Deriving only the first left the second entirely
 ungoverned: an agent could open a terminal and then submit any command at all
 through `data` without the allowlist or a single core denial being consulted.
@@ -197,11 +197,11 @@ observe or tidy an existing session and derive nothing.
 a string comparison, so each alternative spelling of an address is a way around
 it.
 
-1. **Unwrap** — IPv6 literals lose their surrounding brackets, which are URL
+1. **Unwrap**, IPv6 literals lose their surrounding brackets, which are URL
    syntax rather than part of the address.
-2. **Lowercase**, then **strip trailing dots** — a trailing dot marks a
+2. **Lowercase**, then **strip trailing dots**. A trailing dot marks a
    fully-qualified name and resolves identically.
-3. **Reduce IPv4** — an address in any form the C `inet_aton` grammar accepts
+3. **Reduce IPv4**. An address in any form the C `inet_aton` grammar accepts
    (one to four parts, each decimal, octal with a leading zero, or hex with
    `0x`) is reduced to dotted-decimal. A host that is not such an address is
    left untouched.
@@ -218,17 +218,17 @@ Eleven tools reach the operating system by a route other than `exec`, and each
 derives **two or more** resources: `<tool>:<action>` for the operation itself,
 plus every literal payload the call carries.
 
-| Tool                          | Action parameter | Payload parameters                                            |
-| ----------------------------- | ---------------- | ------------------------------------------------------------- |
-| `process`                     | `action`         | `data`, `literal`, `text`, `keys[]`, `hex[]`                  |
-| `computer`                    | `action`         | `text`                                                        |
-| `mobile_ui`                   | `action`         | `mobileAction` (object, serialised)                           |
-| `nodes`                       | `action`         | `body`, `title`                                               |
-| `gateway`                     | `action`         | `path` (a config path, not a filesystem path)                 |
-| `automations`                 | `action`         | `message`, `text`, `command[]`                                |
-| `sessions_spawn`, `subagents` | `action`         | `prompt`, `message`, **and the target `agentId`** — see below |
-| `code_execution`              | `action`         | `code`, `input`                                               |
-| `screen`, `browser`           | `action`         | —                                                             |
+| Tool                          | Action parameter | Payload parameters                                           |
+| ----------------------------- | ---------------- | ------------------------------------------------------------ |
+| `process`                     | `action`         | `data`, `literal`, `text`, `keys[]`, `hex[]`                 |
+| `computer`                    | `action`         | `text`                                                       |
+| `mobile_ui`                   | `action`         | `mobileAction` (object, serialised)                          |
+| `nodes`                       | `action`         | `body`, `title`                                              |
+| `gateway`                     | `action`         | `path` (a config path, not a filesystem path)                |
+| `automations`                 | `action`         | `message`, `text`, `command[]`                               |
+| `sessions_spawn`, `subagents` | `action`         | `prompt`, `message`, **and the target `agentId`**, see below |
+| `code_execution`              | `action`         | `code`, `input`                                              |
+| `screen`, `browser`           | `action`         | -                                                            |
 
 Payload values are joined when they are arrays and serialised whole when they
 are objects, so a pattern written against the text matches wherever the host
@@ -243,7 +243,7 @@ Two properties follow from deriving both:
    rule that refuses `sudo` for `exec` refuses it for `computer` and `process`,
    because the typed payload is a `command` resource like any other. The property
    comes from the representation rather than from remembering to extend every
-   rule — the same move §3.1 makes for paths and §3.3 for hostnames.
+   rule. The same move §3.1 makes for paths and §3.3 for hostnames.
 
 These were ungoverned until QA round 13 (findings 71–73), when the governed
 surface was measured against the host's own catalogue for the first time and
@@ -260,7 +260,7 @@ sessions_spawn:agent:<targetAgentId>
 
 Every derived resource MUST be permitted for the call to proceed (§5), so
 spawning as another agent is default-denied until a rule names the target.
-Omitting `agentId` — an ordinary same-agent spawn — derives nothing extra.
+Omitting `agentId`, an ordinary same-agent spawn, derives nothing extra.
 
 The reason this is a permission of its own is that the host mints the child's
 session key as `agent:<targetAgentId>:subagent:<uuid>`
@@ -269,17 +269,17 @@ principal from that key. A cross-agent child is therefore **a different
 principal**, not a continuation of its parent: the parent's agent-scoped rules
 do not bind it, and it is judged by the target's rules instead. Until QA round
 14 (finding 94) the identity was not in any resource, so agent-scoped
-confinement was escapable by spawning into a less-restricted agent — the
+confinement was escapable by spawning into a less-restricted agent. The
 delegation guarantee in `ROLE-MODEL.md` inverted.
 
 **What a spawned child inherits, precisely:**
 
-|                                      | Same-agent child | Cross-agent child                          |
-| ------------------------------------ | ---------------- | ------------------------------------------ |
-| Core denials                         | bind             | bind (the core tier is not scoped)         |
-| Parent's agent-scoped rules          | bind             | **do not bind** — the target's apply       |
-| Lockdown on the parent               | binds            | **does not reach it** (finding 96, open)   |
-| Parent locked ⇒ may it spawn at all? | no               | no — lockdown precedes the registry lookup |
+|                                      | Same-agent child | Cross-agent child                         |
+| ------------------------------------ | ---------------- | ----------------------------------------- |
+| Core denials                         | bind             | bind (the core tier is not scoped)        |
+| Parent's agent-scoped rules          | bind             | **do not bind**. The target's apply       |
+| Lockdown on the parent               | binds            | **does not reach it** (finding 96, open)  |
+| Parent locked ⇒ may it spawn at all? | no               | no. Lockdown precedes the registry lookup |
 
 **Known limitation (finding 96).** A lockdown on the parent does not stop a
 cross-agent child that is _already running_. The parent's identity is not in the
@@ -298,8 +298,8 @@ Tool names are the host's, verified against its tool definitions
 before the gate is reached; the registry keeps an entry for it anyway rather
 than depending on an alias table it does not own.
 
-The registry MUST agree with the host's own tool list. It has disagreed twice —
-once by naming tools that do not exist, once by omitting three that do — and
+The registry MUST agree with the host's own tool list. It has disagreed twice,
+once by naming tools that do not exist, once by omitting three that do, and
 neither was visible from inside the module. `qa-round11.test.ts` now asserts
 that every name in `allToolNames` (`src/agents/sessions/tools/index.ts`) is
 either registered here or listed in `DELIBERATELY_UNGOVERNED` with a written
@@ -310,7 +310,7 @@ Derivation rules that affect matching:
 - **Multiple resources.** A single invocation MAY derive several resources
   (e.g. a multi-file patch). Each is evaluated and recorded independently.
 - **Unparseable URL.** If no hostname can be extracted, the raw URL string is
-  used as the resource. It is not skipped — abstaining there previously allowed
+  used as the resource. It is not skipped. Abstaining there previously allowed
   `file:///etc/shadow` through ungoverned.
 - **Length.** A derived resource is clamped to 2048 characters before matching.
 - **Tool identity.** Lookup is performed on a null-prototype registry via
@@ -320,7 +320,7 @@ Derivation rules that affect matching:
 ## 4. Pattern grammar
 
 `pattern` is an ECMAScript regular expression source string, compiled with
-`new RegExp(pattern)` — no flags. Matching uses `RegExp.prototype.test`, which
+`new RegExp(pattern)`, no flags. Matching uses `RegExp.prototype.test`, which
 is a **substring** search: a pattern is unanchored unless written so.
 
 | Construct            | Meaning                                |
@@ -344,18 +344,18 @@ Creation fails with HTTP 400 (or a CLI error) when:
 
 1. `new RegExp(pattern)` throws.
 2. `pattern.length > 512`.
-3. The pattern nests a quantifier inside a quantified group — `(a+)+`, `(a*)*`,
+3. The pattern nests a quantifier inside a quantified group, `(a+)+`, `(a*)*`,
    `(?:x+)+`, `(a{1,}){2,}`, **`(a?){n}`** and equivalents.
-4. The pattern repeats a group whose alternatives can match the same text —
+4. The pattern repeats a group whose alternatives can match the same text,
    `(a|a)+`, `(a|a?)+`.
 
 **`?` counts as a quantifier for rule 3, and did not until 2026-09-02 (finding
 207).** The check modelled `*`, `+` and `{n,m}` and not `?`, so `^(a?){26}$` was
-accepted and took **44.5 seconds** against a non-matching input — doubling per
+accepted and took **44.5 seconds** against a non-matching input. Doubling per
 increment of `n`, which the rule's author chooses. Two exclusions are deliberate
 and remain: a `?` immediately after `(` opens `(?:`, `(?=`, `(?!` or `(?<` and
 quantifies nothing, and `{n}` on a fixed-length body is fixed-length. So
-`^ls( .*)?$` and `^https?://…$` are still accepted, which matters — see the note
+`^ls( .*)?$` and `^https?://…$` are still accepted, which matters. See the note
 on over-rejection below.
 
 Rule 3 exists because patterns execute on every governed action against
@@ -373,8 +373,8 @@ repetition such as `(a+){2}`.
 > outer quantifier of `^(.*a){20}$` is not recognised and the pattern is
 > accepted. Measured: **142,431 ms** for one `matchesPattern` call against a
 > 31-character non-matching input. Because ECMAScript cannot interrupt a running
-> expression, that was the whole event loop — Gateway, dashboard and every
-> agent — halted by one rule, writable at **User** tier. The rule that matters
+> expression, that was the whole event loop, Gateway, dashboard and every
+> agent, halted by one rule, writable at **User** tier. The rule that matters
 > is the group _body_, not the outer quantifier's form, so `isQuantified` now
 > counts any `{n}` with n > 1. `{1}` and `{0,1}` stay accepted: one repetition
 > is not a repetition. The regression asserts the measured pattern **and** the
@@ -422,11 +422,11 @@ For an invocation with agent `A` and derived resources `R₁…Rₙ`:
 `accessMatches(r, spec)` is true when either the rule or the tool leaves the
 direction unspecified, or when the two agree. `stricter` returns `off` if any
 input is `off`, since `off` denies outright while `on-miss` can end in an
-allowance — the only combination rule that cannot be used to widen access by
+allowance. The only combination rule that cannot be used to widen access by
 setting the other axis.
 
 Step 5 strictly precedes step 6. Lockdown applies to _every_ tool, including
-those with no extractor — an emergency stop limited to the tools the registry
+those with no extractor. An emergency stop limited to the tools the registry
 happens to enumerate is not an emergency stop.
 
 Steps 9–10 strictly precede steps 12–13, and neither is suspended by `monitor`.
@@ -448,11 +448,11 @@ Properties that follow, and are individually tested:
   least one ledger entry. `ungoverned` is distinct from `allow`: it denotes an
   action the policy layer could not evaluate, which is what makes coverage gaps
   discoverable.
-- **Intent is recorded, never consulted.** Each entry may carry an `intent` —
+- **Intent is recorded, never consulted.** Each entry may carry an `intent`,
   what the model said it was doing on the turn that produced the call (§1.6's
   "raw LLM intent"). It is **not an input to any step above**: no rule matches on
   it, no verdict depends on it, and an absent intent changes nothing. It is
-  evidence attached to a decision, not part of making one — which is the only
+  evidence attached to a decision, not part of making one, which is the only
   safe way to put model-authored text next to an authorisation, since the model
   is the party the gate exists to constrain.
 - **All resources evaluated.** Step 13 completes for every `Rᵢ` before a
@@ -481,7 +481,7 @@ Properties that follow, and are individually tested:
 - Expired rules remain readable for 7 days, then are pruned on the next write.
   Retention is deliberate: a rule that has just lapsed is the explanation for a
   sudden denial.
-- Pruning is opportunistic — performed during rule creation, so no scheduler is
+- Pruning is opportunistic: performed during rule creation, so no scheduler is
   required.
 
 ## 7. Conflicts
@@ -503,18 +503,18 @@ rule already does this" is true only of a rule pointing the same way: an
 existing allowance never makes a new denial redundant, because the denial wins,
 and reporting it as redundant would be the same inversion this detector has been
 corrected for twice. `overridden-by-deny` is likewise reported for allow
-candidates only — a denial is what does the overriding.
+candidates only. A denial is what does the overriding.
 
 The two families mean opposite things and MUST be presented differently. An
 allowance clash says the candidate **adds nothing**; `overridden-by-deny` says
-it **does nothing at all** — it is stored, listed in the policy, and never
+it **does nothing at all**. It is stored, listed in the policy, and never
 takes effect. Reporting only the first family (the state after the tenth QA
 round, which had stopped the detector describing a denial as a grant by making
 it ignore denials) left an operator with no way to learn why their rule had no
 effect except by reading the ledger.
 
 "Matches exactly one literal" means the candidate is `^…$` whose body contains
-no unescaped metacharacter — which covers every documented example and every
+no unescaped metacharacter, which covers every documented example and every
 rule an `allow-always` approval generates. For those the overlap question is
 decided outright rather than guessed at.
 
@@ -528,22 +528,22 @@ that guessed would produce false positives and be ignored.
 | ------------------------------------------------------ | --------------- | -------------------------------------------------------------------------- |
 | Read policy, ledger, sessions, rule requests           | `viewer`        | Filtered to visible agents                                                 |
 | See who else can reach an agent (M2)                   | `viewer`        | Must be able to _view_ that agent                                          |
-| Create/remove agent-scoped rule                        | `user`          | `canAuthorPolicyForAgent` — Root may withhold it per account (T27)         |
+| Create/remove agent-scoped rule                        | `user`          | `canAuthorPolicyForAgent`, Root may withhold it per account (T27)          |
 | Prompt an agent, and read that transcript              | `user`          | Must manage that agent, **and it must be in the caller's own group**       |
 | Lock/release agent                                     | `user`          | Must manage that agent                                                     |
 | Attach a file to a prompt (T14)                        | `user`          | Must manage that agent                                                     |
 | **Set per-agent `ask`** (T4)                           | `administrator` | Must manage that agent. A User _requests_ it                               |
 | **Set per-agent `mode`** (`enforce`/`monitor`) (T4)    | `administrator` | Must manage that agent. A User _requests_ it                               |
-| Create/remove global rule                              | `administrator` | —                                                                          |
-| Set `mode`, `ask`                                      | `administrator` | —                                                                          |
-| Set `hitlTimeoutSeconds`, per-account `ask`            | `root`          | —                                                                          |
+| Create/remove global rule                              | `administrator` | -                                                                          |
+| Set `mode`, `ask`                                      | `administrator` | -                                                                          |
+| Set `hitlTimeoutSeconds`, per-account `ask`            | `root`          | -                                                                          |
 | Create or delete accounts, set a manager (M3)          | `root`          | Inside the caller's own group only                                         |
 | List the group's agents (M4)                           | `viewer`        | Own group, then filtered to visible agents                                 |
 | Register an agent, owned by yourself (M4)              | `administrator` | Group taken from the session; never from the request                       |
 | Rename, re-own or unregister an agent (M4)             | `administrator` | **Must own that agent.** Root is exempt                                    |
 | Register an agent owned by another Administrator (M4)  | `root`          | Naming who answers for a workload is people management                     |
 | Assign an agent to a User or Viewer (M4)               | `administrator` | The agent must be unregistered, or owned by the target's own Administrator |
-| Switch a non-self-protecting `core` rule off (T24)     | `root`          | —                                                                          |
+| Switch a non-self-protecting `core` rule off (T24)     | `root`          | -                                                                          |
 | Remove a `core` rule, or disable a self-protecting one | **nobody**      | Refused at every tier                                                      |
 | Create a second Root **in the same group**             | **nobody**      | Refused at every tier                                                      |
 | Delete or demote a group's only Root                   | **nobody**      | Refused at every tier                                                      |
@@ -552,7 +552,7 @@ that guessed would produce false positives and be ignored.
 > per-agent switches from `user` to `administrator`: moving an agent from
 > `ask: "off"` to `ask: "on-miss"` converts a refusal into a request somebody
 > may grant, and posture is wider still. The capability was _relocated, not
-> removed_ — a User submits an `agent-setting` request through the rule-request
+> removed_. A User submits an `agent-setting` request through the rule-request
 > queue.
 >
 > And "create a second Root" is now scoped: M3 made a Root the owner of a
@@ -563,7 +563,7 @@ that guessed would produce false positives and be ignored.
 > two per-agent rows above have said `administrator` since T4, and so has
 > `ROLE-MODEL.md`. `permissions.ts` and `GOVERNANCE.md` both went on describing
 > `canAuthorPolicyForAgent` as covering "setting that agent's posture and
-> escalation overrides" — three copies of a claim no surface honoured, in the
+> escalation overrides", three copies of a claim no surface honoured, in the
 > permissive direction, one of them in the file a developer opens to learn the
 > model. Corrected there; recorded here because _the specification and the
 > implementation's own summary disagreed and the specification was correct_,
@@ -572,8 +572,8 @@ that guessed would produce false positives and be ignored.
 
 > **Every row in this table is enforced on both surfaces, and one was not
 > (finding 216, 2026-09-02).** The `transcript` half of the prompt row asked
-> only "signed in, and in a group" from the command line — no tier floor, no
-> scope check, no tenancy check — while its route asked all four. The scope
+> only "signed in, and in a group" from the command line, no tier floor, no
+> scope check, no tenancy check, while its route asked all four. The scope
 > column above is the contract; a surface that implements less of it is the
 > defect class this project has now found five times (finding 174).
 
@@ -581,7 +581,7 @@ that guessed would produce false positives and be ignored.
 > note is decided by group, tier and agent scope. The three registry-mutation
 > rows are not: two Administrators with identical tier and identical scope
 > differ on whether they may rename a given agent, because one owns it. Root is
-> exempt from ownership — otherwise an agent whose owning Administrator has left
+> exempt from ownership. Otherwise an agent whose owning Administrator has left
 > could never be re-homed, which is a lockout rather than a protection.
 >
 > Ownership is also what constrains assignment. The last row's "or
@@ -591,11 +591,11 @@ that guessed would produce false positives and be ignored.
 >
 > **Closed 2026-08-27 (M5), not M6.** Registration is mandatory: an unregistered
 > agent is refused at the gate and at assignment, so the "or unregistered" gap is
-> gone. The dependency on M6 was a misreading — _registering_ an agent and
+> gone. The dependency on M6 was a misreading, _registering_ an agent and
 > _provisioning_ one are two acts, and the first had always been available.
 
-Four checks are applied independently: **group**, tier, scope, and — for the
-agent registry only — **ownership**. Group is checked first and is absolute — an account can only ever act on accounts in its
+Four checks are applied independently: **group**, tier, scope, and, for the
+agent registry only, **ownership**. Group is checked first and is absolute. An account can only ever act on accounts in its
 own group, and a target elsewhere is reported as "not found" rather than
 "forbidden", so the answer carries no information about other groups.
 Administrator and above have unlimited _agent_ scope within their group. Removal authorises against the **stored** rule's scope,
@@ -603,8 +603,8 @@ never a client-supplied value.
 
 Read responses are scoped per collection, not per response: `rules`,
 `lockedAgents`, `agentAsk` and `agentMode` are each filtered to the agents the
-caller may view, and `userAsk` — keyed by account rather than by agent, so agent
-scope says nothing about it — is withheld below `root`. A collection added later
+caller may view, and `userAsk`, keyed by account rather than by agent, so agent
+scope says nothing about it, is withheld below `root`. A collection added later
 and not added to that list is an enumeration leak, which is how `agentMode`
 came to disclose every agent id in the installation to a caller scoped to one.
 
@@ -634,7 +634,7 @@ dashboard form) accept `resourceKind`, `pattern`, `effect`, `access`,
 `description`, an agent scope, and a TTL. Normatively:
 
 1. `effect` MUST be `allow` or `deny` when present; absent means `allow`. An
-   unrecognised value MUST be **rejected**, never coerced — coercing a typo to
+   unrecognised value MUST be **rejected**, never coerced. Coercing a typo to
    `allow` turns a mistake into a permission.
 2. `access` MUST be `read` or `write` when present, and MUST be **rejected** on
    a `resourceKind` other than `path`. The engine consults it for path rules
@@ -760,10 +760,10 @@ by is unique installation-wide; otherwise it belongs to a group.
 **Which group a request acts in has exactly two sources**, and neither is
 anything the caller supplies:
 
-- A **session** — HTTP (`requireGroup`) and the CLI (`requireCliActor`, which
+- A **session**, HTTP (`requireGroup`) and the CLI (`requireCliActor`, which
   returns the audit actor and the group together, so permission and scope cannot
   be held apart).
-- The **agent registry** — for the gate, which has an agent id and no session.
+- The **agent registry**: for the gate, which has an agent id and no session.
   An agent with no record is **refused**: registration is mandatory, and that is
   what removes the fallback document an unregistered agent would otherwise slip
   through.
@@ -775,7 +775,7 @@ move another's.
 **The integrity claim is unchanged**, deliberately. The HMAC key is one per
 installation and the checkpoint is one file, so _"recomputing the chain requires
 the secret"_ is still true of the whole installation. Sharing them isolates
-nothing away: no account has ever been able to read either — accounts act through
+nothing away: no account has ever been able to read either. Accounts act through
 this layer's API, never the filesystem, and both sit behind two immutable core
 denials.
 
@@ -790,7 +790,7 @@ denials.
 3. **Governed tool set is a fixed registry, and it covers 18 of the host's 52
    catalogued tools plus the three session-only search tools.** A tool absent from it is recorded as `ungoverned` and passes
    the gate; extending coverage requires a code change in
-   `resource-extraction.ts`. Lockdown is not subject to this — it is checked
+   `resource-extraction.ts`. Lockdown is not subject to this. It is checked
    before the registry lookup.
 
    The registry is asserted against the host's tool list on every test run
@@ -805,14 +805,14 @@ denials.
    resource `<tool>:<action>` plus any literal payload, so the core denials
    already written for `exec` bind them without naming them:
 
-   | Tool                              | What it reaches                                                                                                                                                   |
-   | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-   | `process`                         | `action: write\|send-keys\|paste\|submit` types into a shell `exec` started in the background — a second command channel, exactly like `terminal`'s `data` (§3.2) |
-   | `computer`, `screen`, `mobile_ui` | synthetic keyboard and mouse against a paired desktop                                                                                                             |
-   | `code_execution`                  | runs code                                                                                                                                                         |
-   | `sessions_spawn`, `subagents`     | start further agents, under a different agent id                                                                                                                  |
-   | `automations`                     | schedules work to run later                                                                                                                                       |
-   | `gateway`, `nodes`                | read Gateway configuration; address devices                                                                                                                       |
+   | Tool                              | What it reaches                                                                                                                                                  |
+   | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `process`                         | `action: write\|send-keys\|paste\|submit` types into a shell `exec` started in the background. A second command channel, exactly like `terminal`'s `data` (§3.2) |
+   | `computer`, `screen`, `mobile_ui` | synthetic keyboard and mouse against a paired desktop                                                                                                            |
+   | `code_execution`                  | runs code                                                                                                                                                        |
+   | `sessions_spawn`, `subagents`     | start further agents, under a different agent id                                                                                                                 |
+   | `automations`                     | schedules work to run later                                                                                                                                      |
+   | `gateway`, `nodes`                | read Gateway configuration; address devices                                                                                                                      |
 
    The remaining 34 catalogued tools are listed in `DELIBERATELY_UNGOVERNED`
    with a written reason each, asserted non-empty by a test. The guard still
@@ -826,7 +826,7 @@ denials.
 
 4. **The governance CLI requires no login.** A core denial now covers
    `governance <subcommand>`, so an _agent_ cannot reach it through a broad
-   allow rule such as `^(node|npm|npx|pnpm) .*$` — which it could until QA
+   allow rule such as `^(node|npm|npx|pnpm) .*$`, which it could until QA
    round 13 (finding 73), making `openclaw governance policy set-mode off` a
    one-command bypass of the whole RBAC model. That denial is a backstop
    against the agent and does nothing about a **person** with shell access,
@@ -835,7 +835,7 @@ denials.
 
 5. **A stored `agentMode: "off"` is dropped on load.** It used to bypass the
    gate entirely for that agent, lockdown included, because evaluation returns
-   before the lockdown check — the HTTP route refused per-agent `off` at every
+   before the lockdown check. The HTTP route refused per-agent `off` at every
    tier, but `loadPolicy` re-asserted `CORE_RULES` without sanitising the
    posture maps, so a hand-edited `policy.json` reintroduced it one field away
    from the protection it was meant to defeat. Dropped rather than coerced
@@ -853,13 +853,13 @@ denials.
    incident somebody declared, and an operator who has pressed the emergency
    stop is asking for that error rather than the opposite one. With no agent
    locked, nothing changes.
-7. **Outbound messages are not a resource kind, by design — settled, not
+7. **Outbound messages are not a resource kind, by design. Settled, not
    open (T8, 2026-08-26).** `command`, `path` and `network` do not describe
    "post this text into a chat channel", so the `message` tool is recorded as
    `ungoverned` and passes. This was previously listed here as a limitation
    awaiting a fourth resource kind. It is not awaiting one.
 
-   The specification names the resources the model governs — §1.3 requirement 3,
+   The specification names the resources the model governs, §1.3 requirement 3,
    "file system paths, process execution, and network communication", repeated
    as requirement 4's fine-grained axes. Those are exactly the three kinds that
    exist; a fourth is beyond the specification rather than missing from it. The
@@ -874,7 +874,7 @@ denials.
 
    What the layer guarantees instead is the record: every send is written to the
    ledger as `ungoverned`, redacted, attributed to the agent, **and carrying its
-   destination** — pinned by `qa-round12.test.ts`, destination included, so
+   destination**. Pinned by `qa-round12.test.ts`, destination included, so
    "we do not gate this, we record it" is a tested claim rather than a phrase.
 
 8. **Search tools are governed at their root only.** `grep`, `find` and `ls`
@@ -886,7 +886,7 @@ denials.
    detects modification and interior deletion; removing the newest entries
    leaves a valid prefix. A separate checkpoint file closes the casual case and
    forces two coordinated edits, but it lives on the same host as the ledger, so
-   a genuinely strong anchor means copying it off the machine — deployment
+   a genuinely strong anchor means copying it off the machine. Deployment
    rather than code.
 
    **QA round 13 found the "two coordinated edits" claim to be optimistic, and
@@ -903,18 +903,18 @@ denials.
    _damage_ the key file rather than to read it. Fixes: a missing checkpoint is
    reported once the installation holds a key; an installation holding a key
    must have a keyed newest entry; and the key must decode as 32 bytes of
-   hexadecimal or `loadLedgerKey` throws — which the tool-call hook turns into
+   hexadecimal or `loadLedgerKey` throws, which the tool-call hook turns into
    a blocked call, so an installation that cannot record trustworthily stops
    acting rather than acting unrecorded.
 
    **The residual is real and unchanged:** an attacker who destroys _both_ the
    key and the checkpoint leaves nothing on the host to contradict a rewritten
-   chain. Closing that means holding one of them off the machine — deployment
+   chain. Closing that means holding one of them off the machine. Deployment
    rather than code, and still the honest limit of this design.
 
 10. **Read APIs are bounded at both ends.** `GET ledger?limit=` used to reject
     only values `≤ 0`, so `?limit=1000000000` walked every rotated archive into
-    memory and serialised it — at Viewer tier, the tier defined as strictly
+    memory and serialised it, at Viewer tier, the tier defined as strictly
     read-only oversight, which made it the cheapest denial of service in the
     system. Now clamped to `MAX_LEDGER_PAGE` (1000). Clamped rather than
     rejected: a caller asking for more than the page size means "as much as you

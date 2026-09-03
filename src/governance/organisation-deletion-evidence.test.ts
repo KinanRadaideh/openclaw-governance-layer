@@ -2,7 +2,7 @@
 // ledger points at.
 //
 // `deleteOrganisation` keeps `audit-ledger.jsonl` on an argument it makes at
-// length — "an operator who can delete the trail by deleting the organisation it
+// length, "an operator who can delete the trail by deleting the organisation it
 // covers has a one-click way to erase every record of everything their agents
 // ever did". Attachments live at `groups/<id>/attachments`, inside the very
 // directory the purge empties, so the trail survived and the files it names did
@@ -10,7 +10,7 @@
 //
 // The rule being broken is not a new one. `releaseAttachment` refuses to delete
 // an attachment once it has been sent, because "a ledger entry names it and the
-// store is the evidence behind that entry" — and the person reaching this path
+// store is the evidence behind that entry", and the person reaching this path
 // is the Root that entry would incriminate.
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";

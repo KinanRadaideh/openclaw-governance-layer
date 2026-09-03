@@ -7,7 +7,7 @@
 //
 //   1. A disconnected client still ran. Closing the browser tab abandoned the
 //      response and left the agent working, so the operator had no way to know
-//      it was still going and no way to stop it short of the kill switch —
+//      it was still going and no way to stop it short of the kill switch,
 //      which locks the agent down entirely and is meant for an emergency, not
 //      for "I asked the wrong thing".
 //   2. A wedged model provider held the connection open indefinitely. Nothing
@@ -15,21 +15,21 @@
 //   3. **Unbounded concurrency is a denial of service available to the lowest
 //      tier that can act.** A User with one assigned agent could open prompts
 //      until the Gateway's event loop and the installation's model budget were
-//      both exhausted — for every other account, including Root. This is the
+//      both exhausted, for every other account, including Root. This is the
 //      same shape as finding Q-79 (a rule pattern that froze the gate) and
 //      Q-82 (an unbounded ledger page): the cheapest way to attack a governance
 //      layer is to make it unavailable, and availability of the *control plane*
 //      is what an operator needs most at exactly the moment it is under strain.
 //
 // **Why a registry rather than a per-request timer.** Cancellation has to be
-// reachable from a *different* request than the one that started the run — the
-// browser tab that opened it may be gone — so the abort handle has to live
+// reachable from a *different* request than the one that started the run, the
+// browser tab that opened it may be gone, so the abort handle has to live
 // somewhere addressable by run id. Once that exists, the timeout and the caps
 // are the same table read, and there is one place that knows what is running.
 //
 // Deliberately in-process and not persisted. A run cannot outlive the process
 // executing it, so a registry that survived restart would describe runs that no
-// longer exist — and a control surface that reports a stoppable run which
+// longer exist, and a control surface that reports a stoppable run which
 // cannot be stopped is the failure mode this project spent a whole round on
 // (§3.5.10, the kill switch reporting two numbers rather than one).
 
@@ -38,7 +38,7 @@
  *
  * Five minutes: long enough for a genuine multi-step task with tool calls, short
  * enough that a wedged provider frees the slot within one coffee. Not
- * configurable, deliberately — an operator-settable timeout is one more control
+ * configurable, deliberately: an operator-settable timeout is one more control
  * whose misconfiguration is indistinguishable from the bug it was added to
  * work around, and the value that matters (the *cap*) should not be adjustable
  * by the tier the cap exists to bound.
@@ -58,7 +58,7 @@ export const MAX_CONCURRENT_PROMPTS = 6;
  * Per-account ceiling, and the one that carries the security argument.
  *
  * The installation-wide cap alone would let a single User consume every slot
- * and lock out Root — turning a resource limit into a privilege inversion,
+ * and lock out Root: turning a resource limit into a privilege inversion,
  * where the least privileged tier decides whether the most privileged one can
  * act. Bounding each account first means a noisy or hostile account exhausts
  * its own allowance and nobody else's.
@@ -71,7 +71,7 @@ export type PromptRunEnding = "cancelled" | "timeout";
 type PromptRun = {
   runId: string;
   agentId: string;
-  /** Canonical account name — the run's owner for cancellation purposes. */
+  /** Canonical account name. The run's owner for cancellation purposes. */
   username: string;
   controller: AbortController;
   startedAt: number;
@@ -111,7 +111,7 @@ function countFor(username: string): number {
  * not.
  *
  * The account cap is checked **first**, so an account that has exhausted the
- * installation is told which limit it hit — and so the message never reveals
+ * installation is told which limit it hit: and so the message never reveals
  * how much of the installation other accounts are using, which is a small
  * cross-account information leak the dashboard has no reason to offer.
  */
@@ -180,7 +180,7 @@ export function finishPromptRun(runId: string): PromptRunEnding | undefined {
  * Stops a run and records why, without releasing the slot.
  *
  * The slot is released by `finishPromptRun` when the run actually unwinds,
- * which may be some time after the abort — the honest ordering, and the same
+ * which may be some time after the abort: the honest ordering, and the same
  * distinction the kill switch draws between asking a run to stop and observing
  * that it did. Releasing here would let a cancelled-but-still-running prompt be
  * replaced immediately, so the caps would bound requests rather than work.
@@ -206,13 +206,13 @@ export type CancelPromptOutcome =
 /**
  * Cancels a run on behalf of an account.
  *
- * **Ownership, not tier, is the rule here — with one exception.** A prompt
+ * **Ownership, not tier, is the rule here: with one exception.** A prompt
  * belongs to the account that sent it, and cancelling somebody else's run is a
  * way to interfere with their work, so the default is that only the owner may
  * stop it. Administrators and Root may stop any run, because §1.6 gives them
  * real-time control over agent sessions and a runaway prompt is precisely that.
  *
- * The tier decision is the caller's — this function is told whether the actor
+ * The tier decision is the caller's: this function is told whether the actor
  * may act on other people's runs, exactly as `promptAgent` is told nothing
  * about authorization and leaves it at the HTTP boundary. Keeping the tier rule
  * in one place is what has stopped it drifting between surfaces.
@@ -223,12 +223,12 @@ export function cancelPromptRun(input: {
   mayCancelOthers: boolean;
   /**
    * Agents registered to the caller's organisation. Runs outside it are never
-   * cancellable — **finding 235**, and it is finding 139 on a second registry.
+   * cancellable: **finding 235**, and it is finding 139 on a second registry.
    *
    * This table is module-level and therefore **installation-wide**: every run
    * on the host, of every organisation. The only scope the callers applied was
    * `canManageAgent`, and `hasUnlimitedAgentScope` makes that unconditionally
-   * true for an Administrator or Root — the exact sentence
+   * true for an Administrator or Root: the exact sentence
    * `listActiveSessions` already carries about the Gateway's run registry. That
    * fix made the roster a **required** parameter so no call site could keep the
    * defect by omission; this one is required for the same reason.
@@ -251,7 +251,7 @@ export function cancelPromptRun(input: {
     return { cancelled: false, reason: "forbidden", agentId: run.agentId };
   }
   if (!endPromptRun(input.runId, "cancelled")) {
-    // Already ending — a timeout that fired first, or a second click.
+    // Already ending. A timeout that fired first, or a second click.
     return { cancelled: false, reason: "not-found" };
   }
   return { cancelled: true, agentId: run.agentId };

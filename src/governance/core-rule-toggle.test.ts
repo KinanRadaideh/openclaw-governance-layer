@@ -1,11 +1,11 @@
-// T24 — Root may switch off the five core denials that are not self-protecting,
+// T24, Root may switch off the five core denials that are not self-protecting,
 // and may not touch the three that are.
 //
 // The interesting tests are not "can Root disable a rule" but the three
 // properties that make it safe to allow at all:
 //
 //   1. A self-protecting rule is refused from every direction, including a
-//      hand-edited `policy.json` — the file the core tier exists to survive.
+//      hand-edited `policy.json`. The file the core tier exists to survive.
 //   2. Disabling changes what is *enforced* and nothing about what is
 //      *declared*, so a disabled rule comes back intact.
 //   3. A lowered floor cannot hide: it is recorded as its own audit action and
@@ -72,7 +72,7 @@ function verdict(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>)
   if ("block" in decision) {
     return "block";
   }
-  // T23 — absence is no longer the only way the engine says "allow". A call
+  // T23. Absence is no longer the only way the engine says "allow". A call
   // whose path was redirected comes back carrying `params` (the canonical path
   // the tool should open), and reading that as "ask" would report an
   // escalation that never happened. Ask the question directly instead of
@@ -112,7 +112,7 @@ describe("the five that are Root's to decide", () => {
     await setCoreRuleEnabled(TEST_GROUP, sudo.id, false, "rootie");
 
     // After: the denial is gone, so the call falls through to the ordinary
-    // default-deny path — which still refuses it, because no rule allows it.
+    // default-deny path, which still refuses it, because no rule allows it.
     // That is the point worth seeing: disabling a *denial* does not grant
     // anything, it only stops the denial from overriding a later allowance.
     expect((await loadPolicy(TEST_GROUP)).rules.some((rule) => rule.id === sudo.id)).toBe(false);

@@ -154,7 +154,7 @@ describe("audit ledger hash chain", () => {
   });
 
   // Requirement 8: no sensitive data in plaintext. Component-prefixed password flags
-  // defeated the masker entirely — the key list was anchored to `--`, so `--password=`
+  // defeated the masker entirely. The key list was anchored to `--`, so `--password=`
   // matched and `--db-password=` did not. Found 2026-08-29 by probing the redactor rather
   // than reading it; the write-up had recorded it as one key (`--http-password`) when in
   // fact every prefix leaked.

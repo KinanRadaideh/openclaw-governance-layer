@@ -5,7 +5,7 @@
 //   1. Each of the four events is recorded, with the right attribution.
 //   2. A failed login does not leak, and does not put attacker-controlled text
 //      anywhere the ledger does not clamp.
-//   3. The bound holds, and says so when it bites — the part that could turn a
+//   3. The bound holds, and says so when it bites. The part that could turn a
 //      missing log into a disk-fill vector.
 //   4. Adding these entries did not weaken the hash chain they share.
 import { mkdtemp, rm } from "node:fs/promises";
@@ -60,8 +60,8 @@ afterEach(async () => {
 async function authEntries(): Promise<LedgerEntry[]> {
   // **The installation trail, not a group's (M5).**
   //
-  // A failed sign-in often names an account that belongs to nobody — that is
-  // what a credential-stuffing attempt looks like — so those entries go to the
+  // A failed sign-in often names an account that belongs to nobody, that is
+  // what a credential-stuffing attempt looks like, so those entries go to the
   // installation-scope trail rather than being guessed into a group. An attacker
   // must not get to choose which organisation's log records the attack on it.
   // Successful sign-ins carry the account's group when the caller supplies one;
@@ -86,7 +86,7 @@ describe("authentication events reach the ledger", () => {
     // The stored spelling, not a folded key: the ledger is read by people, and
     // this is the column they match against the account list by eye.
     expect(entry?.actor).toBe("Alice");
-    // `subjectId` is carried in the ledger's `ruleId` field — see
+    // `subjectId` is carried in the ledger's `ruleId` field. See
     // `recordAdminAction`, which reuses the agent-entry shape rather than
     // adding administrative-only columns to every row.
     expect(entry?.ruleId).toBe("u-1");
@@ -121,7 +121,7 @@ describe("authentication events reach the ledger", () => {
 
     expect(await entriesFor(ADMIN_ACTIONS.authLoginFailed)).toHaveLength(1);
     const [lockout] = await entriesFor(ADMIN_ACTIONS.authLockout);
-    // Findable on its own, rather than only by counting failures — this is the
+    // Findable on its own, rather than only by counting failures. This is the
     // entry an investigation searches for.
     expect(lockout?.resource).toContain("5");
     expect(lockout?.decision).toBe("deny");
@@ -150,7 +150,7 @@ describe("a failed sign-in does not leak, and cannot flood a field", () => {
     const entries = await entriesFor(ADMIN_ACTIONS.authLoginFailed);
     expect(entries).toHaveLength(2);
     // Same action, same actor, same decision. Distinguishing the two would put
-    // an account-existence oracle into the audit trail — the very fact the
+    // an account-existence oracle into the audit trail. The very fact the
     // login response is careful not to leak.
     const shapes = new Set(entries.map((e) => `${e.toolName}|${e.actor}|${e.decision}`));
     expect(shapes.size).toBe(1);
@@ -176,7 +176,7 @@ describe("a failed sign-in does not leak, and cannot flood a field", () => {
     await auditLoginFailure(huge);
 
     const [entry] = await entriesFor(ADMIN_ACTIONS.authLoginFailed);
-    // `subjectId` lands in the ledger's `ruleId`, which — unlike `resource` —
+    // `subjectId` lands in the ledger's `ruleId`, which, unlike `resource`,
     // is neither redacted nor length-limited by `appendLedgerEntry`.
     expect(entry?.ruleId.length).toBeLessThanOrEqual(MAX_ECHOED_USERNAME_LENGTH);
     expect(entry?.resource.length).toBeLessThan(huge.length);
@@ -187,7 +187,7 @@ describe("failure entries are bounded", () => {
   it("records up to the general budget, then suppresses and says how many", async () => {
     const start = Date.now();
     // Every name distinct, so this draws only on the general budget and leaves
-    // the repeat reserve untouched — finding 107's fix means a pure flood
+    // the repeat reserve untouched. Finding 107's fix means a pure flood
     // deliberately records fewer entries than the total cap.
     const generalBudget = MAX_FAILURE_ENTRIES_PER_WINDOW - REPEAT_RESERVE;
     for (let index = 0; index < generalBudget + 25; index += 1) {
@@ -195,7 +195,7 @@ describe("failure entries are bounded", () => {
     }
 
     expect(await entriesFor(ADMIN_ACTIONS.authLoginFailed)).toHaveLength(generalBudget);
-    // Nothing has flushed the count yet — the notice is written on the next
+    // Nothing has flushed the count yet. The notice is written on the next
     // authentication event of any kind, not by a timer inside an audit path.
     expect(await entriesFor(ADMIN_ACTIONS.authFailuresSuppressed)).toHaveLength(0);
 
@@ -221,7 +221,7 @@ describe("failure entries are bounded", () => {
     // The attack: two hundred invented usernames, then a patient guessing
     // attempt against a real account, kept below the five that trigger a
     // lockout. Under a purely global cap the ledger recorded the flood and said
-    // nothing about `root` — the bound written to prevent a denial of service
+    // nothing about `root`. The bound written to prevent a denial of service
     // had become a way to choose what the audit trail would not say.
     const start = Date.now();
     for (let index = 0; index < MAX_FAILURE_ENTRIES_PER_WINDOW * 2; index += 1) {

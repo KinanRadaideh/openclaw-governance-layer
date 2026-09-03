@@ -231,7 +231,7 @@ describe("POST organisation/delete", () => {
     const deleted = await call("POST", `${PREFIX}organisation/delete`, {
       cookie: attacker.rootCookie,
       // The one write the tenant model exists to prevent. The route reads the
-      // group from the session, so this field is inert — and the assertion is
+      // group from the session, so this field is inert, and the assertion is
       // that it is inert, not merely unused by today's code.
       body: { confirm: "attacker-root", groupId: victim.groupId },
     });

@@ -1,4 +1,4 @@
-# Upstream bug report — OpenClaw
+# Upstream bug report: OpenClaw
 
 A defect found in OpenClaw's own code (not in this fork's governance layer)
 while QA-testing the senior design project. Written up here so it can be filed
@@ -11,7 +11,7 @@ Per the project README, the issue chooser is the channel for bugs. This is
 (that channel is for vulnerability disclosure). Setup questions go to Discord.
 
 **Before filing:** search existing issues for `EBUSY` and
-`host-hooks.contract` — this may already be known.
+`host-hooks.contract`. This may already be known.
 
 ---
 
@@ -25,8 +25,8 @@ Per the project README, the issue chooser is the channel for bugs. This is
 > `src/plugins/contracts/host-hooks.contract.test.ts`, and it is correct about
 > them.** The fix is one line in the shared `withHostHookState` fixture:
 > close the cached SQLite handles before removing the directory they live in.
-> `openclaw-agent-db.ts` already carried the matching note — _"Windows
-> otherwise cannot remove the file during caller cleanup"_ — so the hazard was
+> `openclaw-agent-db.ts` already carried the matching note, _"Windows
+> otherwise cannot remove the file during caller cleanup"_, so the hazard was
 > known and this caller simply never cleaned up after itself.
 >
 > **The project's own regression baseline was a different set of failures, and
@@ -39,8 +39,8 @@ Per the project README, the issue chooser is the channel for bugs. This is
 > uses `path.resolve`.
 >
 > What let the conflation survive is that **both files happen to have exactly
-> nine distinct failures**, so the arithmetic checked out — "9 distinct × 2
-> projects = 18" — while the file name did not. Worth keeping for Chapter 4
+> nine distinct failures**, so the arithmetic checked out, "9 distinct × 2
+> projects = 18", while the file name did not. Worth keeping for Chapter 4
 > beside the other measurement errors this project has found in its own notes:
 > a number that reconciles is not evidence that it is a number about the thing
 > you think it is.
@@ -68,7 +68,7 @@ while a SQLite handle to `openclaw-agent.sqlite` inside that directory is still
 open. POSIX permits unlinking an open file, so this is invisible on Linux/macOS
 CI; Windows rejects it with `EBUSY` and the test fails.
 
-The failures are in teardown, not in the assertions — the behaviour under test
+The failures are in teardown, not in the assertions. The behaviour under test
 appears to pass.
 
 ## Reproduction
@@ -133,12 +133,12 @@ Reporting these so nobody repeats them:
 
 1. Calling `resetPluginStateStoreForTests()` (from
    `src/plugin-state/plugin-state-store.ts`, which closes both the plugin-state
-   and OpenClaw state databases) before `fs.rm` — still `EBUSY`.
+   and OpenClaw state databases) before `fs.rm`. Still `EBUSY`.
 2. Calling `disposeOpenClawAgentDatabaseByPath(path.join(stateDir,
 "openclaw-agent.sqlite"))` (from `src/state/openclaw-agent-db.ts`) before
-   `fs.rm` — still `EBUSY`.
+   `fs.rm`. Still `EBUSY`.
 
-Neither released the handle, so the owner is some other component — possibly a
+Neither released the handle, so the owner is some other component. Possibly a
 connection cached under a differently-resolved path, or a second handle opened
 by the session store. Someone familiar with the state-DB lifecycle will
 identify it much faster than further guessing from outside.
@@ -192,7 +192,7 @@ succeeds immediately. Lingering was enabled, `/run/user/0` existed, and
 ## Cause
 
 `resolveSystemctlProcessEnv` (`src/daemon/systemd.ts`) fills in a missing
-`DBUS_SESSION_BUS_ADDRESS` when the user bus socket exists — but returns early
+`DBUS_SESSION_BUS_ADDRESS` when the user bus socket exists, but returns early
 for uid 0:
 
 ```ts
@@ -219,7 +219,7 @@ systemctl --machine root@ --user enable openclaw-gateway.service
 ```
 
 That scope reaches a different manager, which does not see a unit under
-`/root/.config/systemd/user/` — hence a "file does not exist" error about a
+`/root/.config/systemd/user/`. Hence a "file does not exist" error about a
 file that exists.
 
 ## Workaround
@@ -229,8 +229,8 @@ export XDG_RUNTIME_DIR=/run/user/0
 export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus
 ```
 
-Both are needed. Setting only `XDG_RUNTIME_DIR` — the obvious guess, and what
-the error invites — does not help, because the scope decision reads all three.
+Both are needed. Setting only `XDG_RUNTIME_DIR`, the obvious guess, and what
+the error invites, does not help, because the scope decision reads all three.
 
 ## Suggested fix
 
@@ -248,13 +248,13 @@ user manager for root has no socket and is unaffected. A plain
 `sudo openclaw …` from a normal account keeps `HOME` at that account's home, so
 `hasRootUserManagerEnvironment` still refuses and the machine scope still wins.
 Only `sudo -i`, where `HOME=/root` and the unit is genuinely written under
-root's home, is redirected — to the manager that actually owns the unit.
+root's home, is redirected, to the manager that actually owns the unit.
 
 Applied locally as finding 232.
 
 ## Why the error is worth improving regardless
 
 The message names a missing file that is present. An operator's first move is to
-look for the file, find it, and be stuck — which is where two hours went here.
+look for the file, find it, and be stuck, which is where two hours went here.
 Reporting the scope actually used (`--machine root@ --user` versus `--user`)
 would make the cause visible without any knowledge of the internals.

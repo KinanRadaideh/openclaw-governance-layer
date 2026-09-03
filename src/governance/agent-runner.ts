@@ -3,7 +3,7 @@
 // Design requirement: the paper's §1.6 describes the User tier as "granted
 // targeted access to **interact with** specific, pre-configured agents… Users
 // may strictly prompt the agents for task execution". Everything built so far
-// lets a User *govern* an agent — write its rules, read its logs, stop it — and
+// lets a User *govern* an agent, write its rules, read its logs, stop it, and
 // nothing let them talk to it. This is the seam that closes that gap.
 //
 // Structured exactly like `agent-terminator.ts`, and for the same reason. The
@@ -14,7 +14,7 @@
 // (`agentCommandFromIngress`), all of which live above us. So the Gateway
 // registers the capability at startup and governance calls it through here.
 //
-// When nothing is registered — the CLI, a test, a Gateway still starting — the
+// When nothing is registered, the CLI, a test, a Gateway still starting, the
 // answer is a plain "no runner available" rather than a pretence that the
 // prompt was delivered. That distinction is the same one `TerminationOutcome`
 // draws between "we asked" and "it stopped", and it exists for the same reason:
@@ -24,7 +24,7 @@
 /** What the Gateway needs in order to run one prompt against one agent. */
 export type AgentRunRequest = {
   agentId: string;
-  /** Per-(agent, account) conversation key — see `governanceSessionKey`. */
+  /** Per-(agent, account) conversation key. See `governanceSessionKey`. */
   sessionKey: string;
   message: string;
   /** Correlates the ledger entries for this prompt with the run it started. */
@@ -34,7 +34,7 @@ export type AgentRunRequest = {
    * Optional: the reply so far, as a **snapshot**, while the run is in flight.
    *
    * Optional because the seam must keep working for a runner that cannot stream
-   * — the CLI's, a future one, a test's — and "no progress reported" has to be
+   *the CLI's, a future one, a test's, and "no progress reported" has to be
    * an ordinary outcome rather than a missing feature. The final reply always
    * arrives in the result, so a caller that ignores this loses nothing but the
    * wait.
@@ -48,8 +48,8 @@ export type AgentRunResult = {
   /**
    * Whether the model was actually reached.
    *
-   * A run can end without a reply for legitimate reasons — every tool call the
-   * agent attempted was refused by policy, for instance — and that is a
+   * A run can end without a reply for legitimate reasons, every tool call the
+   * agent attempted was refused by policy, for instance, and that is a
    * different outcome from a transport failure. Kept separate so the operator
    * is told which happened.
    */
@@ -76,7 +76,7 @@ export function clearAgentRunner(): void {
  * True when prompting is available in this process.
  *
  * The dashboard asks before offering the control, so a User is not shown an
- * input box that cannot work. The CLI asks so it can explain *why* — "start the
+ * input box that cannot work. The CLI asks so it can explain *why*, "start the
  * Gateway" is actionable, "something went wrong" is not.
  */
 export function hasAgentRunner(): boolean {
@@ -92,7 +92,7 @@ export type AgentRunOutcome = AgentRunResult & {
  * Runs one prompt, or reports plainly that it could not.
  *
  * Never throws. A prompt that fails is an outcome the operator needs described,
- * not an exception for every caller to translate — and the ledger entry
+ * not an exception for every caller to translate, and the ledger entry
  * recording the attempt must be written either way, which a throw here would
  * skip.
  */

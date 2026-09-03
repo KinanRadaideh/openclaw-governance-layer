@@ -4,19 +4,19 @@
 // answer, and its header names ISO 27001 and OWASP for logging authentication
 // **failures** as well as successes. The dashboard route does both. The command
 // line recorded the success and dropped the failure entirely: no throttle, no
-// lockout, no ledger entry — so an unlimited run of password guesses from a
+// lockout, no ledger entry, so an unlimited run of password guesses from a
 // shell left nothing behind at all.
 //
 // Why the parity sweeps missed it, which is the part worth keeping: every audit
 // of "does this command make the checks its route makes?" looks for a *gate*,
-// and `login` is the one command that legitimately has none — it is what runs
+// and `login` is the one command that legitimately has none. It is what runs
 // before an identity exists. A sweep shaped around the missing check cannot see
 // the command that is supposed to be missing it.
 //
 // The tests below are about the trail, not about the tier, because the trail is
 // the whole of what this surface can honestly offer. `cli-identity.ts` says
-// plainly that the command line is not a security boundary — anyone who can run
-// it can edit `users.json` — and that is exactly why the record matters:
+// plainly that the command line is not a security boundary, anyone who can run
+// it can edit `users.json`, and that is exactly why the record matters:
 // rewriting the account file is a visible act, and guessing the password is not.
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -80,7 +80,7 @@ afterEach(async () => {
  * The **installation** trail, not the account's group.
  *
  * A failed sign-in often names an account that belongs to nobody, so those
- * entries go to installation scope rather than being guessed into a group — an
+ * entries go to installation scope rather than being guessed into a group. An
  * attacker must not choose which organisation's log records the attack on it.
  */
 async function authEntries(action: string): Promise<LedgerEntry[]> {
@@ -111,7 +111,7 @@ describe("governance login records the attempt", () => {
     const [entry] = await authEntries(ADMIN_ACTIONS.authLoginFailed);
     expect(entry).toBeDefined();
     // Nobody proved they hold this account, so the entry must not read as
-    // though the account did something — the same rule the route follows.
+    // though the account did something. The same rule the route follows.
     expect(entry?.actor).toBe(UNAUTHENTICATED_ACTOR);
     expect(entry?.resource).toContain("kinan");
     expect(entry?.decision).toBe("deny");
@@ -142,7 +142,7 @@ describe("governance login records the attempt", () => {
     expect(await authEntries(ADMIN_ACTIONS.authLoginFailed)).toHaveLength(0);
     // The split is deliberate and is asserted rather than assumed. A *failed*
     // sign-in often names an account belonging to nobody, so it goes to
-    // installation scope — an attacker must not choose whose log records the
+    // installation scope. An attacker must not choose whose log records the
     // attack. A success knows exactly whose it is, so it belongs to that
     // organisation's Root.
     expect(await authEntries(ADMIN_ACTIONS.authLogin)).toHaveLength(0);

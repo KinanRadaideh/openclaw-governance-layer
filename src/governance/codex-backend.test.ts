@@ -1,4 +1,4 @@
-// "Enable use of Codex?" — the stance, and the record of who set it.
+// "Enable use of Codex?". The stance, and the record of who set it.
 //
 // The control exists because T7's prevention half cannot run on that backend
 // (§3.5.61). Turning it on is an operator accepting a stated enforcement gap,
@@ -30,13 +30,13 @@ let failNextWrite: Error | undefined;
  * Set to break the ledger *after* the config write and before the completion
  * entry (finding 229). Fired from the refresh hook because that is the only
  * point inside `setCodexBackendEnabled` a test can reach between the two, and
- * it is a real breakage — the file becomes a directory — rather than a stubbed
+ * it is a real breakage, the file becomes a directory, rather than a stubbed
  * throw.
  */
 let breakLedgerOnRefresh = false;
 
 vi.mock("../config/config.js", () => ({
-  // Synchronous, matching the real `loadConfig` — see finding 221.
+  // Synchronous, matching the real `loadConfig`. See finding 221.
   loadConfig: () => fakeConfig,
   readConfigFileSnapshot: async () => ({ config: fakeConfig, sourceConfig: fakeConfig }),
   replaceConfigFile: async (params: { nextConfig: Record<string, unknown> }) => {
@@ -177,7 +177,7 @@ describe("what the ledger says about it", () => {
 
   it("does not claim the change happened when the write failed (finding 217)", async () => {
     // **This test is the one the assertion above was missing.** It proved an
-    // entry existed and never asked what it said — and what it said was
+    // entry existed and never asked what it said, and what it said was
     // `codex backend disabled -> enabled`, in the tamper-evident trail, for an
     // installation whose backend was still disabled. `replaceConfigFile` takes
     // a base hash and throws when the config moved underneath, so this is a
@@ -201,7 +201,7 @@ describe("what the ledger says about it", () => {
     await setCodexBackendEnabled(TEST_GROUP, true, { name: "malek", role: "administrator" });
     const entries = await tailLedger(TEST_GROUP);
     // Both halves, so an investigation can tell "who asked" from "and it took"
-    // — the pair `organisationDeleteRequest` / `organisationDelete` already
+    //. The pair `organisationDeleteRequest` / `organisationDelete` already
     // uses for the same reason.
     expect(
       entries.filter((e) => e.toolName === ADMIN_ACTIONS.codexBackendToggleRequest),
@@ -219,7 +219,7 @@ describe("what the ledger says about it", () => {
  *
  * By the time that entry is written the config already holds the new stance and
  * the plugin registry has been refreshed, so a throw here cannot un-accept the
- * enforcement gap — it can only misreport it, and in the dangerous direction:
+ * enforcement gap: it can only misreport it, and in the dangerous direction:
  * an operator told the enable failed believes Codex is still refused while the
  * installation has begun offering it.
  *

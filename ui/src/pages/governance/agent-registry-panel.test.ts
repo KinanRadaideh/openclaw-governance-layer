@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-// M6 — the agent registry panel, and the two-step removal.
+// M6. The agent registry panel, and the two-step removal.
 //
 // ## Why this file exists
 //
@@ -135,7 +135,7 @@ describe("removing an agent", () => {
     const rendered = text();
     expect(rendered).toContain("Remove from governance");
     expect(rendered).toContain("Delete the agent");
-    // Not merely present — each says what it costs. A chooser that offers two
+    // Not merely present, each says what it costs. A chooser that offers two
     // options without distinguishing them is the confusion it exists to prevent.
     expect(rendered).toContain("The agent keeps running");
     expect(rendered).toContain("Cannot be undone");
@@ -156,7 +156,7 @@ describe("removing an agent", () => {
 
   it("does not open the chooser for an agent that is not registered", async () => {
     // There is no record to remove, so the destructive path must not be
-    // reachable — the row offers registration instead.
+    // reachable. The row offers registration instead.
     await mount({
       identity: identity("administrator"),
       agents: [agent({ registered: false })],

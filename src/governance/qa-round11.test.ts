@@ -1,4 +1,4 @@
-// QA round 11 — the eleventh review pass.
+// QA round 11. The eleventh review pass.
 //
 // Written the same way as rounds 5 and 10: pick the seams where two things have
 // to agree, and check that they do. Every finding below is a disagreement
@@ -53,7 +53,7 @@ function verdict(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>)
   if ("block" in decision) {
     return "block";
   }
-  // T23 — absence is no longer the only way the engine says "allow". A call
+  // T23. Absence is no longer the only way the engine says "allow". A call
   // whose path was redirected comes back carrying `params` (the canonical path
   // the tool should open), and reading that as "ask" would report an
   // escalation that never happened. Ask the question directly instead of
@@ -79,7 +79,7 @@ async function enforceStrictly(): Promise<void> {
  *
  * Adding a tool to the host and forgetting the gate now fails here rather than
  * being discovered by a reviewer six rounds later. Deciding a tool needs no
- * governance stays available — it goes in `DELIBERATELY_UNGOVERNED` with the
+ * governance stays available: it goes in `DELIBERATELY_UNGOVERNED` with the
  * reason written down, which is a decision rather than an omission.
  */
 const DELIBERATELY_UNGOVERNED: ReadonlyMap<string, string> = new Map([
@@ -89,19 +89,19 @@ const DELIBERATELY_UNGOVERNED: ReadonlyMap<string, string> = new Map([
   // Connecting an agent to a Discord server or a Telegram chat is an operator
   // deciding that the agent should speak there. A gate that then refused would
   // be overriding the grant it was handed, and refusing by default would stop
-  // the agent answering the person who addressed it — the reply *is* the
+  // the agent answering the person who addressed it. The reply *is* the
   // product on a chat deployment.
   //
   // This was carried for months as "needs a fourth resource kind", which read
   // as pending work. The specification settles it the other way:
   // `Grad_Proj___Current.pdf` §1.3 requirement 3 names the resources the
-  // default-deny model governs — "file system paths, process execution, and
-  // network communication" — and requirement 4 repeats the same three as the
+  // default-deny model governs, "file system paths, process execution, and
+  // network communication", and requirement 4 repeats the same three as the
   // fine-grained axes. Those are exactly the three `ResourceKind` values that
   // exist. A fourth is **beyond** the specification, not missing from it. The
   // one place the spec mentions chat platforms (§2.1.1.3) casts Telegram and
   // Slack as the *interface users interact through*, the safer alternative to
-  // exposing a port — the front door the architecture recommends, not an
+  // exposing a port. The front door the architecture recommends, not an
   // egress to gate.
   //
   // Not ungoverned in the sense of unseen: every send is written to the ledger
@@ -168,13 +168,13 @@ const DELIBERATELY_UNGOVERNED: ReadonlyMap<string, string> = new Map([
 /**
  * Every tool name the host exposes, from the host's own declarations.
  *
- * **QA round 13, finding 70 — this used to read `allToolNames` alone.** That is
+ * **QA round 13, finding 70: this used to read `allToolNames` alone.** That is
  * the barrel for the seven *session* tools (`read`, `bash`, `edit`, `write`,
  * `grep`, `find`, `ls`), every one of which round eleven registered in the same
  * change that wrote this test. So the guard checked seven names, all seven
  * passed by construction, and it could not fail. The host's authoritative
- * surface is `CORE_TOOL_DEFINITIONS` in `src/agents/tool-catalog.ts` — the list
- * the allow/deny policy config and the tool-profile UI both consume — which
+ * surface is `CORE_TOOL_DEFINITIONS` in `src/agents/tool-catalog.ts`, the list
+ * the allow/deny policy config and the tool-profile UI both consume, which
  * declares fifty-two. Forty-five of them were ungoverned behind a green
  * assertion whose entire purpose was to count them.
  *
@@ -194,7 +194,7 @@ function hostToolNames(): string[] {
   return [...new Set([...allToolNames, ...catalogue])];
 }
 
-describe("qa round 11 — the gate and the host must agree on which tools exist", () => {
+describe("qa round 11. The gate and the host must agree on which tools exist", () => {
   it("governs, or explicitly declines to govern, every tool the host declares", () => {
     const unaccounted = hostToolNames().filter((toolName) => {
       const normalized = normalizeToolName(toolName);
@@ -208,14 +208,14 @@ describe("qa round 11 — the gate and the host must agree on which tools exist"
   it("compares against the host's whole catalogue, not a subset of it", () => {
     // The guard's own premise, asserted. Round 13 found this test passing while
     // it examined seven of the host's fifty-two tools, so the number it looks at
-    // is now itself checked — a subset small enough to be the session barrel
+    // is now itself checked. A subset small enough to be the session barrel
     // again would fail here rather than silently narrow the guarantee.
     expect(hostToolNames().length).toBeGreaterThan(40);
   });
 
   it("declines to govern nothing that reaches the operating system", () => {
     // Every entry in DELIBERATELY_UNGOVERNED is a decision, so each carries its
-    // reason — and an empty reason is how a decision decays back into an
+    // reason, and an empty reason is how a decision decays back into an
     // omission.
     for (const [toolName, reason] of DELIBERATELY_UNGOVERNED) {
       expect(reason.length, toolName).toBeGreaterThan(10);
@@ -223,7 +223,7 @@ describe("qa round 11 — the gate and the host must agree on which tools exist"
   });
 });
 
-describe("qa round 11 — the search tools were never governed", () => {
+describe("qa round 11. The search tools were never governed", () => {
   it("blocks grep from reading a credential file", async () => {
     await writeFile(join(workspace, ".env"), "SECRET=1\n");
     await enforceStrictly();
@@ -292,7 +292,7 @@ describe("qa round 11 — the search tools were never governed", () => {
   });
 });
 
-describe("qa round 11 — the terminal's second command channel", () => {
+describe("qa round 11. The terminal's second command channel", () => {
   it("blocks a privilege escalation typed into an open terminal", async () => {
     await enforceStrictly();
     const decision = await evaluateGovernancePolicy(
@@ -330,7 +330,7 @@ describe("qa round 11 — the terminal's second command channel", () => {
   });
 });
 
-describe("qa round 11 — one host, several spellings", () => {
+describe("qa round 11, one host, several spellings", () => {
   it("denies the metadata endpoint written with a trailing dot", async () => {
     await enforceStrictly();
     const decision = await evaluateGovernancePolicy(
@@ -361,7 +361,7 @@ describe("qa round 11 — one host, several spellings", () => {
   // The three spellings the 2026-09-01 segment sweep found untested. The
   // extractor handles all of them and always did; nothing asserted it, and the
   // one worked example in `canonicalIpv4`'s own comment was arithmetically
-  // wrong — `169.11010558` is `169.168.1.254`, not the metadata endpoint. A
+  // wrong, `169.11010558` is `169.168.1.254`, not the metadata endpoint. A
   // wrong example beside a correct algorithm is how a later reader "fixes" the
   // algorithm.
 
@@ -409,7 +409,7 @@ describe("qa round 11 — one host, several spellings", () => {
   });
 });
 
-describe("qa round 11 — a rule that can never take effect", () => {
+describe("qa round 11. A rule that can never take effect", () => {
   it("warns when an existing denial already overrides the rule being written", async () => {
     const policy = await loadPolicy(TEST_GROUP);
     const conflicts = detectRuleConflicts(policy.rules, {

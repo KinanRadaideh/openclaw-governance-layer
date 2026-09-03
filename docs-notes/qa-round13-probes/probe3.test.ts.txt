@@ -1,4 +1,4 @@
-// TEMPORARY QA probe 3 — audit ledger integrity. Delete after the review.
+// TEMPORARY QA probe 3. Audit ledger integrity. Delete after the review.
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -37,7 +37,7 @@ async function seed(count: number): Promise<void> {
 
 const GENESIS = "0".repeat(64);
 
-describe("PROBE 10 — ledger tampering", () => {
+describe("PROBE 10. Ledger tampering", () => {
   it("detects truncation when the checkpoint survives", async () => {
     await seed(5);
     const lines = (await readFile(ledgerFilePath(), "utf8")).trim().split("\n");
@@ -99,7 +99,7 @@ describe("PROBE 10 — ledger tampering", () => {
   });
 });
 
-describe("PROBE 11 — ledger key integrity", () => {
+describe("PROBE 11. Ledger key integrity", () => {
   it("refuses a corrupted (non-hex) key file rather than using an empty key", async () => {
     await seed(1);
     resetLedgerKeyCacheForTests();

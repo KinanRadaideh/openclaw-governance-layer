@@ -39,7 +39,7 @@ const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
  * Accounts that were Viewers or Users before M3 are Administrators here unless
  * the tier is the subject of the test. A User or Viewer now requires an
  * Administrator answerable for it, which would mean creating a second account
- * inside tests about username folding, token storage and Root invariants — and
+ * inside tests about username folding, token storage and Root invariants, and
  * changing the counts several of them assert. The tier was incidental; the
  * ceremony would not have been.
  */
@@ -135,7 +135,7 @@ describe("the last Root cannot be removed by two requests at once", () => {
    * Puts the store into a two-Root state by writing the file directly.
    *
    * `createUser` refuses a second Root since B11, so the state cannot be built
-   * through the normal path any more — but it can still *exist*: an
+   * through the normal path any more: but it can still *exist*: an
    * installation created before that rule, or a hand-edited `users.json`, will
    * have it. The concurrency guard has to hold for those, so the test now
    * constructs the state it is about rather than asking the API to create
@@ -229,7 +229,7 @@ describe("the last Root cannot be removed by two requests at once", () => {
 
   it("allows removing the very last account, which is a teardown not a lockout", async () => {
     // With no accounts left, bootstrap becomes available again, so this is
-    // recoverable — unlike leaving Root-less accounts behind.
+    // recoverable. Unlike leaving Root-less accounts behind.
     await createUser(
       {
         username: "only-root",
@@ -252,7 +252,7 @@ describe("the last Root cannot be removed by two requests at once", () => {
 
 describe("the rule-request cap holds when the queue is full of pending items", () => {
   it("does not return the whole decided history once pending fills the budget", async () => {
-    // `decided.slice(-0)` is `slice(0)` — the entire array. The cap silently
+    // `decided.slice(-0)` is `slice(0)`. The entire array. The cap silently
     // stopped existing the moment `keepDecided` reached zero, and the existing
     // test decided every request immediately so it never reached that branch.
     const { MAX_STORED_RULE_REQUESTS } = await import("./rule-requests.js");
@@ -273,7 +273,7 @@ describe("the rule-request cap holds when the queue is full of pending items", (
 describe("the kill switch is not suspended by monitor mode", () => {
   it("blocks a locked agent even when the posture is monitor", async () => {
     // Monitor means policy *decisions* are recorded rather than acted on. The
-    // kill switch is not a policy decision — it is a person deciding, during an
+    // kill switch is not a policy decision. It is a person deciding, during an
     // incident, that this agent stops now. Once monitor became the shipped
     // default, treating the stop as advisory meant a fresh install had an
     // emergency stop that did not stop anything.
@@ -315,7 +315,7 @@ describe("the agent id is resolved from the session when it is not passed explic
     await lockAgent(TEST_GROUP, "agent-a");
     const decision = await evaluateGovernancePolicy(
       { toolName: "exec", params: { command: "ls" } },
-      // No agentId — exactly the shape that slipped past the kill switch.
+      // No agentId. Exactly the shape that slipped past the kill switch.
       { sessionKey: "agent:agent-a:main" },
     );
     expect(decision && "block" in decision).toBe(true);
@@ -357,7 +357,7 @@ describe("the agent id is resolved from the session when it is not passed explic
     // **The entry moved installation-wide at M5, and that follows from the
     // model rather than being a workaround.** A call the gate cannot attribute
     // belongs to no organisation, so there is no organisation's ledger to write
-    // it to — see `INSTALLATION_LEDGER_GROUP`. Writing it to some group would
+    // it to. See `INSTALLATION_LEDGER_GROUP`. Writing it to some group would
     // mean choosing one, and an unattributable call is exactly the shape where
     // choosing is guessing.
     await lockAgent(TEST_GROUP, "agent-a");
@@ -375,7 +375,7 @@ describe("QA pass: corrupted settings must not resolve to the more permissive br
   it("treats an unparseable per-agent ask override as absent", async () => {
     // A hand-edited or truncated policy.json. The old code cast the value
     // straight to AskMode; the engine tests `=== "off"`, so anything
-    // unrecognised fell through to "ask a human" — which can end in allow,
+    // unrecognised fell through to "ask a human", which can end in allow,
     // while `off` denies outright.
     await savePolicy(TEST_GROUP, {
       ...defaultPolicyDocument(),

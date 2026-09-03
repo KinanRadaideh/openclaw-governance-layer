@@ -1,8 +1,8 @@
-// T5 Part B — the actor's tier joins the hash chain without breaking history.
+// T5 Part B. The actor's tier joins the hash chain without breaking history.
 //
 // **Why this file is the acceptance criterion and not a nice-to-have.** Adding
 // a field to `canonicalPayload` changes what every future entry hashes. Get the
-// migration wrong and every ledger written before today stops verifying — which
+// migration wrong and every ledger written before today stops verifying, which
 // is not a cosmetic failure, because "the chain verifies" is the entire claim
 // the tamper-evident design makes. A ledger that fails verification for an
 // innocent reason is indistinguishable, to a reader, from one that fails
@@ -158,7 +158,7 @@ describe("nothing written before the field notices it exists", () => {
   it("gives a role-less entry byte-identical bytes to a pre-change build", async () => {
     // The strongest form of the claim. If the payload for an entry without a
     // role is unchanged, then every hash ever computed for such an entry is
-    // still correct — which is what lets an existing ledger verify rather than
+    // still correct, which is what lets an existing ledger verify rather than
     // merely *usually* verify.
     await recordAdminAction(TEST_GROUP, {
       actor: "alice",
@@ -197,7 +197,7 @@ describe("the tag that prevents a collision", () => {
     // The element after the administrative fields is either a role or the
     // literal "keyed". Appended bare, a role of "keyed" would produce the same
     // payload as no-role-but-keyed. Roles cannot be "keyed" today, which is
-    // exactly the kind of premise this project has been caught by before — so
+    // exactly the kind of premise this project has been caught by before, so
     // the role is written as `role:<value>` and the question does not arise.
     await recordAdminAction(TEST_GROUP, {
       actor: { name: "alice", role: "user" },

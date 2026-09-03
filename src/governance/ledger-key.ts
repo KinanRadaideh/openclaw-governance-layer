@@ -32,7 +32,7 @@ const KEY_BYTES = 32;
  *
  * **The override validated nothing until 2026-09-01**, so
  * `OPENCLAW_GOVERNANCE_LEDGER_KEY=x` produced a one-byte HMAC key and the
- * chain's entire claim — *recomputing the forward hashes requires the key* —
+ * chain's entire claim, *recomputing the forward hashes requires the key*,
  * became a claim about guessing one character. Entries were still written
  * `keyed: true`, which is finding 78's outcome reached by a different road: the
  * file path was hardened against exactly this and the environment path was not.
@@ -49,7 +49,7 @@ const KEY_BYTES = 32;
  * characters of anything unpredictable is far out of reach, and asking for 32
  * would push operators toward a shorter value in a config file instead of a
  * longer one in a secret manager. The existing deployments this must not break
- * — the passphrase-from-a-vault shape — clear it comfortably.
+ *the passphrase-from-a-vault shape, clear it comfortably.
  */
 export const MIN_SUPPLIED_KEY_LENGTH = 16;
 
@@ -58,7 +58,7 @@ export const MIN_SUPPLIED_KEY_LENGTH = 16;
  *
  * Shared by both entry points on purpose. `loadLedgerKey` writes and
  * `readLedgerKeyIfPresent` verifies, and a key too weak to write with is too
- * weak to verify against — the two must never disagree about whether this
+ * weak to verify against: the two must never disagree about whether this
  * installation is keyed.
  */
 function decodeSuppliedKey(override: string): Buffer {
@@ -67,7 +67,7 @@ function decodeSuppliedKey(override: string): Buffer {
       `the key supplied through OPENCLAW_GOVERNANCE_LEDGER_KEY is ${override.length} ` +
         `character${override.length === 1 ? "" : "s"} long, and at least ` +
         `${MIN_SUPPLIED_KEY_LENGTH} are required. A short key can be guessed, and a chain ` +
-        `whose key can be guessed can be rewritten by anyone who can read it — which is the ` +
+        `whose key can be guessed can be rewritten by anyone who can read it, which is the ` +
         `property this key exists to provide`,
     );
   }
@@ -85,7 +85,7 @@ let cachedKey: Buffer | undefined;
  * A distinct type because the correct response is distinct: a *missing* key is
  * a first run and one is generated, while a *damaged* key is either corruption
  * or an attack and must stop the process using it. Callers that append to the
- * ledger let this propagate — `runBeforeToolCallHook` turns a throw into a
+ * ledger let this propagate: `runBeforeToolCallHook` turns a throw into a
  * blocked tool call, which is the right outcome: if the action cannot be
  * recorded trustworthily, it does not happen.
  */
@@ -93,7 +93,7 @@ export class LedgerKeyUnusableError extends Error {
   constructor(reason: string) {
     super(
       `The governance ledger key at ${ledgerKeyFilePath()} is unusable: ${reason}. ` +
-        `Refusing to continue with a weakened key — an unreadable key silently ` +
+        `Refusing to continue with a weakened key. An unreadable key silently ` +
         `degrades the audit chain to an unkeyed one, which anyone can forge. ` +
         `Restore the key from backup, or supply it through ` +
         `OPENCLAW_GOVERNANCE_LEDGER_KEY. Note that a different key cannot verify ` +
@@ -108,8 +108,8 @@ export class LedgerKeyUnusableError extends Error {
  *
  * **The defect this closes (QA round 13, finding 78).** The previous form was
  * `Buffer.from(existing, "hex")` followed by a `length > 0` check.
- * `Buffer.from` does not reject non-hexadecimal input — it decodes the valid
- * prefix and silently discards the rest — so a key file filled with rubbish
+ * `Buffer.from` does not reject non-hexadecimal input, it decodes the valid
+ * prefix and silently discards the rest, so a key file filled with rubbish
  * produced a **zero-length** buffer, and a partially valid one produced a
  * single byte. Node's HMAC accepts both. The `length > 0` guard then sent the
  * caller down the "generate a new key" path, where the `wx` write failed with
@@ -118,7 +118,7 @@ export class LedgerKeyUnusableError extends Error {
  *
  * The result was an installation whose ledger entries were still marked
  * `keyed: true` but were HMACed under the empty string, which is public. The
- * attack is to *damage* the key file rather than to read it — a materially
+ * attack is to *damage* the key file rather than to read it. A materially
  * lower bar than the threat model assumed.
  *
  * Validated explicitly, in the order the failures actually occur: the text must
@@ -150,8 +150,8 @@ function decodeStoredKey(text: string): Buffer {
  *
  * `OPENCLAW_GOVERNANCE_LEDGER_KEY` overrides the file. That exists so a
  * deployment can hold the key somewhere the ledger writer cannot read it back
- * from disk — an environment secret, a mounted file, a different user's
- * keyring — which is what makes the separation meaningful rather than notional.
+ * from disk, an environment secret, a mounted file, a different user's
+ * keyring, which is what makes the separation meaningful rather than notional.
  */
 export async function loadLedgerKey(): Promise<Buffer> {
   if (cachedKey) {
@@ -171,8 +171,8 @@ export async function loadLedgerKey(): Promise<Buffer> {
     // is already there, and the recovery branch then re-read it unchecked.
     //
     // An empty file reaches `decodeStoredKey` and is refused too. It is not a
-    // normal state — the only way to produce one is a crash between creating
-    // and writing — and refusing it says so, where generating a replacement
+    // normal state, the only way to produce one is a crash between creating
+    // and writing, and refusing it says so, where generating a replacement
     // would quietly mint a key that cannot verify anything already written.
     if (existing !== undefined) {
       cachedKey = decodeStoredKey(existing);
@@ -187,7 +187,7 @@ export async function loadLedgerKey(): Promise<Buffer> {
     }
   }
   const generated = randomBytes(KEY_BYTES);
-  // `wx` so two processes racing on first run cannot both write a key — the
+  // `wx` so two processes racing on first run cannot both write a key. The
   // loser re-reads the winner's. Two different keys would split the chain into
   // two mutually unverifiable halves.
   try {
@@ -215,7 +215,7 @@ export async function loadLedgerKey(): Promise<Buffer> {
  *
  *   1. **Verification must not mint secrets.** `verifyLedgerChain` used
  *      `loadLedgerKey`, so checking a legacy unkeyed ledger created a key as a
- *      side effect — a read-only operation with a write in it.
+ *      side effect: a read-only operation with a write in it.
  *   2. **The key's existence is the anchor.** Whether this installation has
  *      *ever* been keyed is what tells the verifier that an unkeyed chain, or a
  *      missing checkpoint, is wrong rather than merely old. That question has

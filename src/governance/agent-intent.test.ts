@@ -6,9 +6,9 @@
 //
 //   1. **Every chain written before this field existed still verifies.** The
 //      field joins the canonical payload by *presence*, the migration `actor`,
-//      `actorRole` and `keyed` each used — so an entry with no intent hashes
+//      `actorRole` and `keyed` each used, so an entry with no intent hashes
 //      exactly the array it hashed before, byte for byte.
-//   2. **The value is tagged in the payload** — defensively. The first version
+//   2. **The value is tagged in the payload**. Defensively. The first version
 //      of this file claimed the tag closed a collision an agent could reach;
 //      mutation testing showed otherwise, since every entry is keyed and the
 //      colliding pair cannot be produced. That correction is finding 132, and
@@ -214,7 +214,7 @@ describe("the ledger field, and the hash chain it joins", () => {
   it("detects an intent edited after the fact", async () => {
     // The point of putting it in the payload at all. If intent were stored
     // outside the hash, an attacker could rewrite the agent's stated purpose
-    // while leaving the chain intact — the trail would then contain a sentence
+    // while leaving the chain intact. The trail would then contain a sentence
     // nobody said, with a valid signature over it.
     await appendLedgerEntry(groupId, {
       agentId: "agent-a",
@@ -274,7 +274,7 @@ describe("the ledger field, and the hash chain it joins", () => {
     // **This test is weaker than its first version claimed, and finding 132 is
     // the correction.** It was written asserting that the payload tag closes a
     // *reachable* collision: an intent of the literal `"keyed"` colliding with
-    // the marker that follows it. Mutation testing disproved that — removing
+    // the marker that follows it. Mutation testing disproved that. Removing
     // the tag left every test here passing, because `appendLedgerEntry` writes
     // `keyed: true` on every entry, so the colliding pair cannot be produced.
     //
@@ -310,13 +310,13 @@ describe("the ledger field, and the hash chain it joins", () => {
   });
 });
 
-describe("finding 133 — a Viewer must not read the model's narration", () => {
+describe("finding 133. A Viewer must not read the model's narration", () => {
   it("masks the intent for a sanitized reader", async () => {
     // The Viewer tier is masked from the literal command, path and host because
     // those disclose workspace detail. Model narration discloses more: it names
     // the files it is about to touch and quotes what it has already read. A
     // field added after `sanitizeLedgerEntry` was written does not inherit its
-    // protection — this is the test that says so.
+    // protection. This is the test that says so.
     await appendLedgerEntry(groupId, {
       agentId: "agent-a",
       sessionKey: "agent:agent-a:main",

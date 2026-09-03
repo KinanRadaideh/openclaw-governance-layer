@@ -1,14 +1,14 @@
 // Does this installation actually match the architecture the design promises?
 //
 // Backlog item A7. The design doc §1.6 gives Root "overseeing the deployment and
-// network configurations of the governance layer on the VPS" — the one clause of
+// network configurations of the governance layer on the VPS". The one clause of
 // that tier's definition with nothing behind it. Every other Root capability
 // (accounts, roles, assignments) was built; this was not.
 //
 // **What "overseeing" was taken to mean, and why.** Not editing. Changing a bind
 // address or an auth mode from the dashboard you are connected *through* can
 // lock you out of it in one click, and it would need config writing plus gateway
-// restart handling — a large feature whose failure mode is losing access to the
+// restart handling. A large feature whose failure mode is losing access to the
 // control plane during an incident. Oversight here means *reading the live
 // deployment and saying whether it matches what Chapter 1 claims*, with the
 // judgement attached. Changing it stays a server-admin act, outside this app.
@@ -33,8 +33,8 @@
 // seam precisely because the governance layer is exercised by the CLI and by
 // unit tests with no Gateway running.
 //
-// The obvious implementation of this feature — call
-// `collectGatewayConfigFindings` from `src/security/audit-gateway-config.ts` —
+// The obvious implementation of this feature, call
+// `collectGatewayConfigFindings` from `src/security/audit-gateway-config.ts`,
 // would create the first governance→gateway edge in the codebase, because that
 // module imports `../gateway/auth-resolve.js`. So the findings arrive as a
 // **parameter** instead, assembled by `src/gateway/governance-deployment-input.ts`. The
@@ -47,7 +47,7 @@
 //
 // **No shell-out, no socket probing.** `system-status.ts` states the rule this
 // follows: the governance layer must not itself become a way to execute
-// commands on the host. That rules out three tempting helpers —
+// commands on the host. That rules out three tempting helpers,
 // `inspectPathPermissions` (`icacls` on Windows), `resolveOsSummary` (`sw_vers`
 // on macOS) and `resolveGatewayBindHost` (opens a real socket to probe). Host
 // facts that cannot be read without one of those are injected by the caller.
@@ -73,7 +73,7 @@ import { loadPolicy as loadPolicyForDeployment } from "./policy-store.js";
  * `unknown` is load-bearing, not decoration.
  *
  * A check that silently degrades to green when it could not run is exactly the
- * failure this feature exists to catch — a verification report that is
+ * failure this feature exists to catch: a verification report that is
  * confidently green because the detector was disconnected. POSIX mode bits mean
  * nothing on Windows and `statfsSync` is not always present, so those checks
  * report that they could not answer rather than answering wrongly.
@@ -118,7 +118,7 @@ export type DeploymentFacts = {
   port: number;
   authMode: GatewayAuthMode;
   tailscaleMode: string;
-  /** Home-shortened for display. Root-tier information — see the note below. */
+  /** Home-shortened for display. Root-tier information. See the note below. */
   governanceDir: string;
   governanceDirRelocated: boolean;
   /** Titles of `info`-severity host findings, which carry no verdict. */
@@ -191,13 +191,13 @@ const LOW_DISK_BYTES = 1024 ** 3;
  *
  * Transcribed from the `checkId` strings in
  * `src/security/audit-gateway-config.ts`. The absence of a finding is what gets
- * reported as a `pass` — which is the whole difference between a detector and a
+ * reported as a `pass`: which is the whole difference between a detector and a
  * verification report. `collectGatewayConfigFindings` only speaks when
  * something is wrong; oversight has to be able to say that something is right.
  *
  * **The failure mode this list creates, and the test that covers it.** If a
  * `checkId` is renamed upstream, the entry here stops matching and that check
- * becomes a permanent, silent `pass` — a green report produced by a
+ * becomes a permanent, silent `pass`: a green report produced by a
  * disconnected detector, which is the worst outcome this feature could have.
  * `src/gateway/governance-deployment-input.test.ts` drives the real audit and asserts each
  * of these ids actually fires, so a rename breaks a test rather than a promise.
@@ -311,7 +311,7 @@ export async function readDeploymentStatus(
    * **installation** (the ledger key's permissions, the listener, the tunnel)
    * and some about **one organisation's** state (its policy, its chain). Before
    * per-group storage the distinction did not exist, because there was one of
-   * everything. It does now, so the caller says whose — and a Root reading this
+   * everything. It does now, so the caller says whose, and a Root reading this
    * sees their own organisation's rulebook and ledger beside the installation
    * facts, never another organisation's.
    */
@@ -379,14 +379,14 @@ export async function readDeploymentStatus(
             "deployment.nonstandard_port",
             "No standard web port exposed",
             "warn",
-            `Listening on ${input.port}. Loopback-only, so it is not exposed — but §1.6 says the dashboard "does not expose standard HTTP/HTTPS ports globally", and this is one bind change away from doing so.`,
+            `Listening on ${input.port}. Loopback-only, so it is not exposed, but §1.6 says the dashboard "does not expose standard HTTP/HTTPS ports globally", and this is one bind change away from doing so.`,
             "Move the Gateway to a non-standard port.",
           )
         : check(
             "deployment.nonstandard_port",
             "No standard web port exposed",
             "fail",
-            `Listening on ${input.port} with bind "${input.bind}" — a standard web port, reachable from other hosts.`,
+            `Listening on ${input.port} with bind "${input.bind}", a standard web port, reachable from other hosts.`,
             "Move the Gateway to a non-standard port and bind it to loopback.",
           ),
   );
@@ -485,13 +485,13 @@ export async function readDeploymentStatus(
           // on, and Chapter 4 quotes this output as evidence.
           "fail",
           `${disabledCore.length} core rule(s) switched off by Root: ${disabledCore.join(", ")}.`,
-          "Re-enable with `governance policy core-rule <id> true`, or record the deviation deliberately — this report is evidence, and it should say what is actually in force.",
+          "Re-enable with `governance policy core-rule <id> true`, or record the deviation deliberately. This report is evidence, and it should say what is actually in force.",
         ),
   );
 
   // -------------------------------------------------------------------
   // The attachment store (T14). Reported because it is the one place the
-  // governance layer holds bytes it did not generate and cannot inspect —
+  // governance layer holds bytes it did not generate and cannot inspect,
   // content a person uploaded, kept as evidence. An operator should be able to
   // see how much of it there is and whether any of it is unreferenced, without
   // going to look on the host.
@@ -508,7 +508,7 @@ export async function readDeploymentStatus(
           "Attachment store is consistent",
           "fail",
           "The attachment index exists but could not be read, so no attachment can be accounted for.",
-          "Restore index.json from a backup taken beside the files in the same store, or move the store aside — the ledger still records the hash, type and size of everything ever sent.",
+          "Restore index.json from a backup taken beside the files in the same store, or move the store aside. The ledger still records the hash, type and size of everything ever sent.",
         )
       : attachments.orphanCount === 0
         ? check(
@@ -567,7 +567,7 @@ export async function readDeploymentStatus(
               "deployment.governance_dir_permissions",
               "Governance directory is private",
               "pass",
-              "Mode is 0700 — owner only.",
+              "Mode is 0700. Owner only.",
             )
           : check(
               "deployment.governance_dir_permissions",
@@ -615,7 +615,7 @@ export async function readDeploymentStatus(
               "deployment.governance_files_permissions",
               "Governance files are private",
               "pass",
-              "Every governance state file is mode 0600 — owner only.",
+              "Every governance state file is mode 0600. Owner only.",
             )
           : check(
               "deployment.governance_files_permissions",
@@ -629,7 +629,7 @@ export async function readDeploymentStatus(
 
   const ledgerKeyFromEnv = env.OPENCLAW_GOVERNANCE_LEDGER_KEY?.trim();
   // **A pass on the presence of a variable is measuring configuration, not
-  // security (2026-09-01).** This reported "held off-host — pass" for any
+  // security (2026-09-01).** This reported "held off-host. Pass" for any
   // non-empty value, so an installation running on a one-character key was told
   // it had *improved* on the default. The key's length is checked here for the
   // same reason `ledger-key.ts` now refuses one below the floor: the report is
@@ -642,7 +642,7 @@ export async function readDeploymentStatus(
           "deployment.ledger_key_source",
           "Ledger key is held off-host",
           "fail",
-          `The ledger key is supplied through OPENCLAW_GOVERNANCE_LEDGER_KEY but is only ${suppliedKeyLength} characters, below the ${MIN_SUPPLIED_KEY_LENGTH} required. A key this short can be guessed, and a chain whose key can be guessed can be rewritten by anyone who can read it — which is weaker than the on-disk default it replaced.`,
+          `The ledger key is supplied through OPENCLAW_GOVERNANCE_LEDGER_KEY but is only ${suppliedKeyLength} characters, below the ${MIN_SUPPLIED_KEY_LENGTH} required. A key this short can be guessed, and a chain whose key can be guessed can be rewritten by anyone who can read it, which is weaker than the on-disk default it replaced.`,
           `Supply at least ${MIN_SUPPLIED_KEY_LENGTH} characters from a secret store, or unset the variable to use the generated 32-byte key on disk.`,
         )
       : ledgerKeyFromEnv
@@ -664,7 +664,7 @@ export async function readDeploymentStatus(
   const ledgerPresent = (await statAt(ledgerFilePath(groupId))).exists;
   // **This group's checkpoint, not merely the file's existence (M5).** One file
   // now holds a head per group, so it exists as soon as any organisation has
-  // written — and asking about the file would report a truncation defence this
+  // written, and asking about the file would report a truncation defence this
   // group does not have.
   const checkpointPresent = await hasCheckpointForGroup(groupId);
   checks.push(
@@ -681,7 +681,7 @@ export async function readDeploymentStatus(
             "Ledger checkpoint present",
             "warn",
             "A ledger exists but its checkpoint does not. A hash chain cannot detect its own tail being cut off, so truncation would go unreported.",
-            "Verify the chain and investigate why the checkpoint is missing — every append writes it.",
+            "Verify the chain and investigate why the checkpoint is missing. Every append writes it.",
           )
         : // Neither exists: a fresh installation, not a defect. Reporting this
           // as a warning would make every new deployment start amber and teach

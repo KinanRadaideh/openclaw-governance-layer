@@ -3,7 +3,7 @@
 // Split out of `api.ts` because adding them inline pushed that file past the
 // 700-line limit the pre-commit gate enforces. The seam is the one T16 used
 // throughout: move a subject out whole rather than suppress the rule, and
-// **types before behaviour** — the client method stays with its siblings so
+// **types before behaviour**. The client method stays with its siblings so
 // there is still one place to look for "what can this dashboard call".
 import type { GovernancePolicyRule, GovernanceRuleCreation } from "./api.ts";
 
@@ -34,8 +34,8 @@ export type FolderGrantResponse = {
  * The body `addRule` posts.
  *
  * Moved here from an inline type literal in `api.ts` when that file crossed the
- * 700-line limit. It is the same subject as the shapes above — **what the
- * dashboard sends when it writes policy** — so this is the seam T16 describes
+ * 700-line limit. It is the same subject as the shapes above, **what the
+ * dashboard sends when it writes policy**, so this is the seam T16 describes
  * rather than a file created to relieve a line count: the two ways of writing a
  * rule now declare their inputs in one place, and a field added to one is
  * visibly a field the other does not have.

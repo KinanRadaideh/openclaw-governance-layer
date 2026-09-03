@@ -5,7 +5,7 @@
 //
 // Those tests prove each part in isolation and in combination, and they are the
 // reason this script is short. What they do not do is **walk the sequence an
-// operator walks on the day** — bootstrap an organisation, register an agent,
+// operator walks on the day**. Bootstrap an organisation, register an agent,
 // write a rule, watch the gate allow one call and refuse another, stop the
 // agent, and then prove the trail is intact and holds no secrets.
 //
@@ -109,7 +109,7 @@ async function gate(toolName, params) {
   );
 }
 
-console.log(`Governance demo rehearsal — ${dir}\n`);
+console.log(`Governance demo rehearsal, ${dir}\n`);
 
 // ---------------------------------------------------------------------------
 section("1. The organisation and its Root  (requirement 2: RBAC)");
@@ -132,7 +132,7 @@ await check("bootstrap creates the Root and its group", async () => {
 await check("Root creates the Administrator that will own the agents", async () => {
   // Root manages people; an Administrator manages agents. `registerAgent`
   // refuses an owner who is not an Administrator, which is why this account
-  // has to exist before there is anything to govern — see `assertOwnerEligible`.
+  // has to exist before there is anything to govern. See `assertOwnerEligible`.
   const admin = await createUser(
     {
       username: "amal",
@@ -180,7 +180,7 @@ section("2. The agent registry  (mandatory registration)");
 await check("an unregistered agent is refused every governed call", async () => {
   // Mandatory registration (M5): the gate asks the registry whose rulebook
   // applies, and an agent with no record belongs to no organisation. This runs
-  // before registration deliberately — it is the state the next check leaves.
+  // before registration deliberately. It is the state the next check leaves.
   const answer = await gate("exec", { command: "ls -la" });
   assertEqual(answer, "block", "an agent with no registry record must be refused");
 });
@@ -246,7 +246,7 @@ await check("the lockdown is stored under the canonical id", async () => {
 });
 
 await check("a stop engaged on a differently-cased id stops the same agent", async () => {
-  // Finding 202 — the worst defect this project found, and the one an operator
+  // Finding 202. The worst defect this project found, and the one an operator
   // would never notice, because the stop reported success.
   await releaseAgentLockdown(groupId, AGENT, ACTOR);
   await lockDownAgent(groupId, AGENT.toUpperCase(), ACTOR);

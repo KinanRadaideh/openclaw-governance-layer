@@ -40,7 +40,7 @@ type RuleRequestInput = Extract<SubmitRuleRequestInput, { resourceKind: Resource
  * A submittable rule request, with the fields under test overridden (T37).
  *
  * The overrides were typed `Partial<Parameters<typeof submitRuleRequest>[0]>`,
- * and M5 made parameter 0 the `groupId` — so this read `Partial<string>` and
+ * and M5 made parameter 0 the `groupId`: so this read `Partial<string>` and
  * every override was silently unchecked. Narrowed to the rule arm because a
  * `Partial` of the whole union distributes into something no call accepts.
  */
@@ -232,10 +232,10 @@ describe("two administrators deciding at once", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Finding 201 — the decision entry described a request the union does not have.
+// Finding 201. The decision entry described a request the union does not have.
 //
 // `RuleRequest` has two arms. The `agent-setting` arm (T4) carries `setting`
-// and `value` and has no `resourceKind` and no `pattern` — and the decision's
+// and `value` and has no `resourceKind` and no `pattern`, and the decision's
 // ledger `target` was hand-rolled from exactly those two absent fields, so
 // approving a posture or escalation change wrote "undefined undefined" into the
 // tamper-evident trail.

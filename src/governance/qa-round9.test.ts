@@ -21,7 +21,7 @@ import { createUser, setUserAssignedAgents } from "./user-store.js";
  * Accounts that were Viewers or Users before M3 are Administrators here unless
  * the tier is the subject of the test. A User or Viewer now requires an
  * Administrator answerable for it, which would mean creating a second account
- * inside tests about username folding, token storage and Root invariants — and
+ * inside tests about username folding, token storage and Root invariants, and
  * changing the counts several of them assert. The tier was incidental; the
  * ceremony would not have been.
  */
@@ -58,7 +58,7 @@ describe("A3: the kill switch reports stopping, not just asking", () => {
     const result = await lockDownAgent(TEST_GROUP, "agent-a", "kinan");
     expect(result.termination.stoppedConfirmed).toBe(true);
     expect(result.termination.stillRunningRunIds).toBeUndefined();
-    // Both numbers are reported, and the confirmed time is the larger one —
+    // Both numbers are reported, and the confirmed time is the larger one,
     // that difference is the entire point of the finding.
     expect(result.termination.dispatchMs).toBeLessThanOrEqual(result.termination.elapsedMs);
     expect(result.termination.elapsedMs).toBeGreaterThan(20);
@@ -231,7 +231,7 @@ describe("loop-detector blocks reach the ledger", () => {
     });
     const entry = (await tailLedger(TEST_GROUP)).at(-1);
     expect(entry?.decision).toBe("deny");
-    // Attributed to the host control, not presented as a policy verdict — no
+    // Attributed to the host control, not presented as a policy verdict, no
     // rule was consulted, so claiming one would misattribute the decision.
     expect(entry?.ruleId).toBe("loop-detector");
     expect(entry?.agentId).toBe("agent-a");

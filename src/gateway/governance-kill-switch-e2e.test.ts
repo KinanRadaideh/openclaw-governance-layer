@@ -5,7 +5,7 @@
 // mechanism: lockdown blocks, termination aborts, the ledger records, the
 // latency bound holds. All true, and all measured one layer below the surface
 // anybody uses. Requirement #7 is a claim about the *feature*, and the feature
-// is "an operator presses the stop and the agent stops" — which runs through a
+// is "an operator presses the stop and the agent stops", which runs through a
 // role check, an agent-scope check, a policy write under a cross-process lock,
 // the engine, and the ledger. Round thirteen found three ways that whole path
 // returned `200 OK` while stopping nothing, none of which the mechanism tests
@@ -145,7 +145,7 @@ function verdict(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>)
   if ("block" in decision) {
     return "block";
   }
-  // T23 — absence is no longer the only way the engine says "allow". A call
+  // T23. Absence is no longer the only way the engine says "allow". A call
   // whose path was redirected comes back carrying `params` (the canonical path
   // the tool should open), and reading that as "ask" would report an
   // escalation that never happened. Ask the question directly instead of
@@ -168,7 +168,7 @@ describe("the emergency stop, end to end", () => {
     expect(stop.body.ok).toBe(true);
 
     // After: the *same* call is refused. This is the property that makes the
-    // stop stick — aborting the current run alone would leave the agent free to
+    // stop stick. Aborting the current run alone would leave the agent free to
     // start another.
     expect(
       verdict(
@@ -201,7 +201,7 @@ describe("the emergency stop, end to end", () => {
       (agentId) => {
         const ids = agentId === "a1" ? [...running] : [];
         aborted.push(...ids);
-        // The runs stop, so the probe below sees none of them still live —
+        // The runs stop, so the probe below sees none of them still live,
         // which is what lets the outcome say *confirmed* rather than merely
         // *dispatched*.
         running = [];
@@ -233,7 +233,7 @@ describe("the emergency stop, end to end", () => {
 
     expect(stop.status).toBe(200);
     // Measured across the route, the policy write under the cross-process lock,
-    // the abort and the confirmation probe — not across the mechanism alone.
+    // the abort and the confirmation probe, not across the mechanism alone.
     expect(stop.body.elapsedMs).toBeLessThan(1000);
     expect(wallClock).toBeLessThan(1000);
   });
@@ -295,7 +295,7 @@ describe("who may press it", () => {
 
 describe("round thirteen's three silent failures stay closed", () => {
   it("still blocks when the agent is in monitor posture", async () => {
-    // Monitor suspends *policy decisions*. The kill switch is not one — it is a
+    // Monitor suspends *policy decisions*. The kill switch is not one. It is a
     // person deciding during an incident that this agent stops now. Monitor is
     // opt-in and off by default, but an operator who switched one agent to
     // observe has not thereby said the emergency stop should stop working.
@@ -317,7 +317,7 @@ describe("round thirteen's three silent failures stay closed", () => {
 
   it('a hand-written agentMode of "off" does not switch the gate off', async () => {
     // `off` means the gate is not running, so a lockdown could not be enforced
-    // — which made it a way to opt out of the emergency stop by editing a JSON
+    //, which made it a way to opt out of the emergency stop by editing a JSON
     // file. Dropped on load.
     await savePolicy(TEST_GROUP, {
       ...defaultPolicyDocument(),
@@ -353,7 +353,7 @@ describe("round thirteen's three silent failures stay closed", () => {
 
     // Installation-wide, and under a different id, since M5. A call carrying no
     // agent id belongs to no organisation, so there is no organisation's ledger
-    // to write it to — and `kill-switch-unattributable` was deleted as
+    // to write it to, and `kill-switch-unattributable` was deleted as
     // unreachable once reaching the lockdown check required a resolved group.
     const entries = await tailLedger(INSTALLATION_LEDGER_GROUP, 50);
     expect(entries.some((e) => e.ruleId === "agent-not-registered")).toBe(true);

@@ -1,4 +1,4 @@
-// TEMPORARY QA probe 5 — Windows filename aliasing, with the file present.
+// TEMPORARY QA probe 5, Windows filename aliasing, with the file present.
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -50,7 +50,7 @@ async function permissivePath(): Promise<void> {
   });
 }
 
-describe("PROBE 16 — Windows filename aliases against an existing credential file", () => {
+describe("PROBE 16, Windows filename aliases against an existing credential file", () => {
   const spellings = [".env", ".ENV", ".Env", ".env.", ".env ", ".env::$DATA"];
   for (const spelling of spellings) {
     it(`[${JSON.stringify(spelling)}]`, async () => {

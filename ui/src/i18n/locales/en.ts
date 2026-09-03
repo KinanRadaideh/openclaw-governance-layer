@@ -229,7 +229,7 @@ export const en: TranslationMap = {
       dialogLabel: "Set up {channel}",
       title: "Set up {channel}",
       genericTitle: "a channel",
-      subtitle: "A short guided setup — you can fine-tune everything later.",
+      subtitle: "A short guided setup. You can fine-tune everything later.",
       starting: "Starting setup…",
       working: "Working…",
       sessionExpired:
@@ -340,7 +340,7 @@ export const en: TranslationMap = {
       },
       notices: {
         timeout:
-          "Request timed out after 30 seconds; the server may still have applied the change — check the profile before retrying.",
+          "Request timed out after 30 seconds; the server may still have applied the change. Check the profile before retrying.",
         operationFailed: "{prefix}: {error}",
         updateFailed: "Profile update failed",
         updateFailedStatus: "Profile update failed ({status})",
@@ -368,9 +368,9 @@ export const en: TranslationMap = {
     error: "Update error: {error}",
     status: "Update {status}: {reason}. {guidance}",
     verificationFailed:
-      "Update installed but running version did not change — restart may have been blocked.",
+      "Update installed but running version did not change. Restart may have been blocked.",
     verificationFailedWithVersions:
-      "Update installed but running version did not change — restart may have been blocked. Expected v{expectedVersion}, running v{actualVersion}.",
+      "Update installed but running version did not change. Restart may have been blocked. Expected v{expectedVersion}, running v{actualVersion}.",
     handoffTimeout:
       "Update handoff started, but completion was not reported after reconnect. Run `openclaw update status` for the final result.",
     outcomeUnknown:
@@ -1472,9 +1472,9 @@ export const en: TranslationMap = {
     applyChanges: "Apply changes",
     rawDiscard: "Discard",
     rawDraftBlocksApply:
-      "Unsaved raw config edits — save or discard them in the Raw editor before restarting.",
+      "Unsaved raw config edits. Save or discard them in the Raw editor before restarting.",
     rawDraftPendingFormTitle:
-      "Unsaved raw config edits — save or discard them before switching to Form.",
+      "Unsaved raw config edits. Save or discard them before switching to Form.",
     rawDraftBlocksFormEdit:
       "Unsaved raw config edits could not be parsed; resolve them in the Raw editor before changing settings.",
     invalidConfig: "Your configuration is invalid. Some settings may not work as expected.",
@@ -1814,13 +1814,13 @@ export const en: TranslationMap = {
       // retranslate on source-wording changes, so the provenance-label rewrite
       // required fresh key names to propagate to all locales.
       introTitled:
-        'I annotated the page at {url} (page-reported title: "{title}") — the attached screenshot shows my markup.',
-      introUntitled: "I annotated the page at {url} — the attached screenshot shows my markup.",
+        'I annotated the page at {url} (page-reported title: "{title}"). The attached screenshot shows my markup.',
+      introUntitled: "I annotated the page at {url}. The attached screenshot shows my markup.",
       region:
         "Marked region {index}: centered around {x}% across / {y}% down, spanning about {width}% × {height}% of the view.",
       moreRegions: "…plus {count} more marked region(s), all visible in the screenshot.",
       elementDetail:
-        "Marked element (page-reported): {descriptor} — {width}×{height}px at ({x}, {y}).",
+        "Marked element (page-reported): {descriptor}, {width}×{height}px at ({x}, {y}).",
       outro: "Please look at the marked area and tell me what you make of it.",
     },
   },
@@ -1937,7 +1937,7 @@ export const en: TranslationMap = {
       retry: "Try again",
       checkAgain: "Check again",
       checkingButton: "Checking…",
-      checking: "Checking — asking {modelRef} for a quick reply…",
+      checking: "Checking, asking {modelRef} for a quick reply…",
       ready: "Ready",
       readyIn: "Ready · {latencyMs} ms",
       providerUnavailable: "{provider} isn’t responding.",
@@ -1955,7 +1955,7 @@ export const en: TranslationMap = {
       testAndUse: "Test & use",
       retry: "Retry test",
       testingButton: "Testing…",
-      testing: "Testing — asking {modelRef} for a quick reply…",
+      testing: "Testing, asking {modelRef} for a quick reply…",
     },
     empty: {
       title: "Recommended installs",
@@ -2190,10 +2190,10 @@ export const en: TranslationMap = {
       },
     },
     nudge: {
-      configReload: "Configuration reload stopped — ask me what happened",
-      channelAuth: "{channel} authentication degraded — ask me what happened",
-      channelDisconnected: "{channel} just disconnected — ask me what happened",
-      channelDegraded: "{channel} is degraded — ask me what happened",
+      configReload: "Configuration reload stopped. Ask me what happened",
+      channelAuth: "{channel} authentication degraded. Ask me what happened",
+      channelDisconnected: "{channel} just disconnected. Ask me what happened",
+      channelDegraded: "{channel} is degraded. Ask me what happened",
       channelFallback: "A channel",
       dismiss: "Dismiss this update",
       channelSetupTitle: "Reach OpenClaw outside this app",
@@ -2570,7 +2570,7 @@ export const en: TranslationMap = {
       jira: "Create, search, and triage Jira tickets from chat.",
       canva: "Create and edit Canva designs, manage assets, and export results.",
       stripe: "Check payments, customers, invoices, and subscriptions in your Stripe account.",
-      googleCalendar: "Read, create, and get briefed on events — your agent owns your schedule.",
+      googleCalendar: "Read, create, and get briefed on events. Your agent owns your schedule.",
       email: "Mailbox triage, summaries, and drafts with send-on-approval.",
       pdf: "Extract, merge, convert, and OCR PDF documents.",
       transcription: "Turn audio and video into clean, structured transcripts.",
@@ -2707,7 +2707,7 @@ export const en: TranslationMap = {
     linkDiscord: "Discord",
     linkX: "X (Twitter)",
     linkChangelog: "Changelog",
-    license: "© 2026 OpenClaw Foundation — MIT License.",
+    license: "© 2026 OpenClaw Foundation. MIT License.",
     artifactTitle: "Control UI",
     artifactSubtitle: "Identity embedded when this browser artifact was built.",
     artifactDetails: "Control UI build details",
@@ -2727,7 +2727,7 @@ export const en: TranslationMap = {
   appsPage: {
     heroTitle: "Take OpenClaw everywhere",
     heroTagline:
-      "Companion apps for your phone, watch, desktop, and browser — plus plugins to extend what your agent can do.",
+      "Companion apps for your phone, watch, desktop, and browser, plus plugins to extend what your agent can do.",
     sectionMobile: "On your phone",
     havePhone: "Already have the app?",
     pairDevice: "Pair your device",
@@ -2755,7 +2755,7 @@ export const en: TranslationMap = {
       },
       android: {
         title: "Android",
-        desc: "Your Android phone as a full OpenClaw node — chat, camera, and Canvas.",
+        desc: "Your Android phone as a full OpenClaw node. Chat, camera, and Canvas.",
       },
       appleWatch: {
         title: "Apple Watch",
@@ -2767,7 +2767,7 @@ export const en: TranslationMap = {
       },
       macos: {
         title: "macOS",
-        desc: "Menu bar companion for your Gateway — notifications, approvals, quick chat.",
+        desc: "Menu bar companion for your Gateway. Notifications, approvals, quick chat.",
       },
       windows: {
         title: "Windows",
@@ -2775,11 +2775,11 @@ export const en: TranslationMap = {
       },
       linux: {
         title: "Linux",
-        desc: "Native desktop app — .deb and AppImage builds.",
+        desc: "Native desktop app, .deb and AppImage builds.",
       },
       chrome: {
         title: "Chrome extension",
-        desc: "Let OpenClaw drive your existing Chrome — tabs, pages, and forms.",
+        desc: "Let OpenClaw drive your existing Chrome. Tabs, pages, and forms.",
       },
       plugins: {
         title: "Plugins & ClawHub",
@@ -3157,7 +3157,7 @@ export const en: TranslationMap = {
     moreTabs: "More dashboard tabs",
     gridLabel: "Dashboard widgets",
     emptyTitle: "A clear board, ready for work",
-    emptyHint: "Your agent can pin widgets here — try asking for a status card.",
+    emptyHint: "Your agent can pin widgets here. Try asking for a status card.",
     actionFailed: "The dashboard change could not be saved.",
     actionInProgress: "Another dashboard change is still being saved.",
     announcement: {
@@ -3268,7 +3268,7 @@ export const en: TranslationMap = {
     detailNotePlaceholder: "Add a decision, blocker, or proof note...",
     detailAddNote: "Add note",
     dashboardTitle: "Dashboard",
-    dashboardEmpty: "No dashboard yet — the working agent can pin widgets.",
+    dashboardEmpty: "No dashboard yet. The working agent can pin widgets.",
     openSession: "Open thread",
     defaultAgent: "Default agent",
     allAgents: "All agents",
@@ -3490,7 +3490,7 @@ export const en: TranslationMap = {
      * `GOVERNANCE.DEPLOYMENT.TITLE` above a column of
      * `governance.deployment.status.pass`.
      *
-     * Found by T38 — opening the page — and by nothing else. A component test
+     * Found by T38. Opening the page, and by nothing else. A component test
      * cannot see it: `t()` returning the key is a perfectly good string, so the
      * panel renders, the assertions about *which checks appear* still pass, and
      * only a reader notices that none of it is English. The raw-copy verifier
@@ -3499,7 +3499,7 @@ export const en: TranslationMap = {
      */
     deployment: {
       title: "Deployment and network posture",
-      hint: "How this installation is actually deployed, checked against the architecture the design specifies. Read-only — these are changed in the gateway configuration on the host, not from here.",
+      hint: "How this installation is deployed, checked against the architecture the design specifies. Read-only. These are changed in the gateway configuration on the host, not from here.",
       summary: "Overall",
       counts: "{fail} failed · {warn} warnings · {unknown} not determined here · {pass} passed",
       note: "note",
@@ -3515,8 +3515,12 @@ export const en: TranslationMap = {
         relocated: "Relocated by OPENCLAW_GOVERNANCE_DIR.",
       },
     },
+    title: "Governance",
     intro:
       "Default-deny policy for autonomous agent actions, a tamper-evident audit ledger, and an emergency kill switch.",
+    nav: {
+      sections: "Sections",
+    },
     loading: "Loading governance state…",
     login: {
       title: "Sign in to Governance",
@@ -3526,7 +3530,7 @@ export const en: TranslationMap = {
       bootstrapTitle: "Create the Root account",
       bootstrapHint:
         "No governance account exists yet. The first account created becomes Root, the system owner. " +
-        "Root is permanent and its password cannot be reset from here — if you lose it, the only way back in is to delete the accounts file on the server. Store it somewhere safe before continuing.",
+        "Root is permanent and its password cannot be reset from here. If you lose it, the only way back in is to delete the accounts file on the server. Store it somewhere safe before continuing.",
       username: "Username",
       password: "Password",
       confirmPassword: "Confirm password",
@@ -3549,7 +3553,7 @@ export const en: TranslationMap = {
         "Enforce blocks or asks on unlisted actions. Monitor records decisions without blocking. Off disables the gate.",
       confirmOff: "Switch governance off for every agent?",
       confirmOffDetails:
-        "Nothing will be checked, blocked, or recorded — including the core denials on credentials and the governance directory, and including the kill switch. This applies to every agent in the installation, not just one. To observe without blocking, choose Monitor instead.",
+        "Nothing will be checked, blocked, or recorded, including the core denials on credentials and the governance directory, and including the kill switch. This applies to every agent in the installation, not just one. To observe without blocking, choose Monitor instead.",
       confirmOffAction: "Switch governance off",
       modeEnforce: "Enforce",
       modeMonitor: "Monitor",
@@ -3563,7 +3567,7 @@ export const en: TranslationMap = {
       noRulesHint: "With no rules, every governed action is unlisted and will be denied or asked.",
       noMatchingRules: "No rules match this filter",
       noMatchingRulesHint:
-        "The policy is not empty — this filter matches none of it. Clear the filter to see everything.",
+        "The policy is not empty. This filter matches none of it. Clear the filter to see everything.",
       filterTitle: "Find a rule",
       filterCount: "Showing {matching} of {total} rules",
       filterSearchLabel: "Search rules",
@@ -3583,10 +3587,10 @@ export const en: TranslationMap = {
       folderGrantHint:
         "Writes the allow rule and the deny rules for you. Everything it creates appears below as ordinary rules you can edit or remove one at a time.",
       folderGrantFolderLabel: "Folder to allow",
-      folderGrantFolderPlaceholder: "e.g. src  —  the agent may read and write everything below it",
+      folderGrantFolderPlaceholder: "e.g. src: the agent may read and write everything below it",
       folderGrantExceptionsLabel: "Paths inside it that stay forbidden",
       folderGrantExceptionsPlaceholder:
-        "One per line, e.g. src/secrets  —  leave empty to allow the whole folder",
+        "One per line, e.g. src/secrets. Leave empty to allow the whole folder",
       folderGrantAgentLabel: "Agent",
       folderGrantAgentPlaceholder: "Agent id, or leave empty for every agent (Administrator only)",
       folderGrantButton: "Allow folder",
@@ -3603,7 +3607,7 @@ export const en: TranslationMap = {
       agentRequiredHint:
         "Pick one of your agents. Only an Administrator can write a rule that binds every agent.",
       bindsOne: "Binds one agent: {agent}",
-      bindsAll: "Global — binds every agent, including ones not created yet.",
+      bindsAll: "Global. Binds every agent, including ones not created yet.",
       bindsKnown: "Currently known: {agents}.",
       bindsNoneKnown: "No agents known yet.",
       bindsScoped: "(narrowed to the agents you manage)",
@@ -3622,9 +3626,15 @@ export const en: TranslationMap = {
       globalScope: "all agents",
       agentOverride: "Agent override",
       agentOverrideHint: "This agent ignores the installation default above.",
+      agentHitlTimeout: "Approval timeout for one agent",
+      agentHitlTimeoutHint:
+        "Overrides the installation timeout for a single agent. An Administrator sets it for any agent in the organisation; a User sets it for the agents assigned to them. Between 5 seconds and 24 hours.",
+      agentHitlTimeoutAgent: "Agent id",
+      agentHitlTimeoutSeconds: "Seconds",
+      agentHitlTimeoutSave: "Set for this agent",
       hitlTimeout: "Approval timeout",
       hitlTimeoutHint:
-        "How long an escalation waits for a human before it times out. Between 5 seconds and 24 hours. Root only.",
+        "How long an escalation waits for a human before it times out. Between 5 seconds and 24 hours. Administrator and above.",
       hitlTimeoutSave: "Set timeout",
       userAsk: "Account override",
       userAskHint:
@@ -3634,11 +3644,11 @@ export const en: TranslationMap = {
       userOverride: "Account override",
       userOverrideHint: "This account ignores the installation default above.",
       userOverrideUnknown:
-        "No account of this name exists in this group — check the spelling, or this override will do nothing until somebody with that name is created.",
+        "No account of this name exists in this group. Check the spelling, or this override will do nothing until somebody with that name is created.",
       clearOverride: "Use default",
       agentPosture: "Agent posture",
       agentPostureOff:
-        "Governance is switched off for this agent — the kill switch and built-in restrictions do not apply. Set from policy.json by hand; the dashboard will not do this.",
+        "Governance is switched off for this agent. The kill switch and built-in restrictions do not apply. Set from policy.json by hand; the dashboard will not do this.",
       agentPostureHint: "This agent ignores the installation posture above.",
       observeAgent: "Observe one agent",
       observeAgentHint:
@@ -3647,20 +3657,20 @@ export const en: TranslationMap = {
       ttlHint: "Leave blank for an indefinite rule that never expires.",
       indefinite: "never expires",
       conflictTitle: "Rule added, but an earlier rule already covers it",
-      overriddenTitle: "Rule added, but a deny rule overrides it — it will never take effect",
+      overriddenTitle: "Rule added, but a deny rule overrides it. It will never take effect",
       warningTitle: "This rule is broader than it looks",
       denyBadge: "DENY",
       effectLabel: "Allow or forbid",
       effectAllow: "allow",
       effectDeny: "forbid",
       effectHint:
-        "A forbid rule is checked before every allow rule and cannot be overridden by one — use it for something the agent must never do, whatever else permits it.",
+        "A forbid rule is checked before every allow rule and cannot be overridden by one. Use it for something the agent must never do, whatever else permits it.",
       evaluationTitle: "How these rules are read",
       evaluationHint:
-        "Forbid beats allow, always. Every forbid rule is checked first, whatever tier it belongs to, so a narrow forbid carves an exception out of a broad allow — grant a folder, forbid one subfolder inside it, and the subfolder stays out of reach. Order in this list does not decide anything; effect does.",
+        "Forbid beats allow, always. Every forbid rule is checked first, whatever tier it belongs to, so a narrow forbid carves an exception out of a broad allow. Grant a folder, forbid one subfolder inside it, and the subfolder stays out of reach. Order in this list does not decide anything; effect does.",
       searchCaveatTitle: "Where a forbid rule reaches, and where it only records",
       searchCaveatHint:
-        "A forbid rule stops a file being opened. Searches are different: grep and find are judged on the folder they start from, then read everything beneath it, so a search rooted above a forbidden path reaches that path. On the built-in runtime those results are now removed before the agent sees them, and the agent is told how many were withheld. On the Codex backend they cannot be removed, because its protocol has no way to return a corrected result — there the reach is written to the audit trail and not prevented. An agent is only on that backend if an administrator has permitted it, and each agent's permission is shown in the agent list.",
+        "A forbid rule stops a file being opened. Searches are different: grep and find are judged on the folder they start from, then read everything beneath it, so a search rooted above a forbidden path reaches that path. On the built-in runtime those results are now removed before the agent sees them, and the agent is told how many were withheld. On the Codex backend they cannot be removed, because its protocol has no way to return a corrected result. There the reach is written to the audit trail and not prevented. An agent is only on that backend if an administrator has permitted it, and each agent's permission is shown in the agent list.",
       accessLabel: "Read or write",
       accessBoth: "read + write",
       accessRead: "read only",
@@ -3691,10 +3701,10 @@ export const en: TranslationMap = {
       access: "Who can reach this agent",
       accessHint:
         "Accounts given this agent by assignment. Administrators and Root reach every agent by role and are not listed.",
-      accessNobody: "Nobody — no User or Viewer has been assigned this agent.",
+      accessNobody: "Nobody. No User or Viewer has been assigned this agent.",
       accessUnknown: "Could not load who has access.",
       title: "What an agent may do",
-      hint: "Every rule in force for one agent — the global rules that bind every agent, plus any written for this one. This is what the gate consults, not just what the document lists.",
+      hint: "Every rule in force for one agent. The global rules that bind every agent, plus any written for this one. This is what the gate consults, not just what the document lists.",
       pick: "Agent",
       pickHint: "Pick an agent you manage, or type its id.",
       show: "Show permissions",
@@ -3705,7 +3715,7 @@ export const en: TranslationMap = {
       locked: "Emergency stop",
       summary: "Rules in force",
       counts:
-        "{total} total — {global} global, {scoped} for this agent; {allows} allow, {denies} forbid",
+        "{total} total, {global} global, {scoped} for this agent; {allows} allow, {denies} forbid",
       none: "No rules are in force for this agent. Under default-deny it can do nothing.",
       viaGlobal: "global",
       viaAgent: "this agent",
@@ -3716,7 +3726,7 @@ export const en: TranslationMap = {
       intent: "Agent said",
       verify: "Verify chain integrity",
       integrity: "Chain integrity",
-      intact: "Intact — entries verified",
+      intact: "Intact, entries verified",
       tampered: "TAMPERED at entry",
       empty: "No audit entries yet",
       emptyHint: "Entries appear here as the agent attempts governed actions.",
@@ -3739,7 +3749,7 @@ export const en: TranslationMap = {
       setPassword:
         "Set a new password for this account? Every device signed in as this account will be signed out.",
       setOwnPassword:
-        "Set a new password for your own Root account? You will be signed out immediately and must sign in again with the new password. Root has no other password recovery — make sure you have the new one recorded.",
+        "Set a new password for your own Root account? You will be signed out immediately and must sign in again with the new password. Root has no other password recovery. Make sure you have the new one recorded.",
       deleteUser: "Delete this account? This cannot be undone, and there is no password reset.",
       stopAgent: "Stop this agent? Work already running will be interrupted.",
       changeRole: "Change this account's role?",
@@ -3751,14 +3761,14 @@ export const en: TranslationMap = {
         "Every User and Viewer answers to one Administrator, who manages their agents. Root can create an Administrator to run themselves.",
       managedByPlaceholder: "Choose an Administrator…",
       noAdministrators:
-        "Create an Administrator first — a User or Viewer must have one answerable for it.",
+        "Create an Administrator first. A User or Viewer must have one answerable for it.",
       title: "Accounts",
       created: "Created",
       add: "Create an account",
       addHint:
         "Root manages people; Administrator manages agents. Viewers see the audit trail with resource details masked.",
       addButton: "Create account",
-      rootPermanent: "root — permanent, cannot be changed",
+      rootPermanent: "root (permanent, cannot be changed)",
       willAnswerTo: "will answer to {username}",
       setPassword: "Set password",
       newPasswordFor: "New password for {username}",
@@ -3773,7 +3783,7 @@ export const en: TranslationMap = {
       policyAuthoringWithhold: "Withhold rule editing",
       policyAuthoringGrant: "Allow rule editing",
       cannotDeleteSelfHint:
-        "To remove your own Root account, delete the organisation below — that removes every account and every agent with it.",
+        "To remove your own Root account, delete the organisation below. That removes every account and every agent with it.",
       policyAuthoringHint:
         "Whether this account may change the rules for the agents it manages. Withholding keeps everything else: they can still read the policy and audit log, prompt and stop their agents, and request rule changes for an Administrator to approve.",
       saveAgents: "Save agents",
@@ -3782,7 +3792,7 @@ export const en: TranslationMap = {
       title: "Organisation",
       deleteTitle: "Delete this organisation",
       deleteHint:
-        "Removes all {accounts} account(s) — including your own Root account, {username} — and every agent in this organisation, from OpenClaw as well as from governance. You will be signed out and there is no way back in: there is no password reset. The audit ledger is kept: it is the record of what happened here and is not an operator's to delete. The next account created on this installation starts a new organisation.",
+        "Removes all {accounts} account(s), including your own Root account, {username}, and every agent in this organisation, from OpenClaw as well as from governance. You will be signed out and there is no way back in: there is no password reset. The audit ledger is kept: it is the record of what happened here and is not an operator's to delete. The next account created on this installation starts a new organisation.",
       confirmLabel: "Type {username} to confirm",
       typeToEnable: "Type {username} exactly to enable this",
       deleteButton: "Delete organisation",
@@ -3797,7 +3807,7 @@ export const en: TranslationMap = {
       deletedResidue:
         "Organisation deleted, but some files could not be removed and are left on the server: {residue}",
       deletedIncomplete:
-        "Organisation deleted: {accounts} account(s) and {agents} agent(s) removed — but some steps after it did not finish, and only you can act on them: {steps}",
+        "Organisation deleted: {accounts} account(s) and {agents} agent(s) removed, but some steps after it did not finish, and only you can act on them: {steps}",
     },
     pending: {
       title: "Awaiting your decision",
@@ -3821,7 +3831,7 @@ export const en: TranslationMap = {
       cancelRemove: "Keep this agent",
       unregister: "Remove from governance",
       unregisterExplain:
-        "Stops governing it. The agent keeps running in OpenClaw and its workspace is untouched — but because unregistered agents are refused, it will stop being able to do anything until it is registered again. Reversible.",
+        "Stops governing it. The agent keeps running in OpenClaw and its workspace is untouched, but because unregistered agents are refused, it will stop being able to do anything until it is registered again. Reversible.",
       delete: "Delete the agent",
       deleteExplain:
         "Removes it from governance AND deletes it from OpenClaw entirely, including its workspace and transcripts. Cannot be undone.",
@@ -3836,9 +3846,13 @@ export const en: TranslationMap = {
         "Creates a real OpenClaw agent and records it here in one step. You own it, and it is governed from the moment it exists.",
       nameLabel: "Agent name",
       idLabel: "Agent id",
-      idPlaceholder: "Optional — derived from the name",
+      idPlaceholder: "Optional, derived from the name",
       workspaceLabel: "Workspace",
-      workspacePlaceholder: "Optional — OpenClaw chooses one",
+      workspacePlaceholder: "Optional, OpenClaw chooses one",
+      ownerLabel: "Owning Administrator",
+      ownerPlaceholder: "Choose an Administrator...",
+      ownerNoneHint:
+        "Agents are owned by an Administrator, and Root cannot own one. First create an Administrator account in Accounts, then come back here.",
       create: "Create agent",
       created: "Created {id}, and OpenClaw has picked it up.",
     },
@@ -3850,7 +3864,7 @@ export const en: TranslationMap = {
         "Send this agent a task. Every action it takes is still checked against your policy.",
       chooseAgent: "Agent to talk to",
       chooseAgentHint:
-        "You manage every agent, so there is no assigned list — enter the id of the one you want.",
+        "You manage every agent, so there is no assigned list. Enter the id of the one you want.",
       loading: "Loading the conversation…",
       empty: "No messages yet. Send the first one below.",
       you: "You",
@@ -3865,11 +3879,11 @@ export const en: TranslationMap = {
       thinking: "Working. Nothing said yet.",
       cancel: "Cancel",
       cancelHint:
-        "Stops this one prompt. The agent stays available — use Stop agent for an emergency.",
+        "Stops this one prompt. The agent stays available. Use Stop agent for an emergency.",
       attach: "Attach",
       attaching: "Uploading…",
       attachHint:
-        "Send files with your message. The audit trail records each file's name, type, size and fingerprint — never its contents.",
+        "Send files with your message. The audit trail records each file's name, type, size and fingerprint. Never its contents.",
       attachmentsQueued: "Files attached to this message",
       attachmentRemove: "Remove {name} from this message",
     },
@@ -3930,16 +3944,16 @@ export const en: TranslationMap = {
       noticeNoRuns:
         "Lockdown engaged, but no in-flight run matched that agent id. The agent will be blocked from further actions; check whether the id is correct and whether anything is still executing.",
       noticeNoTermination:
-        "Lockdown engaged, but in-flight termination is unavailable here — anything the agent is doing right now continues until it finishes. Further actions are blocked.",
+        "Lockdown engaged, but in-flight termination is unavailable here. Anything the agent is doing right now continues until it finishes. Further actions are blocked.",
       noticeAuditFailed:
-        "Lockdown engaged — the agent IS stopped. But this stop could not be written to the audit ledger, so the trail has no record of it: {reason}. Check the governance directory is writable, then note the stop by hand.",
+        "Lockdown engaged and the agent IS stopped, but this stop could not be written to the audit ledger, so the trail has no record of it: {reason}. Check the governance directory is writable, then note the stop by hand.",
       engage: "Lock down an agent",
       /**
        * ~~"Root only."~~ **Wrong on every surface, and wrong for the life of the
        * panel (T42, 2026-09-01).** The route admits a User with
        * `canManageAgent`; the panel itself was shown to Administrator and above;
        * and this string said Root. Two strings now, because the two tiers are
-       * making different promises — and neither says "only", because the word
+       * making different promises, and neither says "only", because the word
        * was doing the damage: it told a User the one emergency control was not
        * theirs.
        */
@@ -3952,14 +3966,14 @@ export const en: TranslationMap = {
       /**
        * The status beside the "Emergency stop" row in the per-agent policy
        * view. **Missing until 2026-09-01**, so that row rendered the literal
-       * text `governance.kill.engaged` next to "Emergency stop" — finding 179's
+       * text `governance.kill.engaged` next to "Emergency stop". Finding 179's
        * class, found by resolving all 317 keys the governance UI uses against
        * this catalogue rather than by reading the panel.
        */
-      engaged: "Engaged — this agent is locked down",
+      engaged: "Engaged, this agent is locked down",
       agentIdPlaceholder: "Agent id",
       unknownAgent:
-        "No agent with this id is running, locked down, or assigned to an account. Locking it down will still succeed and record an entry — but if you have mistyped the id, the agent you meant will keep running.",
+        "No agent with this id is running, locked down, or assigned to an account. Locking it down will still succeed and record an entry, but if you have mistyped the id, the agent you meant will keep running.",
       button: "Lock down",
       release: "Release",
       noneLocked: "No agents are currently locked down",
@@ -4386,7 +4400,7 @@ export const en: TranslationMap = {
   },
   usage: {
     common: {
-      emptyValue: "—",
+      emptyValue: "-",
       unknown: "unknown",
     },
     loading: {
@@ -4772,7 +4786,7 @@ export const en: TranslationMap = {
   },
   chat: {
     sendErrors: {
-      activeLeafChanged: "The thread switched branches — review and resend.",
+      activeLeafChanged: "The thread switched branches. Review and resend.",
       steerRunNoLongerActive:
         "This steer still targets the previous run, but that run is no longer active.",
     },
@@ -5280,7 +5294,7 @@ export const en: TranslationMap = {
       seek: "Seek media",
       download: "Download {filename}",
       preparing: "Preparing playback…",
-      videoUnavailable: "Can't play this format — download instead.",
+      videoUnavailable: "Can't play this format. Download instead.",
     },
     modelControls: {
       current: "Current",
@@ -5426,8 +5440,8 @@ export const en: TranslationMap = {
     composer: {
       placeholder: "Message {name}",
       placeholderWithAttachments: "Add a message or paste more images...",
-      offlineHint: "Offline — messages will be queued and sent when the connection returns.",
-      offlineQueuedHint: "Offline — {count} queued; messages send when the connection returns.",
+      offlineHint: "Offline. Messages will be queued and sent when the connection returns.",
+      offlineQueuedHint: "Offline, {count} queued; messages send when the connection returns.",
       preparingModel: "Preparing model...",
       responding: "{name} is responding...",
       sendingMessage: "Sending message...",
@@ -5609,8 +5623,8 @@ export const en: TranslationMap = {
       attemptedChanges: "Attempted changes",
       failed: "failed",
       running: "Running",
-      noOutputFailed: "No output — tool failed.",
-      noOutputSucceeded: "No output — tool completed successfully.",
+      noOutputFailed: "No output. Tool failed.",
+      noOutputSucceeded: "No output. Tool completed successfully.",
       noResult: "No result available.",
       verbs: {
         read: "Read",
@@ -5790,7 +5804,7 @@ export const en: TranslationMap = {
       filters: "Filters",
       shownOf: "{shown} of {total}",
       emptyTitle: "No automations yet",
-      emptyHint: "Describe what OpenClaw should do and when — it runs on schedule.",
+      emptyHint: "Describe what OpenClaw should do and when. It runs on schedule.",
       noMatching: "No automations match the current filters.",
       loadMore: "Load more",
       loading: "Loading...",

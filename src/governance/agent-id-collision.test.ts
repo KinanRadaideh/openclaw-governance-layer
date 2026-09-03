@@ -1,4 +1,4 @@
-// One agent, one organisation — even when the registry file disagrees with
+// One agent, one organisation. Even when the registry file disagrees with
 // itself (finding 145).
 //
 // ## What this is really about, and what it is not
@@ -8,7 +8,7 @@
 // (`packages/normalization-core/src/agent-id.ts`) lowercases every id as part of
 // producing its "filesystem-safe canonical form", and 910 call sites across
 // routing, session keys and directory layout depend on it. `Scout` and `scout`
-// are one agent to the host, its session keys and its folders — and on Windows
+// are one agent to the host, its session keys and its folders, and on Windows
 // and macOS the filesystem would agree with that even if the code did not.
 //
 // Finding 128 was this project storing an id one way while the gate looked it up
@@ -18,7 +18,7 @@
 //
 // **The real gap was narrower.** Registration compared the incoming *canonical*
 // id against each stored id as written. Every row written since finding 128 is
-// canonical, so those agreed — but a registry written before it can hold
+// canonical, so those agreed, but a registry written before it can hold
 // `"Scout"`, and `"Scout" === "scout"` is false. Two rows could therefore exist
 // for one real agent, in two different organisations, and `resolveAgentGroup`
 // kept whichever the file listed last.
@@ -90,7 +90,7 @@ describe("an id that already exists in another spelling cannot be registered", (
 describe("a registry that contradicts itself governs nobody", () => {
   it("withdraws an id claimed by two organisations rather than picking one", async () => {
     // The window. `Map.set` would keep the last row, so file order would decide
-    // which organisation's rules govern a real agent — silently, and
+    // which organisation's rules govern a real agent. Silently, and
     // differently after any rewrite.
     await writeLegacyRegistry([
       { id: "Scout", groupId: "group-a" },
@@ -110,7 +110,7 @@ describe("a registry that contradicts itself governs nobody", () => {
 
   it("leaves every other agent alone", async () => {
     // Withdrawal is targeted. One contradictory pair must not take an unrelated
-    // agent's governance down with it — that would turn a stale row into an
+    // agent's governance down with it. That would turn a stale row into an
     // outage.
     await writeLegacyRegistry([
       { id: "Scout", groupId: "group-a" },

@@ -7,8 +7,8 @@
 // answer the first is describing the past while the operator is trying to
 // intervene in the present.
 //
-// The Gateway owns the live run registry, so — exactly as with the kill switch
-// terminator — it registers a supplier here rather than governance importing
+// The Gateway owns the live run registry, so, exactly as with the kill switch
+// terminator, it registers a supplier here rather than governance importing
 // Gateway internals. With nothing registered (CLI, tests, a Gateway still
 // starting) the result reports `supported: false` instead of an empty list,
 // because "no sessions" and "cannot see sessions" must not look identical to
@@ -39,7 +39,7 @@ export function clearActiveSessionsSupplier(): void {
 }
 
 export type ActiveSessionsView = {
-  /** False when no supplier is registered — visibility is unavailable, not empty. */
+  /** False when no supplier is registered. Visibility is unavailable, not empty. */
   supported: boolean;
   sessions: ActiveAgentSessionView[];
   sampledAt: string;
@@ -57,16 +57,16 @@ export type ActiveAgentSessionView = ActiveAgentSession & {
  *
  * **Two independent filters, and for a long time only one of them existed.**
  *
- *  1. **Group** — `groupAgentIds` names the agents registered to the caller's
+ *  1. **Group**, `groupAgentIds` names the agents registered to the caller's
  *     organisation. Anything else is invisible, whatever the caller's tier.
- *  2. **Agent scope** — within that group, an Administrator sees every session
+ *  2. **Agent scope**. Within that group, an Administrator sees every session
  *     and a User or Viewer sees only their assigned agents. Without this a
  *     Viewer scoped to one agent could enumerate the rest by watching what runs.
  *
  * **Finding 139 (2026-08-28) is the absence of the first**, found by the
  * pre-M3 route audit that `HANDOFF.md` §7 had been recording as unfinished.
  * The supplier is the Gateway's own run registry, which is **installation-wide**
- * — every run on the host, of every organisation. The only filter was
+ *every run on the host, of every organisation. The only filter was
  * `canViewAgent`, and `hasUnlimitedAgentScope` makes that unconditionally true
  * for an Administrator or Root. So an Administrator of one group saw the run
  * ids, agent ids, session keys and start times of **every other group's live

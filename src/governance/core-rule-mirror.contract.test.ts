@@ -6,7 +6,7 @@
 // cannot be derived from one definition, and where that is true the agreement
 // gets a test rather than a comment asking people to remember.
 //
-// The consequence of drift here is milder than usual — the server refuses a
+// The consequence of drift here is milder than usual. The server refuses a
 // self-protecting rule regardless, so a stale list produces an honest 403
 // rather than a silent hole. It is still worth pinning, because the failure it
 // would cause is the one this project keeps finding in other clothes: an
@@ -21,7 +21,7 @@ import { coreRules, seedRuleId } from "./baseline-policy.js";
  *
  * Restated here rather than imported because the constant is module-private to
  * a Lit component that cannot be loaded outside a DOM. That makes this a
- * three-copy arrangement, which is worse than two — so the test asserts the
+ * three-copy arrangement, which is worse than two, so the test asserts the
  * *property* the UI list is trying to express, not merely that two arrays
  * match: every self-protecting rule must be matched by some fragment, and every
  * fragment must match at least one self-protecting rule and no ordinary one.
@@ -56,7 +56,7 @@ describe("the dashboard hides the switch on exactly the undisableable rules", ()
 
     // The opposite error, and the quieter one: a fragment too broad would hide
     // the control on a rule Root is entitled to change, and nothing would say
-    // so — the operator would simply conclude the feature does not exist.
+    // so. The operator would simply conclude the feature does not exist.
     expect(overmatched).toEqual([]);
   });
 

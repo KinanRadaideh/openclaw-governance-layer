@@ -1,13 +1,13 @@
 // Every mutating route, against every tier below its floor.
 //
 // QA finding E: privilege-escalation coverage was uneven, and several routes
-// were asserted only as "the response was some 4xx" — which cannot tell "you are
+// were asserted only as "the response was some 4xx", which cannot tell "you are
 // not allowed" from "your input was malformed". That distinction is the whole
 // test: a route that starts accepting a lower tier but still rejects the body
 // keeps passing a 4xx assertion while the escalation is wide open.
 //
 // The table below is transcribed from the `requireRole` calls in
-// governance-dashboard-api.ts, not from memory of what the tiers ought to be —
+// governance-dashboard-api.ts, not from memory of what the tiers ought to be,
 // the round-five lesson. Each entry asserts an exact 403 for every tier beneath
 // the floor, and an exact non-403 for the floor itself, so the test fails both
 // when a route becomes too permissive and when it becomes too strict.
@@ -55,7 +55,7 @@ function session(role: GovernanceRole): GovernanceSession {
     role,
     createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
-    // Broad assignment, so a refusal is never merely a scope miss — this suite
+    // Broad assignment, so a refusal is never merely a scope miss. This suite
     // is about the tier check alone.
     assignedAgents: ["agent-a", "agent-b"],
     groupId: TEST_GROUP,
@@ -139,7 +139,7 @@ const ROUTES: RouteCase[] = [
     // Administrator's in the paper, and a User flipping their own agent from
     // `off` (refuse an unlisted action) to `on-miss` (escalate it to a human
     // who may approve) was a widening by the least-privileged tier. A User asks
-    // for these through the request queue instead — see
+    // for these through the request queue instead, see
     // `governance-rule-authoring-scope.test.ts`.
     method: "POST",
     route: "policy/agent-ask",
@@ -162,7 +162,7 @@ const ROUTES: RouteCase[] = [
   },
   {
     // Cancelling a prompt is agent-scoped work, so it shares prompting's floor.
-    // Ownership — whose run it is — is a separate check inside the route, and
+    // Ownership, whose run it is, is a separate check inside the route, and
     // is covered in `prompt-runs.test.ts`; this suite is about the tier alone.
     method: "POST",
     route: "agent/cancel",
@@ -224,8 +224,8 @@ const ROUTES: RouteCase[] = [
     floor: "administrator",
     body: { agentId: "agent-a" },
   },
-  // Provisioning and deletion (M6). Same floor as the rest of the registry —
-  // agent management is the Administrator tier — but these two are the only
+  // Provisioning and deletion (M6). Same floor as the rest of the registry,
+  // agent management is the Administrator tier, but these two are the only
   // routes in this table that *write to the host*, so the floor being right
   // matters more here than anywhere else on the surface.
   {
@@ -240,9 +240,18 @@ const ROUTES: RouteCase[] = [
     floor: "administrator",
     body: { agentId: "agent-a", deleteFromHost: false },
   },
-  { method: "POST", route: "policy/hitl-timeout", floor: "root", body: { seconds: 60 } },
+  { method: "POST", route: "policy/hitl-timeout", floor: "administrator", body: { seconds: 60 } },
+  // The per-agent half sits at the User floor on purpose: a User sets the
+  // window for an agent assigned to them. The agent-scope check beyond the
+  // floor is asserted in `agent-hitl-timeout.test.ts`.
+  {
+    method: "POST",
+    route: "policy/agent-hitl-timeout",
+    floor: "user",
+    body: { agentId: "agent-a", seconds: 60 },
+  },
   // Root, not viewer like its neighbour `system`: this route reports the bind
-  // mode, port, gateway auth mode and governance directory — a map of how to
+  // mode, port, gateway auth mode and governance directory. A map of how to
   // reach and attack the installation (backlog item A7).
   { method: "GET", route: "deployment", floor: "root" },
   { method: "GET", route: "users", floor: "root" },
@@ -269,7 +278,7 @@ describe("tier floors are enforced on every route", () => {
       it(`refuses ${testCase.method} ${testCase.route} to ${role} (floor: ${testCase.floor})`, async () => {
         const status = await call(testCase.method, testCase.route, session(role), testCase.body);
         // Exactly 403. A 400 here would mean the tier check was skipped and the
-        // request merely failed validation — which is the shape a real
+        // request merely failed validation, which is the shape a real
         // escalation takes.
         expect(status).toBe(403);
       });
@@ -339,7 +348,7 @@ describe("the escalations that matter most", () => {
 
   it("does not let a Viewer act on anything", async () => {
     // Viewer is defined as strictly read-only oversight, so every mutation must
-    // refuse it — including the ones whose floor is only one tier above.
+    // refuse it, including the ones whose floor is only one tier above.
     for (const testCase of ROUTES.filter((entry) => entry.method === "POST")) {
       if (testCase.route === "ledger/verify") {
         // Read-only recomputation that happens to be a POST.

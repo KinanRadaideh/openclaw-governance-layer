@@ -1,4 +1,4 @@
-// T5 Part A — the command line knows who is running it, and enforces it.
+// T5 Part A. The command line knows who is running it, and enforces it.
 //
 // Before this, every CLI change was recorded against the literal actor `cli`
 // and no tier was checked at all: a Viewer with shell access could add rules
@@ -7,9 +7,9 @@
 // The tests are about the two halves separately, because they are separate
 // claims and only one of them is a security control:
 //
-//   - **Attribution** — the ledger names the account and the tier. Real, and
+//   - **Attribution**. The ledger names the account and the tier. Real, and
 //     the thing A6 asked for.
-//   - **Enforcement** — the same permission helpers as the dashboard. Real
+//   - **Enforcement**. The same permission helpers as the dashboard. Real
 //     against mistakes and casual misuse, and *not* a boundary against someone
 //     who can edit the governance directory directly. The last test says so out
 //     loud rather than letting the suite imply otherwise.
@@ -60,7 +60,7 @@ afterEach(async () => {
  * The Administrator a User or Viewer answers to (M3).
  *
  * Created on demand and reused, because the invariant is "somebody is
- * answerable", not "somebody new is answerable" — and a fresh manager per call
+ * answerable", not "somebody new is answerable", and a fresh manager per call
  * would change the account counts these tests do not otherwise care about.
  */
 let managerId: string | undefined;

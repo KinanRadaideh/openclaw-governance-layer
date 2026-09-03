@@ -4,7 +4,7 @@
 //
 // **The engine has always done this.** A `path` rule is a pattern, `^/work(/|$)`
 // binds a subtree, and denials are evaluated before allowances across every
-// tier — so an allow on a folder plus a deny on a file inside it already gives
+// tier, so an allow on a folder plus a deny on a file inside it already gives
 // exactly the intended behaviour. Nothing here changes evaluation.
 //
 // What did not exist was a way to *say* it. An operator had to write two
@@ -15,7 +15,7 @@
 //
 // **It is additive, and that is a constraint rather than an accident.** The
 // existing add-rule form is untouched; hand-writing a deny inside an allowed
-// folder keeps working; and — the part that matters most — **everything this
+// folder keeps working; and, the part that matters most, **everything this
 // produces is an ordinary rule**. Each one appears in the rule list on its own,
 // carries its own id, and can be edited or removed individually. A generated
 // pair that could only be deleted together would have traded a capability for a
@@ -27,14 +27,14 @@
 // already exist. Every rule written here therefore inherits the write lock,
 // conflict detection, the pattern-safety warnings, tier validation and the
 // ledger entry, and cannot drift from what the ordinary path does. The
-// alternative — assembling `PolicyRule` objects and saving the document — would
+// alternative, assembling `PolicyRule` objects and saving the document, would
 // be a second way to write policy, and two ways to write one thing is how they
 // come to disagree.
 //
 // ## The order the rules are written in
 //
 // **The exceptions are written first, then the grant.** Evaluation order does
-// not depend on it — deny beats allow whenever both exist — but *failure* order
+// not depend on it, deny beats allow whenever both exist, but *failure* order
 // does. If writing stops half-way, having written the denials leaves the agent
 // with less access than intended; having written the grant first would leave it
 // with more, for as long as nobody noticed. When a partial result is possible,
@@ -49,7 +49,7 @@ import { validateRulePattern } from "./rule-validation.js";
  * How many exceptions one grant may carry.
  *
  * **Found by QA on this module, not by design.** Nothing bounded it, so a single
- * request could write unbounded rules — each taking the policy write lock, each
+ * request could write unbounded rules: each taking the policy write lock, each
  * appended to the tamper-evident ledger, and all of them from one click. The
  * number is generous for the use this control exists for (a folder with a
  * handful of carve-outs) and small enough that the worst case is a rejected
@@ -90,7 +90,7 @@ export type FolderGrantInput = {
   exceptions?: readonly string[];
   /** Agent this applies to. Absent means every agent, which needs Administrator. */
   agentId?: string;
-  /** Narrow the grant to reads or writes. Denials are never narrowed — see below. */
+  /** Narrow the grant to reads or writes. Denials are never narrowed. See below. */
   access?: RuleAccess;
   /** Workspace root, so a relative path normalises the way the gate will read it. */
   cwd?: string;
@@ -113,7 +113,7 @@ export type FolderGrantResult = {
 function subtreePattern(normalised: string, original: string): string {
   const pattern = `^${escapeLiteral(normalised)}(/|$)`;
   // **Validated here rather than in the routes, and that placement is the
-  // finding.** `addRuleChecked` does not validate patterns — the HTTP add-rule
+  // finding.** `addRuleChecked` does not validate patterns. The HTTP add-rule
   // route calls `validateRulePattern` itself before reaching it. Doing the same
   // in this module's *callers* would have left the CLI, which calls this
   // function directly, writing rules the dashboard would refuse: two surfaces
@@ -135,7 +135,7 @@ function subtreePattern(normalised: string, original: string): string {
  * Writes a folder grant and its exceptions as ordinary rules.
  *
  * Paths are normalised through the same function the gate uses, so what an
- * operator types and what the rule matches cannot disagree — the mismatch T23
+ * operator types and what the rule matches cannot disagree. The mismatch T23
  * and the path-normalisation work exist to prevent, arriving here by a new
  * route because this is a *third* place a path becomes a pattern.
  */

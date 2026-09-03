@@ -33,7 +33,7 @@ const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
  * Accounts that were Viewers or Users before M3 are Administrators here unless
  * the tier is the subject of the test. A User or Viewer now requires an
  * Administrator answerable for it, which would mean creating a second account
- * inside tests about username folding, token storage and Root invariants — and
+ * inside tests about username folding, token storage and Root invariants, and
  * changing the counts several of them assert. The tier was incidental; the
  * ceremony would not have been.
  */
@@ -58,7 +58,7 @@ afterEach(async () => {
  * The cap these tests drive pruning with.
  *
  * Small on purpose (finding 146). Reaching the real 500 meant 525 submit-plus-
- * decide pairs, each rewriting the whole file with a durable `fsync` — 76
+ * decide pairs, each rewriting the whole file with a durable `fsync`, 76
  * seconds alone, and a timeout inside a full run, so the test reported on
  * machine load rather than on the code. The property being checked is *which*
  * requests are dropped, which a dozen entries settle deterministically. The
@@ -131,7 +131,7 @@ describe("username hygiene", () => {
 
   it("treats visually identical Unicode forms as the same account", async () => {
     // "admin" composed differently must not yield two accounts that look
-    // identical in the operator list — an impersonation vector in a product
+    // identical in the operator list. An impersonation vector in a product
     // whose whole purpose is knowing who did what.
     await createUser(
       {
@@ -145,7 +145,7 @@ describe("username hygiene", () => {
     // A *genuinely different* byte sequence that NFKC folds onto the same name:
     // fullwidth Latin small letter A (U+FF41). The earlier version of this test
     // passed the identical string twice, so it compared "admin" with "admin"
-    // and proved nothing about the folding it claimed to exercise — it would
+    // and proved nothing about the folding it claimed to exercise. It would
     // have passed with normalization removed entirely.
     const fullwidth = "ａdmin";
     expect(fullwidth).not.toBe("admin");
@@ -173,7 +173,7 @@ describe("username hygiene", () => {
       },
       TEST_ACTOR,
     );
-    // "jose" + combining acute — renders identically to the precomposed form.
+    // "jose" + combining acute. Renders identically to the precomposed form.
     await expect(
       createUser(
         {
@@ -246,7 +246,7 @@ describe("session token handling", () => {
     //
     //
     // This test was once named "does not write the raw token" while asserting
-    // the opposite — that the token appeared exactly once, which *requires* it
+    // the opposite. That the token appeared exactly once, which *requires* it
     // to be stored in the clear. The name is now true.
     expect(raw).not.toContain(session.token);
     const users = await readFile(join(dir, "users.json"), "utf8");

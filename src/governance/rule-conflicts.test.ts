@@ -21,7 +21,7 @@ function candidate(overrides: Partial<CandidateRule> = {}): CandidateRule {
 
 describe("the dangerous case: a temporary grant that is already permanent", () => {
   it("flags a time-limited rule when an identical indefinite rule exists", () => {
-    // The operator believes they granted 10 minutes of access. They did not —
+    // The operator believes they granted 10 minutes of access. They did not,
     // it was already permanent. A false belief about what is permitted is the
     // outcome this detector exists to prevent.
     const conflicts = detectRuleConflicts(
@@ -71,7 +71,7 @@ describe("redundancy", () => {
 
   it("does NOT flag a rule that genuinely extends access", () => {
     // Existing grant ends in an hour; the new one runs for ten. That is a real
-    // extension, not a redundancy — flagging it would be noise.
+    // extension, not a redundancy. Flagging it would be noise.
     const conflicts = detectRuleConflicts(
       [existing({ expiresAt: new Date(NOW + HOUR).toISOString() })],
       candidate({ expiresAt: new Date(NOW + 10 * HOUR).toISOString() }),
@@ -117,7 +117,7 @@ describe("scope interactions", () => {
 });
 
 describe("what is deliberately NOT reported", () => {
-  it("ignores expired rules — they grant nothing", () => {
+  it("ignores expired rules. They grant nothing", () => {
     const conflicts = detectRuleConflicts(
       [existing({ expiresAt: new Date(NOW - HOUR).toISOString() })],
       candidate(),
@@ -157,7 +157,7 @@ describe("QA pass: clash warnings must not overstate coverage", () => {
 
   it("does not claim a new rule is redundant when the catch-all covering it expires first", () => {
     // The catch-all lapses in a minute; the candidate is indefinite. Telling
-    // the operator it "grants nothing additional" is backwards — after the
+    // the operator it "grants nothing additional" is backwards. After the
     // catch-all lapses the candidate is the only thing granting access, and an
     // operator who believes the message may delete it.
     const soon = new Date(Date.now() + 60_000).toISOString();

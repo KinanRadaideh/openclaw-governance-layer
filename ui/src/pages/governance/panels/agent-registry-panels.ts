@@ -4,13 +4,13 @@
 //
 // M4 built the registry, its five HTTP routes and its command line. It also
 // added `registerAgent`, `renameAgent`, `setAgentOwner` and `unregisterAgent`
-// to the dashboard's API client — and **nothing ever called them**. Every route
+// to the dashboard's API client, and **nothing ever called them**. Every route
 // worked; every client method worked; there was no surface. An Administrator
 // could not see the agents in their organisation without reading the ledger or
 // opening a terminal.
 //
 // That is the fourth time this project has shipped a complete, tested route
-// with no way to reach it — after R5's authoring controls, the per-agent
+// with no way to reach it. After R5's authoring controls, the per-agent
 // monitor toggle (round eleven), and finding 121, where Root's password could
 // be changed by a route that no screen called. The shape is consistent enough
 // to name: **a capability is finished when something an operator can click uses
@@ -21,7 +21,7 @@
 // M4's "unregister" removes the governance record and leaves the agent running.
 // M6 adds "delete", which removes the agent from OpenClaw entirely. One button
 // doing both would silently change what an existing action means: an operator
-// who had used remove before — safely, many times — would now destroy a running
+// who had used remove before, safely, many times, would now destroy a running
 // agent with the same click.
 //
 // So the remove control opens a **chooser** naming both outcomes with their
@@ -48,6 +48,16 @@ export type AgentRegistryDrafts = {
   provisionId: string;
   /** Where the agent works. Blank lets the host choose its default. */
   provisionWorkspace: string;
+  /**
+   * Which Administrator will own the new agent.
+   *
+   * Only Root ever chooses: an Administrator provisioning an agent owns it, and
+   * the route defaults to the caller. Root cannot own an agent at all (M4 keeps
+   * one statable rule: every agent answers to an Administrator), which is why
+   * Root provisioning without this produced "The agent could not be given an
+   * owner" and no way to fix it from this screen.
+   */
+  provisionAdminId: string;
   /** Which row currently has its remove chooser open, or "" for none. */
   removeChoiceFor: string;
   /** The outcome of the last provision, kept visible until the next action. */
@@ -71,7 +81,7 @@ export type AgentRegistryPanelProps = PanelEffects & {
 /**
  * The part of this panel's props the **page** supplies.
  *
- * The rest — `drafts` and `onDraft` — belongs to `AgentRegistryController` and
+ * The rest, `drafts` and `onDraft`, belongs to `AgentRegistryController` and
  * is spread in at the call site. Named here rather than written inline in the
  * page so that the page's props bundle keeps a one-line signature, and so the
  * split between "data the server sent" and "what the operator has half-typed"
@@ -85,6 +95,7 @@ export function emptyAgentRegistryDrafts(): AgentRegistryDrafts {
     provisionName: "",
     provisionId: "",
     provisionWorkspace: "",
+    provisionAdminId: "",
     removeChoiceFor: "",
     provisionNotice: "",
     provisionNoticeWarning: false,
@@ -101,7 +112,7 @@ export function emptyAgentRegistryDrafts(): AgentRegistryDrafts {
  * what T16 chose over suppressing the rule, so the same answer applies here.
  *
  * The controller keeps the page's job to *owning data the server sent* and
- * leaves *what the operator has half-typed* with the panel — which is also the
+ * leaves *what the operator has half-typed* with the panel, which is also the
  * honest boundary, since nothing outside this file has any use for a
  * half-filled agent form.
  */
@@ -119,7 +130,7 @@ export class AgentRegistryController {
    * The half of the panel's props that this controller owns.
    *
    * **Spread this last.** `onDraft` is a name several panels use, and the page
-   * merges one props bundle for all of its agent panels — so an earlier
+   * merges one props bundle for all of its agent panels, so an earlier
    * `onDraft` in that bundle silently wins if this slice is spread first. That
    * is not hypothetical: it happened while this panel was being wired, and the
    * symptom was a button that rendered correctly and did nothing when clicked,
@@ -144,7 +155,7 @@ export class AgentRegistryController {
  * The chooser that opens under a row when remove is clicked.
  *
  * Rendered inline rather than as a modal deliberately. A modal would have to
- * trap focus, restore it on close and be reachable by keyboard — three things
+ * trap focus, restore it on close and be reachable by keyboard, three things
  * finding 118 showed this codebase gets wrong when it invents a control instead
  * of using one that already works. An expanded row is two ordinary buttons in
  * the document, which the tab order handles for free.
@@ -218,8 +229,8 @@ function renderRemoveChoice(
  * Which runtimes this agent is permitted on, in one phrase.
  *
  * **Deliberately a permission, not an observation.** The layer cannot see which
- * runtime an agent is actually using — that is resolved at session start from
- * the model provider and recorded nowhere — so claiming "running on Codex"
+ * runtime an agent is actually using, that is resolved at session start from
+ * the model provider and recorded nowhere, so claiming "running on Codex"
  * would be inventing precision the data does not support. What it can state
  * truthfully is what is *allowed*, which is its own data.
  */
@@ -248,15 +259,15 @@ function renderAgentRow(
     // The engine line is appended for **every tier that can see the agent**,
     // Viewers included (§3.5.62). It is a permission rather than a secret, and
     // noticing that an agent is permitted onto a runtime where denials are not
-    // fully enforced is exactly what oversight is for. Stating it here — beside
-    // the agent an operator is reasoning about — is the point: consent given
+    // fully enforced is exactly what oversight is for. Stating it here, beside
+    // the agent an operator is reasoning about, is the point: consent given
     // once at a settings switch decays, and nobody remembers weeks later which
     // agents it covered.
     description: agent.registered
       ? html`${t("governance.agents.ownedBy", {
-          owner: owner?.username ?? agent.adminId ?? "—",
+          owner: owner?.username ?? agent.adminId ?? "-",
         })}
-        — ${renderEngineState(agent)}`
+        ${renderEngineState(agent)}`
       : t("governance.agents.unregisteredHint"),
     stacked: open,
     control: open
@@ -272,7 +283,7 @@ function renderAgentRow(
                   // accepts a stated enforcement gap for this agent; withdrawing
                   // is the safe direction and needs no caution, and a dialog on
                   // both would train an operator to dismiss the one that matters
-                  // — finding 87's lesson, applied to a second control.
+                  //. Finding 87's lesson, applied to a second control.
                   agent.codexAllowed
                     ? void props.run(async () => {
                         await props.api().setAgentCodexAllowed(agent.agentId, false);
@@ -339,11 +350,29 @@ function renderAgentRow(
  */
 function renderProvisionForm(props: AgentRegistryPanelProps): TemplateResult {
   const name = props.drafts.provisionName.trim();
+  // **Root has to name an owner; an Administrator is one.** M4's rule is that
+  // every agent answers to exactly one Administrator, and Root is deliberately
+  // not eligible: allowing it would mean two statable rules instead of one.
+  // The route has accepted an `adminId` since M6 and the command line has had
+  // `--owner` for as long, but this form never offered it, so Root could fill
+  // the form in, press the button, and be told "The agent could not be given an
+  // owner: agents are owned by an Administrator" with nothing on the screen to
+  // act on. The capability existed; the affordance did not.
+  const mustChooseOwner = props.identity?.role === "root";
+  const owners = props.administrators;
+  const ownerChosen = props.drafts.provisionAdminId.trim();
+  const blockedOnOwner = mustChooseOwner && owners.length === 0;
+  const ownerMissing = mustChooseOwner && !ownerChosen;
   return renderSettingsRow({
     title: t("governance.agents.createTitle"),
     description: t("governance.agents.createHint"),
     stacked: true,
     control: html`<div class="settings-row__control" style="flex-direction:column;gap:0.5rem">
+      ${blockedOnOwner
+        ? html`<p class="settings-row__desc" role="note">
+            ${t("governance.agents.ownerNoneHint")}
+          </p>`
+        : nothing}
       <input
         class="input"
         type="text"
@@ -370,13 +399,29 @@ function renderProvisionForm(props: AgentRegistryPanelProps): TemplateResult {
         @input=${(e: Event) =>
           props.onDraft({ provisionWorkspace: (e.target as HTMLInputElement).value })}
       />
+      ${mustChooseOwner && owners.length > 0
+        ? html`<select
+            class="input"
+            aria-label=${t("governance.agents.ownerLabel")}
+            .value=${props.drafts.provisionAdminId}
+            ?disabled=${props.busy}
+            @change=${(e: Event) =>
+              props.onDraft({ provisionAdminId: (e.target as HTMLSelectElement).value })}
+          >
+            <option value="">${t("governance.agents.ownerPlaceholder")}</option>
+            ${owners.map(
+              (account) => html`<option value=${account.id}>${account.username}</option>`,
+            )}
+          </select>`
+        : nothing}
       <button
         class="btn btn-primary"
-        ?disabled=${props.busy || !name}
+        ?disabled=${props.busy || !name || blockedOnOwner || ownerMissing}
         @click=${() =>
           void props.run(async () => {
             const result = await props.api().provisionAgent({
               displayName: name,
+              ...(ownerChosen ? { adminId: ownerChosen } : {}),
               ...(props.drafts.provisionId.trim()
                 ? { agentId: props.drafts.provisionId.trim() }
                 : {}),
@@ -386,12 +431,13 @@ function renderProvisionForm(props: AgentRegistryPanelProps): TemplateResult {
             });
             // The notice distinguishes "created and running" from "created,
             // not yet visible". Collapsing them would make the success message
-            // a claim the page has not checked — the green tick this project
+            // a claim the page has not checked. The green tick this project
             // has already shipped once, in M5's deployment report.
             props.onDraft({
               provisionName: "",
               provisionId: "",
               provisionWorkspace: "",
+              provisionAdminId: "",
               provisionNotice:
                 result.warning ?? t("governance.agents.created", { id: result.agent.id }),
               provisionNoticeWarning: Boolean(result.warning),
@@ -434,7 +480,7 @@ export function renderAgentRegistrySection(
           renderSettingsRow({
             title: t("governance.agents.none"),
             description: t("governance.agents.noneHint"),
-            control: renderSettingsValue("—"),
+            control: renderSettingsValue("-"),
           }),
         ]),
     renderProvisionForm(props),

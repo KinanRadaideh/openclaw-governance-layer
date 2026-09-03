@@ -3,7 +3,7 @@
 //
 // ## Why this file exists
 //
-// Extracted from `governance-page.ts` (T16), which was 2,412 code lines — the
+// Extracted from `governance-page.ts` (T16), which was 2,412 code lines. The
 // last file in the project over the limit inherited from upstream OpenClaw's
 // `.oxlintrc.json`. The grouping is not arbitrary: it is the **same seam the
 // HTTP routes were split along on the same day**. `governance-dashboard-oversight.ts`
@@ -20,7 +20,7 @@
 //
 //  1. **The type checker verifies the wiring.** A field the page forgets to
 //     pass, or passes with the wrong type, is a compile error rather than an
-//     empty region on an operator's screen — which is this project's worst bug
+//     empty region on an operator's screen, which is this project's worst bug
 //     class (an outcome that is invisible rather than wrong).
 //  2. **A panel can be rendered without a page.** `rule-filter.ts` and
 //     `ledger-filter.ts` already set that pattern in this directory, and it is
@@ -31,7 +31,7 @@
 //
 // Authorization is deliberately *not* a property of this file, unlike its route
 // counterpart. The deployment panel checks the caller's role, but only to avoid
-// rendering a section the server would refuse anyway — the tier is enforced in
+// rendering a section the server would refuse anyway. The tier is enforced in
 // `governance-dashboard-oversight.ts` and asserted in the privilege matrix.
 // Hiding a panel is a convenience; it is never the control.
 import { html, nothing, type TemplateResult } from "lit";
@@ -86,7 +86,7 @@ export type FreshnessProps = {
  *
  * **Moved out of `governance-page.ts` on 2026-08-28**, and the reason is worth a
  * line. It was the last piece of markup left in the page, which the split (T16)
- * had established should hold state and effects only — and M6's registry wiring
+ * had established should hold state and effects only, and M6's registry wiring
  * pushed the file from 696 code lines back over the 700-line limit T16 closed.
  * The limit was reported as clean in the same commit that broke it, so the
  * regression survived a documentation pass that asserted its absence. Extracting
@@ -109,7 +109,7 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
   // Administrative entries and agent entries answer different questions, and
   // an installation doing real work produces far more of the latter. Without
   // a filter, "who changed this rule?" means scrolling past thousands of tool
-  // calls — the trail exists but is not usable, which for an accountability
+  // calls. The trail exists but is not usable, which for an accountability
   // feature amounts to much the same thing.
   const visibleLedger = filterLedger(ledger, ledgerFilter);
   const filterButton = (value: LedgerFilter, label: string) => html`<button
@@ -142,7 +142,7 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
                 ? `${t("governance.ledger.intact")} (${verification.entriesChecked})`
                 : verification.brokenAtSeq === undefined
                   ? // No sequence number when the failure is not tied to one
-                    // entry — an unparseable line, or a checkpoint saying the
+                    // entry. An unparseable line, or a checkpoint saying the
                     // file is short. Printing "#undefined" in exactly the
                     // situation the feature exists for undermined the one
                     // message an operator most needs to trust.
@@ -158,7 +158,7 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
           })
         : nothing,
       ...visibleLedger
-        // `toReversed`, which copies — the `slice()` that used to guard the
+        // `toReversed`, which copies. The `slice()` that used to guard the
         // in-place `reverse()` is no longer needed, and `visibleLedger` is
         // derived from the page's `ledger` state, so reversing it in place would have
         // reordered the state behind every other reader of that array.
@@ -202,7 +202,7 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
 /**
  * The deployment and network report (backlog item A7).
  *
- * Root only, and gated **server-side** as well — hiding the panel is a
+ * Root only, and gated **server-side** as well: hiding the panel is a
  * convenience, not the control. It reports the bind mode, port, gateway auth
  * mode and governance directory, which together are a map of how to reach and
  * attack this installation, so the tier is enforced in

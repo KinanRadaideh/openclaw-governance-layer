@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-// T42 — who the emergency stop is offered to, and for which agents.
+// T42, who the emergency stop is offered to, and for which agents.
 //
 // **The decision this pins was Kinan's, taken 2026-09-01**, and it was needed
 // because the code said three different things at once:
@@ -16,8 +16,8 @@
 // The argument for it is already in this project's own code. `PROJECT-SUMMARY`
 // item 11 records that withholding a User's policy-authoring rights had once
 // also removed their ability to stop their own agent, and calls that "a
-// regression dressed as a permission". And the active-sessions panel — in the
-// same file as the one under test — has offered a User a Stop button for their
+// regression dressed as a permission". And the active-sessions panel, in the
+// same file as the one under test, has offered a User a Stop button for their
 // own sessions since the release control moved there, under a comment reading
 // "whoever is trusted to stop an agent is trusted to undo that". That comment
 // was the argument for this change; nobody had applied it to the panel below.
@@ -87,7 +87,7 @@ function policy(lockedAgents: string[] = []): GovernancePolicyDocument {
 /**
  * The kill-switch `<section>`, found by its heading.
  *
- * **Not by searching the page for "emergency kill switch"** — the first version
+ * **Not by searching the page for "emergency kill switch"**. The first version
  * of this file did, and every assertion passed for a Viewer, because the page's
  * own intro reads "…a tamper-evident audit ledger, and an emergency kill
  * switch." A test that matches the prose describing a control cannot tell you
@@ -183,9 +183,9 @@ describe("which agents each tier is offered", () => {
 describe("typing an agent that is not yours", () => {
   // **This branch is unreachable through a live server today, and the test is
   // where it earns its place.** Checked against a running gateway on
-  // 2026-09-01: every source the page reads is already scoped per caller — the
+  // 2026-09-01: every source the page reads is already scoped per caller, the
   // agent list, and `agentMode`, `agentAsk`, the agent-scoped rules and
-  // `lockedAgents` inside the policy — so a User is never told that an agent
+  // `lockedAgents` inside the policy, so a User is never told that an agent
   // they cannot act on exists. That is deliberate: it is what stops the page
   // becoming an enumeration oracle.
   //

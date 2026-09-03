@@ -50,7 +50,7 @@ describe("filterLedger", () => {
   });
 
   it("keeps sign-ins out of 'admin', so that button stays true to its label", () => {
-    // Authentication entries are administrative — same chain, same entryKind —
+    // Authentication entries are administrative, same chain, same entryKind,
     // but there are far more of them. Left in this view they would bury "who
     // removed that rule?" exactly as agent entries once buried the whole
     // ledger, and the button says "Policy changes".

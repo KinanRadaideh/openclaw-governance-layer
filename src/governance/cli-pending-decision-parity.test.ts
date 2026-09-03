@@ -2,7 +2,7 @@
 //
 // Written as a reproduction first (2026-08-31). `governance pending list` and
 // `pending decide` were the last two governance commands whose authorization
-// was `() => true` — *any signed-in account* — while their HTTP counterparts
+// was `() => true`, *any signed-in account*, while their HTTP counterparts
 // ask two further questions the command line never asked:
 //
 //   - a **User** floor rather than a Viewer one, and
@@ -10,7 +10,7 @@
 //     taken only by somebody with authority over the agent it concerns.
 //
 // The read had the same gap in its other half: `pending-decisions` GET filters
-// by `canViewAgent`, and the command printed the whole group's stack — agent
+// by `canViewAgent`, and the command printed the whole group's stack. Agent
 // ids, tool names and the resources they were blocked on, for agents the caller
 // cannot see. That is the leak the rule-request queue was scoped for, one file
 // over, and the reason its route carries a paragraph about it.
@@ -19,7 +19,7 @@
 // finding 149 in the shape T35's guard now rejects: `splitAuditActor` throws
 // `FabricatedActorError` on a named actor claiming a labelled origin's name. So
 // the command wrote the decision to disk and **then** threw, leaving a decided
-// escalation with no ledger entry at all — finding 152's shape, one command
+// escalation with no ledger entry at all. Finding 152's shape, one command
 // over. That is why the second test asserts the two agree rather than asserting
 // the entry exists: the failure mode is a disagreement between them.
 import { mkdtemp, rm } from "node:fs/promises";
@@ -129,11 +129,11 @@ async function decisionEntries() {
   );
 }
 
-describe("governance pending decide — the actor it records", () => {
+describe("governance pending decide. The actor it records", () => {
   it("records the signed-in operator and their tier, not the literal `cli`", async () => {
     // Finding 149 in a second place. The command resolves an account through
     // `requireCliActor` and then discarded it, so the one question an
-    // investigation starts from — *who allowed this?* — had no answer here.
+    // investigation starts from, *who allowed this?*, had no answer here.
     const id = await seedEscalation(MINE);
     await signIn("amina", "administrator");
 
@@ -164,7 +164,7 @@ describe("governance pending decide — the actor it records", () => {
   });
 });
 
-describe("governance pending — the authorization the routes ask", () => {
+describe("governance pending. The authorization the routes ask", () => {
   it("refuses a Viewer, matching the User floor the route enforces", async () => {
     const id = await seedEscalation(MINE);
     await signIn("watcher", "viewer", [MINE]);
@@ -178,7 +178,7 @@ describe("governance pending — the authorization the routes ask", () => {
 
   it("refuses a User deciding an escalation for an agent they do not manage", async () => {
     // Authorized against the **stored** entry's agent, never one the caller
-    // named — the rule `pending-decisions/decide` states in its own comment.
+    // named. The rule `pending-decisions/decide` states in its own comment.
     const id = await seedEscalation(THEIRS);
     await signIn("malek", "user", [MINE]);
 

@@ -70,7 +70,7 @@ describe("cross-process file lock", () => {
 });
 
 // Round sixteen, findings 104-106. The backlog carried this as one observation
-// — "a lock reclaimable from a slow writer" — and probing it found the
+//, "a lock reclaimable from a slow writer", and probing it found the
 // reclamation was the smaller half. These four tests are the probes that
 // produced the findings, kept.
 //
@@ -139,7 +139,7 @@ describe("a holder that gets reclaimed while still working", () => {
     expect(bHeld).toBe(true);
 
     // A exits. Unconditional `rm` used to remove whatever lock file was there,
-    // which by now is B's — so one slow writer unlocked its successor and the
+    // which by now is B's, so one slow writer unlocked its successor and the
     // failure cascaded to a third caller.
     releaseA();
     await expect(a).rejects.toBeInstanceOf(GovernanceLockLostError);
@@ -157,7 +157,7 @@ describe("a holder that gets reclaimed while still working", () => {
   it("keeps beating so a slow critical section is never judged dead (T11)", async () => {
     // The point of the heartbeat: the threshold now asks "is the holder alive?"
     // rather than "has the holder taken longer than the longest critical
-    // section we could think of?" — which is what the backlog worried about,
+    // section we could think of?", which is what the backlog worried about,
     // because a cold-cache ledger append parses up to eight megabytes.
     const lockPath = `${target}.lock`;
     const first = await withFileLock(target, async () => {
@@ -181,7 +181,7 @@ describe("a holder that gets reclaimed while still working", () => {
   it("still reclaims a lock that carries no token at all (106 regression)", async () => {
     // A lock file from a build that predates tokens, or from a crash between
     // creating the file and writing into it. Compare-and-delete must treat
-    // "no token, unchanged, and old" as reclaimable — refusing it because there
+    // "no token, unchanged, and old" as reclaimable. Refusing it because there
     // is no identity to compare made the lock permanently unreclaimable, which
     // deadlocked every governance write. Found by the fix for 104/105 breaking
     // a probe, not by review.

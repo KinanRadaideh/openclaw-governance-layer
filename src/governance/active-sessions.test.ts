@@ -30,8 +30,8 @@ const viewerOfA: GovernanceActor = { username: "v", role: "viewer", assignedAgen
  * Every agent id these tests seed.
  *
  * `groupAgentIds` became required with finding 139, and passing the full roster
- * here keeps each existing test measuring what it was written to measure — the
- * *agent-scope* filter — rather than accidentally measuring the new group one.
+ * here keeps each existing test measuring what it was written to measure, the
+ * *agent-scope* filter, rather than accidentally measuring the new group one.
  * The group filter has its own describe block at the end of this file.
  */
 const ALL: readonly string[] = ["agent-a", "agent-b", "agent-c", "secret-agent"];
@@ -192,7 +192,7 @@ describe("group isolation (finding 139)", () => {
   // The supplier behind this view is the Gateway's own run registry, which is
   // installation-wide: every run on the host, of every organisation. Until
   // 2026-08-28 the only filter was `canViewAgent`, and an Administrator has
-  // unlimited *agent* scope — so an Administrator of one group saw every other
+  // unlimited *agent* scope, so an Administrator of one group saw every other
   // group's live sessions, on the panel whose purpose is catching a runaway
   // agent. Finding 119's shape, one route over, found by the pre-M3 route audit.
 
@@ -232,7 +232,7 @@ describe("group isolation (finding 139)", () => {
   it("hides an unregistered agent rather than guessing its group", () => {
     // M5 made registration mandatory at the gate, so an agent running tool
     // calls has a record. One without a record cannot be attributed to any
-    // organisation, and showing it to an arbitrary group would be a guess —
+    // organisation, and showing it to an arbitrary group would be a guess,
     // the same fail-closed rule the supplier applies to a run with no agent id.
     registerActiveSessionsSupplier(() => [
       session("known", "agent-a", 10),

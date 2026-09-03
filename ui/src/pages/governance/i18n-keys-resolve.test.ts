@@ -10,14 +10,14 @@
 // cannot, because `t()` takes a string; a component test cannot, because a key
 // resolving to itself is a perfectly good string and every assertion about
 // *which rows appear* still passes; and `lint:ui:i18n` cannot, because it hunts
-// for the **opposite** mistake — a string that should have been a key.
+// for the **opposite** mistake. A string that should have been a key.
 //
 // Running this check for the first time on 2026-09-01 found **two more of the
 // same class** that the T38 pass had walked straight past, both in the panel an
 // operator opens to ask why an agent is blocked:
 //
-//   - `governance.kill.engaged` — the status beside "Emergency stop"
-//   - `governance.rules.expires` — the word before a rule's expiry date
+//   - `governance.kill.engaged`, the status beside "Emergency stop"
+//   - `governance.rules.expires`, the word before a rule's expiry date
 //
 // The first rendered as the literal `governance.kill.engaged`. Neither was in
 // the catalogue at all; `governance.rules` did not exist as a block.
@@ -25,7 +25,7 @@
 // ## Why it reads the source rather than the rendered page
 //
 // A rendering test finds a missing key only on a panel it happens to render, in
-// a state it happens to reach — the deployment panel needs a Root identity and
+// a state it happens to reach. The deployment panel needs a Root identity and
 // a loaded report, and the two found here need a locked-down agent and a rule
 // with an expiry. Reading every `t("…")` out of the source covers the keys no
 // fixture reaches, which is where they hide.
@@ -58,17 +58,17 @@ function sourceFiles(dir: string, found: string[] = []): string[] {
 /**
  * This directory.
  *
- * The file runs in the **node** environment rather than jsdom — the header at
- * the top of the file — because under jsdom `import.meta.url` is not a `file:`
+ * The file runs in the **node** environment rather than jsdom, the header at
+ * the top of the file, because under jsdom `import.meta.url` is not a `file:`
  * URL and `fileURLToPath` refuses it. Nothing here touches the DOM, so node is
  * the honest environment for it anyway.
  */
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 
-/** `t("a.b.c")` — the ordinary form. */
+/** `t("a.b.c")`. The ordinary form. */
 const LITERAL_KEY = /\bt\(\s*"([a-zA-Z0-9_.]+)"/g;
 /**
- * ``t(`a.b.${x}`)`` — a family selected at runtime, as the deployment report
+ * ``t(`a.b.${x}`)``. A family selected at runtime, as the deployment report
  * does for `status.pass` / `status.warn` / `status.fail` / `status.unknown`.
  * Only the fixed prefix can be checked, and checking that it names a real
  * object is exactly what would have caught finding 179.
@@ -105,7 +105,7 @@ describe("every governance i18n key resolves", () => {
 
   it("finds keys to check, so a broken collector cannot pass silently", () => {
     // Without this the regexes could stop matching and every assertion below
-    // would vacuously succeed — which is the failure mode of a test that
+    // would vacuously succeed, which is the failure mode of a test that
     // iterates over something it gathered itself.
     expect(literal.size).toBeGreaterThan(200);
   });

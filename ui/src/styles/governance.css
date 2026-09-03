@@ -1,0 +1,165 @@
+/* Governance page: the section jump-nav, and text inputs sized to their own
+   placeholder.
+
+   Both exist for the same reason. The settings surface was built for short
+   right-aligned controls, and the governance panels put long placeholders and
+   multi-control clusters into it. Two things followed: placeholders were cut
+   off mid-word ("Optional, OpenClaw ch"), and a control cluster wider than its
+   row had its last button clipped off the edge entirely. */
+
+/* ------------------------------------------------------------------ */
+/* Text inputs                                                         */
+/* ------------------------------------------------------------------ */
+
+/* A stacked row puts its control cluster in a column, and
+   `.settings-row__control` sets `align-items: center` for the row case. In a
+   column that is the *cross* axis, so every input shrank to its intrinsic
+   width, which for an <input> is its default `size` attribute and has nothing
+   to do with the placeholder it was given. Stretching is what a stacked row
+   means. */
+.settings-row--stacked .settings-row__control {
+  align-items: stretch;
+}
+
+/* Give every governance input room for its own placeholder, without letting it
+   push its row sideways. `min()` keeps the floor below the container width, so
+   a narrow viewport shrinks the field instead of overflowing the page. */
+.governance-page .settings-row__control .input,
+.governance-page .settings-row__control input[type="text"],
+.governance-page .settings-row__control input[type="password"],
+.governance-page .settings-row__control input[type="number"],
+.governance-page .settings-row__control input[type="search"] {
+  min-width: min(100%, 24ch);
+  max-width: 100%;
+}
+
+/* A stacked control has the whole row, so the field takes it. */
+.governance-page .settings-row--stacked .settings-row__control > .input {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Inline clusters wrap rather than clipping their last control. Without this
+   the "Create account" button sat outside the visible row: `.settings-row__control`
+   disables wrapping on purpose (a wrappable shrink-to-fit flex container
+   collapses to its widest item in Chromium), and the fix is to give the cluster
+   a definite width first, which `flex-basis: 100%` does inside a wrapping row. */
+.governance-page .settings-row:not(.settings-row--stacked) {
+  flex-wrap: wrap;
+}
+
+.governance-page .settings-row:not(.settings-row--stacked) > .settings-row__control {
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+/* ------------------------------------------------------------------ */
+/* Section jump-nav                                                    */
+/* ------------------------------------------------------------------ */
+
+.governance-page__layout {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4, 1rem);
+}
+
+.governance-page__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Sticky, and scrollable on its own so a long section list never pushes the
+   page taller than the viewport. This is deliberately not the settings
+   sidebar: that one moves between Governance, Approvals and the rest, and this
+   one moves within Governance. */
+.governance-nav {
+  position: sticky;
+  top: var(--space-3, 0.75rem);
+  flex: 0 0 auto;
+  width: 13.5rem;
+  max-height: calc(100vh - 4rem);
+  overflow-y: auto;
+  padding: var(--space-2, 0.5rem);
+  border: 1px solid var(--border, rgb(255 255 255 / 8%));
+  border-radius: var(--radius-lg, 0.75rem);
+  background: var(--card, transparent);
+}
+
+.governance-nav__heading {
+  margin: 0 0 var(--space-2, 0.5rem);
+  padding: 0 var(--space-2, 0.5rem);
+  color: var(--muted);
+  font-size: var(--control-ui-text-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.governance-nav__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.governance-nav__link {
+  display: block;
+  width: 100%;
+  padding: 0.35rem var(--space-2, 0.5rem);
+  border: none;
+  border-radius: var(--radius-md, 0.5rem);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--control-ui-text-sm);
+  text-align: left;
+  cursor: pointer;
+
+  /* One line per section, so the nav stays scannable. The full title is on the
+     `title` attribute, which is the same hover affordance the inputs use. */
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transition: background var(--duration-fast, 120ms) var(--ease-out, ease);
+}
+
+.governance-nav__link:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.governance-nav__link[aria-current="true"] {
+  background: var(--bg-hover);
+  color: var(--fg);
+  font-weight: 600;
+}
+
+/* Anchor targets. `scroll-margin-top` keeps a jumped-to heading clear of the
+   sticky page chrome instead of tucking it under the top edge. */
+.governance-section-anchor {
+  scroll-margin-top: var(--space-4, 1rem);
+}
+
+/* Below the settings breakpoint the nav becomes a horizontal strip above the
+   content: a 13.5rem column and a form cluster do not both fit. */
+@media (width <= 900px) {
+  .governance-page__layout {
+    flex-direction: column;
+  }
+
+  .governance-nav {
+    position: static;
+    width: 100%;
+    max-height: none;
+  }
+
+  .governance-nav__list {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .governance-nav__link {
+    width: auto;
+  }
+}

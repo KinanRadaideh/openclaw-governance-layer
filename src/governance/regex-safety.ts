@@ -4,7 +4,7 @@
 // operators (down to the User tier) and are executed by the policy engine on
 // **every governed tool call**, against strings the agent controls. A pattern
 // like `(a+)+$` takes exponential time on a non-matching input, so a single
-// rule can hang the security gate — a denial of service against the control
+// rule can hang the security gate. A denial of service against the control
 // itself, reachable by the least-privileged tier that can write rules.
 //
 // JavaScript offers no way to time-limit a running regex: once
@@ -14,7 +14,7 @@
 // properly but is a native module, which the project's open-source-only and
 // zero-dependency constraints argue against).
 //
-// This is a conservative heuristic, not a decision procedure — detecting
+// This is a conservative heuristic, not a decision procedure. Detecting
 // exponential regexes in general is undecidable in practice. It targets the
 // well-known dangerous shape: a quantified group whose body is itself
 // quantified, e.g. `(a+)+`, `(a*)*`, `(a+)*`, `(?:x+)+`. Ordinary anchored
@@ -25,7 +25,7 @@ export type RegexSafety = { safe: true } | { safe: false; reason: string };
 
 /**
  * Finds a quantifier (`*`, `+`, `{n,}`) applied directly to a group that
- * itself contains a quantifier — the classic exponential-backtracking shape.
+ * itself contains a quantifier: the classic exponential-backtracking shape.
  */
 function hasNestedQuantifier(pattern: string): boolean {
   for (let index = 0; index < pattern.length; index += 1) {
@@ -94,7 +94,7 @@ function findGroupEnd(pattern: string, open: number): number {
  * independent choices to backtrack through, and the cost is exponential in `n`
  * regardless of whether `n` is fixed. `^(.*a){20}$` passed this check and was
  * measured at **142,431 ms** for a single test against a 31-character
- * non-matching input — with the event loop blocked throughout, because
+ * non-matching input: with the event loop blocked throughout, because
  * ECMAScript cannot interrupt a running expression.
  *
  * A bare `{1}` and `{0,1}` are excluded: one repetition is not a repetition,
@@ -135,12 +135,12 @@ function isQuantified(pattern: string, index: number): boolean {
  *
  * | pattern           | verdict  | time against a non-matching input |
  * | ----------------- | -------- | ---------------------------------- |
- * | `^(a+)+$`         | refused  | —                                  |
+ * | `^(a+)+$`         | refused  |-|
  * | `^(a?){18}$`      | ACCEPTED | 176 ms                             |
  * | `^(a?){22}$`      | ACCEPTED | 2,718 ms                           |
  * | `^(a?){26}$`      | ACCEPTED | **44,513 ms**                      |
  *
- * Doubling per increment of `n` — textbook exponential — and `n` is a number the
+ * Doubling per increment of `n`, textbook exponential, and `n` is a number the
  * rule's author picks. This module's own header states exactly why that matters:
  * the pattern "is written by the least-privileged tier that can author a rule
  * and is then run, on the Gateway's only thread, against agent-controlled text",
@@ -179,7 +179,7 @@ function containsQuantifier(body: string): boolean {
       return true;
     }
     // A `?` directly after an unescaped `(` opens a non-capturing group or a
-    // lookaround — `(?:`, `(?=`, `(?!`, `(?<` — and quantifies nothing. Reading
+    // lookaround, `(?:`, `(?=`, `(?!`, `(?<`, and quantifies nothing. Reading
     // it as a quantifier would refuse `((?:ab))+`, which is fixed-length and
     // harmless, and this module's stated policy is that over-rejecting pushes
     // operators toward catch-alls.
@@ -239,7 +239,7 @@ function firstTokenSignature(branch: string): string | undefined {
   const trimmed = branch.replace(/^\(\?[:=!<][^)]*\)/, "").replace(/^\^/, "");
   const head = trimmed[0];
   if (head === undefined) {
-    // An empty branch — as in `(a|)+` — matches at any position, so it collides
+    // An empty branch, as in `(a|)+`, matches at any position, so it collides
     // with everything.
     return "";
   }
@@ -264,7 +264,7 @@ function firstTokenSignature(branch: string): string | undefined {
  * 28-character non-matching input it pinned a CPU core for over thirteen
  * minutes before being killed. That matters here specifically because the
  * pattern is written by the least-privileged tier that can author a rule and is
- * then run, on the Gateway's only thread, against agent-controlled text — so a
+ * then run, on the Gateway's only thread, against agent-controlled text, so a
  * User with one assigned agent could hang the whole installation.
  */
 function hasAmbiguousAlternation(pattern: string): boolean {
@@ -287,7 +287,7 @@ function hasAmbiguousAlternation(pattern: string): boolean {
       if (signature === undefined) {
         continue;
       }
-      // An empty alternative — `(a|)+` — matches at every position, so the
+      // An empty alternative, `(a|)+`, matches at every position, so the
       // repetition can iterate without consuming input and every other branch
       // overlaps it.
       if (signature === "") {

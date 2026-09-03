@@ -16,7 +16,7 @@ import { join } from "node:path";
  * The override was documented as the thing that keeps tests off real operator
  * state, but that only held for tests that knew to set it. Governance is
  * evaluated inside `runBeforeToolCallHook`, so *every* pre-existing OpenClaw
- * test that drives a tool call reaches it — and those tests predate governance
+ * test that drives a tool call reaches it: and those tests predate governance
  * and set nothing. In practice they were reading the developer's live
  * `policy.json` (making unrelated test outcomes depend on local rules) and
  * appending to the real audit ledger, which had grown to 340 KB of test noise
@@ -50,7 +50,7 @@ export function governanceHomeDir(): string {
  * answer for OpenClaw's own harness suite is no. Those tests predate governance
  * entirely, drive synthetic tool calls through the hook, and have no operator,
  * no policy and no approver. Under a shipped default-deny posture every one of
- * those calls is correctly refused or escalated — and 38 host tests fail for
+ * those calls is correctly refused or escalated, and 38 host tests fail for
  * reasons that have nothing to do with what they are testing.
  *
  * So a fresh policy created in *this* situation starts `off`. The scope is
@@ -78,7 +78,7 @@ export function isUnconfiguredTestRun(): boolean {
  * already satisfies this. The check is not about those. It is about the fact
  * that **M5 turns an identifier into a path segment**, and the moment that
  * happens a `..` in the wrong field stops being a bad label and becomes a
- * traversal out of the governance directory — the same class T23 spent a whole
+ * traversal out of the governance directory: the same class T23 spent a whole
  * task on, arriving here by a different route.
  *
  * The id reaches this function from a session, which reads it from
@@ -106,8 +106,8 @@ export class UnsafeGroupIdError extends Error {
  *
  * **Throws rather than falling back to the installation root**, and that is the
  * whole point of the function. A caller that has lost track of its group would
- * otherwise write into the shared directory — where every group's reader can
- * see it — which is precisely the leak M5 exists to make structurally
+ * otherwise write into the shared directory, where every group's reader can
+ * see it, which is precisely the leak M5 exists to make structurally
  * impossible. Finding 119 was that leak arriving through a filter; a silent
  * fallback here would be the same leak arriving through a path.
  */
@@ -122,7 +122,7 @@ export function groupDir(groupId: string): string {
 /**
  * Where events that belong to no group are recorded (M5).
  *
- * Mandatory registration means the gate refuses an agent it has no record of —
+ * Mandatory registration means the gate refuses an agent it has no record of,
  * and requirement #5 says **100%** of agent actions are recorded, so that
  * refusal has to be written down. It cannot go in the agent's own group ledger,
  * because not having one is the entire reason it was refused. Without somewhere
@@ -156,7 +156,7 @@ export async function ensureGroupDir(groupId: string): Promise<void> {
 // a group. Usernames are unique per installation (a stated limitation of the
 // login, which is by username alone), agent ids are unique per installation
 // (M5 kept them so, because session keys are `agent:<id>:…` and are global),
-// and the ledger key and checkpoint are shared **on purpose** — see below.
+// and the ledger key and checkpoint are shared **on purpose**. See below.
 // ---------------------------------------------------------------------------
 
 export function usersFilePath(): string {
@@ -171,7 +171,7 @@ export function sessionsFilePath(): string {
  * Where the command line remembers who is signed in (T5).
  *
  * Inside the governance directory, so the self-protecting core denial that
- * already covers that directory covers this too — a governed agent cannot read
+ * already covers that directory covers this too. A governed agent cannot read
  * the token and act as the operator who owns it.
  */
 export function cliSessionFilePath(): string {
@@ -196,7 +196,7 @@ export function attachmentsDir(groupId: string): string {
 //
 // `groupId` is **required**, not optional with a default. An optional parameter
 // would compile at every call site that forgot it and silently write to a
-// shared file, which is the failure this separation exists to prevent — and it
+// shared file, which is the failure this separation exists to prevent, and it
 // would fail quietly, in the direction of leaking. Required means the type
 // checker enumerates every caller that has to answer "whose is this?", which is
 // exactly the question M5 is about.
@@ -214,7 +214,7 @@ export function ledgerFilePath(groupId: string): string {
  * Secret keying every group's hash chain (see ledger-key.ts).
  *
  * A separate file so a deployment can give it different permissions, a
- * different owner, or replace it with a mount from outside the host — the whole
+ * different owner, or replace it with a mount from outside the host. The whole
  * point being that reading the ledger must not also hand over the ability to
  * rewrite it.
  *
@@ -222,7 +222,7 @@ export function ledgerFilePath(groupId: string): string {
  *
  * Splitting the ledger per group invites splitting the key with it. That would
  * have cost the project its strongest security claim, which reads *"HMAC-SHA256
- * under a **per-installation key**"* — one secret, stated once. Per-group keys
+ * under a **per-installation key**"*: one secret, stated once. Per-group keys
  * turn that into N secrets and force the sentence to be rewritten weaker, and
  * requirement #6 (tamper-evident logging over **all** recorded actions) is a
  * requirement while multi-tenancy is a feature added on top. Where the two

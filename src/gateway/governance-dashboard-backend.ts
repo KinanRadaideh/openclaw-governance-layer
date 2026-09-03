@@ -2,7 +2,7 @@
 //
 // **Its own module because `governance-dashboard-api.ts` reached 724 lines
 // against the 700-line limit when these two routes were added inline**, and the
-// pre-commit lint gate refuses that — the gate built on 2026-08-28 after finding
+// pre-commit lint gate refuses that. The gate built on 2026-08-28 after finding
 // 136 was this limit being crossed unnoticed while the documentation asserted it
 // was clean. That is the second time it has caught a change on the first attempt.
 //
@@ -37,7 +37,7 @@ export type CodexBackendRouteContext = {
  * this at Administrator to match `policy/mode`. That comparison is wrong: the
  * posture changes *governance's own state* in `policy.json`, which this layer
  * owns, while this writes `plugins.entries.codex.enabled` into **OpenClaw's
- * configuration** and refreshes the plugin registry — the layer reaching outside
+ * configuration** and refreshes the plugin registry. The layer reaching outside
  * itself, which M6 established as a reversal of the trust direction.
  *
  * The blast radius settles it. Disabling this backend does not only change what
@@ -77,7 +77,7 @@ export async function handleGovernanceCodexBackendRoutes(
     if (!requireRole(res, session, "root") || !session) {
       return true;
     }
-    // The organisation comes from the **session**, never from the request — the
+    // The organisation comes from the **session**, never from the request. The
     // rule `registerAgent` established and M5 generalised to every surface. The
     // setting itself is installation-wide; the *ledger entry* recording who
     // changed it belongs to the organisation the actor signed in to.

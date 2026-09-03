@@ -1,17 +1,17 @@
-// T35 — making the wrong actor impossible to record.
+// T35. Making the wrong actor impossible to record.
 //
 // `AuditActorInput` sits on the write path of every administrative action in
 // the layer, which is the place where being wrong is least visible and matters
 // most: the ledger is what an investigation has instead of memory. It produced
-// two defects in two days, and **the two are different mistakes** — a fact the
+// two defects in two days, and **the two are different mistakes**, a fact the
 // first write-up of T35 got wrong, and which decides the design:
 //
-//   - **Finding 149** — `lockDownAgent(group, agentId, "cli")`, written two
+//   - **Finding 149**, `lockDownAgent(group, agentId, "cli")`, written two
 //     lines below a resolved operator, discarding it. A bare `string` arm
 //     accepted the literal, so the emergency stop was the one administrative
 //     action on the command line that could not name a person. **Forgetting an
 //     authority you hold.**
-//   - **Finding 161** — `{ name: "cli", role: "root" }`, recording a
+//   - **Finding 161**, `{ name: "cli", role: "root" }`, recording a
 //     destructive account deletion as the act of a Root that does not exist, on
 //     the code path that runs precisely when nobody can sign in. **Inventing an
 //     authority nobody holds.**
@@ -25,8 +25,8 @@
 // T35 claimed it was. Reintroducing it and running `tsgo` showed it fails on
 // `CliIdentity`'s missing `username`, with nothing to do with this union. The
 // claim was written from reasoning rather than from the compiler; checking it
-// is what turned T35 from "narrow the union" — which would have caught neither
-// defect, because `"cli"` is a legitimate label — into what is built here.
+// is what turned T35 from "narrow the union", which would have caught neither
+// defect, because `"cli"` is a legitimate label, into what is built here.
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -59,7 +59,7 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-describe("a labelled origin cannot be given a tier — finding 161", () => {
+describe("a labelled origin cannot be given a tier. Finding 161", () => {
   it("refuses a named actor that claims a labelled origin's name", () => {
     // The shape that shipped: a destructive account deletion recorded as Root.
     expect(() => splitAuditActor({ name: "cli", role: "root" })).toThrow(FabricatedActorError);
@@ -89,14 +89,14 @@ describe("a labelled origin cannot be given a tier — finding 161", () => {
       role: "root",
     });
     expect(splitAuditActor({ name: "malek" })).toEqual({ name: "malek" });
-    // `undefined` is tolerated on purpose — `lockDownAgent` takes an optional
-    // actor — and that tolerance predates this guard and must survive it.
+    // `undefined` is tolerated on purpose, `lockDownAgent` takes an optional
+    // actor, and that tolerance predates this guard and must survive it.
     expect(splitAuditActor(undefined)).toEqual({ name: "" });
   });
 
   it("throws rather than normalising, so the bug cannot ship looking correct", async () => {
     // Silently rewriting `{ name: "cli", role: "root" }` to `CLI_ACTOR` would
-    // produce a plausible entry and hide the defect — which is how finding 149
+    // produce a plausible entry and hide the defect, which is how finding 149
     // survived six days. A caller in this position has a real actor available
     // and is discarding it; that is worth stopping, not smoothing over.
     await expect(

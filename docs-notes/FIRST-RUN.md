@@ -1,4 +1,4 @@
-# Start here — from a clean machine to a governed agent
+# Start here: from a clean machine to a governed agent
 
 **Written 2026-09-03 (T45).** For somebody meeting this project for the first
 time: what it is, what it needs, and the shortest honest path to watching it
@@ -18,13 +18,13 @@ and write files, and reach the network. Existing agent runtimes either ask the
 person for permission each time or trust the agent completely. Neither gives an
 organisation what it actually needs.
 
-This project is a **hard fork of OpenClaw** — an open-source agent runtime — with
+This project is a **hard fork of OpenClaw**, an open-source agent runtime, with
 a governance layer built into its core. Four things it adds:
 
 | What                        | In practice                                                                                                                                            |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **A default-deny gate**     | Every tool call the agent makes is checked before it runs. Anything not allowed is refused                                                             |
-| **A tamper-evident ledger** | What the agent did, what was refused, and who changed the rules — hash-chained, so an altered entry is detectable                                      |
+| **A tamper-evident ledger** | What the agent did, what was refused, and who changed the rules. Hash-chained, so an altered entry is detectable                                       |
 | **Four roles**              | Root, Administrator, User, Viewer. Root manages people; an Administrator manages agents; a User operates the agents assigned to them; a Viewer watches |
 | **An emergency stop**       | Stop an agent immediately, and be told whether it actually stopped                                                                                     |
 
@@ -33,20 +33,20 @@ no configuration in which an agent runs ungoverned. That is the whole design
 argument, and it is why the fork exists rather than an extension.
 
 Two surfaces sit on top of all of it: a **web dashboard** and a **command line**
-(`openclaw governance …`). The command line matters more than it sounds — the
+(`openclaw governance …`). The command line matters more than it sounds. The
 dashboard is deliberately reachable only through an SSH tunnel, so the terminal
 is the surface that works before the tunnel exists.
 
 ### The one thing to understand before installing
 
-**The normal OpenClaw install cannot give you this.** Both published routes —
+**The normal OpenClaw install cannot give you this.** Both published routes,
 
 ```bash
 curl -fsSL https://openclaw.ai/install.sh | bash
 npm install -g openclaw@latest
 ```
 
-— fetch upstream's npm package. This fork's commits were never published there,
+fetch upstream's npm package. This fork's commits were never published there,
 so either one silently installs an OpenClaw **with no governance in it**, and
 nothing will tell you. There is no error, and the CLI looks right.
 
@@ -60,7 +60,7 @@ all `scripts/vps-install.sh` does.
 > ```
 >
 > The fork answers with the policy, or with `Not signed in.` Stock OpenClaw
-> answers `unknown command`. **`Not signed in.` is a pass** — it means the
+> answers `unknown command`. **`Not signed in.` is a pass**. It means the
 > governance layer is there and refusing an unauthenticated caller, which is
 > exactly its job.
 
@@ -77,13 +77,13 @@ Path A is enough to see the dashboard, create accounts, write rules and watch
 the gate refuse a call. Path B is what the architecture actually describes, and
 it is the one that produces evidence worth keeping.
 
-Both need the same machine size: **8 GB RAM**. The build is the hungry part — a
+Both need the same machine size: **8 GB RAM**. The build is the hungry part. A
 2 GB box will swap through it or be killed outright. About 5 GB of disk, and Node
 `>=22.22.3 <23`, `>=24.15.0 <25`, or `>=25.9.0`.
 
 ---
 
-## 3. Path A — running it where you are
+## 3. Path A: running it where you are
 
 ```bash
 git clone <repository-url> openclaw-governance
@@ -112,7 +112,7 @@ Skip to §6 to confirm it is actually governing.
 
 ---
 
-## 4. Path B — a clean Linux server, in the order that works
+## 4. Path B: a clean Linux server, in the order that works
 
 This is the same sequence `LINUX-INSTALL.md` gives, **reordered so that a server
 built ten minutes ago can follow it top to bottom.** Everything here is an
@@ -123,7 +123,7 @@ been used for something else already has all three and hides them.
 ### 4.1 Before anything else: give yourself a user manager
 
 On a bare server reached as root over SSH there is usually no systemd user
-session, and without one **every `systemctl --user` command fails** — including
+session, and without one **every `systemctl --user` command fails**, including
 the ones that install the service. Do this first, not last:
 
 ```bash
@@ -133,7 +133,7 @@ ls -ld /run/user/0 && systemctl is-active user@0.service
 ```
 
 Both must succeed before you continue. Lingering is also what keeps the Gateway
-alive after you close SSH — a user service dies with its session otherwise, and
+alive after you close SSH. A user service dies with its session otherwise, and
 a kill switch that stops when you log out is not a kill switch.
 
 _(If your provider disables root SSH, log in as the sudo-capable account and run
@@ -152,10 +152,10 @@ source ~/.bashrc
 `pam_systemd` normally sets these at login; a bare root SSH shell may never
 invoke it. Without the second one, `openclaw daemon install` fails with
 **"Unit file openclaw-gateway.service does not exist"** about a file that is
-demonstrably there — because the missing address makes it look for the unit in
+demonstrably there, because the missing address makes it look for the unit in
 the wrong scope. Setting `XDG_RUNTIME_DIR` alone does not help; set both.
 
-_(This build patches the underlying bug — finding 232, reported upstream in
+_(This build patches the underlying bug. Finding 232, reported upstream in
 `UPSTREAM-BUG-REPORT.md`. The exports are still correct on any older build and
 on stock OpenClaw.)_
 
@@ -177,7 +177,7 @@ git checkout governance-layer
 Add `--with-node` if the server has no suitable Node and you are content for the
 installer to fetch one.
 
-The installer ends by running the governance layer's own platform probe —
+The installer ends by running the governance layer's own platform probe,
 **14 checks**, and the install fails if any of them do. That output is worth
 keeping: it is the evidence for the Linux deployment requirement, and it is the
 first thing to paste if you ask for help.
@@ -185,7 +185,7 @@ first thing to paste if you ask for help.
 ### 4.4 Ordinary OpenClaw, from here on
 
 Building from source is the **only** fork-specific step. There is nothing to
-enable and nothing to switch on — the gate is compiled in and active from the
+enable and nothing to switch on. The gate is compiled in and active from the
 first start.
 
 ```bash
@@ -206,8 +206,8 @@ ssh -N -L 18789:127.0.0.1:18789 <user>@<vps-host>
 
 Then open `http://127.0.0.1:18789/settings/governance`.
 
-> **Do not publish that port.** Account signup is ungated — creating the first
-> Root creates the organisation — and that is defensible _only_ because the port
+> **Do not publish that port.** Account signup is ungated, creating the first
+> Root creates the organisation, and that is defensible _only_ because the port
 > is unreachable from the network. Expose it and you have published self-service
 > Root.
 
@@ -215,8 +215,8 @@ Then open `http://127.0.0.1:18789/settings/governance`.
 
 ## 5. Give it a model
 
-The gate does not care which model you use: it inspects a tool call — a command,
-a path, a hostname — and knows nothing about what produced it. Swapping providers
+The gate does not care which model you use: it inspects a tool call, a command,
+a path, a hostname, and knows nothing about what produced it. Swapping providers
 changes who decides _what to attempt_, not who decides _whether it is allowed_.
 
 For Kimi (Moonshot), the provider id is `moonshot`:
@@ -247,7 +247,7 @@ openclaw governance audit tail      # entries appear as things happen
 ```
 
 `governance deployment` is written to run over a plain SSH session, before any
-tunnel exists — which is the moment you most need to know whether the listener is
+tunnel exists, which is the moment you most need to know whether the listener is
 exposed.
 
 Then rehearse the whole sequence against real modules:
@@ -267,14 +267,14 @@ entry and confirms verification catches it.
 ## 7. Your first five minutes as an operator
 
 1. **Create the first Root** in the dashboard. This creates the organisation. It
-   is a one-time bootstrap — the form refuses once an account exists.
+   is a one-time bootstrap. The form refuses once an account exists.
 2. **Create an Administrator.** Root manages people; Administrators own agents.
    Root deliberately cannot be the Administrator answerable for an account, which
    keeps one statable rule instead of two.
 3. **Register or provision an agent** as that Administrator. Registration is
    mandatory: an agent with no record is refused at the gate on every call.
 4. **Assign the agent to a User.** That is how a User comes to hold one.
-5. **Prompt the agent to read a credential file** — for example `~/.aws/credentials`.
+5. **Prompt the agent to read a credential file**, for example `~/.aws/credentials`.
 
 Step 5 is the demonstration. That path is a **core denial**: Root cannot switch
 it off, so the refusal is not an artefact of a rule written for the demo. Then:
@@ -296,8 +296,8 @@ made it. **That entry is the point of the entire project.**
 | Every command                  | `docs-notes/CLI-REFERENCE.md`                             |
 | What each role may do          | `docs-notes/ROLE-MODEL.md`                                |
 | How to write policy rules      | `docs-notes/WRITING-PERMISSIONS.md`, `PERMISSION-SPEC.md` |
-| What is built and what is left | `mg/HANDOFF.md` — §1 state, §6 outstanding, §7 caveats    |
-| What went wrong and was fixed  | `docs-notes/QA-IN-PLAIN-TERMS.md` — plain language        |
+| What is built and what is left | `mg/HANDOFF.md`, §1 state, §6 outstanding, §7 caveats     |
+| What went wrong and was fixed  | `docs-notes/QA-IN-PLAIN-TERMS.md`, plain language         |
 
 ---
 
@@ -305,11 +305,11 @@ made it. **That entry is the point of the entire project.**
 
 **Signup is ungated by design, and the tunnel is the control.** Creating the
 first Root is open because the port is unreachable from the network. This is a
-deliberate trade recorded in `HANDOFF.md` §7, not an oversight — but it means the
+deliberate trade recorded in `HANDOFF.md` §7, not an oversight, but it means the
 deployment shape is part of the security model rather than incidental to it.
 
 **One installation holds one organisation.** The layer has full multi-tenant
-machinery — per-organisation storage, isolation at every route — and a decision
+machinery, per-organisation storage, isolation at every route, and a decision
 taken 2026-08-30 caps an installation at a single organisation, because
 installation-wide controls need an unambiguous owner. Several organisations means
 several servers, which is what it always meant.

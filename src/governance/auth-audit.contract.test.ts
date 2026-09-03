@@ -1,8 +1,8 @@
 // Keeps the dashboard's hand-mirrored list of authentication actions equal to
 // the one the server actually writes.
 //
-// The dashboard bundle deliberately does not import from `src/` — every type in
-// `ui/src/pages/governance/api.ts` is mirrored by hand for that reason — so the
+// The dashboard bundle deliberately does not import from `src/`, every type in
+// `ui/src/pages/governance/api.ts` is mirrored by hand for that reason, so the
 // "Sign-ins" filter carries its own copy of the action names. Two copies of one
 // list is the exact arrangement this project has found defects in more than any
 // other: `userAsk` written under one spelling and read under another, the
@@ -10,7 +10,7 @@
 // fifty-two, three modules folding account names privately.
 //
 // The standing lesson from those is that two parts which must agree should be
-// derived from one definition — and where a boundary makes that impossible, the
+// derived from one definition, and where a boundary makes that impossible, the
 // agreement gets a test rather than a comment asking people to remember. This
 // is that test. Add an action on one side only and it fails here, naming which
 // side is behind.
@@ -47,7 +47,7 @@ describe("the dashboard's authentication action list matches the server's", () =
   });
 
   it("still covers the four events plus the suppression notice", () => {
-    // A guard that compares two empty sets passes and means nothing — the
+    // A guard that compares two empty sets passes and means nothing. The
     // failure mode round thirteen found in the coverage guard, which had always
     // passed and could not fail. Asserting the size is what stops this test
     // becoming that one.

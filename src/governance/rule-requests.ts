@@ -1,14 +1,14 @@
 // Rule requests: the User tier's concrete capability.
 //
 // Design doc §1.6 grants Users "limited, scoped permissions to modify
-// non-critical agent parameters" — narrower than an Administrator, but more
+// non-critical agent parameters". Narrower than an Administrator, but more
 // than a Viewer's strict read-only access. Interpreted here as: a User may
 // *propose* an allow-rule, but only an Administrator may grant it.
 //
 // This keeps the security property intact (no privilege is created by a
 // non-administrator) while giving the tier a real, enforceable job. It also
 // closes a genuine product gap: before this, an operator whose legitimate
-// action was denied had no in-product way to ask for access — the "silent
+// action was denied had no in-product way to ask for access. The "silent
 // failure with no path forward" that the design doctrine treats as the worst
 // outcome.
 import { readJsonIfExists } from "../infra/json-files.js";
@@ -79,19 +79,19 @@ export const MAX_PENDING_REQUESTS_PER_USER = 20;
 /**
  * Total retained requests. The per-user pending cap stops a burst, but decided
  * requests were never removed, so a patient requester could grow the file
- * without limit over time. Pruning drops the oldest **decided** entries only —
+ * without limit over time. Pruning drops the oldest **decided** entries only,
  * a pending request is somebody waiting on an answer and is never discarded.
  */
 export const MAX_STORED_RULE_REQUESTS = 500;
 
 /**
  * Test-only override of the cap, in the shape `setLedgerRotateBytesForTests`
- * already uses — same problem, third occurrence (finding 146).
+ * already uses: same problem, third occurrence (finding 146).
  *
  * The tests that prove pruning works reached the real cap **by writing to it**:
  * 525 requests, each submitted and then decided, and every one of those writes
  * rewrites the whole file with a durable `fsync`. That took 76 seconds alone and
- * timed out inside a full suite run, where it competes with everything else —
+ * timed out inside a full suite run, where it competes with everything else,
  * so the test reported on machine load rather than on the code.
  *
  * T30 fixed exactly this twice, for the two ledger-rotation tests, and wrote
@@ -99,8 +99,8 @@ export const MAX_STORED_RULE_REQUESTS = 500;
  * instance and was not covered by that**, which is the part worth keeping: a
  * caveat naming two of three cases teaches a reader to dismiss the third.
  *
- * The property under test — *the oldest decided requests are dropped and pending
- * ones never are* — has nothing to do with the number 500. A dozen entries prove
+ * The property under test, *the oldest decided requests are dropped and pending
+ * ones never are*, has nothing to do with the number 500. A dozen entries prove
  * it deterministically. The production default is asserted separately, so
  * lowering it here cannot hide a change to the real one.
  *
@@ -128,7 +128,7 @@ function pruneDecided(requests: RuleRequest[]): RuleRequest[] {
   const decided = requests.filter((request) => request.status !== "pending");
   const keepDecided = Math.max(0, cap - pending.length);
   // `requests` is append-ordered, so the tail is the most recent.
-  // `slice(-0)` is `slice(0)` — the whole array, not an empty one. Once pending
+  // `slice(-0)` is `slice(0)`. The whole array, not an empty one. Once pending
   // filled the budget this silently returned every decided request ever made
   // and the cap stopped existing.
   return [...pending, ...(keepDecided === 0 ? [] : decided.slice(-keepDecided))];
@@ -138,7 +138,7 @@ async function ensureHomeDir(groupId: string): Promise<void> {
   // The **group's** directory, not just the installation root (M5).
   //
   // Every file this module touches now lives under `groups/<groupId>/`, and
-  // `withFileLock` creates its lock beside the file it guards — so a first write
+  // `withFileLock` creates its lock beside the file it guards, so a first write
   // for a brand-new organisation failed with ENOENT on the *lock*, before the
   // write it was protecting was ever attempted. A fresh group is the one state
   // every installation passes through exactly once, which is precisely the kind
@@ -165,7 +165,7 @@ export async function listRuleRequests(groupId: string): Promise<RuleRequest[]> 
  * three administrative actions that did not meet that claim.
  *
  * Optional, so a caller with no authenticated tier records none rather than
- * inventing one — the rule `splitAuditActor` enforces.
+ * inventing one: the rule `splitAuditActor` enforces.
  */
 type ActorTier = { requestedByRole?: GovernanceRole };
 
@@ -261,7 +261,7 @@ export async function submitRuleRequest(
 
 /**
  * Records an administrator's decision. Returns the updated request, or
- * undefined when the id is unknown or the request was already decided —
+ * undefined when the id is unknown or the request was already decided,
  * decisions are single-shot so a stale dashboard cannot double-apply one.
  */
 export async function decideRuleRequest(
@@ -304,7 +304,7 @@ export async function decideRuleRequest(
     action: ADMIN_ACTIONS.ruleRequestDecide,
     outcome: params.approve ? "allow" : "deny",
     // **Through `describeRequest`, which exists for exactly this** (finding
-    // 201). This sentence was hand-rolled from `resourceKind` and `pattern` —
+    // 201). This sentence was hand-rolled from `resourceKind` and `pattern`,
     // two fields the `agent-setting` arm of `RuleRequest` does not have. So
     // approving a posture or escalation request, the kind that changes what the
     // gate *enforces* for an agent, wrote:
@@ -328,7 +328,7 @@ export async function decideRuleRequest(
  * Records the rule that a granted request produced.
  *
  * Separate from `decideRuleRequest` because the decision must be claimed
- * *before* the rule is created — see the ordering note there — so the rule's id
+ * *before* the rule is created, see the ordering note there, so the rule's id
  * does not exist yet at claim time. Safe to do afterwards: the request is
  * already claimed, so no other administrator can be acting on it.
  */
@@ -351,7 +351,7 @@ export async function attachCreatedRule(
 /**
  * Returns a claimed request to the pending state.
  *
- * Used when the rule could not be created after the decision was claimed — a
+ * Used when the rule could not be created after the decision was claimed. A
  * full ruleset, for instance. Without it the request would be marked approved
  * with no permission behind it: the requester is told yes and still cannot act,
  * and no administrator sees it in the queue any more. Reverting keeps the

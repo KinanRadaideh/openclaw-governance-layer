@@ -11,7 +11,7 @@
 // also mutates it.
 //
 // The trust direction reverses with it. Until now a compromised governance
-// layer could refuse things it should have allowed — annoying, and fail-closed.
+// layer could refuse things it should have allowed. Annoying, and fail-closed.
 // A compromised layer that can write `agents.entries` can create an agent, and
 // an agent is a thing that runs commands. That is a strictly larger blast
 // radius, and the mitigation is the one already in place rather than a new one:
@@ -30,7 +30,7 @@
 //     workspace and agent directory, writes the identity file, and applies
 //     bindings.
 //   - It writes under `withConfigMutationExclusive`, so it cannot interleave
-//     with another writer — including the MCP config writer, which mutates a
+//     with another writer, including the MCP config writer, which mutates a
 //     different section of the same file.
 //   - The write goes through `replaceConfigFile`, which **writes through a
 //     top-level `$include`** into the file that actually owns the roster
@@ -93,7 +93,7 @@ export const PROVISION_CONFIRM_POLL_MS = 50;
  * undoing. `host` means the host refused. `governance` means the host accepted
  * and this layer did not, which is the only stage that rolls anything back.
  * `confirm` means both writes succeeded and the agent did not appear, which is
- * a *warning* rather than a failure — see `provisionAgent`.
+ * a *warning* rather than a failure: see `provisionAgent`.
  */
 export type ProvisionStage = "preflight" | "host" | "governance" | "confirm";
 
@@ -110,7 +110,7 @@ export type ProvisionSuccess = {
    * Whether the running host was observed to pick the agent up.
    *
    * `true` means it was seen. `false` with `confirmChecked: false` means nobody
-   * was watching — the command line has no running host in its own process, so
+   * was watching: the command line has no running host in its own process, so
    * it reports honestly rather than asserting. `false` with
    * `confirmChecked: true` is the interesting one: both writes succeeded and
    * the agent did not appear within the timeout.
@@ -153,7 +153,7 @@ export type ProvisionAgentDeps = {
    * Whether the **running** host can currently see this agent.
    *
    * Injected rather than read here, because the honest answer lives in the
-   * gateway's runtime config — the thing hot-reload updates — and re-reading
+   * gateway's runtime config, the thing hot-reload updates, and re-reading
    * the file would confirm only that this call's own write landed, which is not
    * a fact worth checking. A caller with no running host omits it, and the
    * result says so instead of pretending.
@@ -175,7 +175,7 @@ function defaultSleep(ms: number): Promise<void> {
  * Whether normalisation had to fall back to the host's default id (finding 129).
  *
  * True for an input with no usable characters at all. `main` typed explicitly is
- * also refused here — provisioning *creates*, and the host reserves that id — so
+ * also refused here, provisioning *creates*, and the host reserves that id, so
  * this deliberately does not carry `registerAgent`'s exception for it.
  */
 function canonicalIsFallback(raw: string): boolean {
@@ -195,7 +195,7 @@ function messageOf(err: unknown): string {
  */
 async function hostRosterIds(): Promise<Set<string>> {
   const { loadConfig } = await import("../config/config.js");
-  // `loadConfig` is synchronous — it returns `OpenClawConfig`, not a promise.
+  // `loadConfig` is synchronous. It returns `OpenClawConfig`, not a promise.
   // The `await` above is the dynamic import and is real.
   const cfg = loadConfig();
   return new Set(listAgentEntries(cfg).map((entry) => normalizeAgentId(entry.id)));
@@ -206,7 +206,7 @@ async function hostRosterIds(): Promise<Set<string>> {
  *
  * **The question this answers is not the one the backlog asked.** M6's recorded
  * decision 4 was "does a provisioned agent exist immediately, or does the host
- * need a reload?" — and the host already answers it:
+ * need a reload?", and the host already answers it:
  * `../gateway/config-reload-plan.ts` classifies `agents.entries` as
  * `kind: "hot"`, and the gateway watches the config file. No restart is needed.
  *
@@ -257,7 +257,7 @@ async function waitForHostToSee(
  * > is still nothing to undo.**
  *
  * The intermediate state is safe in the other direction too. Between the two
- * writes the agent exists on the host with no registry record — and M5 made an
+ * writes the agent exists on the host with no registry record, and M5 made an
  * unregistered agent **refused at the gate**. So the window this transaction
  * opens is fail-closed by a decision taken for an unrelated reason, which is
  * worth stating in the report as an argument for mandatory registration rather
@@ -266,7 +266,7 @@ async function waitForHostToSee(
  * Doing it the other way round has a second cost that only shows up on
  * rollback: `registerAgent` writes to the tamper-evident ledger, and the ledger
  * never deletes. Rolling a registration back would leave a permanent
- * register/unregister pair for an agent that never existed — a true record of a
+ * register/unregister pair for an agent that never existed. A true record of a
  * thing that did not happen, which is worse than no record.
  */
 export async function provisionAgent(
@@ -290,7 +290,7 @@ export async function provisionAgent(
   // **This guard used to read `if (!agentId)` and could never fire** (finding
   // 129). `normalizeAgentId` is a coercion rather than a validator: when nothing
   // survives its character filter it returns the host's default id, `main`. So
-  // a name of `"###"` or `"✓✓"` did not produce an empty id — it produced a
+  // a name of `"###"` or `"✓✓"` did not produce an empty id. It produced a
   // request to create **the installation's default agent**, and the ledger
   // recorded a provisioning attempt for `main` on behalf of somebody who had
   // typed neither.
@@ -314,7 +314,7 @@ export async function provisionAgent(
   // "build the system robustly so there aren't fails in the first place", and
   // the way to honour that in a two-write transaction is to move every knowable
   // refusal in front of the first write. What is left after this block is
-  // genuinely unpredictable failure — a disk, a lock, a race — rather than a
+  // genuinely unpredictable failure, a disk, a lock, a race, rather than a
   // condition anyone could have checked.
   const alreadyRegistered = await findAgent(agentId);
   if (alreadyRegistered) {
@@ -406,7 +406,7 @@ export async function provisionAgent(
   if (created.status !== "created") {
     // `createAgent` reports "existing" for the bootstrap-main special case. The
     // preflight above should make it unreachable here, and if it is reached
-    // this call did **not** create anything — so it must not delete anything
+    // this call did **not** create anything, so it must not delete anything
     // either. Refusing is the only answer that cannot destroy an agent.
     return {
       ok: false,
@@ -441,7 +441,7 @@ export async function provisionAgent(
         : `The agent was created on the host but could not be recorded here: ${messageOf(err)}`,
       remedy:
         rollback.outcome === "reverted"
-          ? "Nothing was left behind — the agent was removed again. Try a different name."
+          ? "Nothing was left behind. The agent was removed again. Try a different name."
           : `The agent "${created.agentId}" exists on the host but is not governed, so it is refused on every tool call. Remove it with \`openclaw agents delete ${created.agentId}\`, or register it.`,
       rolledBack: rollback.outcome,
       ...(rollback.message ? { rollbackMessage: rollback.message } : {}),
@@ -498,7 +498,7 @@ function hostRemedy(reason: string): string {
  * same call, which is the invariant the preflight refusal exists to protect.
  * A failure here is reported rather than swallowed: the operator is left with a
  * host agent that governance does not know about, and after M5 that agent is
- * refused on every tool call — inert, but present, and only a human can decide
+ * refused on every tool call: inert, but present, and only a human can decide
  * whether to delete it or adopt it.
  */
 async function revertHostAgent(
@@ -526,7 +526,7 @@ export type DeprovisionResult =
        * Present rather than thrown, for the reason `kill-switch.ts` gives on
        * its identical field: the deletion has already happened by the time this
        * entry is attempted, so a throw reports completed work as failed. The
-       * failure is not swallowed — it travels back and the surfaces say it.
+       * failure is not swallowed: it travels back and the surfaces say it.
        */
       auditError?: string;
     }
@@ -540,7 +540,7 @@ export type DeprovisionResult =
 
 // No `rolledBack` here, and its absence is the point. Deleting the host entry
 // before touching the registry means a failure at either step leaves nothing
-// half-done, so there is never anything to roll back — a property worth encoding
+// half-done, so there is never anything to roll back. A property worth encoding
 // in the type rather than asserting in a comment. `ProvisionResult` keeps the
 // field because provisioning genuinely can strand a half-made agent.
 
@@ -552,7 +552,7 @@ export type DeprovisionResult =
  * M4 made unregistration remove only the governance record, deliberately: the
  * agent kept running and the layer simply stopped claiming it. Once the panel
  * can create agents for real, one button doing both would silently change what
- * an existing action means — an operator who had used "remove" before would now
+ * an existing action means: an operator who had used "remove" before would now
  * destroy a running agent with it.
  *
  * So the destructive half is a **separate, explicitly requested** act
@@ -561,7 +561,7 @@ export type DeprovisionResult =
  *
  * ## The host is deleted first, and the first draft had this backwards
  *
- * The same rule as provisioning — **do the fallible write first** — but here it
+ * The same rule as provisioning, **do the fallible write first**, but here it
  * also avoids a real defect, which is why the ordering is worth recording rather
  * than merely stating.
  *
@@ -571,12 +571,12 @@ export type DeprovisionResult =
  * every account that held it** (`revokeHoldersOutsideOwner`), because an agent
  * nobody owns is an agent nobody may be given. Re-registering restores the row
  * and **not** the assignments, so a failed host deletion would leave every User
- * who had that agent quietly without it — an action ending in an invisible
+ * who had that agent quietly without it: an action ending in an invisible
  * side effect, which is this project's worst bug class.
  *
  * Deleting from the host first has no such tail. If the host refuses, nothing
  * has happened at all. If the host succeeds and the unregistration then fails,
- * what is left is a governance record for an agent that no longer exists —
+ * what is left is a governance record for an agent that no longer exists,
  * inert, visible in the panel, and fixed by removing it again.
  */
 export async function deprovisionAgent(
@@ -605,7 +605,7 @@ export async function deprovisionAgent(
         stage: "host",
         code: "host-delete-failed",
         message: `OpenClaw refused to delete the agent: ${messageOf(err)}`,
-        remedy: "Nothing was changed — the agent is still there and still governed.",
+        remedy: "Nothing was changed. The agent is still there and still governed.",
       };
     }
   }
@@ -620,7 +620,7 @@ export async function deprovisionAgent(
       code: "unregister-failed",
       message: `The agent could not be removed from governance: ${messageOf(err)}`,
       remedy: input.deleteFromHost
-        ? `The agent was deleted from OpenClaw but its governance record remains. It is inert — the agent no longer exists — and running this command again will remove the record.`
+        ? `The agent was deleted from OpenClaw but its governance record remains. It is inert: the agent no longer exists, and running this command again will remove the record.`
         : "Nothing was changed.",
     };
   }
@@ -632,7 +632,7 @@ export async function deprovisionAgent(
   // governance, and neither can be put back by failing here (finding 229).
   //
   // Every fallible step above this line is caught and returned as a typed
-  // failure with a remedy — this one was not, so a ledger that would not take
+  // failure with a remedy. This one was not, so a ledger that would not take
   // the entry threw out of a function whose work was complete, and the caller
   // reported the deletion as failed. `deleteOrganisation` calls this in a loop
   // and reads `ok`, so the throw also escaped its per-agent failure handling

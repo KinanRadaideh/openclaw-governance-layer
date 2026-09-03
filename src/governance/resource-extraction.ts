@@ -21,7 +21,7 @@ type ToolCallLike = {
 /**
  * `cwd` is the workspace root path resources are made relative to. Extraction
  * is async because path canonicalization follows symbolic links, which is a
- * filesystem read — see path-normalize.ts. Command and network extraction have
+ * filesystem read: see path-normalize.ts. Command and network extraction have
  * no such need and simply ignore both.
  */
 export type GovernedToolSpec = {
@@ -29,7 +29,7 @@ export type GovernedToolSpec = {
   /**
    * Which direction of access this tool performs, for `path` tools.
    *
-   * Lets a rule say "readable but not writable" — see `RuleAccess`. Derived
+   * Lets a rule say "readable but not writable": see `RuleAccess`. Derived
    * from the tool rather than from the rule, because the tool is what actually
    * determines whether the file is being read or changed.
    */
@@ -52,8 +52,8 @@ function clamp(value: string): string {
  * One host, one spelling.
  *
  * A rule is a string comparison, so every alternative spelling of the same
- * address is a way around it. `169.254.169.254` — the cloud metadata endpoint
- * the core tier denies — is also reachable as `169.254.169.254.` (the trailing
+ * address is a way around it. `169.254.169.254`, the cloud metadata endpoint
+ * the core tier denies, is also reachable as `169.254.169.254.` (the trailing
  * dot that makes a name fully qualified), as the single integer `2852039166`,
  * and as `0xa9.0xfe.0xa9.0xfe`; the resolver treats all four identically and
  * the pattern treated only the first as a match.
@@ -83,7 +83,7 @@ function canonicalHostname(rawHostname: string): string {
   // mapped form passed through untouched and no anchored rule matched it
   // (QA round 13, finding 75). Stripping the documented `::ffff:` prefix hands
   // the tail to the existing IPv4 folding rather than adding a second code
-  // path — the hex tail (`::ffff:a9fe:a9fe`) is not dotted-decimal and stays
+  // path. The hex tail (`::ffff:a9fe:a9fe`) is not dotted-decimal and stays
   // as written, which is why the shipped rule still names it.
   const mapped = /^(?:::ffff:)([0-9.]+)$/.exec(withoutRootDot);
   if (mapped?.[1]) {
@@ -97,7 +97,7 @@ function canonicalHostname(rawHostname: string): string {
 
 /**
  * Dotted-decimal form of an IPv4 address written in any of the forms the C
- * `inet_aton` grammar accepts — one to four parts, each decimal, octal (leading
+ * `inet_aton` grammar accepts: one to four parts, each decimal, octal (leading
  * zero) or hex (`0x`). Returns `undefined` for anything that is not one of
  * those, so an ordinary hostname passes through untouched.
  */
@@ -119,7 +119,7 @@ function canonicalIpv4(host: string): string | undefined {
   // 16689662 === (254 << 16) | (169 << 8) | 254.
   //
   // _(This example read `169.11010558` until 2026-09-01, which decodes to
-  // `169.168.1.254` — an ordinary private address and not the metadata
+  // `169.168.1.254`. An ordinary private address and not the metadata
   // endpoint at all. The algorithm was right and its worked example was not,
   // which is the more dangerous way round: a reader checking the comment
   // against the code would have concluded the code was broken.)_
@@ -165,13 +165,13 @@ function parseIpv4Part(part: string): number | undefined {
  *
  * **Correction (QA round 13, finding 91).** This comment used to justify itself
  * by saying that abstaining "would let `web_fetch` reach `file:///etc/shadow`
- * without ever consulting the policy" — which was also the first row of this
+ * without ever consulting the policy": which was also the first row of this
  * project's own defect table, recorded in round one as a security bypass. It is
  * not true of the host and never was: `web-fetch.ts` rejects every protocol
  * other than `http:` and `https:` before the request is built
  * (src/agents/tools/web-fetch.ts:553 and :700). The behaviour is worth keeping
- * on its own merits — governing an uninterpretable value costs nothing and
- * fails in the safe direction — but the *reason* was an assumption about
+ * on its own merits, governing an uninterpretable value costs nothing and
+ * fails in the safe direction, but the *reason* was an assumption about
  * OpenClaw that nobody checked, which is precisely the habit rounds five and
  * six identified, surviving in the artefact that documents the project's rigour.
  */
@@ -193,7 +193,7 @@ function extractNetworkResource(rawUrl: string): string {
  * `derivedPaths` (populated for `apply_patch` only) arrives already absolute,
  * while `params.path` arrives exactly as the model wrote it. Feeding both to
  * `normalizeGovernedPath` is what makes one rule behave identically no matter
- * which tool the agent reached for — previously a documented pattern such as
+ * which tool the agent reached for: previously a documented pattern such as
  * `^src/.*$` could match a `read` and never match an `apply_patch` of the very
  * same file.
  */
@@ -211,7 +211,7 @@ async function extractPaths(event: ToolCallLike, cwd?: string): Promise<string[]
  * `grep`, `find` and `ls` all default to the session's working directory when
  * no path is given (src/agents/sessions/tools/{grep,find,ls}.ts). Reusing
  * `extractPaths` would return nothing for that call, and "no resource
- * extracted" is recorded as `ungoverned` and allowed through — so the most
+ * extracted" is recorded as `ungoverned` and allowed through, so the most
  * ordinary spelling of each tool would be the one that escaped the policy.
  * Defaulting to `.` governs what the tool is actually going to read.
  *
@@ -219,7 +219,7 @@ async function extractPaths(event: ToolCallLike, cwd?: string): Promise<string[]
  * pointed at is governed. `grep` at the workspace root still reads every file
  * beneath it, including one a core denial names, because the resource the gate
  * sees is the root and not the descendants. Closing that needs the tool to
- * report the files it actually opened — a host change, in `after_tool_call`,
+ * report the files it actually opened: a host change, in `after_tool_call`,
  * not something the parameters can be made to reveal beforehand. What this
  * closes is the direct case: pointing a search tool *at* a denied path, or out
  * of the workspace entirely.
@@ -235,14 +235,14 @@ async function extractCommand(event: ToolCallLike): Promise<string[]> {
 }
 
 /**
- * Commands the `terminal` tool carries — and it carries them on two parameters,
+ * Commands the `terminal` tool carries: and it carries them on two parameters,
  * not one.
  *
  * `action: "open"` takes a `command`, which was governed. `action: "input"`
  * takes `data`, "Raw terminal input" (src/agents/tools/terminal-tool.ts:31),
  * which was not: it is typed straight into a shell the agent already has open.
  * So an agent could open a terminal, then send `sudo …` through `data`, and the
- * command allowlist and every core command denial were simply not consulted —
+ * command allowlist and every core command denial were simply not consulted,
  * the call was recorded as `ungoverned` and allowed. A gate that covers the
  * front door of a shell and not the keyboard is not covering the shell.
  *
@@ -281,20 +281,20 @@ async function extractTerminal(event: ToolCallLike): Promise<string[]> {
  * **The defect this closes (QA round 13, findings 71–73.)** The registry
  * governed eleven tools. The host's own catalogue
  * (`CORE_TOOL_DEFINITIONS` in `src/agents/tool-catalog.ts`) declares
- * **fifty-two**, of which seven were governed — and the missing forty-five
+ * **fifty-two**, of which seven were governed: and the missing forty-five
  * included every way an agent reaches the operating system other than `exec`:
  *
  *   - `process` types into a shell `exec` already started in the background,
  *     through `data` / `literal` / `text` / `keys`. That is the round-eleven
  *     `terminal` defect exactly, on the sibling tool, missed because the fix
  *     was applied to the tool that was found rather than to the sentence
- *     describing it — *a shell has two doors and only one was watched*;
+ *     describing it, *a shell has two doors and only one was watched*;
  *   - `computer` and `mobile_ui` deliver synthetic keyboard and mouse events to
  *     a real desktop or phone, so an agent refused a command can open a
  *     terminal window and type it;
  *   - `screen`, `browser`, `nodes` and `gateway` drive other control surfaces;
  *   - `sessions_spawn` and `subagents` start further agents, and `automations`
- *     schedules work to run later — both of which outlive the current
+ *     schedules work to run later, both of which outlive the current
  *     conversation and, in the spawn case, run under a different agent id.
  *
  * All of them are governed as `command`, because that is what they are: a way
@@ -305,7 +305,7 @@ async function extractTerminal(event: ToolCallLike): Promise<string[]> {
  * **The resource shape.** `<tool>:<action>` for the action itself, plus the
  * literal payload for any action that carries one. Two properties follow:
  * an operator can grant a whole surface (`^computer:screenshot$`), and a core
- * denial written against command *text* still sees the text — so
+ * denial written against command *text* still sees the text, so
  * `computer` typing `sudo -i` is refused by the same rule that refuses
  * `exec` running it, without that rule knowing `computer` exists.
  *
@@ -321,7 +321,7 @@ async function extractTerminal(event: ToolCallLike): Promise<string[]> {
  *
  *   - a plain string (`data`, `text`, `body`);
  *   - an array of tokens (`process.keys`, `process.hex`, `automations.command`
- *     — the last being supervised argv, a genuine execution channel), joined so
+ *the last being supervised argv, a genuine execution channel), joined so
  *     a rule sees the whole submitted sequence rather than one token at a time;
  *   - a nested object (`mobile_ui.mobileAction`, whose typed text lives at
  *     `{type:"set_text", ref, text}`), serialised so the text is present even
@@ -366,7 +366,7 @@ function extractControlSurface(
     // `sessions_spawn` and `subagents` accept an `agentId` naming the agent the
     // child should run as, and the host mints the child's session key as
     // `agent:<targetAgentId>:subagent:<uuid>` (`mintSpawnSessionKey` in
-    // src/agents/spawn-plan.ts — read, not assumed). Governance keys *every*
+    // src/agents/spawn-plan.ts. Read, not assumed). Governance keys *every*
     // scoping decision on the agent id it recovers from that key, so a child
     // spawned under a different id is, to this layer, a different principal:
     // the parent's agent-scoped rules do not bind it and neither does a
@@ -375,7 +375,7 @@ function extractControlSurface(
     // Emitting the target as a second resource makes that a decision an
     // operator takes rather than one the agent takes. Every derived resource
     // must be permitted for the call to proceed, so `agent-a` spawning as
-    // `agent-b` now needs a rule naming `agent-b` — and under default-deny it
+    // `agent-b` now needs a rule naming `agent-b`, and under default-deny it
     // is refused until somebody writes one.
     //
     // Emitted whenever `agentId` is present, including when it names the
@@ -383,7 +383,7 @@ function extractControlSurface(
     // also skips its fast path the moment `requestedAgentId` is set explicitly;
     // and the extractor is not given the caller's id, so it could not compare
     // them without being handed information it deliberately does not receive.
-    // Omitting `agentId` — the ordinary same-agent spawn — derives nothing
+    // Omitting `agentId`, the ordinary same-agent spawn, derives nothing
     // extra and is unaffected.
     // ------------------------------------------------------------------
     if (options.targetsAnAgent) {
@@ -408,7 +408,7 @@ function extractControlSurface(
  *
  * **Every key here is a real OpenClaw tool name**, verified against the tool
  * definitions rather than assumed. An earlier version of this file guessed
- * `read_file` and `write_file`, which exist nowhere in the host — so the entire
+ * `read_file` and `write_file`, which exist nowhere in the host, so the entire
  * `path` resource kind governed nothing but `apply_patch`, and a path rule an
  * operator wrote never fired for the tools an agent actually uses. A rule that
  * looks correct and never matches is worse than no rule, because it produces
@@ -419,7 +419,7 @@ function extractControlSurface(
  *                needs no separate entry)
  *   terminal     src/agents/tools/terminal-tool.ts     (action:"open" carries a
  *                `command` executed on the gateway host; action:"input"
- *                carries `data`, typed into that shell — see extractTerminal)
+ *                carries `data`, typed into that shell. See extractTerminal)
  *   read         src/agents/sessions/tools/read.ts
  *   write        src/agents/sessions/tools/write.ts
  *   edit         src/agents/sessions/tools/edit.ts
@@ -431,7 +431,7 @@ function extractControlSurface(
  *
  * The last three were missing, and their absence was the round-five defect
  * wearing new clothes. That time the registry named tools the host does not
- * have; this time it omitted three the host does have — `grep`, `find` and
+ * have; this time it omitted three the host does have, `grep`, `find` and
  * `ls` are in `allToolNames` (src/agents/sessions/tools/index.ts) alongside
  * `read`, and every one of them takes a path and reads the filesystem. So a
  * core denial on `.env` stopped `read` and waved through `grep -e . .env`,
@@ -441,7 +441,7 @@ function extractControlSurface(
  * The symbol name above was `BUILTIN_TOOL_NAMES` until QA round 13 (finding
  * 92); no such export exists. Small on its own, and worth correcting rather
  * than deleting, because that citation was the evidence offered for the
- * registry being complete — in the same paragraph as finding 70, where the
+ * registry being complete: in the same paragraph as finding 70, where the
  * guard built to keep it complete turned out to be reading the seven-name
  * session barrel rather than the host's fifty-two-tool catalogue.
  *
@@ -477,24 +477,24 @@ export const GOVERNED_TOOLS: Record<string, GovernedToolSpec> = Object.assign(
     },
     // ---------------------------------------------------------------------
     // Control surfaces (QA round 13, findings 71–73). Parameter names below are
-    // read from the host's own schemas, not assumed — the habit rounds five and
+    // read from the host's own schemas, not assumed, the habit rounds five and
     // eleven exist because of:
     //
     //   process         src/agents/bash-tools.schemas.ts `processSchema`
     //                   (action, data, keys[], hex[], literal, text)
     //   computer        src/agents/tools/computer-tool.ts `ComputerToolSchema`
-    //                   (action, text — modifiers ride `text` on pointer actions)
+    //                   (action, text, modifiers ride `text` on pointer actions)
     //   screen          src/agents/tools/screen-tool.ts        (action)
     //   browser         provider-side; governed by action name alone
     //   mobile_ui       src/agents/tools/mobile-ui-tool.ts
-    //                   (action, and `mobileAction` — the typed text is
+    //                   (action, and `mobileAction`, the typed text is
     //                   *nested* inside it as {type:"set_text", ref, text},
     //                   not a top-level `text`, so the object is serialised)
     //   nodes           src/agents/tools/nodes-tool.ts         (action, body, title)
     //   gateway         src/agents/tools/gateway-tool.ts       (action, path)
     //   automations     src/agents/tools/cron-tool-schema.ts
     //                   (action, message = "agentTurn prompt", text =
-    //                   systemEvent text, command = supervised source argv —
+    //                   systemEvent text, command = supervised source argv,
     //                   an array, and a genuine execution channel)
     //   sessions_spawn  spawn a further agent under a new id
     //   subagents       likewise
@@ -502,8 +502,8 @@ export const GOVERNED_TOOLS: Record<string, GovernedToolSpec> = Object.assign(
     //                   the action name is all that can be derived and the
     //                   payload is recorded by the ungoverned path
     //
-    // Two of these were written from memory first and were wrong — `mobile_ui`
-    // has no top-level `text` and `automations` has no `prompt` — which is the
+    // Two of these were written from memory first and were wrong, `mobile_ui`
+    // has no top-level `text` and `automations` has no `prompt`, which is the
     // registry-versus-host mistake starting to happen a fourth time, caught
     // only by opening the schemas. The names above are copied from them.
     // ---------------------------------------------------------------------

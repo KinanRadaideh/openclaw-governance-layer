@@ -70,7 +70,7 @@ let groupId: string;
  *
  * Built through the real `createUser` and `registerAgent` rather than by
  * writing files, so the deletion is exercised against a state the product can
- * actually reach. The ledger is deliberately *not* cleared afterwards — this
+ * actually reach. The ledger is deliberately *not* cleared afterwards. This
  * suite is partly about what the ledger holds, so the seeding entries are part
  * of the chain being verified.
  */
@@ -150,7 +150,7 @@ describe("deleting an organisation", () => {
     expect(result.residue).toEqual([]);
     expect(await listUsers()).toEqual([]);
     expect(await listAgents(groupId)).toEqual([]);
-    // Deleted from OpenClaw, not merely unregistered — the distinction M6 drew
+    // Deleted from OpenClaw, not merely unregistered. The distinction M6 drew
     // between "remove" and "delete", resolved here in favour of the wide one
     // because the organisation that owned them no longer exists.
     const deletedFromHost = deleteAgentConfigEntryMock.mock.calls
@@ -368,11 +368,11 @@ describe("summarising before deleting", () => {
  * What happens when a step *after* the point of no return fails (finding 229).
  *
  * The accounts and the agents are gone by then and cannot be put back, so a
- * failure here is not a reason to report that the deletion failed — it is a
+ * failure here is not a reason to report that the deletion failed. It is a
  * fact about bookkeeping the operator has to be told alongside the success.
  *
- * These used to be unguarded `await`s. A corrupt attachment index — which
- * `readIndex` refuses on, deliberately and correctly — threw straight out of
+ * These used to be unguarded `await`s. A corrupt attachment index, which
+ * `readIndex` refuses on, deliberately and correctly, threw straight out of
  * `deleteOrganisation`, and both surfaces reported a completed irreversible
  * act as a failure. That is finding 195 at a second feature: the kill switch
  * reporting a stop that had worked as a failure, one destructive act over.
@@ -429,7 +429,7 @@ describe("a step that fails after the organisation is already gone", () => {
     // The installation-wide copy is written *after* the attachment step, and it
     // is the copy an operator finds when the organisation's own directory is
     // not somewhere they would think to look. A failure part-way must not cost
-    // it — which is the difference between one `try` around the block and one
+    // it, which is the difference between one `try` around the block and one
     // around each step.
     const installationEntries = await tailLedger(INSTALLATION_LEDGER_GROUP, 200);
     const recorded = installationEntries.find(

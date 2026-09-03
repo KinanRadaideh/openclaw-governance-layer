@@ -1,15 +1,15 @@
-// Round twenty — everything built since round eighteen, excluding the M-series
+// Round twenty. Everything built since round eighteen, excluding the M-series
 // (2026-08-27).
 //
 // Round nineteen audited the M-series as one system. This one covers the *other*
 // work from the same window: **T6 and finding 120's fix, T7's audit half, T28,
-// T30's rotation seam, and T16's splits** — read against the nine design
+// T30's rotation seam, and T16's splits**. Read against the nine design
 // requirements in `Grad_Proj___Current.pdf` §1.3 rather than against the code's
 // own idea of itself.
 //
 // ## What it found
 //
-//   - **131** — `search-audit.ts` wrote `grep`'s matched **file content** into
+//   - **131**, `search-audit.ts` wrote `grep`'s matched **file content** into
 //     the tamper-evident ledger as a governed resource, secrets included. A
 //     direct breach of **requirement 8** ("shall prevent sensitive data (such as
 //     secrets or credentials) from being written in plaintext to log files"), in
@@ -18,9 +18,9 @@
 // ## Method note
 //
 // 131 was found by **mutation testing plus a requirement read**, not by either
-// alone. The code carried a comment asserting the safety property — "a line that
+// alone. The code carried a comment asserting the safety property, "a line that
 // is not a path is simply one that will normalize to something no denial
-// matches" — which is true only while no denial is broad. Reading requirement 8
+// matches", which is true only while no denial is broad. Reading requirement 8
 // and then asking what a *broad* denial does to that sentence produced the
 // reproduction in one step.
 //
@@ -31,7 +31,7 @@
 //
 // **The first version of that assertion was wrong, and the mistake is worth
 // keeping.** It used `secrets/key.pem` with an expired rule and saw the reach
-// recorded anyway — which looked like the expiry filter failing. It was not:
+// recorded anyway, which looked like the expiry filter failing. It was not:
 // `.pem` is covered by a **shipped core denial**, which never expires, so the
 // entry came from the floor rather than from the expired rule. A test about one
 // rule has to use a resource no other rule matches, or it is measuring the
@@ -57,7 +57,7 @@ const AGENT = "reader";
 let dir: string;
 let groupId: string;
 
-/** A denial broad enough to confine an agent — the realistic operator rule. */
+/** A denial broad enough to confine an agent. The realistic operator rule. */
 function denial(overrides: Partial<PolicyRule> = {}): PolicyRule {
   return {
     id: "confine-to-workspace",
@@ -113,11 +113,11 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-describe("finding 131 — requirement 8: no secrets in the log", () => {
+describe("finding 131. Requirement 8: no secrets in the log", () => {
   it("never writes grep's matched content into the ledger", async () => {
     // The reproduction. `grep` searching a single file omits the filename, so
     // its lines are `<lineno>: <matched text>`. The old fallback took the whole
-    // line as a path candidate, resolved it, and — under a broad denial —
+    // line as a path candidate, resolved it, and, under a broad denial,
     // recorded it. A grep for `password` recorded the passwords it found.
     await withRules(denial());
     await auditSearchReach({
@@ -196,7 +196,7 @@ describe("finding 131 — requirement 8: no secrets in the log", () => {
   });
 });
 
-describe("requirement 4 — time-limited permissions bind the audit too", () => {
+describe("requirement 4. Time-limited permissions bind the audit too", () => {
   it("does not report a reach against an expired denial", async () => {
     // Found by mutation: deleting the expiry filter left all eleven
     // search-audit tests passing. An expired rule denies nothing, so recording
@@ -239,11 +239,11 @@ describe("requirement 4 — time-limited permissions bind the audit too", () => 
   });
 });
 
-describe("T30 — the rotation seam cannot weaken the shipped threshold", () => {
+describe("T30. The rotation seam cannot weaken the shipped threshold", () => {
   it("ships the 8 MB threshold regardless of the test override", async () => {
     // The seam exists so two rotation tests stop taking two minutes and timing
-    // out under load. It is an in-process function a test calls — not reachable
-    // from configuration, a policy document or the network — and the shipped
+    // out under load. It is an in-process function a test calls, not reachable
+    // from configuration, a policy document or the network, and the shipped
     // constant is asserted separately so lowering it cannot hide a change to
     // the real one. Asserted here too, because that separation is the entire
     // argument for allowing an adjustable security constant at all.
@@ -251,7 +251,7 @@ describe("T30 — the rotation seam cannot weaken the shipped threshold", () => 
   });
 });
 
-describe("requirement 5 — the gap is recorded as a gap", () => {
+describe("requirement 5. The gap is recorded as a gap", () => {
   it("records the reach as ungoverned rather than as a decision", async () => {
     // Requirement 5 is "record 100% of agent actions, policy decisions and
     // administrative approvals". A search that reached a denied path is an
@@ -275,7 +275,7 @@ describe("requirement 5 — the gap is recorded as a gap", () => {
 
   it("records nothing at all when governance is switched off", async () => {
     // Recording oversight that is not running would be a false entry in the
-    // trail — the mirror of the green-tick class this project treats as its
+    // trail. The mirror of the green-tick class this project treats as its
     // worst defect.
     await savePolicy(groupId, {
       ...defaultPolicyDocument(),

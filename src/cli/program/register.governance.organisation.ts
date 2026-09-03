@@ -6,9 +6,9 @@
 // reason says otherwise.** There is no such reason here, and there is a
 // specific argument for the command line beyond parity.
 //
-// This is the recovery act. The states an operator reaches it from — a
+// This is the recovery act. The states an operator reaches it from, a
 // dashboard they can no longer sign into, an installation being handed over, a
-// demonstration being reset between runs — are exactly the states where a
+// demonstration being reset between runs, are exactly the states where a
 // browser is the surface that is not working. `groups migrate` already exists
 // for the same reason: the destructive account command that repairs an
 // installation nobody can sign into cannot itself require signing in through
@@ -23,8 +23,8 @@
 // ## Its own file
 //
 // The seam T16 set: one file, one statable authorization rule. Here it is the
-// narrowest one in the project — **the organisation's own Root, and nobody
-// else** — which is not the rule any existing module states.
+// narrowest one in the project, **the organisation's own Root, and nobody
+// else**, which is not the rule any existing module states.
 import type { Command } from "commander";
 import {
   clearCliSession,
@@ -41,7 +41,7 @@ import { runCommandWithRuntime } from "../cli-utils.js";
 export function registerGovernanceOrganisationCommands(governance: Command): void {
   const organisation = governance
     .command("organisation")
-    .description("The organisation this installation hosts — what it holds, and deleting it");
+    .description("The organisation this installation hosts. What it holds, and deleting it");
 
   organisation
     .command("summary")
@@ -49,7 +49,7 @@ export function registerGovernanceOrganisationCommands(governance: Command): voi
     .action(async () => {
       await runCommandWithRuntime(defaultRuntime, async () => {
         // Readable by anyone signed in. It reports counts for the caller's own
-        // organisation and names its Root — facts every account already sees on
+        // organisation and names its Root. Facts every account already sees on
         // the dashboard, and the Root username is the one an operator needs
         // before `delete` will accept a confirmation.
         const identity = await currentCliIdentity();
@@ -81,8 +81,8 @@ export function registerGovernanceOrganisationCommands(governance: Command): voi
       await runCommandWithRuntime(defaultRuntime, async () => {
         // Deliberately *not* through `requireCliActor`. Its predicate takes a
         // `GovernanceActor` and answers questions about tiers; this command's
-        // rule is not a tier question but an identity one — "are you *the* Root
-        // of *this* organisation?" — and it is already stated once, in
+        // rule is not a tier question but an identity one, "are you *the* Root
+        // of *this* organisation?", and it is already stated once, in
         // `guardOrganisationDeletion`. Restating it as a tier check here would
         // be the same rule in two places, which is how the two surfaces this
         // project keeps finding come to disagree.
@@ -135,7 +135,7 @@ export function registerGovernanceOrganisationCommands(governance: Command): voi
           return;
         }
         // The stored token names a session `deleteOrganisation` has already
-        // revoked, so this only removes the dead file — `signOutCli` would
+        // revoked, so this only removes the dead file, `signOutCli` would
         // additionally try to revoke a session that is gone. Left in place it
         // costs nothing but a misleading `whoami` refusal on the next command.
         await clearCliSession();

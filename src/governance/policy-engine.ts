@@ -1,7 +1,7 @@
 // The decision function itself: given a tool call the agent is about to make,
 // decide allow / deny / ask-a-human, and record the decision either way.
 //
-// Called directly from src/agents/agent-tools.before-tool-call.policy.ts —
+// Called directly from src/agents/agent-tools.before-tool-call.policy.ts,
 // the single choke point every tool call (exec, file access, web fetch, and
 // anything else) already passes through before it runs. Returning
 // `{ block: true }` there stops the call immediately; returning
@@ -10,6 +10,7 @@
 // src/gateway/exec-approval-manager.ts) instead of reimplementing that
 // machinery here; returning `undefined` lets the call proceed to every other
 // existing check unchanged.
+import { normalizeAgentId } from "../routing/session-key.js";
 import { parseAgentSessionKey } from "../sessions/session-key-utils.js";
 import { parseGovernanceSessionKey } from "./agent-conversation.js";
 import { resolveAgentGroup } from "./agent-group.js";
@@ -62,7 +63,7 @@ type ToolCallContext = {
  * Structurally identical to OpenClaw's own PluginHookBeforeToolCallResult
  * (src/plugins/hook-before-tool-call-result.ts), so it can be passed straight
  * into resolveBeforeToolCallApprovalOutcome at the call site without an
- * adapter — see agent-tools.before-tool-call.policy.ts.
+ * adapter: see agent-tools.before-tool-call.policy.ts.
  */
 export type GovernancePolicyDecision =
   | undefined
@@ -92,7 +93,7 @@ export type GovernancePolicyDecision =
        * the link name is followed once, by the gate, and never looked at again,
        * so there is nothing left for a swap to race.
        *
-       * Only present when canonicalization actually **redirected** the call —
+       * Only present when canonicalization actually **redirected** the call,
        * see `resolveGovernedPath`. An ordinary path reaches the tool exactly as
        * the agent wrote it, byte for byte.
        */
@@ -105,7 +106,7 @@ export type GovernancePolicyDecision =
  * Serialising the whole payload keeps forensic value where the extractor has
  * none, but it is agent-controlled text, so it goes through the same redaction
  * every other recorded resource does and is length-capped. An unserialisable
- * payload degrades to its key names rather than throwing — a logging failure
+ * payload degrades to its key names rather than throwing. A logging failure
  * must never break the gate it is observing.
  */
 function summarizeUngovernedParams(params: Record<string, unknown>): string {
@@ -127,7 +128,7 @@ function summarizeUngovernedParams(params: Record<string, unknown>): string {
  *
  * An absent `access` means both directions, so every rule written before the
  * distinction existed keeps granting what it always granted. A rule narrowed to
- * `read` does not authorise a write, and — importantly — a *denial* narrowed to
+ * `read` does not authorise a write, and, importantly, a *denial* narrowed to
  * `read` does not forbid one either: narrowing a rule must not silently change
  * what it forbids in the other direction.
  */
@@ -148,10 +149,10 @@ function accessMatches(
  * *termination* code already resolved it this way
  * (`governance-agent-termination.ts`), but the *blocking* code did not, so:
  *
- *   - B6 — a locked agent kept working whenever the id was absent, because
+ *   - B6: a locked agent kept working whenever the id was absent, because
  *     the lockdown check read only `ctx.agentId`. An emergency stop that holds
  *     on some code paths and not others is not an emergency stop.
- *   - B7 — an "allow always" approval created a rule with no `agentId`, and a
+ *   - B7: an "allow always" approval created a rule with no `agentId`, and a
  *     rule with no agent is **global**. Approving one action for one agent
  *     silently granted it to every agent in the installation.
  *
@@ -187,7 +188,7 @@ function resolveEffectiveAgentId(ctx: ToolCallContext): string | undefined {
  * agent is assigned to*, and took the strictest of their settings.
  *
  * That approximation is still the right answer for a run nobody started by
- * name — a Discord message, a cron job, the main session — because there the
+ * name, a Discord message, a cron job, the main session, because there the
  * agent genuinely acts on behalf of whoever holds it. But a governance prompt
  * carries the account in its own session key, so the person is **known**, and
  * the axis can be exact.
@@ -195,7 +196,7 @@ function resolveEffectiveAgentId(ctx: ToolCallContext): string | undefined {
  * **This can widen, in one specific case, and that is the intended correction.**
  * Two accounts, A and B, both assigned agent X. Root sets B to `off`. Under the
  * approximation, a prompt from *A* was resolved to `off` because B's setting was
- * in the set — A's run denied on a miss for a restriction placed on somebody
+ * in the set, A's run denied on a miss for a restriction placed on somebody
  * else. It now escalates as A's own setting says, and may end in a human
  * allowing it.
  *
@@ -203,7 +204,7 @@ function resolveEffectiveAgentId(ctx: ToolCallContext): string | undefined {
  * *agent* is `agentAsk`, which is untouched and still combines as the stricter
  * of the two axes. The per-user axis was behaving as a second, badly
  * approximated agent axis, and a restriction that lands on the wrong person is
- * not a safeguard — it is a control nobody can reason about. Nothing here can
+ * not a safeguard: it is a control nobody can reason about. Nothing here can
  * affect a deny rule, a core rule, or the agent axis; the only value it decides
  * is whether a *miss* is refused outright or offered to a human.
  */
@@ -231,7 +232,7 @@ async function resolveAskingAccounts(
  * Records an action the host's loop detector refused before governance saw it.
  *
  * That check runs above the governance gate in `runBeforeToolCallHook`, so
- * these attempts never reached the ledger — a hole in requirement #5, and a
+ * these attempts never reached the ledger: a hole in requirement #5, and a
  * misleading one. An agent stuck in a retry loop would be repeatedly refused
  * while the audit trail showed nothing at all, so a reviewer reading it would
  * conclude the agent had simply stopped trying.
@@ -241,7 +242,7 @@ async function resolveAskingAccounts(
  * id names the host control that actually made it.
  *
  * Never throws. A failure to log must not convert a blocked call into an error
- * the caller has to handle — the block itself already happened.
+ * the caller has to handle, the block itself already happened.
  */
 export async function recordLoopDetectorBlock(input: {
   toolName: string;
@@ -254,7 +255,7 @@ export async function recordLoopDetectorBlock(input: {
     // The loop detector fires on a call the gate never judged, so it has no
     // group in hand and has to resolve one the same way the gate does (M5).
     // Unresolvable means unregistered, and the gate has already refused it under
-    // its own id — recording it twice would double-count one blocked call.
+    // its own id, recording it twice would double-count one blocked call.
     const groupId = await resolveAgentGroup(
       input.agentId ?? parseAgentSessionKey(input.sessionKey)?.agentId,
     );
@@ -289,7 +290,7 @@ export async function recordLoopDetectorBlock(input: {
  * **What this closes.** The gate resolves the agent's string, decides on the
  * file that string named *at that moment*, and then hands the string back. The
  * tool resolves it again for itself. Anything that changes what the string
- * means in between — a symbolic link repointed after the check — is acted on
+ * means in between, a symbolic link repointed after the check, is acted on
  * without ever having been judged (`path-toctou.test.ts`). Substituting the
  * resolved path removes the second resolution rather than trying to win the
  * race, which is the only structurally sound answer: two resolutions
@@ -315,8 +316,8 @@ export async function recordLoopDetectorBlock(input: {
  * **What it does not close**, stated so the report does not overclaim: the
  * canonical path is link-free at the moment it is produced, but if the file
  * *at that path* is replaced afterwards, the tool opens the replacement. That
- * is a different attack — it needs write access to the target rather than to a
- * name pointing at it — and no parameter substitution can prevent it. The
+ * is a different attack, it needs write access to the target rather than to a
+ * name pointing at it, and no parameter substitution can prevent it. The
  * remaining sliver inside this one is a path that does not exist yet, where
  * canonicalization resolves the parent and re-attaches the final segment: a
  * link created at that final segment between the decision and the open is
@@ -354,6 +355,28 @@ async function resolveGovernedParamBinding(
   return { ...event.params, [key]: resolved.absolute };
 }
 
+/**
+ * How long this escalation waits, in milliseconds.
+ *
+ * The agent's own override when it has one, the installation value otherwise.
+ * Exported so it can be tested directly: it was inline at both call sites, and
+ * an inline expression is only ever exercised by driving a real escalation and
+ * waiting for it, which measures the clock rather than the lookup.
+ *
+ * **Folded on lookup**, because every agent key in the policy document is
+ * stored canonical (finding 202) and reading one back with a raw id is exactly
+ * how that fold gets defeated -- an override set for `Scout` and read for
+ * `scout` would silently apply to nothing.
+ */
+export function resolveHitlTimeoutMs(
+  doc: Pick<PolicyDocument, "agentHitlTimeout" | "hitlTimeoutSeconds">,
+  agentId: string | undefined,
+): number {
+  const override =
+    agentId === undefined ? undefined : doc.agentHitlTimeout?.[normalizeAgentId(agentId)];
+  return Math.max(1, override ?? doc.hitlTimeoutSeconds) * 1000;
+}
+
 export async function evaluateGovernancePolicy(
   event: ToolCallEvent,
   ctx: ToolCallContext,
@@ -361,7 +384,7 @@ export async function evaluateGovernancePolicy(
   const spec = resolveGovernedTool(event.toolName);
   const agentId = resolveEffectiveAgentId(ctx);
   // ---------------------------------------------------------------------
-  // **Whose rulebook? — the question M5 added to the front of the gate.**
+  // **Whose rulebook? the question M5 added to the front of the gate.**
   //
   // Before per-group storage there was one policy document, so an agent id was
   // enough to know which rules applied. Now the document belongs to a group and
@@ -370,7 +393,7 @@ export async function evaluateGovernancePolicy(
   // so the hot path still performs one policy read rather than two.
   //
   // **No group means refused, and that is mandatory registration** (M5). The
-  // alternative — a shared fallback document for agents nobody registered —
+  // alternative, a shared fallback document for agents nobody registered,
   // keeps M4's ownership hole open: `assertAssignable` skips an agent it has no
   // record of, so the rule could be sidestepped by simply never registering.
   // Refusing removes the fallback the sidestep depends on.
@@ -378,14 +401,14 @@ export async function evaluateGovernancePolicy(
   const groupId = await resolveAgentGroup(agentId);
   if (!groupId) {
     // A test process that never asked for a governance directory is not an
-    // installation and has no operator to register anything — the same narrow
+    // installation and has no operator to register anything, the same narrow
     // exemption `isUnconfiguredTestRun` already carves for the shipped posture,
     // and for the same reason. Production never reaches it.
     if (isUnconfiguredTestRun()) {
       return undefined;
     }
     // Recorded before it is refused, into the installation-scope ledger,
-    // because there is no group ledger to record it in — see
+    // because there is no group ledger to record it in. See
     // `INSTALLATION_LEDGER_GROUP`. Requirement #5 asks for every action, and
     // "an unregistered agent tried to act" is exactly the one an operator needs.
     await appendLedgerEntry(INSTALLATION_LEDGER_GROUP, {
@@ -399,7 +422,7 @@ export async function evaluateGovernancePolicy(
       decision: "deny",
     });
     // **The reason names the remedy, deliberately.** An agent the host has and
-    // governance does not is otherwise inert with no visible cause — every call
+    // governance does not is otherwise inert with no visible cause. Every call
     // failing for a reason nobody can see is this project's worst bug class, and
     // it would arrive here as a *consequence of a security decision*, which is
     // the hardest kind to diagnose. The message says what happened and who can
@@ -424,13 +447,13 @@ export async function evaluateGovernancePolicy(
   // The reverse order was a bypass: a locked agent could keep working through
   // any tool with no resource extractor, because the "nothing to evaluate"
   // return came first. An emergency stop that only covers the tools we happened
-  // to enumerate is not an emergency stop — the whole point of the kill switch
+  // to enumerate is not an emergency stop. The whole point of the kill switch
   // is that it holds when the specific rules do not.
   // **`lockedButUnattributable` used to live here, and M5 made it unreachable.**
   //
   // Finding 81 refused a call carrying no agent id while any agent was locked,
   // because "an emergency stop that holds on some code paths and not others is
-  // not an emergency stop". The refusal it asked for still happens — it just
+  // not an emergency stop". The refusal it asked for still happens. It just
   // happens earlier and for a broader reason. Reaching this point at all now
   // requires a resolved `groupId`, and a group is resolved *from* the agent id,
   // so `!agentId` cannot be true here. The condition was dead.
@@ -439,7 +462,7 @@ export async function evaluateGovernancePolicy(
   // call is refused **always**, not only during an incident, because with a
   // policy document per organisation there is no longer a shared rulebook to
   // judge a caller that names no organisation. The bound the original comment
-  // relied on — "with no agent locked, nothing changes at all" — was the shared
+  // relied on, "with no agent locked, nothing changes at all", was the shared
   // document, not the lockdown list.
   //
   // Deleted rather than left in place, for the reason T28 records: in a gate, a
@@ -453,7 +476,7 @@ export async function evaluateGovernancePolicy(
   //
   // Finding 96 recorded that stopping a parent left a **cross-agent** child
   // running, because the child's session key says nothing about where it came
-  // from. It was carried as "blocked on the host" — true of the hook payload,
+  // from. It was carried as "blocked on the host". True of the hook payload,
   // which has no lineage in it, and false of this fork, which can read the
   // `spawnedBy` the host already records on the session entry.
   //
@@ -482,7 +505,7 @@ export async function evaluateGovernancePolicy(
       //
       // _(Two comments were stacked here and the surviving one said "Four
       // distinct ids", which the code has never had since
-      // `kill-switch-unattributable` was deleted — the comment two hundred
+      // `kill-switch-unattributable` was deleted. The comment two hundred
       // lines above records that deletion and this one was not updated with it.
       // Corrected 2026-09-01.)_
       ruleId: lockedAncestor
@@ -495,7 +518,7 @@ export async function evaluateGovernancePolicy(
     // Lockdown blocks in every posture except `off`, monitor included.
     //
     // Monitor means "policy *decisions* are recorded, not acted on". The kill
-    // switch is not a policy decision — it is a person deciding, during an
+    // switch is not a policy decision. It is a person deciding, during an
     // incident, that this agent stops now. Treating it as something monitor
     // mode suspends made the emergency stop merely advisory, and once monitor
     // became the default posture that meant a fresh installation shipped with
@@ -517,17 +540,17 @@ export async function evaluateGovernancePolicy(
   // ---------------------------------------------------------------------
   // The per-agent Codex permission (§3.5.62).
   //
-  // Checked here — after the posture and the lockdown, before any rule — because
+  // Checked here, after the posture and the lockdown, before any rule, because
   // it is a question about **whether this agent may be running here at all**,
   // not about what it may do. An agent on a runtime it is not permitted to use
   // should be refused uniformly rather than judged rule by rule on a path where
   // a denial cannot be fully enforced.
   //
   // **It sat above the lockdown until 2026-08-31, and that was finding 152.**
-  // The outcome was the same either way — a locked, unpermitted agent on Codex
-  // was refused by whichever branch ran first — but the *ledger entry* was not.
+  // The outcome was the same either way, a locked, unpermitted agent on Codex
+  // was refused by whichever branch ran first, but the *ledger entry* was not.
   // It read `agent-not-permitted-on-codex`, so an investigation asking the one
-  // question an emergency stop exists to answer — did it hold? — got a true
+  // question an emergency stop exists to answer, did it hold? got a true
   // sentence about the wrong subject. Nothing else in this function is allowed
   // to answer before the kill switch does, and the comment above the lockdown
   // block has said so since finding 81; this branch was written past it.
@@ -538,15 +561,15 @@ export async function evaluateGovernancePolicy(
   //
   // **Refusing rather than degrading is the point.** T7's prevention half cannot
   // run on that backend, so an agent whose denials matter must not silently get
-  // the weaker enforcement — which is exactly what happened before this existed.
+  // the weaker enforcement, which is exactly what happened before this existed.
   //
   // **It blocks in monitor mode, and that is deliberate** (stated because the
-  // two neighbouring always-block branches state it and this one did not —
+  // two neighbouring always-block branches state it and this one did not,
   // finding 151). Monitor means policy *decisions* are recorded rather than
   // acted on. This is not a policy decision: it is the answer to "may this agent
   // be on this runtime at all", which is the same kind of question the kill
   // switch asks, and monitor does not suspend that either. Degrading to
-  // record-only here would be the exact failure the control exists to prevent —
+  // record-only here would be the exact failure the control exists to prevent,
   // an agent running unenforced on the backend where enforcement is weakest,
   // with a ledger that says so and nothing that stops it. `off` still exempts
   // it, because `off` means the gate is not running at all and says so plainly.
@@ -575,7 +598,7 @@ export async function evaluateGovernancePolicy(
   }
 
   if (!spec) {
-    // No resource extractor for this tool, so no policy can be applied — but
+    // No resource extractor for this tool, so no policy can be applied, but
     // the action still happened, and design requirement #5 asks for a record
     // of *all* agent actions, not only the ones we know how to judge. Logging
     // it as `ungoverned` is what makes coverage gaps visible instead of
@@ -597,7 +620,7 @@ export async function evaluateGovernancePolicy(
   // **Order matters here, and the first version of T23 had it wrong.**
   //
   // The binding used to be computed *after* `spec.extract`, from the agent's
-  // original string — so the gate resolved that string twice, independently.
+  // original string, so the gate resolved that string twice, independently.
   // A link swapped between the two resolutions would have the extractor judge
   // one file while the binding handed over another: T23's own defect,
   // reintroduced inside the gate it was written to fix, in a window measured
@@ -614,7 +637,7 @@ export async function evaluateGovernancePolicy(
   const judgedEvent = paramBinding ? { ...event, params: paramBinding } : event;
   const resources = await spec.extract(judgedEvent, ctx.cwd);
   if (resources.length === 0) {
-    // A governed tool whose payload yielded nothing to check — typically a
+    // A governed tool whose payload yielded nothing to check. Typically a
     // shape the extractor does not recognise. We still do not fail closed on
     // our own extraction gap (every other check underneath still applies),
     // but the attempt is recorded so the blind spot is discoverable rather
@@ -643,7 +666,7 @@ export async function evaluateGovernancePolicy(
   //     false the moment somebody wrote a wide rule.
   //   * **Monitor does not suspend them.** Monitor means policy *opinions* are
   //     recorded rather than acted on. These are the restrictions the
-  //     installation declines to merely have an opinion about — and since a
+  //     installation declines to merely have an opinion about, and since a
   //     User can switch their own agent into monitor, the alternative would make
   //     monitor a one-click lift of every core protection.
   // ---------------------------------------------------------------------
@@ -653,7 +676,7 @@ export async function evaluateGovernancePolicy(
   // stools: the allow pass excludes anything with `effect: "deny"`, and this
   // pass excluded anything not core, so the rule was dropped entirely. An
   // operator would see their restriction listed in the policy and have it do
-  // nothing whatsoever — the worst possible failure for a rule whose purpose is
+  // nothing whatsoever. The worst possible failure for a rule whose purpose is
   // to forbid. Core and non-core denials differ in *mutability*, not in force.
   //
   // Agent scoping and expiry apply here exactly as they do to allowances.
@@ -675,7 +698,7 @@ export async function evaluateGovernancePolicy(
   // The allow pass below has evaluated all of its resources since QA round 1
   // (finding 5: "record 100% of policy decisions", and show the full blast
   // radius of a multi-path edit). The deny pass returned on the first match, so
-  // a patch touching three forbidden files was recorded as touching one — the
+  // a patch touching three forbidden files was recorded as touching one. The
   // same defect the allow pass had, in the half of the engine that matters more,
   // and it went unnoticed because a blocked call feels like it needs only one
   // reason. It needs one reason and a complete record.
@@ -745,7 +768,7 @@ export async function evaluateGovernancePolicy(
   for (const resource of resources) {
     const matched = activeRules.find((rule) => matchesPattern(rule.pattern, resource));
     // The recorded decision is always what the policy actually concluded.
-    // Monitor mode changes whether we *act* on it, never what we write down —
+    // Monitor mode changes whether we *act* on it, never what we write down,
     // a dry run whose log says "ask" when the rule says "deny" would make the
     // audit trail useless for predicting the effect of switching to enforce.
     const decision: LedgerDecision = matched ? "allow" : askMode === "off" ? "deny" : "ask";
@@ -768,7 +791,7 @@ export async function evaluateGovernancePolicy(
 
   // The posture that applies to *this* agent: its own override when set,
   // otherwise the installation setting. Monitor reaching here suspends only
-  // baseline and admin verdicts — core denials already returned above.
+  // baseline and admin verdicts. Core denials already returned above.
   const effectiveMode = agentId ? (doc.agentMode[agentId] ?? doc.mode) : doc.mode;
   if (firstMiss === undefined || effectiveMode === "monitor") {
     // Allowed. `undefined` unless the path was redirected, so the overwhelmingly
@@ -787,7 +810,7 @@ export async function evaluateGovernancePolicy(
   // Reaching here means `firstMiss` is a real resource and the posture is not
   // monitor, because the `if` above returned in both of those cases. The block
   // exists only to name that resource; every branch inside it returns, and so
-  // does every branch before it — posture `off`, lockdown, no extractor, no
+  // does every branch before it. Posture `off`, lockdown, no extractor, no
   // resource extracted, a denial, and the allow path. **The function is
   // exhaustive**, which is the property that matters in a gate: there is no
   // path through it that reaches the end without having decided something.
@@ -797,14 +820,15 @@ export async function evaluateGovernancePolicy(
   // one. `oxlint` reported it as unreachable, and it is worth more than a lint
   // fix: in this file `undefined` means *allowed*, so a dead line at the bottom
   // of the gate read as a default-allow that could never fire. This project has
-  // twice shipped code that advertised a property it did not have — an
+  // twice shipped code that advertised a property it did not have, an
   // unreachable validator branch (finding 112) and an exported function nothing
-  // called (finding 113) — and a dead allow at the end of the policy engine
+  // called (finding 113), and a dead allow at the end of the policy engine
   // would have been the worst-placed member of that family. Removed rather than
   // silenced, and this comment is here so it does not come back the next time
   // somebody expects a trailing return.
   {
     const resource = firstMiss;
+    const hitlTimeoutMs = resolveHitlTimeoutMs(doc, agentId);
     if (askMode === "off") {
       return {
         block: true,
@@ -819,15 +843,17 @@ export async function evaluateGovernancePolicy(
           `Agent "${agentId ?? "unknown"}" wants to run "${event.toolName}" against ` +
           `${spec.resourceKind} "${resource}", which no policy rule currently covers.`,
         severity: "warning",
-        // Bound the wait (design doc §1.6, window set by the Root). OpenClaw's
-        // approval machinery already fails closed on timeout; supplying the
-        // window makes the bound ours to configure rather than inherited.
-        timeoutMs: Math.max(1, doc.hitlTimeoutSeconds) * 1000,
+        // Bound the wait. OpenClaw's approval machinery already fails closed
+        // on timeout; supplying the window makes the bound ours to configure
+        // rather than inherited. Per-agent when one is set, installation-wide
+        // otherwise; both call sites read the same resolver so they cannot
+        // disagree about how long the operator was actually given.
+        timeoutMs: hitlTimeoutMs,
         // ---------------------------------------------------------------
         // **`allow-always` is deliberately not offered** (QA round 13,
         // finding 83).
         //
-        // It used to be, and answering it called `addRule` — so clicking one
+        // It used to be, and answering it called `addRule`, so clicking one
         // button on an escalation wrote a **permanent rule into
         // `policy.json`**. On a chat deployment that button is rendered in
         // Discord or Telegram, and the person pressing it holds no governance
@@ -835,14 +861,14 @@ export async function evaluateGovernancePolicy(
         // that platform's access controls. Every other write to the policy in
         // this system requires a named account with a tier and is recorded
         // against that person; this one required neither and was recorded
-        // against `hitl-approval` — the code already conceded the point, in the
+        // against `hitl-approval`. The code already conceded the point, in the
         // comment explaining that the approval machinery "reports the decision
         // but not which person made it".
         //
         // Granting the action in the moment is exactly what an escalation is
         // for, and `allow-once` still does it with no delay. Making a grant
         // *permanent* is policy authorship, and it belongs on a surface that
-        // knows who is asking — the dashboard, or the CLI. The question is not
+        // knows who is asking. The dashboard, or the CLI. The question is not
         // lost either way: a refusal lands on the pending-decision stack for an
         // operator to answer properly.
         // ---------------------------------------------------------------
@@ -859,7 +885,7 @@ export async function evaluateGovernancePolicy(
               toolName: event.toolName,
               resourceKind: spec.resourceKind,
               resource,
-              waitedMs: Math.max(1, doc.hitlTimeoutSeconds) * 1000,
+              waitedMs: hitlTimeoutMs,
             });
             await appendLedgerEntry(groupId, {
               agentId,
@@ -896,7 +922,7 @@ export async function evaluateGovernancePolicy(
         },
       },
       // If the human approves, the tool is handed the path the escalation
-      // described — not the string that produced it. An approval prompt naming
+      // described, not the string that produced it. An approval prompt naming
       // one file while the call opens another would make the audit trail and
       // the operator's consent disagree, which is the same defect this whole
       // task is about, one layer up (T23).

@@ -1,7 +1,7 @@
 // What agents does this page know about, and what do we call them?
 //
 // Pure derivations over the data the page has loaded, in their own module
-// beside `rule-filter.ts` and `ledger-filter.ts` — the two other places where
+// beside `rule-filter.ts` and `ledger-filter.ts`. The two other places where
 // this directory keeps logic that is *about* the data rather than about the
 // markup. That is the pattern which has meant their behaviour was always
 // testable while the component's was not, and it is why this is the third one
@@ -39,7 +39,7 @@ export type AgentSources = {
  *
  * **The registry leads and the reconstruction follows (M4).** What follows
  * used to be the whole answer: the page inferred which agents existed from
- * every place an id happened to appear — live sessions, lockdowns,
+ * every place an id happened to appear: live sessions, lockdowns,
  * assignments, and the four doors into the policy document. That is a
  * reasonable reconstruction and it has one hole it can never close: an agent
  * that exists and has never been the subject of a rule, a posture, a lock or
@@ -78,7 +78,7 @@ export function knownAgentIds(sources: AgentSources): string[] {
   // An agent enters the policy document by four doors, and three of them were
   // missing here: a rule written for it, a posture override, an escalation
   // override. An agent configured but not currently running was therefore
-  // absent from every picker on this page — including the kill switch's.
+  // absent from every picker on this page, including the kill switch's.
   for (const rule of sources.policy?.rules ?? []) {
     if (rule.agentId) {
       ids.add(rule.agentId);
@@ -108,7 +108,7 @@ export function isKnownAgentId(sources: AgentSources, agentId: string): boolean 
  */
 export function agentLabel(agents: readonly GovernanceAgentEntry[], agentId: string): string {
   const registered = agents.find((agent) => agent.agentId === agentId);
-  return registered?.displayName ? `${agentId} — ${registered.displayName}` : agentId;
+  return registered?.displayName ? `${agentId}, ${registered.displayName}` : agentId;
 }
 
 /**
@@ -116,9 +116,9 @@ export function agentLabel(agents: readonly GovernanceAgentEntry[], agentId: str
  *
  * Here rather than inline on the page for the reason every other derivation in
  * this module is: the page assembles props, and deriving a fact from the agent
- * list is this file's job. It answers one question for the policy panels —
+ * list is this file's job. It answers one question for the policy panels,
  * which rules should carry the note that a search on Codex can still return a
- * denied path — and answering it precisely is what keeps that note off the rules
+ * denied path, and answering it precisely is what keeps that note off the rules
  * it does not apply to.
  */
 export function codexPermittedAgentIds(agents: readonly GovernanceAgentEntry[]): string[] {

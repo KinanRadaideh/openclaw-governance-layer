@@ -1,4 +1,4 @@
-// Finding 149 — the emergency stop, driven from the command line, must name the
+// Finding 149. The emergency stop, driven from the command line, must name the
 // operator who took it.
 //
 // **Why this test exists at the CLI level rather than beside the others.**
@@ -76,7 +76,7 @@ async function runGovernance(args: readonly string[]): Promise<void> {
   await program.parseAsync(["node", "openclaw", "governance", ...args]);
 }
 
-describe("finding 149 — the command-line kill switch names its operator", () => {
+describe("finding 149. The command-line kill switch names its operator", () => {
   it("records the signed-in account, not the literal 'cli'", async () => {
     await signInAdministrator("kinan");
 

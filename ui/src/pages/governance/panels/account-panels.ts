@@ -5,7 +5,7 @@
 //
 // The same seam the HTTP routes use. `governance-dashboard-accounts.ts` states
 // "Root manages people", and `governance-dashboard-rule-requests.ts` states
-// "one queue: Viewers read, Users add, Administrators decide" — two files, one
+// "one queue: Viewers read, Users add, Administrators decide", two files, one
 // subject, because a rule request is a person asking a person for something.
 // Rendering them together keeps the dashboard's structure legible against the
 // API that feeds it: an operator looking at the request queue is looking at
@@ -15,17 +15,17 @@
 //
 // Each panel takes three kinds of input, and the split is deliberate:
 //
-//  - **State it reads** (`users`, `ruleRequests`, `role`, `busy`) — plain data.
-//  - **`drafts` + `onDraft`** — the half-typed form fields an operator is in
+//  - **State it reads** (`users`, `ruleRequests`, `role`, `busy`). Plain data.
+//  - **`drafts` + `onDraft`**. The half-typed form fields an operator is in
 //    the middle of editing. One patch channel rather than a setter per field,
 //    because a panel with eight inputs would otherwise need eight callbacks
 //    that all do the same thing, and the eighth is the one somebody forgets.
-//  - **`api`, `run`, `confirmThen`** — the page's effect primitives.
+//  - **`api`, `run`, `confirmThen`**. The page's effect primitives.
 //
 // That last group is a trade-off worth stating rather than hiding. Naming every
 // action individually (`onSetRole`, `onDeleteUser`, …) would document precisely
 // what each panel can do, and would mean roughly twenty hand-written callbacks
-// for this file alone — each one a place to wire the wrong thing. Passing the
+// for this file alone, each one a place to wire the wrong thing. Passing the
 // three primitives instead keeps the call sites explicit *inside* the panel,
 // where they read as ordinary code, at the cost of the props no longer being an
 // exhaustive capability list. The tests still work either way: a panel can be
@@ -33,7 +33,7 @@
 //
 // `confirmThen` in particular stays a primitive rather than becoming
 // per-action callbacks, because the *wording* of a confirmation is presentation
-// — it names the account and the change in the operator's language — while
+//, it names the account and the change in the operator's language, while
 // *showing a dialog and running the action* is the page's job. Splitting it
 // that way keeps the sentence an operator reads next to the markup it belongs
 // to.
@@ -59,14 +59,14 @@ import type {
  * Roles an account can actually be given.
  *
  * **`root` is deliberately absent.** There is exactly one Root per
- * installation, permanently: the server refuses a second on both routes —
- * creating one outright and promoting an existing account — and Root cannot be
+ * installation, permanently: the server refuses a second on both routes,
+ * creating one outright and promoting an existing account, and Root cannot be
  * demoted either. Offering it in a picker produced a control whose only
  * possible outcome was the error "A Root account already exists; there can be
  * only one", which is what driving the page by hand actually produced.
  *
- * The page already applies this principle elsewhere — a core rule shows no
- * Remove button, because the server would refuse it — and this is the same
+ * The page already applies this principle elsewhere, a core rule shows no
+ * Remove button, because the server would refuse it, and this is the same
  * rule applied to the account tier.
  */
 const ASSIGNABLE_ROLE_OPTIONS: ReadonlyArray<{ value: GovernanceRole; label: string }> = [
@@ -82,7 +82,7 @@ const ASSIGNABLE_ROLE_OPTIONS: ReadonlyArray<{ value: GovernanceRole; label: str
  * **The server has required this since the store gained its `managedBy`
  * parameter, and this control never sent one** (finding 197). Every demotion of
  * an Administrator to User or Viewer therefore reached `MissingManagerError`
- * and came back as a 500 — the store closed a dead end ("an Administrator could
+ * and came back as a 500: the store closed a dead end ("an Administrator could
  * never be demoted at all") and the dead end moved to the surface instead of
  * closing.
  *
@@ -122,7 +122,7 @@ function roleOptionsFor(
  * Shortest password the server will accept.
  *
  * Mirrored by hand from `MIN_PASSWORD_LENGTH` in `src/governance/user-store.ts`,
- * like every type in `api.ts` — the dashboard bundle deliberately does not
+ * like every type in `api.ts`. The dashboard bundle deliberately does not
  * import from `src/`. The server remains the authority and still enforces it;
  * this copy exists only so the form can state the rule *before* the request
  * rather than relaying the refusal afterwards.
@@ -141,7 +141,7 @@ export type SetPasswordContext = PanelEffects & {
    * The whole draft bundle rather than the one field it reads.
    *
    * So a caller can hand it `...controller.slice()` and be done, instead of
-   * naming `passwordEdits` and `onDraft` separately — two lines that have to
+   * naming `passwordEdits` and `onDraft` separately, two lines that have to
    * agree about which controller they came from, at a call site that already
    * spreads two other bundles.
    */
@@ -157,8 +157,8 @@ export type SetPasswordContext = PanelEffects & {
  * **It used to be six `@state` fields on the page**, and moving it here was not
  * tidying: `governance-page.ts` sits against a 700-line limit the project set
  * itself, it was at exactly 700, and the organisation panel could not be added
- * to it at all. The registry panel had already established the answer (M6) —
- * a panel owns its own drafts — and these were the last set that had not
+ * to it at all. The registry panel had already established the answer (M6),
+ * a panel owns its own drafts, and these were the last set that had not
  * followed. The page keeps what the page is for: identity, server data,
  * lifecycle.
  */
@@ -173,7 +173,7 @@ export type AccountDrafts = {
    * The Root username as typed into the organisation-deletion field.
    *
    * Here rather than in a controller of its own because it is the same subject
-   * — Root administering accounts — and because two controllers on one page
+   *Root administering accounts, and because two controllers on one page
    * both exposing `onDraft` is the collision the registry panel's `slice()`
    * warns about, one page further along.
    */
@@ -216,7 +216,7 @@ export class AccountsController {
     return {
       drafts: this.drafts,
       onDraft: (patch) => {
-        // Replaced rather than mutated, then the host is told — Lit re-renders
+        // Replaced rather than mutated, then the host is told, Lit re-renders
         // on identity change.
         this.drafts = { ...this.drafts, ...patch };
         this.host.requestUpdate();
@@ -256,7 +256,7 @@ export type PanelEffects = {
    * panel is an event handler, so resolving the client lazily is what the
    * component always did; handing panels a pre-built instance moved that work
    * from click-time to render-time and threw on the first paint. Caught by the
-   * characterization tests written before this extraction — the whole reason
+   * characterization tests written before this extraction. The whole reason
    * they were written first.
    */
   api: () => GovernanceApi;
@@ -322,7 +322,7 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
               ? // Root is permanent: it cannot be demoted, and no second Root
                 // can be created or promoted. So this row states the role
                 // rather than offering a control that would only ever be
-                // refused — and says *why*, because "the buttons are missing"
+                // refused, and says *why*, because "the buttons are missing"
                 // is otherwise indistinguishable from a page that failed to
                 // render.
                 renderSettingsValue(t("governance.users.rootPermanent"))
@@ -403,7 +403,7 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
               // Root decides how much of the §3.7 User expansion this account
               // actually gets. Offered on the User tier only, because the
               // flag is inert above it and a control that does nothing is a
-              // control that misleads — the shape of finding 100.
+              // control that misleads. The shape of finding 100.
               //
               // Withholding removes *writing policy*, not the tier: the
               // account keeps reading its agents' policy and ledger,
@@ -430,7 +430,7 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
             <!--
               Setting a password, including Root's own.
               The route was Root-only and enforced from the day scrypt
-              parameters became upgradeable, and no surface ever called it —
+              parameters became upgradeable, and no surface ever called it,
               so the account that governs every other one had a password that
               could not be changed after it was first chosen, on a page whose
               bootstrap step is already irreversible. Offered per row rather
@@ -552,7 +552,7 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
             ? // The tier cannot be created at all until somebody can answer
               // for it, and saying so beats a server error the operator has
               // to interpret. Root's way forward is to create an
-              // Administrator first — possibly one they sign into themselves.
+              // Administrator first. Possibly one they sign into themselves.
               html`<span class="settings-hint">${t("governance.users.noAdministrators")}</span>`
             : nothing}
           <button
@@ -601,7 +601,7 @@ export function renderRuleRequestsSection(
       renderSettingsRow({
         // A setting request has no pattern; an empty code block for it would
         // read as a rule request whose pattern failed to load. Applied to the
-        // decided list as well as the pending one — a request an operator
+        // decided list as well as the pending one. A request an operator
         // reviews and a request they later look back at are the same object.
         title:
           request.kind === "agent-setting"
@@ -625,7 +625,7 @@ export function renderRuleRequestsSection(
         ${request.kind === "agent-setting"
           ? t("governance.requests.settingKind")
           : request.resourceKind}
-        · ${t("governance.requests.by")} ${request.requestedBy} — ${request.reason}`,
+        · ${t("governance.requests.by")} ${request.requestedBy}, ${request.reason}`,
         control: canDecide
           ? html`
               <div class="settings-row__control" style="gap:0.5rem">
@@ -652,7 +652,7 @@ export function renderRuleRequestsSection(
       renderSettingsRow({
         // A setting request has no pattern; an empty code block for it would
         // read as a rule request whose pattern failed to load. Applied to the
-        // decided list as well as the pending one — a request an operator
+        // decided list as well as the pending one. A request an operator
         // reviews and a request they later look back at are the same object.
         title:
           request.kind === "agent-setting"
@@ -664,7 +664,7 @@ export function renderRuleRequestsSection(
                 value: request.value ?? "",
               })}`
             : html`<code>${request.pattern}</code>`,
-        description: `${t("governance.requests.by")} ${request.requestedBy} · ${t("governance.requests.decidedBy")} ${request.decidedBy ?? "—"}`,
+        description: `${t("governance.requests.by")} ${request.requestedBy} · ${t("governance.requests.decidedBy")} ${request.decidedBy ?? "-"}`,
         control: renderSettingsStatus({
           kind: request.status === "approved" ? "ok" : "warn",
           label: request.status,
@@ -776,7 +776,7 @@ export function renderRuleRequestsSection(
  *      the expected outcome.
  *   2. **Root's password has no other recovery path.** Bootstrap refuses once
  *      an account exists and Root cannot be demoted or deleted, so this
- *      control is the only way to change it — which is exactly why it is
+ *      control is the only way to change it: which is exactly why it is
  *      worth confirming rather than firing on a single click.
  *
  * The length rule is checked here as well as on the server, for the same

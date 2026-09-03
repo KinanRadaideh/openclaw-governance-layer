@@ -68,7 +68,7 @@ async function writeEntries(count: number): Promise<void> {
  * format that needs no secret (finding 77).
  *
  * Built by hand rather than through `appendLedgerEntry`, since that function
- * has — correctly — no way to write an unkeyed entry any more.
+ * has, correctly, no way to write an unkeyed entry any more.
  */
 async function writeLegacyUnkeyedEntries(count: number): Promise<void> {
   const { createHash } = await import("node:crypto");
@@ -206,8 +206,8 @@ describe("the chain is keyed (B3)", () => {
   it("fails verification when the key is wrong", async () => {
     // Both fixtures lengthened on 2026-09-01: a supplied key now has a
     // 16-character floor (finding 190), and these were thirteen. The property
-    // under test — a chain written under one key does not verify under another
-    // — has nothing to do with length, so the fixture moved rather than the
+    // under test, a chain written under one key does not verify under another
+    //, has nothing to do with length, so the fixture moved rather than the
     // floor.
     process.env.OPENCLAW_GOVERNANCE_LEDGER_KEY = "the-right-key-from-the-vault";
     resetLedgerKeyCacheForTests();
@@ -222,7 +222,7 @@ describe("truncation is detected (B4)", () => {
   it("reports entries removed from the end", async () => {
     await writeEntries(6);
     const entries = await readEntries();
-    // Cut the newest two. Every surviving entry still chains perfectly — this
+    // Cut the newest two. Every surviving entry still chains perfectly. This
     // is precisely why the chain alone cannot see it.
     await writeGivenEntries(entries.slice(0, 4));
     resetLedgerCursorForTests();
@@ -257,13 +257,13 @@ describe("truncation is detected (B4)", () => {
   });
 
   /**
-   * QA round 13, finding 76 — this test used to assert the defect.
+   * QA round 13, finding 76: this test used to assert the defect.
    *
    * It read "still verifies a ledger with no checkpoint, rather than crying
    * tamper", and its reasoning named two situations at once: an installation
    * *predating* the checkpoint, and one whose checkpoint was *legitimately
    * lost*. Only the first is benign, and conflating them is what made
-   * truncation undetectable — delete the tail **and** the checkpoint and
+   * truncation undetectable: delete the tail **and** the checkpoint and
    * verification returned `ok: true`, so the "two coordinated edits" the design
    * asks an attacker for became one edit and one deletion, needing no secret,
    * no forgery and no understanding of the format. The comment on
@@ -272,8 +272,8 @@ describe("truncation is detected (B4)", () => {
    * The two situations are now told apart by something outside the file: every
    * append writes a checkpoint *and* a keyed entry, so an installation holding
    * a ledger key must have a checkpoint. One that predates the key legitimately
-   * has neither. The original concern — do not train an operator to ignore the
-   * warning — is preserved by the second test below, which is the case that
+   * has neither. The original concern, do not train an operator to ignore the
+   * warning, is preserved by the second test below, which is the case that
    * concern was actually about.
    */
   it("reports a deleted checkpoint on an installation that writes them", async () => {
@@ -298,7 +298,7 @@ describe("truncation is detected (B4)", () => {
    * The downgrade guard (`seenKeyed && !entry.keyed`) catches a chain that
    * *switches* format part-way through. It never caught the attack it was
    * written for, which is stated in its own comment: rebuild the whole file
-   * from genesis in the pre-key format — needing no secret — and nothing
+   * from genesis in the pre-key format, needing no secret, and nothing
    * switches, so the file simply reads as an old chain and verifies perfectly.
    *
    * What separates "old" from "rewritten" is not in the file. It is that this
@@ -377,7 +377,7 @@ describe("reordering", () => {
   it("detects an entry re-fingerprinted to match its new neighbours", async () => {
     // The strongest version: an attacker who edits an entry *and* recomputes a
     // plausible hash for it. Without the key that hash cannot be the right one,
-    // so the entry fails against its own content — this is what the keyed chain
+    // so the entry fails against its own content. This is what the keyed chain
     // buys over plain SHA-256, asserted on the reordering path too.
     await writeEntries(3);
     const entries = await readEntries();
@@ -398,7 +398,7 @@ describe("reordering", () => {
 });
 
 /**
- * QA round 13, finding 78 — the key file itself.
+ * QA round 13, finding 78: the key file itself.
  *
  * `Buffer.from(text, "hex")` does not reject non-hexadecimal input: it decodes
  * the valid prefix and discards the rest. So a key file filled with rubbish

@@ -30,8 +30,8 @@ export type RuleTier = "core" | "baseline" | "admin";
  *
  * The language was allow-only, because denial was the default and needed no
  * expression. The supervisor's three-tier model requires restrictions that
- * survive a later broad grant — "credential access is refused, whatever else
- * anybody permits" — and an allow-only language cannot say that: adding rules
+ * survive a later broad grant, "credential access is refused, whatever else
+ * anybody permits", and an allow-only language cannot say that: adding rules
  * could only ever widen access.
  *
  * Absent means `allow`, so every existing rule keeps its meaning.
@@ -42,7 +42,7 @@ export type RuleEffect = "allow" | "deny";
  * Narrows a `path` rule to one direction of access.
  *
  * The resource model had a single `path` kind covering `read`, `write`, `edit`
- * and `apply_patch`, so **"readable but not writable" was inexpressible** — the
+ * and `apply_patch`, so **"readable but not writable" was inexpressible**, the
  * distinction the supervisor's brief draws when it describes a baseline that
  * permits "reading permitted project files". A policy language that cannot say
  * the thing the design says is a gap in the language, not in the design.
@@ -51,18 +51,18 @@ export type RuleEffect = "allow" | "deny";
  * meaning: a path rule that granted read and write still does.
  *
  * Only meaningful for `path`. Commands and network hosts have no comparable
- * split — a command is not "read" or "write", it is whatever it does.
+ * split, a command is not "read" or "write", it is whatever it does.
  */
 export type RuleAccess = "read" | "write";
 
 export type PolicyRule = {
   id: string;
   resourceKind: ResourceKind;
-  /** Absent means `allow` — see `RuleEffect`. */
+  /** Absent means `allow`, see `RuleEffect`. */
   effect?: RuleEffect;
-  /** Absent means `admin` — see `RuleTier`. */
+  /** Absent means `admin`. See `RuleTier`. */
   tier?: RuleTier;
-  /** Absent means both directions — see `RuleAccess`. Only used by `path` rules. */
+  /** Absent means both directions. See `RuleAccess`. Only used by `path` rules. */
   access?: RuleAccess;
   /** Regular expression (string form) tested against the extracted resource string. */
   pattern: string;
@@ -71,7 +71,7 @@ export type PolicyRule = {
   /**
    * ISO timestamp after which the rule stops applying.
    *
-   * **Absent means indefinite** — the rule never expires. That is the explicit
+   * **Absent means indefinite**: the rule never expires. That is the explicit
    * representation of "no time limit" rather than a sentinel date, so a rule
    * can never be accidentally granted until the year 9999 by a bad conversion.
    */
@@ -86,7 +86,7 @@ export type PolicyRule = {
    * gaining authority over the installation: they may create and remove rules
    * carrying their own agent's id, while global rules stay Administrator-only.
    * A global rule and an agent-scoped rule are both consulted when evaluating
-   * that agent — scoping narrows *who may write the rule*, never which rules
+   * that agent: scoping narrows *who may write the rule*, never which rules
    * protect the agent.
    */
   agentId?: string;
@@ -94,7 +94,7 @@ export type PolicyRule = {
    * A core rule that protects the governance layer from the agent it governs.
    *
    * These are the subset Root may **not** disable (T24). The distinction is not
-   * about how dangerous the rule is — a credential denial matters enormously —
+   * about how dangerous the rule is, a credential denial matters enormously,
    * but about what the ability to lift it would mean: a self-protecting rule is
    * one whose removal would let the governed agent reach the policy, the
    * accounts, the ledger, or the command line that switches the gate off. Lift
@@ -116,7 +116,7 @@ export type PolicyDocument = {
    * Per-agent overrides of `ask`.
    *
    * Design doc §1.6 specifies that human-in-the-loop interception is "toggled
-   * on or off by the Administrator for specific agents" — a single global
+   * on or off by the Administrator for specific agents". A single global
    * switch cannot express that. A trusted internal agent can run strict
    * default-deny (`off`) while an exploratory one escalates to a human
    * (`on-miss`), without weakening either.
@@ -124,7 +124,7 @@ export type PolicyDocument = {
    * Only `ask` is overridable, deliberately. `mode` stays global because
    * "monitor everything" / "enforce everything" is an installation posture,
    * and letting it vary per agent would make the system's overall state hard
-   * to reason about at a glance — the opposite of what an oversight tool
+   * to reason about at a glance: the opposite of what an oversight tool
    * should do.
    */
   /**
@@ -143,6 +143,26 @@ export type PolicyDocument = {
   agentMode: Record<string, GovernanceMode>;
   agentAsk: Record<string, AskMode>;
   /**
+   * Per-**agent** override of the escalation timeout, in seconds.
+   *
+   * The installation-wide `hitlTimeoutSeconds` below answers "how long does
+   * this installation wait?", and that is the only question it can answer. An
+   * agent doing supervised work in a shared workspace and an agent running a
+   * long batch overnight want different windows, and no single number expresses
+   * both.
+   *
+   * Authority follows the axis `agentMode` and `agentAsk` already establish: a
+   * **User** may set it for an agent assigned to them, an **Administrator** for
+   * any agent in their organisation, and **Root** inherits both. That is the
+   * half of Kinan's 2026-09-03 request the installation-wide setting could not
+   * carry, because "a User sets it for their own agents" has nowhere to live on
+   * a single global number.
+   *
+   * Absent means "follow the installation value", which is what keeps every
+   * existing policy document working unchanged.
+   */
+  agentHitlTimeout: Record<string, number>;
+  /**
    * Per-**user** overrides of `ask`, set by Root.
    *
    * Chapter 1 §1.6 puts this toggle on two axes: an Administrator sets it for
@@ -151,9 +171,9 @@ export type PolicyDocument = {
    * (QA finding A4).
    *
    * The two axes answer different questions. Per-agent asks "how much do we
-   * trust this agent's behaviour?" — a property of the workload. Per-user asks
+   * trust this agent's behaviour?". A property of the workload. Per-user asks
    * "how much do we trust this person's judgement when they act through an
-   * agent?" — a property of the operator. A new hire and a senior engineer
+   * agent?". A property of the operator. A new hire and a senior engineer
    * driving the same agent are exactly the case the second axis exists for, and
    * no amount of per-agent configuration expresses it.
    *
@@ -164,9 +184,14 @@ export type PolicyDocument = {
   /**
    * How long an escalation waits for a human before timing out, in seconds.
    *
-   * Design doc §1.6 puts this window under the Root's control. On timeout the
+   * Design doc §1.6 puts this window under the Root's control. **Widened to
+   * Administrator and above on 2026-09-03** at Kinan's direction: every other
+   * installation-wide policy setting is Administrator, and the tier that
+   * answers an escalation is the tier that should be able to say how long one
+   * waits. §1.6 is preliminary design that the implementation may differ from,
+   * so this is a recorded divergence rather than a requirement gap. On timeout the
    * action is denied and the question is pushed onto the pending-decision
-   * stack — never allowed, because an unattended installation must not decay
+   * stack: never allowed, because an unattended installation must not decay
    * into no governance at all.
    */
   hitlTimeoutSeconds: number;
@@ -202,20 +227,30 @@ export type PolicyDocument = {
 export const DEFAULT_HITL_TIMEOUT_SECONDS = 300;
 
 /**
+ * Bounds on any escalation timeout, installation-wide or per agent.
+ *
+ * Named here rather than written as `5` and `86_400` at each call site: the
+ * route, the command line and the store all validate this range, and three
+ * hand-written copies of one rule is how the two halves of a fact drift apart.
+ */
+export const MIN_HITL_TIMEOUT_SECONDS = 5;
+export const MAX_HITL_TIMEOUT_SECONDS = 86_400;
+
+/**
  * The policy a fresh installation starts with.
  *
  * **`enforce`, with rules already in it.** The previous default was `monitor`,
  * and the reasoning was sound as far as it went: `enforce` with an empty
  * allowlist refuses every action, the agent cannot read a file or run a command
  * until somebody writes rules for work they have not yet observed, and an
- * unusable control gets switched off wholesale — which is strictly worse than
+ * unusable control gets switched off wholesale: which is strictly worse than
  * one that starts by watching.
  *
  * The flaw was in the premise, not the reasoning. `enforce` is only unusable
  * when it starts *empty*. Shipping a starting policy (see baseline-policy.ts)
  * makes the agent useful from the first second and restricted from the first
  * second, which is what the report's default-deny posture actually claims. The
- * observation period that monitor provided is still available — as an opt-in
+ * observation period that monitor provided is still available, as an opt-in
  * tool for discovering rules, per agent, rather than as the price of a usable
  * installation.
  *
@@ -230,6 +265,7 @@ export function defaultPolicyDocument(): PolicyDocument {
     ask: "on-miss",
     agentMode: {},
     agentAsk: {},
+    agentHitlTimeout: {},
     userAsk: {},
     hitlTimeoutSeconds: DEFAULT_HITL_TIMEOUT_SECONDS,
     rules: [],
@@ -240,8 +276,8 @@ export function defaultPolicyDocument(): PolicyDocument {
 
 /**
  * Resolves the ask behaviour for one agent: its override when present, the
- * installation default otherwise. Centralised so every caller — the engine,
- * the API, the dashboard — reads the same precedence.
+ * installation default otherwise. Centralised so every caller, the engine,
+ * the API, the dashboard, reads the same precedence.
  */
 /** True only for a value the engine knows how to act on. */
 export function isAskMode(value: unknown): value is AskMode {
@@ -257,7 +293,7 @@ export function isAskMode(value: unknown): value is AskMode {
  * or the user is set to `off`, the answer is `off`.
  *
  * Chosen over "the more specific axis wins" because the two axes are not a
- * hierarchy — neither Root's opinion of a person nor an Administrator's opinion
+ * hierarchy: neither Root's opinion of a person nor an Administrator's opinion
  * of an agent is the more authoritative one. They are independent judgements,
  * and the only combination rule that cannot be used to *widen* access is to
  * take the stricter. A precedence order instead would let setting one axis
@@ -275,9 +311,9 @@ export function resolveAskMode(
   // combining the two axes, applied within one of them.
   //
   // **Both sides of this lookup are folded through `canonicalAccountName`.**
-  // The callers supply whatever spelling they hold — `findUsersForAgent`
+  // The callers supply whatever spelling they hold, `findUsersForAgent`
   // returns what `users.json` stores, the prompting path decodes what the
-  // session key carries — and `userAsk` is keyed canonically. Folding here
+  // session key carries, and `userAsk` is keyed canonically. Folding here
   // rather than asking each caller to fold first is what makes it impossible
   // for one caller to get it wrong: the map and the lookup are normalised in
   // the same expression.
@@ -301,14 +337,14 @@ function resolveAgentAsk(doc: PolicyDocument, agentId: string | undefined): AskM
     // The old code cast whatever was in the map straight to `AskMode`. A
     // hand-edited or truncated `policy.json` holding `"agentAsk": {"a": "yes"}`
     // therefore reached the engine, where the test is `askMode === "off"`, so
-    // an unrecognised string fell through to "ask a human" — the *more*
+    // an unrecognised string fell through to "ask a human". The *more*
     // permissive of the two branches, since an escalation can end in allow
     // while `off` denies outright. A setting nobody can parse must never be the
     // reason an action gets a chance to be approved.
     //
     // Falling back to the installation default (rather than jumping straight to
     // deny) is the documented meaning of "no override for this agent", and
-    // `doc.ask` is itself validated on load — so this resolves to a value that
+    // `doc.ask` is itself validated on load, so this resolves to a value that
     // was actually chosen by somebody.
     if (isAskMode(override)) {
       return override;
@@ -324,7 +360,7 @@ export function isRuleExpired(rule: PolicyRule, nowMs: number): boolean {
   const expiry = Date.parse(rule.expiresAt);
   // An unparseable timestamp is treated as expired, not as indefinite. A
   // corrupt date must never silently upgrade a temporary grant into a
-  // permanent one — fail towards less access, not more.
+  // permanent one. Fail towards less access, not more.
   return !Number.isFinite(expiry) || expiry <= nowMs;
 }
 

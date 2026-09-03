@@ -99,7 +99,7 @@ describe("lockdown", () => {
     const killEntry = entries.find((entry) => entry.toolName === ADMIN_ACTIONS.agentLock);
     expect(killEntry).toBeDefined();
     // The operator lands in `actor`, a field named after what it holds. This
-    // was previously written as `ruleId: "kill-switch:kinan"` — the most
+    // was previously written as `ruleId: "kill-switch:kinan"`. The most
     // important fact about an emergency stop, stored in a field named after
     // something else, where no filter on "who did this" would find it.
     expect(killEntry?.actor).toBe("kinan");
@@ -164,7 +164,7 @@ describe("in-flight termination", () => {
   });
 });
 
-describe("requirement #7 — termination latency", () => {
+describe("requirement #7. Termination latency", () => {
   it("completes well inside the one-second bound", async () => {
     registerAgentTerminator(() => ({ abortedRunIds: ["run-1"] }));
     const result = await lockDownAgent(TEST_GROUP, "agent-a");
@@ -197,7 +197,7 @@ describe("requirement #7 — termination latency", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Finding 195 — the emergency stop reported failure for a stop that worked.
+// Finding 195. The emergency stop reported failure for a stop that worked.
 //
 // Two throws could escape `lockDownAgent` *after* the lockdown had landed: the
 // activity probe, called bare in a polling loop inside a function whose own
@@ -205,7 +205,7 @@ describe("requirement #7 — termination latency", () => {
 // that times out under exactly the burst of entries an incident produces.
 //
 // Both surfaced as a 500 from the kill route. The agent was stopped and the
-// operator was told the stop had failed — during the one event where that
+// operator was told the stop had failed. During the one event where that
 // reading makes them reach for something more drastic.
 // ---------------------------------------------------------------------------
 describe("the stop is reported honestly when something around it fails (finding 195)", () => {
@@ -254,7 +254,7 @@ describe("the stop is reported honestly when something around it fails (finding 
     const { groupDir, ledgerFilePath } = await import("./paths.js");
     // The policy write must succeed and the ledger append must not, so the
     // failure lands exactly where it did in production: after the lockdown.
-    // A *file* where the ledger's own file belongs is not it — the append would
+    // A *file* where the ledger's own file belongs is not it. The append would
     // simply extend it. A **directory** in that place makes every write to it
     // fail with EISDIR, which is how a read-only or full disk presents.
     const unwritable = `${TEST_GROUP}-noledger`;
@@ -265,7 +265,7 @@ describe("the stop is reported honestly when something around it fails (finding 
 
     const result = await lockDownAgent(unwritable, "agent-a", TEST_ACTOR);
 
-    // Resolved rather than rejected — rejecting is what told the operator the
+    // Resolved rather than rejected. Rejecting is what told the operator the
     // stop had failed. The lockdown, which is what requirement #7 promises, is
     // in force; the missing entry is reported rather than hidden.
     expect((await loadPolicy(unwritable)).lockedAgents).toContain("agent-a");
@@ -275,18 +275,18 @@ describe("the stop is reported honestly when something around it fails (finding 
 });
 
 // ---------------------------------------------------------------------------
-// Finding 202 — the emergency stop reported success and stopped nothing.
+// Finding 202. The emergency stop reported success and stopped nothing.
 //
 // Every agent id the gate compares against is canonical: the host mints session
 // keys through `normalizeAgentId`, which lowercases, and the gate resolves the
 // id out of the key. The kill switch took its id **raw from the request body**,
 // and each check between there and the write canonicalised for its own lookup
-// without passing the canonical form on — `findAgent` did, `requireAgentInGroup`
+// without passing the canonical form on, `findAgent` did, `requireAgentInGroup`
 // did, and then `lockAgent` stored what had been typed.
 //
 // So engaging the stop on `Scout`, for an agent whose id is `scout`, wrote a
-// lockdown the gate did not recognise, matched no runs to abort, and — because
-// zero aborted runs is read as "nothing was in flight" — reported
+// lockdown the gate did not recognise, matched no runs to abort, and, because
+// zero aborted runs is read as "nothing was in flight", reported
 // `stoppedConfirmed: true`. The dashboard said "Lockdown engaged" over an agent
 // that was neither stopped nor blocked.
 //
@@ -362,7 +362,7 @@ describe("the kill switch binds at the prompt door whatever case is typed (findi
     });
 
     // Point 2 of `agent-conversation.ts`'s header: without this, stopping an
-    // agent still lets an operator start it thinking and burning tokens — "an
+    // agent still lets an operator start it thinking and burning tokens, "an
     // emergency stop that does not stop".
     expect(outcome.error).toMatch(/locked down/i);
   });

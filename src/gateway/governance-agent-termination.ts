@@ -1,7 +1,7 @@
 // Registers the Gateway's in-flight abort implementation with the governance
 // kill switch (design requirement #7).
 //
-// The governance layer must not import Gateway internals — it sits below the
+// The governance layer must not import Gateway internals. It sits below the
 // Gateway in the dependency order and is exercised by the CLI and by tests
 // with no Gateway present. So the Gateway supplies the capability instead, and
 // governance calls it through the seam in src/governance/agent-terminator.ts.
@@ -29,7 +29,7 @@ function runsForAgent(ops: ChatAbortOps, rawAgentId: string): Array<[string, str
   // **Both sides folded** (finding 202), the shape `agent-group.ts` uses and
   // for the same reason. The id arriving here came from a request body by way
   // of the kill switch; `entry.agentId` is whatever the Gateway recorded. A
-  // mismatch of spelling here is not a missed row in a list — it is an
+  // mismatch of spelling here is not a missed row in a list. It is an
   // emergency stop that signals nothing and then reports `stoppedConfirmed`,
   // because zero aborted runs is read as "nothing was in flight".
   const agentId = normalizeAgentId(rawAgentId);
@@ -70,7 +70,7 @@ export function installGovernanceAgentTerminator(resolveOps: () => ChatAbortOps 
     },
     // The probe reads the same live registry the terminator acted on, so
     // "gone from chatAbortControllers" is the Gateway's own definition of a run
-    // having finished — not a governance-side guess at what stopping means.
+    // having finished, not a governance-side guess at what stopping means.
     (runIds) => {
       const ops = resolveOps();
       if (!ops) {

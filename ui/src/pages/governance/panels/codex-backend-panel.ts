@@ -1,4 +1,4 @@
-// "Enable use of Codex?" — the one control that widens what this layer cannot
+// "Enable use of Codex?". The one control that widens what this layer cannot
 // enforce, and the disclosure that goes with it.
 //
 // ## Why this is a governance control rather than a plugin setting
@@ -26,8 +26,8 @@
 // the backend exists here at all, an Administrator decides which agents may use
 // it (per agent, in the agent registry panel). Root because this writes
 // OpenClaw's own configuration rather than governance's, and its consequences
-// reach outside governance entirely — the model catalogue, media understanding,
-// and supervised chats. The route refuses a lesser caller regardless of what
+// reach outside governance entirely. The model catalogue, media understanding,
+// and supervised chats are all its doing. The route refuses a lesser caller regardless of what
 // this file draws, the same rule `policy-root-settings.ts` states.
 import { html, nothing, type TemplateResult } from "lit";
 import { renderSettingsToggleRow } from "../../../components/settings-ui.ts";
@@ -37,8 +37,8 @@ import type { PanelEffects } from "./account-panels.ts";
  * The backend stance, plus who was let onto it.
  *
  * `agentIds` rides here rather than as a separate prop because the two are one
- * subject — whether Codex is offered, and which agents an Administrator
- * permitted — and every consumer needing the second already has the first. The
+ * subject, whether Codex is offered, and which agents an Administrator
+ * permitted, and every consumer needing the second already has the first. The
  * policy panels use it to decide which rules carry the note that a search on
  * Codex can still return a denied path, which is true only for a rule binding an
  * agent actually on that backend.
@@ -69,13 +69,13 @@ export type CodexBackendPanelProps = PanelEffects & {
  *
  * Written for somebody qualified to hold Root: it assumes they
  * know what a backend and a tool call are, and does not assume they have read
- * §3.5.61. The detail belongs in the disclosure below the row, not here — a
+ * §3.5.61. The detail belongs in the disclosure below the row, not here. A
  * dialog nobody finishes reading is a dialog nobody consents through.
  */
 const ENABLE_WARNING = {
   message:
     "Codex adds its managed model catalogue, media understanding, prompt overlays " +
-    "and supervised chats — sessions started from a terminal, an editor or ChatGPT " +
+    "and supervised chats: sessions started from a terminal, an editor or ChatGPT " +
     "that this installation can adopt and oversee.\n\n" +
     "It also accepts a known enforcement gap: on that backend, a recursive search " +
     "that reaches a file your rules deny is recorded but cannot be prevented.",
@@ -110,8 +110,8 @@ const DISABLE_WARNING = {
     "unavailable rather than moving to another backend.",
   details:
     "Agents currently running on Codex will need another backend. Any Codex " +
-    "sessions this installation had adopted — from a terminal, an editor or " +
-    "ChatGPT — stop being reachable from here.\n\n" +
+    "sessions this installation had adopted, from a terminal, an editor or " +
+    "ChatGPT, stop being reachable from here.\n\n" +
     "This is recoverable: re-enabling the plugin and restarting the Gateway brings " +
     "those chats back. The setting itself takes effect without a restart; only " +
     "recovering the supervised chats needs one.\n\n" +
@@ -128,7 +128,7 @@ function renderLearnMore(): TemplateResult {
       <div>
         <p>
           <strong>What the Codex backend gives you.</strong> A managed model catalogue, media
-          understanding, prompt overlays, and <em>supervised chats</em> — Codex sessions started
+          understanding, prompt overlays, and <em>supervised chats</em>: Codex sessions started
           somewhere else, from a terminal, an editor or ChatGPT, which this installation can adopt
           so they are governed and recorded like any other agent activity. With Codex off, those
           sessions are not reachable from here.
@@ -141,8 +141,8 @@ function renderLearnMore(): TemplateResult {
           <strong>What still works on Codex, and this is the part most easily misread.</strong> A
           deny rule still <em>prevents</em> a file being opened: the gate runs before every tool
           call on that backend and refuses the ones your policy forbids. The kill switch works. The
-          audit ledger records everything. The gap is <em>one</em> thing — what a recursive search
-          hands back — not denials in general.
+          audit ledger records everything. The gap is <em>one</em> thing, namely what a recursive
+          search hands back, not denials in general.
         </p>
         <p>
           This layer decides whether an agent may perform an action, and records what happened. For
@@ -200,7 +200,7 @@ export function renderCodexBackendPanel(
       checked: state.enabled,
       disabled: busy,
       onChange: (checked: boolean) => {
-        // Both directions confirm, for different reasons — see the two warning
+        // Both directions confirm, for different reasons. See the two warning
         // constants above. Returning `false` keeps the switch showing the
         // server's state until the round trip lands, so a cancelled dialog does
         // not leave the control lying about what the installation is doing.

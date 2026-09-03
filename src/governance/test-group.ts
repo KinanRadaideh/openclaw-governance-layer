@@ -6,7 +6,7 @@
 // there was one policy document, so `agent-a` needed no introduction. Per-group
 // storage plus mandatory registration changed that. The gate now asks *whose
 // rulebook?*, answers it from the agent registry, and **refuses an agent it has
-// no record of** — so a test that drives a tool call has to say which
+// no record of**, so a test that drives a tool call has to say which
 // organisation its agent belongs to, exactly as an installation does.
 //
 // That is the correct consequence rather than an inconvenience. A test whose
@@ -18,7 +18,7 @@
 //
 // Nothing here is imported by shipped code. It writes through the same
 // `registerAgent` an operator's dashboard calls, so a suite exercises the real
-// registration path rather than a stub of it — which is what makes the
+// registration path rather than a stub of it, which is what makes the
 // "unregistered agents are refused" tests meaningful: the registered case is
 // reached the way an operator reaches it.
 import { rm } from "node:fs/promises";
@@ -36,13 +36,13 @@ import {
 
 // One organisation per installation is enforced in `createUser`. The isolation
 // suites exist to prove that one organisation cannot see another, which takes
-// two of them, so this module — which shipped code never imports — lifts the cap
+// two of them, so this module, which shipped code never imports, lifts the cap
 // for anything seeding a group. The cap's own tests set it back explicitly.
 //
 // ## What this costs, and finding 206 is the bill
 //
 // It is a **module side effect on import**, so every suite that reaches for any
-// helper here has the cap lifted whether it wanted that or not — silently, and
+// helper here has the cap lifted whether it wanted that or not. Silently, and
 // without the suite mentioning it. One end-to-end test in
 // `governance-account-lifecycle.test.ts` therefore asserted that a second
 // bootstrap **succeeds**, which stopped being true on 2026-08-30 and stayed
@@ -50,7 +50,7 @@ import {
 // one file a reader would consult to learn what bootstrap does.
 //
 // Kept as an import-time call rather than something each suite opts into,
-// because the alternative — every seeding suite remembering a setup line — is
+// because the alternative, every seeding suite remembering a setup line, is
 // the failure mode this project has already paid for twice with modes and
 // folds. **The mitigation is the rule, not the mechanism:** a test that asserts
 // anything about *how many organisations may exist* must set the flag itself, in
@@ -66,7 +66,7 @@ setMultiOrganisationAllowedForTests(true);
  * The Administrator is real rather than fabricated because `registerAgent`
  * checks that the owner is eligible for the group (`assertOwnerEligible`), and
  * a helper that bypassed that check would let a suite create a state the
- * product cannot — which is how a test ends up proving something about the
+ * product cannot: which is how a test ends up proving something about the
  * fixture instead of about the system.
  */
 export async function seedGroupWithAgents(agentIds: readonly string[]): Promise<string> {
@@ -78,7 +78,7 @@ export async function seedGroupWithAgents(agentIds: readonly string[]): Promise<
  *
  * For suites that assert on **ownership** rather than on isolation. The routes
  * that rename, re-own or unregister an agent check that the caller administers
- * it, so a suite driving those needs its session to *be* the owner — and the
+ * it, so a suite driving those needs its session to *be* the owner, and the
  * ordinary fixture deletes its temporary Administrator precisely so it does not
  * appear in account listings. Two shapes rather than one flag, because the
  * choice is not a detail: a suite either cares who owns the agent or wants the
@@ -129,7 +129,7 @@ export async function seedNamedGroup(
   //
   // Many suites call this with an empty list purely to obtain a group id, and
   // creating an Administrator for them would put an extra row in every account
-  // listing those suites assert on — a fixture changing the thing under test.
+  // listing those suites assert on. A fixture changing the thing under test.
   // `registerAgent` needs a real, eligible owner; nothing else here does.
   // The group's directory exists from the moment the group does. A suite that
   // writes a file directly (a deployment check, a corrupted-ledger probe) should
@@ -156,15 +156,15 @@ export async function seedNamedGroup(
   // **And then remove it again.**
   //
   // `registerAgent` validates that the owner is a real Administrator in the
-  // group (`assertOwnerEligible`), so the fixture has to create one — but
+  // group (`assertOwnerEligible`), so the fixture has to create one, but
   // leaving it behind puts an extra row in every account listing, and a
   // surprising number of suites are written against "the accounts I made".
   // `const [only] = await listUsers()` is the shape that breaks: it means "the
   // sole account" and silently became "whichever account sorted first".
   //
   // Deleting it leaves each agent owned by an account that no longer exists,
-  // which is a state the product genuinely reaches — `deleteUser` has never
-  // cascaded to agents — and which affects nothing the gate does, since group
+  // which is a state the product genuinely reaches, `deleteUser` has never
+  // cascaded to agents, and which affects nothing the gate does, since group
   // resolution reads `groupId` and not `adminId`. A suite that cares about
   // ownership creates its own Administrator and registers against that.
   if (admin) {
@@ -183,7 +183,7 @@ export async function seedNamedGroup(
   //
   // Removing the file restarts the chain from genesis, which is a state the
   // product genuinely has (a fresh installation) rather than a doctored one.
-  // The registrations themselves still went through the real path — what is
+  // The registrations themselves still went through the real path. What is
   // discarded is only their record, and only in tests.
   // The checkpoint goes with it, and forgetting that was instructive.
   //
@@ -191,7 +191,7 @@ export async function seedNamedGroup(
   // group's directory, precisely so truncation cannot erase its own evidence.
   // Removing the ledger and leaving the checkpoint therefore produces exactly
   // the signal it is designed to produce: a chain that ends earlier than
-  // something which watched it grow — **truncation** — and `verifyLedgerChain`
+  // something which watched it grow, **truncation**, and `verifyLedgerChain`
   // correctly reported `ok: false` across a dozen suites. The fixture was
   // manufacturing the very tampering the ledger exists to detect.
   await rm(ledgerFilePath(groupId), { force: true });
@@ -199,7 +199,7 @@ export async function seedNamedGroup(
   // **And the key, because writing created one.**
   //
   // `appendLedgerEntry` calls `loadLedgerKey`, which *generates* a key if the
-  // installation has none — so registering agents quietly turns a never-written
+  // installation has none, so registering agents quietly turns a never-written
   // installation into a keyed one. Several suites depend on the unkeyed state to
   // exercise a legacy ledger, and verification treats "has a key but the newest
   // entry is unkeyed" as a rewrite in the pre-key format, which is exactly what

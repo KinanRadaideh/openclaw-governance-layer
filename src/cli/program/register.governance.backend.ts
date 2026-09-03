@@ -11,7 +11,7 @@
 // Its own file rather than more lines in `register.governance.ts`, which stood
 // at 633 of the inherited 700-line limit. That is the same reason
 // `governance-dashboard-backend.ts` exists, and the seam is the one every other
-// split in this project used: **one file, one statable authorization rule** —
+// split in this project used: **one file, one statable authorization rule**,
 // changing what backends this installation offers is Root's, and nothing in
 // this file is anything else.
 import type { Command } from "commander";
@@ -54,8 +54,8 @@ export function registerGovernanceBackendCommands(governance: Command): void {
       await runCommandWithRuntime(defaultRuntime, async () => {
         // Root-gated to match the `GET backend/codex` route rather than to
         // protect the value, which is not a secret. The asymmetry the CLI
-        // reference records against `governance deployment` — any signed-in
-        // tier may read what the dashboard shows only to Root — is a real one,
+        // reference records against `governance deployment`, any signed-in
+        // tier may read what the dashboard shows only to Root, is a real one,
         // and this command declines to add a second instance of it.
         const actor = await requireCliActor(defaultRuntime, "read the backend stance", (a) =>
           canManageBackends(a),
@@ -100,7 +100,7 @@ export function registerGovernanceBackendCommands(governance: Command): void {
         // the shape `AuditActorInput` wants; `toCliAuditActor` takes a
         // `CliIdentity` and reads `username`, so handing it this object records
         // the actor as `unknown`. It typechecks either way, because
-        // `AuditActorInput` has a bare `string` arm — the same hole that let
+        // `AuditActorInput` has a bare `string` arm. The same hole that let
         // finding 149 reach the ledger. The CLI test caught it here.
         const change = await setCodexBackendEnabled(actor.groupId, permit, actor);
         if (change.auditError) {

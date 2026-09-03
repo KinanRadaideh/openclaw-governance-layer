@@ -5,13 +5,13 @@
 // The classification table `VIEWER_DISCLOSURE` is in `ledger-view.ts`, not in
 // this file, and that placement is the whole point. **`tsconfig.core.json`
 // excludes test files**, so a `Record<keyof Required<LedgerEntry>, …>` written
-// here would be typechecked by nothing — vitest strips types without checking
+// here would be typechecked by nothing. Vitest strips types without checking
 // them. It would look like a guard and catch nothing, which is the exact defect
 // this project keeps finding (137's harness, 136's lint claim, 133 itself).
 //
 // So the compile-time half sits in the module, where `pnpm tsgo:core` reads it:
 // **adding a field to `LedgerEntry` fails the typecheck until it is
-// classified.** Verified by planting one — the error names the missing field.
+// classified.** Verified by planting one. The error names the missing field.
 //
 // This file is the run-time half, and it is needed because a table that merely
 // exists is another rule written down. `sanitizeLedgerEntry` is *driven* by the
@@ -77,7 +77,7 @@ describe("the Viewer sanitiser masks what its classification says it does", () =
 
   it("leaks no masked value verbatim anywhere in the sanitized entry", () => {
     // Field-by-field checks pass if a masked value is copied into some other
-    // field — a summary, a duplicate, a future convenience column. Serialising
+    // field. A summary, a duplicate, a future convenience column. Serialising
     // the whole entry is the assertion that survives that.
     const original = fullEntry();
     const serialized = JSON.stringify(sanitizeLedgerEntry(original));

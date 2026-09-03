@@ -1,6 +1,6 @@
 // Design requirement #5: "record 100% of agent actions, policy decisions, and
 // administrative approvals". Covers the completeness of the record, and the
-// two consequences of making it complete — write cost and file growth.
+// two consequences of making it complete. Write cost and file growth.
 import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -130,7 +130,7 @@ describe("write cost stays bounded as the ledger grows", () => {
     //
     // **Counted, not timed** (finding 224). This asserted "under 50 ms per
     // append" beneath a comment claiming to be "about complexity, not machine
-    // speed" — and an absolute per-append ceiling is precisely machine speed.
+    // speed", and an absolute per-append ceiling is precisely machine speed.
     // It sat at a ~3% margin and failed whenever the host was busy.
     //
     // Rewriting it as a *ratio* of a late window to an early one did not help,
@@ -175,7 +175,7 @@ describe("write cost stays bounded as the ledger grows", () => {
 
     // Constant: the head is carried forward, so no later append re-reads.
     // Quadratic: this grows by one per append, so the two deltas below would be
-    // 59 and 60 rather than 0 — verified by disabling the cache.
+    // 59 and 60 rather than 0. Verified by disabling the cache.
     expect(afterSixty - afterFirst).toBe(0);
     expect(afterOneTwenty - afterSixty).toBe(0);
     expect(afterFirst).toBeLessThanOrEqual(1);
@@ -219,7 +219,7 @@ describe("rotation keeps history verifiable", () => {
    * writing it, and that made it a test of the machine.**
    *
    * Roughly 4,000 ledger appends, each taking a file lock and extending the
-   * hash chain, inside a 120-second budget. It **timed out under load** — an
+   * hash chain, inside a 120-second budget. It **timed out under load**. An
    * ordinary result on a busy laptop, and the handoff's §4 warned about the
    * sibling test in `qa-round5-storage.test.ts` while never naming this one. A
    * caveat covering one of two identical cases teaches a reader to dismiss the
@@ -228,8 +228,8 @@ describe("rotation keeps history verifiable", () => {
    * The property under test is that **the chain continues across a rotation**,
    * and that has nothing to do with eight megabytes. Lowering the threshold
    * checks the same thing in a handful of entries, deterministically, in well
-   * under a second. What the brute force was *incidentally* covering — that the
-   * shipped threshold really is 8 MB — is now asserted directly below, so the
+   * under a second. What the brute force was *incidentally* covering, that the
+   * shipped threshold really is 8 MB, is now asserted directly below, so the
    * cheaper test does not quietly hide a change to the real constant.
    */
   afterEach(() => {

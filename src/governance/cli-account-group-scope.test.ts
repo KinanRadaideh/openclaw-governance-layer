@@ -1,15 +1,15 @@
 // Finding 234: `governance set-policy-authoring` wrote across organisations.
 //
 // Every account-touching command on the command line takes the caller's
-// organisation off `requireCliActor` and passes it down — `set-user-ask` does,
+// organisation off `requireCliActor` and passes it down, `set-user-ask` does,
 // and the gate's own comment explains why: a command "cannot obtain permission
 // to act and then quietly act on a different organisation's files, because the
 // only group it has is the one attached to the permission it was granted."
 //
 // This was the one that took the permission and dropped the group. It handed a
 // raw `userId` to `setUserPolicyAuthoring`, which searched **every** account on
-// the installation, and then called `updateSessionsPolicyAuthoring` — also
-// group-blind — whether or not the write had succeeded. Its HTTP counterpart
+// the installation, and then called `updateSessionsPolicyAuthoring`, also
+// group-blind, whether or not the write had succeeded. Its HTTP counterpart
 // refuses the same request with a 404 and says so in a comment written for
 // exactly this shape: "a Root in one group naming an account id in another".
 //
@@ -17,7 +17,7 @@
 // (2026-08-30), and that is why it is graded a latent defect rather than a live
 // hole. It is fixed anyway, because `REMAINING-WORK.md` states that the cap is
 // "a product decision rather than a security boundary" and that "the isolation
-// machinery M5 built is untouched and still enforced" — and in this one command
+// machinery M5 built is untouched and still enforced", and in this one command
 // it was not. The multi-organisation test switch below is how every M5
 // isolation suite makes that machinery observable.
 import { mkdtemp, rm } from "node:fs/promises";
@@ -131,7 +131,7 @@ describe("set-policy-authoring is bounded by the caller's organisation", () => {
     await runGovernance(["set-policy-authoring", victimId, "false"]);
 
     // The second half of the same defect: `updateSessionsPolicyAuthoring` takes
-    // an id and no group, and was called whether or not the write happened — so
+    // an id and no group, and was called whether or not the write happened, so
     // the refusal above still reached across and restricted the live session.
     const verified = await verifySession(victimSession.token);
     expect(verified?.canAuthorPolicy).not.toBe(false);
@@ -139,7 +139,7 @@ describe("set-policy-authoring is bounded by the caller's organisation", () => {
 
   it("still works on an account in the caller's own organisation", async () => {
     // The refusal must be about the boundary, not about the command being
-    // broken — a guard that refuses everything passes the two tests above.
+    // broken. A guard that refuses everything passes the two tests above.
     const adminA = await createUser(
       { username: "admin-a", password: PASSWORD, role: "administrator", groupId: groupA },
       SEED_ACTOR,

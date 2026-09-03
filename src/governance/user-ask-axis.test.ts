@@ -3,7 +3,7 @@
 //
 // §1.6 gives Root a per-*user* escalation setting. Applying it needs to know
 // which person is behind a run, and before prompting existed there was no way
-// to know — so the engine approximated it as "every account this agent is
+// to know, so the engine approximated it as "every account this agent is
 // assigned to" and took the strictest of their settings. A1 made the asker
 // knowable: a governance prompt carries the account in its own session key.
 //
@@ -35,7 +35,7 @@ import { createUser, setUserAssignedAgents } from "./user-store.js";
  * Accounts that were Viewers or Users before M3 are Administrators here unless
  * the tier is the subject of the test. A User or Viewer now requires an
  * Administrator answerable for it, which would mean creating a second account
- * inside tests about username folding, token storage and Root invariants — and
+ * inside tests about username folding, token storage and Root invariants, and
  * changing the counts several of them assert. The tier was incidental; the
  * ceremony would not have been.
  */
@@ -79,7 +79,7 @@ describe("the session key round-trips through its own parser", () => {
   it("survives an account name containing the key's own separator", () => {
     // A username may legally contain a colon, which is why the segment is
     // percent-encoded. If encoding and decoding disagreed here, two accounts
-    // could share one conversation — and one could read the other's prompts.
+    // could share one conversation, and one could read the other's prompts.
     const key = governanceSessionKey("agent-a", "a:b");
     expect(parseGovernanceSessionKey(key)?.username).toBe("a:b");
     expect(parseGovernanceSessionKey(governanceSessionKey("agent-a", "a"))?.username).toBe("a");
@@ -186,9 +186,9 @@ describe("a governance prompt resolves the axis for the account that asked", () 
   });
 
   it("cannot be used to select a laxer identity across agents", async () => {
-    // The key names the agent as well as the account. If the two disagree —
+    // The key names the agent as well as the account. If the two disagree,
     // which round 14 showed is reachable, since a spawned child runs under one
-    // identity while carrying a key minted for another — the exact path is
+    // identity while carrying a key minted for another, the exact path is
     // abandoned rather than trusted, or the axis becomes a way to choose whose
     // restriction applies.
     await accountFor("malek", "agent-b");
@@ -218,7 +218,7 @@ describe("a governance prompt resolves the axis for the account that asked", () 
 
   it("costs nothing when nobody has set a per-user override", async () => {
     // The axis reads the user store, which is a second file read on the gate's
-    // hot path. It stays skipped entirely when the feature is unused — and the
+    // hot path. It stays skipped entirely when the feature is unused, and the
     // exact path skips it even when it is used, because the key already names
     // the account.
     await accountFor("kinan", "agent-a");

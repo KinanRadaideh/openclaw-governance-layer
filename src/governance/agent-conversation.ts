@@ -4,8 +4,8 @@ import { randomUUID } from "node:crypto";
 // **What was missing.** The paper's §1.6 describes the User tier as "granted
 // targeted access to **interact with** specific, pre-configured agents", and
 // says a User "may strictly prompt the agents for task execution". Every other
-// User capability was built — write the agent's rules, read its unmasked logs,
-// stop it — and this one was not, because the account system had never been
+// User capability was built, write the agent's rules, read its unmasked logs,
+// stop it, and this one was not, because the account system had never been
 // joined to OpenClaw's chat path. A User could govern an agent they were unable
 // to speak to, which is the largest single divergence between the build and the
 // paper.
@@ -14,22 +14,22 @@ import { randomUUID } from "node:crypto";
 // here that a plain chat surface would not do, and each is the point:
 //
 //   1. **Attribution.** Until now the ledger could say what an agent did and,
-//      since the administrative-audit work, who changed its rules — but never
+//      since the administrative-audit work, who changed its rules, but never
 //      *who set it going*. A prompt is the moment a person causes agent
 //      activity, so it is recorded with the actor before the run starts. §1.6
 //      asks the log to capture "the raw LLM intent"; the prompt is that intent.
 //   2. **The kill switch binds at the door.** A locked-down agent refuses the
 //      prompt outright rather than accepting it and having each tool call
 //      refused downstream. Otherwise stopping an agent would still let an
-//      operator start it thinking, burn tokens and produce a reply — an
+//      operator start it thinking, burn tokens and produce a reply. An
 //      emergency stop that does not stop.
 //   3. **Isolation by account.** Each (agent, account) pair gets its own
 //      conversation, so two Users assigned the same agent cannot read each
 //      other's prompts. Scope has meant "which agents may I see" everywhere
 //      else in this layer; it has to mean the same thing here.
 //
-// The run itself is OpenClaw's — reached through the seam in `agent-runner.ts`,
-// which the Gateway registers at startup — so every tool call the agent makes
+// The run itself is OpenClaw's, reached through the seam in `agent-runner.ts`,
+// which the Gateway registers at startup, so every tool call the agent makes
 // still passes through the governance gate exactly as it always did. That is
 // the property that makes this safe to add: prompting grants no new capability
 // to the agent, only a new way for an authorised person to ask.
@@ -66,7 +66,7 @@ const MAX_REPLY_LENGTH = 16_000;
 /**
  * Turns kept per conversation, and conversations kept in total.
  *
- * A transcript is an operator convenience — the authoritative record is the
+ * A transcript is an operator convenience: the authoritative record is the
  * ledger, which is hash-chained and never rewritten. So this file is allowed to
  * forget its oldest entries, and the bound matters more than the history.
  */
@@ -87,7 +87,7 @@ export type ConversationTurn = {
 
 type Conversation = {
   agentId: string;
-  /** Canonical (lowercased) account name — see `conversationKey`. */
+  /** Canonical (lowercased) account name. See `conversationKey`. */
   username: string;
   turns: ConversationTurn[];
 };
@@ -98,7 +98,7 @@ type ConversationsFile = { version: 1; conversations: Conversation[] };
  * Session key for one account's conversation with one agent.
  *
  * Must parse under the host's `parseAgentSessionKey`, which requires
- * `agent:<id>:<rest>` — the governance gate reads the agent id back out of the
+ * `agent:<id>:<rest>`: the governance gate reads the agent id back out of the
  * session key whenever `ctx.agentId` is absent (`resolveEffectiveAgentId`), and
  * the kill switch and the live-session view both do the same. A key that did
  * not parse would leave a governance-initiated run unattributable to its agent,
@@ -109,13 +109,13 @@ type ConversationsFile = { version: 1; conversations: Conversation[] };
  *
  * The account segment is percent-encoded: host normalization lowercases session
  * keys and a username may legally contain a colon, which is the key's own
- * separator. Encoding keeps the mapping injective — two accounts can never
- * share a conversation — without constraining what a username may be.
+ * separator. Encoding keeps the mapping injective, two accounts can never
+ * share a conversation, without constraining what a username may be.
  */
 export function governanceSessionKey(agentId: string, username: string): string {
   // **The agent segment is folded, like the account segment beside it**
-  // (finding 202). The host lowercases session keys anyway — which is the
-  // reason the account segment is encoded — so an unfolded agent id here
+  // (finding 202). The host lowercases session keys anyway, which is the
+  // reason the account segment is encoded, so an unfolded agent id here
   // produces a key the host rewrites and this module then fails to match its
   // own stored transcript against. The account axis of this very function was
   // already handled; the agent axis was not, which is the shape the whole
@@ -126,8 +126,8 @@ export function governanceSessionKey(agentId: string, username: string): string 
 /**
  * Recovers the agent and the account from a key `governanceSessionKey` made.
  *
- * Returns `undefined` for every other session key — a Discord thread, a CLI
- * run, the main session — because "this run was started by a named account" is
+ * Returns `undefined` for every other session key, a Discord thread, a CLI
+ * run, the main session, because "this run was started by a named account" is
  * a claim only this key shape can support, and the policy engine reads it to
  * decide whose escalation setting applies (A1 follow-up: the per-user axis).
  * Guessing wrong in the permissive direction would apply *nobody's* setting; in
@@ -136,7 +136,7 @@ export function governanceSessionKey(agentId: string, username: string): string 
  *
  * Kept beside the builder deliberately. An encoder and its decoder are the
  * canonical example of two things that must agree, and this project's defect
- * list is mostly pairs that did not — so they share a file, and a round-trip
+ * list is mostly pairs that did not: so they share a file, and a round-trip
  * test asserts the pairing rather than each half separately.
  */
 export function parseGovernanceSessionKey(
@@ -168,8 +168,8 @@ export function parseGovernanceSessionKey(
   if (!username) {
     return undefined;
   }
-  // Already canonical by construction — `encodeAccountSegment` folds before
-  // encoding — but folded again so the value this returns is canonical whatever
+  // Already canonical by construction, `encodeAccountSegment` folds before
+  // encoding, but folded again so the value this returns is canonical whatever
   // produced the key.
   return { agentId, username: conversationKey(username) };
 }
@@ -204,7 +204,7 @@ function clamp(value: string, max: number): string {
   return value.slice(0, Math.max(0, max - suffix.length)) + suffix;
 }
 
-/** Redacted and bounded, in that order — see requirement #8. */
+/** Redacted and bounded, in that order. See requirement #8. */
 function sanitize(value: string, max: number): string {
   return clamp(redactToolPayloadText(value), max);
 }
@@ -213,7 +213,7 @@ async function ensureHomeDir(groupId: string): Promise<void> {
   // The **group's** directory, not just the installation root (M5).
   //
   // Every file this module touches now lives under `groups/<groupId>/`, and
-  // `withFileLock` creates its lock beside the file it guards — so a first write
+  // `withFileLock` creates its lock beside the file it guards, so a first write
   // for a brand-new organisation failed with ENOENT on the *lock*, before the
   // write it was protecting was ever attempted. A fresh group is the one state
   // every installation passes through exactly once, which is precisely the kind
@@ -230,8 +230,8 @@ async function readConversations(groupId: string): Promise<ConversationsFile> {
     //
     // The first version let the parse error escape, which failed *closed* on the
     // wrong thing: a truncated write or a hand-edit would have taken the whole
-    // prompting capability down — every prompt and every transcript read
-    // throwing — until somebody found and deleted the file. That is the correct
+    // prompting capability down, every prompt and every transcript read
+    // throwing, until somebody found and deleted the file. That is the correct
     // instinct applied to the wrong object. Failing closed protects a control;
     // this file is not a control, it is a convenience. The authoritative record
     // of every prompt is the ledger, which is hash-chained, append-only and
@@ -295,7 +295,7 @@ async function appendTurn(
  * authorization rule in one place.
  *
  * This sentence read "the HTTP layer decides" for as long as there were two
- * callers, and the command line was the one it did not name — which is finding
+ * callers, and the command line was the one it did not name, which is finding
  * 216. A module that delegates authorization has to say *to whom* in the plural
  * or the delegation is only documented for whoever wrote it first.
  */
@@ -363,7 +363,7 @@ export async function promptAgent(
      * **Metadata, not content.** The caller stores the bytes through
      * `attachment-store.ts` and passes what the ledger should record: hash, type,
      * size and declared name. Requirement #8 is satisfied because the content
-     * never reaches a log — redaction is a text operation and an image is not
+     * never reaches a log: redaction is a text operation and an image is not
      * text, so the answer is to record what is provable about the file rather
      * than the file.
      */
@@ -381,7 +381,7 @@ export async function promptAgent(
      * surface has to accumulate deltas and fails the stream outright when the
      * model retracts text it already emitted, because SSE cannot unsend bytes to
      * a client expecting concatenation. This surface is not bound by that
-     * contract — the dashboard renders whatever it was last given — so sending
+     * contract, the dashboard renders whatever it was last given, so sending
      * the whole text each time makes a retraction representable instead of fatal,
      * and removes an entire class of "the two sides disagree about what has
      * already been sent".
@@ -395,7 +395,7 @@ export async function promptAgent(
      * Called once the run exists and is cancellable, with the id it was given.
      *
      * The run id is minted here and otherwise only reaches the caller in the
-     * result — which is too late to be useful, because the thing an operator
+     * result: which is too late to be useful, because the thing an operator
      * wants to do with it is **stop the run that is still going**. A cancel
      * control that only appears once the reply has arrived is not a cancel
      * control.
@@ -412,10 +412,10 @@ export async function promptAgent(
   // **Folded once, covering every use below** (finding 202), and the use that
   // matters is the lockdown check twenty lines down.
   //
-  // Point 2 of this file's header is *"the kill switch binds at the door"* —
+  // Point 2 of this file's header is *"the kill switch binds at the door"*,
   // a locked agent must refuse the prompt outright, "otherwise stopping an
   // agent would still let an operator start it thinking, burn tokens and
-  // produce a reply — an emergency stop that does not stop." That check reads
+  // produce a reply, an emergency stop that does not stop." That check reads
   // `policy.lockedAgents`, which holds canonical ids, against whatever id the
   // request body carried. Typing the agent's id in a different case walked
   // straight past it.
@@ -433,7 +433,7 @@ export async function promptAgent(
   const runId = `gov-${randomUUID()}`;
 
   // Lockdown first, before anything is recorded as sent and before the model is
-  // reached. **In every posture, including `off`** — which is a deliberate
+  // reached. **In every posture, including `off`**, which is a deliberate
   // deviation from the tool gate, where `off` means the gate is not running at
   // all. The difference is that this route is governance's own surface: it does
   // not exist when governance is absent, so there is no host path it could be
@@ -469,7 +469,7 @@ export async function promptAgent(
   // Attachments are named in the same entry as the prompt they came with,
   // rather than in one of their own. They are part of what the person sent, and
   // an investigator reading "this account started this run" needs to see the
-  // whole of what was handed over — a separate entry would have to be joined
+  // whole of what was handed over. A separate entry would have to be joined
   // back by run id to mean anything.
   //
   // Hash, type and size only. The content is in the store; putting it here
@@ -499,7 +499,7 @@ export async function promptAgent(
   });
 
   // The slot is claimed *after* the prompt is recorded, so a prompt refused for
-  // capacity still leaves a trail — an operator who was turned away is a fact
+  // capacity still leaves a trail. An operator who was turned away is a fact
   // an investigation may need, and it is also how a flood becomes visible in
   // the ledger rather than only in a rejected HTTP response.
   let controller: AbortController;

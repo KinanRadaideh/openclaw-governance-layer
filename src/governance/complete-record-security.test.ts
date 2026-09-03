@@ -2,7 +2,7 @@
 //
 // Complete logging changes the threat picture. The ledger now ingests
 // arbitrary, agent-controlled payloads on every tool call, so it becomes both
-// a disclosure surface and a resource-exhaustion target — and the scoped views
+// a disclosure surface and a resource-exhaustion target, and the scoped views
 // built for governed entries must handle ungoverned ones too.
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -130,7 +130,7 @@ describe("an agent with no id is still recorded and still contained", () => {
     // **Installation-wide, and refused rather than ungoverned, since M5.**
     // A call carrying no agent id resolves to no organisation, so it is refused
     // before any rulebook is consulted and recorded in the installation-scope
-    // trail — there is no group ledger to write it to. The property this test
+    // trail. There is no group ledger to write it to. The property this test
     // exists for is unchanged: the action is *recorded* rather than dropped, and
     // it is attributed to "unknown" rather than to somebody.
     await evaluateGovernancePolicy({ toolName: "mystery", params: {} }, {});

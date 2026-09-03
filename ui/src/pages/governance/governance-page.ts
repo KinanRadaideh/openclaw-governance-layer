@@ -1,5 +1,5 @@
 // Governance page: the single place an operator sees and controls the
-// policy-based governance layer — login/role identity, default-deny policy
+// policy-based governance layer. Login/role identity, default-deny policy
 // rules, the tamper-evident audit ledger, and the emergency kill switch.
 import { consume } from "@lit/context";
 import { html, nothing } from "lit";
@@ -7,12 +7,9 @@ import { state } from "lit/decorators.js";
 import { applicationContext, type ApplicationContext } from "../../app/context.ts";
 import { resolveControlUiAuthToken } from "../../app/control-ui-auth.ts";
 import { showConfirmDialog } from "../../components/confirm-dialog.ts";
-import {
-  renderDocsLink,
-  renderSettingsEmpty,
-  renderSettingsPage,
-} from "../../components/settings-ui.ts";
+import { renderDocsLink, renderSettingsPage } from "../../components/settings-ui.ts";
 import { t } from "../../i18n/index.ts";
+import { startInputOverflowTitles } from "../../lib/input-overflow-title.ts";
 import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
 import { agentLabel, isKnownAgentId, knownAgentIds, type AgentSources } from "./agent-directory.ts";
 import { codexIds } from "./agent-directory.ts";
@@ -78,7 +75,9 @@ import {
   renderRuleWarnings,
   type PolicyPanelProps,
 } from "./panels/policy-panels.ts";
-import { renderIdentityRow, renderLogin } from "./panels/session-panels.ts";
+import { renderSectionNav, SectionNavController } from "./panels/section-nav.ts";
+import { renderGovernanceGate, renderIdentityRow } from "./panels/session-panels.ts";
+import "../../styles/governance.css";
 import { EMPTY_RULE_FILTER, type RuleFilter } from "./rule-filter.ts";
 
 /** Ordered least- to most-privileged so the control reads as a ladder. */
@@ -91,13 +90,24 @@ import { EMPTY_RULE_FILTER, type RuleFilter } from "./rule-filter.ts";
  */
 const AUTO_REFRESH_MS = 15_000;
 
-const SECURITY_DOCS_URL = "https://docs.openclaw.ai/gateway/security";
+/**
+ * Where "Learn more" points.
+ *
+ * Upstream's security page links OpenClaw's own documentation. This layer is a
+ * fork whose behaviour is not described there, so pointing an operator at
+ * upstream's docs to explain a gate upstream does not have would send them to
+ * a page that cannot answer the question.
+ */
+const GOVERNANCE_REPO_URL = "https://github.com/KinanRadaideh/openclaw-governance-layer";
 
 class GovernancePage extends OpenClawLightDomElement {
   @consume({ context: applicationContext, subscribe: true })
   private context!: ApplicationContext;
 
   @state() private identity: GovernanceIdentity | null = null;
+  /** The jump-nav's own state and its scroll spy, kept off this class (T16). */
+  private readonly sectionNav = new SectionNavController(this);
+  private stopOverflowTitles?: () => void;
   @state() private needsBootstrap = false;
   @state() private loading = true;
   @state() private error: string | null = null;
@@ -105,7 +115,7 @@ class GovernancePage extends OpenClawLightDomElement {
   /**
    * Whether agents may run on the Codex backend (§3.5.61).
    *
-   * `null` until loaded, and the panel renders nothing rather than guessing —
+   * `null` until loaded, and the panel renders nothing rather than guessing,
    * a toggle that shows "off" before it has asked is a toggle that lies for one
    * frame, and this one's whole purpose is to state what the layer can enforce.
    */
@@ -122,7 +132,7 @@ class GovernancePage extends OpenClawLightDomElement {
    *
    * The source of truth for "which agents exist"; the reconstruction in
    * `knownAgentIds()` below is now the fallback rather than the answer. An
-   * empty array is a real state — a group that has registered nothing — and is
+   * empty array is a real state, a group that has registered nothing, and is
    * not the same as the request having failed, so it is distinguished by the
    * refresh flag rather than by emptiness.
    */
@@ -161,7 +171,7 @@ class GovernancePage extends OpenClawLightDomElement {
    * Whether the rule being written permits or forbids.
    *
    * Defaults to `allow` because that is what an operator writes most of the
-   * time, and because it was the only option until denials became authorable —
+   * time, and because it was the only option until denials became authorable,
    * changing the default under anyone who had not noticed the new control would
    * be a poor trade for a shorter form.
    */
@@ -198,6 +208,8 @@ class GovernancePage extends OpenClawLightDomElement {
   @state() private userAskUsername = "";
   /** Agent the per-agent posture control is about to act on. */
   @state() private postureAgentId = "";
+  @state() private agentTimeoutAgentId = "";
+  @state() private agentTimeoutSeconds = "";
   /** Agent currently open in the conversation panel, and its state. */
   @state() private conversationAgentId = "";
   @state() private transcript: GovernanceTranscript | null = null;
@@ -254,6 +266,10 @@ class GovernancePage extends OpenClawLightDomElement {
   override connectedCallback(): void {
     super.connectedCallback();
     void this.refreshIdentity();
+    // Every text box on this page gets a hover tooltip when its own text does
+    // not fit. Scoped to the page rather than the document because this is
+    // where the long placeholders are; the module works on any root.
+    this.stopOverflowTitles = startInputOverflowTitles(this);
   }
 
   private async refreshIdentity(): Promise<void> {
@@ -281,20 +297,20 @@ class GovernancePage extends OpenClawLightDomElement {
   private async probeBootstrapNeeded(): Promise<boolean> {
     // The server answers "this installation already has an organisation" (409)
     // **before** it validates the body (400), so deliberately empty credentials
-    // distinguish the two states without ever creating anything. Anything else —
-    // a network failure, a gateway auth problem — is not evidence that setup is
+    // distinguish the two states without ever creating anything. Anything else,
+    // a network failure, a gateway auth problem, is not evidence that setup is
     // needed, so fall back to the ordinary sign-in form rather than inviting the
     // operator to create an account the server would refuse.
     //
     // **That sentence described the server for one day and then described
     // nothing for a week (finding 205).** M3 deleted the 409, and the
-    // one-organisation cap put the refusal back inside `createUser` — after body
+    // one-organisation cap put the refusal back inside `createUser`, after body
     // validation, reported as 400 like any malformed request. So both states
     // answered 400, this returned `true` unconditionally, and **every
     // unauthenticated visitor to an established installation was shown the
     // create-the-first-account form** instead of the sign-in form. Fixed on the
     // server, by making the contract this comment describes true again, rather
-    // than here — a probe that infers the answer from a status the route does
+    // than here. A probe that infers the answer from a status the route does
     // not promise is a second copy of a rule, which is how it broke.
     try {
       await this.api().bootstrapRoot("", "");
@@ -314,8 +330,8 @@ class GovernancePage extends OpenClawLightDomElement {
    * highest-consequence controls on the page, and they had the lightest
    * interaction of anything on it.
    *
-   * `showConfirmDialog` is the Control UI's existing helper — already used
-   * elsewhere in the app and already tested — rather than a new dialog or a
+   * `showConfirmDialog` is the Control UI's existing helper, already used
+   * elsewhere in the app and already tested, rather than a new dialog or a
    * native `confirm()`, which is blocked in some embedded surfaces.
    */
   private async confirmThen(
@@ -341,7 +357,7 @@ class GovernancePage extends OpenClawLightDomElement {
    * The page's effect primitives, handed to every panel that acts.
    *
    * One place rather than a spread at each call site, so a panel cannot be
-   * given a different `run` from its neighbour — which is how two sections end
+   * given a different `run` from its neighbour, which is how two sections end
    * up disagreeing about whether an error clears the busy flag.
    */
   /**
@@ -352,7 +368,7 @@ class GovernancePage extends OpenClawLightDomElement {
    * come to disagree about whether a prompt is still in flight.
    */
   // The registry panel's own drafts come from its controller, spread at the call
-  // site so its `onDraft` wins over this bundle's — see `slice()`.
+  // site so its `onDraft` wins over this bundle's, see `slice()`.
   private agentPanelProps(): AgentsSectionProps & PendingDecisionsProps & AgentRegistryPageProps {
     return {
       ...this.effects(),
@@ -388,7 +404,7 @@ class GovernancePage extends OpenClawLightDomElement {
    *
    * The rule list, its filter, the authoring form and the two notices are one
    * screen an operator works in a single motion, so they are given one props
-   * object rather than four — which also means the filter above the list and the
+   * object rather than four, which also means the filter above the list and the
    * list itself cannot be handed different rule sets.
    */
   private policyPanelProps(): PolicyPanelProps {
@@ -422,6 +438,8 @@ class GovernancePage extends OpenClawLightDomElement {
         newRuleAgentId: this.newRuleAgentId,
         folderGrant: this.folderGrant,
         postureAgentId: this.postureAgentId,
+        agentTimeoutAgentId: this.agentTimeoutAgentId,
+        agentTimeoutSeconds: this.agentTimeoutSeconds,
         agentPolicyAgentId: this.agentPolicyAgentId,
         hitlTimeoutDraft: this.hitlTimeoutDraft,
         userAskUsername: this.userAskUsername,
@@ -440,7 +458,7 @@ class GovernancePage extends OpenClawLightDomElement {
    * The five places an agent id can come from, gathered for `agent-directory.ts`.
    *
    * Built here rather than inside the derivations so those stay pure functions
-   * of their input — which is what lets them be tested without a page.
+   * of their input, which is what lets them be tested without a page.
    */
   private agentSources(): AgentSources {
     return {
@@ -465,7 +483,7 @@ class GovernancePage extends OpenClawLightDomElement {
   private async refreshData(): Promise<void> {
     const api = this.api();
     // `allSettled`, not `all`. Eight requests load this page, and with `all` a
-    // single failure rejected the whole refresh — which the caller treated as
+    // single failure rejected the whole refresh, which the caller treated as
     // "not logged in" and threw the operator back to the sign-in form. One
     // unavailable panel should cost that panel, not the session.
     const results = await Promise.allSettled([
@@ -481,7 +499,7 @@ class GovernancePage extends OpenClawLightDomElement {
       // surface a confusing error on an otherwise successful refresh.
       this.identity?.role === "root" ? api.listUsers() : Promise.resolve([]),
       // Same reasoning, same tier: the deployment report is Root-only (A7).
-      // **Appended at the end deliberately** — this array is destructured by
+      // **Appended at the end deliberately**. This array is destructured by
       // position below, so inserting into the middle silently misassigns every
       // field after the insertion point.
       this.identity?.role === "root" ? api.deploymentStatus() : Promise.resolve(null),
@@ -495,7 +513,7 @@ class GovernancePage extends OpenClawLightDomElement {
       this.identity?.role === "root" ? api.codexBackend() : Promise.resolve(null),
     ]);
 
-    // A 401 anywhere means the login is gone, and that *does* end the session —
+    // A 401 anywhere means the login is gone, and that *does* end the session,
     // the distinction being drawn is between "this panel failed" and "you are
     // no longer signed in".
     if (results.some((result) => result.status === "rejected" && isSessionLost(result.reason))) {
@@ -559,7 +577,7 @@ class GovernancePage extends OpenClawLightDomElement {
    * An expired session used to leave the last-loaded rule list and audit log
    * rendered as though they were current. That is the worst of both outcomes:
    * the operator can no longer act, and cannot tell that what they are reading
-   * is out of date — on the page whose entire purpose is knowing the present
+   * is out of date: on the page whose entire purpose is knowing the present
    * state of the system.
    */
   private markSessionExpired(): void {
@@ -593,7 +611,7 @@ class GovernancePage extends OpenClawLightDomElement {
    * Polls while the page is open.
    *
    * Nothing refreshed on its own before, so "no agent sessions running" could be
-   * hours old — on the panel whose job is catching a runaway agent. Skipped
+   * hours old: on the panel whose job is catching a runaway agent. Skipped
    * while a mutation is in flight (so a refresh cannot race a write) and while
    * the tab is hidden (so a backgrounded dashboard is not polling all day).
    */
@@ -622,7 +640,15 @@ class GovernancePage extends OpenClawLightDomElement {
 
   override disconnectedCallback(): void {
     this.stopAutoRefresh();
+    this.stopOverflowTitles?.();
+    this.stopOverflowTitles = undefined;
     super.disconnectedCallback();
+  }
+
+  /** Re-reads the rendered page so the jump-nav matches it. */
+  override updated(changed: Map<string, unknown>): void {
+    super.updated(changed);
+    this.sectionNav.refresh();
   }
 
   private async run(action: () => Promise<unknown>): Promise<void> {
@@ -661,7 +687,7 @@ class GovernancePage extends OpenClawLightDomElement {
     // therefore locks the operator out of their own governance layer
     // permanently, with the only recovery being to delete `users.json` by hand
     // on the server. Checked here as well as in the disabled state of the
-    // button, so the Enter key cannot take a different path — the same reason
+    // button, so the Enter key cannot take a different path. The same reason
     // the button and Enter already share this function.
     if (bootstrapping && this.loginPassword !== this.loginConfirm) {
       this.error = t("governance.login.passwordMismatch");
@@ -776,7 +802,7 @@ class GovernancePage extends OpenClawLightDomElement {
    * quota mean what it says.
    *
    * A failure stops the batch and keeps whatever already succeeded. The
-   * alternative — discarding the lot — throws away good uploads because a
+   * alternative, discarding the lot, throws away good uploads because a
    * later one was too big, and the operator would have to re-pick every file.
    */
   private async addAttachments(files: FileList | null): Promise<void> {
@@ -793,7 +819,7 @@ class GovernancePage extends OpenClawLightDomElement {
       for (const file of Array.from(files)) {
         const stored = await this.api().uploadAttachment(agentId, file);
         // Content-addressed, so re-picking the same file is not an error and
-        // must not queue it twice — the server stores one copy either way.
+        // must not queue it twice, the server stores one copy either way.
         if (!this.promptAttachments.some((held) => held.sha256 === stored.sha256)) {
           this.promptAttachments = [...this.promptAttachments, stored];
         }
@@ -810,8 +836,8 @@ class GovernancePage extends OpenClawLightDomElement {
    *
    * The chip is dropped either way, because the operator asked for that and a
    * control that sometimes does nothing is worse than one that does less than
-   * it claims. The release is best-effort: if the server refuses — which it
-   * does once a prompt has named the file — the bytes stay, correctly, and
+   * it claims. The release is best-effort: if the server refuses, which it
+   * does once a prompt has named the file, the bytes stay, correctly, and
    * there is nothing useful to tell somebody who is editing a message.
    *
    * Without this the quota was a trap (QA round 17, finding 113). Uploading
@@ -917,23 +943,38 @@ class GovernancePage extends OpenClawLightDomElement {
   }
 
   override render(): unknown {
-    if (this.loading) {
-      return renderSettingsPage(renderSettingsEmpty(t("governance.loading")));
-    }
-    if (!this.identity) {
-      return renderLogin({
-        busy: this.busy,
-        error: this.error,
-        needsBootstrap: this.needsBootstrap,
-        sessionExpired: this.sessionExpired,
-        drafts: {
-          loginUsername: this.loginUsername,
-          loginPassword: this.loginPassword,
-          loginConfirm: this.loginConfirm,
-        },
-        onDraft: (patch) => Object.assign(this, patch),
-        performLogin: (bootstrapping) => this.performLogin(bootstrapping),
-      });
+    // The header renders for every state, including the sign-in screen. Every
+    // other settings page shows its title before it shows its content, and a
+    // page that only names itself once you are signed in reads as a different
+    // page than the one the sidebar sent you to.
+    return html`
+      <section class="content-header">
+        <div>
+          <div class="page-title">${t("governance.title")}</div>
+        </div>
+      </section>
+      ${this.renderBody()}
+    `;
+  }
+
+  private renderBody(): unknown {
+    const gate = renderGovernanceGate({
+      loading: this.loading,
+      identity: this.identity,
+      busy: this.busy,
+      error: this.error,
+      needsBootstrap: this.needsBootstrap,
+      sessionExpired: this.sessionExpired,
+      drafts: {
+        loginUsername: this.loginUsername,
+        loginPassword: this.loginPassword,
+        loginConfirm: this.loginConfirm,
+      },
+      onDraft: (patch) => Object.assign(this, patch),
+      performLogin: (bootstrapping) => this.performLogin(bootstrapping),
+    });
+    if (gate !== null) {
+      return gate;
     }
     const agentProps = this.agentPanelProps();
     const policyProps = this.policyPanelProps();
@@ -948,110 +989,120 @@ class GovernancePage extends OpenClawLightDomElement {
         ${renderRuleWarnings(this.ruleWarnings, () => {
           this.ruleWarnings = null;
         })}
-        ${renderIdentityRow({
-          ...this.effects(),
-          identity: this.identity,
-          busy: this.busy,
-          onSignOut: () => {
-            this.identity = null;
-            this.ledger = [];
-            this.policy = null;
-          },
-        })}
-        ${renderAgentRegistrySection({ ...agentProps, ...this.agentRegistry.slice() })}
-        ${renderAgentsSection(agentProps)} ${renderPendingDecisionsSection(agentProps)}
-        ${renderActiveSessionsSection({
-          ...agentProps,
-          activeSessions: this.activeSessions,
-          engageKillSwitch: (agentId) => this.engageKillSwitch(agentId),
-        })}
-        ${renderAgentPolicySection(policyProps)} ${renderPolicySection(policyProps)}
-        ${renderLedgerSection({
-          ledger: this.ledger,
-          ledgerFilter: this.ledgerFilter,
-          verification: this.verification,
-          busy: this.busy,
-          onFilter: (value) => {
-            this.ledgerFilter = value;
-          },
-          onVerify: () =>
-            void this.run(async () => {
-              this.verification = await this.api().verifyLedger();
-            }),
-        })}
-        ${renderRuleRequestsSection({
-          ...this.effects(),
-          role: this.identity?.role,
-          identity: this.identity,
-          ruleRequests: this.ruleRequests,
-          busy: this.busy,
-          canAdminister: canAdminister(this.identity),
-          canManageAnyAgent: canManageAnyAgent(this.identity),
-          drafts: {
-            requestKind: this.requestKind,
-            requestPattern: this.requestPattern,
-            requestReason: this.requestReason,
-            requestAgentId: this.requestAgentId,
-          },
-          onDraft: (patch) => Object.assign(this, patch),
-        })}
-        ${renderSystemSection(this.systemStatus)}
-        ${renderDeploymentSection({ deployment: this.deployment, role: this.identity?.role })}
-        ${renderUsersSection({
-          ...this.effects(),
-          identity: this.identity,
-          users: this.users,
-          administrators: this.administrators(),
-          busy: this.busy,
-          ...this.accounts.slice(),
-          setPassword: (userId, username) =>
-            setAccountPassword(userId, username, {
+        <div class="governance-page governance-page__layout">
+          ${renderSectionNav({
+            sections: this.sectionNav.sections,
+            activeIndex: this.sectionNav.activeIndex,
+            label: t("governance.nav.sections"),
+            onJump: (index) => this.sectionNav.jump(index),
+          })}
+          <div class="governance-page__body">
+            ${renderIdentityRow({
               ...this.effects(),
               identity: this.identity,
-              ...this.accounts.slice(),
-              onError: (message) => {
-                this.error = message;
+              busy: this.busy,
+              onSignOut: () => {
+                this.identity = null;
+                this.ledger = [];
+                this.policy = null;
               },
-            }),
-          reloadUsers: async () => {
-            this.users = await this.api().listUsers();
-          },
-        })}
-        ${renderOrganisationSection({
-          ...this.effects(),
-          identity: this.identity,
-          busy: this.busy,
-          accountCount: this.users.length,
-          ...this.accounts.slice(),
-          // Two facts recorded, and then the ordinary session-lost path does
-          // the rest of the work. The deletion revoked the session that
-          // authorised it, so `run`'s refresh immediately 401s and
-          // `markSessionExpired` clears the screen — which is exactly right
-          // here and needs no special case. It leaves `error` and
-          // `needsBootstrap` alone, which is why these two survive it.
-          //
-          // `needsBootstrap` is the honest state afterwards: no account exists
-          // on this installation, so the sign-in form should be the one that
-          // creates the first one rather than a form for accounts that are
-          // gone. `error` carries the outcome, because the sign-in screen is
-          // the only screen left to report it on.
-          onDeleted: (notice) => {
-            this.error = notice;
-            this.needsBootstrap = true;
-          },
-        })}
-        ${renderKillSwitchSection({
-          ...agentProps,
-          killAgentId: this.killAgentId,
-          knownAgentIds: knownAgentIds(this.agentSources()),
-          isKnownAgentId: (agentId) => isKnownAgentId(this.agentSources(), agentId),
-          agentLabel: (agentId) => agentLabel(this.agents, agentId),
-          engageKillSwitch: (agentId) => this.engageKillSwitch(agentId),
-        })}
+            })}
+            ${renderUsersSection({
+              ...this.effects(),
+              identity: this.identity,
+              users: this.users,
+              administrators: this.administrators(),
+              busy: this.busy,
+              ...this.accounts.slice(),
+              setPassword: (userId, username) =>
+                setAccountPassword(userId, username, {
+                  ...this.effects(),
+                  identity: this.identity,
+                  ...this.accounts.slice(),
+                  onError: (message) => {
+                    this.error = message;
+                  },
+                }),
+              reloadUsers: async () => {
+                this.users = await this.api().listUsers();
+              },
+            })}
+            ${renderAgentRegistrySection({ ...agentProps, ...this.agentRegistry.slice() })}
+            ${renderAgentsSection(agentProps)} ${renderPendingDecisionsSection(agentProps)}
+            ${renderActiveSessionsSection({
+              ...agentProps,
+              activeSessions: this.activeSessions,
+              engageKillSwitch: (agentId) => this.engageKillSwitch(agentId),
+            })}
+            ${renderKillSwitchSection({
+              ...agentProps,
+              killAgentId: this.killAgentId,
+              knownAgentIds: knownAgentIds(this.agentSources()),
+              isKnownAgentId: (agentId) => isKnownAgentId(this.agentSources(), agentId),
+              agentLabel: (agentId) => agentLabel(this.agents, agentId),
+              engageKillSwitch: (agentId) => this.engageKillSwitch(agentId),
+            })}
+            ${renderAgentPolicySection(policyProps)} ${renderPolicySection(policyProps)}
+            ${renderLedgerSection({
+              ledger: this.ledger,
+              ledgerFilter: this.ledgerFilter,
+              verification: this.verification,
+              busy: this.busy,
+              onFilter: (value) => {
+                this.ledgerFilter = value;
+              },
+              onVerify: () =>
+                void this.run(async () => {
+                  this.verification = await this.api().verifyLedger();
+                }),
+            })}
+            ${renderRuleRequestsSection({
+              ...this.effects(),
+              role: this.identity?.role,
+              identity: this.identity,
+              ruleRequests: this.ruleRequests,
+              busy: this.busy,
+              canAdminister: canAdminister(this.identity),
+              canManageAnyAgent: canManageAnyAgent(this.identity),
+              drafts: {
+                requestKind: this.requestKind,
+                requestPattern: this.requestPattern,
+                requestReason: this.requestReason,
+                requestAgentId: this.requestAgentId,
+              },
+              onDraft: (patch) => Object.assign(this, patch),
+            })}
+            ${renderSystemSection(this.systemStatus)}
+            ${renderOrganisationSection({
+              ...this.effects(),
+              identity: this.identity,
+              busy: this.busy,
+              accountCount: this.users.length,
+              ...this.accounts.slice(),
+              // Two facts recorded, and then the ordinary session-lost path does
+              // the rest of the work. The deletion revoked the session that
+              // authorised it, so `run`'s refresh immediately 401s and
+              // `markSessionExpired` clears the screen, which is exactly right
+              // here and needs no special case. It leaves `error` and
+              // `needsBootstrap` alone, which is why these two survive it.
+              //
+              // `needsBootstrap` is the honest state afterwards: no account exists
+              // on this installation, so the sign-in form should be the one that
+              // creates the first one rather than a form for accounts that are
+              // gone. `error` carries the outcome, because the sign-in screen is
+              // the only screen left to report it on.
+              onDeleted: (notice) => {
+                this.error = notice;
+                this.needsBootstrap = true;
+              },
+            })}
+            ${renderDeploymentSection({ deployment: this.deployment, role: this.identity?.role })}
+          </div>
+        </div>
       `,
       {
         intro: html`${t("governance.intro")}
-        ${renderDocsLink(SECURITY_DOCS_URL, t("common.learnMore"))}`,
+        ${renderDocsLink(GOVERNANCE_REPO_URL, t("common.learnMore"))}`,
       },
     );
   }
@@ -1064,9 +1115,29 @@ class GovernancePage extends OpenClawLightDomElement {
 // time the module is evaluated in one environment, which is what happens when
 // two test files that both import it share a Vitest worker. It surfaced on
 // 2026-08-26 as `governance-panels.test.ts` failing to load in a full run while
-// passing on its own — an ordering-dependent failure, the same class as T30's
+// passing on its own. An ordering-dependent failure, the same class as T30's
 // load-dependent one, and worth the same treatment: fix the test-visible
 // defect rather than document when to disbelieve the suite.
 if (!customElements.get("openclaw-governance-page")) {
   customElements.define("openclaw-governance-page", GovernancePage);
 }
+
+/* oxlint-disable max-lines -- 735 lines against a 700 limit, and this is a
+   deliberate, recorded exception rather than a silent one.
+
+   **Four files were split properly on 2026-09-04 rather than suppressed**: the
+   per-agent timeout route moved to `governance-dashboard-agent-control.ts`, its
+   dashboard row to `panels/policy-agent-timeout.ts`, the deployment types to
+   `api.deployment.ts`, and the pre-sign-in gate to `session-panels.ts`. This
+   file is the one with no cheap seam left. It is a page component whose job is
+   composing fourteen sections, and every remaining candidate (the two prop
+   builders, the data loaders) reads twenty or more private fields, so moving
+   one relocates the same lines and adds the plumbing to pass them.
+
+   The real fix is splitting the component in two, an outer shell and an inner
+   signed-in view, which is a genuine refactor with real regression risk. It is
+   **T53** on the backlog rather than something done in the last hour before a
+   handoff.
+
+   It was at roughly 690 before this session; the jump-nav, the tooltip wiring,
+   the page header and two draft fields took it over. */

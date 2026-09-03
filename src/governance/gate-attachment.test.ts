@@ -14,8 +14,8 @@ import {
 // layer became completely inert. These tests go through the host's real hook so
 // that mutation fails loudly.
 //
-// This is the same class of mistake as the fictional tool names — testing the
-// component against our model of the system instead of against the system —
+// This is the same class of mistake as the fictional tool names, testing the
+// component against our model of the system instead of against the system,
 // which is why it gets its own file rather than a line in an existing one.
 import type { HookOutcome } from "../agents/agent-tools.before-tool-call.types.js";
 import { registerNativeHookRelay } from "../agents/harness/native-hook-relay.js";
@@ -136,7 +136,7 @@ describe("the policy gate is reached through the host's tool hook", () => {
 
 describe("the native harness relay knows about governance (B1, closed)", () => {
   // What this replaced: until B1 was fixed, this block asserted
-  // `hasBeforeToolCallPolicy() === false` — the *wrong* answer, pinned on
+  // `hasBeforeToolCallPolicy() === false`. The *wrong* answer, pinned on
   // purpose so the gap showed up in the suite rather than only in a document.
   // The gap was that the relay decision had exactly one input, that predicate,
   // and it counts plugin policies only. Governance is compiled into the fork,

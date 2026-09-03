@@ -2,7 +2,7 @@
 // before it does.
 //
 // Found by the universal sweep of 2026-09-01 (second pass), by asking a
-// question the earlier surface audit had not: *the dashboard confirms this —
+// question the earlier surface audit had not: *the dashboard confirms this,
 // does the command line?* The first sweep compared **authorization** across the
 // two surfaces and found four gaps. This compares **caution**, which is not the
 // same property and had never been looked at.
@@ -10,18 +10,18 @@
 // Two commands change the security floor for the whole installation and both
 // printed a success line and nothing else:
 //
-//   - `policy set-mode off` — the dashboard requires a confirmation reading
-//     "Nothing will be checked, blocked, or recorded — including the core
+//   - `policy set-mode off`, the dashboard requires a confirmation reading
+//     "Nothing will be checked, blocked, or recorded, including the core
 //     denials on credentials and the governance directory, and including the
 //     kill switch."
-//   - `policy core-rule <id> false` — the dashboard confirms that too, naming
+//   - `policy core-rule <id> false`, the dashboard confirms that too, naming
 //     the shipped security floor it removes.
 //
 // **The command line is the surface where this matters more, not less.** The
 // dashboard reaches these through a form an operator is looking at; the command
 // line reaches them through shell history, autocomplete, and copy-paste from a
 // runbook. `governance agents delete` already established the pattern this
-// closes with — refuse, explain, and require `--yes` — for deleting one agent.
+// closes with, refuse, explain, and require `--yes`, for deleting one agent.
 // Switching the gate off for every agent had no such step.
 //
 // Note what is deliberately *not* gated: `set-mode monitor`, `set-ask off` and
@@ -110,7 +110,7 @@ describe("switching the whole gate off", () => {
   it("says what is lost, including the two things a reader would not guess", async () => {
     // The core denials and the kill switch. An operator reading "disables the
     // gate" can reasonably assume the shipped security floor and the emergency
-    // stop are not part of "the gate" — they are.
+    // stop are not part of "the gate". They are.
     await signInRoot();
 
     await runGovernance(["policy", "set-mode", "off"]);

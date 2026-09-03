@@ -1,8 +1,8 @@
-// T7 (audit half) — what a search reached, recorded.
+// T7 (audit half). What a search reached, recorded.
 //
 // The gap being covered is that `grep`, `find` and `ls` are governed at their
 // **root** and then recurse. A search rooted somewhere allowed can read files a
-// denial names, and before this the gate had no record of it at all — the
+// denial names, and before this the gate had no record of it at all. The
 // question "did a search reach something it should not have?" had no answer
 // rather than a reassuring one.
 //
@@ -13,7 +13,7 @@
 //   2. The recording is `ungoverned`, not `deny`. The call happened. Writing it
 //      as a refusal would make the ledger claim a protection the layer did not
 //      provide, which is the failure mode this whole item is about.
-//   3. It stays off the ordinary path — a non-search tool, a path no denial
+//   3. It stays off the ordinary path. A non-search tool, a path no denial
 //      covers, or a gate switched off writes nothing.
 //
 // One intended test is not one, and says so where it sits: "no path denials
@@ -165,14 +165,14 @@ describe("it stays off the ordinary path", () => {
     // The `denials.length === 0` early return exists so an installation that
     // forbids no paths pays nothing. **No such installation exists.** Core
     // rules are immutable and reasserted from source on every load, and two of
-    // them are path denials — credential files and the governance directory —
+    // them are path denials, credential files and the governance directory,
     // so filtering them out of the document and saving it changes nothing.
     // Removing the guard would therefore break no test, which is precisely the
     // shape this project keeps finding (finding 112, finding 113, T28, and
     // finding 120 in `session-lineage.ts`): a branch that cannot be reached
     // asserting a property nothing checks.
     //
-    // It is kept because it is a **cost** guard rather than a security claim —
+    // It is kept because it is a **cost** guard rather than a security claim,
     // it would start earning its place the moment core denials became
     // per-group (M5 decision 4). Recorded here so the next reader knows it was
     // examined rather than assumed.

@@ -57,7 +57,7 @@ describe("the governed tool registry matches the tools OpenClaw actually ships",
   //   edit   src/agents/sessions/tools/edit.ts
   //   exec   src/agents/bash-tools.exec-run.ts   (bash is aliased to exec by
   //          normalizeToolName before the gate ever sees it)
-  //   terminal  src/agents/tools/terminal-tool.ts — action:"open" takes a
+  //   terminal  src/agents/tools/terminal-tool.ts. Action:"open" takes a
   //          `command` and runs it on the gateway host
   it.each([
     ["read", "path"],
@@ -164,7 +164,7 @@ describe("an approved escalation grants only what was reviewed", () => {
    * QA round 13 (finding 83) answered the same concern more completely by
    * removing the persistent grant altogether. `allow-always` called `addRule`,
    * so on a chat deployment one button wrote a permanent rule into
-   * `policy.json` — authored by a person holding no governance account and in
+   * `policy.json`. Authored by a person holding no governance account and in
    * none of the four tiers. The scope of that rule was the smaller problem.
    *
    * So this now asserts the stronger property B7 was reaching for: an
@@ -184,8 +184,8 @@ describe("an approved escalation grants only what was reviewed", () => {
     }
     expect(decision.requireApproval.allowedDecisions).toEqual(["allow-once", "deny"]);
 
-    // Even handed the withdrawn decision by the host's approval machinery —
-    // a separate component that takes its own view of what it may send — the
+    // Even handed the withdrawn decision by the host's approval machinery,
+    // a separate component that takes its own view of what it may send, the
     // callback must not write a rule.
     await decision.requireApproval.onResolution("allow-always");
     expect((await loadPolicy(TEST_GROUP)).rules).toHaveLength(before);
@@ -206,7 +206,7 @@ describe("the file lock does not confuse a failing critical section for contenti
   it("propagates an EACCES thrown by the work, instead of retrying it", async () => {
     // `withFileLock` treats EACCES/EPERM/EBUSY/EEXIST as "someone else holds
     // the lock, try again". Those codes can also come out of the critical
-    // section itself — a permission error on the ledger, say. Retrying then
+    // section itself. A permission error on the ledger, say. Retrying then
     // re-runs a non-idempotent append and finally reports a misleading lock
     // timeout instead of the real cause.
     let calls = 0;

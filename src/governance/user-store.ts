@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 // Dashboard user accounts: id, username, hashed password, and one governance
 // role. Stored as a small JSON file (consistent with how OpenClaw's own
 // exec-approvals config started life before moving to SQLite, per
-// src/infra/exec-approvals-config.ts) — a JSON file is simple, human-auditable,
+// src/infra/exec-approvals-config.ts). A JSON file is simple, human-auditable,
 // and appropriate at the account volumes a single-operator deployment has;
 // migrating to the state SQLite database is a documented option if that
 // changes, not a correctness requirement today.
@@ -41,7 +41,7 @@ export type GovernanceUser = {
    * `ROLE-MODEL.md` §3.7 deliberately widened the paper's User tier from
    * "proposes changes" to "genuinely manages its assigned agents", and that
    * remains the shipped default. But it is a *policy* choice about how much an
-   * installation delegates, not a property of the tier — an operator running
+   * installation delegates, not a property of the tier. An operator running
    * several teams may reasonably want some Users to manage their agents and
    * others only to watch them and raise rule requests.
    *
@@ -61,7 +61,7 @@ export type GovernanceUser = {
    * those two is deliberate. Every account created from M3 onward has one;
    * accounts written before M3 existed do not, and cannot be given one
    * automatically because there is no way to know which organisation they
-   * belonged to. So absent does not mean "the default group" here — the
+   * belonged to. So absent does not mean "the default group" here. The
    * pattern `actorRole` and `canAuthorPolicy` use, where absent is a safe
    * legacy reading. It means **unmigrated**, an account that cannot sign in
    * until an operator decides its fate. See `authenticate` and
@@ -78,14 +78,14 @@ export type GovernanceUser = {
    *
    * Root does not appear here even though Root outranks every Administrator. If
    * Root wants to run a User directly, it creates an Administrator account and
-   * signs into that — which keeps one statable rule ("a User is managed by an
+   * signs into that: which keeps one statable rule ("a User is managed by an
    * Administrator") instead of two, and keeps the action attributable to the
    * hat it was done in.
    */
   managedBy?: string;
 };
 
-/** Whether a stored account may author policy. Absent means yes — see the field. */
+/** Whether a stored account may author policy. Absent means yes. See the field. */
 export function accountMayAuthorPolicy(user: { canAuthorPolicy?: boolean }): boolean {
   return user.canAuthorPolicy !== false;
 }
@@ -94,7 +94,7 @@ export type GovernanceUserRecord = Omit<GovernanceUser, "passwordHash">;
 
 /**
  * A fresh group id. Same shape as an account id, for the same reason: sortable
- * and unmistakable — and since finding 199 that sentence is true again, because
+ * and unmistakable: and since finding 199 that sentence is true again, because
  * both come from `newGovernanceId` rather than from two hand-written copies of
  * one line that had drifted apart.
  */
@@ -115,8 +115,8 @@ export class MissingGroupError extends Error {
  *
  * The invariant is "no unmanaged account exists", chosen over the softer
  * "unmanaged accounts are flagged" because a flag describes a state somebody
- * still has to act on, and the state it describes — an account nobody is
- * answerable for — is the one an ecosystem panel exists to make impossible.
+ * still has to act on, and the state it describes, an account nobody is
+ * answerable for, is the one an ecosystem panel exists to make impossible.
  */
 export class MissingManagerError extends Error {
   constructor(reason: string) {
@@ -142,8 +142,8 @@ async function ensureHomeDir(): Promise<void> {
  * gate resolves an agent id out of a session key. The assignment list was the
  * one identifier in this system kept as typed and then compared with `===`.
  *
- * So an Administrator assigning `Scout` to a User — from a comma-separated text
- * field, on either surface — produced an assignment that was **accepted,
+ * So an Administrator assigning `Scout` to a User, from a comma-separated text
+ * field, on either surface, produced an assignment that was **accepted,
  * stored, echoed back and never consulted**. `assertAssignable` permitted it,
  * because it canonicalises for its own lookup; `canViewAgent` then asked
  * `["Scout"].includes("scout")` and answered no. The User could not read that
@@ -151,8 +151,8 @@ async function ensureHomeDir(): Promise<void> {
  * `findUsersForAgent` could not find them behind it, so the per-user escalation
  * axis had nobody to ask. Nothing anywhere reported a problem.
  *
- * That is the sentence `account-name.ts` was written for — *"a governance
- * control that silently did nothing"* — reproduced on the other identifier, and
+ * That is the sentence `account-name.ts` was written for, *"a governance
+ * control that silently did nothing"*, reproduced on the other identifier, and
  * the same repair: fold where the value becomes a key.
  *
  * **Here rather than at the route**, because this function is the choke point
@@ -161,8 +161,8 @@ async function ensureHomeDir(): Promise<void> {
  * holds `Scout` starts working immediately and is rewritten canonically by the
  * next assignment, rather than needing a migration.
  *
- * The failure direction was safe — a stored non-canonical id can never match a
- * canonical one, so this only ever withheld access — which is why it survived:
+ * The failure direction was safe, a stored non-canonical id can never match a
+ * canonical one, so this only ever withheld access, which is why it survived:
  * nothing broke loudly, an assignment simply did not work.
  */
 export function normalizeAgentIds(agentIds: readonly string[] | undefined): string[] {
@@ -174,7 +174,7 @@ export function normalizeAgentIds(agentIds: readonly string[] | undefined): stri
         // Filtered *before* folding: `normalizeAgentId` is a coercion, not a
         // validator, and returns the installation's default id `main` for
         // anything with no canonical form of its own. Folding unfiltered would
-        // turn a typo like `###` into an assignment of the default agent —
+        // turn a typo like `###` into an assignment of the default agent,
         // finding 129's trap, arriving here by a different route.
         .filter((id) => isValidAgentId(id) || normalizeAgentId(id) !== "main")
         .map((id) => normalizeAgentId(id)),
@@ -236,7 +236,7 @@ export async function findUserByUsername(username: string): Promise<GovernanceUs
  * Agent ids are free-form strings and are not owned by a group until M4, so two
  * organisations can independently assign the same id. Without the filter, an
  * Administrator asking "who can reach agent-x?" would be told the names of
- * people in another organisation who happen to use that id — the exact
+ * people in another organisation who happen to use that id. The exact
  * isolation the group exists to provide, defeated by a coincidence of naming.
  *
  * Caught by reading the M3 diff against the M2 route rather than by a failing
@@ -301,7 +301,7 @@ export type CreateUserInput = {
   password: string;
   role: GovernanceRole;
   assignedAgents?: string[];
-  /** The group this account joins. Required — see `GovernanceUser.groupId`. */
+  /** The group this account joins. Required. See `GovernanceUser.groupId`. */
   groupId?: string;
   /** The Administrator answerable for it. Required for User and Viewer, refused for the others. */
   managedBy?: string;
@@ -312,7 +312,7 @@ export type CreateUserInput = {
 // They refused any creation that was not the installation's very first
 // account, checked inside the write lock, because the bootstrap endpoint used
 // to test "are there zero users?" and then create the account as a separate
-// step — two requests arriving together both passed and both got Root.
+// step, two requests arriving together both passed and both got Root.
 //
 // **Removed rather than left in place**, even though the guard still worked.
 // Nothing calls it now that creating a Root creates a group, and this project
@@ -339,7 +339,7 @@ export const MAX_USERNAME_LENGTH = 64;
  * NFKC folds compatibility and combining-mark variants together, so "jose"
  * plus a combining acute and the precomposed "josé" resolve to one account.
  * Without it two accounts could render identically in the operator list and in
- * the audit trail — an impersonation vector in a product whose entire purpose
+ * the audit trail: an impersonation vector in a product whose entire purpose
  * is knowing who did what. Case folding is applied on top for the same reason.
  */
 function canonicalUsername(username: string): string {
@@ -352,7 +352,7 @@ function canonicalUsername(username: string): string {
  * compile error, not a review finding.
  *
  * Ledger writes are made after the account lock is released, and only once the
- * write has actually succeeded — a rejected change (duplicate username, last
+ * write has actually succeeded: a rejected change (duplicate username, last
  * Root guard) leaves no entry, because nothing happened.
  */
 export async function createUser(
@@ -393,7 +393,7 @@ export async function createUser(
     }
     // One organisation per installation. Placed here rather than in the signup
     // route because the route is outside this lock, and two simultaneous signups
-    // would both read "no organisation yet" and both succeed — the same race the
+    // would both read "no organisation yet" and both succeed. The same race the
     // Root cap is guarded against three checks above.
     if (wouldCreateSecondOrganisation(file.users, input.groupId)) {
       throw new DuplicateOrganisationError();
@@ -425,7 +425,7 @@ export async function createUser(
       );
     }
     const user: GovernanceUser = {
-      // One definition for all five id kinds since finding 199 — see `ids.ts`
+      // One definition for all five id kinds since finding 199. See `ids.ts`
       // for what the hand-written version was doing and why it matters here:
       // this id is what every role change, assignment and deletion resolves a
       // row by.
@@ -459,7 +459,7 @@ export async function createUser(
  *
  * The guard also runs at the API boundary against a snapshot, which is enough
  * for a single request but not for two arriving together: both read "2 roots",
- * both pass, both write, and the installation is left with zero Roots — with no
+ * both pass, both write, and the installation is left with zero Roots, with no
  * password reset and no second bootstrap, that is unrecoverable. The invariant
  * therefore has to be re-checked inside the same lock as the write, exactly as
  * the group and manager rules do for creation.
@@ -475,7 +475,7 @@ export class LastRootError extends Error {
  * Thrown when a write would produce a second Root account.
  *
  * The installation has exactly one Root. Only the lower bound was enforced
- * before — `LastRootError` stops the last Root being removed — which left the
+ * before, `LastRootError` stops the last Root being removed, which left the
  * two halves of one invariant unevenly guarded.
  *
  * The upper bound is not cosmetic. Root is the tier that manages people, and a
@@ -505,15 +505,15 @@ export class DuplicateRootError extends Error {
  *
  * Neither writer that **breaks** it did. Demoting an Administrator to Viewer,
  * or deleting one outright, left every account they managed pointing at an
- * account that is no longer an Administrator — or at no account at all. Nothing
+ * account that is no longer an Administrator: or at no account at all. Nothing
  * refused it, nothing repaired it, and nothing reported it: the rule was
  * enforced at creation and abandoned at the two operations that end it.
  *
  * ## Why refusing rather than re-homing
  *
  * There is no successor to choose. Picking one would invent an answer to
- * *"who is now answerable for these people?"* — the question the link exists to
- * record — and `deleteUnmigratedAccounts` already argues that inventing an
+ * *"who is now answerable for these people?"*, the question the link exists to
+ * record, and `deleteUnmigratedAccounts` already argues that inventing an
  * organisation for an account is worse than refusing to guess.
  *
  * The agent registry reached the opposite answer for agents, and the difference
@@ -528,7 +528,7 @@ export class DuplicateRootError extends Error {
 export class ManagedAccountsRemainError extends Error {
   constructor(action: "delete" | "demote", managerName: string, managed: readonly string[]) {
     super(
-      `Cannot ${action} ${managerName}: ${managed.length} account(s) answer to them — ` +
+      `Cannot ${action} ${managerName}: ${managed.length} account(s) answer to them, ` +
         `${managed.join(", ")}. Assign those accounts to another Administrator first, ` +
         `or remove them. An account that answers to nobody is the state this refuses to create.`,
     );
@@ -590,7 +590,7 @@ let multiOrganisationAllowed = false;
  * The isolation suites exist to prove that one organisation cannot see another,
  * which requires creating two. Not reachable from configuration, the CLI or the
  * network: it is an exported function with no caller in shipped code, and
- * `test-group.ts` — which is itself not a production seam — enables it for the
+ * `test-group.ts`, which is itself not a production seam, enables it for the
  * suites that seed groups.
  */
 export function setMultiOrganisationAllowedForTests(allowed: boolean): void {
@@ -603,7 +603,7 @@ export function setMultiOrganisationAllowedForTests(allowed: boolean): void {
  * **The one bit the sign-in screen needs, and the reason it is exported**
  * (finding 205). The dashboard decides between "sign in" and "create the first
  * account" by probing `bootstrap-root` with empty credentials and reading the
- * status — a design that depended on the route answering *"an organisation
+ * status: a design that depended on the route answering *"an organisation
  * already exists"* **before** it validated the body. M3 removed that refusal,
  * and the one-organisation cap put the behaviour back inside `createUser`,
  * which runs *after* validation and reports a 400 like every other bad body. So
@@ -635,7 +635,7 @@ export async function installationHasOrganisation(): Promise<boolean> {
  *
  * Accounts predating groups carry no `groupId` and are ignored deliberately. An
  * installation holding only those has no organisation yet, so the first real one
- * must still be creatable — that is the state `governance migrate` repairs.
+ * must still be creatable: that is the state `governance migrate` repairs.
  */
 function wouldCreateSecondOrganisation(users: readonly GovernanceUser[], groupId: string): boolean {
   if (multiOrganisationAllowed) {
@@ -683,7 +683,7 @@ function wouldCreateSecondRoot(
  * "No Roots" is only unrecoverable while *other* accounts survive: bootstrap
  * refuses to run once any account exists, and there is no password reset. If
  * the change empties the account list entirely, bootstrap becomes available
- * again, so that case is deliberately allowed — it is a teardown, not a
+ * again, so that case is deliberately allowed: it is a teardown, not a
  * lockout.
  */
 function wouldStrandWithoutRoot(
@@ -698,7 +698,7 @@ function wouldStrandWithoutRoot(
   // A named local rather than reassigning the parameter. The parameter is
   // `readonly` and every line below reads it, so rebinding it mid-function
   // meant the same identifier denoted the whole installation above this point
-  // and one group below it — in a guard whose entire job is to keep those two
+  // and one group below it, in a guard whose entire job is to keep those two
   // scopes distinct.
   const scoped = subject ? users.filter((u) => u.groupId === subject.groupId) : users;
   if (!scoped.some((u) => u.id === userId)) {
@@ -721,7 +721,7 @@ export async function setUserRole(
    * Required when demoting into User or Viewer, refused otherwise. Without this
    * parameter the invariant had a hole in the shape of a dead end: promotion
    * into a managed tier was refused because no manager was supplied, and there
-   * was no way to supply one — so an Administrator could never be demoted at
+   * was no way to supply one: so an Administrator could never be demoted at
    * all. Caught by an existing test that demoted one, which is the sort of
    * thing a test suite is for.
    */
@@ -739,7 +739,7 @@ export async function setUserRole(
     }
     // Promotion to Root is refused while another Root exists.
     //
-    // Combined with the check above — which refuses to demote the only Root —
+    // Combined with the check above, which refuses to demote the only Root,
     // this makes the Root account permanent: it cannot be transferred by
     // demote-then-promote, because the first step is refused. That is the
     // intended invariant and is stated in full on `guardRootPermanence`
@@ -750,7 +750,7 @@ export async function setUserRole(
       throw new DuplicateRootError();
     }
     // Promotion out of a managed tier drops the manager link, and demotion into
-    // one requires a manager the caller has not supplied — so it is refused
+    // one requires a manager the caller has not supplied, so it is refused
     // rather than guessed. Changing what an account *is* and choosing who
     // answers for it are two decisions, and folding them together is how a
     // User quietly ends up unmanaged (the state M3 exists to make impossible).
@@ -807,7 +807,7 @@ export async function setUserRole(
     actor,
     action: ADMIN_ACTIONS.userRoleChange,
     // Both roles, because a privilege escalation is only visible as a
-    // transition — "now an administrator" does not say whether that was a
+    // transition, "now an administrator" does not say whether that was a
     // promotion or a demotion.
     target: `account ${changed.username} role ${changed.previous} -> ${role}`,
     subjectId: userId,
@@ -826,7 +826,7 @@ export async function setUserRole(
  * The caller must also call `updateSessionsPolicyAuthoring`, so revoking it
  * takes effect on a User who is already signed in rather than at their next
  * login. That call lives at the route rather than here, matching how role and
- * assignment changes already work — this module owns the account file and the
+ * assignment changes already work: this module owns the account file and the
  * session file is somebody else's.
  *
  * It is not optional. A permission that only applies to future sessions is one
@@ -847,7 +847,7 @@ export async function setUserPolicyAuthoring(
    * checker ask the question at every call site, now and later.
    *
    * The HTTP route checks `targetIsInCallerGroup` before calling and keeps
-   * doing so — its 404 says "no such user" rather than revealing that the id
+   * doing so: its 404 says "no such user" rather than revealing that the id
    * exists elsewhere, which this refusal cannot express from inside the store.
    * The check here is the one the command line never had.
    */
@@ -980,7 +980,7 @@ export async function deleteUser(userId: string, actor: AuditActorInput): Promis
  * right to: an installation left holding accounts that answer to nobody, with
  * no password reset and no second bootstrap, is unrecoverable. A loop would
  * therefore delete every account *except* the one that matters and then throw,
- * leaving the organisation half-gone — the worst of both outcomes.
+ * leaving the organisation half-gone: the worst of both outcomes.
  *
  * The invariant those guards protect is **"no account is ever left without a
  * Root"**, not "a Root always exists". Removing the Root together with everyone
@@ -993,7 +993,7 @@ export async function deleteUser(userId: string, actor: AuditActorInput): Promis
  * They belong to no organisation, so no organisation's deletion is authority to
  * remove them; `deleteUnmigratedAccounts` is the command that owns that.
  *
- * Not exported to any route directly — `organisation-deletion.ts` is the only
+ * Not exported to any route directly: `organisation-deletion.ts` is the only
  * caller, and it is the module that owns the confirmation and the ordering.
  * This is the primitive, in the same sense `setUserAssignedAgents` is one.
  */
@@ -1014,7 +1014,7 @@ export async function deleteGroupAccounts(
   });
   for (const account of removed) {
     // One entry per account, not one summary line, and into the organisation's
-    // **own** chain — which the deletion retains. After this the ledger is the
+    // **own** chain, which the deletion retains. After this the ledger is the
     // only place that says these people existed, so it records them one by one
     // exactly as an ordinary deletion would.
     await recordAdminAction(groupId, {
@@ -1044,7 +1044,7 @@ function decoyHash(): Promise<string> {
  * When the username does not exist a password verification is still performed
  * against a decoy hash. Returning early instead would make the unknown-user
  * path measurably faster than the wrong-password path, letting an attacker
- * enumerate valid usernames by timing alone — the "broken authentication"
+ * enumerate valid usernames by timing alone: the "broken authentication"
  * class OWASP calls out, and one the login throttle does not address because
  * a handful of probes per account is enough to learn existence.
  */
@@ -1069,7 +1069,7 @@ export async function authenticate(
   // absent `canAuthorPolicy` are read; or refuse.
   //
   // Refusing is right *here* and the difference is what absence means. Those
-  // other fields are properties whose default is knowable — a missing role is
+  // other fields are properties whose default is knowable. A missing role is
   // "not recorded", a missing authoring flag is "allowed". A missing group is
   // not a default; it is an unanswered question about who this account belongs
   // to, and guessing it would silently place somebody in an organisation
@@ -1084,7 +1084,7 @@ export async function authenticate(
   // only moment a stored hash can be strengthened without asking anybody to do
   // anything. Raising `CURRENT_SCRYPT_PARAMS` therefore migrates the
   // installation on its own, one login at a time, with no window in which
-  // somebody is locked out — the property whose absence made the cost
+  // somebody is locked out. The property whose absence made the cost
   // effectively permanent (B9).
   if (needsRehash(user.passwordHash)) {
     await upgradeStoredPassword(user.id, user.passwordHash, password);
@@ -1101,7 +1101,7 @@ export async function authenticate(
  *
  * The compare-and-swap on `passwordHash` matters because this runs outside the
  * caller's control flow: if the password changed between the read and this
- * write — a reset landing at the same moment — the stale value must not be
+ * write, a reset landing at the same moment, the stale value must not be
  * written back over the new one.
  */
 async function upgradeStoredPassword(
@@ -1129,8 +1129,8 @@ async function upgradeStoredPassword(
  * Sets an account's password on behalf of Root.
  *
  * The recovery path whose absence made B9 severe: without it, a stored hash that
- * could not be verified — because the cost parameters moved, or the record was
- * corrupted — had no route back, since bootstrap refuses once any account
+ * could not be verified, because the cost parameters moved, or the record was
+ * corrupted, had no route back, since bootstrap refuses once any account
  * exists. Restricted to Root at the API boundary, like every other account
  * operation, and audited like one.
  */
@@ -1160,7 +1160,7 @@ export async function setUserPassword(
   await recordAdminAction(changed.groupId ?? INSTALLATION_LEDGER_GROUP, {
     actor,
     action: ADMIN_ACTIONS.userPasswordReset,
-    // The password itself is never recorded, obviously — only that it was
+    // The password itself is never recorded, obviously. Only that it was
     // replaced, by whom, and for whom.
     target: `password reset for account ${changed.username}`,
     subjectId: userId,

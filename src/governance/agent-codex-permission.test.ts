@@ -39,7 +39,7 @@ afterEach(async () => {
 /**
  * Narrows the gate verdict to its refusal arm.
  *
- * The verdict is a union — refuse, escalate, or allow-with-rewritten-params —
+ * The verdict is a union, refuse, escalate, or allow-with-rewritten-params,
  * so `verdict?.block` is not a property that exists on it. It read that way
  * until 2026-08-31 and typechecked only because **no test file was typechecked**
  * (finding 162); at runtime the reads returned `undefined`, and
@@ -98,7 +98,7 @@ describe("the permission on the agent record", () => {
       (e) => e.toolName === ADMIN_ACTIONS.agentCodexToggle,
     );
     expect(entries).toHaveLength(2);
-    // Root can set it too, by inheritance — the tier model is cumulative and
+    // Root can set it too, by inheritance. The tier model is cumulative and
     // this control is no exception.
     expect(entries.at(-1)?.actorRole).toBe("root");
   });
@@ -156,7 +156,7 @@ describe("the gate enforcing it", () => {
     // reason names the remedy, so the failure explains itself.
     //
     // **This test was called "refuses before the lockdown check" and never
-    // locked an agent** — finding 152. It asserted the ordering against the
+    // locked an agent**. Finding 152. It asserted the ordering against the
     // "nothing to evaluate" return and nothing else, so the property in its name
     // was untested while the name made it look covered. The lockdown ordering is
     // now its own test below, and it asserts the opposite ordering, because the
@@ -170,7 +170,7 @@ describe("the gate enforcing it", () => {
   });
 
   it("lets the kill switch answer first, so the ledger can show the stop held", async () => {
-    // Finding 152. Both branches refuse, so the *outcome* never differed — what
+    // Finding 152. Both branches refuse, so the *outcome* never differed. What
     // differed was the entry an investigation reads afterwards. An operator who
     // engaged an emergency stop and asks "did it hold?" must not be told
     // instead that the agent was not permitted on a backend.

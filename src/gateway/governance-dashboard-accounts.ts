@@ -5,7 +5,7 @@
 // the design doc already draws: **Root manages people, Administrator manages
 // agents.** Every route here is account administration and every one is
 // Root-only, so the file has a single, statable authorization rule rather than
-// a mixture — which is the property that makes a split worth doing rather than
+// a mixture, which is the property that makes a split worth doing rather than
 // merely making two files out of one.
 //
 // Behaviour is unchanged. The routes, their tier checks, their status codes and
@@ -52,7 +52,7 @@ import { sendInvalidRequest, sendJson } from "./http-common.js";
  * A miss is reported as **"no such user"** rather than as a refusal, and that
  * is the point rather than laziness. Distinguishing "does not exist" from
  * "exists, elsewhere" would turn every one of these routes into a probe for
- * whether an id is in use anywhere on the installation — the same oracle the
+ * whether an id is in use anywhere on the installation. The same oracle the
  * login response, the attachment lookup and the agent-access route each already
  * decline to be.
  */
@@ -81,7 +81,7 @@ export type AccountRouteContext = {
 
 /**
  * Handles the account-administration routes. Returns true when handled, false
- * when the path belongs to another group — the same contract the caller uses.
+ * when the path belongs to another group: the same contract the caller uses.
  */
 export async function handleGovernanceAccountRoutes(
   req: IncomingMessage,
@@ -139,7 +139,7 @@ export async function handleGovernanceAccountRoutes(
   //
   // The design doc splits the two top tiers by what they govern: Root manages
   // people (accounts, roles), Administrator manages agents (policy, rules).
-  // That separation is enforced here — an Administrator cannot promote
+  // That separation is enforced here. An Administrator cannot promote
   // themselves to Root, because account administration is not their tier.
   // ---------------------------------------------------------------------
   if (route === "users" && req.method === "GET") {
@@ -148,7 +148,7 @@ export async function handleGovernanceAccountRoutes(
     }
     // Scoped to the caller's own group (M3). A Root owns one organisation, not
     // the installation, and the account list is the most direct way the
-    // isolation could leak — it names every person in it.
+    // isolation could leak. It names every person in it.
     sendJson(res, 200, await listUsers(session.groupId));
     return true;
   }
@@ -268,7 +268,7 @@ export async function handleGovernanceAccountRoutes(
       // of an Administrator to User or Viewer produced a server error rather
       // than the store's own sentence explaining what to supply. The store had
       // added that parameter specifically to close a dead end where "an
-      // Administrator could never be demoted at all" — and the dead end moved
+      // Administrator could never be demoted at all", and the dead end moved
       // to the surface instead of closing.
       //
       // `ManagedAccountsRemainError` is the refusal finding 196 added. Both are
@@ -288,11 +288,11 @@ export async function handleGovernanceAccountRoutes(
   }
 
   // Administrator and above: assign which agents an account manages. This is
-  // agent management, not account management, so it sits at Administrator —
+  // agent management, not account management, so it sits at Administrator,
   // an Administrator can delegate an agent without being able to create the
   // account that receives it.
   // Root only: set another account's password. The recovery path whose absence
-  // made a hash that could no longer be verified unrecoverable — bootstrap
+  // made a hash that could no longer be verified unrecoverable. Bootstrap
   // refuses once any account exists, so there was no way back.
   if (route === "users/password" && req.method === "POST") {
     if (!requireRole(res, session, "root")) {
@@ -335,7 +335,7 @@ export async function handleGovernanceAccountRoutes(
     }
     if (!canAssignAgents(toActor(session))) {
       // Previously folded into the condition above, which returned "handled"
-      // without ever writing a response — the client just hung until its own
+      // without ever writing a response. The client just hung until its own
       // timeout. Every refusal has to say so.
       sendJson(res, 403, {
         error: { message: "You may not assign agents to accounts", type: "forbidden" },
@@ -362,11 +362,11 @@ export async function handleGovernanceAccountRoutes(
     }
     // Folded, not merely trimmed. The store folds on the way in regardless
     // (finding 200), so trimming here left this surface reporting a spelling
-    // the installation does not hold — and handing the same unfolded list to
+    // the installation does not hold, and handing the same unfolded list to
     // the session mirror below, which is finding 210.
     const normalized = normalizeAgentIds(agentIds as string[]);
     // Through the registry, not straight to the account file (M4). The rule it
-    // adds — an account may only hold agents its own Administrator owns — joins
+    // adds, an account may only hold agents its own Administrator owns, joins
     // two stores, and `agent-registry.ts` is the one that owns the join. The
     // raw `setUserAssignedAgents` still exists as the primitive that writes the
     // file, and is deliberately no longer reachable from this surface, exactly
@@ -443,7 +443,7 @@ export async function handleGovernanceAccountRoutes(
   //
   // **In this file rather than a new one**, because it does not break the
   // single authorization rule the header claims: it is Root-only account
-  // administration, and it is the widest instance of it — the act that removes
+  // administration, and it is the widest instance of it. The act that removes
   // every account this file's other routes create, rename and assign. A reader
   // asking "who can delete an account?" should not have to find a second file
   // to learn that "all of them at once" has a different answer.
@@ -471,7 +471,7 @@ export async function handleGovernanceAccountRoutes(
       sendInvalidRequest(res, "confirm is required and must be the Root username");
       return true;
     }
-    // The group comes from the session and never from the body — the one write
+    // The group comes from the session and never from the body. The one write
     // `requireGroup` exists to prevent, and the one where naming another
     // organisation would be worst. Through the helper rather than reading
     // `session.groupId` directly: an absent group must refuse here, where the
@@ -486,7 +486,7 @@ export async function handleGovernanceAccountRoutes(
     );
     if (!result.ok) {
       // 409 rather than 403: every refusal here is about the state of the
-      // organisation or the word that was typed, not about the caller's tier —
+      // organisation or the word that was typed, not about the caller's tier,
       // that was already settled by `requireRole`.
       sendJson(res, 409, {
         error: {
@@ -499,8 +499,8 @@ export async function handleGovernanceAccountRoutes(
       });
       return true;
     }
-    // No cookie is cleared here. The session record is already gone — every
-    // account in the group was revoked — so the cookie names nothing, and
+    // No cookie is cleared here. The session record is already gone, every
+    // account in the group was revoked, so the cookie names nothing, and
     // `verifySession` rejects it on the next request. Clearing it as well would
     // add a second thing to keep true about a session that no longer exists.
     sendJson(res, 200, {

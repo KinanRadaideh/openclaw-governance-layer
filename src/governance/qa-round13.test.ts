@@ -1,15 +1,15 @@
-// QA round 13 — the thirteenth review pass, and the first run as an
+// QA round 13. The thirteenth review pass, and the first run as an
 // independent adversarial review rather than as a follow-up to the previous
 // round.
 //
 // Method, because it is the finding as much as any individual defect: read the
 // requirements first, attack the running gate second, open the source third.
 // Reading the source first is how every earlier round began, and it is how a
-// reviewer inherits the author's model of the system — the shared blind spot
+// reviewer inherits the author's model of the system. The shared blind spot
 // rounds five and six identified.
 //
-// The headline is that round eleven's durable fix — a test comparing the
-// governed-tool registry against the host's own tool list — compared against
+// The headline is that round eleven's durable fix, a test comparing the
+// governed-tool registry against the host's own tool list, compared against
 // the wrong list and could not fail. It read `allToolNames`, the barrel for the
 // seven *session* tools, all seven of which round eleven had just registered.
 // The host declares fifty-two in `tool-catalog.ts`, of which seven were
@@ -63,7 +63,7 @@ function verdict(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>)
   if ("block" in decision) {
     return "block";
   }
-  // T23 — absence is no longer the only way the engine says "allow". A call
+  // T23. Absence is no longer the only way the engine says "allow". A call
   // whose path was redirected comes back carrying `params` (the canonical path
   // the tool should open), and reading that as "ask" would report an
   // escalation that never happened. Ask the question directly instead of
@@ -83,7 +83,7 @@ async function enforceStrictly(): Promise<void> {
  *
  * Note the deliberate absence of a multi-line case anywhere that uses this: `.`
  * does not match a line terminator, so `^.*$` fails to match a command
- * containing a newline and the call is refused by default-deny instead — the
+ * containing a newline and the call is refused by default-deny instead. The
  * right verdict for the wrong reason. The round-13 probe harness had exactly
  * that flaw, which is the round-seven mock-response defect in miniature, and it
  * is why the newline case below installs a rule that genuinely matches.
@@ -109,7 +109,7 @@ async function onlyDenialsCanRefuse(kind: "command" | "path" | "network"): Promi
   });
 }
 
-describe("qa round 13 — control surfaces are governed (findings 71–73)", () => {
+describe("qa round 13. Control surfaces are governed (findings 71–73)", () => {
   /**
    * Finding 71, and the one that matters most: this is round eleven's
    * `terminal` defect on the sibling tool, five days later.
@@ -118,7 +118,7 @@ describe("qa round 13 — control surfaces are governed (findings 71–73)", () 
    * it through `data` / `literal` / `text` / `keys`. Neither the allowlist nor
    * any core denial was consulted, because `process` was not in the registry at
    * all. A gate that covers the front door of a shell and not its keyboard is
-   * not covering the shell — and the fix for that sentence had been applied to
+   * not covering the shell: and the fix for that sentence had been applied to
    * one tool rather than to the sentence.
    */
   it("refuses privilege escalation typed into a backgrounded shell", async () => {
@@ -151,7 +151,7 @@ describe("qa round 13 — control surfaces are governed (findings 71–73)", () 
   it("finds the typed text even when the host nests it (mobile_ui)", async () => {
     // `mobile_ui` has no top-level `text`: the payload is
     // `mobileAction: {type:"set_text", ref, text}`. Written from memory the
-    // first time, and wrong — which is the registry-versus-host mistake
+    // first time, and wrong, which is the registry-versus-host mistake
     // beginning a fourth time. The object is serialised whole rather than
     // reaching for a field name, so guessing cannot be what makes it work.
     await onlyDenialsCanRefuse("command");
@@ -168,7 +168,7 @@ describe("qa round 13 — control surfaces are governed (findings 71–73)", () 
   it("requires an explicit grant for every control surface, by default", async () => {
     // Default-deny, applied to the surface the requirement actually names.
     // None of these is on the baseline allowlist, so under `enforce` each is
-    // refused until an operator grants it — which is requirement #3 for
+    // refused until an operator grants it, which is requirement #3 for
     // "process execution" rather than for `exec` alone.
     await enforceStrictly();
     for (const toolName of [
@@ -227,7 +227,7 @@ describe("qa round 13 — control surfaces are governed (findings 71–73)", () 
   });
 });
 
-describe("qa round 13 — a hand-edited policy cannot switch the gate off (finding 80)", () => {
+describe("qa round 13. A hand-edited policy cannot switch the gate off (finding 80)", () => {
   /**
    * `POST policy/agent-mode` refuses `off` at every tier and explains why: the
    * engine returns *before* the lockdown check, so a per-agent `off` removes
@@ -236,7 +236,7 @@ describe("qa round 13 — a hand-edited policy cannot switch the gate off (findi
    *
    * That refusal guarded the route and not the file. `loadPolicy` re-asserts
    * `CORE_RULES` on every load precisely so a hand-edited `policy.json` cannot
-   * remove them — and the same file defeated that one field away. You did not
+   * remove them: and the same file defeated that one field away. You did not
    * remove the protections; you switched off the agent they applied to.
    */
   it("ignores a stored per-agent `off` and keeps the kill switch binding", async () => {
@@ -270,7 +270,7 @@ describe("qa round 13 — a hand-edited policy cannot switch the gate off (findi
   });
 });
 
-describe("qa round 13 — the gate cannot be stopped by a rule (finding 79)", () => {
+describe("qa round 13. The gate cannot be stopped by a rule (finding 79)", () => {
   /**
    * `^(.*a){20}$` passed `checkRegexSafety` because a `{n}` with no comma was
    * treated as a fixed count that "cannot blow up". That is true of the
@@ -298,14 +298,14 @@ describe("qa round 13 — the gate cannot be stopped by a rule (finding 79)", ()
   });
 });
 
-describe("qa round 13 — core denials cover the ordinary spellings (findings 73–75, 85)", () => {
+describe("qa round 13. Core denials cover the ordinary spellings (findings 73–75, 85)", () => {
   /**
    * The separator class was `(^|[;&|]\s*)`: one of exactly three
    * metacharacters, immediately before the optional whitespace. Every string
    * below reached the shell when measured against the running gate.
    *
    * `su""do -i` is deliberately absent. Shell quoting splits the command name
-   * itself, and no pattern over the raw string catches that — the file header
+   * itself, and no pattern over the raw string catches that. The file header
    * of `baseline-policy.ts` says so, and this test asserts the boundary of the
    * claim rather than pretending it is wider.
    */
@@ -334,7 +334,7 @@ describe("qa round 13 — core denials cover the ordinary spellings (findings 73
 
   it("does not refuse a command that merely contains the letters", async () => {
     // The widening blocks more than strictly intended by design, but it must
-    // not swallow unrelated command names — `mysudo` and `--use-sudo` are not
+    // not swallow unrelated command names, `mysudo` and `--use-sudo` are not
     // invocations of `sudo`.
     await onlyDenialsCanRefuse("command");
     for (const command of ["mysudoku --help", "git commit -m sudoku"]) {
@@ -348,7 +348,7 @@ describe("qa round 13 — core denials cover the ordinary spellings (findings 73
 
   it("refuses the governance state directory in either path separator", async () => {
     // The pattern spelled the path with `/` only, so the plain Windows
-    // spelling was not matched — on the platform this project is developed on.
+    // spelling was not matched, on the platform this project is developed on.
     await onlyDenialsCanRefuse("command");
     for (const command of [
       "cat ~/.openclaw/governance/policy.json",
@@ -413,7 +413,7 @@ describe("qa round 13 — core denials cover the ordinary spellings (findings 73
 
   it("refuses a credential file the agent creates under a different casing (finding 85)", async () => {
     // Reading an *existing* `.env` spelled `.ENV` was already denied, because
-    // the canonicaliser resolves the real on-disk name first — that was
+    // the canonicaliser resolves the real on-disk name first. That was
     // verified, not assumed. The gap was a file that does not exist yet, where
     // the basename survives as the agent typed it.
     await onlyDenialsCanRefuse("path");
@@ -427,13 +427,13 @@ describe("qa round 13 — core denials cover the ordinary spellings (findings 73
   });
 });
 
-describe("qa round 13 — the shipped rules meet the standard they impose", () => {
+describe("qa round 13. The shipped rules meet the standard they impose", () => {
   /**
    * `BASELINE-RULES.md` states that the shipped rules are held to the same
    * standard as an operator's, because "a validator the defaults would fail is
    * a validator nobody believes". Round 13 both widened several shipped
    * patterns and tightened the validator (finding 79), so the claim is now
-   * asserted rather than restated — if the two ever drift, this fails.
+   * asserted rather than restated: if the two ever drift, this fails.
    */
   it("every core and baseline pattern passes the operator-facing validator", async () => {
     const { CORE_RULES, BASELINE_RULES } = await import("./baseline-policy.js");
@@ -447,13 +447,13 @@ describe("qa round 13 — the shipped rules meet the standard they impose", () =
   });
 });
 
-describe("qa round 13 — a refusal records every resource it refused", () => {
+describe("qa round 13. A refusal records every resource it refused", () => {
   /**
    * Requirement #5 asks for 100% of policy decisions. The allow pass has
    * evaluated every resource since round one (finding 5), so that a patch
    * touching several paths shows its full blast radius. The deny pass returned
    * on the first match, so the same patch touching three *forbidden* files was
-   * recorded as touching one — the identical defect, in the half of the engine
+   * recorded as touching one: the identical defect, in the half of the engine
    * that matters more, unnoticed because a blocked call feels like it needs only
    * one reason.
    *
@@ -480,7 +480,7 @@ describe("qa round 13 — a refusal records every resource it refused", () => {
   });
 });
 
-describe("qa round 13 — the kill switch holds on every path (finding 81)", () => {
+describe("qa round 13. The kill switch holds on every path (finding 81)", () => {
   it("refuses a call that carries no agent id while a lockdown is in force", async () => {
     const doc = await loadPolicy(TEST_GROUP);
     await savePolicy(TEST_GROUP, { ...doc, mode: "enforce", lockedAgents: ["agent-a"] });
@@ -503,7 +503,7 @@ describe("qa round 13 — the kill switch holds on every path (finding 81)", () 
     expect(verdict(decision)).toBe("block");
   });
 
-  it("refuses an unattributable call even with nothing locked — widened by M5", async () => {
+  it("refuses an unattributable call even with nothing locked. Widened by M5", async () => {
     /**
      * **This asserted `allow` until M5, and the change is a consequence of
      * per-group storage rather than a new policy.**
@@ -512,7 +512,7 @@ describe("qa round 13 — the kill switch holds on every path (finding 81)", () 
      * comment here said the over-blocking was "bounded to an active incident:
      * with an empty lockdown list an unattributable call is evaluated exactly
      * as before". That was right while one policy document governed the whole
-     * installation — there was always a rulebook to evaluate against.
+     * installation: there was always a rulebook to evaluate against.
      *
      * There no longer is. A call the gate cannot attribute belongs to no
      * organisation, so there is no document to judge it by, and inventing one
@@ -548,7 +548,7 @@ describe("qa round 13 — the kill switch holds on every path (finding 81)", () 
     // more sharply than two ids in one ever did (M5).** The named agent belongs
     // to an organisation, so its refusal is in that organisation's trail. The
     // unattributable call belongs to none, so its refusal is installation-wide
-    // under `agent-not-registered` — and `kill-switch-unattributable` was
+    // under `agent-not-registered`, and `kill-switch-unattributable` was
     // deleted as unreachable, because reaching the lockdown check now requires a
     // resolved group and a group is resolved from the agent id.
     const ruleIds = (await tailLedger(TEST_GROUP, 20))
@@ -562,12 +562,12 @@ describe("qa round 13 — the kill switch holds on every path (finding 81)", () 
   });
 });
 
-describe("qa round 13 — relocating the governance directory moves its protection (finding 86)", () => {
+describe("qa round 13. Relocating the governance directory moves its protection (finding 86)", () => {
   /**
    * `GOVERNANCE_STATE` and the matching command denial both spelled the literal
    * `.openclaw/governance`. `paths.ts` documents `OPENCLAW_GOVERNANCE_DIR` as a
-   * supported deployment option — "so a deployment can place the ledger on
-   * separate storage… without a code change" — and taking it silently removed
+   * supported deployment option, "so a deployment can place the ledger on
+   * separate storage… without a code change", and taking it silently removed
    * the agent's inability to read the policy, the accounts, the ledger and its
    * signing key.
    *
@@ -576,8 +576,8 @@ describe("qa round 13 — relocating the governance directory moves its protecti
    * project: two halves of the system holding different beliefs, neither
    * visible from inside the other.
    *
-   * `dir` here *is* a relocated directory — every test in this file sets
-   * `OPENCLAW_GOVERNANCE_DIR` to a fresh temp path — so this asserts against
+   * `dir` here *is* a relocated directory, every test in this file sets
+   * `OPENCLAW_GOVERNANCE_DIR` to a fresh temp path, so this asserts against
    * exactly the configuration the finding describes.
    */
   it("denies reading the relocated governance directory", async () => {

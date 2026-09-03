@@ -17,7 +17,7 @@ npm install -g openclaw@latest
 **Neither can deliver this project.** Both fetch upstream's _published npm
 package_. The governance layer is a hard fork whose commits were never published
 there, so an installer that reaches npm gets an OpenClaw with no governance in
-it — silently, and with no error to tell you.
+it. Silently, and with no error to tell you.
 
 The route that works is the one upstream documents for its own contributors:
 **clone the repository and build from source.** That is what
@@ -27,7 +27,7 @@ so the finished host looks and behaves like a normal install.
 > **This had never been done before 2026-08-28.** The Linux evidence up to that
 > point was unit tests plus `scripts/governance-linux-check.mjs`, which says in
 > its own header that it runs "without needing a full monorepo install".
-> `dist/` — which `openclaw.mjs` refuses to start without — had never existed on
+> `dist/`, which `openclaw.mjs` refuses to start without, had never existed on
 > Linux. Requirement #9 is written up honestly on that basis; see
 > `CHAPTER3-MATERIAL.md` §3.1 row 9 and §4.x.5b.
 
@@ -35,19 +35,19 @@ so the finished host looks and behaves like a normal install.
 
 ## 0. What the server needs
 
-|           |                                                                                                              |
-| --------- | ------------------------------------------------------------------------------------------------------------ |
-| **OS**    | Any modern Linux. Verified on Ubuntu 24.04 LTS                                                               |
-| **RAM**   | **8 GB** — §1.4's constraint. The build is the hungry part; a 2 GB box will swap through it or be OOM-killed |
-| **Disk**  | ~5 GB free for `node_modules` plus the build                                                                 |
-| **Node**  | `>=22.22.3 <23`, `>=24.15.0 <25`, or `>=25.9.0`. The installer checks and refuses politely                   |
-| **Ports** | **None open to the internet.** The Gateway binds loopback and is reached over SSH                            |
+|           |                                                                                                             |
+| --------- | ----------------------------------------------------------------------------------------------------------- |
+| **OS**    | Any modern Linux. Verified on Ubuntu 24.04 LTS                                                              |
+| **RAM**   | **8 GB**, §1.4's constraint. The build is the hungry part; a 2 GB box will swap through it or be OOM-killed |
+| **Disk**  | ~5 GB free for `node_modules` plus the build                                                                |
+| **Node**  | `>=22.22.3 <23`, `>=24.15.0 <25`, or `>=25.9.0`. The installer checks and refuses politely                  |
+| **Ports** | **None open to the internet.** The Gateway binds loopback and is reached over SSH                           |
 
 ---
 
 ## 1. Give the server read access to the repository
 
-The repository is **private and must stay private** — it holds unpublished
+The repository is **private and must stay private**. It holds unpublished
 academic work. So the clone needs credentials. Use a **deploy key**: read-only,
 scoped to this one repository, revocable on its own, and it never puts your
 personal GitHub account on the server.
@@ -78,7 +78,7 @@ ssh -T git@github.com   # expect: "Hi <repo>! You've successfully authenticated"
 _A fine-grained personal access token over HTTPS also works and is quicker to
 set up. It is the weaker option: a token is usually broader than one repository
 and easy to leave on the box. If you use one, do not paste it into the clone URL
-— that writes it into `.git/config` in plaintext._
+that writes it into `.git/config` in plaintext._
 
 ---
 
@@ -94,19 +94,19 @@ git checkout governance-layer
 
 `governance-layer` is the branch that carries the work; `main` is upstream and
 has none of it. **Checking out the wrong branch is the failure that looks like
-success** — everything installs, nothing is governed.
+success**. Everything installs, nothing is governed.
 
 The installer is idempotent, so after a `git pull` just run it again. Options:
 
 | Flag          | Effect                                                                                                                               |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `--with-node` | Install Node 22 via nvm rather than telling you to. Off by default: fetching and running a runtime installer should be your decision |
-| `--skip-ui`   | Skip the Control UI build. The dashboard will not be served — headless/CLI-only hosts                                                |
+| `--skip-ui`   | Skip the Control UI build. The dashboard will not be served. Headless/CLI-only hosts                                                 |
 | `--no-link`   | Do not put `openclaw` on PATH; run `./openclaw.mjs` from the repository instead                                                      |
 
-It finishes by running the governance layer's own platform probe —
-`pnpm exec tsx scripts/governance-linux-check.mjs` — which covers file locks,
-`0700`/`0600` permissions (advisory on Windows, **enforced** here — and see the
+It finishes by running the governance layer's own platform probe,
+`pnpm exec tsx scripts/governance-linux-check.mjs`, which covers file locks,
+`0700`/`0600` permissions (advisory on Windows, **enforced** here, and see the
 2026-09-01 note under "What has actually been verified": the directory half of
 that pair was **not** holding on Linux until it was measured there), POSIX path
 production, scrypt, the role ladder, Viewer masking and load average.
@@ -114,7 +114,7 @@ production, scrypt, the role ladder, Viewer masking and load average.
 
 > The probe is run through `tsx`, not bare `node`, and that is a correction
 > rather than a preference. Its own header claimed for seventeen days that it
-> needed "nothing but `node`" — it never did, so **it had never run once**
+> needed "nothing but `node`". It never did, so **it had never run once**
 > (finding 137), while being cited in the report as evidence for requirement #9.
 > When it finally ran, it immediately failed a check that had gone stale two
 > days earlier (finding 138). Both are fixed; the story is in
@@ -125,7 +125,7 @@ production, scrypt, the role ladder, Viewer masking and load average.
 > **How `openclaw` gets onto PATH, and why not the obvious way.** The installer
 > symlinks `openclaw.mjs` into `/usr/local/bin` in preference to
 > `pnpm link --global`. pnpm's global bin lives in a per-user directory that has
-> to be added to a shell profile — and **systemd does not read shell profiles**,
+> to be added to a shell profile, and **systemd does not read shell profiles**,
 > so the unit in `deploy/` would still not find the command. The link would look
 > like success while solving nothing for the deployment that actually matters.
 > `/usr/local/bin` is on PATH for every user and for services. Observed on
@@ -136,11 +136,11 @@ production, scrypt, the role ladder, Viewer masking and load average.
 
 ---
 
-## 2c. Root on a bare VPS — three things a warm machine hides
+## 2c. Root on a bare VPS: three things a warm machine hides
 
 **Added 2026-09-03, and every line of it came from an actual deployment**, not
 from review. A clean Contabo VPS reached as root over SSH found three defects in
-one evening — the first two in this repository, the third upstream. None had
+one evening. The first two in this repository, the third upstream. None had
 appeared in the 2026-08-28 rehearsal, and the reason is the same in all three
 cases: **the rehearsal machine was warm.** It already had Node on `PATH`, and it
 already had a systemd login session. A server built ten minutes ago has neither.
@@ -160,7 +160,7 @@ never sourced it, and **systemd never reads shell profiles at all**. Since
 /usr/bin/env: 'node': No such file or directory
 ```
 
-**Fixed in `scripts/vps-install.sh` (finding 231)** — it now links `node`, `npm`
+**Fixed in `scripts/vps-install.sh` (finding 231)**. It now links `node`, `npm`
 and `npx` into `/usr/local/bin` straight after the nvm install, which is the
 same argument the script already made for `openclaw` itself and had only
 half-applied. On an installer predating that fix:
@@ -171,7 +171,7 @@ ln -sf "$NODEBIN/node" /usr/local/bin/node
 ```
 
 Worth knowing even after the fix: OpenClaw's own `daemon status` flags a service
-whose `ExecStart` points into a version manager — _"Gateway service uses Node
+whose `ExecStart` points into a version manager, _"Gateway service uses Node
 from a version manager; it can break after upgrades."_ `openclaw doctor --repair`
 rewrites the unit with a minimal PATH, and is worth running before a
 demonstration.
@@ -182,13 +182,13 @@ demonstration.
 `daemon start`, framed as the thing that keeps the Gateway alive past logout.
 That framing is right and **the ordering is wrong for a cold server**: without a
 user manager there is nothing for `systemctl --user` to talk to, so both of the
-commands that precede it fail —
+commands that precede it fail,
 
 ```
 Failed to connect to bus: No medium found
 ```
 
-— and the step that would have fixed that is the one you have not reached. Do it
+and the step that would have fixed that is the one you have not reached. Do it
 first:
 
 ```bash
@@ -222,7 +222,7 @@ address together, so with one of the three missing it falls back to
 `systemctl --machine root@ --user`, a scope that cannot see a unit under
 `/root/.config/systemd/user/`.
 
-**Setting `XDG_RUNTIME_DIR` alone does not help** — the obvious guess, and the
+**Setting `XDG_RUNTIME_DIR` alone does not help**. The obvious guess, and the
 one the error invites. Set both:
 
 ```bash
@@ -239,7 +239,7 @@ export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u)/bus"
 EOF
 ```
 
-**Patched locally as finding 232** — `resolveSystemctlProcessEnv` in
+**Patched locally as finding 232**, `resolveSystemctlProcessEnv` in
 `src/daemon/systemd.ts` filled a missing bus address for every uid _except_ 0,
 which is the account a server is administered as. The environment variables
 above are still the correct workaround on any build predating that patch, and on
@@ -251,7 +251,7 @@ Several provider images ship with root SSH disabled and a sudo-capable account
 instead. Log in as that account and `sudo -i`; everything above then applies
 unchanged, because `sudo -i` sets `HOME=/root` and the unit is written there.
 
-The **SSH tunnel does not need root** — port forwarding only needs a shell, and
+The **SSH tunnel does not need root**. Port forwarding only needs a shell, and
 the forward terminates on the server's own loopback:
 
 ```bash
@@ -263,7 +263,7 @@ ssh -N -L 18789:127.0.0.1:18789 <sudo-account>@<vps-host>
 Three defects, one shape: **the path a new operator actually takes was the path
 nobody had walked to the end.** Every earlier verification ran on a machine that
 had already been used for something else. That is worth a paragraph in Chapter 4
-on its own — a runbook is only tested by a stranger's machine, and the project's
+on its own. A runbook is only tested by a stranger's machine, and the project's
 own rule about checks that stand in for things they do not exercise (findings
 137, 224, 230) applies to deployment instructions exactly as it does to tests.
 
@@ -283,7 +283,7 @@ openclaw dashboard
 
 `onboard` creates the config and workspace at `~/.openclaw/`, generates the
 Gateway token, and installs the service. There is **no fork-specific setup step**
-— the governance layer is compiled into this build and gates every tool call
+the governance layer is compiled into this build and gates every tool call
 from the first start. Nothing to enable, nothing to switch on.
 
 > **The token is generated for you.** `openclaw daemon install` reports
@@ -292,7 +292,7 @@ from the first start. Nothing to enable, nothing to switch on.
 
 ---
 
-## 4. Run it as a service — the normal way
+## 4. Run it as a service: the normal way
 
 Use OpenClaw's own service manager. It writes and manages the unit for you, on
 systemd, launchd and schtasks alike:
@@ -306,7 +306,7 @@ openclaw daemon stop
 openclaw daemon uninstall   # stops and removes the unit
 ```
 
-Verified on Ubuntu 24.04, 2026-08-28 — install and uninstall both clean:
+Verified on Ubuntu 24.04, 2026-08-28. Install and uninstall both clean:
 
 ```
 Installed systemd service: /root/.config/systemd/user/openclaw-gateway.service
@@ -318,7 +318,7 @@ Removed systemd service: /root/.config/systemd/user/openclaw-gateway.service
 >
 > That is a systemd **user** service, under `~/.config/systemd/user/`, not a
 > system unit in `/etc/systemd/system/`. **A user service stops when its user
-> logs out** — which on a VPS means the Gateway dies when you close SSH, and the
+> logs out**, which on a VPS means the Gateway dies when you close SSH, and the
 > kill switch and the audit ledger only mean anything while it is running.
 >
 > Enable lingering once, and it survives logout and reboot:
@@ -335,7 +335,7 @@ Removed systemd service: /root/.config/systemd/user/openclaw-gateway.service
 _system_ unit duplicating a mechanism the fork already had, so it diverged from
 normal OpenClaw setup for no benefit and risked two competing units fighting
 over one port. `scripts/start-governance.sh` stays as a convenience for looking
-around — the Linux twin of `start-governance.ps1` — but **the daemon commands
+around, the Linux twin of `start-governance.ps1`, but **the daemon commands
 above are the deployment path.**
 
 ---
@@ -360,7 +360,7 @@ already in it.
 > **On the port, and why this document no longer says 18799.** That number comes
 > from `start-governance.ps1` and exists for one reason: Kinan's Windows machine
 > also has a stock OpenClaw on the default 18789, and two Gateways cannot share a
-> port. **Nothing in the application uses 18799** — `grep -rn 18799 src/` returns
+> port. **Nothing in the application uses 18799**, `grep -rn 18799 src/` returns
 > nothing. A dedicated VPS has no collision to avoid, so it should use the
 > default and look like every other OpenClaw install. Set it explicitly only if
 > you want to:
@@ -369,7 +369,7 @@ already in it.
 > openclaw config set gateway.port 18799
 > ```
 
-> **Do not publish that port.** Signup is open — creating a Root creates a group,
+> **Do not publish that port.** Signup is open. Creating a Root creates a group,
 > and the endpoint is ungated. That is defensible _only_ because the control
 > plane is unreachable from the network. Expose the port directly and it becomes
 > self-service Root. This is caveat 2 in `HANDOFF.md` §7, and it belongs in the
@@ -387,12 +387,12 @@ openclaw governance policy show     # the core denials and the baseline allowanc
 openclaw governance audit tail      # entries appear as things happen
 ```
 
-`governance deployment` was written for exactly this moment — it runs over a
+`governance deployment` was written for exactly this moment. It runs over a
 plain SSH session, before any tunnel exists.
 
 ---
 
-## 6b. Give it a model — Kimi (Moonshot)
+## 6b. Give it a model: Kimi (Moonshot)
 
 `openclaw onboard` will ask for a provider. If you are bringing a Kimi
 subscription and API key, this is the whole configuration.
@@ -405,7 +405,7 @@ aliases; the display name is "Moonshot AI". The base URL is
 Two ways in, and they are equivalent:
 
 ```bash
-# Interactive — pastes the key into auth-profiles.json and updates the config.
+# Interactive: pastes the key into auth-profiles.json and updates the config.
 openclaw models auth paste-api-key --provider moonshot
 
 # Or by environment, which the service unit can carry.
@@ -421,7 +421,7 @@ openclaw models status
 ```
 
 > **Put the key in the service environment, not just your shell.** The Gateway
-> runs under systemd, which does not read your shell profile — the same reason
+> runs under systemd, which does not read your shell profile. The same reason
 > the installer symlinks into `/usr/local/bin` rather than using pnpm's global
 > bin. If you export `KIMI_API_KEY` in `~/.bashrc` and then `systemctl restart`,
 > the daemon will not see it. Use `systemctl edit --user openclaw` and add an
@@ -434,13 +434,13 @@ Worth stating explicitly, because it is the question a supervisor asks and the
 answer is structural rather than incidental.
 
 **The gate sits at `runBeforeToolCallHook`, which is provider-agnostic.** It
-inspects a tool call — a command, a path, a hostname — and knows nothing about
+inspects a tool call, a command, a path, a hostname, and knows nothing about
 which model produced it. Swapping Anthropic for Moonshot changes who decides
 _what to attempt_; it changes nothing about who decides _whether it is allowed_.
 
 There is exactly one deployment shape where that is not automatically true, and
 it is not this one. OpenClaw can run an agent inside a **separate helper
-process** — the Codex native harness — which executes tools itself and only
+process**, the Codex native harness, which executes tools itself and only
 reaches the gate if the host writes a relay hook into that helper's
 configuration. That was finding B1. Kimi over an API key does **not** use the
 native harness: it runs through the ordinary in-process agent runner, where the
@@ -463,7 +463,7 @@ creates and removes: bootstrap the organisation and its Root, create the
 Administrator that owns agents, register the agent, watch the gate refuse an
 unregistered one, refuse an unlisted command, refuse a credential path outright,
 allow exactly what a rule names, stop the agent and confirm the stop outranks
-the allow rule, release it, then verify the ledger — including **tampering with
+the allow rule, release it, then verify the ledger, including **tampering with
 an entry and confirming verification fails**, and confirming a bearer token
 never reaches the trail.
 
@@ -474,7 +474,7 @@ between "the tests pass" and "the thing I am about to show works".
 
 **No live call has been made to Kimi from this fork.** The provider is supported
 by the host (it ships the id, the base URL, the env-key mapping and a streaming
-adapter for it), and the governance argument above is structural — but the
+adapter for it), and the governance argument above is structural, but the
 sentence "we drove Kimi through the gate and watched it refuse a command" cannot
 be written until somebody does it. That is the first thing to do on the VPS, and
 the ledger is where the evidence will be:
@@ -484,7 +484,7 @@ openclaw governance audit tail
 ```
 
 An entry naming the agent, the command it attempted and the decision is the
-demonstration. Take a copy of that output — it is Chapter 4 evidence.
+demonstration. Take a copy of that output. It is Chapter 4 evidence.
 
 ---
 
@@ -494,10 +494,10 @@ demonstration. Take a copy of that output — it is Chapter 4 evidence.
 | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | `openclaw: missing dist/entry.(m)js (build output)` | The build did not run or did not finish. Re-run `./scripts/vps-install.sh`                                             |
 | `ERR_PNPM_UNSUPPORTED_ENGINE` or an engine warning  | Node is outside the supported ranges. `node -v`, then install a supported one                                          |
-| Plain `npm install` errors at the root              | Not supported — this is a pnpm workspace. Use the installer                                                            |
+| Plain `npm install` errors at the root              | Not supported. This is a pnpm workspace. Use the installer                                                             |
 | The build is OOM-killed                             | Under 8 GB. Add swap for the build, or build elsewhere and copy `dist/`                                                |
 | Dashboard 404s or renders blank                     | The Control UI was not built. Re-run without `--skip-ui`                                                               |
-| The Gateway dies when you close SSH                 | The service is a systemd **user** service. Run `sudo loginctl enable-linger "$USER"` — see §4                          |
+| The Gateway dies when you close SSH                 | The service is a systemd **user** service. Run `sudo loginctl enable-linger "$USER"`. See §4                           |
 | `openclaw daemon status` says the unit is missing   | Run `openclaw daemon install`. Do not hand-write a unit; the fork manages its own                                      |
 | systemd: `node: command not found`                  | nvm's Node is invisible to a non-login shell. Install Node system-wide, or point the unit's PATH at the real directory |
 | The dashboard loads but nothing is governed         | Wrong branch. `git branch --show-current` must say `governance-layer`                                                  |
@@ -515,33 +515,33 @@ assumptions here have not held automatically before, which is why
 **On Ubuntu 24.04.4 LTS, Node v22.23.2, 2026-08-28**, from a clean tree with no
 `node_modules` and no `dist`:
 
-| Step                                      | Result                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm install` (workspace, 1397 packages) | **ok**                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `pnpm build`                              | **ok** — `dist/entry.js` produced                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `pnpm ui:build`                           | **ok** — `dist/control-ui` produced                                                                                                                                                                                                                                                                                                                                                                                                       |
-| Platform probe                            | **14 / 14 passed**                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `openclaw --version`                      | **OpenClaw 2026.8.1**                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `openclaw governance --help`              | **Re-measured 2026-09-01**: `agent agents audit backend deployment groups kill login logout pending policy requests sessions set-policy-authoring whoami` — fifteen subcommands. _(The row recorded nine on 2026-08-28 and did not list `policy`, which certainly existed then; it has been stale since T34 and T40 added `backend` and `requests`. A list used to confirm "the layer is present" has to be re-derived, not remembered.)_ |
-| The 8 GB check                            | Correctly **warned** at 7 GB rather than refusing                                                                                                                                                                                                                                                                                                                                                                                         |
+| Step                                      | Result                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install` (workspace, 1397 packages) | **ok**                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `pnpm build`                              | **ok**, `dist/entry.js` produced                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `pnpm ui:build`                           | **ok**, `dist/control-ui` produced                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Platform probe                            | **14 / 14 passed**                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `openclaw --version`                      | **OpenClaw 2026.8.1**                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `openclaw governance --help`              | **Re-measured 2026-09-01**: `agent agents audit backend deployment groups kill login logout pending policy requests sessions set-policy-authoring whoami`, fifteen subcommands. _(The row recorded nine on 2026-08-28 and did not list `policy`, which certainly existed then; it has been stale since T34 and T40 added `backend` and `requests`. A list used to confirm "the layer is present" has to be re-derived, not remembered.)_ |
+| The 8 GB check                            | Correctly **warned** at 7 GB rather than refusing                                                                                                                                                                                                                                                                                                                                                                                        |
 
-**Not yet verified, and both need a real host — that is T3:** the dashboard
+**Not yet verified, and both need a real host. That is T3:** the dashboard
 loaded through an SSH tunnel, and the systemd unit surviving a reboot. The tree
 was also taken from a local mirror of the pushed commit rather than cloned over
-the network, so the GitHub hop itself — ordinary `git` over SSH — is the one
+the network, so the GitHub hop itself, ordinary `git` over SSH, is the one
 step in this runbook not exercised end to end.
 
-### 2026-09-01 — the install rehearsed again, and it found two things
+### 2026-09-01: the install rehearsed again, and it found two things
 
 Repeated the night before the first VPS deployment, from a clean clone of the
 pushed tip into a Linux filesystem: `pnpm install --frozen-lockfile` **12s**,
-`pnpm build` ok, and then the thing the 2026-08-28 pass did not do — **the
+`pnpm build` ok, and then the thing the 2026-08-28 pass did not do, **the
 governance suite run on Linux**.
 
 **It was not green.** 2,528 passed and **2 failed**, and both failures were
 tests asserting Windows separator behaviour unconditionally
 (`path-normalize.test.ts` and `resource-extraction.test.ts`). The product was
-right on both platforms and the tests were wrong on one — finding 148's class,
+right on both platforms and the tests were wrong on one. Finding 148's class,
 in governance files this time. Both now state what each platform does, and the
 POSIX half is the security-relevant one: a backslash is a legal filename
 character there, so converting it would let a rule reading `^src/allowed[.]ts$`
@@ -563,13 +563,13 @@ write through one `writeGovernanceJson` that states both modes.
 
 **After both fixes the suite is green on Linux for the first time:**
 
-| Step (Ubuntu 24.04, Node v22.23.2, 2026-09-01) | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `git clone` into a Linux filesystem            | ok                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `pnpm install --frozen-lockfile`               | **ok, 12s**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `pnpm build`                                   | ok — `dist/entry.js` produced                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| **Governance suite**                           | **2,548 passed / 133 files, 0 failed** (re-run after the third segment sweep; 2,536 / 132 earlier the same day). **This is the last figure measured _on Linux_.** The suite has since grown to 2,679 / 143 on Windows, after T44 and the fourth through eighth segment sweeps — nothing in those is platform-specific, but the number here is not a Linux measurement of them and should not be quoted as one. **Re-run this on Linux before quoting a Linux figure**: findings 209–220 changed session issuance, agent-id folding, organisation deletion and the CLI's transcript gate, none of which is platform-dependent, and none of which has been measured on Ubuntu |
-| Governance directory and file modes            | **0700 / 0600**, checked by `stat`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Step (Ubuntu 24.04, Node v22.23.2, 2026-09-01) | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `git clone` into a Linux filesystem            | ok                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `pnpm install --frozen-lockfile`               | **ok, 12s**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `pnpm build`                                   | ok, `dist/entry.js` produced                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **Governance suite**                           | **2,548 passed / 133 files, 0 failed** (re-run after the third segment sweep; 2,536 / 132 earlier the same day). **This is the last figure measured _on Linux_.** The suite has since grown to 2,679 / 143 on Windows, after T44 and the fourth through eighth segment sweeps. Nothing in those is platform-specific, but the number here is not a Linux measurement of them and should not be quoted as one. **Re-run this on Linux before quoting a Linux figure**: findings 209–220 changed session issuance, agent-id folding, organisation deletion and the CLI's transcript gate, none of which is platform-dependent, and none of which has been measured on Ubuntu |
+| Governance directory and file modes            | **0700 / 0600**, checked by `stat`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 That is a stronger statement than the one this document could make on
 2026-08-28, and it is the one to quote: the layer's own tests now pass **on the
@@ -580,7 +580,7 @@ developer's Windows machine.
 
 ## What is _not_ covered here
 
-- **A live agent run** — T2. Installing proves the layer starts, not that a
+- **A live agent run**, T2. Installing proves the layer starts, not that a
   model has ever been refused by it.
 - **TLS, a reverse proxy, a domain.** None are wanted: the design deliberately
   has no public listener.

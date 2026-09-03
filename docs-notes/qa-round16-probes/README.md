@@ -5,7 +5,7 @@ suite members. Copy one into `src/governance/` to run it; the imports assume
 that location.
 
 Each was written **before** re-reading the code it attacks, from the claim being
-tested rather than from the implementation — the method rounds thirteen and
+tested rather than from the implementation. The method rounds thirteen and
 fourteen used, and the reason those rounds found things the previous twelve did
 not.
 

@@ -4,12 +4,13 @@
 //   1. The Gateway's own shared-secret/device gate (handled by the caller in
 //      governance-dashboard-auth.ts before dispatching here).
 //   2. A named governance account session (login cookie) whose role meets the
-//      minimum tier for the requested operation — the RBAC hierarchy from the
+//      minimum tier for the requested operation. The RBAC hierarchy from the
 //      design doc's Section 1.6, enforced by `requireRole` below.
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { canonicalAccountName, isSafeAccountKey } from "../governance/account-name.js";
 import { listActiveSessions } from "../governance/active-sessions.js";
 import { listAgents } from "../governance/agent-registry.js";
+import { isSafeObjectKey } from "../governance/object-keys.js";
 import { decidePendingDecision, listPendingDecisions } from "../governance/pending-decisions.js";
 import {
   canManageAccounts,
@@ -22,7 +23,7 @@ import {
 } from "../governance/permissions.js";
 import { agentPolicyView, agentsForRule, knownAgentIds } from "../governance/policy-projection.js";
 // Every policy mutation below goes through a named setter that requires an
-// actor. `updatePolicy` — the raw read-modify-write — is deliberately no longer
+// actor. `updatePolicy`, the raw read-modify-write, is deliberately no longer
 // imported here: it is the one way to change policy state without recording who
 // did it, and keeping it out of the HTTP surface is what stops a future route
 // from quietly reintroducing an unaudited change.
@@ -125,7 +126,7 @@ function requireRole(
  *
  * Carries the tier as well as the name, so the ledger says what authority the
  * change was made under and not merely who made it. Distinct from `toActor`
- * below, which builds the object the *permission* helpers consume — one answers
+ * below, which builds the object the *permission* helpers consume, one answers
  * "what may this person do", the other "what did this person do, as what".
  */
 function auditActor(session: GovernanceSession): { name: string; role: GovernanceRole } {
@@ -142,11 +143,6 @@ function toActor(session: GovernanceSession): GovernanceActor {
     // spelling that default in two places is how the two drift apart.
     ...(session.canAuthorPolicy !== undefined ? { canAuthorPolicy: session.canAuthorPolicy } : {}),
   };
-}
-
-/** Rejects keys that alias object internals when used on a plain object. */
-function isSafeObjectKey(value: string): boolean {
-  return value !== "__proto__" && value !== "constructor" && value !== "prototype";
 }
 
 function isResourceKind(value: unknown): value is ResourceKind {
@@ -176,7 +172,7 @@ export async function handleGovernanceApiRequest(
       return true;
     }
     // A scoped account sees global rules (they bind its agents too) plus the
-    // rules for agents it was assigned — never another team's agent rules.
+    // rules for agents it was assigned. Never another team's agent rules.
     const policy = await loadPolicy(groupId);
     const actor = toActor(session);
     sendJson(res, 200, {
@@ -251,7 +247,7 @@ export async function handleGovernanceApiRequest(
     return true;
   }
 
-  // Viewer and above: what is in force for one agent — its posture, and every
+  // Viewer and above: what is in force for one agent. Its posture, and every
   // rule that binds it, global and agent-scoped alike.
   //
   // **Scoped by assignment, not by tier.** §1.6 gives Viewer and User oversight
@@ -276,7 +272,7 @@ export async function handleGovernanceApiRequest(
     const actor = toActor(session);
     if (!canViewAgent(actor, agentId)) {
       // 403 rather than an empty result. An empty answer would say "this agent
-      // has no rules", which is a different and false statement — and one an
+      // has no rules", which is a different and false statement, and one an
       // unassigned caller could use to distinguish an agent that does not exist
       // from one they simply may not see.
       sendJson(res, 403, {
@@ -288,7 +284,7 @@ export async function handleGovernanceApiRequest(
     return true;
   }
 
-  // Viewer and above: the other direction — which agents one rule binds.
+  // Viewer and above: the other direction, which agents one rule binds.
   //
   // The agent list is narrowed to what the caller may see, so a User assigned
   // one agent learns that a global rule binds *their* agent without being
@@ -360,13 +356,13 @@ export async function handleGovernanceApiRequest(
   // Root only: the deployment and network posture (backlog item A7).
   //
   // §1.6 gives Root "overseeing the deployment and network configurations of
-  // the governance layer on the VPS" — the one clause of that tier's definition
+  // the governance layer on the VPS", the one clause of that tier's definition
   // that had nothing behind it.
   //
   // **Why this is Root when `system` beside it is Viewer.** `system` reports
   // CPU and memory, which disclose nothing about how to reach the installation.
   // This reports the bind mode, the port, the gateway auth mode and where the
-  // governance directory is — a map of how to reach and attack this deployment.
+  // governance directory is, a map of how to reach and attack this deployment.
   // The tiers differ because the disclosure differs, not because one feels more
   // administrative than the other.
   //
@@ -376,7 +372,7 @@ export async function handleGovernanceApiRequest(
   // act outside this application.
   //
   // **This block was left behind in `governance-dashboard-oversight.ts` when the
-  // route moved here (finding 214)** — sitting above that file's `sessions`
+  // route moved here (finding 214)**. Sitting above that file's `sessions`
   // route, which is Viewer, so the one comment in the codebase arguing a tier
   // was attached to a route with a different one. It is the shape of findings
   // 135 and 192, at an authorization boundary rather than a ledger id.
@@ -404,8 +400,8 @@ export async function handleGovernanceApiRequest(
       const sourceConfig = getRuntimeConfigSourceSnapshot() ?? cfg;
       input = resolveDeploymentEnvironmentInput({ cfg, sourceConfig });
     } catch (err) {
-      // A broken or absent configuration must not produce a 500, and — more
-      // importantly — must not produce a *green* report. Saying so plainly is
+      // A broken or absent configuration must not produce a 500, and, more
+      // importantly, must not produce a *green* report. Saying so plainly is
       // the whole point of the `unknown` status.
       sendJson(res, 200, {
         facts: null,
@@ -471,8 +467,17 @@ export async function handleGovernanceApiRequest(
   }
 
   // Root only: the escalation timeout window (§1.6, "preset by the Root").
+  // **Administrator and above, widened from Root on 2026-09-03 at Kinan's
+  // direction.** The installation-wide escalation window sits with the other
+  // installation-wide policy settings (`policy/mode`, `policy/ask`), which are
+  // all Administrator, and the tier that answers an escalation is the tier that
+  // should be able to say how long one waits. Design doc 1.6 puts it under
+  // Root; that section is preliminary design and the implementation is
+  // permitted to differ from it, so this is a recorded divergence rather than a
+  // requirement gap. `policy/user-ask` stays Root, because it is account
+  // administration rather than policy.
   if (route === "policy/hitl-timeout" && req.method === "POST") {
-    if (!requireRole(res, session, "root")) {
+    if (!requireRole(res, session, "administrator")) {
       return true;
     }
     const groupId = requireGroup(res, session);
@@ -554,13 +559,13 @@ export async function handleGovernanceApiRequest(
   // one tier under that. The gap was real rather than paper-fidelity: `ask:
   // "off"` *refuses* an unlisted action and `ask: "on-miss"` *escalates it to a
   // human who may approve*, so a User moving their own agent from the first to
-  // the second converted a hard refusal into a request somebody might grant — a
+  // the second converted a hard refusal into a request somebody might grant, a
   // widening, made by the tier the paper gives the least authority.
   //
   // Root reaches it by inheritance: `roleAtLeast` treats the four tiers as a
   // ladder, so nothing here names Root explicitly and nothing has to.
   //
-  // The capability is **relocated rather than removed** — a User submits an
+  // The capability is **relocated rather than removed**, a User submits an
   // `agent-setting` request and an Administrator accepts or refuses it. See
   // `rule-requests.ts`.
   if (route === "policy/agent-ask" && req.method === "POST") {
@@ -608,7 +613,7 @@ export async function handleGovernanceApiRequest(
     return true;
   }
 
-  // Per-agent posture override — the control that turns `monitor` from the
+  // Per-agent posture override. The control that turns `monitor` from the
   // shipped default into the opt-in discovery tool the supervisor's brief
   // describes. The store function existed from the moment the tier model
   // landed; nothing reached it, so the feature was real in the code and
@@ -616,13 +621,13 @@ export async function handleGovernanceApiRequest(
   // requirement #2 asks for a dashboard that configures policy, which a setting
   // only a test can change does not satisfy.
   //
-  // **Administrator floor, like `policy/agent-ask` above (T4)** — and this one
+  // **Administrator floor, like `policy/agent-ask` above (T4)**, and this one
   // is the wider of the two. Putting an agent into `monitor` stops policy
   // decisions being acted on for it at all, so a User able to set it could
   // neutralise every rule binding their own agent without changing a rule. The
   // scope check below still decides whether the agent is theirs; the tier floor
   // decides whether asking is theirs to do. A User requests it instead, as an
-  // `agent-setting` request — see `rule-requests.ts`.
+  // `agent-setting` request, see `rule-requests.ts`.
   if (route === "policy/agent-mode" && req.method === "POST") {
     if (!requireRole(res, session, "administrator")) {
       return true;
@@ -649,7 +654,7 @@ export async function handleGovernanceApiRequest(
     // A per-agent `off` is not a weaker posture, it is the absence of the gate:
     // the engine returns before the lockdown check, so that agent stops being
     // covered by the kill switch and by the core denials as well as by ordinary
-    // rules — and it would leave no ledger entry saying so. Offering it on a
+    // rules, and it would leave no ledger entry saying so. Offering it on a
     // route whose floor is User would make "switch off every protection on my
     // own agent" a single request, which is precisely the escalation the
     // core tier exists to prevent (§G6).
@@ -750,7 +755,7 @@ export async function handleGovernanceApiRequest(
     const scopedAgentId =
       typeof agentId === "string" && agentId.trim() ? agentId.trim() : undefined;
     if (scopedAgentId === undefined) {
-      // No agentId means a global rule binding every agent — Administrator+.
+      // No agentId means a global rule binding every agent, Administrator+.
       if (!canManageGlobalPolicy(ruleActor)) {
         sendJson(res, 403, {
           error: {
@@ -783,7 +788,7 @@ export async function handleGovernanceApiRequest(
     }
     // **Denials are authorable from here (R5).** The engine has enforced
     // `effect: "deny"` at every tier since the tier model landed, and the core
-    // rules that ship with an installation *are* denials — but no surface could
+    // rules that ship with an installation *are* denials, but no surface could
     // create one, so an operator wanting "this agent must never touch billing"
     // had to hand-edit `policy.json`. Deleting allow rules is not a substitute:
     // a later broad grant silently reopens what the operator thought they had
@@ -806,7 +811,7 @@ export async function handleGovernanceApiRequest(
     // `access` narrows a path rule to one direction, and the direction of an
     // invocation comes from the tool. A command is not read or write, it is
     // whatever it does, so accepting the field for one would store something
-    // the engine ignores — and a field that is silently discarded is worse than
+    // the engine ignores, and a field that is silently discarded is worse than
     // one that is refused, because the operator believes it took hold.
     if (access !== undefined && access !== null && resourceKind !== "path") {
       sendInvalidRequest(res, "access applies to path rules only");
@@ -814,13 +819,13 @@ export async function handleGovernanceApiRequest(
     }
     // Earlier rules win (design doc §1.6): the clash is reported, not blocked.
     // In an allow-only language a new rule cannot reduce access, so refusing
-    // it would change nothing — what matters is that the operator learns their
+    // it would change nothing, what matters is that the operator learns their
     // new restriction is ineffective rather than believing it took hold.
     //
     // Detected by `addRuleChecked` **inside the write lock**, against the
     // ruleset the rule is actually appended to. Detecting it here, before the
     // write, meant two administrators adding the same rule at the same instant
-    // both read a ruleset without it, both saw no clash, and both wrote — the
+    // both read a ruleset without it, both saw no clash, and both wrote. The
     // duplicate was harmless, the silence was not.
     let rule;
     let conflicts;
@@ -878,7 +883,7 @@ export async function handleGovernanceApiRequest(
       sendInvalidRequest(res, "id is required");
       return true;
     }
-    // Authorize against the rule's own scope, read from storage — never from
+    // Authorize against the rule's own scope, read from storage. Never from
     // the caller's payload, so a User cannot delete a global or foreign rule
     // by claiming it belongs to their agent.
     const existing = (await loadPolicy(groupId)).rules.find((rule) => rule.id === id);
@@ -901,7 +906,7 @@ export async function handleGovernanceApiRequest(
       sendJson(res, 200, { ok: await removeRule(groupId, id, auditActor(session)) });
     } catch (err) {
       // A core rule. Refused for every tier including Root, so this is a
-      // statement about the rule rather than about the caller — 409, not 403.
+      // statement about the rule rather than about the caller, 409, not 403.
       if (err instanceof ImmutableRuleError) {
         sendJson(res, 409, { error: { message: err.message, type: "immutable_rule" } });
         return true;
@@ -954,7 +959,7 @@ export async function handleGovernanceApiRequest(
   // Acting on an agent you manage (T16's third split): prompting it, reading
   // its transcript and runs, attaching files, cancelling, and the kill switch.
   //
-  // One rule for the whole module — User tier and `canManageAgent` — which is
+  // One rule for the whole module, User tier and `canManageAgent`, which is
   // why the kill switch travels with the prompt routes rather than staying
   // with policy: stopping an agent is acting on a workload you are responsible
   // for, not changing the rules it is judged by.
@@ -962,7 +967,7 @@ export async function handleGovernanceApiRequest(
   // ---------------------------------------------------------------------
   // Read-only oversight (T16's fourth split): the ledger and its verification,
   // the running sessions, the resource view, and the escalations awaiting an
-  // answer. One rule — Viewer and above, nothing changes state, every answer
+  // answer. One rule, Viewer and above, nothing changes state, every answer
   // filtered to what the caller may see.
   // ---------------------------------------------------------------------
   // ---------------------------------------------------------------------
@@ -997,7 +1002,7 @@ export async function handleGovernanceApiRequest(
   }
 
   // Granting a folder with exceptions as one act, and which backend agents may
-  // run on: each in its own module, on the seam every split here uses — one
+  // run on: each in its own module, on the seam every split here uses, one
   // file, one statable authorization rule.
   if (await handleGovernanceFolderGrantRoutes(req, res, route, session, routeCtx)) {
     return true;

@@ -33,7 +33,7 @@ const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
  * Accounts that were Viewers or Users before M3 are Administrators here unless
  * the tier is the subject of the test. A User or Viewer now requires an
  * Administrator answerable for it, which would mean creating a second account
- * inside tests about username folding, token storage and Root invariants — and
+ * inside tests about username folding, token storage and Root invariants, and
  * changing the counts several of them assert. The tier was incidental; the
  * ceremony would not have been.
  */
@@ -115,7 +115,7 @@ async function call(
 describe("rule-request approval must not silently widen scope", () => {
   it("keeps an agent-scoped request scoped when approved", async () => {
     // A User asks for access on one agent. Approving must not turn that into a
-    // rule binding every agent — that would be a privilege escalation carried
+    // rule binding every agent. That would be a privilege escalation carried
     // out by an Administrator who believed they were approving something small.
     const submitted = await call("POST", "rule-requests", session("user", ["agent-a"]), {
       resourceKind: "command",

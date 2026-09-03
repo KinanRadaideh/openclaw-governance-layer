@@ -3,7 +3,7 @@
 //
 // The last describe block is the important one. A view of "what this agent may
 // do" that disagrees with what the engine actually decides is worse than no
-// view — an operator would be reassured by a list that is not the one being
+// view. An operator would be reassured by a list that is not the one being
 // consulted. This project's most frequently found defect is two parts of a
 // system making the same claim in two places and drifting; so the projection is
 // checked against real evaluations rather than against a second reading of the
@@ -96,7 +96,7 @@ describe("agent → the rules that bind it", () => {
     const applied = rulesForAgent(doc([live, dead]), "agent-a");
 
     // `pruneExpiredRules` keeps expired rules on disk for a week for audit
-    // purposes — a different question from what is in force now.
+    // purposes. A different question from what is in force now.
     expect(applied.map((entry) => entry.rule.id)).toEqual(["live"]);
   });
 
@@ -201,7 +201,7 @@ describe("the view agrees with the gate", () => {
     if ("block" in decision) {
       return "block";
     }
-    // T23 — see the identical note in `policy-engine.test.ts`. An allowed call
+    // T23. See the identical note in `policy-engine.test.ts`. An allowed call
     // whose path was redirected returns `params`, so absence is no longer the
     // only way the engine says "allow".
     return "requireApproval" in decision ? "ask" : "allow";
@@ -269,7 +269,7 @@ describe("the view agrees with the gate", () => {
     const visibleToA = new Set(rulesForAgent(policy, "agent-a").map((e) => e.rule.id));
     const omitted = policy.rules.filter((r) => !visibleToA.has(r.id));
 
-    // Each omitted rule must be another agent's or expired — never a rule that
+    // Each omitted rule must be another agent's or expired. Never a rule that
     // would in fact bind agent-a. A view that hides something the gate uses is
     // the defect this test exists to make impossible.
     for (const r of omitted) {
@@ -285,7 +285,7 @@ describe("hostile agent ids", () => {
   it("does not read posture off the prototype chain", () => {
     // `agentMode` is a plain object keyed by attacker-influenced strings, and
     // `doc.agentMode["toString"]` is a function rather than undefined. Reading
-    // it with a bare property access would report a posture that nobody set —
+    // it with a bare property access would report a posture that nobody set,
     // the prototype-pollution shape this project has already had to fix once,
     // in the `userAsk` route.
     const posture = agentPosture(doc([], { mode: "enforce" }), "toString");
@@ -309,7 +309,7 @@ describe("hostile agent ids", () => {
   it("does not invent membership for an agent that appears nowhere", () => {
     const view = agentPolicyView(doc([rule({ id: "a1", agentId: "agent-a" })]), "ghost");
     // Under default-deny an unknown agent having no rules is the correct and
-    // meaningful answer — it can do nothing — rather than an error.
+    // meaningful answer, it can do nothing, rather than an error.
     expect(view.rules).toEqual([]);
     expect(view.summary.total).toBe(0);
   });

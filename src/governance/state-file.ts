@@ -6,7 +6,7 @@
 // ## Why this module exists rather than an option at each call site
 //
 // There were 28 calls to `writeJsonAtomic` across seven governance modules and
-// all 28 passed exactly `{ mode: 0o600 }` — the file, and nothing about the
+// all 28 passed exactly `{ mode: 0o600 }`. The file, and nothing about the
 // directory. `writeJsonAtomic` creates the parent directory when it has to, and
 // with no `dirMode` it uses its own default, which the umask turns into `0755`
 // on an ordinary Linux host. So a single write to `users.json` **widened the
@@ -30,13 +30,13 @@
 // reports both of its permission checks as **unknown** there, and this project
 // was developed on Windows. The checks exist, they are correct, and they had
 // never run. It was found on 2026-09-01 by installing the fork on Linux the
-// night before its first VPS deployment — where it would have surfaced as
+// night before its first VPS deployment. Where it would have surfaced as
 // `governance deployment` reporting *"Mode is 0755; expected 0700"* against
 // documentation promising 0700.
 //
 // The files themselves were always right at `0600`, so no other user could read
 // the ledger key, the account records or the audit trail. What leaked was the
-// directory: its listing, the file names, and the group ids under `groups/` —
+// directory: its listing, the file names, and the group ids under `groups/`,
 // and, more to the point, the property the layer claims to have.
 import { writeJsonAtomic } from "../infra/json-files.js";
 
@@ -46,8 +46,8 @@ export const GOVERNANCE_FILE_MODE = 0o600;
 /**
  * Owner read/write/traverse. Every directory in the governance tree.
  *
- * Kept beside the file mode deliberately: they are one decision — *this tree is
- * private to the account that runs the layer* — and splitting them across two
+ * Kept beside the file mode deliberately: they are one decision, *this tree is
+ * private to the account that runs the layer*, and splitting them across two
  * modules is how one of them came to be forgotten.
  */
 export const GOVERNANCE_DIR_MODE = 0o700;

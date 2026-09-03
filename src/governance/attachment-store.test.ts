@@ -1,4 +1,4 @@
-// T14 — attachments are allowed, and requirement #8 still holds.
+// T14. Attachments are allowed, and requirement #8 still holds.
 //
 // The tests are grouped by the claim each defends, because the feature is only
 // acceptable if all four hold at once:
@@ -6,7 +6,7 @@
 //   1. The content never reaches the ledger. This is requirement #8, and it is
 //      the reason the feature was held for weeks rather than built.
 //   2. The governed agent cannot read the store. Inherited from the
-//      self-protecting core denials — and *asserted*, because inherited
+//      self-protecting core denials, and *asserted*, because inherited
 //      protection that nobody checks is the shape of the coverage guard that
 //      could not fail.
 //   3. The hostile-input list is answered: the filename never becomes a path,
@@ -76,7 +76,7 @@ function store(overrides: Partial<Parameters<typeof storeAttachment>[1]> = {}) {
 }
 
 describe("requirement #8: the content never reaches the ledger", () => {
-  it("records hash, type and size — and not the bytes", async () => {
+  it("records hash, type and size, and not the bytes", async () => {
     const secret = new TextEncoder().encode("api_key=SUPERSECRETVALUE12345");
     const record = await store({ content: secret, declaredName: "notes.txt" });
 
@@ -115,7 +115,7 @@ describe("the agent cannot read the store", () => {
       { agentId: "agent-a", sessionKey: "agent:agent-a:main", cwd: workspace },
     );
 
-    // Inherited from the denial on the governance directory — which is one of
+    // Inherited from the denial on the governance directory, which is one of
     // the three Root cannot switch off. Asserted rather than assumed: this is
     // the whole reason the store lives where it lives.
     expect(decision && "block" in decision).toBe(true);
@@ -147,7 +147,7 @@ describe("the hostile-input list", () => {
     const record = await store({ declaredName: "../../.ssh/authorized_keys" });
 
     const names = await readdir(attachmentsDir(TEST_GROUP));
-    // Named by hash. Traversal is not defended against here — it is
+    // Named by hash. Traversal is not defended against here. It is
     // unreachable, because the uploader's string never reaches the filesystem.
     expect(names).toContain(record.sha256);
     expect(names.every((name) => !name.includes(".."))).toBe(true);
@@ -165,7 +165,7 @@ describe("the hostile-input list", () => {
   it("refuses an oversized file while streaming, not after buffering it", async () => {
     // The cap has to bite during the read. Buffering first and checking the
     // length afterwards lets an attacker choose how much memory the process
-    // allocates before being told no — which is the denial of service the cap
+    // allocates before being told no, which is the denial of service the cap
     // exists to prevent rather than a check against it.
     let produced = 0;
     async function* tooBig(): AsyncGenerator<Uint8Array> {
@@ -254,7 +254,7 @@ describe("evidence and record stay in step", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Finding 194 — the index was the one governance store written without a lock.
+// Finding 194. The index was the one governance store written without a lock.
 //
 // Four functions read this index, change it and write it back. None of them
 // took the lock the account, agent and policy stores take, and none went
@@ -274,7 +274,7 @@ describe("the index survives concurrent writers (finding 194)", () => {
     await Promise.all(uploads);
 
     // Without the lock the last writer wins and the rest of the records are
-    // lost — while their files stay on disk, unreferenced and no longer
+    // lost, while their files stay on disk, unreferenced and no longer
     // counting toward the quota. That is the quota bypass, not just untidiness.
     const held = await listAttachments(TEST_GROUP);
     expect(held).toHaveLength(8);
@@ -321,7 +321,7 @@ describe("an unreadable index stops rather than reading as empty (finding 194)",
     await writeFile(join(attachmentsDir(TEST_GROUP), "index.json"), "{ truncated", "utf8");
 
     // Swallowing this into an empty index is how every `usedAt` in the store
-    // could be dropped by one crash mid-write — the finding-78 rule at a second
+    // could be dropped by one crash mid-write. The finding-78 rule at a second
     // store: a damaged state file stops the operation rather than degrading it.
     await expect(store({ declaredName: "after.txt" })).rejects.toBeInstanceOf(
       AttachmentIndexUnreadableError,

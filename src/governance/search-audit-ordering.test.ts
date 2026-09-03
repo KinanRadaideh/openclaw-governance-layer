@@ -1,4 +1,4 @@
-// Finding 164 — the ledger's two search ids stay honest only because of an
+// Finding 164. The ledger's two search ids stay honest only because of an
 // ordering property in upstream code that nothing stated.
 //
 // ## The property
@@ -16,12 +16,12 @@
 // ids: an auditor counts what leaked separately from what was stopped.
 //
 // If the audit half read the *unfiltered* result, every path the filter
-// successfully withheld would also be recorded as having been reached — the
+// successfully withheld would also be recorded as having been reached. The
 // ledger would report a leak for exactly the cases where prevention worked, and
 // the distinction would be inverted precisely when it matters.
 //
-// It does not, because `agent-loop.ts` runs `finalizeExecutedToolCall` — which
-// applies `afterToolCall` — **before** `emitToolExecutionEnd`, so the event
+// It does not, because `agent-loop.ts` runs `finalizeExecutedToolCall`, which
+// applies `afterToolCall`, **before** `emitToolExecutionEnd`, so the event
 // carries the substituted result.
 //
 // ## Why this file exists
@@ -29,7 +29,7 @@
 // **That ordering is upstream code this fork does not own, and no comment, test
 // or document mentioned that a governance guarantee rests on it** (finding 164,
 // 2026-08-31). If upstream ever emitted the event before finalizing, the two
-// ids would quietly start lying and **every existing test would stay green** —
+// ids would quietly start lying and **every existing test would stay green**,
 // the filter's tests would pass, the audit's tests would pass, and only the
 // meaning of the ledger would change.
 //
@@ -95,7 +95,7 @@ describe("the two halves compose on the in-process runtime", () => {
     expect(entries.some((e) => e.ruleId === "search-reached-denied")).toBe(false);
   });
 
-  it("records a reach when nothing filtered the result — the native path", async () => {
+  it("records a reach when nothing filtered the result. The native path", async () => {
     // The counter-case, so the test above cannot pass by the audit half simply
     // never recording anything. On the Codex harness no filter runs, the model
     // does see the file, and `search-reached-denied` is the honest entry.
@@ -112,7 +112,7 @@ describe("the two halves compose on the in-process runtime", () => {
 
   it("would record both if the audit half ever saw the unfiltered result", async () => {
     // **This is the failure mode the ordering prevents, demonstrated.** It is
-    // not asserting desired behaviour — it is showing what the ledger would say
+    // not asserting desired behaviour. It is showing what the ledger would say
     // if `tool_execution_end` were ever emitted before `afterToolCall` applied.
     // Both entries appear, and the `search-reached-denied` one is false: the
     // model never received that line.

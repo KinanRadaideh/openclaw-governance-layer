@@ -33,19 +33,19 @@ const ALLOWED: GuardResult = { allowed: true };
  * Recorded because M3's own lesson was "a correct rule attached to the wrong
  * noun", and this is the same shape one level up: a reader who lifts the
  * one-organisation cap will not find anything here telling them this sentence
- * depended on it. The guards below stay correct either way — both production
+ * depended on it. The guards below stay correct either way, both production
  * callers pass a **group-scoped** user list, so "another Root exists" has always
- * meant "in this group" — but the header would silently stop describing the
+ * meant "in this group", but the header would silently stop describing the
  * installation.
  *
- * Two guards used to state the two halves of this separately — `LastRootError`
- * capped it below, `DuplicateRootError` capped it above — and each read
+ * Two guards used to state the two halves of this separately, `LastRootError`
+ * capped it below, `DuplicateRootError` capped it above, and each read
  * correctly on its own. Together they meant something neither said: since a
  * second Root cannot be created, the "other Roots exist" escape below can never
  * be reached through a supported path, so the single Root can never be deleted
  * and never be demoted. The refusal messages had not caught up and told the
  * operator to "promote another account to Root first", which the other guard
- * refuses — advice that cannot be followed, produced by two rules that were
+ * refuses: advice that cannot be followed, produced by two rules that were
  * each right.
  *
  * That permanence is the intended behaviour and is now stated rather than
@@ -57,7 +57,7 @@ const ALLOWED: GuardResult = { allowed: true };
  * duplicated or absent.
  *
  * **Permanent is not the same as undeletable, and since 2026-09-01 the two have
- * different answers.** Root cannot be deleted *as an account* — that is what
+ * different answers.** Root cannot be deleted *as an account*. That is what
  * these guards say, and it is unchanged, because an installation left with
  * accounts and no Root is unrecoverable. Root can be deleted *with its
  * organisation*, by `guardOrganisationDeletion` below, which removes every
@@ -96,8 +96,8 @@ export function guardDeletion(
     return {
       allowed: false,
       // Names the one route out rather than stopping at "no". Root deleting
-      // itself is now possible and is a *different act* — it takes the
-      // organisation with it — so this refusal points at that act instead of
+      // itself is now possible and is a *different act*, it takes the
+      // organisation with it, so this refusal points at that act instead of
       // implying no such thing exists.
       reason:
         "You cannot delete the account you are signed in with. " +
@@ -114,8 +114,8 @@ export function guardDeletion(
  *
  * ## Why this is a guard and not four lines in the route
  *
- * It is the same kind of rule as the two above — a domain condition on an
- * irreversible account change, stated once and unit tested without a Gateway —
+ * It is the same kind of rule as the two above, a domain condition on an
+ * irreversible account change, stated once and unit tested without a Gateway,
  * and it is the rule the two above deliberately leave a hole for. Splitting it
  * across a route and a store is how "Root is permanent" came to be true by
  * accident in the first place.
@@ -179,7 +179,7 @@ function guardRootPermanence(
     (candidate) => candidate.role === "root" && candidate.id !== userId,
   ).length;
   if (otherRoots > 0) {
-    // Only reachable on an installation that already holds more than one Root —
+    // Only reachable on an installation that already holds more than one Root,
     // a hand-edited file, or one written before the upper bound was enforced.
     // Removing the extra is a repair, so it is permitted.
     return ALLOWED;

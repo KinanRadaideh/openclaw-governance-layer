@@ -4,7 +4,7 @@
 //
 // Every other destructive operation in this layer removes one thing that
 // somebody above it can put back. This one removes the account that would have
-// put it back, so it is not "delete an account" with a wider filter — it is a
+// put it back, so it is not "delete an account" with a wider filter. It is a
 // different act, with a different confirmation, a different audit shape, and an
 // ordering that has to be argued for rather than chosen.
 //
@@ -17,8 +17,8 @@
 //   1. **Guard first**, against a list read once. Nothing has happened yet, so
 //      a refusal costs nothing and leaves nothing.
 //   2. **Record the request** into the organisation's own chain, *before* the
-//      first destructive step. A deletion that dies half-way — a host refusal,
-//      a full disk, a killed process — must still leave a record of who asked
+//      first destructive step. A deletion that dies half-way, a host refusal,
+//      a full disk, a killed process, must still leave a record of who asked
 //      for it. `agentProvision` is written before its attempt for the same
 //      reason, and the argument is stronger here because the account that would
 //      answer for it is one of the things about to go.
@@ -43,7 +43,7 @@
 // The ledger exists to answer questions after the fact, under the assumption
 // that whoever is asking does not trust whoever was in charge. An operator who
 // can delete the trail by deleting the organisation it covers has a one-click
-// way to erase every record of everything their agents ever did — which is
+// way to erase every record of everything their agents ever did, which is
 // precisely the capability an append-only, hash-chained, HMAC-keyed log exists
 // to deny them. Requirement #6 is a property of the installation, not a
 // courtesy extended to organisations that still exist.
@@ -51,7 +51,7 @@
 // Keeping it costs nothing an operator can feel: the retained directory holds
 // one file (plus archives), no account can read it because no account remains,
 // and a fresh organisation gets a new `newGroupId()` and never collides with
-// it. It also keeps the checkpoint honest — the checkpoint is keyed by group
+// it. It also keeps the checkpoint honest. The checkpoint is keyed by group
 // and lives outside the group directory, so deleting the chain while leaving
 // its recorded head would manufacture exactly the truncation signal the
 // checkpoint exists to detect (`test-group.ts` makes the same point from the
@@ -68,7 +68,7 @@
 //
 // This read "all reconstructible except one" for as long as attachments existed,
 // and attachments are not reconstructible. They live at
-// `groups/<id>/attachments` — inside the directory this module empties — so the
+// `groups/<id>/attachments`, inside the directory this module empties, so the
 // retained ledger survived and every file its entries named was deleted with
 // everything else. A trail that points at evidence that is gone is worse than
 // either whole answer, because it still reads as complete.
@@ -136,7 +136,7 @@ export type OrganisationDeletionResult =
       /**
        * Files the purge could not remove. Not a failure: the accounts and
        * agents are gone, which is what was asked for, and what is left is inert
-       * — no account can reach it and no agent is governed by it. Reported
+       *no account can reach it and no agent is governed by it. Reported
        * because an action that half-succeeded silently is this project's worst
        * bug class, and because the operator is the only one who can clear it.
        */
@@ -146,7 +146,7 @@ export type OrganisationDeletionResult =
        * gone, each named in a sentence an operator can act on (finding 229).
        *
        * Empty on every ordinary deletion. Non-empty means the destructive act
-       * completed and something after it did not — a session left un-revoked, a
+       * completed and something after it did not: a session left un-revoked, a
        * completion entry the ledger would not take, an attachment store that
        * could not be reduced to its evidence.
        *
@@ -155,8 +155,8 @@ export type OrganisationDeletionResult =
        * the point of no return, so a corrupt attachment index or a ledger lock
        * timing out threw out of this function, and both surfaces told the
        * operator the deletion had not happened while the accounts and agents
-       * were already gone. That is finding 195 exactly — the kill switch
-       * reporting a stop that had worked as a failure — and `kill-switch.ts`
+       * were already gone. That is finding 195 exactly, the kill switch
+       * reporting a stop that had worked as a failure, and `kill-switch.ts`
        * carries the same field, `auditError`, for the same reason.
        */
       incomplete: string[];
@@ -186,7 +186,7 @@ export async function summariseOrganisation(groupId: string): Promise<Organisati
  *
  * `actingUserId` is the Root asking, and `confirmation` is the username they
  * typed. Both are checked here rather than at the surface, so the command line
- * and the dashboard cannot come to differ on what counts as consent — the
+ * and the dashboard cannot come to differ on what counts as consent. The
  * defect class this project finds most often.
  */
 export async function deleteOrganisation(
@@ -233,14 +233,14 @@ export async function deleteOrganisation(
         remedy:
           `The organisation was not deleted and you are still signed in. ` +
           `${agentsDeleted} agent(s) were deleted before this one. ` +
-          `${removed.remedy} Then run the deletion again — it skips what is already gone.`,
+          `${removed.remedy} Then run the deletion again. It skips what is already gone.`,
         agentsDeleted,
       };
     }
     agentsDeleted += 1;
     if (removed.auditError) {
       // The agent is gone and its entry is not. Carried rather than dropped,
-      // for the same reason the steps below this loop are (finding 229) — and
+      // for the same reason the steps below this loop are (finding 229), and
       // collected here because the loop is the only place that sees it.
       unrecordedAgents.push(`agent ${agent.id}: ${removed.auditError}`);
     }
@@ -267,7 +267,7 @@ export async function deleteOrganisation(
   // Past the point of no return. Nothing below may throw (finding 229).
   //
   // The accounts and the agents are gone and cannot be put back, so a failure
-  // here is not a reason to report that the deletion failed — it is a fact
+  // here is not a reason to report that the deletion failed. It is a fact
   // about bookkeeping that the operator has to be told *alongside* the success.
   // Each step is attempted, and a step that will not go names itself.
   // ---------------------------------------------------------------------
@@ -308,7 +308,7 @@ export async function deleteOrganisation(
   // Before the blanket purge, and separately from it, because the question
   // "which of these files is evidence?" is the attachment store's to answer.
   //
-  // It refuses outright on a damaged index — deliberately, and correctly for a
+  // It refuses outright on a damaged index. Deliberately, and correctly for a
   // store being asked what to keep. Called from here that refusal can no longer
   // protect anything, because what it would have stopped has already happened,
   // so it is reported rather than allowed to decide the outcome of the act.
@@ -357,7 +357,7 @@ export async function deleteOrganisation(
  *
  * Returns what it could not remove instead of throwing. By the time this runs
  * the accounts and agents are already gone, so a failure here cannot be undone
- * and must not be reported as though the whole act failed — it is leftover
+ * and must not be reported as though the whole act failed. It is leftover
  * state, and the caller says so.
  */
 async function purgeExceptLedger(dir: string): Promise<string[]> {

@@ -1,4 +1,4 @@
-// PROBE — round sixteen, T11. Not part of the suite; kept as the artefact that
+// PROBE. Round sixteen, T11. Not part of the suite; kept as the artefact that
 // produced findings 104-106. Run by copying to src/governance/probe.test.ts.
 //
 // T11 was recorded as one observation: "a lock reclaimable from a slow writer.
@@ -40,7 +40,7 @@ async function backdateLock(): Promise<void> {
   await utimes(lockPath, past, past);
 }
 
-// FINDING 104 — a slow holder is reaped, and is never told.
+// FINDING 104. A slow holder is reaped, and is never told.
 //
 // Expected before the fix: two callers run their critical sections at the same
 // time, which is the one thing the lock exists to prevent.
@@ -76,7 +76,7 @@ it("PROBE 104: a reaped holder keeps running as though it still holds the lock",
   expect(inside).toEqual(["a-enter", "b-enter", "b-exit", "a-exit"]);
 });
 
-// FINDING 105 — the reaped holder then deletes somebody else's lock.
+// FINDING 105. The reaped holder then deletes somebody else's lock.
 //
 // This is the worse half. `releaseLock` does `rm(lockPath, { force: true })`
 // with no check that the file it is removing is the one it created. A holder
@@ -106,7 +106,7 @@ it("PROBE 105: a reaped holder's release deletes the new holder's lock", async (
   await new Promise((r) => setTimeout(r, 50));
   expect(bHeld).toBe(true);
 
-  // A now exits. Its `finally` removes the lock file — which is B's.
+  // A now exits. Its `finally` removes the lock file, which is B's.
   releaseA();
   await a;
 
@@ -121,7 +121,7 @@ it("PROBE 105: a reaped holder's release deletes the new holder's lock", async (
   await b;
 });
 
-// FINDING 106 — two waiters can both reap, and the second deletes the first's
+// FINDING 106, two waiters can both reap, and the second deletes the first's
 // freshly acquired lock.
 //
 // `reapStaleLock` is stat-then-remove with no compare: the file it removes need

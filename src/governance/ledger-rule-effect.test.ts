@@ -9,7 +9,7 @@
 //
 // Identical in form, opposite in meaning, and nothing in either says which was
 // which. `describeRule` recorded kind, pattern, scope and expiry and omitted
-// `effect` — so the tamper-evident record of policy changes could not
+// `effect`, so the tamper-evident record of policy changes could not
 // distinguish *an operator granted access to this path* from *an operator
 // forbade it*. Requirement #5 asks the log to record policy decisions; a
 // decision whose direction is unrecoverable is not recorded.

@@ -1,4 +1,4 @@
-// QA round 14 — spawned agents, and the identity governance keys everything on.
+// QA round 14. Spawned agents, and the identity governance keys everything on.
 //
 // Round 13 governed `sessions_spawn` and `subagents`, which made *starting* a
 // further agent a permission an operator grants. It left the harder question
@@ -6,13 +6,13 @@
 // scoping rule in this layer keys on that id.
 //
 // This round answers it. The host mints a child's session key as
-// `agent:<targetAgentId>:subagent:<uuid>` — `mintSpawnSessionKey` in
-// src/agents/spawn-plan.ts, read rather than assumed — so to governance a
+// `agent:<targetAgentId>:subagent:<uuid>`-`mintSpawnSessionKey` in
+// src/agents/spawn-plan.ts, read rather than assumed, so to governance a
 // cross-agent child is simply a **different principal**. Two consequences,
 // both measured:
 //
 //   1. an agent-scoped denial on the parent does not bind the child, and the
-//      child gets the *target's* rules, which may be broader — so agent-scoped
+//      child gets the *target's* rules, which may be broader, so agent-scoped
 //      confinement was escapable by spawning into another identity;
 //   2. a lockdown on the parent does not reach a child already running under
 //      another id.
@@ -83,7 +83,7 @@ function verdict(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>)
   if ("block" in decision) {
     return "block";
   }
-  // T23 — absence is no longer the only way the engine says "allow". A call
+  // T23. Absence is no longer the only way the engine says "allow". A call
   // whose path was redirected comes back carrying `params` (the canonical path
   // the tool should open), and reading that as "ask" would report an
   // escalation that never happened. Ask the question directly instead of
@@ -119,7 +119,7 @@ async function allow(pattern: string, agentId?: string): Promise<void> {
   });
 }
 
-describe("qa round 14 — the host's own key tells governance who the child is", () => {
+describe("qa round 14. The host's own key tells governance who the child is", () => {
   /**
    * The premise the rest of this file rests on, asserted against the host's
    * own builder rather than against a string this project invented. That
@@ -141,7 +141,7 @@ describe("qa round 14 — the host's own key tells governance who the child is",
   });
 });
 
-describe("qa round 14 — spawning into another identity is its own permission (finding 94)", () => {
+describe("qa round 14. Spawning into another identity is its own permission (finding 94)", () => {
   it("refuses a cross-agent spawn that no rule names", async () => {
     await enforceStrictly();
     await allow("^sessions_spawn:spawn$", "agent-a");
@@ -212,7 +212,7 @@ describe("qa round 14 — spawning into another identity is its own permission (
   });
 });
 
-describe("qa round 14 — what a spawned child inherits", () => {
+describe("qa round 14. What a spawned child inherits", () => {
   it("binds a same-agent child to the parent's rules and lockdown", async () => {
     const doc = await loadPolicy(TEST_GROUP);
     await savePolicy(TEST_GROUP, {
@@ -233,13 +233,13 @@ describe("qa round 14 — what a spawned child inherits", () => {
    * **Closed on 2026-08-25 (T6). This test used to assert the opposite.**
    *
    * It read: a child already running under a *different* agent id is a
-   * different principal, so a lockdown on the parent does not reach it — and
+   * different principal, so a lockdown on the parent does not reach it, and
    * closing that "needs the host to report the requester alongside the child
    * (`spawnedBy` exists in the host's own spawn records), which is a change in
    * `HookContext`, not in the policy engine".
    *
    * The first half was right and the second was a mistake worth recording.
-   * `spawnedBy` does exist in the host's spawn records — on the **session
+   * `spawnedBy` does exist in the host's spawn records, on the **session
    * entry**, which this fork can read. What was blocked was the *hook payload*,
    * not the project. Reading "needs a change in `HookContext`" as "needs
    * upstream" is how a limitation with a route out sat open for six days.
@@ -325,7 +325,7 @@ describe("qa round 14 — what a spawned child inherits", () => {
   });
 });
 
-describe("qa round 14 — a prompt body belongs to its author (finding 84)", () => {
+describe("qa round 14. A prompt body belongs to its author (finding 84)", () => {
   /**
    * A1 claimed isolation by account and the transcript honoured it; the ledger
    * did not, because it filters by *agent* scope and a prompt is recorded with
@@ -366,7 +366,7 @@ describe("qa round 14 — a prompt body belongs to its author (finding 84)", () 
     const { projectLedgerForActor, REDACTED_PROMPT } = await import("./ledger-view.js");
     // Built once and compared against itself. Calling `entry()` a second time
     // inside the assertion produced a *fresh* `new Date()`, so the timestamp
-    // check only passed when both landed in the same millisecond — it passed
+    // check only passed when both landed in the same millisecond. It passed
     // alone and failed under the full suite. Flaky tests are worse than absent
     // ones, and this project has a round dedicated to that lesson.
     const original = entry("kinan");
@@ -409,12 +409,12 @@ describe("qa round 14 — a prompt body belongs to its author (finding 84)", () 
   });
 });
 
-describe("qa round 14 — clash detection is atomic with the write", () => {
+describe("qa round 14. Clash detection is atomic with the write", () => {
   /**
    * Both authoring surfaces used to call `detectRuleConflicts` on a policy they
    * had loaded a moment earlier, then call `addRule`. Two administrators adding
    * the same rule at the same instant both read a ruleset without it, both saw
-   * no clash, and both wrote — so the loser of the race was told nothing.
+   * no clash, and both wrote: so the loser of the race was told nothing.
    *
    * The duplicate itself is harmless (identical patterns grant identical
    * access). The *warning* is the product: design doc §1.6 asks for "notifying
@@ -436,7 +436,7 @@ describe("qa round 14 — clash detection is atomic with the write", () => {
       addRuleChecked(TEST_GROUP, { ...candidate }, "kinan"),
       addRuleChecked(TEST_GROUP, { ...candidate }, "malek"),
     ]);
-    // Both writes land — the design reports clashes rather than refusing them.
+    // Both writes land. The design reports clashes rather than refusing them.
     const stored = (await loadPolicy(TEST_GROUP)).rules.filter(
       (rule) => rule.pattern === "^npm test$",
     );

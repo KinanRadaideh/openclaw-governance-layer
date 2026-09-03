@@ -1,7 +1,7 @@
 // QA round 5, part two: the storage and validation layers under abuse.
 //
 // These cover failure modes that only appear when something else has already
-// gone wrong — a deleted archive, a corrupted document, two requests arriving
+// gone wrong. A deleted archive, a corrupted document, two requests arriving
 // in the same millisecond. They are the cases nobody exercises by hand, which
 // is exactly why they are worth automating.
 import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
@@ -38,7 +38,7 @@ const TEST_ACTOR = { name: "test-operator", role: "root" } as const;
  * Accounts that were Viewers or Users before M3 are Administrators here unless
  * the tier is the subject of the test. A User or Viewer now requires an
  * Administrator answerable for it, which would mean creating a second account
- * inside tests about username folding, token storage and Root invariants — and
+ * inside tests about username folding, token storage and Root invariants, and
  * changing the counts several of them assert. The tier was incidental; the
  * ceremony would not have been.
  */
@@ -72,7 +72,7 @@ describe("ledger rotation never destroys an existing archive", () => {
   it("picks the next index from the highest archive, not the count", async () => {
     // Archives .1 and .3 with .2 missing (moved off-host for retention, or
     // deleted deliberately). A count-based index would compute 3 and rename the
-    // active file straight over the surviving .3 — audit history destroyed as a
+    // active file straight over the surviving .3. Audit history destroyed as a
     // side effect of normal logging, which is precisely what an attacker
     // covering their tracks would want.
     await appendLedgerEntry(TEST_GROUP, entry("live"));
@@ -100,7 +100,7 @@ describe("ledger rotation never destroys an existing archive", () => {
     // **Assert the rotation actually happened, not only that .3 survived.**
     //
     // Without this the test passes vacuously when rotation never runs: no
-    // rotation, no overwrite, green. Confirmed by mutation on 2026-08-26 —
+    // rotation, no overwrite, green. Confirmed by mutation on 2026-08-26,
     // disabling `rotateIfNeeded` left this test passing while its sibling in
     // `complete-record.test.ts` failed. **A test that also passes with the
     // feature under test switched off is not testing the feature.** The
@@ -133,7 +133,7 @@ describe("ledger rotation never destroys an existing archive", () => {
 describe("a corrupted policy document degrades to default-deny, not to a crash", () => {
   it("survives rules being the wrong type", async () => {
     // Every tool call loads this document. A throw here reaches the tool hook,
-    // which treats it as a block — so one malformed field silently disables the
+    // which treats it as a block, so one malformed field silently disables the
     // agent entirely, with an error that points at the wrong place.
     await writeFile(
       policyFilePath(TEST_GROUP),
@@ -242,7 +242,7 @@ describe("creating a Root now creates a group (M3)", () => {
     // winning a race handed an attacker the whole layer.
     //
     // A Root now owns one group rather than the installation, so a second Root
-    // is a different organisation with its own isolated world — there is
+    // is a different organisation with its own isolated world. There is
     // nothing left to race *for*. What replaces the guard is the group
     // boundary, asserted below.
     const attempts = await Promise.allSettled([

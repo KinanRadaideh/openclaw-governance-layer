@@ -1,4 +1,4 @@
-// M6 — provisioning: the first time this layer writes to the host it governs.
+// M6. Provisioning: the first time this layer writes to the host it governs.
 //
 // The properties worth pinning, and why each is here rather than assumed:
 //
@@ -246,7 +246,7 @@ describe("provisionAgent", () => {
   it("says so loudly when the rollback itself fails", async () => {
     // The one outcome only a human can resolve: a host agent that governance
     // does not know about. After M5 it is refused on every tool call, so it is
-    // inert rather than dangerous — but it is present, and the message has to
+    // inert rather than dangerous, but it is present, and the message has to
     // name it and say how to remove it.
     createAgentMock.mockImplementation(async () => {
       await registerAgent({ id: "stranded", displayName: "Race", groupId, adminId }, ACTOR);
@@ -382,8 +382,8 @@ describe("deprovisionAgent", () => {
   });
 
   it("changes nothing at all when the host refuses to delete", async () => {
-    // **This test is why the host is deleted first.** The obvious order — drop
-    // the record, then delete the agent — looks safer because a host refusal can
+    // **This test is why the host is deleted first.** The obvious order, drop
+    // the record, then delete the agent, looks safer because a host refusal can
     // be "undone" by writing the record back. It cannot: `unregisterAgent` also
     // revokes the agent from every account holding it, and re-registering
     // restores the row and not the assignments. A failed deletion would have
@@ -408,7 +408,7 @@ describe("deprovisionAgent", () => {
       return;
     }
     expect(result.stage).toBe("host");
-    // Nothing was undone because nothing was done — the stronger claim, and the
+    // Nothing was undone because nothing was done. The stronger claim, and the
     // whole point of doing the fallible write first. The result type carries no
     // `rolledBack` at all for this operation, which is how that property is
     // stated rather than merely asserted here.
@@ -434,16 +434,16 @@ describe("deprovisionAgent", () => {
     }
     expect(result.stage).toBe("preflight");
     // The host must not be touched on behalf of an agent this organisation does
-    // not own — the check happens before the destructive call, not inside it.
+    // not own. The check happens before the destructive call, not inside it.
     expect(deleteAgentConfigEntryMock).not.toHaveBeenCalled();
   });
 });
 
-describe("round 19 — the M6 edges", () => {
+describe("round 19. The M6 edges", () => {
   it("makes the new agent governable immediately, without a cache drop", async () => {
     // The whole of M5's isolation depends on the gate resolving a group, and the
     // gate reads a cache. A provisioned agent the gate cannot resolve yet is one
-    // that is refused on every call for as long as the cache is warm — an agent
+    // that is refused on every call for as long as the cache is warm. An agent
     // created successfully and unable to do anything, with no error to read.
     hostCreates("fresh");
     const result = await provisionAgent({ displayName: "Fresh", groupId, adminId }, ACTOR, {
@@ -457,7 +457,7 @@ describe("round 19 — the M6 edges", () => {
   it("refuses a name with no usable characters instead of claiming the default agent", async () => {
     // Finding 129. `normalizeAgentId` returns `main` when nothing survives its
     // filter, so this used to be a request to create the host's default agent on
-    // behalf of somebody who typed punctuation — and the ledger recorded it that
+    // behalf of somebody who typed punctuation, and the ledger recorded it that
     // way.
     for (const junk of ["###", "✓✓", "--"]) {
       const result = await provisionAgent({ displayName: junk, groupId, adminId }, ACTOR);
@@ -472,8 +472,8 @@ describe("round 19 — the M6 edges", () => {
 
   it("refuses an ineligible owner before touching the host", async () => {
     // Finding 130. The owner is knowable from the account file, so discovering
-    // it after `createAgent` meant building a real agent — workspace, identity
-    // file, roster entry — and deleting it again.
+    // it after `createAgent` meant building a real agent, workspace, identity
+    // file, roster entry, and deleting it again.
     const otherGroup = newGroupId();
     const outsider = await createUser(
       { username: "outsider", password: PASSWORD, role: "administrator", groupId: otherGroup },
@@ -546,7 +546,7 @@ describe("round 19 — the M6 edges", () => {
     expect(result.ok).toBe(true);
     expect(deleteAgentConfigEntryMock).toHaveBeenCalledWith(
       // The host is asked to delete the canonical id, never the operator's
-      // spelling — the host keys its roster canonically too.
+      // spelling. The host keys its roster canonically too.
       expect.objectContaining({ agentId: "mixedcase" }),
     );
   });

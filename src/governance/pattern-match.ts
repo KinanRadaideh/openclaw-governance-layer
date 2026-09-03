@@ -6,13 +6,13 @@
  * Every governed tool call tests the resource against every active rule of the
  * matching kind, and each test used to call `new RegExp(pattern)` afresh. So
  * compilation cost scaled with rules × tool calls, on the hot path of the
- * security gate — the one place in the system that runs before every action the
+ * security gate: the one place in the system that runs before every action the
  * agent takes.
  *
  * Patterns are a closed, slow-changing set: bounded in length by
  * `validateRulePattern` and bounded in number by `MAX_POLICY_RULES`, so the
  * cache cannot grow without limit through ordinary use. The explicit ceiling
- * below is a backstop for the paths that bypass rule validation — a hand-edited
+ * below is a backstop for the paths that bypass rule validation. A hand-edited
  * `policy.json`, or an older document loaded from disk.
  *
  * `null` is cached as well as compiled expressions: a malformed pattern is
@@ -52,7 +52,7 @@ export function matchesPattern(pattern: string, resource: string): boolean {
     return false;
   }
   // `lastIndex` is only consulted for /g and /y expressions, which are never
-  // produced here — patterns are compiled with no flags. Reset anyway so a
+  // produced here. Patterns are compiled with no flags. Reset anyway so a
   // cached expression can never carry state between two unrelated calls.
   regex.lastIndex = 0;
   return regex.test(resource);

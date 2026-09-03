@@ -3,7 +3,7 @@
 // §1.6 splits escalation on two axes: an Administrator sets it per **agent**,
 // Root sets it per **account**. The per-agent half has had a command since
 // 2026-08-11 (`policy set-agent-ask`); the per-account half had the route and
-// the dashboard and nothing on the command line — so an operator over SSH could
+// the dashboard and nothing on the command line, so an operator over SSH could
 // change an agent's escalation and not a person's.
 //
 // It went unnoticed because `CLI-REFERENCE.md` §2d, which states the rule
@@ -13,7 +13,7 @@
 // describing itself as complete was not (finding 216 was the first).
 //
 // These drive the real command through the real program, as the other parity
-// suites do, rather than calling the store directly — the gap was the command,
+// suites do, rather than calling the store directly. The gap was the command,
 // not the store.
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -85,7 +85,7 @@ async function runGovernance(args: readonly string[]): Promise<void> {
     printed.push(parts.map((part) => String(part)).join(" "));
   });
   // `runCommandWithRuntime` catches a throw, reports it through `error` and
-  // exits 1 — so a bad value never rejects out of `parseAsync`. Capture both.
+  // exits 1, so a bad value never rejects out of `parseAsync`. Capture both.
   vi.spyOn(runtime.defaultRuntime, "error").mockImplementation((...parts: unknown[]) => {
     printed.push(parts.map((part) => String(part)).join(" "));
   });
@@ -107,7 +107,7 @@ describe("governance policy set-user-ask", () => {
   });
 
   it("stores the override under the canonical account name", async () => {
-    // The store folds, and the command must not defeat that by trimming only —
+    // The store folds, and the command must not defeat that by trimming only,
     // the defect `setUserAskMode`'s own comment records, one surface along.
     await signIn("root", "root");
     await runGovernance(["policy", "set-user-ask", "  Malek  ", "on-miss"]);

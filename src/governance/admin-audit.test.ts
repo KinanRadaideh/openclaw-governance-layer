@@ -4,7 +4,7 @@
 //
 // Two groups. The first proves each kind of administrative change is now
 // recorded with its author. The second proves the change to the hashed field
-// list did not weaken the tamper-evidence that is the ledger's whole purpose —
+// list did not weaken the tamper-evidence that is the ledger's whole purpose,
 // which is the part that could quietly go wrong.
 import { createHash } from "node:crypto";
 import { appendFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -27,7 +27,7 @@ import { createUser, deleteUser, setUserAssignedAgents, setUserRole } from "./us
  * Accounts that were Viewers or Users before M3 are Administrators here unless
  * the tier is the subject of the test. A User or Viewer now requires an
  * Administrator answerable for it, which would mean creating a second account
- * inside tests about username folding, token storage and Root invariants — and
+ * inside tests about username folding, token storage and Root invariants, and
  * changing the counts several of them assert. The tier was incidental; the
  * ceremony would not have been.
  */
@@ -42,7 +42,7 @@ beforeEach(async () => {
   // The ledger key is cached per process, so a key created by an earlier test
   // in this worker survives into the next test's fresh directory. That leak was
   // always here and was invisible until verification began asking whether the
-  // installation holds a key at all (QA round 13, finding 77) — at which point
+  // installation holds a key at all (QA round 13, finding 77), at which point
   // a legacy-migration fixture in a brand-new directory started being told,
   // correctly, that its installation was keyed. `ledger-integrity.test.ts` has
   // reset it from the start; this file had not.
@@ -104,7 +104,7 @@ describe("policy changes are attributable", () => {
     expect(entry?.resource).toContain("enforce -> off");
   });
 
-  it("records switching the gate off — the change an attacker would most want unlogged", async () => {
+  it("records switching the gate off. The change an attacker would most want unlogged", async () => {
     await setMode(TEST_GROUP, "off", "mallory");
     await setAskMode(TEST_GROUP, "off", "mallory");
     const actions = (await adminEntries()).map((entry) => entry.toolName);

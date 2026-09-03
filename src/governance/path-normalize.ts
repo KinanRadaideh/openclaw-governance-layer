@@ -1,8 +1,8 @@
 // Turns a path an agent supplied into the single canonical form policy rules
 // are matched against.
 //
-// Why this exists (QA finding B2/B5). Path handling used to be one line —
-// `value.replaceAll("\\", "/")` — which converted separators and nothing else.
+// Why this exists (QA finding B2/B5). Path handling used to be one line,
+// `value.replaceAll("\\", "/")`, which converted separators and nothing else.
 // Three defects followed from that, and they are really one defect:
 //
 //   1. `..` was never collapsed, so a rule meaning "only inside the workspace"
@@ -57,7 +57,7 @@ function clamp(value: string): string {
  * synchronous filesystem call there would stall every other request in the
  * process for the duration.
  *
- * A path that does not exist yet is normal, not an error — `write` creating a
+ * A path that does not exist yet is normal, not an error, `write` creating a
  * new file is the common case. When the full path cannot be resolved we resolve
  * its **parent** and re-attach the final segment, so a link in a directory
  * component is still followed for a file that has not been created yet.
@@ -72,14 +72,14 @@ async function canonicalize(path: string): Promise<string> {
     // **Walks up until something resolves, and stopping at one level was an
     // escape** (finding 208).
     //
-    // This tried the parent and gave up, returning the raw path — so a link
+    // This tried the parent and gave up, returning the raw path, so a link
     // stayed unresolved as soon as **two** components were missing:
     //
     //     workspace/data -> /etc          (a link that exists)
     //     write "data/newdir/evil.conf"   (neither newdir nor the file exists)
     //
     // `realpath` failed on the file, `realpath` failed on `data/newdir`, and the
-    // gate matched its rules against `data/newdir/evil.conf` — a path that reads
+    // gate matched its rules against `data/newdir/evil.conf`, a path that reads
     // as workspace-relative. The `write` tool then created the missing
     // directories with `mkdir(dir, { recursive: true })`, which follows the
     // link, and wrote `/etc/newdir/evil.conf`.
@@ -132,7 +132,7 @@ async function canonicalize(path: string): Promise<string> {
  * Case is safe to ignore precisely because it cannot be swapped underneath the
  * gate: on a case-insensitive filesystem the two spellings address the same
  * file permanently, so there is no second resolution to race. A symbolic link
- * is the opposite — its target is data, and data can change between the check
+ * is the opposite: its target is data, and data can change between the check
  * and the open.
  *
  * On a case-*sensitive* filesystem this comparison is exact, which is correct
@@ -152,7 +152,7 @@ function addressesSameFile(left: string, right: string): boolean {
  *
  * `resource` is the matching form and is the only thing policy rules see.
  * `absolute` is the file the decision was actually made about, and `redirected`
- * says whether getting there followed a link — which is what decides whether
+ * says whether getting there followed a link: which is what decides whether
  * the gate substitutes the parameter or leaves the call byte-identical.
  */
 export type GovernedPathResolution = {
@@ -197,7 +197,7 @@ export async function resolveGovernedPath(
  */
 export async function normalizeGovernedPath(raw: string, cwd?: string): Promise<string> {
   // The three steps live in `resolveGovernedPath`:
-  //   1. expand `~` and `file://`, make absolute, collapse `..` — the step
+  //   1. expand `~` and `file://`, make absolute, collapse `..`. The step
   //      that closes the traversal hole;
   //   2. follow links, so two names for one file cannot be governed
   //      differently;

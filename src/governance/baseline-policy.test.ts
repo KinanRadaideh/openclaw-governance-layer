@@ -2,7 +2,7 @@
 // operator rules on top.
 //
 // Written adversarially. Each test asks whether a tier can be defeated rather
-// than whether it works in the happy case — an immutable rule that is only
+// than whether it works in the happy case. An immutable rule that is only
 // immutable when nobody attacks it is a default with a misleading name.
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -52,7 +52,7 @@ function verdict(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>)
   if ("block" in decision) {
     return "block";
   }
-  // T23 — absence is no longer the only way the engine says "allow". A call
+  // T23. Absence is no longer the only way the engine says "allow". A call
   // whose path was redirected comes back carrying `params` (the canonical path
   // the tool should open), and reading that as "ask" would report an
   // escalation that never happened. Ask the question directly instead of
@@ -62,7 +62,7 @@ function verdict(decision: Awaited<ReturnType<typeof evaluateGovernancePolicy>>)
 
 /**
  * The shipped default is `ask: "on-miss"`, so an action the policy does not
- * cover is escalated to a human rather than refused outright — and a timeout
+ * cover is escalated to a human rather than refused outright, and a timeout
  * denies. "Not permitted without a rule or a person" is the property that
  * matters here, and both verdicts satisfy it.
  */
@@ -85,8 +85,8 @@ describe("a fresh installation is usable and restricted at the same time", () =>
     const rules = (await loadPolicy(TEST_GROUP)).rules;
     // `coreRules()`, not `CORE_RULES`: since QA round 13 (finding 86) the core
     // tier also carries two rules derived from the governance directory
-    // actually in use, so that relocating it with OPENCLAW_GOVERNANCE_DIR —
-    // a documented deployment option — moves the protection with it instead
+    // actually in use, so that relocating it with OPENCLAW_GOVERNANCE_DIR,
+    // a documented deployment option, moves the protection with it instead
     // of silently leaving the new location unguarded.
     expect(rules.filter((rule) => rule.tier === "core")).toHaveLength(coreRules().length);
     expect(rules.filter((rule) => rule.tier === "baseline")).toHaveLength(BASELINE_RULES.length);
@@ -248,7 +248,7 @@ describe("core rules are immutable in the ways that matter", () => {
 
   it("refuses an attempt to author a new core rule through the API", async () => {
     // Otherwise the API mints rules with the authority of a shipped
-    // restriction — including a core-tier *allow*, which would outrank the
+    // restriction, including a core-tier *allow*, which would outrank the
     // denials the tier exists to guarantee.
     await expect(
       addRule(
@@ -345,7 +345,7 @@ describe("monitor is opt-in, per agent, and never lifts a core denial", () => {
 
   it("does NOT lift core denials for the monitored agent", async () => {
     // The property that stops monitor being a one-click way to remove every
-    // protection — a User can enable it on their own agent.
+    // protection. A User can enable it on their own agent.
     await setAgentMode(TEST_GROUP, "agent-a", "monitor", "kinan");
     await writeFile(join(workspace, ".env"), "SECRET=1\n");
     expect(

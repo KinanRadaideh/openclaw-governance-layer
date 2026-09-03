@@ -1,4 +1,4 @@
-// T6 — a lockdown reaches what the locked agent started.
+// T6. A lockdown reaches what the locked agent started.
 //
 // Finding 96: stopping a parent left a **cross-agent** child running, because
 // the child's session key carries only the target's identity and nothing about
@@ -19,7 +19,7 @@
 // each could be lost again:
 //
 //   1. A child of a locked agent is refused, and the refusal *names the
-//      ancestor* rather than the child — an operator reading the ledger during
+//      ancestor* rather than the child. An operator reading the ledger during
 //      an incident needs to know which stop caused this.
 //   2. An unrelated session is **not** refused. Fail-closed at an incident is
 //      only defensible if it is narrow, and a rule that stopped everything
@@ -73,7 +73,7 @@ describe("the walk is bounded and cheap", () => {
 
   it("never throws for a session key the store cannot scope (regression)", () => {
     // The defect the first version shipped: `view.get` throws for a key the
-    // SQLite scope cannot resolve, and only the *open* was guarded — so the
+    // SQLite scope cannot resolve, and only the *open* was guarded, so the
     // exception escaped `evaluateGovernancePolicy` itself whenever a lockdown
     // was in force. **A gate that throws does not deny**: what leaves the hook
     // is an exception, not a decision. Caught by an existing round-six test
@@ -90,7 +90,7 @@ describe("the walk is bounded and cheap", () => {
   });
 
   it("returns nothing for a session the store has never heard of", () => {
-    // Not the same as "unreadable" — the store answered, and the answer was
+    // Not the same as "unreadable". The store answered, and the answer was
     // that this session has no recorded parent. `lineageUnknown` covers the
     // case where the store cannot answer at all.
     expect(findLockedAncestor("agent:agent-b:orphan", ["agent-a"])).toBeUndefined();
@@ -174,14 +174,14 @@ describe("a lockdown reaches what the locked agent started", () => {
 });
 
 /**
- * **Finding 120 — the fail-closed branch could not fire. Closed 2026-08-26.**
+ * **Finding 120: the fail-closed branch could not fire. Closed 2026-08-26.**
  *
  * `lineageUnknown` exists so a call whose lineage cannot be read during an
  * incident is treated as *unproven* rather than *clear*, the same choice
  * finding 81 made for a call carrying no agent id. It never returned `true`.
  *
  * The cause was one interface below. It probed with `get`, which answers
- * `undefined` **both** for a row that is absent and for a store that is gone —
+ * `undefined` **both** for a row that is absent and for a store that is gone,
  * measured with the state directory replaced by a file, where `get` returns
  * `undefined` rather than throwing. The two cases the design depends on
  * separating gave the same answer, so the branch was dead and a lockdown whose
@@ -194,7 +194,7 @@ describe("a lockdown reaches what the locked agent started", () => {
  * **The fix is a better question, not a stricter policy.** A *scoped listing*
  * separates what a keyed probe cannot: an empty array for an agent with no
  * sessions, a throw for a store that will not open. That mattered, because the
- * obvious fix — treat any missing row as unknown — closes the gap and costs
+ * obvious fix, treat any missing row as unknown, closes the gap and costs
  * narrowness, failing six tests that assert an unrelated agent keeps working
  * during someone else's lockdown. Narrowness is what makes failing closed
  * defensible, so a fix that spent it would have been the wrong trade.
@@ -203,7 +203,7 @@ describe("a lockdown reaches what the locked agent started", () => {
  * finding back: lose the first and the gap reopens, lose the second and the
  * kill switch becomes a blunt instrument during every incident.
  */
-describe("finding 120 — lineage that cannot be read is refused, not waved through", () => {
+describe("finding 120. Lineage that cannot be read is refused, not waved through", () => {
   it("reports unreadable when the store cannot be opened", async () => {
     await record("agent:agent-a:main");
     await record("agent:agent-b:child", "agent:agent-a:main");
@@ -247,7 +247,7 @@ describe("finding 120 — lineage that cannot be read is refused, not waved thro
   it("reports unreadable rather than clear when a mid-chain store is gone", async () => {
     // Sessions are stored per agent, so a chain across three agents crosses
     // three stores. Checking only the first would let one unreadable store in
-    // the middle truncate the walk into a confident "clear" — the same defect,
+    // the middle truncate the walk into a confident "clear". The same defect,
     // moved two hops up.
     await record("agent:agent-a:main");
     await record("agent:agent-b:mid", "agent:agent-a:main");
@@ -273,12 +273,12 @@ describe("a lineage chain that loops", () => {
   // answer, and it is the opposite of what that sentence argues for. The two
   // cases are not alike: a chain that ends because a row we read has no parent
   // is proof the lineage is complete, and a chain that ends because it bit its
-  // own tail is proof of nothing at all — the locked ancestor may sit beyond
+  // own tail is proof of nothing at all. The locked ancestor may sit beyond
   // the loop and never be visited.
   //
   // The module already answers this correctly one branch away. Reaching the
   // depth cap returns `unreadable`, on the reasoning that *"what lies above it
-  // is unread rather than absent — and during an incident that is exactly the
+  // is unread rather than absent, and during an incident that is exactly the
   // shape this verdict exists to name."* A cycle is the same situation arriving
   // sooner, and finding 120 settled the principle: a lockdown whose lineage
   // cannot be established must fail closed.
@@ -291,8 +291,8 @@ describe("a lineage chain that loops", () => {
   });
 
   it("refuses a call whose lineage loops while an incident is in force", async () => {
-    // The behaviour that matters. `findLockedAncestor` returns nothing — there
-    // is no *proven* locked ancestor — and the gate refuses anyway, because
+    // The behaviour that matters. `findLockedAncestor` returns nothing, there
+    // is no *proven* locked ancestor, and the gate refuses anyway, because
     // `lineageUnknown` says the walk could not establish one.
     await record("agent:agent-a:one", "agent:agent-b:two");
     await record("agent:agent-b:two", "agent:agent-a:one");

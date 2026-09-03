@@ -1,4 +1,4 @@
-// A1 — a named account can prompt the agent assigned to it.
+// A1. A named account can prompt the agent assigned to it.
 //
 // The tests are written around the three things that make this a governance
 // feature rather than a chat feature: the run is attributable to a person, a
@@ -63,7 +63,7 @@ describe("the session key the run is given", () => {
     // Load-bearing. `resolveEffectiveAgentId` in the policy engine falls back to
     // the session key whenever `ctx.agentId` is absent, and the kill switch and
     // the live-session view do the same. A key that did not parse would leave
-    // exactly the runs this feature creates unattributable to their agent — so
+    // exactly the runs this feature creates unattributable to their agent, so
     // lockdown and every agent-scoped rule would silently stop applying to them.
     const key = governanceSessionKey("agent-a", "kinan");
     expect(parseAgentSessionKey(key)?.agentId).toBe("agent-a");
@@ -115,7 +115,7 @@ describe("prompting", () => {
     clearAgentRunner();
     registerAgentRunner(async () => {
       // The prompt entry must already be in the ledger by the time the run
-      // starts — that is the fact an investigation begins from.
+      // starts. That is the fact an investigation begins from.
       const actions = await ledgerActions();
       expect(actions.some((entry) => entry.toolName === "governance.agent.prompt")).toBe(true);
       throw new Error("model unreachable");
@@ -398,13 +398,13 @@ describe("streaming, cancellation and capacity (A1 follow-up, and Q-90)", () => 
    * actually claimed its slot.
    *
    * The waiting is the point. `promptAgent` is async and does real work before
-   * it reaches the registry — load the policy, write the ledger entry, append
-   * the transcript turn — so calling it N times and then once more *races*: the
+   * it reaches the registry, load the policy, write the ledger entry, append
+   * the transcript turn, so calling it N times and then once more *races*: the
    * "one too many" call can reach `beginPromptRun` first and take a slot,
    * leaving one of the earlier calls refused and the test waiting forever on a
    * prompt that was never held. That is a defect in the test rather than in the
    * product, and it is exactly the kind that passes alone and fails in a full
-   * suite — so it is fixed by synchronising on the runner rather than by
+   * suite: so it is fixed by synchronising on the runner rather than by
    * sleeping and hoping.
    */
   async function fillAllowance(username: string) {

@@ -5,32 +5,32 @@
 // governance command's gate beside its HTTP counterpart's. Three of the four
 // gaps it found are here; the fourth is in `cli-pending-decision-parity.test.ts`.
 //
-// ## `governance kill` — finding 144, still live on this surface
+// ## `governance kill`, finding 144, still live on this surface
 //
 // `governance-dashboard-group.ts` records finding 144 in its own header: the
 // kill switch terminates from the Gateway's **installation-wide** run registry,
 // and `terminateAgentRuns` matches on agent id alone, so an operator of one
-// organisation could stop another's running work by naming its agent — a
+// organisation could stop another's running work by naming its agent, a
 // cross-tenant denial of service through the emergency-stop control. The route
 // was closed with `requireAgentInGroup`. The command was not, and it was also
 // missing the two checks above that one:
 //
-//   - the **User** floor, so a Viewer — an account the design doc defines as
-//     strictly read-only oversight — could stop any agent and keep it stopped;
+//   - the **User** floor, so a Viewer, an account the design doc defines as
+//     strictly read-only oversight, could stop any agent and keep it stopped;
 //   - `canManageAgent`, so a User could stop an agent they were never assigned.
 //
 // Three checks, none of them present, on the one control the design calls an
 // emergency stop.
 //
-// ## `governance deployment` — Root on one surface, everybody on the other
+// ## `governance deployment`, Root on one surface, everybody on the other
 //
 // `governance-privilege-matrix.test.ts` writes the reason out: *"Root, not
 // viewer like its neighbour `system`: this route reports the bind mode, port,
-// gateway auth mode and governance directory — a map of how to reach and attack
+// gateway auth mode and governance directory, a map of how to reach and attack
 // the installation."* The command handed that map to any signed-in account.
 //
 // That it exists on the command line at all is deliberate and argued in the
-// command's own comment — §1.6 expects the dashboard to be reachable only
+// command's own comment, §1.6 expects the dashboard to be reachable only
 // through an SSH tunnel, so the moment you most need this is over a plain SSH
 // session before any tunnel exists. That argument is about the **surface**, and
 // says nothing about the tier.
@@ -132,7 +132,7 @@ async function lockedIn(groupId: string): Promise<string[]> {
   return (await loadPolicy(groupId)).lockedAgents;
 }
 
-describe("governance kill — the three checks its route makes", () => {
+describe("governance kill. The three checks its route makes", () => {
   it("refuses a Viewer: the emergency stop is not a read-only act", async () => {
     // §1.6 makes a Viewer strictly read-only oversight. Stopping an agent and
     // keeping it stopped is the most consequential single action on the
@@ -154,11 +154,11 @@ describe("governance kill — the three checks its route makes", () => {
     expect(output()).toContain(UNASSIGNED);
   });
 
-  it("refuses an Administrator another organisation's agent — finding 144", async () => {
+  it("refuses an Administrator another organisation's agent. Finding 144", async () => {
     // The check `requireAgentInGroup` makes on the route. An Administrator has
     // unlimited agent scope *within their organisation*, so `canManageAgent`
     // alone returns true for any id at all, including one belonging to somebody
-    // else entirely — which is precisely why the route needs a second check.
+    // else entirely, which is precisely why the route needs a second check.
     await signIn("amina", "administrator");
 
     await runGovernance(["kill", FOREIGN]);
@@ -205,7 +205,7 @@ describe("governance kill — the three checks its route makes", () => {
   });
 });
 
-describe("governance deployment — Root, as the route is", () => {
+describe("governance deployment, Root, as the route is", () => {
   it("refuses an Administrator the map of how to reach the installation", async () => {
     await signIn("amina", "administrator");
 
@@ -230,7 +230,7 @@ describe("who may create an agent, and who may only be given one", () => {
   // `governance-privilege-matrix.test.ts` (`agents/register`,
   // `agents/provision`, `users/agents` all at the Administrator floor), the
   // dashboard by `agent-registry-panel.test.ts` ("is not shown to a User"), and
-  // `permissions.test.ts` pins the half that makes a Viewer read-only —
+  // `permissions.test.ts` pins the half that makes a Viewer read-only,
   // `canManageAgent(viewer, assignedAgent)` is false **even when assigned**.
   //
   // **The command line was the surface with no test**, which is where this
@@ -284,7 +284,7 @@ describe("who may create an agent, and who may only be given one", () => {
   });
 });
 
-describe("governance agent prompt — the organisation check the route makes", () => {
+describe("governance agent prompt. The organisation check the route makes", () => {
   it("refuses an Administrator another organisation's agent", async () => {
     // `canManageAgent` is present here and passes for any id an Administrator
     // names, so the group check is the only thing standing between this command

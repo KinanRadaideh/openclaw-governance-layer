@@ -7,12 +7,12 @@
 //
 //   *User tier or above, and you must manage this agent.*
 //
-// Every route here is that pair — `requireRole(..., "user")` followed by
+// Every route here is that pair, `requireRole(..., "user")` followed by
 // `canManageAgent`. A Viewer is excluded by tier ("cannot interact with the
 // agent"), and a User reaches only the agents assigned to them. The kill switch
 // belongs here rather than with policy for the same reason: stopping an agent
 // is *acting on a workload you are responsible for*, not changing the rules it
-// is judged by. `canManageAgent`, never `canAuthorPolicyForAgent` — the
+// is judged by. `canManageAgent`, never `canAuthorPolicyForAgent`. The
 // distinction T27 drew, where withholding an account's ability to write rules
 // must not also take away its ability to stop its own agent.
 //
@@ -21,11 +21,14 @@
 // are they?", and this one "what may I do to an agent that is mine?".
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { lockDownAgent, releaseAgentLockdown } from "../governance/kill-switch.js";
+import { isSafeObjectKey } from "../governance/object-keys.js";
 import {
   canManageAgent,
   canManageGlobalPolicy,
   type GovernanceActor,
 } from "../governance/permissions.js";
+import { loadPolicy, setAgentHitlTimeout } from "../governance/policy-store.js";
+import { MAX_HITL_TIMEOUT_SECONDS, MIN_HITL_TIMEOUT_SECONDS } from "../governance/policy-types.js";
 import type { GovernanceRole } from "../governance/roles.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
 import { requireAgentInGroup, requireGroup } from "./governance-dashboard-group.js";
@@ -57,7 +60,7 @@ const MAX_ATTACHMENTS_PER_PROMPT = 10;
 /**
  * Ceiling on an agent id arriving from a caller.
  *
- * Generous — real ids are short — because the point is not to validate the
+ * Generous, real ids are short, because the point is not to validate the
  * shape of an id but to stop an unbounded string reaching storage that keeps
  * what it is given.
  */
@@ -68,7 +71,7 @@ const MAX_AGENT_ID_LENGTH = 200;
  *
  * Written as a scan rather than a regular expression because the check has to
  * be exact: `Buffer.from(value, "base64")` never throws and never reports a
- * problem — it discards anything outside the alphabet and returns whatever is
+ * problem: it discards anything outside the alphabet and returns whatever is
  * left. So this is the only place a malformed name can be caught, and a
  * validator that is itself slightly wrong would hand the difference straight to
  * the ledger.
@@ -79,7 +82,7 @@ function isBase64Header(value: string): boolean {
   }
   // Padding is counted off the end first, then the remainder is checked for
   // alphabet characters only. An earlier version walked forwards and tried to
-  // decide, at each "=", whether it was in a legal position — and got the
+  // decide, at each "=", whether it was in a legal position, and got the
   // arithmetic wrong by one, rejecting every name whose encoding ends in "==".
   // That is most of them, including every non-ASCII name this validator was
   // added to protect. Caught by the tests written for the finding it fixes.
@@ -141,7 +144,7 @@ export type AgentControlRouteContext = {
 
 /**
  * Handles the agent-control routes. Returns true when handled, false when the
- * path belongs to another module — the same contract the other two use.
+ * path belongs to another module: the same contract the other two use.
  */
 export async function handleGovernanceAgentControlRoutes(
   req: IncomingMessage,
@@ -161,7 +164,7 @@ export async function handleGovernanceAgentControlRoutes(
   // the account system was never joined to OpenClaw's chat path.
   //
   // Tier floor is User and the scope check is `canManageAgent`, the same pair
-  // that governs every other agent-scoped operation — a Viewer is excluded by
+  // that governs every other agent-scoped operation. A Viewer is excluded by
   // tier ("cannot interact with the agent"), and a User only reaches the agents
   // assigned to them. No new permission concept was needed, which is the
   // clearest sign the tier model was drawn correctly.
@@ -206,7 +209,7 @@ export async function handleGovernanceAgentControlRoutes(
   // Uploading an attachment (T14, the HTTP surface).
   //
   // **Raw body, not multipart.** A multipart parser is a state machine over
-  // attacker-controlled bytes, and this repository does not ship one — writing
+  // attacker-controlled bytes, and this repository does not ship one. Writing
   // one for a security layer would add exactly the kind of surface the layer
   // exists to reduce. The body is the file, and nothing has to be parsed.
   //
@@ -221,7 +224,7 @@ export async function handleGovernanceAgentControlRoutes(
   // access log, and a filename is user data (`Q3-redundancies.pdf` names
   // something even when the bytes are never read). Base64 because a header
   // cannot carry arbitrary UTF-8, and filenames are not ASCII in most of the
-  // world — an Arabic or emoji filename would otherwise be mangled or rejected
+  // world. An Arabic or emoji filename would otherwise be mangled or rejected
   // by the HTTP layer before this code ever saw it.
   if (route === "agent/attachment" && req.method === "POST") {
     if (!requireRole(res, session, "user")) {
@@ -239,7 +242,7 @@ export async function handleGovernanceAgentControlRoutes(
     }
     // Bounded, which the first version of this route was not (QA round
     // seventeen, finding 115). `canManageAgent` cannot reject an invented id
-    // for an Administrator, who manages every agent by role — so without a
+    // for an Administrator, who manages every agent by role, so without a
     // length rule the id an Administrator sends is written verbatim into the
     // attachment index and from there into the ledger, and the only ceiling on
     // it is Node's header limit. Every other agent-scoped route bounds this;
@@ -250,7 +253,7 @@ export async function handleGovernanceAgentControlRoutes(
       return true;
     }
     // Attaching is part of prompting, so it needs the authority to prompt this
-    // agent — `canManageAgent`, the same check `agent/prompt` makes. It is
+    // agent, `canManageAgent`, the same check `agent/prompt` makes. It is
     // deliberately *not* `canAuthorPolicyForAgent`: sending a file is not
     // writing policy, and a User whose authoring Root has withheld can still
     // do their job (T27).
@@ -267,7 +270,7 @@ export async function handleGovernanceAgentControlRoutes(
     // seventeen, finding 112). `Buffer.from(value, "base64")` never throws: it
     // silently discards anything outside the alphabet. The first version of
     // this route wrapped it in a try/catch and returned 400 on error, which
-    // read like validation and was unreachable code — a malformed header
+    // read like validation and was unreachable code. A malformed header
     // produced mojibake, and a *duplicated* header produced NUL bytes, because
     // Node joins repeated headers with ", " and `,` and ` ` are both dropped.
     // Either way a garbage filename entered a tamper-evident ledger instead of
@@ -321,8 +324,8 @@ export async function handleGovernanceAgentControlRoutes(
       });
     } catch (err) {
       if (err instanceof AttachmentTooLargeError || err instanceof AttachmentQuotaExceededError) {
-        // 413 for both. They are different limits with the same shape — the
-        // caller sent more than they may — and the message says which.
+        // 413 for both. They are different limits with the same shape, the
+        // caller sent more than they may, and the message says which.
         sendJson(res, 413, { error: { message: err.message, type: "attachment-rejected" } });
         return true;
       }
@@ -414,7 +417,7 @@ export async function handleGovernanceAgentControlRoutes(
     // **This is the security-relevant half of the feature.** The client uploads
     // first and then names hashes here. If the ledger recorded the size, type
     // and name the *caller* claimed, an operator could store one harmless byte
-    // and have the audit trail describe it as a 4 MB PDF — the trail would be
+    // and have the audit trail describe it as a 4 MB PDF. The trail would be
     // recording an assertion while reading like an observation. Everything
     // written to the chain is therefore looked up from the index, which holds
     // what was actually measured at upload time.
@@ -423,7 +426,7 @@ export async function handleGovernanceAgentControlRoutes(
     // account's file is dangerous to name, but because accepting any hash
     // would turn this route into an existence oracle: a caller could confirm
     // whether a given file had ever been sent by anybody, by guessing its
-    // hash — and for a known file, the hash is not a guess. The same reasoning
+    // hash, and for a known file, the hash is not a guess. The same reasoning
     // the login response uses to avoid an account-existence oracle.
     const attachmentRefs = (body as { attachments?: unknown }).attachments;
     const attachments: {
@@ -480,7 +483,7 @@ export async function handleGovernanceAgentControlRoutes(
     // endpoint (A1 follow-up).
     //
     // `EventSource` can only issue GET, which would put the prompt in a query
-    // string — and a prompt is the most sensitive text this surface handles:
+    // string, and a prompt is the most sensitive text this surface handles:
     // it is redacted before it enters the ledger, and a URL is logged by every
     // proxy, written to the Gateway's access log, and kept in browser history.
     // So the dashboard reads the stream with `fetch` instead, and the body
@@ -530,7 +533,7 @@ export async function handleGovernanceAgentControlRoutes(
 
     // Closing the tab aborts the run (Q-90). Previously a disconnected client
     // left the agent working with no way to reach it short of the kill switch,
-    // which locks the agent down entirely — an emergency control being used for
+    // which locks the agent down entirely. An emergency control being used for
     // "I closed the wrong window".
     const clientGone = new AbortController();
     const onClose = () => clientGone.abort();
@@ -603,7 +606,7 @@ export async function handleGovernanceAgentControlRoutes(
       // their own.
       mayCancelOthers: canManageGlobalPolicy(actor),
       // **Finding 235.** This comment used to end "the scope check that follows
-      // still binds an Administrator to agents they may manage" — and no such
+      // still binds an Administrator to agents they may manage", and no such
       // check followed. Even had one been written, `canManageAgent` answers
       // true for every id at Administrator tier, so the only real boundary is
       // the organisation's roster, passed here.
@@ -637,6 +640,78 @@ export async function handleGovernanceAgentControlRoutes(
     return true;
   }
 
+  // Per-agent escalation timeout.
+  //
+  // **User floor, not Administrator**, and that is the point of the axis. The
+  // installation-wide `policy/hitl-timeout` above answers "how long does this
+  // installation wait?" and can only ever answer it once. A User running a long
+  // batch on an agent assigned to them needs a different window from an agent
+  // doing supervised work, and no single number expresses both.
+  //
+  // `canManageAgent` rather than `canAuthorPolicyForAgent`: this is acting on a
+  // workload you are responsible for, not changing the rules it is judged by,
+  // which is the distinction T27 drew and the reason withholding somebody's
+  // policy authoring must not also take away control of their own agent.
+  if (route === "policy/agent-hitl-timeout" && req.method === "POST") {
+    if (!requireRole(res, session, "user")) {
+      return true;
+    }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
+    const body = await readJsonObjectBodyOrError(req, res);
+    if (body === undefined) {
+      return true;
+    }
+    const { agentId, seconds } = body as { agentId?: unknown; seconds?: unknown };
+    if (typeof agentId !== "string" || !agentId.trim()) {
+      sendInvalidRequest(res, "agentId is required");
+      return true;
+    }
+    if (!isSafeObjectKey(agentId.trim())) {
+      // Keyed into a plain object, like `agentAsk`: `__proto__` and friends
+      // would either mutate the prototype chain or silently fail to persist.
+      sendInvalidRequest(res, "agentId must not be a reserved object key");
+      return true;
+    }
+    // `null` clears the override and returns the agent to the installation
+    // value; a number pins it.
+    if (
+      seconds !== null &&
+      (typeof seconds !== "number" ||
+        !Number.isFinite(seconds) ||
+        seconds < MIN_HITL_TIMEOUT_SECONDS ||
+        seconds > MAX_HITL_TIMEOUT_SECONDS)
+    ) {
+      sendInvalidRequest(
+        res,
+        `seconds must be a number between ${MIN_HITL_TIMEOUT_SECONDS} and ${MAX_HITL_TIMEOUT_SECONDS}, or null to clear the override`,
+      );
+      return true;
+    }
+    if (!canManageAgent(toActor(session), agentId.trim())) {
+      sendJson(res, 403, {
+        error: { message: `You do not manage agent "${agentId.trim()}"`, type: "forbidden" },
+      });
+      return true;
+    }
+    // And that it is this organisation's agent: `canManageAgent` is true for
+    // every id above the User tier, so without this an Administrator could name
+    // another organisation's agent (the class findings 144 and 235 record).
+    if (!(await requireAgentInGroup(res, groupId, agentId.trim()))) {
+      return true;
+    }
+    await setAgentHitlTimeout(
+      groupId,
+      agentId.trim(),
+      seconds === null ? undefined : Math.round(seconds),
+      auditActor(session),
+    );
+    sendJson(res, 200, await loadPolicy(groupId));
+    return true;
+  }
+
   // What this account currently has running, so the dashboard can offer a
   // cancel control for a prompt whose original tab is gone.
   if (route === "agent/runs" && req.method === "GET") {
@@ -656,7 +731,7 @@ export async function handleGovernanceAgentControlRoutes(
       includeOthers: canManageGlobalPolicy(actor),
       // The organisation's roster (finding 235). The `canManageAgent` filter
       // below is kept because it is what narrows a User or Viewer to their
-      // assigned agents — but it is **not** the isolation boundary, because it
+      // assigned agents, but it is **not** the isolation boundary, because it
       // is unconditionally true above the User tier, and the table behind this
       // is installation-wide.
       groupAgentIds: (await listAgents(groupId)).map((agent) => agent.id),

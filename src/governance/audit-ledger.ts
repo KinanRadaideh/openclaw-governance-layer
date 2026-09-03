@@ -18,14 +18,14 @@ import { createHash, createHmac } from "node:crypto";
 //      which is the one the requirement is about.
 //   2. **Anchored.** Each append also records the new head in a separate
 //      checkpoint file, because a chain cannot detect its own tail being cut
-//      off — a prefix of a valid chain is still a valid chain, so every
+//      off. A prefix of a valid chain is still a valid chain, so every
 //      surviving entry verifies and nothing points at what is gone.
 //
 // Both anchors live on the same host as the ledger, so an attacker with full
 // filesystem access can still defeat them. What changed is that reading the
 // ledger is no longer sufficient, and both now require *coordinated* edits to
 // two files plus a secret. Genuinely closing it means holding the key or the
-// checkpoint off the machine — deployment rather than code, and still recorded
+// checkpoint off the machine. Deployment rather than code, and still recorded
 // as future work.
 import { appendFile, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -37,7 +37,7 @@ import { ensureGroupDir, groupDir, ledgerCheckpointFilePath, ledgerFilePath } fr
 import type { GovernanceRole } from "./roles.js";
 
 /**
- * `ungoverned` records an action the policy layer did not evaluate — a tool
+ * `ungoverned` records an action the policy layer did not evaluate. A tool
  * with no resource extractor, or a payload no resource could be derived from.
  *
  * Deliberately not `allow`: nothing permitted it, the gate simply had nothing
@@ -65,13 +65,13 @@ export type LedgerEntry = {
    * intent** alongside the payload and the decision. It is the only field here
    * that comes from the *model* rather than from the runtime, and the only one
    * that lets the trail be read as "the agent said it was doing X, and then did
-   * Y" — the comparison an investigator actually wants, and one no other field
+   * Y": the comparison an investigator actually wants, and one no other field
    * supports.
    *
    * Absent whenever nothing was captured: a turn with no narration, a harness
    * that reports none, a restart between the model speaking and the tool
    * running, or any call not made by a model at all (the CLI, a test, an
-   * administrative action). **Its absence is normal and is never an error** —
+   * administrative action). **Its absence is normal and is never an error**,
    * nothing is gated on it, and the entry means exactly what it meant before
    * this field existed. See `agent-intent.ts`.
    */
@@ -85,7 +85,7 @@ export type LedgerEntry = {
    * what an agent did and nothing about who changed the rules it was judged by.
    * For an accountability system that is the more important half.
    *
-   * Absent on agent entries — see `canonicalPayload` for why absence rather
+   * Absent on agent entries: see `canonicalPayload` for why absence rather
    * than an explicit `"agent"` value.
    */
   entryKind?: "admin";
@@ -97,7 +97,7 @@ export type LedgerEntry = {
    * which has no login by design" until 2026-08-30, which had been false for six
    * days: `requireCliActor` resolves a signed-in session and `toCliAuditActor`
    * records its username and tier. `CLI_ACTOR` survives only where no account
-   * *can* sign in — the repair command for accounts predating groups, and the
+   * *can* sign in: the repair command for accounts predating groups, and the
    * bootstrap of the first account, which has `BOOTSTRAP_ACTOR` of its own.
    *
    * A real field rather than a value smuggled into `ruleId`, because "who did
@@ -115,7 +115,7 @@ export type LedgerEntry = {
    * tier is part of the history of an action, not a property to be looked up
    * later.
    *
-   * Optional, and absent on every entry written before this existed — see
+   * Optional, and absent on every entry written before this existed. See
    * `canonicalPayload`, which covers it only when present so that existing
    * chains verify byte-identically to before.
    */
@@ -125,7 +125,7 @@ export type LedgerEntry = {
    *
    * Present on everything written since the ledger key was introduced. Absent
    * on older entries, which are still verified with the original unkeyed hash
-   * so an existing ledger does not fail wholesale — the same presence-based
+   * so an existing ledger does not fail wholesale. The same presence-based
    * migration used for the administrative fields.
    *
    * The chain may cross from unkeyed to keyed **once and never back**:
@@ -145,7 +145,7 @@ const GENESIS_HASH = "0".repeat(64);
  * Enforced here rather than only at each call site because the ledger ingests
  * agent-controlled text on every action: an agent chooses its own tool
  * arguments, so an uncapped path lets it write unbounded data into the audit
- * trail and exhaust the disk — a denial of service against the very record
+ * trail and exhaust the disk: a denial of service against the very record
  * meant to survive an incident. Capping at the boundary means a future caller
  * cannot reintroduce the hole by forgetting to clamp.
  */
@@ -194,7 +194,7 @@ function clampResource(resource: string): string {
  * field form and the recomputed hash no longer matches what is stored; stripping
  * the `actor` off an administrative entry switches it the other way, with the
  * same result. Both are detected. That is the property a version field would
- * *not* have given us for free — the version number would need protecting too,
+ * *not* have given us for free: the version number would need protecting too,
  * and would still leave the question of what to do about entries written before
  * versions existed.
  */
@@ -237,13 +237,13 @@ function canonicalPayload(e: Omit<LedgerEntry, "hash">): string {
   // **The tag is defensive, not load-bearing today, and finding 132 is that the
   // first version of this comment said otherwise.** It claimed the collision was
   // "reachable by an agent". It is not: `appendLedgerEntry` writes
-  // `keyed: true` on every entry, so the colliding pair — an intent of `"keyed"`
-  // on an *unkeyed* entry versus no intent on a keyed one — cannot be produced.
+  // `keyed: true` on every entry, so the colliding pair, an intent of `"keyed"`
+  // on an *unkeyed* entry versus no intent on a keyed one, cannot be produced.
   // Mutation testing caught it: removing the tag left all seventeen intent tests
   // passing, because the property the test named was never reachable to break.
   //
-  // Kept tagged anyway, on `role:`'s stated reasoning — *remove the question
-  // instead of answering it* — because "no unkeyed entry can be written" is
+  // Kept tagged anyway, on `role:`'s stated reasoning, *remove the question
+  // instead of answering it*, because "no unkeyed entry can be written" is
   // exactly the kind of premise this project keeps finding on the wrong side of
   // a defect, and a future unkeyed path would make the collision live.
   const withIntent = e.intent === undefined ? withRole : [...withRole, `intent:${e.intent}`];
@@ -320,7 +320,7 @@ async function readLedgerRecords(path: string): Promise<LedgerRecord[]> {
  * Re-reading and parsing the whole ledger on every append is O(n), making the
  * ledger O(n^2) to write. That was tolerable when only policy decisions were
  * recorded; it is not once every agent action is. The size check keeps the
- * cache honest — another process appending changes the size, so a stale cursor
+ * cache honest: another process appending changes the size, so a stale cursor
  * is detected and discarded instead of emitting a duplicate sequence number.
  */
 /**
@@ -328,7 +328,7 @@ async function readLedgerRecords(path: string): Promise<LedgerRecord[]> {
  *
  * This was a single module-level value, which was correct while there was one
  * chain. With a chain per group a shared cache would hand group B the head of
- * group A's ledger — and because the head is what the next entry's `prevHash`
+ * group A's ledger: and because the head is what the next entry's `prevHash`
  * points at, that is not a stale read but a **forged link**: B's chain would
  * claim continuity with an entry that is not in it, and verification would
  * fail for a reason no operator could explain.
@@ -360,7 +360,7 @@ export const LEDGER_ROTATE_BYTES = 8 * 1024 * 1024;
  *
  * **Why this exists, since a security constant should not be adjustable.** The
  * two tests that cover rotation used to reach the real 8 MB threshold by
- * writing it — roughly 2,000 and 4,000 ledger appends, each taking a file lock
+ * writing it: roughly 2,000 and 4,000 ledger appends, each taking a file lock
  * and extending the hash chain. Both carried a 120-second budget and the larger
  * one **timed out on a loaded machine**, which made a suite result depend on
  * what else the machine was doing. A test that reports differently depending on
@@ -445,7 +445,7 @@ async function readCarriedHead(groupId: string): Promise<{ seq: number; hash: st
  *
  * **A test seam, and it exists because the property could not be measured any
  * other way** (finding 224). "Appending does not re-read the whole file" was
- * asserted by timing 100 appends and requiring under 50 ms each — which is a
+ * asserted by timing 100 appends and requiring under 50 ms each, which is a
  * statement about the machine, not about complexity. Measured both ways, the
  * quadratic implementation and the correct one are indistinguishable at any
  * size a unit test can afford: parsing a few hundred JSON lines is microseconds
@@ -491,8 +491,8 @@ async function rotateIfNeeded(groupId: string): Promise<void> {
     return;
   }
   // Highest existing index plus one, never the *count* plus one. If any archive
-  // is ever missing — moved off-host for retention, or deleted by an attacker
-  // trying to cover their tracks — a count-based index renames the active file
+  // is ever missing, moved off-host for retention, or deleted by an attacker
+  // trying to cover their tracks, a count-based index renames the active file
   // over a surviving archive and destroys real audit history, silently, as a
   // side effect of ordinary logging.
   const segments = await listArchiveSegments(groupId);
@@ -508,7 +508,7 @@ async function rotateIfNeeded(groupId: string): Promise<void> {
  * which was the same question while there was one chain. With one file holding
  * a head per group it is not: the file exists as soon as any organisation has
  * written, so a group with no checkpoint of its own would be reported as
- * protected by a truncation defence it does not have — a green check for
+ * protected by a truncation defence it does not have. A green check for
  * something absent, which is the worst kind of check.
  */
 export async function hasCheckpointForGroup(groupId: string): Promise<boolean> {
@@ -519,8 +519,8 @@ export async function hasCheckpointForGroup(groupId: string): Promise<boolean> {
  * Test-only: forgets one group's checkpoint.
  *
  * A fixture that clears a group's ledger must clear its checkpoint too, or it
- * leaves the exact signal truncation produces — a chain ending earlier than the
- * record of how far it got — and every verification in that suite fails for a
+ * leaves the exact signal truncation produces, a chain ending earlier than the
+ * record of how far it got, and every verification in that suite fails for a
  * reason the suite created.
  */
 export async function clearCheckpointForTests(groupId: string): Promise<void> {
@@ -617,7 +617,7 @@ export async function appendLedgerEntry(
     // Written after the entry, never before: a checkpoint ahead of the ledger is
     // the signal for truncation, so it must only ever describe an entry that
     // genuinely reached the file. A crash between the two leaves the checkpoint
-    // one behind, which reports nothing — the safe direction to fail.
+    // one behind, which reports nothing. The safe direction to fail.
     await writeCheckpoint(groupId, entry);
     await rotateIfNeeded(groupId);
     return entry;
@@ -657,13 +657,13 @@ type LedgerCheckpoint = { seq: number; hash: string; updatedAt: string };
  *
  * This is what makes truncation detectable (QA finding B4). A hash chain cannot
  * detect its own tail being cut off, because a prefix of a valid chain is still
- * a valid chain — every remaining entry verifies and nothing points at what is
+ * a valid chain: every remaining entry verifies and nothing points at what is
  * missing. Detecting it needs a record kept somewhere the deletion did not
  * reach, so verification can ask "the ledger says it ends at 400; something
  * that watched it grow says 500".
  *
  * A local file is a weaker anchor than an off-host one: an attacker who deletes
- * ledger entries can delete this too. It is still worth having — it closes the
+ * ledger entries can delete this too. It is still worth having. It closes the
  * casual case, it makes the tampering require two coordinated edits instead of
  * one, and a missing checkpoint is itself reported rather than passing quietly.
  * A genuinely strong anchor means copying this value off the machine, which is
@@ -673,7 +673,7 @@ type LedgerCheckpoint = { seq: number; hash: string; updatedAt: string };
  * The whole checkpoint file: one head per group (M5).
  *
  * **One file rather than one per group, and that is deliberate.** The security
- * claim this file exists to support says *"a **separate** checkpoint file"* —
+ * claim this file exists to support says *"a **separate** checkpoint file"*,
  * separate from the ledger, which is the property that makes truncation
  * detectable. Keeping one shared file preserves that sentence and adds a little:
  * erasing a group's tail convincingly now means editing a file that lives
@@ -700,7 +700,7 @@ async function writeCheckpoint(groupId: string, entry: LedgerEntry): Promise<voi
   try {
     // **Locked, because the file is now shared and the append lock is not.**
     // Each append holds a lock on *its own group's* ledger, so two groups can
-    // append at the same instant — and a naive read-modify-write here would let
+    // append at the same instant, and a naive read-modify-write here would let
     // one group's checkpoint overwrite the other's, silently disarming
     // truncation detection for whichever lost. The lock is innermost and always
     // on this one path, so it cannot participate in a cycle with the ledger
@@ -729,13 +729,13 @@ async function readCheckpoint(groupId: string): Promise<LedgerCheckpoint | undef
 export async function verifyLedgerChain(groupId: string): Promise<LedgerVerification> {
   // Archives first, then the active file. The chain is continuous across
   // rotation, so verifying only the live segment would miss tampering in
-  // history — exactly where an attacker would prefer to work.
+  // history. Exactly where an attacker would prefer to work.
   const records: LedgerRecord[] = [];
   for (const segment of [...(await listArchives(groupId)), ledgerFilePath(groupId)]) {
     records.push(...(await readLedgerRecords(segment)));
   }
   // Read, never create. `loadLedgerKey` here meant that verifying a legacy
-  // unkeyed ledger generated a key as a side effect, and — worse — destroyed
+  // unkeyed ledger generated a key as a side effect, and, worse, destroyed
   // the very signal this function now depends on: whether the installation has
   // ever been keyed. See `readLedgerKeyIfPresent` (QA round 13, findings 76/77).
   const key = await readLedgerKeyIfPresent();
@@ -748,7 +748,7 @@ export async function verifyLedgerChain(groupId: string): Promise<LedgerVerifica
   let checked = 0;
   let expectedSeq = 1;
   // Once the chain is keyed it must stay keyed. Otherwise an attacker rewrites
-  // history in the old unkeyed format — which needs no secret — and the keying
+  // history in the old unkeyed format, which needs no secret, and the keying
   // is worth nothing.
   let seenKeyed = false;
   let lastEntry: LedgerEntry | undefined;
@@ -806,7 +806,7 @@ export async function verifyLedgerChain(groupId: string): Promise<LedgerVerifica
   //
   // The `seenKeyed` guard above catches a chain that *switches* format
   // mid-file. It does not catch the attack it was written for: rebuild the
-  // whole file from genesis in the unkeyed format — which needs no secret —
+  // whole file from genesis in the unkeyed format, which needs no secret,
   // and nothing switches, so the file simply reads as an old chain and
   // verifies perfectly.
   //
@@ -814,7 +814,7 @@ export async function verifyLedgerChain(groupId: string): Promise<LedgerVerifica
   // It is whether this installation holds a key: once it does, every append
   // writes `keyed: true`, so the newest entry must be keyed. A legacy ledger
   // written before the key existed still verifies, because such an
-  // installation has no key file to find — and the moment it takes one, its
+  // installation has no key file to find, and the moment it takes one, its
   // next append re-establishes the invariant.
   // ---------------------------------------------------------------------
   if (installationIsKeyed && lastEntry && !lastEntry.keyed) {
@@ -823,7 +823,7 @@ export async function verifyLedgerChain(groupId: string): Promise<LedgerVerifica
       entriesChecked: checked,
       brokenAtSeq: lastEntry.seq,
       reason:
-        "this installation has a ledger key, so every entry it wrote is keyed — " +
+        "this installation has a ledger key, so every entry it wrote is keyed, " +
         "but the newest entry is not. The chain was rewritten in the pre-key " +
         "format, which requires no secret.",
     };
@@ -840,7 +840,7 @@ export async function verifyLedgerChain(groupId: string): Promise<LedgerVerifica
   // is itself reported rather than passing quietly". It was not: the whole
   // comparison sat under `if (checkpoint)`, so deleting the file skipped it
   // entirely. That made the two coordinated edits the design asks an attacker
-  // for into one edit and one deletion — and the deletion needs no secret, no
+  // for into one edit and one deletion, and the deletion needs no secret, no
   // forgery and no understanding of the format.
   //
   // Required only of a keyed installation, for the same reason as above: an
@@ -854,7 +854,7 @@ export async function verifyLedgerChain(groupId: string): Promise<LedgerVerifica
       brokenAtSeq: lastEntry?.seq ?? 0,
       reason:
         "the checkpoint file is missing. Every append writes it, so its absence " +
-        "means it was deleted — and without it, entries removed from the end of " +
+        "means it was deleted, and without it, entries removed from the end of " +
         "the ledger cannot be detected.",
     };
   }

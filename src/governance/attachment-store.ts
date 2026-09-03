@@ -28,7 +28,7 @@
 //       nothing to get wrong.
 //
 // **(b) is what this implements.** The ledger records SHA-256, sniffed MIME
-// type, byte size and the declared filename — and never the content. The bytes
+// type, byte size and the declared filename, and never the content. The bytes
 // live here, in a store the governed agent cannot read.
 //
 // ## Why the store is inside the governance directory
@@ -40,7 +40,7 @@
 // removed, rather than depending on a new rule somebody might.
 //
 // A test asserts the gate actually blocks it. Inherited protection is worth
-// nothing unasserted — that is the lesson from the coverage guard that compared
+// nothing unasserted. That is the lesson from the coverage guard that compared
 // against a stale list and could not fail.
 //
 // ## The hostile-input list this answers
@@ -57,7 +57,7 @@
 //      that family three times (Q-79 a rule pattern, Q-82 an unbounded ledger
 //      page, Q-90 unbounded concurrency). Answered by a hard per-file cap
 //      enforced **while streaming** rather than after buffering, plus a
-//      per-account quota — otherwise the least-privileged tier can fill the disk
+//      per-account quota. Otherwise the least-privileged tier can fill the disk
 //      holding the audit ledger.
 //   3. **The MIME type the client declares is a claim, not a fact.** Answered by
 //      sniffing from content and recording only what was sniffed.
@@ -95,7 +95,7 @@ export const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
  * Hard cap on what one account may hold in the store at once.
  *
  * Per account rather than installation-wide, so one person cannot deny the
- * feature to everybody else — the same reasoning as the per-account concurrency
+ * feature to everybody else: the same reasoning as the per-account concurrency
  * bound on prompting (Q-90).
  */
 export const MAX_ACCOUNT_ATTACHMENT_BYTES = 64 * 1024 * 1024;
@@ -125,7 +125,7 @@ export type StoredAttachment = {
   bytes: number;
   /** Sniffed from content, never taken from the client's declaration. */
   mimeType: string;
-  /** What the uploader called it. Metadata only — redacted and clamped. */
+  /** What the uploader called it. Metadata only. Redacted and clamped. */
   declaredName: string;
   storedAt: string;
   storedBy: string;
@@ -135,7 +135,7 @@ export type StoredAttachment = {
    *
    * Absent means no ledger entry refers to it, which is the only state in which
    * it may be released. Optional so every attachment stored before this field
-   * existed keeps working — absent reads as "never sent", which for those is
+   * existed keeps working: absent reads as "never sent", which for those is
    * either true or safely conservative: the worst case is that an old
    * attachment can be discarded by the account that uploaded it.
    */
@@ -153,8 +153,8 @@ function indexPath(groupId: string): string {
  *
  * **Absent and unreadable are different answers, and treating them alike lost
  * evidence** (finding 194). `readIndex` swallowed every failure into an empty
- * index, so a truncated `index.json` — which the old non-atomic writer could
- * produce on a crash — read as *"this organisation has never stored an
+ * index, so a truncated `index.json`, which the old non-atomic writer could
+ * produce on a crash, read as *"this organisation has never stored an
  * attachment"*. The next write then persisted that emptiness, and with it went
  * every `usedAt`: the flag that stops an uploader deleting bytes a ledger entry
  * names. The files themselves were still on disk, unreferenced, so the store
@@ -198,7 +198,7 @@ async function readIndex(groupId: string): Promise<IndexFile> {
 
 /**
  * Reads the index, lets the caller decide what it should become, and writes it
- * back — all inside the lock the rest of the governance stores take.
+ * back: all inside the lock the rest of the governance stores take.
  *
  * **This is the fix for finding 194 and the reason it is one helper rather than
  * four call sites.** Four writers each doing read-modify-write on one file is
@@ -208,8 +208,8 @@ async function readIndex(groupId: string): Promise<IndexFile> {
  *
  *   - **Two uploads at once.** Both read the index, both write; one record is
  *     lost while its file stays on disk. It no longer counts toward
- *     `MAX_ACCOUNT_ATTACHMENT_BYTES`, so the per-account quota — whose stated
- *     purpose is that one person cannot deny the feature to everybody else —
+ *     `MAX_ACCOUNT_ATTACHMENT_BYTES`, so the per-account quota, whose stated
+ *     purpose is that one person cannot deny the feature to everybody else,
  *     is walked past by uploading in parallel.
  *   - **`markAttachmentUsed` racing anything.** The `usedAt` flag is lost, and
  *     `releaseAttachment` then permits deleting bytes a ledger entry names.
@@ -245,8 +245,8 @@ async function withIndex<T>(
  *
  * A short table rather than a dependency: the point is not to identify every
  * format, it is to refuse to repeat the uploader's claim. Anything unrecognised
- * is `application/octet-stream`, which is the honest answer — "bytes we did not
- * recognise" — rather than a guess dressed as a fact.
+ * is `application/octet-stream`, which is the honest answer, "bytes we did not
+ * recognise", rather than a guess dressed as a fact.
  *
  * **The dashboard never renders these back** (a decision, not an omission): an
  * SVG is a script, and the governance page is the one page in this product
@@ -325,7 +325,7 @@ async function readCapped(source: AsyncIterable<Uint8Array> | Uint8Array): Promi
  * Stores one attachment and returns what the ledger should record about it.
  *
  * Content-addressed, so sending the same file twice stores one copy and both
- * ledger entries name the same hash — which is a feature rather than a
+ * ledger entries name the same hash: which is a feature rather than a
  * deduplication trick: an investigator can see that the file sent on Tuesday is
  * byte-identical to the one sent on Monday.
  */
@@ -349,8 +349,8 @@ export async function storeAttachment(
     // finding 114). `account-name.ts` states the rule its own header was written
     // for: the canonical form anywhere an account is a key, the stored spelling
     // only for display. Eight modules obey it; this one was the ninth and did
-    // not, using the display spelling as both the quota key and — once the HTTP
-    // surface landed — the ownership key. The bug it invites is the one that file
+    // not, using the display spelling as both the quota key and, once the HTTP
+    // surface landed, the ownership key. The bug it invites is the one that file
     // documents: `policy.userAsk` was written under one spelling and read under
     // another, so a governance control silently did nothing.
     const owner = canonicalAccountName(input.storedBy);
@@ -362,7 +362,7 @@ export async function storeAttachment(
     const alreadyHeld = index.attachments.some((entry) => entry.sha256 === sha256);
     // Inside the lock, and that is the point (finding 194). Checked against a
     // snapshot, two uploads arriving together both read the same "used" figure,
-    // both pass, and both write — so the quota bounds one request rather than an
+    // both pass, and both write, so the quota bounds one request rather than an
     // account. This is the same argument `wouldCreateSecondRoot` makes about
     // being re-checked inside the write it guards.
     if (!alreadyHeld && used + bytes.byteLength > MAX_ACCOUNT_ATTACHMENT_BYTES) {
@@ -392,7 +392,7 @@ export async function storeAttachment(
     // `usedAt` must survive: once any prompt has sent these bytes, a ledger
     // entry points at this file, and `releaseAttachment` refuses only while the
     // flag is unset. Dropping it on re-upload would hand anyone who can guess
-    // or obtain the same bytes a delete of somebody else's evidence — through
+    // or obtain the same bytes a delete of somebody else's evidence. Through
     // the one door that flag exists to close.
     const existing = index.attachments.find((entry) => entry.sha256 === sha256);
     const stored: StoredAttachment = existing?.usedAt
@@ -400,7 +400,7 @@ export async function storeAttachment(
       : record;
     // Named by hash. The uploader's string never becomes a path component, so
     // traversal, alternate data streams and collisions onto governance state
-    // are not defended against — they are unreachable. Written inside the lock
+    // are not defended against. They are unreachable. Written inside the lock
     // so the file and the record referencing it land together.
     return writeFile(join(attachmentsDir(groupId), sha256), bytes, { mode: 0o600 }).then(() => ({
       next: {
@@ -456,8 +456,8 @@ export type AttachmentReleaseResult = "released" | "not-found" | "already-sent";
  * `sweepOrphans` was exported and never called, so every byte ever uploaded
  * counted against its account's quota permanently. That was a footnote while
  * the only surface was the command line, where storing happens at the moment
- * of sending. The dashboard uploads when a file is *chosen* — which is what
- * makes the size and type known before the prompt goes out — and that turns the
+ * of sending. The dashboard uploads when a file is *chosen*, which is what
+ * makes the size and type known before the prompt goes out, and that turns the
  * same gap into a trap: nine abandoned picks of an 8 MB file exhaust a 64 MB
  * account, with nothing an operator can do about it.
  *
@@ -466,7 +466,7 @@ export type AttachmentReleaseResult = "released" | "not-found" | "already-sent";
  *
  * **Refused for anybody but the uploader**, and "not yours" is reported as
  * `not-found` so the answer carries no information about what other accounts
- * hold — the same reasoning the login response uses about account existence.
+ * hold: the same reasoning the login response uses about account existence.
  */
 export async function releaseAttachment(
   groupId: string,
@@ -479,7 +479,7 @@ export async function releaseAttachment(
       return { result: "not-found" as const };
     }
     // Read under the lock, so it cannot be an `usedAt` that a concurrent
-    // `markAttachmentUsed` had already set and this read missed — which is how
+    // `markAttachmentUsed` had already set and this read missed, which is how
     // this refusal was previously bypassable, and it is the refusal that keeps
     // sent attachments from being deleted by the account they incriminate.
     if (entry.usedAt) {
@@ -519,7 +519,7 @@ export async function readAttachmentMetadata(
 export type AttachmentStoreStats = {
   count: number;
   totalBytes: number;
-  /** Files on disk with no index entry — see `sweepOrphans`. */
+  /** Files on disk with no index entry. See `sweepOrphans`. */
   orphanCount: number;
   /**
    * Set when the index could not be read at all.
@@ -530,7 +530,7 @@ export type AttachmentStoreStats = {
    * fault it exists to surface is the "green tick for a defence that is not
    * there" failure this project has already shipped once. Every count is zero
    * in this state, and the flag is what stops those zeros reading as "no
-   * attachments" — the distinction the rest of this module now refuses to blur.
+   * attachments": the distinction the rest of this module now refuses to blur.
    */
   unreadable?: true;
 };
@@ -601,19 +601,19 @@ export async function sweepOrphans(
  * Called when an organisation is deleted. `deleteOrganisation` retains the
  * organisation's `audit-ledger.jsonl` on the argument that an operator able to
  * erase the trail by deleting the organisation it covers has a one-click way to
- * destroy requirement #6 — but the store lives inside the directory that
+ * destroy requirement #6: but the store lives inside the directory that
  * deletion purges, so the trail survived and the bytes it names did not.
  *
  * **The rule applied here is `releaseAttachment`'s, not a second one.** That
  * function refuses to discard an attachment once `usedAt` is set, because at
  * that point "a ledger entry names it and the store is the evidence behind that
- * entry" — and the account reaching this path is the Root that entry would
+ * entry": and the account reaching this path is the Root that entry would
  * incriminate, which is the case the refusal was written for. An upload nobody
  * ever sent is nobody's evidence and is removed with the rest of the
  * organisation's data, which is what was asked for.
  *
  * Bytes on disk that the index does not account for go too. They are orphans by
- * definition — `sweepOrphans` already treats them that way — and keeping an
+ * definition, `sweepOrphans` already treats them that way, and keeping an
  * unreferenced file would be retaining data without retaining a reason for it.
  *
  * Returns how many attachments were kept, so the caller can say so.
@@ -652,14 +652,14 @@ export async function retainSentAttachments(groupId: string): Promise<number> {
   });
   if (kept === 0) {
     // Nothing was ever sent, so there is no evidence to preserve and no reason
-    // to leave an empty store — and its index would otherwise be the only file
+    // to leave an empty store, and its index would otherwise be the only file
     // surviving a deletion that removed everything it described.
     await rm(dir, { recursive: true, force: true });
   }
   return kept;
 }
 
-/** True when the store directory exists — used by the deployment report. */
+/** True when the store directory exists. Used by the deployment report. */
 export async function attachmentStoreExists(groupId: string): Promise<boolean> {
   try {
     return (await stat(attachmentsDir(groupId))).isDirectory();

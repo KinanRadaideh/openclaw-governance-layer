@@ -44,7 +44,7 @@ function escalation(overrides: Partial<Parameters<typeof recordTimedOutEscalatio
 describe("timed-out escalations are preserved", () => {
   it("records the blocked action so the operator learns what happened", async () => {
     // Without this the agent just fails silently and nobody knows what it was
-    // trying to do — the worst outcome in the design doctrine.
+    // trying to do. The worst outcome in the design doctrine.
     const entry = await recordTimedOutEscalation(TEST_GROUP, escalation());
     expect(entry.status).toBe("pending");
     expect(entry.resource).toBe("rm -rf /tmp/x");

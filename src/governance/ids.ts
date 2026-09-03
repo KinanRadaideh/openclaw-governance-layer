@@ -5,7 +5,7 @@
 // Five modules minted ids and four of them wrote
 // `${Date.now()}-${Math.random().toString(36).slice(2, 8)}` by hand: accounts,
 // rules, rule requests and pending decisions. The fifth, `newGroupId`, had been
-// changed to `randomBytes(4)` — and its comment says the id has *"the same
+// changed to `randomBytes(4)`, and its comment says the id has *"the same
 // shape as an account id, for the same reason"*, which by then was no longer
 // true of the account id it names.
 //
@@ -25,7 +25,7 @@
 // distinction is worth keeping straight rather than overstating: none of these
 // ids is a secret, and every route that takes one is tier-checked and
 // group-scoped, so predicting one buys nothing. What a collision costs is
-// `find((candidate) => candidate.id === id)` resolving the wrong row — for a
+// `find((candidate) => candidate.id === id)` resolving the wrong row, for a
 // role change, an assignment, a deletion, or a rule removal an operator typed
 // by hand.
 //
@@ -37,7 +37,7 @@ import { randomBytes } from "node:crypto";
 /**
  * A fresh identifier: a kind prefix, the mint time, and four random bytes.
  *
- * Sortable by construction, because `Date.now()` leads — which is what makes a
+ * Sortable by construction, because `Date.now()` leads, which is what makes a
  * raw `users.json` or `policy.json` readable in the order things happened, and
  * is why the timestamp was there in the first place.
  */

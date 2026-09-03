@@ -42,7 +42,7 @@ describe("ledger view projection", () => {
   });
 
   it("hides another agent's entries from a User entirely", () => {
-    // Not merely masked — absent. The existence of agent-b's activity is not
+    // Not merely masked. Absent. The existence of agent-b's activity is not
     // information a User scoped to agent-a is entitled to.
     const view = projectLedgerForActor(ledger, userOfA);
     expect(view.some((e) => e.agentId === "agent-b")).toBe(false);

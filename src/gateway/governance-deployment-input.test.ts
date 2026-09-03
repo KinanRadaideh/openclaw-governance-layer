@@ -1,5 +1,5 @@
 // The checkId contract between the deployment report and the host's own
-// security audit — the most important test in backlog item A7.
+// security audit. The most important test in backlog item A7.
 //
 // `deployment-status.ts` holds `EXPECTED_ABSENT_GATEWAY_CHECKS`, a list of
 // `checkId` strings transcribed by hand from
@@ -11,7 +11,7 @@
 // like this: if an id is renamed upstream, the entry here stops matching, the
 // finding is never looked for, and the check becomes a permanent silent green.
 // A report that is confidently clean because the detector was disconnected is
-// worse than no report at all — an operator would act on it.
+// worse than no report at all. An operator would act on it.
 //
 // Nothing else in the design catches that. These tests do, by driving the
 // **real** `collectGatewayConfigFindings` through the seam and asserting the
@@ -26,7 +26,7 @@ import { resolveDeploymentEnvironmentInput } from "./governance-deployment-input
  * The organisation this report is about (M5).
  *
  * A fixed name rather than a seeded organisation: this suite exercises the
- * deployment *checks* — bind address, tunnel, origin wildcard — none of which
+ * deployment *checks*, bind address, tunnel, origin wildcard, none of which
  * depend on an agent existing. `loadPolicy` creates the group's directory on
  * demand, so naming one is all the report needs.
  */
@@ -55,7 +55,7 @@ function statusOfCheck(
   return status.checks.find((entry) => entry.id === id)?.status;
 }
 
-describe("A7 — the ids the report expects are the ids the audit emits", () => {
+describe("A7. The ids the report expects are the ids the audit emits", () => {
   it("sees gateway.bind_no_auth fire on an exposed bind with no credential", async () => {
     const status = await statusFor({ bind: "lan" });
     expect(statusOfCheck(status, "gateway.bind_no_auth")).toBe("fail");
@@ -106,7 +106,7 @@ describe("A7 — the ids the report expects are the ids the audit emits", () => 
   });
 });
 
-describe("A7 — the seam does not carry secrets across", () => {
+describe("A7. The seam does not carry secrets across", () => {
   /**
    * `resolveGatewayAuth` returns the plaintext token and password on the same
    * object as the mode, and this seam is one careless spread away from putting
@@ -127,12 +127,12 @@ describe("A7 — the seam does not carry secrets across", () => {
   });
 });
 
-describe("A7 — one bind value, both consumers", () => {
+describe("A7, one bind value, both consumers", () => {
   /**
    * The audit resolves `bind` as
    * `typeof cfg.gateway?.bind === "string" ? cfg.gateway.bind : "loopback"`.
    * The seam uses the identical expression rather than `defaultGatewayBindMode()`,
-   * which returns "auto" inside a container — if the two disagreed, the panel
+   * which returns "auto" inside a container: if the two disagreed, the panel
    * would report one bind mode while the folded findings reasoned about another,
    * and both would look right in isolation.
    */
