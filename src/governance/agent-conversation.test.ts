@@ -310,7 +310,9 @@ describe("streaming, cancellation and capacity (A1 follow-up, and Q-90)", () => 
     clearAgentRunner();
     registerAgentRunner(async () => {
       const { listPromptRuns } = await import("./prompt-runs.js");
-      idDuringRun = listPromptRuns({ username: "malek", includeOthers: false })[0]?.runId ?? "";
+      idDuringRun =
+        listPromptRuns({ username: "malek", includeOthers: false, groupAgentIds: ["agent-a"] })[0]
+          ?.runId ?? "";
       return { ok: true, reply: "ok" };
     });
     let announced = "";
@@ -330,7 +332,12 @@ describe("streaming, cancellation and capacity (A1 follow-up, and Q-90)", () => 
     clearAgentRunner();
     registerAgentRunner(async (request) => {
       const { cancelPromptRun } = await import("./prompt-runs.js");
-      cancelPromptRun({ runId: request.runId, username: "malek", mayCancelOthers: false });
+      cancelPromptRun({
+        runId: request.runId,
+        username: "malek",
+        mayCancelOthers: false,
+        groupAgentIds: ["agent-a"],
+      });
       return { ok: false, reply: "", error: "aborted" };
     });
     const outcome = await promptAgent(TEST_GROUP, {
@@ -347,7 +354,12 @@ describe("streaming, cancellation and capacity (A1 follow-up, and Q-90)", () => 
     clearAgentRunner();
     registerAgentRunner(async (request) => {
       const { cancelPromptRun } = await import("./prompt-runs.js");
-      cancelPromptRun({ runId: request.runId, username: "malek", mayCancelOthers: false });
+      cancelPromptRun({
+        runId: request.runId,
+        username: "malek",
+        mayCancelOthers: false,
+        groupAgentIds: ["agent-a"],
+      });
       return { ok: false, reply: "", error: "aborted" };
     });
     await promptAgent(TEST_GROUP, { agentId: "agent-a", username: "malek", message: "long job" });
@@ -367,7 +379,12 @@ describe("streaming, cancellation and capacity (A1 follow-up, and Q-90)", () => 
     registerAgentRunner(async (request) => {
       sawSignal = request.signal !== undefined;
       const { cancelPromptRun } = await import("./prompt-runs.js");
-      cancelPromptRun({ runId: request.runId, username: "malek", mayCancelOthers: false });
+      cancelPromptRun({
+        runId: request.runId,
+        username: "malek",
+        mayCancelOthers: false,
+        groupAgentIds: ["agent-a"],
+      });
       abortedDuringRun = request.signal?.aborted === true;
       return { ok: false, reply: "", error: "aborted" };
     });

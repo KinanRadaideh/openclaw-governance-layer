@@ -221,9 +221,26 @@ export function cancelPromptRun(input: {
   runId: string;
   username: string;
   mayCancelOthers: boolean;
+  /**
+   * Agents registered to the caller's organisation. Runs outside it are never
+   * cancellable — **finding 235**, and it is finding 139 on a second registry.
+   *
+   * This table is module-level and therefore **installation-wide**: every run
+   * on the host, of every organisation. The only scope the callers applied was
+   * `canManageAgent`, and `hasUnlimitedAgentScope` makes that unconditionally
+   * true for an Administrator or Root — the exact sentence
+   * `listActiveSessions` already carries about the Gateway's run registry. That
+   * fix made the roster a **required** parameter so no call site could keep the
+   * defect by omission; this one is required for the same reason.
+   */
+  groupAgentIds: readonly string[];
 }): CancelPromptOutcome {
   const run = runs.get(input.runId);
-  if (!run) {
+  // Reported as "not-found" rather than "forbidden", unlike the ownership
+  // refusal below. A run in another organisation must not be distinguishable
+  // from one that never existed, or the run id becomes an existence oracle
+  // across the isolation boundary.
+  if (!run || !input.groupAgentIds.includes(run.agentId)) {
     return { cancelled: false, reason: "not-found" };
   }
   if (run.username !== input.username && !input.mayCancelOthers) {
@@ -251,8 +268,12 @@ export type PromptRunSummary = {
 export function listPromptRuns(input: {
   username: string;
   includeOthers: boolean;
+  /** Agents registered to the caller's organisation. See `cancelPromptRun`. */
+  groupAgentIds: readonly string[];
 }): PromptRunSummary[] {
+  const inGroup = new Set(input.groupAgentIds);
   return [...runs.values()]
+    .filter((run) => inGroup.has(run.agentId))
     .filter((run) => input.includeOthers || run.username === input.username)
     .map((run) => ({
       runId: run.runId,

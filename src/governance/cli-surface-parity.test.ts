@@ -154,12 +154,26 @@ describe("governance agents access — who holds an agent", () => {
 });
 
 describe("governance agent runs and cancel", () => {
-  it("says so in words when nothing is in flight", async () => {
+  // **Finding 238.** Every test in this block asserted the *empty* case, and
+  // that was not an oversight in the tests — it is the only case these two
+  // commands can reach. `prompt-runs.ts` holds its table in a module-level
+  // `Map`, so it is per process; a CLI invocation is always a fresh process,
+  // and the runs an operator wants to stop live in the Gateway's. Measured
+  // rather than reasoned: a parent holding a run and a child process spawned
+  // from it report `["gov-run-probe"]` and `[]`.
+  //
+  // The commands are kept and made honest rather than removed, because the
+  // decision about whether the command line should reach the Gateway's runs at
+  // all is T51's. What is pinned here is that they **say** they cannot see
+  // those runs, so an operator during an incident is not told "nothing is
+  // running" about an agent that is.
+  it("says so in words when nothing is in flight, and says what it cannot see", async () => {
     await signIn("amina", "administrator");
 
     await runGovernance(["agent", "runs"]);
 
     expect(output()).toContain("no runs are in flight");
+    expect(output()).toContain("cannot see runs started by the Gateway");
   });
 
   it("reports a run id that does not exist rather than claiming success", async () => {
@@ -169,6 +183,9 @@ describe("governance agent runs and cancel", () => {
 
     expect(output()).toContain("no run");
     expect(output()).not.toContain("cancelled run-that-never-was");
+    // "I cannot see it" rather than "it does not exist" — the distinction the
+    // Gateway's own refusals draw, and the one finding 238 turns on.
+    expect(output()).toContain("cannot reach runs started by the Gateway");
   });
 
   it("requires a signed-in account, like every other mutating command", async () => {

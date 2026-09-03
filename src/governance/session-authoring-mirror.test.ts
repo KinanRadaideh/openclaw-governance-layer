@@ -71,7 +71,7 @@ async function seedManagedUser(): Promise<string> {
 describe("policy-authoring withheld by Root", () => {
   it("survives a sign-out and sign-in", async () => {
     const userId = await seedManagedUser();
-    await setUserPolicyAuthoring(userId, false, TEST_ACTOR);
+    await setUserPolicyAuthoring(userId, false, TEST_ACTOR, TEST_GROUP);
 
     // The account record is the source of truth and does hold the refusal.
     const record = await authenticate("malek", PASSWORD);
@@ -86,7 +86,7 @@ describe("policy-authoring withheld by Root", () => {
 
   it("is still withheld when the session is read back from disk", async () => {
     const userId = await seedManagedUser();
-    await setUserPolicyAuthoring(userId, false, TEST_ACTOR);
+    await setUserPolicyAuthoring(userId, false, TEST_ACTOR, TEST_GROUP);
     const record = await authenticate("malek", PASSWORD);
     const issued = await issueSession(record!);
 

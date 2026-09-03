@@ -136,7 +136,14 @@ export function registerGovernanceCommands(program: Command): void {
         if (!actor) {
           return;
         }
-        const ok = await setUserPolicyAuthoring(userId, allowed === "true", actor);
+        // **`actor.groupId`, which this command did not pass until finding
+        // 234.** `requireCliActor` returns the caller's organisation precisely
+        // so a command cannot "obtain permission to act and then quietly act on
+        // a different organisation's files" — its own words — and this was the
+        // one account command that took the permission and dropped the group.
+        // The HTTP route refuses a foreign account id with a 404; the command
+        // accepted it and wrote.
+        const ok = await setUserPolicyAuthoring(userId, allowed === "true", actor, actor.groupId);
         defaultRuntime.log(
           ok
             ? `policy authoring ${allowed === "true" ? "allowed" : "withheld"} for ${userId}`
@@ -144,7 +151,14 @@ export function registerGovernanceCommands(program: Command): void {
         );
         // The sessions file is the other half; without it a signed-in User keeps
         // the old permission until their session expires.
-        await updateSessionsPolicyAuthoring(userId, allowed === "true");
+        //
+        // **Only when the write happened.** `updateSessionsPolicyAuthoring`
+        // takes an account id and no group, so calling it unconditionally
+        // rewrote the live session of an account the write above had just
+        // refused — the same cross-organisation reach, one layer along.
+        if (ok) {
+          await updateSessionsPolicyAuthoring(userId, allowed === "true");
+        }
       });
     });
 
@@ -428,24 +442,55 @@ export function registerGovernanceCommands(program: Command): void {
     .description("Prompt runs in flight, and who started them")
     .action(async () => {
       await runCommandWithRuntime(defaultRuntime, async () => {
-        // Tier floor User, matching `agent/runs`. The scoping is done twice and
-        // both halves are needed: `includeOthers` decides whether an account
-        // sees runs other people started, and the agent filter decides which
-        // agents it may see at all.
-        const identity = await requireCliIdentity(defaultRuntime, "list runs", () => true);
+        // **Tier floor User, matching `agent/runs` — and until finding 235 this
+        // said so and passed `() => true`.** A Viewer was admitted by the check
+        // and then excluded by accident, because `includeOthers` is false at
+        // that tier and a Viewer cannot start a run to own one. A control that
+        // holds because a second filter happens to cover it is not a control.
+        const identity = await requireCliIdentity(defaultRuntime, "list runs", (a) =>
+          roleAtLeast(a.role, "user"),
+        );
         if (!identity) {
           return;
         }
+        const groupId = identity.groupId?.trim();
+        if (!groupId) {
+          defaultRuntime.log("Your account does not belong to an organisation.");
+          return;
+        }
         const { listPromptRuns } = await import("../../governance/prompt-runs.js");
+        const { listAgents: listGroupAgents } = await import("../../governance/agent-registry.js");
         const scope = toCliActor(identity);
         const runs = listPromptRuns({
           username: identity.username,
           includeOthers: canManageGlobalPolicy(scope),
+          // The isolation boundary (finding 235). `canManageAgent` below narrows
+          // a User to their assigned agents; it is unconditionally true above
+          // that tier, so it was never the thing keeping one organisation's runs
+          // out of another's list.
+          groupAgentIds: (await listGroupAgents(groupId)).map((entry) => entry.id),
         }).filter((run) => canManageAgent(scope, run.agentId));
         if (runs.length === 0) {
           // In words, for the reason `agents list` gives: an empty list and a
           // failed request look identical when both render as nothing.
-          defaultRuntime.log("no runs are in flight that you can see");
+          //
+          // **And the second line is finding 238.** `prompt-runs.ts` keeps its
+          // table in a module-level `Map`, so it is per **process** — measured,
+          // not reasoned: a parent holding a run and a child process started
+          // from it see `["gov-run-probe"]` and `[]` respectively. Every
+          // invocation of this command is a fresh process, so it can only ever
+          // see runs begun in its own, and the runs an operator cares about
+          // live in the Gateway. Saying "no runs are in flight" alone is
+          // therefore a true statement about this process and a false
+          // impression about the installation.
+          defaultRuntime.log("no runs are in flight in this process");
+          defaultRuntime.log(
+            "  This command cannot see runs started by the Gateway or the dashboard:",
+          );
+          defaultRuntime.log(
+            "  the in-flight table lives in the process running them. Use the dashboard,",
+          );
+          defaultRuntime.log("  or `openclaw governance kill <agentId>` to stop the agent itself.");
           return;
         }
         for (const run of runs) {
@@ -464,24 +509,49 @@ export function registerGovernanceCommands(program: Command): void {
         // an agent and keeps it stopped; this ends one run and leaves the agent
         // working. During an incident an operator wants both, and having only
         // the blunt one on this surface pushed them toward it.
-        const identity = await requireCliIdentity(defaultRuntime, "cancel a run", () => true);
+        // The route's User floor, which this command did not have (finding 235).
+        const identity = await requireCliIdentity(defaultRuntime, "cancel a run", (a) =>
+          roleAtLeast(a.role, "user"),
+        );
         if (!identity) {
           return;
         }
+        const groupId = identity.groupId?.trim();
+        if (!groupId) {
+          defaultRuntime.log("Your account does not belong to an organisation.");
+          return;
+        }
         const { cancelPromptRun } = await import("../../governance/prompt-runs.js");
+        const { listAgents: listGroupAgents } = await import("../../governance/agent-registry.js");
         const outcome = cancelPromptRun({
           runId: runId.trim(),
           username: identity.username,
           // Cancelling somebody else's run is an operator act, not an ordinary
           // one — the same split the HTTP route draws.
           mayCancelOthers: canManageGlobalPolicy(toCliActor(identity)),
+          groupAgentIds: (await listGroupAgents(groupId)).map((entry) => entry.id),
         });
+        if (outcome.cancelled) {
+          defaultRuntime.log(`cancelled ${runId}`);
+          return;
+        }
+        if (outcome.reason !== "not-found") {
+          defaultRuntime.log(`run "${runId}" belongs to another account`);
+          return;
+        }
+        // Finding 238, and the reason this says more than "no such run". The
+        // run table is per process, so a run id minted by the Gateway is never
+        // in this process's table and the honest answer is "I cannot see it",
+        // not "it does not exist". `CLI-REFERENCE.md` argued in its own prose
+        // that a command which "looked like it could reach the Gateway's runs
+        // would be reporting a power it does not have" — and then the command
+        // was built without that paragraph being revisited.
+        defaultRuntime.log(`no run "${runId}" is in flight in this process`);
         defaultRuntime.log(
-          outcome.cancelled
-            ? `cancelled ${runId}`
-            : outcome.reason === "not-found"
-              ? `no run "${runId}" is in flight`
-              : `run "${runId}" belongs to another account`,
+          "  This command cannot reach runs started by the Gateway or the dashboard.",
+        );
+        defaultRuntime.log(
+          "  Cancel those from the dashboard, or stop the agent with `governance kill`.",
         );
       });
     });

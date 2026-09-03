@@ -113,7 +113,15 @@ export async function handleGovernanceAccountRoutes(
       sendJson(res, 404, { error: { message: "no such user", type: "not_found" } });
       return true;
     }
-    const updated = await setUserPolicyAuthoring(userId, allowed, auditActor(session));
+    const updated = await setUserPolicyAuthoring(
+      userId,
+      allowed,
+      auditActor(session),
+      // Belt and braces: `targetIsInCallerGroup` above already refused a
+      // foreign account, and the store now refuses one too (finding 234).
+      // An absent group fails closed rather than matching every account.
+      session.groupId ?? "",
+    );
     if (!updated) {
       sendJson(res, 404, { error: { message: "no such account", type: "not_found" } });
       return true;

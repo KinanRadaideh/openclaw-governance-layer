@@ -838,12 +838,28 @@ export async function setUserPolicyAuthoring(
   userId: string,
   allowed: boolean,
   actor: AuditActorInput,
+  /**
+   * The caller's organisation. **Required rather than optional** (finding 234),
+   * for the reason `listActiveSessions` states about `groupAgentIds`: this
+   * function is reached from two surfaces and only one of them was scoping the
+   * target. An optional parameter would have fixed the site that was looked at
+   * and left the other compiling silently; a required one makes the type
+   * checker ask the question at every call site, now and later.
+   *
+   * The HTTP route checks `targetIsInCallerGroup` before calling and keeps
+   * doing so — its 404 says "no such user" rather than revealing that the id
+   * exists elsewhere, which this refusal cannot express from inside the store.
+   * The check here is the one the command line never had.
+   */
+  groupId: string,
 ): Promise<boolean> {
   await ensureHomeDir();
   const changed = await withFileLock(usersFilePath(), async () => {
     const file = await readUsersFile();
     const user = file.users.find((u) => u.id === userId);
-    if (!user) {
+    // An account in another organisation is refused as though it did not
+    // exist, which is what it is from the caller's side.
+    if (!user || user.groupId !== groupId) {
       return undefined;
     }
     const previous = accountMayAuthorPolicy(user);

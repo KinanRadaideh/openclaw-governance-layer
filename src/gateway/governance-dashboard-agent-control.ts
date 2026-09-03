@@ -591,6 +591,7 @@ export async function handleGovernanceAgentControlRoutes(
       return true;
     }
     const { cancelPromptRun } = await import("../governance/prompt-runs.js");
+    const { listAgents } = await import("../governance/agent-registry.js");
     const { canonicalAccountName: fold } = await import("../governance/account-name.js");
     const actor = toActor(session);
     const outcome = cancelPromptRun({
@@ -599,9 +600,14 @@ export async function handleGovernanceAgentControlRoutes(
       // A prompt belongs to the account that sent it. Administrators and Root
       // may stop any of them, because §1.6 gives them real-time control over
       // agent sessions and a runaway prompt is exactly that; a User may stop
-      // their own. The scope check that follows still binds an Administrator to
-      // agents they may manage.
+      // their own.
       mayCancelOthers: canManageGlobalPolicy(actor),
+      // **Finding 235.** This comment used to end "the scope check that follows
+      // still binds an Administrator to agents they may manage" — and no such
+      // check followed. Even had one been written, `canManageAgent` answers
+      // true for every id at Administrator tier, so the only real boundary is
+      // the organisation's roster, passed here.
+      groupAgentIds: (await listAgents(groupId)).map((agent) => agent.id),
     });
     if (!outcome.cancelled) {
       if (outcome.reason === "forbidden") {
@@ -642,15 +648,21 @@ export async function handleGovernanceAgentControlRoutes(
       return true;
     }
     const { listPromptRuns } = await import("../governance/prompt-runs.js");
+    const { listAgents } = await import("../governance/agent-registry.js");
     const { canonicalAccountName: fold } = await import("../governance/account-name.js");
     const actor = toActor(session);
     const runs = listPromptRuns({
       username: fold(session.username),
       includeOthers: canManageGlobalPolicy(actor),
+      // The organisation's roster (finding 235). The `canManageAgent` filter
+      // below is kept because it is what narrows a User or Viewer to their
+      // assigned agents — but it is **not** the isolation boundary, because it
+      // is unconditionally true above the User tier, and the table behind this
+      // is installation-wide.
+      groupAgentIds: (await listAgents(groupId)).map((agent) => agent.id),
     })
-      // An Administrator sees every run, but only for agents inside their
-      // remit — the same two questions every other route answers separately:
-      // is the tier high enough, and is this agent in scope?
+      // Within the organisation: an Administrator sees every run, a User only
+      // the agents assigned to them.
       .filter((run) => canManageAgent(actor, run.agentId));
     sendJson(res, 200, { runs });
     return true;

@@ -180,7 +180,7 @@ describe("the CLI asks the same permission questions as the dashboard", () => {
     const { user } = await signIn("user", ["mine"]);
     const { setUserPolicyAuthoring } = await import("./user-store.js");
     const { updateSessionsPolicyAuthoring } = await import("./session-tokens.js");
-    await setUserPolicyAuthoring(user.id, false, "root-account");
+    await setUserPolicyAuthoring(user.id, false, "root-account", user.groupId ?? "");
     await updateSessionsPolicyAuthoring(user.id, false);
 
     const actor = toCliActor((await currentCliIdentity())!);

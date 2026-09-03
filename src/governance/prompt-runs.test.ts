@@ -72,9 +72,9 @@ describe("concurrency is bounded per account and per installation", () => {
         }
       }
     }
-    expect(listPromptRuns({ username: "x", includeOthers: true })).toHaveLength(
-      MAX_CONCURRENT_PROMPTS,
-    );
+    expect(
+      listPromptRuns({ username: "x", includeOthers: true, groupAgentIds: ["agent-a"] }),
+    ).toHaveLength(MAX_CONCURRENT_PROMPTS);
     try {
       start("late-arrival");
       throw new Error("expected the installation cap to refuse this");
@@ -101,7 +101,12 @@ describe("concurrency is bounded per account and per installation", () => {
     const first = start("malek");
     start("malek");
     expect(
-      cancelPromptRun({ runId: first.runId, username: "malek", mayCancelOthers: false }),
+      cancelPromptRun({
+        runId: first.runId,
+        username: "malek",
+        mayCancelOthers: false,
+        groupAgentIds: ["agent-a"],
+      }),
     ).toMatchObject({ cancelled: true });
     expect(() => start("malek")).toThrow(PromptCapacityError);
     finishPromptRun(first.runId);
@@ -113,7 +118,14 @@ describe("cancellation is owned by the account that asked", () => {
   it("aborts the run it names", () => {
     const { runId, controller } = start("malek");
     expect(controller.signal.aborted).toBe(false);
-    expect(cancelPromptRun({ runId, username: "malek", mayCancelOthers: false })).toEqual({
+    expect(
+      cancelPromptRun({
+        runId,
+        username: "malek",
+        mayCancelOthers: false,
+        groupAgentIds: ["agent-a"],
+      }),
+    ).toEqual({
       cancelled: true,
       agentId: "agent-a",
     });
@@ -122,7 +134,14 @@ describe("cancellation is owned by the account that asked", () => {
 
   it("refuses another account's run", () => {
     const { runId, controller } = start("malek");
-    expect(cancelPromptRun({ runId, username: "kinan", mayCancelOthers: false })).toMatchObject({
+    expect(
+      cancelPromptRun({
+        runId,
+        username: "kinan",
+        mayCancelOthers: false,
+        groupAgentIds: ["agent-a"],
+      }),
+    ).toMatchObject({
       cancelled: false,
       reason: "forbidden",
     });
@@ -134,7 +153,14 @@ describe("cancellation is owned by the account that asked", () => {
     // and a runaway prompt is exactly that. The HTTP layer still applies agent
     // scope on top, so an Administrator cannot reach an agent outsideit.
     const { runId, controller } = start("malek");
-    expect(cancelPromptRun({ runId, username: "root", mayCancelOthers: true })).toMatchObject({
+    expect(
+      cancelPromptRun({
+        runId,
+        username: "root",
+        mayCancelOthers: true,
+        groupAgentIds: ["agent-a"],
+      }),
+    ).toMatchObject({
       cancelled: true,
     });
     expect(controller.signal.aborted).toBe(true);
@@ -145,16 +171,35 @@ describe("cancellation is owned by the account that asked", () => {
     // cancel control that always reports success is the same defect, and it
     // teaches an operator that the button means nothing.
     expect(
-      cancelPromptRun({ runId: "gov-nope", username: "malek", mayCancelOthers: true }),
+      cancelPromptRun({
+        runId: "gov-nope",
+        username: "malek",
+        mayCancelOthers: true,
+        groupAgentIds: ["agent-a"],
+      }),
     ).toEqual({ cancelled: false, reason: "not-found" });
   });
 
   it("reports the second cancel of one run as nothing to do", () => {
     const { runId } = start("malek");
-    expect(cancelPromptRun({ runId, username: "malek", mayCancelOthers: false })).toMatchObject({
+    expect(
+      cancelPromptRun({
+        runId,
+        username: "malek",
+        mayCancelOthers: false,
+        groupAgentIds: ["agent-a"],
+      }),
+    ).toMatchObject({
       cancelled: true,
     });
-    expect(cancelPromptRun({ runId, username: "malek", mayCancelOthers: false })).toMatchObject({
+    expect(
+      cancelPromptRun({
+        runId,
+        username: "malek",
+        mayCancelOthers: false,
+        groupAgentIds: ["agent-a"],
+      }),
+    ).toMatchObject({
       cancelled: false,
     });
   });
@@ -194,7 +239,11 @@ describe("what an account may see", () => {
   it("shows an account only its own runs", () => {
     start("malek");
     start("kinan");
-    const mine = listPromptRuns({ username: "malek", includeOthers: false });
+    const mine = listPromptRuns({
+      username: "malek",
+      includeOthers: false,
+      groupAgentIds: ["agent-a"],
+    });
     expect(mine).toHaveLength(1);
     expect(mine[0]?.username).toBe("malek");
   });
@@ -202,6 +251,75 @@ describe("what an account may see", () => {
   it("shows an operator tier every run", () => {
     start("malek");
     start("kinan");
-    expect(listPromptRuns({ username: "root", includeOthers: true })).toHaveLength(2);
+    expect(
+      listPromptRuns({ username: "root", includeOthers: true, groupAgentIds: ["agent-a"] }),
+    ).toHaveLength(2);
+  });
+});
+
+describe("the organisation boundary (finding 235)", () => {
+  // This table is module-level and therefore installation-wide: every run on
+  // the host, of every organisation. Before the fix the only scope its two
+  // readers applied was `canManageAgent`, and `hasUnlimitedAgentScope` makes
+  // that unconditionally true for an Administrator or Root — so the filter that
+  // looked like the boundary was a no-op at precisely the tier that can see
+  // other people's runs.
+  //
+  // That is finding 139 exactly, on a second registry. `listActiveSessions`
+  // carries the same sentence about the Gateway's run registry and closed it by
+  // making the roster a **required** parameter, "so no call site could keep the
+  // defect by omission". These pin the same property here.
+  it("omits a run whose agent belongs to another organisation", () => {
+    start("malek", "agent-mine");
+    start("kinan", "agent-theirs");
+
+    const seen = listPromptRuns({
+      username: "root",
+      // The operator tier, which is the one the old filter never narrowed.
+      includeOthers: true,
+      groupAgentIds: ["agent-mine"],
+    });
+
+    expect(seen.map((run) => run.agentId)).toEqual(["agent-mine"]);
+  });
+
+  it("refuses to cancel a run whose agent belongs to another organisation", () => {
+    const { runId, controller } = start("kinan", "agent-theirs");
+
+    const outcome = cancelPromptRun({
+      runId,
+      username: "root",
+      mayCancelOthers: true,
+      groupAgentIds: ["agent-mine"],
+    });
+
+    // Asserted as one object rather than field by field, which is both the
+    // style the tests above use and the only form that typechecks: `cancelled`
+    // discriminates the union, so `outcome.reason` is not a property of the
+    // success arm and `expect(...).toBe(false)` does not narrow it.
+    //
+    // "not-found", not "forbidden". A run in another organisation must not be
+    // distinguishable from one that never existed, or a run id becomes an
+    // existence oracle across the boundary — the distinction the ownership
+    // refusal above it deliberately does draw, because there both parties are
+    // inside the same organisation.
+    expect(outcome).toMatchObject({ cancelled: false, reason: "not-found" });
+    expect(controller.signal.aborted).toBe(false);
+  });
+
+  it("still cancels a run inside the caller's own organisation", () => {
+    // The positive control: a guard that refuses everything passes both tests
+    // above and breaks the feature.
+    const { runId, controller } = start("kinan", "agent-mine");
+
+    const outcome = cancelPromptRun({
+      runId,
+      username: "root",
+      mayCancelOthers: true,
+      groupAgentIds: ["agent-mine"],
+    });
+
+    expect(outcome.cancelled).toBe(true);
+    expect(controller.signal.aborted).toBe(true);
   });
 });
