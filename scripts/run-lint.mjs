@@ -41,9 +41,28 @@ if (uiI18nStatus !== 0) {
   } else {
     // Control UI CSS hygiene: plain stylesheets plus css`` templates in Lit
     // components. oxlint cannot see inside tagged CSS templates.
+    //
+    // **Invoked through `process.execPath`, like the two steps above it, and
+    // not through the `.bin` shim — finding 233.** `resolveRepoToolBinPath`
+    // returns the extensionless shim, and `spawnSync` on Windows cannot execute
+    // one without a shell: the whole gate died here with
+    // `ENOENT ... node_modules\.bin\stylelint` **after** every oxlint shard had
+    // passed. So `node scripts/run-lint.mjs` — the command `git-hooks/pre-commit`
+    // runs and four registers name as the gate — had never once reached its
+    // third step on this platform, and exited 1 for a reason that looks
+    // identical to a lint failure. The check itself was clean the first time it
+    // was run by hand, which is the part nobody could have known.
     process.exitCode = run(
-      resolveRepoToolBinPath("stylelint"),
+      process.execPath,
       [
+        // Via `package.json` because stylelint's `exports` map does not
+        // publish `./bin/stylelint.mjs`, so resolving the CLI directly throws
+        // ERR_PACKAGE_PATH_NOT_EXPORTED. The manifest is always exported.
+        path.join(
+          path.dirname(createRequire(import.meta.url).resolve("stylelint/package.json")),
+          "bin",
+          "stylelint.mjs",
+        ),
         "--config",
         path.resolve("config", "stylelint.config.mjs"),
         "ui/src/**/*.css",
