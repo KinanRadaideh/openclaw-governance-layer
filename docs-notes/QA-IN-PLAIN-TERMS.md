@@ -6307,3 +6307,83 @@ based on it.
 Every one of these was a step that only runs when something else has already
 gone wrong — which is why five careful reviews walked past them. **Code that
 only runs on a bad day is the code least likely to have been watched running.**
+
+## 5.94 The three things a cold machine found in one evening
+
+Every review before this one happened on a computer that had already been used
+for the project. This one happened on a server bought that afternoon, wiped, and
+handed nothing but an operating system.
+
+It found three problems in about two hours, and **none of them could have been
+found by reading the code.** That is the point of the section.
+
+### What went wrong, in order
+
+**The website would not build.** The dashboard's build keeps a hand-written list
+of "where to find each imported module". A change on 2026-09-02 added one import
+to the dashboard and nobody added the matching line to that list, so the build
+had been broken for a day. Nothing noticed because the check that _looks_ like it
+covers this — the type checker — finds modules a completely different way, and
+was perfectly happy. And the build itself is not one of the six commands the
+project treats as its verification.
+
+**The command could not find the program it runs on.** The installer offers to
+install Node for you, and does it through a tool that puts it in a private
+folder reachable only through a shell startup file. So the build worked, the
+installer said "Installed.", and the very next command in the instructions
+failed with `node: No such file or directory`.
+
+The uncomfortable part: the installer _already_ copies the main command into a
+system-wide folder, under a comment explaining that background services never
+read shell startup files. It made the correct argument and then applied it to
+only half of what needed it.
+
+Then the fix did the same thing on a smaller scale — it copied three tools and
+missed a fourth, which broke the _second_ install rather than the first. Worse
+way round, and worth recording.
+
+**The service could not be installed, because of a missing environment
+variable.** This one cost the most time. Installing the background service
+failed with:
+
+> Unit file openclaw-gateway.service does not exist.
+
+The file was right there. Listing it showed it. Installing it by hand worked
+immediately and reported success.
+
+The cause is that the program decides _how_ to talk to the system's service
+manager by checking three environment values together. On a normal computer,
+logging in sets all three for you. On a server you SSH into as the root account,
+one of them is never set — and the program's rescue for that case skipped the
+root account specifically. With one value missing it silently talked to a
+different service manager, which genuinely could not see the file.
+
+So the error was true from where the program was standing and false from where
+the operator was standing. **That is the worst kind of error message**: it sends
+you to look for a missing file that is not missing.
+
+### The one thing all three share
+
+**Nobody had ever walked the new operator's path to the end.**
+
+Every previous check ran on a machine that already had the pieces — the runtime
+already reachable, the login session already established, the dashboard already
+built. Each of those is invisible until it is absent, and it is only absent on a
+machine that has never done any of this before.
+
+The project already had a rule for this about **tests**: a check that stands in
+for something it does not actually exercise tells you nothing, and it keeps
+finding examples. What this evening adds is that **the same rule applies to
+instructions.** A set of installation steps is only tested by a computer that
+has never seen them.
+
+### Why this is a good result rather than an embarrassing one
+
+Three defects in the deployment path, found before the demonstration rather than
+during it. All three are fixed, and the fixes are in the instructions as steps
+rather than in a troubleshooting section at the bottom — which is the difference
+between a runbook that works and one that works if you already know the answers.
+
+The third one is not even this project's bug. It is in the underlying OpenClaw
+code and affects anybody installing it as root on a server, so it is written up
+separately to be reported upstream.
