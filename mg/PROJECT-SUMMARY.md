@@ -765,8 +765,11 @@ conclusion.
   is empty. Until 2026-08-28 the work existed only on this machine and in
   OneDrive. `origin` points at upstream OpenClaw, so this branch
   must never be pushed there, and it has not been. The branch lives at
-  `github.com/KinanRadaideh/openclaw-governance-layer` (private, remote
-  `personal`), verified by cloning it back: same tip and tree. **F1 is closed.**
+  `github.com/KinanRadaideh/openclaw-governance-layer` (remote `personal`),
+  verified by cloning it back: same tip and tree. **F1 is closed.** The
+  repository was private until **2026-09-04** and is public from that date, which
+  is what makes the dashboard's Learn more link resolve for a reader who is not
+  Kinan.
   The backup at
   `OneDrive/GradProj-Backups/2026-08-21/` is current, carries the bundle, patch
   series and a git-free snapshot, and has been **restore-tested** into an empty

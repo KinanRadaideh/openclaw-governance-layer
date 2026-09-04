@@ -47,10 +47,27 @@ so the finished host looks and behaves like a normal install.
 
 ## 1. Give the server read access to the repository
 
-The repository is **private and must stay private**. It holds unpublished
-academic work. So the clone needs credentials. Use a **deploy key**: read-only,
-scoped to this one repository, revocable on its own, and it never puts your
-personal GitHub account on the server.
+> **The repository is public as of 2026-09-04, so there is nothing to do in this
+> section.** Skip to §2 and clone over HTTPS.
+>
+> This section stood here because the repository was private and the clone
+> therefore needed credentials, which made generating and registering a deploy
+> key the one setup step nobody could automate. Kinan made the repository public
+> so the dashboard's **Learn more** link resolves for anyone who opens it; a
+> link to a private repository is a 404 for every reader except its owner, which
+> is worse than no link.
+>
+> Verified unauthenticated on 2026-09-04: `GET /repos/KinanRadaideh/openclaw-governance-layer`
+> returns `"private": false`, and the repository page answers `200` with no
+> credentials.
+>
+> **What is kept below, and why.** If the repository is ever made private again,
+> this is the procedure, and it is the right one: a deploy key is read-only,
+> scoped to one repository, revocable on its own, and never puts a personal
+> GitHub account on the server. Deleting it would mean rediscovering it.
+
+<details>
+<summary>If the repository is private again: the deploy-key procedure</summary>
 
 **On the VPS**, create a key with no passphrase (systemd cannot type one):
 
@@ -80,17 +97,34 @@ set up. It is the weaker option: a token is usually broader than one repository
 and easy to leave on the box. If you use one, do not paste it into the clone URL
 that writes it into `.git/config` in plaintext._
 
+</details>
+
 ---
 
 ## 2. Clone and install
 
 ```bash
 sudo mkdir -p /opt && sudo chown "$USER" /opt
-git clone git@github.com:KinanRadaideh/openclaw-governance-layer.git /opt/openclaw-governance
+git clone https://github.com/KinanRadaideh/openclaw-governance-layer.git /opt/openclaw-governance
 cd /opt/openclaw-governance
 git checkout governance-layer
 ./scripts/vps-install.sh
 ```
+
+**No credentials, no key, no SSH config.** That is the whole of what §1 used to
+buy, and it is the only setup step this runbook ever had that a person had to
+perform by hand on two machines. If you are following a copy of this document
+that still tells you to make a deploy key, you are reading a version from before
+2026-09-04.
+
+<details>
+<summary>Cloning over SSH instead (needed only if the repository is private again)</summary>
+
+```bash
+git clone git@github.com:KinanRadaideh/openclaw-governance-layer.git /opt/openclaw-governance
+```
+
+</details>
 
 `governance-layer` is the branch that carries the work; `main` is upstream and
 has none of it. **Checking out the wrong branch is the failure that looks like

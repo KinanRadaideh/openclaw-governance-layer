@@ -28,8 +28,11 @@ same person after a break. Everything else in `mg/` is detail beneath this.
 >   gate is the single most valuable artefact it can produce, because nothing in
 >   this project has ever had a real model behind it.
 > - **Built, verified, deployed; still never demonstrated.** Eight of nine design
->   requirements fully met. **2,732 tests across 149 file runs, green on Windows**
->   (2026-09-03, after the thirteenth sweep), six verification commands, all green. **No security gap known _as of the
+>   requirements fully met. **2,723 passed and 14 skipped across 149 file runs,
+>   green on Windows** (2026-09-04, after the dashboard sweep), **seven**
+>   verification commands, all green. The seventh is new, and it is finding 250:
+>   the six that stood here could not see a layout defect, and the first of them
+>   looked as though it could. **No security gap known _as of the
 >   thirteenth sweep_, and read that qualifier**, because the same sentence was true
 >   and wrong on each of the five previous days, the seventh and ninth sweeps
 >   included: the ninth said it, and the tenth found a way to switch the
@@ -39,9 +42,38 @@ same person after a break. Everything else in `mg/` is detail beneath this.
 >   attach, not a reason to drop it.
 > - **The engineering on the backlog is finished, and that is not the same as
 >   "no bugs left".** Thirteen sweeps, the VPS deployment and one conflict between
->   two sections of this file, and one operator using the dashboard, across
->   2026-09-01/04, found **sixty-nine defects between them (172–240), nineteen
->   security-relevant and two more latent. All sixty-nine are closed.** The last three came from a **clean server** rather
+>   two sections of this file, and one operator using the dashboard twice, across
+>   2026-09-01/04, found **eighty-two defects between them (172–253), nineteen
+>   security-relevant and two more latent. Eighty-one are closed; **253 is open
+>   as a decision, T54**, and it is the one to read: a folder grant on an
+>   absolute path writes an allowance and an exception that bind nothing, and
+>   the panel lists both back to the operator as confirmation. Relative paths
+>   work, which is why nobody hit it.**
+>   **The last ten are the dashboard as an operator sees it**, and one of them
+>   explains the other nine: the only test in this project that can measure
+>   layout sits inside the documented verification command and skips silently
+>   every time, because it is collected there in jsdom; and it had never run on
+>   this machine at all, because Playwright's browsers were never downloaded.
+>   That is why finding 240's fix, written the previous day _with a test in that
+>   very file_, shipped incomplete. Among the nine: every primary and every
+>   destructive button on the page had been unstyled since it was written, so
+>   "Delete organisation" rendered byte-identical to "Who does this affect?".
+>   **Playwright's Chromium is now installed and the whole browser project runs,
+>   22 files and 192 tests**, which found 251 and 252 in its first minute: the
+>   layout test's own fixture had no policy, so the largest section of the page
+>   had never been measured, and the two authoring fields it then exposed
+>   defeated _both_ halves of finding 240's fix at once.
+> - **Six features were driven rather than read on 2026-09-04**, in a throwaway
+>   governance directory: `docs-notes/qa-sweep-2026-09-04/feature-sweep.ts`,
+>   **twenty checks, twenty passed**. Two are adversarial rather than
+>   confirmatory, and they are the ones worth quoting: the audit ledger was
+>   **edited on disk** (one `deny` flipped to `allow`) and detected at entry #6
+>   by content hash, then **truncated by one line** — which a hash chain alone
+>   cannot see — and detected by the checkpoint. Finding 225 was re-run as the
+>   attack it describes: 3,000 invented usernames failed to evict a real
+>   account's lockout. That is requirement 8's central claim measured against
+>   both attacks it names, rather than asserted.
+>   **230–232 came from a clean server** rather
 >   than from reading, and are the argument for T47: three defects in the
 >   deployment path in one evening, on the first machine that had never run any
 >   of this. They include a cross-tenant hole an earlier round had already
@@ -101,7 +133,11 @@ same person after a break. Everything else in `mg/` is detail beneath this.
 >   read (T13), the figures (T17), the report (T18), and two new decisions,
 >   **T49** (what the multi-tenancy machinery is for, now that one installation
 >   holds one organisation) and **T50** (whether anything should enforce the full
->   lint gate). **T45 is Claude's and is done**: `docs-notes/FIRST-RUN.md`.
+>   lint gate). **T45 is Claude's and is done**: `docs-notes/FIRST-RUN.md`, and so
+>   is **T47's plan**: `docs-notes/T47-TEST-PLAN.md`, ninety-five checks across
+>   the four tiers. **Running T47 is yours and needs all three of you on three
+>   machines**, because half of what it tests is that one account cannot see or
+>   do another's.
 >   _(This bullet read "Nothing is waiting on Claude" while T45–T48 were being
 >   added the same day.)_
 > - **Everything is committed and pushed** (re-measured 2026-09-03, after the
@@ -380,6 +416,25 @@ openclaw daemon restart
 `vps-install.sh` is idempotent and is the supported way to update: it reinstalls
 dependencies, rebuilds **including the dashboard**, and re-runs the 14-check
 platform probe, failing the update if any check fails.
+
+> **The repository going public (2026-09-04) did not change these four
+> commands.** An existing clone pulls exactly as before: it was cloned over SSH
+> and the deploy key still works, because a key that could read a private
+> repository can certainly read a public one.
+>
+> What changed is that the key is no longer **needed**. A fresh clone is
+> `git clone https://github.com/KinanRadaideh/openclaw-governance-layer.git`
+> with no credentials at all, and `LINUX-INSTALL.md` §1 is now a section to
+> skip. If you would rather the server stopped depending on a key it does not
+> need, point the existing clone at HTTPS once:
+>
+> ```bash
+> git -C /opt/openclaw-governance remote set-url origin https://github.com/KinanRadaideh/openclaw-governance-layer.git
+> ```
+>
+> **Optional, and it is a tidy-up rather than a fix.** The only thing it buys is
+> that a revoked or expired deploy key can no longer break the update path on a
+> machine nobody is watching.
 
 **The rebuild is not optional and the dashboard is the reason.** Finding 230 was
 the Control UI silently not building for a day; the governance changes in this
@@ -2030,9 +2085,9 @@ sentence never will be.)_
 > 2026-09-02.** The commits of 2026-08-21 carry the
 > governance core, the dashboard, the documentation, the lockfile and the handoff
 > update, and the branch exists on this machine, in OneDrive, and at
-> `github.com/KinanRadaideh/openclaw-governance-layer` (private, remote
-> `personal`). `origin` still points at upstream OpenClaw and must never receive
-> this branch.
+> `github.com/KinanRadaideh/openclaw-governance-layer` (remote `personal`;
+> **public since 2026-09-04**, it was private until then). `origin` still points
+> at upstream OpenClaw and must never receive this branch.
 >
 > **The lesson generalises and is the reason this box is kept.** The risk it
 > describes, work that exists on one machine only, was live again on
@@ -2087,9 +2142,11 @@ docs-notes/qa-round13-probes/                     reproductions for round 13, ke
 ```
 
 `origin` points at **`github.com/openclaw/openclaw`**. Upstream. This branch
-must **never** be pushed there. The private remote is **`personal`**
+must **never** be pushed there. The project's own remote is **`personal`**
 (`github.com/KinanRadaideh/openclaw-governance-layer`), added and verified on
-2026-08-21 when F1 closed. ~~It still sits at the 2026-08-21 tip
+2026-08-21 when F1 closed. **It was private until 2026-09-04 and is now public**,
+so the dashboard's Learn more link resolves and the VPS clone needs no deploy
+key; `docs-notes/LINUX-INSTALL.md` §1 is now a skippable section. ~~It still sits at the 2026-08-21 tip
 (`e5a7876431b`)~~, **it is at HEAD as of 2026-09-03**, so every _committed_
 change exists in three places, and that now includes the 56 files this sentence
 used to exclude. `OneDrive/GradProj-Backups/2026-08-13/` predates all of it.
@@ -2111,6 +2168,41 @@ node node_modules/vitest/vitest.mjs run src/agents/harness/native-hook-relay.tes
 node node_modules/oxlint/bin/oxlint --config .oxlintrc.json src ui/src
 node scripts/run-tsgo.mjs -p test/tsconfig/tsconfig.core.test.json
 ```
+
+**A seventh, added 2026-09-04 (findings 241–250). It is the only one that can
+see the dashboard, it had never been run until that day, and running it found
+two more defects within a minute (251, 252). The whole browser project is
+22 files / 192 tests and passes:**
+
+```bash
+npx playwright install chromium
+```
+
+```bash
+cd ui && node ../node_modules/vitest/vitest.mjs run --config vitest.config.ts --project browser
+```
+
+> **⚠ The six commands above cannot see a layout defect, and the first one
+> looks as though it can.** It includes `ui/src/pages/governance/`, which
+> contains `governance-textbox-fit.browser.test.ts`, the one file in this
+> project that measures what an operator actually sees. That file runs through
+> the **root** vitest config there, which is jsdom, where every width is zero,
+> so it is skipped by its own `skipIf` guard. The default reporter then prints
+> `2 skipped` and exits `0`.
+>
+> This is finding 203's shape one config over. There the glob silently matched
+> nothing and the undercount looked like a passing run; here the file is
+> collected, skipped, and the skip is a number nobody reads. **Check the count:
+> the run above should report ten or more tests, not `9 skipped`.**
+>
+> **Playwright's browsers had never been downloaded on the development
+> machine**, so even run correctly the project could not launch. Pointing
+> `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` at an installed Chrome is not a
+> substitute: it attaches to the existing user profile and hangs.
+>
+> This is why finding 240's fix, written on 2026-09-03 _with a test in that very
+> file_, shipped incomplete and the same class of defect was reported again the
+> next morning.
 
 > **⚠ Run the first one from a POSIX shell, bash, WSL, Git Bash, or use the
 > PowerShell form below (finding 203, 2026-09-02).**
@@ -3023,21 +3115,21 @@ was added and closed on 2026-09-04, and T53 came out of doing it.** T3 is now ha
 is installed and running on a VPS; what remains of it is the demonstration, not
 the deploy.
 
-| #           | Who              | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| ----------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **T2**      | You              | **Run it once with a real model driving a real tool call.** Still the highest-value item on the project, and the only one that changes how Chapter 4 reads                                                                                                                                                                                                                                                                                                               |
-| **T3**      | You              | Deploy to a Linux host. The one design requirement not fully met; T33 made the build work. **Re-run the suite there**, the last Linux measurement is 2,548/133 and predates T44 and three sweeps                                                                                                                                                                                                                                                                         |
-| **T13**     | You              | Read the prompt-injection answer (§4.x.26) until you can give it without notes                                                                                                                                                                                                                                                                                                                                                                                           |
-| **T17**     | You              | Redraw the figures, 21 candidates marked. Or decide Claude drafts them for approval                                                                                                                                                                                                                                                                                                                                                                                      |
-| **T18**     | You              | Write Chapters 3, 4 and the conclusion                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ~~**T45**~~ | ~~Claude~~       | **DONE 2026-09-03**, `docs-notes/FIRST-RUN.md`. The page before the runbook: what the layer is, how to tell the fork from stock OpenClaw in one command, and §2c's cold-server steps moved into the ordering rather than left as troubleshooting                                                                                                                                                                                                                         |
-| **T46**     | You, then Claude | **The setup wizard still says "OpenClaw".** `openclaw onboard` presents upstream's text unchanged, so an operator installing _this_ project is never told what it is, no mention of the layer, the tiers, the ledger or the dashboard's second gate. You have said it should read **"OpenClaw Governance"**; the decision left is how far it goes. Banner and completion text, or new prompts too. Touches upstream files, so it grows the fork diff §3.5.2b measures    |
-| **T47**     | All three        | **A by-hand test plan, one list per RBAC tier, split between K, M and O.** Everything verified so far is automated or was driven by whoever wrote it. Three people exercising the four tiers from the operator's chair is what produces the evidence Chapter 4 needs, and it is the natural companion to T2                                                                                                                                                              |
-| **T48**     | You              | **Decide whether Chapter 3 is ready to be written.** Not "is there enough material", there are ~9,300 lines across 76 sections, but "has the design stopped moving?" Findings 230–232 suggest not quite: three defects in the deployment path in one evening                                                                                                                                                                                                             |     |
-| **T49**     | You              | **Decide what the multi-tenancy machinery is for now.** The 2026-08-30 cap means a shipped installation only ever has one organisation, so M5's isolation is exercised by nothing that ships, and findings 234 and 235 were **latent for exactly that reason**. Either keep it and say in the report that it is verified by test rather than by deployment, or state the cap as the boundary. What does not work is calling it "still enforced" without re-deriving that |
-| **T50**     | You, then Claude | **Nothing automatic runs the full lint gate** (finding 237). The hook runs plain `oxlint` over staged files; the type-aware rules, `scripts/` and the CSS check are only in `run-lint.mjs`, which a person must remember and which **could not finish on Windows at all** until finding 233. Make the hook run it, move it to CI, or leave it manual and stop calling it "what the hook runs"                                                                            |
-| **T51**     | You, then Claude | **Should the command line reach the Gateway's runs?** (finding 238.) `governance agent runs` and `agent cancel` cannot see anything the Gateway is running, the in-flight table is a per-process `Map`, so they were reporting "nothing in flight" about live runs. They now say what they cannot see. Fixing it properly means giving the CLI an HTTP client, which no other governance command needs; removing them is the other honest option                         |
-| **T53**     | Claude           | **Split `governance-page.ts`.** 735 code lines against a 700 limit, carrying a scoped exception with its reasoning written into it rather than a silent one. Four files were split properly on 2026-09-04 instead; this one has no cheap seam, because every remaining candidate reads twenty or more private fields. The real fix is two components, an outer shell and an inner signed-in view. Deliberately not done in the last hour before a handoff                |
+| #           | Who              | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ----------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **T2**      | You              | **Run it once with a real model driving a real tool call.** Still the highest-value item on the project, and the only one that changes how Chapter 4 reads                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **T3**      | You              | Deploy to a Linux host. The one design requirement not fully met; T33 made the build work. **Re-run the suite there**, the last Linux measurement is 2,548/133 and predates T44 and three sweeps                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **T13**     | You              | Read the prompt-injection answer (§4.x.26) until you can give it without notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| **T17**     | You              | Redraw the figures, 21 candidates marked. Or decide Claude drafts them for approval                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **T18**     | You              | Write Chapters 3, 4 and the conclusion                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ~~**T45**~~ | ~~Claude~~       | **DONE 2026-09-03**, `docs-notes/FIRST-RUN.md`. The page before the runbook: what the layer is, how to tell the fork from stock OpenClaw in one command, and §2c's cold-server steps moved into the ordering rather than left as troubleshooting                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **T46**     | You, then Claude | **The setup wizard still says "OpenClaw".** `openclaw onboard` presents upstream's text unchanged, so an operator installing _this_ project is never told what it is, no mention of the layer, the tiers, the ledger or the dashboard's second gate. You have said it should read **"OpenClaw Governance"**; the decision left is how far it goes. Banner and completion text, or new prompts too. Touches upstream files, so it grows the fork diff §3.5.2b measures                                                                                                                                                                             |
+| **T47**     | All three        | **A by-hand test plan, one list per RBAC tier, split between K, M and O.** **The plan is written: `docs-notes/T47-TEST-PLAN.md` (2026-09-04).** Ninety-five checks across the four tiers, plus six things no one person can test alone. **Running it is what remains, and it needs three people on three machines** — half of what it tests is that one account cannot see or do another's, and a shared browser session silently defeats that. Every row asks two questions beyond pass/fail: _was the outcome visible_, and _did the refusal say what to do instead_. Produces the evidence Chapter 4 needs, and is the natural companion to T2 |
+| **T48**     | You              | **Decide whether Chapter 3 is ready to be written.** Not "is there enough material", there are ~9,300 lines across 76 sections, but "has the design stopped moving?" Findings 230–232 suggest not quite: three defects in the deployment path in one evening                                                                                                                                                                                                                                                                                                                                                                                      |     |
+| **T49**     | You              | **Decide what the multi-tenancy machinery is for now.** The 2026-08-30 cap means a shipped installation only ever has one organisation, so M5's isolation is exercised by nothing that ships, and findings 234 and 235 were **latent for exactly that reason**. Either keep it and say in the report that it is verified by test rather than by deployment, or state the cap as the boundary. What does not work is calling it "still enforced" without re-deriving that                                                                                                                                                                          |
+| **T50**     | You, then Claude | **Nothing automatic runs the full lint gate** (finding 237). The hook runs plain `oxlint` over staged files; the type-aware rules, `scripts/` and the CSS check are only in `run-lint.mjs`, which a person must remember and which **could not finish on Windows at all** until finding 233. Make the hook run it, move it to CI, or leave it manual and stop calling it "what the hook runs"                                                                                                                                                                                                                                                     |
+| **T51**     | You, then Claude | **Should the command line reach the Gateway's runs?** (finding 238.) `governance agent runs` and `agent cancel` cannot see anything the Gateway is running, the in-flight table is a per-process `Map`, so they were reporting "nothing in flight" about live runs. They now say what they cannot see. Fixing it properly means giving the CLI an HTTP client, which no other governance command needs; removing them is the other honest option                                                                                                                                                                                                  |
+| **T53**     | Claude           | **Split `governance-page.ts`.** 735 code lines against a 700 limit, carrying a scoped exception with its reasoning written into it rather than a silent one. Four files were split properly on 2026-09-04 instead; this one has no cheap seam, because every remaining candidate reads twenty or more private fields. The real fix is two components, an outer shell and an inner signed-in view. Deliberately not done in the last hour before a handoff                                                                                                                                                                                         |
 
 **T38, T39, T40, T42 and T43 all closed on 2026-09-01**, along with **eleven
 defects, five of them security-relevant**. See §1's 2026-09-01 entry. That is
@@ -3504,6 +3596,39 @@ Stated here so they are not discovered late.
     honest framing for a panel is that the command line's reach is **file-backed
     state**: `governance kill` works from any process because a lockdown is
     written to the policy document. **T51** is whether that boundary should move.
+15. **The repository is public as of 2026-09-04, and that changed what is
+    reachable rather than what is true.** Kinan made it public so the
+    dashboard's **Learn more** link resolves; it points at this repository by
+    design, because upstream's security docs describe upstream, and while the
+    repository was private the link was a 404 for every reader it exists to
+    serve. Verified unauthenticated: the API reports `"private": false` and the
+    page answers `200` with no credentials.
+
+    **Two things follow, and only the second is a caveat.** The clone no longer
+    needs a deploy key, so `LINUX-INSTALL.md` §1 — the one setup step in the
+    whole runbook that a person had to perform by hand on two machines — is now
+    a section to skip. And **`pull_request_target` workflows became reachable by
+    strangers**, because a stranger can now open a pull request. This fork
+    inherited 82 upstream workflows and **six use that trigger**, which is the
+    standard privilege-escalation vector on a public repository.
+
+    **Measured, and bounded**: the dangerous shape is `pull_request_target`
+    _plus a checkout of the pull request's head_, and none of the six checks out
+    the head; five need GitHub App secrets that exist only in upstream's
+    repository. A stranger's pull request would start them and they would fail
+    for want of secrets. **No change is needed; the point is that it is now a
+    security setting and not only a billing one**, so re-enabling Actions later
+    to get CI back re-enables those six with everything else.
+
+    **The stale claim found while checking this is the part to carry.** T21
+    records Actions as disabled on 2026-08-22, proved by a billing curve. On
+    2026-09-04 every workflow reports `state: "active"`, there are 425 runs, and
+    9 to 10 land every day without a break from 2026-08-23 onward. Both
+    observations are true: the billing curve proved the **hourly sweeper**
+    stopped, which was the dominant consumer, and the scheduled and Dependabot
+    runs it could not see never stopped at all. A measurement that supports a
+    narrower claim than the sentence written beside it, which is a shape this
+    project has now recorded a dozen times.
 
 ---
 

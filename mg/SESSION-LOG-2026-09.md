@@ -452,3 +452,489 @@ a parenthesis and becomes commas; a heading or a list label takes a colon; an
 independent clause becomes a new sentence; a lone dash used as a glyph, in a
 string that is only the dash or in an empty table cell, becomes a hyphen. The first pass got three of those wrong,
 which is why there was a second and a third.
+
+---
+
+## 2026-09-04 (later): the dashboard measured, and the check that never ran
+
+**Kinan kept using it and reported seven complaints in one message.** Every one
+was a layout defect: widgets too close together, headings sitting on the card
+above them, buttons and text boxes running off the edge of the panel they belong
+to, two explanatory disclosures pressed against the card border or spilling out
+of it, an awkward collision where Policy meets the Audit ledger, and one
+question that turned out not to be a defect at all.
+
+**Ten findings, 241 to 250.** Nine are the dashboard as an operator sees it. The
+tenth is why none of the other nine could have been caught.
+
+### The one that was not a bug
+
+_"Some built-in rules have a Switch off button and some don't. Why?"_
+
+Working as designed, and the design is T24's split core tier: most shipped
+denials are ordinary security opinions Root may switch off, and the rest are
+what stop a governed agent reaching the policy, the accounts, the ledger and the
+signing key. The server refuses those for every account including Root.
+
+**But the page said none of that** (finding 247). It rendered nothing at all
+where the button would be, so an operator saw buttons appearing on some rows and
+not others with no way to tell which rule they were looking at or why. "The
+button is missing" is indistinguishable from a page that failed to render half
+its controls, which is the exact reasoning the Root account row already uses for
+"root (permanent, cannot be changed)" one section higher up. Now the row says
+"Cannot be switched off" and a row above the list explains the tier once.
+
+### The nine
+
+**241, the page had no section spacing at all.** `settings.css` separates
+sections with a gap on `.settings-page` and a `> .settings-section +
+.settings-section` margin. Both are **child** selectors, and this page puts its
+sections two levels down, inside the jump-nav layout. Neither ever matched, so
+thirteen panels stacked flush against each other and "ACCOUNTS" printed hard
+against the bottom edge of the Identity card.
+
+**242, one defect behind four of the seven complaints.** Several panels hand
+`renderSettingsRow` a control that is itself a `div` carrying
+`class="settings-row__control"`, so the class lands twice. It carries
+`flex: 0 0 auto`, right for the outer cell and wrong for the inner one: with no
+shrink and an `auto` basis a wrapping flex container resolves to its
+**max-content** width and refuses to come back down. The cluster rendered at
+whatever its widest line wanted, ran past the card, and `.settings-group`'s
+`overflow: hidden` cut it off, which is why the _last_ control in each cluster
+was the one missing. "Set password", the create-account fields, the rule-request
+form and the folder-grant explainer were all this.
+
+**243, the page was not `wide`.** A 13.5rem jump-nav plus page padding inside a
+760px column leaves roughly 490px of body, narrower than the control clusters it
+has to hold. `.settings-page--wide` exists for exactly this case.
+
+**244, the two disclosures had no CSS whatsoever.** Neither
+`.governance-codex-learn-more` nor `.governance-folder-grant-learn-more` appears
+in any stylesheet in the repository. The Codex one renders as a direct child of
+`.settings-group`, a surface with no padding, so nine paragraphs sat flush
+against the card border; the folder-grant one sits inside the cluster of 242 and
+was laid out as one very long line.
+
+**245, two hint classes used at six call sites and defined nowhere.**
+`.settings-row__hint` and `.settings-hint`, across three panels: the Codex search
+caveat on a rule, "pick one of your agents", the list of rules a folder grant
+wrote, and "no Administrators yet". All rendered at full body weight, so a note
+meant to sit _beside_ a decision read as part of it.
+
+**246, the audit ledger put five controls in a header slot sized for one.**
+`space-between` then squeezed the heading into a two-line column beside a
+two-line button block. Three or more actions now take their own line, which is
+what the rule list already does with its filter row.
+
+**248, every primary and every destructive button on this page has been
+unstyled since it was written, and this is the serious one.** The design system
+defines `.btn.primary` and `.btn.danger`. The governance panels used **four**
+spellings of neither: `btn--primary`, `btn--danger`, `btn-primary`,
+`btn-danger`, twenty call sites. Measured in Chromium, "Delete" computed
+byte-identical to a plain button, same background and same colour, against a
+real danger style of red text on a red wash.
+
+**On a security console that is not cosmetic.** Delete an account, delete the
+organisation, switch off a shipped core denial, reject a rule request, stop an
+agent: all of them looked exactly like "Who does this affect?". The ledger's
+active filter had the same problem. `aria-pressed` was set correctly, so a
+screen reader knew which filter was on and a sighted operator did not.
+
+**249, the dashboard never read `canAuthorPolicy`, so T27 was invisible.** The
+identity route has sent it since the switch was built, `api.ts` declares it with
+the note "absent means allowed", and every authoring route enforces it. The page
+gated its authoring controls on `canManageAnyAgent`, which answers _does this
+tier touch agents at all_. So a User whose policy authoring Root had withheld
+still saw the add-rule form, the folder-grant form and a Remove button on every
+rule, and learned they could not use them only from the refusal. T27 exists
+precisely to separate _may I act on this agent?_ from _may I change the rules it
+is judged by?_, and the dashboard was answering only the first. Fixed with
+`canWritePolicy` in `identity.ts`, the browser twin of `permissions.ts`.
+
+**250, three posture controls kept a gate the server had moved.** Finding 218
+raised `policy/agent-ask` and `policy/agent-mode` to
+`requireRole(..., "administrator")`. The dashboard kept them on the User gate, so
+a User saw "Observe one agent" and a "Use default" on each override row, and
+every one came back 403. The neighbouring per-agent escalation timeout was
+checked and is correctly still on the User gate, for the reason its own header
+states.
+
+### The finding underneath all of them
+
+**The one test in this project that can see layout has never run.**
+
+`governance-textbox-fit.browser.test.ts` is in the documented verification set.
+The first of the six commands includes `ui/src/pages/governance/`. It runs there
+through the **root** vitest config, which is jsdom, where every width is zero,
+so its own `skipIf` guard turns it off. The default reporter prints `2 skipped`
+and exits `0`.
+
+It runs only under the ui package's `--project browser`, which needs
+Playwright's Chromium, and **`%LOCALAPPDATA%/ms-playwright` does not exist on
+this machine**: the browsers have never been downloaded, so every
+`.browser.test.ts` in the repository has never executed here.
+
+That is finding 203's shape one config over. There a glob silently matched
+nothing and the undercount looked like a passing run; here the file is
+collected, skipped, and the skip is a number nobody reads. It is the fifth
+instance of this project's central pattern after T25, T19, T29 and findings 136
+and 137: **a check that looks like coverage and never executes.**
+
+**And it explains the whole day.** Finding 240 was fixed on 2026-09-03 _with a
+test written into that very file_, and the operator reported the same class of
+defect the next morning. Worse, the test it added measured the wrong edge: it
+asserted that no control sits outside `document.documentElement.clientWidth`
+while the harness gives the page 1100px inside a wider viewport. Nothing was off
+the _screen_; everything was off the _card_, and the card is what clips.
+
+Three assertions were added and the wrong-edge one kept beside a correct twin:
+against the clipping card rather than the viewport, against an opened
+disclosure, and against the gap between sections. `mg/HANDOFF.md` §4 now carries
+the browser command and its Playwright prerequisite as a seventh verification
+step.
+
+### How the nine were found, and the method worth reusing
+
+**A harness, not a test.** `governance-page.ts` is a light-DOM custom element,
+so it can be mounted in a Vite dev server against a stub, with no Gateway, no
+token and no sign-in, and driven at `?role=root|administrator|user|viewer` and
+`?state=full|empty|gate`. Every combination is a screen an operator can reach and
+none of them had ever been rendered in a browser.
+
+Then measure rather than look: for every element inside every `.settings-group`,
+is its box outside the group's box? Zero at 1280, 1024, 880 and 640, in both
+themes, at every tier, is a different claim from "it looks fine".
+
+**The systematic pass that found 245 and 248** is the one to repeat on any
+markup-plus-stylesheet pair: extract every class name the templates put into the
+DOM, extract every class name the stylesheets define, and subtract. Eleven names
+came back, four of them regex artefacts of the extractor and **seven of them
+real**. Two of those seven were the danger and primary button styles on every
+destructive control in a security console.
+
+The harness was deleted afterwards. The durable form of it is the new assertions
+in `governance-textbox-fit.browser.test.ts`, which say the same things and can
+fail on their own, _provided somebody runs Playwright's installer first_, which
+is the finding this whole section is about.
+
+### What was run
+
+Governance suite **2,723 passed / 14 skipped across 149 files**, exit 0, from
+Git Bash per finding 203's warning. Both typechecks clean, stylelint clean,
+oxlint clean, `ui:build` plus its precompressed-asset and performance checks
+clean. The full UI package suite reports **14 files / 23 tests failing**, all in
+chat, channels, plugins, model-setup, workboard and board, **none in
+governance**, and `git diff main...HEAD` shows every one of those files untouched
+by this fork: upstream tests failing on upstream code, identical before and after
+this session's changes.
+
+---
+
+## 2026-09-04 (later still): the browser tests run, and six features driven for real
+
+**Playwright's Chromium was installed, and every `.browser.test.ts` in the
+repository ran for the first time: 22 files, 192 tests, all passing.** Until
+this afternoon none of them had ever executed on this machine. That closes
+finding 250 as a gap in the checking machinery rather than merely documenting
+it.
+
+### What the layout test found the moment it could run
+
+Nine assertions, and **two failures on the first run, both real.**
+
+**The first was the fixture, and it is the larger of the two.** The new
+disclosure assertion failed with "expected 0 to be greater than 0" — there were
+no disclosures on the page to open. `rootState()` had no `policy` at all, and
+`renderPolicySection` returns early without one, so **the largest section on the
+page had never been on the page these layout assertions measured**: the rule
+list, its filter, the authoring form, the folder-grant panel and the Codex
+panel. Every finding this file exists to catch could have been sitting in it.
+Found by a guard written the way the first test in the file is written, which is
+the argument for writing them that way.
+
+**The second was a defect, and it is visible in the screenshot Kinan sent this
+morning.** With a policy on the page, the authoring form appeared, and
+"Minutes (blank = never expires)" measured as clipped with no hover fallback —
+in his screenshot it reads "Minutes (blank = r", beside "Agent id (blank = all
+ager".
+
+Both halves of finding 240's fix were defeated on those two fields at once, and
+the mechanism is worth recording:
+
+- **Widening could not happen.** Both carried inline `max-width` caps, 9rem and
+  11rem, chosen when the page body was about 490px wide and widening one field
+  pushed the Add rule button off the edge. The page is `--wide` now and the
+  cluster wraps, so the cap was protecting against a layout that no longer
+  exists.
+- **Labelling could not happen either.** `applyOverflowTitle` never overwrites a
+  `title` somebody else authored, which is right — an authored title says
+  something the placeholder does not. The lifetime field has one
+  (`ttlHint`), so the fallback correctly declined, and the field ended up with
+  neither treatment.
+
+Fixed by removing both caps and giving the fields inside a stacked cluster a
+`31ch` floor, which is what their placeholders actually need. The general `24ch`
+floor is about 168px and the sentences need roughly 190px, which is why they
+were clipped even with the caps removed.
+
+**The residual is worth stating rather than fixing.** An input that carries an
+authored hint _and_ a clipped placeholder still gets no placeholder tooltip.
+Here that is harmless — `ttlHint` says "Leave blank for an indefinite rule that
+never expires", which is exactly the part being cut off — but the general shape
+is a gap in the fallback, and the honest answer if it recurs is to append rather
+than decline.
+
+### The feature sweep: six features, driven rather than read
+
+`docs-notes/qa-sweep-2026-09-04/feature-sweep.ts` drives the production modules
+in a throwaway governance directory and asks the operator's question: given a
+fresh installation, does the thing work? **Twenty checks, twenty passed**, and
+two of them are adversarial rather than confirmatory.
+
+**Tamper evidence, attacked rather than asserted.** The ledger is appended to,
+verified, and then **edited on disk** the way somebody covering their tracks
+would: one `"decision":"deny"` flipped to `"allow"`, everything else left alone.
+Detected at entry #6, _"entry hash does not match its own recomputed content
+hash"_. Then restored and the **last line deleted instead**, which a hash chain
+alone cannot see: detected by the checkpoint, _"ledger ends at entry 15 but the
+checkpoint records entry 16: 1 entry was removed from the end"_. Requirement 8's
+central claim, measured against both attacks it names.
+
+**Finding 225, re-run as the attack.** Five wrong passwords lock an account out;
+then **3,000 invented usernames** are pushed through the throttle table to try
+to evict that lockout, which is exactly what worked before the fix. It survived.
+
+The other eighteen: four tiers created with one Root enforced inside the write
+lock; a second Root refused; case-insensitive sign-in (`KINAN` authenticates as
+`kinan`); the permission model at every tier including a withheld User; ten core
+denials in force on a fresh install with the posture already `enforce`; T24's
+split tier, where switching off an ordinary core denial works and a
+self-protecting one is refused; an operator rule added and removed; a kill
+switch written as `Scout` and stored as `scout`, which is finding 202's exact
+mechanism; and a rule request submitted by a User, decided by an Administrator,
+and **refused a second decision** so the first stands.
+
+**One check failed on the first run and it was the probe, not the product**:
+`decideRuleRequest` takes a params object rather than positional arguments, so
+the id never reached it and the function returned `undefined` — silently, which
+is correct for an idempotent decide but is exactly the shape that hides a real
+defect. The fix turned it into two checks rather than one, because the
+double-decide case was worth asserting once the signature was understood.
+
+### T47 written
+
+`docs-notes/T47-TEST-PLAN.md`. Ninety-five checks: one list per tier for Kinan
+(Root), Mohammad (Administrator) and Malek (User, then Viewer), plus a section
+of six things **no one person can test alone** — an Administrator stopping a
+User's agent mid-prompt, a password changed under a live session, authoring
+withheld while a rule is half-typed, an account deleted while its holder is
+signed in.
+
+Two instructions run through every row. **Was the outcome visible?** — an action
+that produces nothing with nothing explaining why is this project's worst bug
+class, and it is invisible to every automated check here. **Did the refusal say
+what to do instead?** — "You cannot do that" is a half-finished refusal.
+
+The plan also insists on **three machines, not one browser**: half of what it
+tests is that one account cannot see or do another's, and a shared session
+silently defeats that. And it asks for a screenshot of every refusal, because
+Chapter 4 needs pictures of a system saying no.
+
+**Row 2.1.5 is the one to read.** Everything the dashboard hides from an
+Administrator, they are asked to call directly with `curl` using their own
+session, because hiding a control is a courtesy and never the control. That is
+the difference between the page being polite and the layer being sound, and it
+is the only row that can tell them apart.
+
+---
+
+## 2026-09-04 (evening): the repository went public, and what that moved
+
+**Kinan made `KinanRadaideh/openclaw-governance-layer` public.** The reason is
+the dashboard's **Learn more** link: it points at that repository from both the
+sign-in screen and the signed-in page, deliberately, because upstream's security
+docs describe upstream and a fork's gate is not documented there. Pointing at a
+private repository made it a 404 for **every reader the link exists to serve**,
+which is worse than no link at all — a link that cannot open is a promise the
+page does not keep.
+
+**Verified rather than taken on trust**, which is this file's standing rule:
+`GET /repos/KinanRadaideh/openclaw-governance-layer` returns `"private": false`
+and the repository page answers `200` with no credentials at all. The link now
+resolves for a stranger, which is the only test that matters for it.
+
+### The instruction it overruled
+
+`REMAINING-WORK.md` said, in bold: **"Do not make the repository public to get
+unlimited minutes. It holds unpublished academic work."**
+
+That sentence is struck rather than deleted, because the argument in it was
+sound and the decision was taken against it knowingly, and for a different
+reason than the one it addresses. The minutes were never why. **The record
+should show a decision, not a tidied-away disagreement.**
+
+### The good consequence: the runbook lost its only manual step
+
+`LINUX-INSTALL.md` §1 existed entirely because the clone needed credentials:
+generate a deploy key on the VPS, register it on GitHub, write an SSH config,
+test the connection. It is listed in the task table as item **f**, "yours to
+execute", and it was the only setup step in the whole runbook that a person had
+to perform by hand **on two machines**.
+
+It is now a section to skip. The clone is `git clone https://github.com/...`
+with no key, no SSH config and no credentials. The deploy-key procedure is kept,
+collapsed behind a disclosure, because if the repository ever goes private again
+it is the right procedure and deleting it would mean rediscovering it.
+
+**That matters more than it sounds** with T47 and T2 both waiting on people
+getting onto a server.
+
+### The consequence to know about: what a public repository makes reachable
+
+Minutes stop mattering on a public repository. Something else starts.
+
+**`pull_request` and `pull_request_target` workflows were unreachable while the
+repository was private, because a stranger could not open a pull request.** Now
+they can, and this fork inherited **82 upstream workflow files**, of which
+**six use `pull_request_target`**: `auto-response`, `clawsweeper-dispatch`,
+`dependency-guard`, `labeler`, `real-behavior-proof` and
+`security-sensitive-guard`. That trigger is the standard privilege-escalation
+vector on a public repository, because it runs with the _base_ repository's
+permissions and secrets while the pull request's code is the untrusted part.
+
+**Measured, not assumed, and the answer is reassuring.** The dangerous shape is
+`pull_request_target` **plus a checkout of the pull request's head** — that is
+what lets a stranger's code run with your token. **None of the six checks out
+the head.** Five reference GitHub App private keys that exist only in upstream's
+repository and are absent here, which is the same reason the earlier note gives
+for every inherited workflow failing. A stranger's pull request would start
+them, they would fail immediately for want of secrets, and no attacker-supplied
+code would execute.
+
+**So: bounded, and no change needed today.** What it needs is to be _known_.
+"We inherited 82 workflows and disabled Actions" was a billing decision on
+2026-08-22 and is now also a security one, and anybody who re-enables Actions
+later to get CI back will re-enable those six along with everything else.
+
+### And a stale claim found while checking it
+
+**T21 records Actions as disabled on 2026-08-22**, proved by a billing curve
+falling $12.29 → $0.98 → under a cent. The API disagrees on 2026-09-04: every
+workflow reports `state: "active"`, there are **425 runs**, and **9 to 10 land
+every day without a break from 2026-08-23 to today**, scheduled ones among them.
+
+Both observations are true and the write-up drew too wide a conclusion from
+one. What the billing curve actually proved is that **the hourly sweeper
+stopped** — it was ~720 runs a month and the dominant consumer. The scheduled
+and Dependabot runs never stopped; they are few enough and fail fast enough to
+cost nothing measurable, so the billing page could not see them and the
+conclusion "Actions are disabled" was never tested against anything else.
+
+**The same shape this project keeps finding**: a measurement that supports a
+narrower claim than the sentence written beside it. It was harmless while the
+repository was private. It is worth knowing now that it is not.
+
+---
+
+## 2026-09-04 (night): the gate swept, and a folder grant that grants nothing
+
+**A second sweep, on a deliberately different axis.** `feature-sweep.ts` that
+afternoon exercised the **stores and the state** — accounts, the policy
+document, the request queue, the ledger file — and never once asked the question
+the project exists to answer: _what happens when an agent tries to do
+something._ `gate-sweep.ts` drives `evaluateGovernancePolicy` itself.
+**Seventeen checks.** Sixteen confirm the gate does what it claims. The
+seventeenth is **finding 253**.
+
+### What the gate got right
+
+Quoted, because the wording is the product as much as the decision is:
+
+- **Default-deny holds.** `curl https://example.com/payload.sh` is unlisted and
+  is escalated to a human rather than run.
+- **Core denials fire with an explanation naming the rule**: _"command
+  `sudo rm -rf /` is refused by a core-tier deny rule (Privilege escalation
+  (sudo, su, doas, runas, pkexec)). Core rules cannot be overridden by policy."_
+- **The layer refuses the agent its own policy file**, by relative path, which
+  is the self-protection the core tier exists for.
+- **A deny outranks an allow on the identical pattern.**
+- **The kill switch reaches the gate**: a locked-down agent is refused a command
+  it was explicitly permitted, and works again on release.
+- **Mandatory registration (M5)**: _"agent `ghost-agent` is not in the agent
+  registry, so no policy applies to it. An Administrator must register it before
+  it can act."_ No fallback rulebook, which is the hole M5 closed.
+- **Requirement 8's other half**: three planted secrets — a `--password=`, an
+  `--api-key=` and a URL credential — are all masked before the ledger.
+- **Monitor observes without refusing; Enforce refuses again.**
+- **Requirement 5**: the refusals were _recorded_, not merely returned.
+
+**One of the two initial failures was the check, not the product**, and it is
+worth naming because it is the same trap as the layout test measuring the wrong
+edge. A path climbing out of a granted folder came back **escalated**, and the
+assertion demanded **blocked**. Escalation is the _correct_ default-deny outcome
+for a resource no rule mentions, and the check's own file accepts exactly that
+answer for an unlisted command twelve lines earlier. What must not happen is
+`ALLOWED`; the assertion now says so.
+
+### Finding 253: a folder grant on an absolute path writes two inert rules
+
+**The other failure was real.** Granting a folder by absolute path, with an
+exception inside it, produced `ALLOWED` for the exception — the path the grant
+exists to protect.
+
+**The mechanism.** `FolderGrantInput` carries a `cwd` field, documented in the
+type as _"Workspace root, so a relative path normalises the way the gate will
+read it"_. **Neither production caller passes it**: not
+`governance-dashboard-folder-grant.ts`, not
+`register.governance.policy.ts`. So `normalizeGovernedPath(folder, undefined)`
+falls back to the **process** cwd — wherever the Gateway or the operator's shell
+happens to be — while the gate normalises against the **agent's** workspace from
+`HookContext.cwd`.
+
+The grant writes `^C:/Users/…/projects/secrets(/|$)`. The gate asks about
+`projects/secrets/prod.key`. Neither the allowance nor the exception matches,
+and the agent is governed by neither.
+
+**The module's own header states the invariant this breaks**, which is what
+makes it a finding rather than a limitation:
+
+> Paths are normalised through the same function the gate uses, so what an
+> operator types and what the rule matches cannot disagree.
+
+They can disagree, because the function takes a second argument that decides the
+answer and no caller supplies it. **A parameter that exists precisely to keep
+two halves in agreement, with no production caller passing it** — the same shape
+as a capability with no affordance (239) and a type-level guard written in a
+test file, which is to say the thing is present and inert.
+
+**Why it is worse than an ordinary silent failure.** The panel lists the two
+rules back to the operator under _"Written as separate rules:"_, and that
+display exists on purpose, so that "these are ordinary rules you can remove one
+at a time" is demonstrated rather than claimed. Here it demonstrates a
+protection that is not in force. The operator does not get nothing; they get an
+authoritative-looking confirmation of nothing.
+
+**Relative paths work correctly**, which is both the mitigation and the reason
+this survived: the form's placeholder asks for one (_"e.g. src"_), the tests use
+one, and `work` + `work/secrets` behaves exactly as T32 promises — _"path
+`work/secrets/prod.key` is refused by a admin-tier deny rule (Exception to the
+grant on work: work/secrets)"_. Nothing that has ever been typed in testing took
+the broken path.
+
+**Not fixed, and deliberately.** The correct `cwd` at grant time is a design
+question rather than an oversight to patch: an agent-scoped grant could use that
+agent's workspace, but a **global** grant binds every agent, and those have
+different workspaces, so there is no single root to normalise against and an
+absolute path may be the only coherent expression — except that an absolute path
+is exactly what cannot match. Choosing between "resolve per agent", "refuse an
+absolute path at authoring time with an explanation", and "make the pattern
+position-independent the way the core rules are" is a product decision. **T54.**
+
+It is pinned in `gate-sweep.ts` as a check that asserts the **current** behaviour
+and says so in its own name, so that fixing it turns the check red and forces
+the comment to be revisited, rather than leaving a silent pass behind.
+
+**How it was found is the reusable part.** Not by reading `folder-grant.ts`,
+which has been read several times and whose comments are careful and correct
+about everything except this. By granting a folder and then _asking the gate_
+whether the exception held.
