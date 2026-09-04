@@ -10,9 +10,11 @@ import { mkdir } from "node:fs/promises";
 import { readJsonIfExists } from "../infra/json-files.js";
 import { isValidAgentId, normalizeAgentId } from "../routing/session-key.js";
 import { canonicalAccountName } from "./account-name.js";
+import { purgeAccountState } from "./account-purge.js";
 import { ADMIN_ACTIONS, recordAdminAction, type AuditActorInput } from "./admin-audit.js";
 import { withFileLock } from "./file-lock.js";
 import { newGovernanceId } from "./ids.js";
+import { forgetLoginThrottle } from "./login-throttle.js";
 import { hashPassword, needsRehash, verifyPassword } from "./password.js";
 import { INSTALLATION_LEDGER_GROUP } from "./paths.js";
 import { governanceHomeDir, usersFilePath } from "./paths.js";
@@ -960,12 +962,36 @@ export async function deleteUser(userId: string, actor: AuditActorInput): Promis
   if (!deleted) {
     return false;
   }
+  // **The account's name is now free, so everything held under it goes too.**
+  //
+  // Three stores key on the canonical username rather than on the id above:
+  // the escalation override, the conversation transcript and the login
+  // throttle. A username is released by this very write and can be claimed
+  // again immediately, so anything left behind stops describing a person and
+  // starts describing a name. Measured before the repair: a new account created
+  // with a released username read the previous holder's transcript in full.
+  //
+  // Before the record is written, not after, so the entry can state what the
+  // deletion actually removed. `purgeAccountState` throws rather than swallows,
+  // which is right: residue left here is not visible anywhere else, and a
+  // deletion that reports success while leaving a readable transcript is the
+  // failure this layer refuses to commit.
+  const purged = await purgeAccountState(
+    deleted.groupId ?? INSTALLATION_LEDGER_GROUP,
+    deleted.username,
+  );
   await recordAdminAction(deleted.groupId ?? INSTALLATION_LEDGER_GROUP, {
     actor,
     action: ADMIN_ACTIONS.userDelete,
     // Name and role are captured here because the account record is gone: after
-    // this point the ledger is the only place that says who existed.
-    target: `account ${deleted.username} (role ${deleted.role}) deleted`,
+    // this point the ledger is the only place that says who existed. The purge
+    // counts are here for the same reason and one more: destroying a transcript
+    // is itself an act worth recording, and the ledger is the only place left
+    // that can say it happened.
+    target:
+      `account ${deleted.username} (role ${deleted.role}) deleted` +
+      `, ${purged.conversationTurns} conversation turn(s) removed` +
+      (purged.hadAskOverride ? ", escalation override cleared" : ""),
     subjectId: userId,
   });
   return true;
@@ -1013,6 +1039,16 @@ export async function deleteGroupAccounts(
     return doomed.map(toRecord);
   });
   for (const account of removed) {
+    // The throttle only, not the full purge `deleteUser` runs.
+    //
+    // `organisation-deletion.ts` removes the group's directory wholesale a few
+    // steps after this, so the transcript store and the policy document go with
+    // it and purging them here would be work undone twice. The attempt table is
+    // the one thing that survives, because it is in memory and installation-wide
+    // rather than per organisation: without this, deleting an organisation and
+    // bootstrapping a new one leaves the new Root locked out at first login by
+    // the failures of a namesake in the organisation that no longer exists.
+    forgetLoginThrottle(account.username);
     // One entry per account, not one summary line, and into the organisation's
     // **own** chain, which the deletion retains. After this the ledger is the
     // only place that says these people existed, so it records them one by one

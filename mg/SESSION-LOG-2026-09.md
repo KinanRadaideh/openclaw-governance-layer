@@ -1241,3 +1241,180 @@ original was supposed to do.
 **That is the second time in one day the same mistake was made and caught the
 same way**, after the 254 probe that reported REFUSED before and after the fix.
 A test that passes is not evidence that it depends on anything.
+
+## 2026-09-05: the lifecycle axis, and what a released name inherits
+
+**Findings 256, 257, 258. One fixed, one fixed in the evidence rather than the
+product, one left open as a decision because it is one.**
+
+### The axis, and why it was the one left
+
+Every previous sweep sampled a **place**: modules drawn in fifths until the pool
+was exhausted, then capabilities drawn across the three surfaces, then the
+dashboard measured in a real browser, then the gate driven end to end. All of
+them ask _does this work?_ at a moment in time.
+
+Nothing had sampled **time**. What happens to state after the thing it describes
+is gone? That axis was picked because this layer identifies an account two
+different ways, and only one of them is stable:
+
+| Keyed by                   | What it holds                                                        |
+| -------------------------- | -------------------------------------------------------------------- |
+| An immutable minted `id`   | The account record in `users.json`                                   |
+| The **canonical username** | Root's escalation override, the agent transcript, the login throttle |
+
+A username is not stable. It is released the instant the account is deleted and
+can be claimed again by anyone, which is the ordinary way organisations allocate
+names. So the probe asks the operator's question rather than a module's: _an
+employee leaves, their account is deleted, a new starter is given the same
+username. What do they inherit?_
+
+`docs-notes/qa-sweep-2026-09-05/lifecycle-sweep.ts`, eight checks.
+
+### Finding 256: a released username carries the previous holder's state
+
+Measured, not reasoned about. Three of the eight checks failed on the first run:
+
+- **The agent transcript.** The new `jsmith` read the previous `jsmith`'s
+  prompts in full, beginning _"Draft the Q3 severance letter for the Ahmad
+  matter, confidential."_ That is a confidentiality leak across an account
+  boundary, and the boundary it crosses is the one §1.6 draws.
+- **Root's escalation override.** `resolveAskMode` returned `off` for the new
+  account: a governance judgement Root made about a specific person, still in
+  force over somebody who had never been assessed.
+- **The login lockout.** The new account met its predecessor's brute-force
+  lockout: refused at sign-in, for fifteen minutes, with nothing anywhere saying
+  why.
+
+Two things it does **not** do, checked in the same run and both correct: the
+deleted account's dashboard session stops verifying, and the username stops
+resolving to an account.
+
+**The repair is at the lifecycle owner, not at the three readers.** Every one of
+those three reads is correct on its own terms — each asks "what does this layer
+hold about the account called X?" and gets a true answer. What was missing is
+that nothing ever told them X had gone. The invalid state is created by the
+deletion, so `deleteUser` repairs it: a new `account-purge.ts` owns the
+invariant, and `deleteGroupAccounts` takes the throttle half of it, because
+organisation deletion removes the group's directory a few steps later and would
+otherwise leave a new Root locked out by a namesake in an organisation that no
+longer exists.
+
+**What is deliberately kept is the ledger**, and the tests assert it as a
+counterweight rather than leaving it implied. Every purged prompt was written to
+the audit chain when it was made; that record is requirement 8 and survives the
+account, exactly as organisation deletion already chooses. The deletion entry
+now also states what it destroyed — _"N conversation turn(s) removed, escalation
+override cleared"_ — because destroying a transcript is itself an act, and after
+the deletion the ledger is the only place that can say it happened.
+
+Nine tests in `src/governance/account-purge.test.ts`. **Eight go red with the
+repair removed; the ninth is the ledger counterweight and must pass either way.**
+
+### The test that could not fail, again
+
+The first draft of the transcript test asserted the conversation was empty after
+a purge — on an account that had never had a conversation. It passed against
+code that removed nothing at all. Rewritten to seed a real prompt through
+`promptAgent`, the production writer, first.
+
+The same thing happened to the probe: its throttle check drove three failures
+against a threshold of five, so it could not have detected the inheritance it
+was written to look for. **The third of the three symptoms above only appeared
+because that was fixed.** Two of the day's own checks, caught by the habit that
+caught three on 2026-09-04: break it on purpose and watch for red.
+
+### Finding 257: the previous sweep's ledger entries were attributed to nobody
+
+Found while writing the new tests, because `tsgo:core:test` rejected the same
+fixture shape. `AuditActorInput` is `string | { name, role? }`. The 2026-09-04
+feature sweep passes `{ actor: "kinan", actorRole: "root" }`, which has neither
+field, so `actor.name` is `undefined` and every entry it wrote recorded
+**`actor=unknown`**. It runs under `tsx`, which strips types without checking
+them, so nothing said so.
+
+Measured rather than asserted, in
+`docs-notes/qa-sweep-2026-09-05/actor-shape-probe.ts`:
+
+```
+account kinan created with role root              actor=bootstrap actorRole=-
+account old-shape created with role administrator actor=unknown   actorRole=-
+account new-shape created with role administrator actor=kinan     actorRole=root
+```
+
+**This is a defect in the evidence, not in the product.** None of that sweep's
+twenty checks asserted attribution, so its 20/20 stands. What it did not do is
+exercise the attribution path it appeared to. Worth recording because the
+handoff cites that run as evidence, and because it is the same lesson one level
+up: a probe that is not typechecked tests what you wrote, not what you meant.
+Both new probes use the real shape; `feature-sweep.ts` is corrected in place.
+
+### Finding 258: an agent id reused after deletion inherits the old agent's policy
+
+The same axis, one lifecycle over.
+`docs-notes/qa-sweep-2026-09-05/agent-lifecycle-sweep.ts`, five checks, three
+failed. Register `scout`, give it an agent-scoped **allow** on `/srv/payroll/**`,
+a `monitor` posture override and a lockdown; unregister it; register a new agent
+with the same id. The new agent arrives holding all three.
+
+The allow is the direction that matters: a surviving deny is only ever
+over-strict, a surviving allow is an exception granted to an agent nobody wrote
+it for. The lockdown is the operator-visible one: a brand-new agent that refuses
+everything because of a kill switch engaged for an agent that no longer exists.
+
+**This one is left open deliberately, and the reason is the premise.**
+`unregisterAgent` states in its own doc comment that rules, posture and lockdown
+survive it _on purpose_ — "the registry never owned those" — and for
+unregistration that is plainly right: the agent still exists on the host, so
+disarming its rules would be the dangerous direction. What that reasoning does
+not cover is **re-registration under a reused id**, where the id names a
+different agent. No test anywhere asserts that case, so it is unasserted
+behaviour rather than codified intent.
+
+Changing deletion semantics is a product decision rather than a repair, and it
+belongs to Kinan alongside T49 and T50. Recorded as **T55**.
+
+### What was run
+
+| Command                                  | Result                                            |
+| ---------------------------------------- | ------------------------------------------------- |
+| Governance suite, before the change      | 2,737 passed / 20 skipped across 150 files, green |
+| Governance suite, after                  | the figure re-derived in §1 of `HANDOFF.md`       |
+| `tsgo:core`, `tsgo:ui`, `tsgo:core:test` | clean                                             |
+| Host suites                              | 263 passed                                        |
+| oxlint over `src ui/src`                 | zero                                              |
+| Lifecycle sweep                          | 8/8 after the repair, 5/8 before                  |
+| Agent lifecycle sweep                    | 2/5, the three left open as T55                   |
+
+**One process note.** The first baseline run of the day exited `1` on a startup
+error, because `--reporter=basic` is not a reporter this vitest has. It looked
+exactly like a failing suite. The handoff's standing instruction — read the
+output, never the exit code alone — earned its place again.
+
+### The lint gate earned T50 its argument
+
+Worth recording because T50 is open and this is the first direct evidence for it.
+`node node_modules/oxlint/bin/oxlint --config .oxlintrc.json src ui/src`, the
+command §4's table names, exited **`0`** on this change. `node
+scripts/run-lint.mjs`, the type-aware gate, exited **`1`** on the same tree and
+named two errors in the day's own new code:
+
+```
+src/governance/user-store.ts:994:8  no-unnecessary-template-expression
+src/governance/account-purge.test.ts:198:30  no-unnecessary-type-conversion
+```
+
+Neither is a defect in behaviour, and that is rather the point: they are exactly
+the class the type-aware rules exist to catch and the plain invocation
+structurally cannot. **`git-hooks/pre-commit` runs the plain one** (finding 237),
+so had this been committed the way the hook allows, both would have landed.
+Fixed; the gate now exits `0` end to end, and the suite is unchanged at
+2,746 / 151.
+
+**One more instance of the same lesson, made while checking this.** `tsgo -p
+tsconfig.core.json` was run while the lint gate was still going and failed on
+`mkdir .git/openclaw-local-checks/heavy-check.lock` — a lock collision, not a
+type error. It was reported as `[tsgo] FAILED (exit 1)` and an `echo` on the
+same line printed "core clean" underneath it, because `echo` succeeds whatever
+came before. **Run one at a time, and read the output rather than the line after
+it** — §4 says both, and both were broken in one command.

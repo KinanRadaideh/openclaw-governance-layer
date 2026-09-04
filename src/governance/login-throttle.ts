@@ -201,6 +201,25 @@ export function recordLoginSuccess(key: string): void {
   attempts.delete(key);
 }
 
+/**
+ * Drops whatever this table holds about a username, because the account that
+ * owned it is gone.
+ *
+ * Separate from `recordLoginSuccess` despite doing the same thing to the map,
+ * and deliberately: that one means "this person proved who they are", this one
+ * means "there is no longer a person here". They happen to coincide today and
+ * there is no reason they must, so the deletion path says what it means rather
+ * than borrowing a success it did not have.
+ *
+ * A username is released when its account is deleted and can be claimed again
+ * immediately. A lockout left behind outlives the person it was counted
+ * against, and the next holder of the name meets it as a refusal to sign in
+ * with nothing anywhere explaining why.
+ */
+export function forgetLoginThrottle(username: string): void {
+  attempts.delete(loginThrottleKey(username));
+}
+
 /** Test-only reset so suites do not leak throttle state into each other. */
 export function resetLoginThrottle(): void {
   attempts.clear();

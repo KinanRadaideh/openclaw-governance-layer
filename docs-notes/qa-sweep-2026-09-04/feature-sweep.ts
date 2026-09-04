@@ -52,6 +52,15 @@ async function main(): Promise<void> {
   const { canWritePolicy, canManageAgent, canManageGlobalPolicy } =
     await import("../../src/governance/permissions.ts");
   const { ledgerFilePath } = await import("../../src/governance/paths.ts");
+  // Finding 257 (2026-09-05): the audit actors below were written as
+  // `{ actor, ... }`, which is not the `AuditActorInput` shape
+  // (`string | { name, role? }`), so `actor.name` was undefined and every
+  // entry this sweep wrote recorded `actor=unknown`. tsx strips types
+  // without checking them, so nothing said so. None of the twenty checks
+  // asserted attribution, so the 20/20 stands; what it did not do is
+  // exercise the attribution path it appeared to. Measured in
+  // `../qa-sweep-2026-09-05/actor-shape-probe.ts`.
+  const { BOOTSTRAP_ACTOR } = await import("../../src/governance/admin-audit.ts");
 
   // ── 1. Accounts and the four tiers ─────────────────────────────────────
   // Every account belongs to a group, Root included, and creating a Root is
@@ -59,11 +68,11 @@ async function main(): Promise<void> {
   const groupId = newGroupId();
   const root = await createUser(
     { username: "kinan", password: "correct-horse-battery", role: "root", groupId },
-    { actor: "bootstrap" },
+    BOOTSTRAP_ACTOR,
   );
   const admin = await createUser(
     { username: "mohammad", password: "another-good-password", role: "administrator", groupId },
-    { actor: "kinan", actorRole: "root" },
+    { name: "kinan", role: "root" },
   );
   const user = await createUser(
     {
@@ -74,7 +83,7 @@ async function main(): Promise<void> {
       managedBy: admin.id,
       assignedAgents: ["scout"],
     },
-    { actor: "mohammad", actorRole: "administrator" },
+    { name: "mohammad", role: "administrator" },
   );
   const viewer = await createUser(
     {
@@ -84,7 +93,7 @@ async function main(): Promise<void> {
       groupId,
       managedBy: admin.id,
     },
-    { actor: "mohammad", actorRole: "administrator" },
+    { name: "mohammad", role: "administrator" },
   );
   check(
     "four tiers can be created, one Root per installation",
@@ -96,7 +105,7 @@ async function main(): Promise<void> {
   try {
     await createUser(
       { username: "impostor", password: "yet-another-password", role: "root", groupId },
-      { actor: "kinan", actorRole: "root" },
+      { name: "kinan", role: "root" },
     );
   } catch (err) {
     secondRootRefused = true;
@@ -180,7 +189,7 @@ async function main(): Promise<void> {
   // ── 4. The policy document ─────────────────────────────────────────────
   await registerAgent(
     { id: "scout", displayName: "Scout", groupId, adminId: admin.id },
-    { actor: "mohammad", actorRole: "administrator" },
+    { name: "mohammad", role: "administrator" },
   );
   const shipped = await loadPolicy(groupId);
   const coreDenials = shipped.rules.filter((r) => r.tier === "core" && r.effect === "deny");
@@ -198,17 +207,17 @@ async function main(): Promise<void> {
   const ordinary = coreDenials.find((r) => !selfProtecting.includes(r));
   try {
     await setCoreRuleEnabled(groupId, selfProtecting[0]!.id, false, {
-      actor: "kinan",
-      actorRole: "root",
+      name: "kinan",
+      role: "root",
     });
   } catch {
     selfProtectingRefused = true;
   }
   if (ordinary) {
-    await setCoreRuleEnabled(groupId, ordinary.id, false, { actor: "kinan", actorRole: "root" });
+    await setCoreRuleEnabled(groupId, ordinary.id, false, { name: "kinan", role: "root" });
     const after = await loadPolicy(groupId);
     ordinaryCoreSwitchedOff = !after.rules.some((r) => r.id === ordinary.id);
-    await setCoreRuleEnabled(groupId, ordinary.id, true, { actor: "kinan", actorRole: "root" });
+    await setCoreRuleEnabled(groupId, ordinary.id, true, { name: "kinan", role: "root" });
   }
   check(
     "Root may switch off an ordinary core denial and not a self-protecting one (T24)",
@@ -219,10 +228,10 @@ async function main(): Promise<void> {
   const added = await addRule(
     groupId,
     { resourceKind: "command", pattern: "^ls( .*)?$", effect: "allow", agentId: "scout" },
-    { actor: "mohammad", actorRole: "administrator" },
+    { name: "mohammad", role: "administrator" },
   );
   const withRule = await loadPolicy(groupId);
-  await removeRule(groupId, added.id, { actor: "mohammad", actorRole: "administrator" });
+  await removeRule(groupId, added.id, { name: "mohammad", role: "administrator" });
   const withoutRule = await loadPolicy(groupId);
   check(
     "an operator rule can be added and removed",

@@ -316,6 +316,45 @@ export async function readConversation(
   );
 }
 
+/**
+ * Drops every transcript belonging to one account, across all of its agents.
+ *
+ * Called when the account is deleted. A conversation is keyed by the canonical
+ * **username**, which the account releases on deletion and which anybody may
+ * claim afterwards; the account record itself is keyed by an immutable minted
+ * id. So without this the store answers a question about a name rather than
+ * about a person, and the next holder of `jsmith` opens the agent panel onto
+ * the previous holder's prompts.
+ *
+ * **The ledger is not touched and must not be.** Every prompt in here was also
+ * recorded there at the moment it was made, which is what requirement 8 is
+ * about; this store is the readable copy the dashboard renders. Removing the
+ * transcript with the account keeps the convenience copy honest about whose it
+ * is, while the tamper-evident record of what was asked stays exactly where the
+ * audit requirement put it.
+ *
+ * Returns the number of turns removed so the caller can record the destruction
+ * as an outcome rather than performing it silently.
+ */
+export async function forgetAccountConversations(
+  groupId: string,
+  username: string,
+): Promise<number> {
+  await ensureHomeDir(groupId);
+  const key = conversationKey(username);
+  return await withFileLock(conversationsFilePath(groupId), async () => {
+    const file = await readConversations(groupId);
+    const doomed = file.conversations.filter((entry) => entry.username === key);
+    if (doomed.length === 0) {
+      return 0;
+    }
+    const turns = doomed.reduce((total, entry) => total + entry.turns.length, 0);
+    file.conversations = file.conversations.filter((entry) => entry.username !== key);
+    await writeGovernanceJson(conversationsFilePath(groupId), file);
+    return turns;
+  });
+}
+
 export type PromptOutcome = {
   ok: boolean;
   runId: string;

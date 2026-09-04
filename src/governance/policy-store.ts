@@ -770,6 +770,30 @@ export async function setUserAskMode(
 }
 
 /**
+ * Drops Root's escalation override for one account name, reporting whether
+ * there was one.
+ *
+ * Separate from `setUserAskMode(..., undefined, ...)`, which is the operator
+ * action "clear this person's override" and writes its own ledger entry for it.
+ * This is part of deleting the account, where a second entry saying an
+ * escalation setting changed would describe an act nobody performed, and where
+ * the caller wants the fact folded into the deletion record instead.
+ *
+ * The override is keyed by canonical username, and a username is released when
+ * its account is deleted. Left in place it becomes Root's judgement about one
+ * person applied to whoever is given that name next.
+ */
+export async function clearUserAskOverride(groupId: string, username: string): Promise<boolean> {
+  const key = canonicalAccountName(username);
+  let had = false;
+  await updatePolicy(groupId, (doc) => {
+    had = Object.hasOwn(doc.userAsk, key);
+    delete doc.userAsk[key];
+  });
+  return had;
+}
+
+/**
  * Switches one agent's posture, used to enable `monitor` for observation.
  *
  * Passing `undefined` clears the override so the agent follows the

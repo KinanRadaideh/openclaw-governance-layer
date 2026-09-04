@@ -34,8 +34,8 @@ same person after a break. Everything else in `mg/` is detail beneath this.
 >   gate is the single most valuable artefact it can produce, because nothing in
 >   this project has ever had a real model behind it.
 > - **Built, verified, deployed; still never demonstrated.** Eight of nine design
->   requirements fully met. **2,737 passed and 20 skipped across 150 file runs,
->   green on Windows** (re-measured 2026-09-04, after the parity sweep), **seven**
+>   requirements fully met. **2,746 passed and 20 skipped across 151 file runs,
+>   green on Windows** (re-measured 2026-09-05, after finding 256's repair), **seven**
 >   verification commands, all green. The seventh is new, and it is finding 250:
 >   the six that stood here could not see a layout defect, and the first of them
 >   looked as though it could. **No security gap known _as of the
@@ -257,7 +257,79 @@ you actually want" is more use to him than doing it.
 
 ## 1. The one-paragraph state of things
 
-### 2026-09-04 (latest): the dashboard measured, a path with two names, and the checks that had never run
+### 2026-09-05 (latest): the lifecycle axis, and a name that outlived its owner
+
+**Findings 256–259 came from asking a question about time rather than about
+place.** One fixed, one fixed in the evidence rather than in the product, one
+left open as a decision, one a count in this very file.
+
+**The finding to read is 256, and the sentence that matters is one line of a
+transcript.** This layer identifies an account two ways: the record in
+`users.json` is keyed by an immutable minted `id`, while Root's escalation
+override, the agent transcript and the login throttle are all keyed by the
+**canonical username**. A username is not immutable. It is released the instant
+the account is deleted and can be claimed again by anyone, which is exactly how
+organisations allocate names. So a departing `jsmith` was deleted, a new starter
+was given the same username, and the new account **read the previous holder's
+agent transcript in full**, beginning _"Draft the Q3 severance letter for the
+Ahmad matter, confidential."_ It also inherited Root's escalation judgement
+about the previous person, and their brute-force lockout — refused at sign-in
+for fifteen minutes with nothing saying why.
+
+Fixed at the lifecycle owner rather than at the three readers, because each of
+those reads is correct on its own terms and the thing missing was that nobody
+told them the account had gone: `account-purge.ts`, called from `deleteUser`,
+with the throttle half also called from `deleteGroupAccounts`. **The ledger is
+deliberately kept**, and there is a test asserting it, because every purged
+prompt was written to the audit chain when it was made and that record is
+requirement 8. The deletion entry now names what it destroyed, since destroying
+a transcript is itself an act and afterwards the ledger is the only thing that
+can say it happened.
+
+**Nine tests, and eight of them go red with the repair removed.** The ninth is
+the ledger counterweight and must pass either way.
+
+**Two of the day's own checks could not have failed, and both were caught the
+same way.** The first draft of the transcript test asserted an empty
+conversation on an account that never had one; the probe's throttle check drove
+three failures against a threshold of five. **The third symptom above only
+exists because the second of those was fixed.** That is the third consecutive
+working day on which this project has caught a test proving nothing, and the
+habit that catches it is always the same: break it on purpose and check that
+something goes red.
+
+**258 is left open on purpose and is now T55.** The same axis, one lifecycle
+over: an agent id reused after deletion inherits the previous agent's
+agent-scoped rules — including an **allow** — its posture override and its
+lockdown. `unregisterAgent` documents that survival as deliberate, and for
+unregistration it plainly is, because the agent still exists on the host. What
+that reasoning does not cover is re-registration under a reused id, and no test
+asserts that case, so it is unasserted rather than intended. Changing deletion
+semantics is a product decision like T49 and T50, not a repair, so it is Kinan's.
+
+**257 is a defect in the evidence rather than in the product, and it touches a
+claim this file makes.** The 2026-09-04 feature sweep passes
+`{ actor: "kinan", actorRole: "root" }` as its audit actor. The type is
+`string | { name, role? }`, so that object has neither field and every ledger
+entry that sweep wrote recorded **`actor=unknown`**; it runs under `tsx`, which
+strips types without checking them. None of its twenty checks asserted
+attribution, so **the 20/20 stands** — what it did not do is exercise the
+attribution path it appeared to. The fixture is corrected and the sweep still
+passes 20/20 with real actors.
+
+**259 is the backlog count in the table below, and it was wrong before anything
+was added to it.** Counted from the rows rather than carried forward: **41
+struck, not 42**, and **13 open rather than 11**, because T13 appears twice —
+struck where the drafting was recorded, open where the reading still is — and
+the summary had taken the struck row. This is finding 227's shape for the fourth
+time in this file, so the rule is repeated rather than the number: **count the
+rows.** The derivation is a dozen lines of script and takes a minute.
+
+**Nothing else moved.** No new capability, no schema change, no migration.
+Production lines added are all in the repair and its two primitives; the rest is
+tests and probes.
+
+### 2026-09-04: the dashboard measured, a path with two names, and the checks that had never run
 
 **The longest single day of findings this project has had: 241–255.** All
 closed. Two are security-relevant and one of those is the most serious kind
@@ -330,15 +402,15 @@ adding the unsafe `..` spelling turns the safety assertion red.
 
 **Measurements, all 2026-09-04, all re-derived rather than repeated:**
 
-|                  |                                                                                                                                 |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Governance suite | **2,757 across 150 file runs** (2,737 passed + 20 skipped). The 20 are by design: 15 need a layout engine, 5 are platform skips |
-| Browser project  | **22 files / 198 tests**, the seventh command                                                                                   |
-| Feature sweep    | 20/20 (`docs-notes/qa-sweep-2026-09-04/feature-sweep.ts`)                                                                       |
-| Gate sweep       | 17/17 (`gate-sweep.ts`)                                                                                                         |
-| Surface parity   | 46 route/method pairs (`surface-parity.mjs`)                                                                                    |
-| Backlog          | 54 items, 42 struck, T1 not being done, **11 open**                                                                             |
-| Defects          | **255 found, 253 fixed**, 157 withdrawn, 169 open as an observation                                                             |
+|                  |                                                                                                                                                                                                                                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Governance suite | **2,766 across 151 file runs** (2,746 passed + 20 skipped), re-measured 2026-09-05 after finding 256's repair. It was 2,757 across 150 on 2026-09-04; the delta is exactly the nine tests in `account-purge.test.ts`. The 20 skipped are by design: 15 need a layout engine, 5 are platform skips |
+| Browser project  | **22 files / 198 tests**, the seventh command                                                                                                                                                                                                                                                     |
+| Feature sweep    | 20/20 (`docs-notes/qa-sweep-2026-09-04/feature-sweep.ts`)                                                                                                                                                                                                                                         |
+| Gate sweep       | 17/17 (`gate-sweep.ts`)                                                                                                                                                                                                                                                                           |
+| Surface parity   | 46 route/method pairs (`surface-parity.mjs`)                                                                                                                                                                                                                                                      |
+| Backlog          | **55 items, 41 struck, T1 not being done, 13 open.** Re-derived from the rows 2026-09-05, finding 259: this cell read "54 items, 42 struck … 11 open" and was wrong in both directions before T55 existed                                                                                         |
+| Defects          | **259 found, 256 fixed**, 157 withdrawn, and **two open**: 169 as an unexplained observation, 258 as a decision (T55)                                                                                                                                                                             |
 
 **What is left is unchanged and is still mostly yours.** T2 remains the highest
 value thing in the project: a real model, refused. T47's plan is now written and
@@ -2393,7 +2465,7 @@ Expected, and **every row below re-measured on 2026-08-27** (the table said
 
 | Command                  | Expected                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Governance suite         | **2,757 across 150 file runs (2,737 passed + 20 skipped), re-measured 2026-09-04 on Windows**, after the parity sweep. It was 2,732/149 earlier that day after T52, 2,701/146 on 2026-09-03 after the twelfth and thirteenth sweeps, 2,695/145 before them, and 2,684/144 on 2026-09-02. **The 20 skipped are not a warning and reading them as one wastes an hour**: 15 belong to `governance-textbox-fit.browser.test.ts`, which needs a layout engine and is skipped by design in this jsdom config (finding 250), and the other 5 are the pre-existing platform skips. To actually run those 15, see the seventh verification command in §4. **Run this one from a POSIX shell or use the PowerShell form above, and check the file count rather than the exit code**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Governance suite         | **2,766 across 151 file runs (2,746 passed + 20 skipped), re-measured 2026-09-05 on Windows**, after finding 256's repair. It was 2,757/150 on 2026-09-04 after the parity sweep. It was 2,732/149 earlier that day after T52, 2,701/146 on 2026-09-03 after the twelfth and thirteenth sweeps, 2,695/145 before them, and 2,684/144 on 2026-09-02. **The 20 skipped are not a warning and reading them as one wastes an hour**: 15 belong to `governance-textbox-fit.browser.test.ts`, which needs a layout engine and is skipped by design in this jsdom config (finding 250), and the other 5 are the pre-existing platform skips. To actually run those 15, see the seventh verification command in §4. **Run this one from a POSIX shell or use the PowerShell form above, and check the file count rather than the exit code**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `tsgo:core`              | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `tsgo:ui`                | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Host suites (both)       | **263 passed, 0 failed**, re-run 2026-09-02, exact match. **263 = 192 (`native-hook-relay.test.ts`) + 71 (`host-hooks.contract.test.ts`)**; older notes below quote the 192 alone and are not contradicting this row                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
@@ -3195,10 +3267,10 @@ backwards when the language stops being allow-only. Report material:
 
 **Two lists, and they are different kinds of thing.**
 
-| List                                                    | What it is                                                    | State                                                              |
-| ------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `REMAINING-WORK.md` §"The numbered backlog", **T1–T53** | The original project, plus everything added since             | **39 done, 12 open**; T1 and T41 not being done (39 + 12 + 2 = 53) |
-| `REMAINING-WORK.md` §"The M-series", **M1–M6**          | A multi-tenancy feature requested 2026-08-24 and added on top | **COMPLETE** (6 of 6)                                              |
+| List                                                    | What it is                                                    | State                                                                                                                                                                                                                                                                            |
+| ------------------------------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `REMAINING-WORK.md` §"The numbered backlog", **T1–T55** | The original project, plus everything added since             | **41 struck, 14 open** (41 + 14 = 55). T1 is open but not being done; T41 was cancelled and is struck. Re-derived from the rows 2026-09-05, finding 259: this cell read "T1–T53 … 39 done, 12 open" while §1 read "54 items, 42 struck … 11 open", and neither matched the table |
+| `REMAINING-WORK.md` §"The M-series", **M1–M6**          | A multi-tenancy feature requested 2026-08-24 and added on top | **COMPLETE** (6 of 6)                                                                                                                                                                                                                                                            |
 
 ### ~~Step 0: before any of the below: commit~~ **Done 2026-09-02**
 
@@ -3777,6 +3849,47 @@ Stated here so they are not discovered late.
     governance directory as the agent's workspace, which no installation does.
     **A defect in the most protected part of the system reached daylight through
     a test fixture's convenience.**
+
+17. **An account's name outlived the account, and carried three things with it**
+    (finding 256, 2026-09-05, fixed). Here for the same reason 16 is: if you are
+    asked "has one account ever been able to see another's data?", the answer
+    should not need a search.
+
+    **The exposure.** An account record is keyed by an immutable minted `id`.
+    Root's escalation override, the agent transcript and the login throttle are
+    keyed by the **canonical username**, which the account releases on deletion
+    and which anybody may claim next — `jsmith` leaves, a new `jsmith` starts,
+    which is how organisations allocate names. Measured end to end: the new
+    account read the previous holder's agent transcript in full, inherited
+    Root's escalation judgement about the previous person, and met their
+    brute-force lockout at sign-in with nothing saying why.
+
+    **What it is and is not.** It is a confidentiality leak across the account
+    boundary §1.6 draws, and the leaked content is whatever the previous holder
+    typed to their agent. It is **not** a privilege escalation: the new account
+    gains no authority it was not granted, and creating an account is Root's act
+    in the first place, so nobody reaches this without already being trusted to
+    make accounts. The realistic harm is an administrator handing a new starter
+    a name and unknowingly handing them a predecessor's conversation.
+
+    **The repair, and why it is where it is.** All three reads were correct on
+    their own terms — each asks "what does this layer hold about the account
+    called X?" and gets a true answer. What was missing is that nothing told
+    them X had gone. So the repair is at the lifecycle owner, `deleteUser`, in a
+    module that owns the invariant (`account-purge.ts`), rather than three
+    consumers each learning to distrust their own key.
+
+    **The ledger is deliberately kept and there is a test asserting it.** Every
+    purged prompt reached the audit chain when it was made; that record is
+    requirement 8 and must survive the account, exactly as organisation deletion
+    already chooses. The deletion entry now names what it destroyed, because
+    destroying a transcript is itself an act.
+
+    **What to say about it.** This is the same shape as 254 one identifier over:
+    the code was right about the question it was asking, and the question was
+    the wrong one. Two things that must agree, derived from one intention rather
+    than one definition — which is this project's most-repeated defect, and the
+    reason the sweep that found it sampled **time** rather than place.
 
 ---
 
