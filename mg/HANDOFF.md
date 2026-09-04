@@ -1,26 +1,34 @@
 # Handoff: read this first
 
-**Written 2026-08-19. Current as of 2026-09-02.** The single entry point for
+**Written 2026-08-19. Current as of 2026-09-04.** The single entry point for
 whoever picks this project up next, whether a teammate, a supervisor, or the
 same person after a break. Everything else in `mg/` is detail beneath this.
 
 > ## Start here
 >
 > **Read §1 for the state, §6 for what is left, §7 for the caveats.** If you have
-> five minutes, read §1's **2026-09-02 (latest)** entry alone, and if you are
-> about to install this on the VPS, read the **VPS trip** checklist in §1 as
-> well, which lists what to capture at each step and why each artefact matters.
+> five minutes, read §1's **2026-09-04 (latest)** entry alone.
+>
+> **If you are going to the VPS**, read two things in §1: **"Updating the VPS to
+> the current build"**, which is the four commands that get this build onto the
+> server and the five steps after it, and the **VPS trip** checklist, which
+> lists what to capture at each step and why each artefact matters.
 >
 > ### Where things stand
 >
-> - **The next thing that happens is the VPS.** Everything below is preparation
->   for it. The install path, the Kimi configuration and a rehearsal script are
+> - **The next thing that happens is T2: a real model, refused.** The fork is
+>   already deployed and running on the VPS; a Root account exists; the
+>   dashboard has been used. What has never happened is a language model
+>   deciding to make a tool call and being stopped by this gate. Update the
+>   server first (§1, "Updating the VPS to the current build"), then create an
+>   Administrator, then an agent, then the credential, then the run. Everything
+>   below is preparation for it. The install path, the Kimi configuration and a rehearsal script are
 >   ready and are described in §1's newest entry; **requirement 9 is the one row
 >   that trip changes**, and the ledger entry showing a live model refused by the
 >   gate is the single most valuable artefact it can produce, because nothing in
 >   this project has ever had a real model behind it.
-> - **Built and verified; still never demonstrated.** Eight of nine design
->   requirements fully met. **2,701 tests across 146 file runs, green on Windows**
+> - **Built, verified, deployed; still never demonstrated.** Eight of nine design
+>   requirements fully met. **2,732 tests across 149 file runs, green on Windows**
 >   (2026-09-03, after the thirteenth sweep), six verification commands, all green. **No security gap known _as of the
 >   thirteenth sweep_, and read that qualifier**, because the same sentence was true
 >   and wrong on each of the five previous days, the seventh and ninth sweeps
@@ -31,9 +39,9 @@ same person after a break. Everything else in `mg/` is detail beneath this.
 >   attach, not a reason to drop it.
 > - **The engineering on the backlog is finished, and that is not the same as
 >   "no bugs left".** Thirteen sweeps, the VPS deployment and one conflict between
->   two sections of this file, across 2026-09-01/03, found **sixty-seven defects
->   between them (172–238), nineteen security-relevant and two more latent. All
->   sixty-seven are closed.** The last three came from a **clean server** rather
+>   two sections of this file, and one operator using the dashboard, across
+>   2026-09-01/04, found **sixty-nine defects between them (172–240), nineteen
+>   security-relevant and two more latent. All sixty-nine are closed.** The last three came from a **clean server** rather
 >   than from reading, and are the argument for T47: three defects in the
 >   deployment path in one evening, on the first machine that had never run any
 >   of this. They include a cross-tenant hole an earlier round had already
@@ -200,7 +208,57 @@ you actually want" is more use to him than doing it.
 
 ## 1. The one-paragraph state of things
 
-**Current as of 2026-09-02.** The governance layer is **built and verified, and
+### 2026-09-04 (latest): the dashboard, driven by the person using it
+
+**The state in one line: built, verified, deployed, and still not
+demonstrated.** The fork runs on a Contabo VPS as a systemd user service behind
+an SSH tunnel; a Root account exists; what has still never happened is a real
+model deciding to make a tool call and being refused. That is **T2**, and it is
+still the most valuable remaining item by a wide margin.
+
+**What changed on 2026-09-04.** Kinan signed in as Root and started using the
+dashboard, which found two defects nothing else could have:
+
+- **239**: the create-agent form offered no way to name an owning
+  Administrator. Root filled it in, pressed the button, and was **correctly**
+  refused with nothing on screen to act on. Every other surface had the
+  capability: the route has taken `adminId` since M6, the CLI has had `--owner`
+  for as long, and the panel's own props carried `administrators` annotated
+  _"for Root's owner picker"_. There was no picker. **Fourth time this project
+  has shipped a working route with no affordance.**
+- **240**: placeholders clipped mid-word, and the "Create account" button
+  rendered outside the visible edge. Fixed both ways it can be fixed: widen
+  where there is room, and give any clipped box a hover tooltip where there is
+  not.
+
+**Nine things were also asked for and built**: a page title, description and
+Learn more matching Privacy & Security and pointing at this repository;
+Accounts moved to the top, the kill switch below Active agent sessions,
+Deployment last; a section jump-nav that reads the rendered page so it cannot
+link a tier to a section it does not get; the approval timeout widened to
+Administrator **and** given a per-agent axis at the User floor; 7,983 em dashes
+removed from the 234 files this fork wrote; and a README describing this project
+rather than upstream.
+
+**Verified and pushed.** Governance suite **2,732 across 149 file runs**, host
+suites 263/0, all three typechecks clean, six real-Chromium text-box tests, and
+the full lint gate green across 23 shards plus stylelint.
+`personal/governance-layer` is at HEAD with a clean tree.
+
+> **The gate refused this work three times, every time on the new code**: six
+> promise-executor returns, an array sort, and five files over the 700-line
+> limit. Four were split rather than suppressed. `governance-page.ts` carries a
+> **scoped exception with its reasoning written into it** and is **T53**. That
+> is the second session running in which the repaired gate (finding 233) caught
+> defects nothing else saw.
+
+**If you are picking this up cold, the next thing to do is T2**, and §"Updating
+the VPS" below is how to get this build onto the server first.
+
+---
+
+**Current as of 2026-09-02, kept because the detail below it has not been
+re-derived.** The governance layer is **built and verified, and
 still not demonstrated.** Eight of the nine design requirements are fully met;
 the ninth (Linux deployment) is tested but never deployed. **2,653 automated
 tests pass across 138 files** (measured 2026-09-02 on Windows, after the sixth
@@ -305,6 +363,69 @@ count paragraph has duplicated itself twice under scripted edits.
 outstanding is stale. The old letters (A-, B-, F-, R5, G) survive only as a
 `Ref` column pointing at their historical write-ups; nothing is orphaned.
 
+### Updating the VPS to the current build
+
+**The server has an older checkout.** Everything since it was installed, the
+2026-09-03 fixes and the whole 2026-09-04 dashboard pass, is on
+`personal/governance-layer` and not on the box. Four commands, from inside the
+clone:
+
+```bash
+cd /opt/openclaw-governance
+git pull
+./scripts/vps-install.sh
+openclaw daemon restart
+```
+
+`vps-install.sh` is idempotent and is the supported way to update: it reinstalls
+dependencies, rebuilds **including the dashboard**, and re-runs the 14-check
+platform probe, failing the update if any check fails.
+
+**The rebuild is not optional and the dashboard is the reason.** Finding 230 was
+the Control UI silently not building for a day; the governance changes in this
+build are almost entirely dashboard changes, so a `git pull` without a rebuild
+leaves the server serving the old page while reporting a new commit.
+
+**Then restart the service.** The Gateway holds compiled code in memory, so
+until it restarts it is still running the build from before the pull.
+
+Three checks, in this order, and each answers a different question:
+
+```bash
+openclaw daemon status          # is it running at all?
+openclaw governance deployment  # does the live install match the design?
+openclaw governance policy show # is the governance layer the thing serving?
+```
+
+`policy show` answering **"Not signed in."** rather than "unknown command" is
+the proof the fork is what is deployed. Then open the tunnel and confirm the
+page: the Governance tab should now show a red-orange **"Governance"** title, a
+**Sections** list down the side, **Accounts** first, and the create-agent form
+should offer an **Owning Administrator** dropdown.
+
+> **If the pull touches `package.json` or the lockfile**, the installer handles
+> it. If it fails on Node not being found, that is finding 231 and the fix is in
+> `docs-notes/LINUX-INSTALL.md` §2c. If `daemon restart` reports the unit does
+> not exist, that is finding 232 and the two exports in §2c are the answer.
+
+**What to do after the update, in order.** This is T2, and the server is now the
+only place it can happen:
+
+1. **Create an Administrator account** in the Accounts panel. Root cannot own an
+   agent, so nothing else works until this exists. The create-agent form now
+   says so rather than failing after the fact.
+2. **Create an agent**, choosing that Administrator as its owner.
+3. **Paste the Kimi credential**: `openclaw models auth paste-api-key --provider
+moonshot`, then `openclaw models set moonshot/kimi-k2`. Use `paste-api-key`
+   rather than an environment variable, because systemd does not read your shell
+   profile.
+4. **Rehearse**: `pnpm exec tsx scripts/governance-demo-rehearsal.mjs`, 20 checks.
+5. **Prompt the agent to read a credential file.** That refusal, and its ledger
+   entry, is the demonstration and the single most valuable artefact this
+   project can produce. `docs-notes/T2-LIVE-RUN.md` is the script for it.
+
+---
+
 ### The VPS trip: the order to do it in, and what to keep
 
 **Written 2026-09-02, for the first real deployment.** Full detail is in
@@ -345,7 +466,7 @@ it on for a demonstration would introduce the single stated enforcement gap into
 the run you are using as evidence. `governance backend status` should say
 `disabled (nobody has decided; the safe default stands)`.
 
-### 2026-09-03 (latest): the fork is on a server, and a cold machine found three defects
+### 2026-09-03: the fork is on a server, and a cold machine found three defects
 
 **The project left this laptop.** The fork is installed on a Contabo VPS from a
 clean Ubuntu 24.04 image, built from source, running as a systemd user service
@@ -1754,6 +1875,7 @@ The work now exists in three places rather than one.
 | File                              | What it gives you                                                                                                                                                                                                 |
 | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `docs-notes/FIRST-RUN.md`         | **Read this first if you have never seen the project.** What the layer is, how to tell the fork from stock OpenClaw in one command, and the shortest path from a clean machine to a governed agent (T45)          |
+| `README.md`                       | Rewritten 2026-09-04 for this project: what OpenClaw is, what the layer adds and how, and install directions that say it is built for Linux. The shortest thing to hand somebody who asks what this is            |
 | `mg/HANDOFF.md`                   | This file. State, next actions, how to verify                                                                                                                                                                     |
 | `mg/PROJECT-SUMMARY.md`           | What the project _is_. Problem, design, where every file lives                                                                                                                                                    |
 | `mg/REMAINING-WORK.md`            | **Two backlogs.** §"The numbered backlog" (T1–T44) is the project; §"The M-series" (M1–M6, **complete**) is the multi-tenancy feature added on top. Everything below them is history                              |
@@ -2066,7 +2188,7 @@ Expected, and **every row below re-measured on 2026-08-27** (the table said
 
 | Command                  | Expected                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Governance suite         | **2,701 across 146 file runs (2,696 passed + 5 skipped). Measured 2026-09-03 on Windows**, after the twelfth and thirteenth sweeps. It was 2,695/145 earlier the same day (eleventh sweep), 2,690/145 (tenth) and 2,684/144 on 2026-09-02. The **+6 tests and +1 file** are findings 234 and 235: three in a new `cli-account-group-scope.test.ts` and three appended to `prompt-runs.test.ts`. Two of each three fail under deliberate mutation of the guard they cover; the third of each is the positive control, which passes under mutation on purpose. **Run it from a POSIX shell or use the PowerShell form above, and check the file count, not just the exit code**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Governance suite         | **2,732 across 149 file runs (2,721 passed + 11 skipped), measured 2026-09-04 on Windows**, after T52. It was 2,701/146 on 2026-09-03 after the twelfth and thirteenth sweeps, 2,695/145 before them, and 2,684/144 on 2026-09-02. The **+31 tests and +3 files** are T52: `governance-ui-changes.test.ts` (12, the page title, section order, owner picker and jump-nav), `agent-hitl-timeout.test.ts` (9, the per-agent escalation window), and `governance-textbox-fit.browser.test.ts` (6, real Chromium), plus four rewritten assertions in the existing panel suites. **Run it from a POSIX shell or use the PowerShell form above, and check the file count rather than the exit code**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `tsgo:core`              | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `tsgo:ui`                | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Host suites (both)       | **263 passed, 0 failed**, re-run 2026-09-02, exact match. **263 = 192 (`native-hook-relay.test.ts`) + 71 (`host-hooks.contract.test.ts`)**; older notes below quote the 192 alone and are not contradicting this row                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
@@ -2870,7 +2992,7 @@ backwards when the language stops being allow-only. Report material:
 
 | List                                                    | What it is                                                    | State                                                              |
 | ------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `REMAINING-WORK.md` §"The numbered backlog", **T1–T51** | The original project, plus everything added since             | **38 done, 11 open**; T1 and T41 not being done (38 + 11 + 2 = 51) |
+| `REMAINING-WORK.md` §"The numbered backlog", **T1–T53** | The original project, plus everything added since             | **39 done, 12 open**; T1 and T41 not being done (39 + 12 + 2 = 53) |
 | `REMAINING-WORK.md` §"The M-series", **M1–M6**          | A multi-tenancy feature requested 2026-08-24 and added on top | **COMPLETE** (6 of 6)                                              |
 
 ### ~~Step 0: before any of the below: commit~~ **Done 2026-09-02**
@@ -2893,10 +3015,11 @@ handoff". It landed both the work and the paragraph calling that work unlanded.
 Committing is still yours; the list of what to commit is not a thing this file
 can hold accurately, which is why the two commands in §3 replace it.)_
 
-### The eleven open
+### The twelve open
 
-**Five were open before 2026-09-03; four were added that morning and two more
-that evening, from the two sweeps and the gate, and T45 closed the same night.** T3 is now half done, the fork
+**Five were open before 2026-09-03. Four were added that morning and two more
+that evening from the two sweeps and the gate; T45 closed the same night. T52
+was added and closed on 2026-09-04, and T53 came out of doing it.** T3 is now half done, the fork
 is installed and running on a VPS; what remains of it is the demonstration, not
 the deploy.
 
@@ -2914,6 +3037,7 @@ the deploy.
 | **T49**     | You              | **Decide what the multi-tenancy machinery is for now.** The 2026-08-30 cap means a shipped installation only ever has one organisation, so M5's isolation is exercised by nothing that ships, and findings 234 and 235 were **latent for exactly that reason**. Either keep it and say in the report that it is verified by test rather than by deployment, or state the cap as the boundary. What does not work is calling it "still enforced" without re-deriving that |
 | **T50**     | You, then Claude | **Nothing automatic runs the full lint gate** (finding 237). The hook runs plain `oxlint` over staged files; the type-aware rules, `scripts/` and the CSS check are only in `run-lint.mjs`, which a person must remember and which **could not finish on Windows at all** until finding 233. Make the hook run it, move it to CI, or leave it manual and stop calling it "what the hook runs"                                                                            |
 | **T51**     | You, then Claude | **Should the command line reach the Gateway's runs?** (finding 238.) `governance agent runs` and `agent cancel` cannot see anything the Gateway is running, the in-flight table is a per-process `Map`, so they were reporting "nothing in flight" about live runs. They now say what they cannot see. Fixing it properly means giving the CLI an HTTP client, which no other governance command needs; removing them is the other honest option                         |
+| **T53**     | Claude           | **Split `governance-page.ts`.** 735 code lines against a 700 limit, carrying a scoped exception with its reasoning written into it rather than a silent one. Four files were split properly on 2026-09-04 instead; this one has no cheap seam, because every remaining candidate reads twenty or more private fields. The real fix is two components, an outer shell and an inner signed-in view. Deliberately not done in the last hour before a handoff                |
 
 **T38, T39, T40, T42 and T43 all closed on 2026-09-01**, along with **eleven
 defects, five of them security-relevant**. See §1's 2026-09-01 entry. That is
@@ -3348,7 +3472,30 @@ Stated here so they are not discovered late.
     which is true, rather than as _deployed and exercised_, which is not. **T49**
     is the decision.
 
-12. **Two commands cannot do what they are documented to do, and now say so**
+12. **Two of this project's defects were found by an operator looking at a
+    screen, and nothing in the verification set could have found either**
+    (239 and 240, 2026-09-04). One was a form with no control for a rule the
+    server correctly enforced; the other was text that did not fit in its box,
+    with a button rendered off the visible edge. Both are fixed and both are
+    tested, the second in real Chromium because jsdom reports every width as
+    zero.
+
+    The caveat to carry into the report is not about these two. It is that
+    **three consecutive days produced their best findings from three different
+    places, none of them reading the code**: a cold machine (230-232), the
+    checking machinery itself (233, 237), and a person using the dashboard
+    (239, 240). A verification set is a claim about the axes it samples, and
+    this project now has four days of evidence that the productive axis keeps
+    moving.
+
+13. **`governance-page.ts` carries a deliberate lint exception.** 735 code lines
+    against a 700 limit, with the reasoning written into the disable comment
+    rather than left silent, and **T53** on the backlog. Four other files were
+    split properly the same day rather than suppressed. If a panel asks why one
+    file is exempt from a limit the project treats as load-bearing, the answer
+    is that splitting a page component in the hour before a handoff is the wrong
+    risk, not that the limit stopped mattering.
+14. **Two commands cannot do what they are documented to do, and now say so**
     (finding 238). `governance agent runs` and `governance agent cancel` read an
     in-flight table that lives in a module-level `Map`, per process, so they
     are blind to everything the Gateway is running. `CLI-REFERENCE.md` argued in
@@ -3363,6 +3510,22 @@ Stated here so they are not discovered late.
 ## 8. If you only do one thing
 
 **Run it once with a real agent (T2), and follow `docs-notes/T2-LIVE-RUN.md`.**
+
+**As of 2026-09-04 the server is ready for it and only needs updating first.**
+The four commands are in §1, "Updating the VPS to the current build". Then, in
+this order and nothing else in between:
+
+1. Create an **Administrator** account. Root cannot own an agent, so nothing
+   works until one exists. The form now says so instead of failing afterwards
+   (finding 239).
+2. Create an **agent**, choosing that Administrator as its owner.
+3. Paste the **Kimi** credential with `openclaw models auth paste-api-key
+--provider moonshot`, then `openclaw models set moonshot/kimi-k2`.
+4. **Rehearse**: `pnpm exec tsx scripts/governance-demo-rehearsal.mjs`.
+5. **Ask the agent to read a credential file**, and keep both the reply and
+   `openclaw governance audit tail`.
+
+Step 5 is the whole project. Everything before it is setup.
 
 This slot has been occupied by two other things and both are now closed. F1,
 losing everything, closed 2026-08-21. **The push closed 2026-08-28**, and
