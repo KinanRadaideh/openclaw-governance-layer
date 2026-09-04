@@ -9,6 +9,12 @@ same person after a break. Everything else in `mg/` is detail beneath this.
 > **Read §1 for the state, §6 for what is left, §7 for the caveats.** If you have
 > five minutes, read §1's **2026-09-04 (latest)** entry alone.
 >
+> **If you want the narrative rather than the state**, `mg/SESSION-LOG-2026-09.md`
+> §"2026-09-04: the day in one page" is a one-page map of the seven entries that
+> day produced, with a table saying which to open and why. 2026-09-04 was the
+> longest run of findings this project has had (241–255) and reading seven
+> sections in order is the wrong way to meet it.
+>
 > **If you are going to the VPS**, read two things in §1: **"Updating the VPS to
 > the current build"**, which is the four commands that get this build onto the
 > server and the five steps after it, and the **VPS trip** checklist, which
@@ -3736,6 +3742,41 @@ Stated here so they are not discovered late.
     runs it could not see never stopped at all. A measurement that supports a
     narrower claim than the sentence written beside it, which is a shape this
     project has now recorded a dozen times.
+
+16. **A protection Root cannot switch off was found matching nothing** (finding
+    254, 2026-09-04). It is the only time that has happened, it is fixed, and it
+    belongs in this list rather than only in the register because a panel asking
+    "has the self-protecting tier ever failed?" deserves the honest answer.
+
+    The core denial guarding _the governance directory in use_ is generated from
+    the live `OPENCLAW_GOVERNANCE_DIR` on every load, so relocating the store
+    moves the protection with it. It is generated as an **absolute** pattern,
+    under a comment naming the assumption it rests on: _"absolute whenever the
+    target is outside the workspace, which the governance directory always is."_
+    It is not always. Relocate the store inside an agent's workspace — a
+    configuration this project ships a deployment-report field for — and the
+    paths normalise workspace-relative and the rule binds nothing. The static
+    sibling does not cover it either, being `(^|/)\.openclaw/governance(/|$)`
+    against a directory that is by definition no longer there.
+
+    **Measured with the fix removed and restored**, the agent could read
+    `policy.json`, `users.json`, `audit-ledger.jsonl` and **`ledger.key`**.
+    The last of those defeats requirement 8 rather than requirement 1: with the
+    signing key the whole chain can be forged, and the credential-file fallback
+    does not catch it, listing `.pem`, `.pfx`, `.p12` and `.keystore` and not
+    `.key`.
+
+    **The default layout was never exposed.** The exposure needs the store
+    relocated _and_ relocated to somewhere inside a workspace.
+
+    **What to say about it, because the framing matters more than the bug.**
+    The rule was correct, the pattern was correct, and the assumption underneath
+    both was written down and wrong. It was found not by auditing the core tier
+    but by fixing an unrelated cosmetic-looking defect in a folder-grant form
+    (253) — twelve tests turned red and the cause was three fixtures using the
+    governance directory as the agent's workspace, which no installation does.
+    **A defect in the most protected part of the system reached daylight through
+    a test fixture's convenience.**
 
 ---
 

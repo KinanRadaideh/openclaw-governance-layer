@@ -270,7 +270,49 @@ done, 11 open, 2 not being done**, **T45 was done the same night**
 
 ---
 
-## 2026-09-04: the dashboard, driven by the person using it
+## 2026-09-04: the day in one page
+
+**The longest day of findings this project has had, 241–255, all closed.** Seven
+entries follow and this is the map, because a reader arriving here wants to know
+which one to open rather than to read all seven.
+
+| #       | What it covers                                                           | The finding worth knowing                                                                                                                                                                   |
+| ------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **i**   | Kinan on the VPS, using the dashboard for the first time                 | 239: a form that could not be completed. 240: text clipped and a button off the edge                                                                                                        |
+| **ii**  | Seven layout complaints, measured rather than read                       | **250: the one test that can see the page had never run** — and it is inside the documented verification command, where it skips silently                                                   |
+| **iii** | Playwright installed; the browser suite and six features driven for real | The layout test found two more in its first minute (251, 252). Tamper evidence attacked rather than asserted: an edited entry caught by hash, a deleted one by the checkpoint               |
+| **iv**  | The repository made public                                               | The Learn more link resolves; the VPS clone needs no deploy key; six inherited `pull_request_target` workflows became reachable by strangers (bounded, measured)                            |
+| **v**   | The gate itself swept, a different axis from the stores                  | 253: a folder grant on an absolute path writes two rules that bind nothing, and the panel confirms them                                                                                     |
+| **vi**  | T54 answered with a fifth option nobody had listed                       | **254: a core denial Root cannot switch off matched nothing** when the store is relocated inside a workspace. The agent could read the policy, the accounts, the ledger and its signing key |
+| **vii** | The fix tested properly, three surfaces compared, the docs swept         | 255: the register of deliberate omissions caught _claiming_ a capability that was unreachable                                                                                               |
+
+**If you read one thing, read (vi).** It is the only time a protection that
+exists specifically to keep the agent away from the layer governing it has been
+found doing nothing.
+
+**If you read two, read (ii).** It explains why the other nine layout findings
+survived: the check that would have caught them was collected in a fake browser,
+switched itself off, printed `2 skipped`, and passed.
+
+**The method that ran through the whole day**, and the thing to carry forward:
+**break it on purpose and check that something goes red.** Three separate tests
+were caught proving nothing on 2026-09-04 — one asserting the 253 fix, one
+demonstrating 254, one asserting that destructive buttons look different — and
+every one of them passed while the thing it claimed to test was removed. A green
+suite is evidence about the tests as much as about the code.
+
+**One question answered in passing, recorded because it will recur.** Kinan
+opened the Home tab rather than Settings and saw _"I couldn't recover this
+session after repeated gateway restarts. Use /new or /reset to start a
+replacement session."_ That is **upstream OpenClaw**, not this fork:
+`src/agents/main-session-restart-recovery-failure.ts` tombstones a session after
+three failed resume attempts across restarts, and `git diff main...HEAD` shows
+the file untouched here. `/new` clears it. The provider banner underneath it is
+the missing LLM configuration and is expected until T2.
+
+---
+
+## 2026-09-04 (i): the dashboard, driven by the person using it
 
 **Kinan signed in as Root on the VPS and started using the thing.** Everything
 below came out of that hour, which is worth saying plainly because it is the
@@ -455,7 +497,7 @@ which is why there was a second and a third.
 
 ---
 
-## 2026-09-04 (later): the dashboard measured, and the check that never ran
+## 2026-09-04 (ii): the dashboard measured, and the check that never ran
 
 **Kinan kept using it and reported seven complaints in one message.** Every one
 was a layout defect: widgets too close together, headings sitting on the card
@@ -630,7 +672,7 @@ this session's changes.
 
 ---
 
-## 2026-09-04 (later still): the browser tests run, and six features driven for real
+## 2026-09-04 (iii): the browser tests run, and six features driven for real
 
 **Playwright's Chromium was installed, and every `.browser.test.ts` in the
 repository ran for the first time: 22 files, 192 tests, all passing.** Until
@@ -748,7 +790,7 @@ is the only row that can tell them apart.
 
 ---
 
-## 2026-09-04 (evening): the repository went public, and what that moved
+## 2026-09-04 (iv): the repository went public, and what that moved
 
 **Kinan made `KinanRadaideh/openclaw-governance-layer` public.** The reason is
 the dashboard's **Learn more** link: it points at that repository from both the
@@ -836,7 +878,7 @@ repository was private. It is worth knowing now that it is not.
 
 ---
 
-## 2026-09-04 (night): the gate swept, and a folder grant that grants nothing
+## 2026-09-04 (v): the gate swept, and a folder grant that grants nothing
 
 **A second sweep, on a deliberately different axis.** `feature-sweep.ts` that
 afternoon exercised the **stores and the state** — accounts, the policy
@@ -941,7 +983,7 @@ whether the exception held.
 
 ---
 
-## 2026-09-04 (late): T54 answered with a fifth option, and 254 underneath it
+## 2026-09-04 (vi): T54 answered with a fifth option, and 254 underneath it
 
 **Kinan asked for more options than the four in the decision document, then for
 the most thorough one to be built.** Brainstorming produced a fifth that none of
@@ -1098,7 +1140,7 @@ depends on the code.
 
 ---
 
-## 2026-09-04 (last): the fix tested properly, three surfaces compared, and the register caught claiming something
+## 2026-09-04 (vii): the fix tested properly, three surfaces compared, and the docs brought level
 
 Three things Kinan asked for after the 253/254 fix landed: test it properly,
 sweep a different axis, and check that everything built recently reaches all
