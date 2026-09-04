@@ -414,3 +414,150 @@ describe.skipIf(!hasBrowserLayout)("the section jump-nav", () => {
     expect(target!.getBoundingClientRect().top).toBeLessThanOrEqual(before);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Interaction, not layout.
+//
+// Everything above measures a page at rest. These press things, because the
+// defects of 2026-09-04 were not all about size: the destructive controls were
+// styled as ordinary ones (248), the ledger's active filter was indicated to a
+// screen reader and to nobody else, and a rule with no Switch off said nothing
+// about why. A computed colour and a click are the only ways to check any of
+// that, and jsdom can do neither.
+// ---------------------------------------------------------------------------
+
+// **`skipIf`, like the two blocks above, and leaving it off was a real mistake.**
+// These ran in the root jsdom config, where `mount` cannot work, and turned the
+// documented verification command red — the first time this file has failed
+// there rather than skipping. Loud is better than silent, but the six commands
+// have to stay green, and a browser-only assertion belongs behind the same
+// guard as every other one in this file.
+describe.skipIf(!hasBrowserLayout)("the page as an operator uses it", () => {
+  it("makes a destructive control look different from an ordinary one (248)", async () => {
+    await mount(rootState());
+
+    const plain = [...page.querySelectorAll<HTMLButtonElement>("button.btn")].find(
+      (button) =>
+        button.offsetParent !== null &&
+        !button.classList.contains("danger") &&
+        !button.classList.contains("primary"),
+    );
+    const danger = [...page.querySelectorAll<HTMLButtonElement>("button.btn.danger")].find(
+      (button) => button.offsetParent !== null,
+    );
+    expect(plain, "no ordinary button on the page").toBeDefined();
+    expect(danger, "no destructive button on the page").toBeDefined();
+
+    // The defect was that these computed byte-identical: "Delete organisation"
+    // rendered exactly like "Who does this affect?". Asserting they *differ*
+    // rather than asserting a specific colour keeps this true through a theme
+    // change, which is the thing worth pinning.
+    const plainColour = getComputedStyle(plain!).color;
+    const dangerColour = getComputedStyle(danger!).color;
+    expect(dangerColour).not.toBe(plainColour);
+  });
+
+  it("uses no class the stylesheets have never heard of (248)", async () => {
+    await mount(rootState());
+
+    // **The assertion that actually pins 248, and the first one written did
+    // not.** Comparing one danger button against one plain button proves that
+    // *a* destructive control is styled; the defect was that **twenty** call
+    // sites used four spellings of classes no stylesheet defines, so reverting
+    // any single file left the others to satisfy that check. Mutation testing
+    // found this: putting `btn--danger` back in `account-panels.ts` did not
+    // turn the test red.
+    //
+    // The design system defines `.btn.primary` and `.btn.danger`. These four
+    // are the spellings that were in use and that nothing anywhere defines.
+    const NEVER_DEFINED = ["btn--primary", "btn--danger", "btn-primary", "btn-danger"];
+    const offenders = [...page.querySelectorAll<HTMLElement>("*")]
+      .filter((el) => NEVER_DEFINED.some((name) => el.classList.contains(name)))
+      .map(
+        (el) =>
+          `${el.tagName.toLowerCase()}.${el.className}: ${el.textContent?.trim().slice(0, 30)}`,
+      );
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("marks a primary action as primary", async () => {
+    await mount(rootState());
+
+    const primary = [...page.querySelectorAll<HTMLButtonElement>("button.btn.primary")].find(
+      (button) => button.offsetParent !== null,
+    );
+    expect(primary, "no primary button on the page").toBeDefined();
+
+    const plain = [...page.querySelectorAll<HTMLButtonElement>("button.btn")].find(
+      (button) =>
+        button.offsetParent !== null &&
+        !button.classList.contains("danger") &&
+        !button.classList.contains("primary"),
+    );
+    expect(getComputedStyle(primary!).backgroundColor).not.toBe(
+      getComputedStyle(plain!).backgroundColor,
+    );
+  });
+
+  it("shows which audit-ledger filter is active, to the eye and not only to a reader", async () => {
+    await mount(rootState());
+
+    const filters = [...page.querySelectorAll<HTMLButtonElement>("button")].filter((button) =>
+      ["All", "Agent actions", "Policy changes", "Sign-ins"].includes(
+        button.textContent?.trim() ?? "",
+      ),
+    );
+    expect(filters.length).toBeGreaterThan(2);
+
+    const active = filters.find((button) => button.getAttribute("aria-pressed") === "true");
+    const inactive = filters.find((button) => button.getAttribute("aria-pressed") !== "true");
+    expect(active, "no filter is marked active").toBeDefined();
+    expect(inactive).toBeDefined();
+
+    // `aria-pressed` was set correctly all along; the class naming the styled
+    // state was misspelled, so a screen reader knew which filter was on and a
+    // sighted operator did not.
+    expect(getComputedStyle(active!).backgroundColor).not.toBe(
+      getComputedStyle(inactive!).backgroundColor,
+    );
+  });
+
+  it("says why a self-protecting core rule has no Switch off (247)", async () => {
+    await mount(rootState());
+
+    const text = page.textContent ?? "";
+    // The row states the fact; a row above the list explains the tier once.
+    expect(text).toContain("Cannot be switched off");
+    expect(text).toContain("Why some built-in rules have no Switch off");
+
+    // And the rule that *can* be switched off still offers the control, or the
+    // explanation above would be describing something that is not there.
+    const switchOff = [...page.querySelectorAll<HTMLButtonElement>("button")].filter((button) =>
+      button.textContent?.includes("Switch off"),
+    );
+    expect(switchOff.length).toBeGreaterThan(0);
+  });
+
+  it("narrows the rule list when a filter is typed, and says so", async () => {
+    await mount(rootState());
+
+    const search = [...page.querySelectorAll<HTMLInputElement>("input[type='search']")].find(
+      (input) => input.offsetParent !== null,
+    );
+    expect(search, "no rule filter on the page").toBeDefined();
+
+    search!.value = "a-term-no-rule-contains-anywhere";
+    search!.dispatchEvent(new Event("input", { bubbles: true }));
+    await page.updateComplete;
+    await new Promise((resolve) => {
+      setTimeout(resolve, 50);
+    });
+
+    // "No rules exist" and "your filter matches none of them" are different
+    // facts, and showing the first when the second is true tells an operator
+    // their policy is empty when it is not.
+    const text = page.textContent ?? "";
+    expect(text.toLowerCase()).toContain("no rules match");
+  });
+});

@@ -81,18 +81,20 @@ an Administrator control were once the same function.
 
 ### 1.2 Accounts
 
-| #      | Do this                                                        | Expect                                                                                      |
-| ------ | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| 1.2.1  | Create an Administrator for Mohammad                           | Appears in the list with role `administrator`                                               |
-| 1.2.2  | Try to create a second Root                                    | Refused, and the message says there can be only one                                         |
-| 1.2.3  | Create a User with **no** Administrator chosen                 | Refused **before** you submit, or refused with a message naming what to fix                 |
-| 1.2.4  | Create a User and pick Mohammad as its Administrator           | Created. The row shows who answers for it                                                   |
-| 1.2.5  | Change that User to Viewer                                     | A confirmation appears **first**, naming the account and both roles                         |
-| 1.2.6  | Try to change your own Root row's role                         | No control offered. The row states `root (permanent, cannot be changed)`                    |
-| 1.2.7  | Set a new password on Mohammad's account                       | Succeeds. Mohammad's existing session should **stop working** — check with him              |
-| 1.2.8  | Set your own password, sign out, sign back in with the new one | Works                                                                                       |
-| 1.2.9  | Try to delete your own Root account                            | Refused, and the message names deleting the **organisation** as the act that does remove it |
-| 1.2.10 | Delete a spare account you created for this                    | Confirmation names the account. Gone from the list                                          |
+| #      | Do this                                                        | Expect                                                                                                                                         |
+| ------ | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.2.1  | Create an Administrator for Mohammad                           | Appears in the list with role `administrator`                                                                                                  |
+| 1.2.2  | Try to create a second Root                                    | Refused, and the message says there can be only one                                                                                            |
+| 1.2.3  | Create a User with **no** Administrator chosen                 | Refused **before** you submit, or refused with a message naming what to fix                                                                    |
+| 1.2.4  | Create a User and pick Mohammad as its Administrator           | Created. The row shows who answers for it                                                                                                      |
+| 1.2.5  | Change that User to Viewer                                     | A confirmation appears **first**, naming the account and both roles                                                                            |
+| 1.2.6  | Try to change your own Root row's role                         | No control offered. The row states `root (permanent, cannot be changed)`                                                                       |
+| 1.2.7  | Set a new password on Mohammad's account                       | Succeeds. Mohammad's existing session should **stop working** — check with him                                                                 |
+| 1.2.8  | Set your own password, sign out, sign back in with the new one | Works                                                                                                                                          |
+| 1.2.9  | Try to delete your own Root account                            | Refused, and the message names deleting the **organisation** as the act that does remove it                                                    |
+| 1.2.10 | Delete a spare account you created for this                    | Confirmation names the account. Gone from the list                                                                                             |
+| 1.2.11 | Run `openclaw governance accounts` on the server               | The same people, with their ids. **Cross-check it against the screen**: two surfaces disagreeing about who exists is the thing this row is for |
+| 1.2.12 | Run it as Mohammad (Administrator)                             | Refused. Accounts are Root's, and the command enforces that itself rather than trusting the page                                               |
 
 ### 1.3 Withholding policy authoring (T27)
 
@@ -363,7 +365,7 @@ Do these with all three of you signed in at once.
 4. Kinan records the findings in `GOVERNANCE.md`'s register with the next
    numbers, and the narrative in `mg/SESSION-LOG-2026-09.md`.
 
-**A note on what "passing" means here.** Ninety-five of these rows going the
+**A note on what "passing" means here.** A hundred and thirty-odd of these rows going the
 right way is not the result. The result is the handful that do not, because
 every finding this project has recorded from operating the system rather than
 reading it has been one no amount of reading would have produced: the VPS trip

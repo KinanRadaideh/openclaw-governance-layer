@@ -723,7 +723,7 @@ double-decide case was worth asserting once the signature was understood.
 
 ### T47 written
 
-`docs-notes/T47-TEST-PLAN.md`. Ninety-five checks: one list per tier for Kinan
+`docs-notes/T47-TEST-PLAN.md`. 138 checks: one list per tier for Kinan
 (Root), Mohammad (Administrator) and Malek (User, then Viewer), plus a section
 of six things **no one person can test alone** — an Administrator stopping a
 User's agent mid-prompt, a password changed under a live session, authoring
@@ -950,10 +950,32 @@ self-protecting core tier that nobody was looking for.
 
 ### The four options, and why none of them was the answer
 
-`docs-notes/T54-DECISION.md` listed: resolve against the named agent's
-workspace; refuse a path the control cannot express; build the pattern
-position-independently; or document the limitation. The recommendation was the
-second, on the grounds that it removes the silent failure and costs nothing.
+**Written up for the team as `docs-notes/T54-DECISION.md` and deleted once the
+decision was taken; the four options are folded in here so the reasoning
+survives the file.** They were:
+
+| Option | What it was                                                                        | What it cost                                                                                                                                                                                                                                   |
+| ------ | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1**  | Look up the named agent's workspace when the rule is written                       | Right for the common case, but the layer does not record an agent's workspace, it does nothing for a grant binding _every_ agent, and it freezes the rule at authoring time so an agent that later runs elsewhere silently stops being covered |
+| **2**  | Refuse a path the control cannot express faithfully, and say why                   | Cheapest, removes the silent failure, takes away nothing that works — but needs to know the workspace to decide _which_ absolute paths are safe, so the honest version refuses all of them in that one control                                 |
+| **3**  | Build the pattern position-independently, with `(^\|/)` as every shipped rule does | One line. **And a trap** — see below                                                                                                                                                                                                           |
+| **4**  | Change nothing, write the limitation down                                          | Free, and leaves a control that confirms a protection it did not apply, which is the bug class this project calls its worst                                                                                                                    |
+
+The recommendation was the second, on the grounds that it removes the silent
+failure and costs nothing.
+
+**Option 3 is the one worth remembering, because it is the tempting one.** Every
+shipped rule anchors with `(^|/)` rather than `^`, so it matches at the start of
+a path _or_ after a slash, which is exactly what would have made both spellings
+work. It is a one-line change to one function.
+
+It is also **looser than the operator asked for**: a grant on `src` would then
+cover `vendor/src`, `node_modules/src`, anything ending in `/src`. Every shipped
+rule using that trick is a **denial**, where matching too much is safe and
+usually desirable. This control writes an **allowance**, where matching too much
+hands out access nobody asked for. _Widening access to fix a matching bug is the
+wrong direction to be wrong in_, and that sentence is the durable part of the
+whole exercise.
 
 **Every one of them treats the folder-grant control as the thing that is
 wrong.** That framing is what kept the answer small, and it was wrong. The
@@ -1073,3 +1095,107 @@ have. Removing `forms` and re-running took seconds; three of the five new
 assertions go red, and the two that do not are the negative safety ones, which
 guard a different future mistake. A green suite says nothing about whether it
 depends on the code.
+
+---
+
+## 2026-09-04 (last): the fix tested properly, three surfaces compared, and the register caught claiming something
+
+Three things Kinan asked for after the 253/254 fix landed: test it properly,
+sweep a different axis, and check that everything built recently reaches all
+three surfaces. The second and third turned out to be the same task.
+
+### The fix, tested properly rather than adequately
+
+**It was not thoroughly tested when it was committed, and saying so is the
+point.** Four call sites were changed and two were covered. The two that were
+not are the search audit's — the half where a missed denial means a forbidden
+file **stays in the results the model reads**, which is the worse consequence of
+the two.
+
+Neither search test file contained a single absolute rule pattern before that
+day, so the whole direction was unverified. Four tests added across
+`search-audit.test.ts` and `search-filter.test.ts`, one positive and one
+negative each: the denial binds, and a file it does not cover is left alone, so
+matching a second spelling cannot quietly widen a rule.
+
+**Mutated in both directions, which is the only way to know.** Removing the
+second spelling turns **five** assertions red across all four call sites. Adding
+a `..`-relative spelling — the one thing that would reopen the traversal hole —
+turns the safety assertion red. Before that second mutation the safety test
+could have been inert and nothing would have said so.
+
+Three edges were also closed: a command rule still binds and does no filesystem
+work, `apply_patch`'s host-derived absolute paths bind too, and the cost was
+**measured** rather than asserted (`gate-cost.ts`). A path decision and a
+command decision both land near 16 ms and differ by about a millisecond; the
+extra `realpath` is below the run-to-run noise, and what actually dominates a
+governed call is the ledger's `fsync`. The honest phrasing is "unmeasurable
+against the ledger write", not "fast".
+
+### The parity sweep, and what it found
+
+`docs-notes/qa-sweep-2026-09-04/surface-parity.mjs` differences the routes the
+Gateway serves against the routes the dashboard calls and the commands the CLI
+registers. **46 route-and-method pairs.** Nine came back as candidate gaps and
+**four were false positives** — dashboard calls carrying a query string, which
+is exactly the caveat the earlier capability sweep recorded and the reason this
+script prints it at the top.
+
+**Four of the five real ones were already answered**, and by the document whose
+job that is: §2d of `CLI-REFERENCE.md` records creating, deleting, re-roling and
+password-resetting an account as deliberately dashboard-only, with a real
+argument — the dashboard's account form carries guards QA rounds put there, and
+a second implementation is where two surfaces come to disagree. The sweep found
+them; the register answered them. That is §2d working.
+
+**Finding 255 is the fifth, and it has three parts.**
+
+**Listing accounts had no command and no stated reason.** Not create, not
+delete — _list_. And the absence made §2d wrong in a way that is worse than a
+missing entry: the section's "what you can still do from here" named
+`governance set-policy-authoring`, which takes an `<userId>`, and **nothing on
+this surface could print an account id**. `organisation summary` reports counts
+and the Root's username; `agents access` reports usernames. A document that
+exists to say "here is the consolation for the missing capabilities" was
+offering one that could not be completed without opening the dashboard.
+
+That is finding 223's shape one layer in. 223 was a register that promised "the
+reasons are here" and omitted two. This is a register **claiming** a capability
+while it was unreachable.
+
+`governance accounts` was built: Root-only and group-scoped, exactly as
+`GET users` is, printing the id first because the id is the reason it exists.
+Listing carries none of the divergence cost the register's argument rests on —
+no confirmation field, no password rule, no role picker the server would refuse.
+It is a read.
+
+**The host resource view was the third part**, and it is not a defect. `GET
+system` is dashboard-only, which is correct: `uptime`, `free` and `top` answer
+the same question on a shell, better and without a governance session. It had no
+entry in the register that promises to name every such case, so it read as a
+gap. It has one now, and §2d's capability count goes from two to three.
+
+### UI testing: five interactions, and one assertion that proved nothing
+
+Layout was measured on 2026-09-04; behaviour was not. Five interaction tests
+added to the browser project: a destructive control looks different from an
+ordinary one, a primary action looks primary, the ledger's active filter is
+visible to the eye and not only to a screen reader, a self-protecting core rule
+says why it has no switch, and typing a filter that matches nothing says "no
+rules match" rather than "no rules exist".
+
+**One of them was worthless and mutation testing said so.** The check for
+finding 248 compared one `.btn.danger` against one plain button. Putting the
+broken spelling back in `account-panels.ts` did not turn it red, because three
+other files still spelled it correctly and the selector found one of those.
+It asserted "_a_ destructive control is styled" while the defect had been that
+**twenty call sites across six files** used four spellings nothing defines.
+
+Replaced with the actual invariant: **no element on the page carries any of the
+four class names no stylesheet has ever defined.** Re-mutated, and that one goes
+red. Every regression at every call site now fails it, which is what the
+original was supposed to do.
+
+**That is the second time in one day the same mistake was made and caught the
+same way**, after the 254 probe that reported REFUSED before and after the fix.
+A test that passes is not evidence that it depends on anything.

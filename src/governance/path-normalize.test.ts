@@ -365,3 +365,58 @@ describe("both spellings of an in-workspace path bind (253)", () => {
     expect(verdict(decision)).not.toBe("allow");
   });
 });
+
+describe("the second spelling costs nothing where it means nothing (253)", () => {
+  it("does no filesystem work for a command, which has one spelling", async () => {
+    // Commands and URLs are single strings. The forms lookup skips them
+    // entirely rather than resolving a path that is not one, and this asserts
+    // the behaviour that skip protects: a command rule still binds exactly as
+    // it did, and a command that merely looks like a path is not resolved.
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "command", pattern: "^ls( .*)?$", effect: "allow" },
+      TEST_ACTOR,
+    );
+
+    const allowed = await evaluateGovernancePolicy(
+      { toolName: "exec", params: { command: "ls src" } },
+      ctx(),
+    );
+    const refused = await evaluateGovernancePolicy(
+      { toolName: "exec", params: { command: "cat /etc/shadow" } },
+      ctx(),
+    );
+
+    expect(verdict(allowed)).toBe("allow");
+    expect(verdict(refused)).not.toBe("allow");
+  });
+
+  it("binds a rule against a path the host derived rather than the model typing it", async () => {
+    // `apply_patch` is the one tool that arrives with `derivedPaths` already
+    // resolved to absolute, which is finding B5's third defect. Both spellings
+    // have to work there too, or the tool the host resolves for is the one tool
+    // the rules cannot reach.
+    const absolute = join(workspace, "src").split(sep).join("/");
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "path", pattern: "^src(/|$)", effect: "allow" },
+      TEST_ACTOR,
+    );
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "path", pattern: `^${absolute}(/|$)`, effect: "deny" },
+      TEST_ACTOR,
+    );
+
+    const decision = await evaluateGovernancePolicy(
+      {
+        toolName: "apply_patch",
+        params: {},
+        derivedPaths: [join(workspace, "src", "app.ts")],
+      },
+      ctx(),
+    );
+
+    expect(verdict(decision)).toBe("block");
+  });
+});

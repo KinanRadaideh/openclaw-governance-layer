@@ -22,7 +22,7 @@
 // is recorded rather than silently fixed.
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { tailLedger } from "./audit-ledger.js";
 import { loadPolicy, savePolicy } from "./policy-store.js";
@@ -271,6 +271,58 @@ describe("it is scoped and total", () => {
         }),
       ).resolves.toBeUndefined();
     }
+    expect(await reachEntries()).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Finding 253/254: a denial written with an absolute path matched nothing,
+// because a search result inside the workspace is judged in its short form.
+//
+// This half is the *record*. `search-filter.test.ts` covers the half that
+// actually withholds it, which is where the consequence is worse.
+// ---------------------------------------------------------------------------
+
+describe("a denial written with an absolute path is honoured (253)", () => {
+  it("records a reached file that only an absolute rule covers", async () => {
+    // Exactly the pattern the folder-grant control builds from a path an
+    // operator typed. Before the fix this matched no search result at all, so
+    // the reach went unrecorded and the operator's rule looked like it was
+    // doing something.
+    const absolute = workspace.split(sep).join("/");
+    await denyPath(`^${absolute}/secrets(/|$)`);
+
+    await auditSearchReach({
+      toolName: "grep",
+      toolParams: { path: workspace },
+      result: grepResult("secrets/prod.key:1: TOKEN=hunter2", "src/app.ts:11: const x = 1;"),
+      agentId: "agent-a",
+      sessionKey: "agent:agent-a:main",
+      cwd: workspace,
+    });
+
+    const found = await reachEntries();
+    expect(found).toHaveLength(1);
+    // Recorded in the canonical short form, not the spelling that matched:
+    // the ledger keeps speaking the language the rest of the system does.
+    expect(found[0]?.resource).toBe("secrets/prod.key");
+  });
+
+  it("still records nothing for a file the absolute rule does not cover", async () => {
+    // The negative half. Matching a second spelling must not turn a narrow
+    // rule into a broad one.
+    const absolute = workspace.split(sep).join("/");
+    await denyPath(`^${absolute}/secrets(/|$)`);
+
+    await auditSearchReach({
+      toolName: "grep",
+      toolParams: { path: workspace },
+      result: grepResult("src/app.ts:11: const x = 1;", "README.md:2: hello"),
+      agentId: "agent-a",
+      sessionKey: "agent:agent-a:main",
+      cwd: workspace,
+    });
+
     expect(await reachEntries()).toHaveLength(0);
   });
 });

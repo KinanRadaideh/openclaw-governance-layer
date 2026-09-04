@@ -6688,3 +6688,146 @@ box. **You find those by using the thing.**
 That is now three consecutive days where the most valuable findings came from
 somewhere other than reading: a cold machine, then the verification tooling
 itself, and now an operator with a keyboard.
+
+## 5.97 The day the layout was measured, and what the measuring found
+
+**Kinan sent seven complaints about the dashboard in one message.** Widgets too
+close together, headings sitting on the card above them, buttons and text boxes
+running off the edge of the panel they belong to, two explanations pressed
+against the border or spilling out of it, an awkward collision where the Policy
+section meets the Audit ledger, and one question that turned out not to be a
+complaint at all.
+
+Fifteen findings came out of it (241–255). The interesting part is not the list.
+It is that **almost none of them could have been found by reading the code**,
+and one of them explains why nobody had found them earlier.
+
+### Four complaints, one cause
+
+Several panels hand the settings helper a control that is itself a control cell,
+so the same styling instruction lands twice. That instruction says "do not
+stretch and do not shrink", which is right for the outer cell and wrong for the
+inner one: with no permission to shrink, the inner cluster sized itself to its
+widest line and then refused to come back down. It ran past the edge of the
+card, and the card hides anything past its edge.
+
+That is why the **last** control in each cluster was the missing one. "Set
+password", the create-account fields, the rule-request form and the folder-grant
+explainer were all the same defect wearing four hats.
+
+### The one that was not a bug
+
+_"Some built-in rules have a Switch off button and some don't. Why?"_
+
+Working exactly as designed. Most shipped denials are ordinary security
+opinions and Root may switch them off; the rest are the ones that stop a
+governed agent reaching the policy, the accounts, the ledger and the signing
+key, and nobody may switch those off — not even Root.
+
+**But the page never said so.** It simply drew nothing where the button would
+be. An operator saw buttons on some rows and not others, with no way to tell
+which rule they were looking at or why, and "the button is missing" looks
+exactly like "this page failed to render half its controls". The rows now say
+_Cannot be switched off_, and one line above the list explains the tier once.
+
+### The serious one
+
+**Every destructive button on the page had been unstyled since it was written.**
+
+The design system marks dangerous actions in red. The governance panels asked
+for that styling using four different spellings of a name that does not exist,
+across twenty places. Measured in a real browser, "Delete" came out
+byte-for-byte identical to an ordinary button.
+
+On a security console that is not decoration. _Delete this account_, _Delete the
+organisation_, _Switch off a built-in protection_, _Reject this request_, _Stop
+this agent_ — all of them looked exactly like _Who does this affect?_.
+
+### Why nobody had caught any of it
+
+**The one test in this project that can see the page had never run.**
+
+It sits inside the documented list of checks, so it looks like coverage. But
+that list runs it in a fake browser with no layout engine, where every width is
+zero, so the test switches itself off and the run prints "2 skipped" and passes.
+To run it for real you need a real browser downloaded, and **that download had
+never happened on this machine** — so no test of that kind had ever executed
+here at all.
+
+That is why the previous day's fix for a very similar complaint shipped
+half-finished: it was written _with a test_, and the test could not run. Worse,
+the assertion it added measured the wrong edge — it checked that nothing fell
+off the **screen**, while everything was falling off the **card**.
+
+The browser is installed now, that whole set runs, and it found two more
+problems in its first minute.
+
+### A path with two names
+
+The last two are one idea. When the layer writes down which file an agent
+touched, it uses a short name for files inside the agent's own project folder
+and a full path for anything outside. Sensible: rules stay portable, and an
+agent sneaking out of its folder stops matching the short-form rules
+automatically.
+
+The catch is that **which name gets used depends on where the agent is
+running**, and the person writing a rule does not know that. So a rule written
+with a full path was compared against a short one, matched nothing, and did
+nothing — silently, while the screen confirmed it had been written.
+
+The fix is not to make the rule-writing cleverer. It is to accept that a file
+has two legitimate names and check both.
+
+**Fixing it uncovered something worse.** One of the protections Root cannot
+switch off guards "the governance directory in use", and it is written as a full
+path. Move that directory inside an agent's working folder — a supported setup,
+with its own line in the deployment report — and the protection matched nothing.
+Measured before and after: the agent could read the policy, the accounts, the
+audit trail, **and the key that makes the audit trail tamper-evident**. With
+that key the whole trail can be forged.
+
+The ordinary setup was never exposed. But this is the first time a protection
+that exists specifically to keep the agent away from the layer governing it was
+found doing nothing.
+
+### Two mistakes made while fixing it, both the same mistake
+
+A test was written to prove the repair worked. It passed. It also passed when
+the repair was deliberately removed — because the setup it ran in refused
+everything by default, so the file was blocked whether or not any rule matched.
+It was true for the wrong reason.
+
+That was caught, fixed, and then **made again an hour later** in the script
+written to demonstrate the second finding, which reported "refused" both before
+and after and nearly went into the write-up as proof of something it did not
+show.
+
+Both were caught the same way: break the fix on purpose and check that something
+goes red. A test that passes tells you nothing about whether it depends on the
+thing it claims to test.
+
+The same trick then caught a third: a test asserting that dangerous buttons look
+different from ordinary ones passed even after one file was put back to the
+broken spelling, because three other files still had it right and the test only
+ever looked at one button. It now asserts the real rule — **no element anywhere
+on the page uses a class name no stylesheet defines** — and that version does go
+red.
+
+### And a check of the three ways in
+
+The layer can be driven from the dashboard, from the HTTP API and from the
+command line, and the standing promise is that everything reaches all three
+unless there is a written reason.
+
+Comparing them mechanically produced nine suspects. Four were the tool being
+naive. Four more were genuine and already answered in writing: creating,
+deleting, re-roling and password-resetting an account are dashboard-only on
+purpose, because that form carries safety checks earned through QA and a second
+copy of them is where two surfaces start to disagree.
+
+The last one was real and slightly embarrassing. The document listing what you
+_can_ still do from the command line offered a command that **needs an account
+id, and nothing on the command line could print one.** So the consolation prize
+for the missing commands could not itself be collected. There is now a command
+that lists accounts with their ids, which is a read and carries none of the
+risk the other four do.

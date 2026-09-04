@@ -6,7 +6,7 @@
 // "stopped" from "reached" so an auditor can count them separately.
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { tailLedger } from "./audit-ledger.js";
 import { resetLedgerKeyCacheForTests } from "./ledger-key.js";
@@ -346,5 +346,53 @@ describe("what the ledger says about it", () => {
     // extraction, so it inherits the fix. Asserted rather than assumed.
     const raw = JSON.stringify(await tailLedger(TEST_GROUP));
     expect(raw).not.toContain("hunter2brown");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Finding 253/254, the half that matters more: withholding.
+//
+// The audit half only fails to *record* a reach. This half fails to *stop* one,
+// so a file the policy forbids stays in the text the model reads. Nothing in
+// either search test file used an absolute rule pattern before 2026-09-04, so
+// this whole direction was unverified.
+// ---------------------------------------------------------------------------
+
+describe("a denial written with an absolute path withholds too (253)", () => {
+  it("removes a result that only an absolute rule covers", async () => {
+    const absolute = workspace.split(sep).join("/");
+    await denyPath(`^${absolute}/secrets(/|$)`);
+
+    const filtered = await filterSearchResult({
+      toolName: "grep",
+      toolParams: { path: "." },
+      result: grepResult(["secrets/prod.key:1:TOKEN=hunter2brown", "src/app.ts:10:const x = 1"]),
+      agentId: AGENT,
+      sessionKey: `agent:${AGENT}:test`,
+      cwd: workspace,
+    });
+
+    const text = textOf(filtered);
+    expect(text).not.toContain("hunter2brown");
+    expect(text).not.toContain("secrets/prod.key:1:");
+    // The permitted result survives: a second spelling must not widen the rule.
+    expect(text).toContain("src/app.ts:10:");
+  });
+
+  it("leaves a result alone when the absolute rule does not cover it", async () => {
+    const absolute = workspace.split(sep).join("/");
+    await denyPath(`^${absolute}/secrets(/|$)`);
+
+    const filtered = await filterSearchResult({
+      toolName: "grep",
+      toolParams: { path: "." },
+      result: grepResult(["src/app.ts:10:const x = 1", "README.md:3:hello"]),
+      agentId: AGENT,
+      sessionKey: `agent:${AGENT}:test`,
+      cwd: workspace,
+    });
+
+    // Nothing was withheld, so the filter declines to act at all.
+    expect(filtered).toBeUndefined();
   });
 });

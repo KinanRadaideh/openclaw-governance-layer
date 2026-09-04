@@ -31,7 +31,7 @@ import {
   listUnmigratedAccounts,
   setUserPolicyAuthoring,
 } from "../../governance/user-store.js";
-import { authenticate } from "../../governance/user-store.js";
+import { authenticate, listUsers } from "../../governance/user-store.js";
 import { defaultRuntime } from "../../runtime.js";
 import { runCommandWithRuntime } from "../cli-utils.js";
 import { promptSecret, promptText } from "../prompt.js";
@@ -118,6 +118,40 @@ export function registerGovernanceCommands(program: Command): void {
             ? `  agents: ${identity.assignedAgents.join(", ")}`
             : "  agents: none assigned",
         );
+      });
+    });
+
+  governance
+    .command("accounts")
+    .description("Root: the accounts in your organisation, with the ids other commands need")
+    .action(async () => {
+      await runCommandWithRuntime(defaultRuntime, async () => {
+        // **Root and group-scoped, exactly as `route === "users"` is.** That
+        // route's own comment says why the scope is not optional: a Root owns
+        // one organisation rather than the installation, and the account list
+        // is the most direct way isolation could leak, because it names every
+        // person in it.
+        const actor = await requireCliActor(defaultRuntime, "list accounts", (a) =>
+          canManageAccounts(a),
+        );
+        if (!actor) {
+          return;
+        }
+        const accounts = await listUsers(actor.groupId);
+        if (accounts.length === 0) {
+          // In words rather than as nothing: "no accounts" and "the command
+          // failed" are indistinguishable when both render blank (finding 117).
+          defaultRuntime.log("no accounts in this organisation");
+          return;
+        }
+        // The id first, because the id is the reason this command exists.
+        for (const account of accounts) {
+          const managed = account.managedBy ? `, managed by ${account.managedBy}` : "";
+          const withheld = account.canAuthorPolicy === false ? ", policy authoring withheld" : "";
+          defaultRuntime.log(
+            `  ${account.id}  ${account.username} (${account.role})${managed}${withheld}`,
+          );
+        }
       });
     });
 
