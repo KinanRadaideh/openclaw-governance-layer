@@ -16,6 +16,19 @@ import { filterSearchResult } from "./search-audit.js";
 import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
+
+/**
+ * The agent's working directory, deliberately **not** the governance directory.
+ *
+ * This fixture used `dir` for both, and every one of these tests passed because
+ * the core denial on "the governance directory in use" was inert for
+ * workspace-relative paths (finding 254): with the workspace and the policy
+ * store being the same folder, every path here normalises to a short form the
+ * absolute core pattern could not match. Now that it can, an agent working
+ * inside the policy store is refused everything, which is correct and is why
+ * the two must be separate here as they are in production.
+ */
+let workspace: string;
 let TEST_GROUP: string;
 const AGENT = "agent-a";
 
@@ -31,6 +44,7 @@ function textOf(result: { content: Array<{ type: string; text: string }> } | und
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-search-filter-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  workspace = await mkdtemp(join(tmpdir(), "governance-workspace-"));
   resetLedgerKeyCacheForTests();
   TEST_GROUP = await seedGroupWithAgents([AGENT]);
   await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce" });
@@ -40,6 +54,7 @@ afterEach(async () => {
   delete process.env.OPENCLAW_GOVERNANCE_DIR;
   resetLedgerKeyCacheForTests();
   await rm(dir, { recursive: true, force: true });
+  await rm(workspace, { recursive: true, force: true });
 });
 
 /** Denies a path for this group, the way an operator authoring a rule would. */
@@ -70,7 +85,7 @@ describe("filtering a search result", () => {
       ]),
       agentId: AGENT,
       sessionKey: `agent:${AGENT}:test`,
-      cwd: dir,
+      cwd: workspace,
     });
 
     const text = textOf(filtered);
@@ -90,7 +105,7 @@ describe("filtering a search result", () => {
       toolParams: { path: "." },
       result: grepResult(["src/app.ts:10:ok", ".env:1:SECRET=x"]),
       agentId: AGENT,
-      cwd: dir,
+      cwd: workspace,
     });
     // A silent shortening teaches the model the file does not exist, and it may
     // then act on that belief. Saying so is the only version it can reason with.
@@ -105,7 +120,7 @@ describe("filtering a search result", () => {
       toolParams: { path: "." },
       result: grepResult([".env:1:A=1", ".env:2:B=2", ".env:3:C=3", "keep.ts:1:fine"]),
       agentId: AGENT,
-      cwd: dir,
+      cwd: workspace,
     });
     // Three lines from one denied file is one withheld result. Reporting three
     // would tell the agent how much is in a file it may not read.
@@ -125,7 +140,7 @@ describe("filtering a search result", () => {
         "safe.ts:9:untouched",
       ]),
       agentId: AGENT,
-      cwd: dir,
+      cwd: workspace,
     });
     const text = textOf(filtered);
     // Context lines carry the file's text too. Removing only `path:N:` lines
@@ -146,7 +161,7 @@ describe("filtering a search result", () => {
       toolParams: { path: "." },
       result: grepResult(["src/app.ts:1:fine", ".env:1:DB_PASSWORD=hunter2brown"]),
       agentId: AGENT,
-      cwd: dir,
+      cwd: workspace,
     });
     expect(textOf(filtered)).not.toContain("hunter2brown");
     expect(textOf(filtered)).toContain("src/app.ts:1:fine");
@@ -159,7 +174,7 @@ describe("filtering a search result", () => {
       toolParams: { path: "." },
       result: grepResult(["src/index.ts", "certs/server.pem", "docs/readme.md"]),
       agentId: AGENT,
-      cwd: dir,
+      cwd: workspace,
     });
     const text = textOf(filtered);
     expect(text).not.toContain("server.pem");
@@ -195,7 +210,7 @@ describe("a result longer than the bound. Finding 156", () => {
       toolParams: { path: "." },
       result: longResult(true),
       agentId: AGENT,
-      cwd: dir,
+      cwd: workspace,
     });
 
     const text = textOf(filtered);
@@ -213,7 +228,7 @@ describe("a result longer than the bound. Finding 156", () => {
       toolParams: { path: "." },
       result: longResult(false),
       agentId: AGENT,
-      cwd: dir,
+      cwd: workspace,
     });
 
     // 2,100 lines, 2,000 examined: 100 unchecked, and the count is stated rather
@@ -229,7 +244,7 @@ describe("a result longer than the bound. Finding 156", () => {
       toolParams: { path: "." },
       result: grepResult(["src/app.ts:10:ok", "README.md:3:ok"]),
       agentId: AGENT,
-      cwd: dir,
+      cwd: workspace,
     });
     expect(filtered).toBeUndefined();
   });
@@ -243,7 +258,7 @@ describe("what it deliberately leaves alone", () => {
       toolParams: { path: "." },
       result: grepResult(["src/app.ts:1:fine", "src/other.ts:2:also fine"]),
       agentId: AGENT,
-      cwd: dir,
+      cwd: workspace,
     });
     // `undefined` means "pass the original through byte-identical". The same
     // principle T23 established for parameter binding.
@@ -259,7 +274,7 @@ describe("what it deliberately leaves alone", () => {
       toolParams: { path: ".env" },
       result: grepResult(["DB_PASSWORD=hunter2brown"]),
       agentId: AGENT,
-      cwd: dir,
+      cwd: workspace,
     });
     expect(filtered).toBeUndefined();
   });
@@ -273,7 +288,7 @@ describe("what it deliberately leaves alone", () => {
       toolParams: { path: "." },
       result: grepResult([".env:1:SECRET=x"]),
       agentId: AGENT,
-      cwd: dir,
+      cwd: workspace,
     });
     // Switched off means switched off. Filtering while claiming not to be
     // running would be the oversight-that-is-not-happening the ledger avoids.
@@ -287,7 +302,7 @@ describe("what it deliberately leaves alone", () => {
       toolParams: { path: "." },
       result: grepResult([".env:1:SECRET=x"]),
       agentId: "never-registered",
-      cwd: dir,
+      cwd: workspace,
     });
     // The gate refuses an unregistered agent, so no search of ours produced this.
     expect(filtered).toBeUndefined();
@@ -303,7 +318,7 @@ describe("what the ledger says about it", () => {
       result: grepResult([".env:1:SECRET=x", "safe.ts:1:ok"]),
       agentId: AGENT,
       sessionKey: `agent:${AGENT}:test`,
-      cwd: dir,
+      cwd: workspace,
     });
 
     const entry = (await tailLedger(TEST_GROUP)).find((e) => e.ruleId === "search-withheld");
@@ -324,7 +339,7 @@ describe("what the ledger says about it", () => {
       toolParams: { path: "." },
       result: grepResult([".env:1:DB_PASSWORD=hunter2brown"]),
       agentId: AGENT,
-      cwd: dir,
+      cwd: workspace,
     });
     // Finding 131 was exactly this mistake in the audit half: matched file
     // content recorded as a governed resource. The filter shares that half's

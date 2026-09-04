@@ -23,6 +23,19 @@ import { defaultPolicyDocument } from "./policy-types.js";
 import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
+
+/**
+ * The agent's working directory, deliberately **not** the governance directory.
+ *
+ * This fixture used `dir` for both, and every one of these tests passed because
+ * the core denial on "the governance directory in use" was inert for
+ * workspace-relative paths (finding 254): with the workspace and the policy
+ * store being the same folder, every path here normalises to a short form the
+ * absolute core pattern could not match. Now that it can, an agent working
+ * inside the policy store is refused everything, which is correct and is why
+ * the two must be separate here as they are in production.
+ */
+let workspace: string;
 let TEST_GROUP: string;
 const AGENT = "agent-a";
 
@@ -47,6 +60,7 @@ function textOf(value: unknown): string {
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-filter-hook-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  workspace = await mkdtemp(join(tmpdir(), "governance-workspace-"));
   resetLedgerKeyCacheForTests();
   TEST_GROUP = await seedGroupWithAgents([AGENT]);
   await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce" });
@@ -67,6 +81,7 @@ afterEach(async () => {
   delete process.env.OPENCLAW_GOVERNANCE_DIR;
   resetLedgerKeyCacheForTests();
   await rm(dir, { recursive: true, force: true });
+  await rm(workspace, { recursive: true, force: true });
 });
 
 function install(agent: FakeAgent): void {
@@ -74,7 +89,7 @@ function install(agent: FakeAgent): void {
     agent: agent as never,
     agentId: AGENT,
     sessionKey: `agent:${AGENT}:test`,
-    cwd: dir,
+    cwd: workspace,
   });
 }
 

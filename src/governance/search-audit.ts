@@ -50,7 +50,7 @@
 import { isAbsolute, resolve } from "node:path";
 import { resolveAgentGroup } from "./agent-group.js";
 import { appendLedgerEntry } from "./audit-ledger.js";
-import { normalizeGovernedPath } from "./path-normalize.js";
+import { resolveGovernedPathForms } from "./path-normalize.js";
 import { matchesPattern } from "./pattern-match.js";
 import { loadPolicy } from "./policy-store.js";
 import { isRuleExpired, type PolicyRule } from "./policy-types.js";
@@ -295,11 +295,17 @@ export async function auditSearchReach(params: {
     const base = searchBaseDir(params.toolParams, params.cwd);
     const recorded = new Set<string>();
     for (const candidate of candidates) {
-      const resource = await normalizeGovernedPath(candidate, base);
+      // Both spellings matched, the canonical one recorded (finding 253). A
+      // denial written with an absolute path used to match no search result at
+      // all, so a file the policy forbids was neither recorded as reached here
+      // nor withheld below.
+      const { recorded: resource, forms } = await resolveGovernedPathForms(candidate, base);
       if (recorded.has(resource)) {
         continue;
       }
-      const denied = denials.find((rule) => matchesPattern(rule.pattern, resource));
+      const denied = denials.find((rule) =>
+        forms.some((form) => matchesPattern(rule.pattern, form)),
+      );
       if (!denied) {
         continue;
       }
@@ -451,8 +457,11 @@ export async function filterSearchResult(params: {
       }
       let denied = verdictByCandidate.get(candidate);
       if (denied === undefined) {
-        const resource = await normalizeGovernedPath(candidate, base);
-        denied = denials.some((rule) => matchesPattern(rule.pattern, resource));
+        // The half that actually protects something, and the half where
+        // finding 253 was worst: an absolute denial matched nothing, so a
+        // forbidden file stayed in the results the model reads.
+        const { recorded: resource, forms } = await resolveGovernedPathForms(candidate, base);
+        denied = forms.some((form) => denials.some((rule) => matchesPattern(rule.pattern, form)));
         verdictByCandidate.set(candidate, denied);
         if (denied) {
           withheldResources.add(resource);

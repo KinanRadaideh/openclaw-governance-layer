@@ -185,32 +185,32 @@ async function main(): Promise<void> {
     `folder: ${describe(insideFolder)} | exception: ${describe(insideException)}`,
   );
 
-  // **Finding 253, pinned as a known gap rather than asserted away.**
+  // **Finding 253, and this check has already done its job once.**
   //
-  // `FolderGrantInput` carries a `cwd` field documented as "Workspace root, so
-  // a relative path normalises the way the gate will read it", and **neither
-  // production caller passes it** — not the dashboard route, not the CLI. So
-  // the grant normalises against the *process* cwd while the gate normalises
-  // against the *agent's* workspace, and the module header's claim that "what
-  // an operator types and what the rule matches cannot disagree" does not hold.
+  // It was written asserting the *broken* behaviour, on purpose and saying so
+  // in its own name, so that repairing the defect would turn it red rather than
+  // leave a quiet pass behind. That is exactly what happened: the fix landed,
+  // this went red, and it was rewritten as the assertion below.
   //
-  // With an absolute path the disagreement is total: the grant writes
-  // `^C:/…/projects(/|$)` while the gate matches `projects/README.md`, so both
-  // rules are inert — and the operator is shown the two rules as confirmation
-  // that the protection exists. This check asserts the **current** behaviour so
-  // that fixing it turns the check red and forces this comment to be revisited.
+  // The defect: a grant on an absolute path wrote `^C:/…/projects(/|$)` while
+  // the gate asked about `projects/README.md`, so the allowance and the
+  // exception both bound nothing — and the panel listed them back to the
+  // operator as confirmation that the protection existed. Repaired at the gate
+  // rather than at the control: a path inside the workspace has two legitimate
+  // spellings and rules are now matched against both. See
+  // `resolveGovernedPathForms`.
   const absGrant = await grantFolderWithExceptions(
     groupId,
     { folder: projectDir, exceptions: [secretsDir], agentId: "scout" },
     actor,
   );
+  const absFolder = await evaluate("read", { path: path.join(projectDir, "README.md") });
   const absException = await evaluate("read", { path: path.join(secretsDir, "prod.key") });
   check(
-    "KNOWN GAP (253): an absolute-path grant writes rules that match nothing",
-    !isBlocked(absException),
-    `wrote deny ${absGrant.exceptions[0]?.rule.pattern?.slice(0, 60)}… ; the gate saw the ` +
-      `workspace-relative form and returned ${describe(absException)}. ` +
-      `If this check FAILS, 253 has been fixed and this block should become a real assertion.`,
+    "a grant written with an absolute path binds too (253)",
+    !isBlocked(absFolder) && isBlocked(absException),
+    `wrote deny ${absGrant.exceptions[0]?.rule.pattern?.slice(0, 55)}… ; ` +
+      `folder: ${describe(absFolder)} | exception: ${describe(absException)}`,
   );
 
   // ══ 6. Requirement 8: secrets must not reach the ledger ════════════════

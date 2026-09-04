@@ -19,6 +19,19 @@ import { defaultPolicyDocument } from "./policy-types.js";
 import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
+
+/**
+ * The agent's working directory, deliberately **not** the governance directory.
+ *
+ * This fixture used `dir` for both, and every one of these tests passed because
+ * the core denial on "the governance directory in use" was inert for
+ * workspace-relative paths (finding 254): with the workspace and the policy
+ * store being the same folder, every path here normalises to a short form the
+ * absolute core pattern could not match. Now that it can, an agent working
+ * inside the policy store is refused everything, which is correct and is why
+ * the two must be separate here as they are in production.
+ */
+let workspace: string;
 let TEST_GROUP: string;
 const AGENT = "agent-a";
 const ACTOR = { name: "kinan", role: "root" } as const;
@@ -26,6 +39,7 @@ const ACTOR = { name: "kinan", role: "root" } as const;
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-folder-grant-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
+  workspace = await mkdtemp(join(tmpdir(), "governance-workspace-"));
   resetLedgerKeyCacheForTests();
   TEST_GROUP = await seedGroupWithAgents([AGENT]);
   await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce" });
@@ -35,13 +49,14 @@ afterEach(async () => {
   delete process.env.OPENCLAW_GOVERNANCE_DIR;
   resetLedgerKeyCacheForTests();
   await rm(dir, { recursive: true, force: true });
+  await rm(workspace, { recursive: true, force: true });
 });
 
 /** Drives the real gate, which is the only proof that a written rule binds. */
 async function reads(path: string): Promise<"allow" | "block"> {
   const verdict = await evaluateGovernancePolicy(
     { toolName: "read", params: { path } },
-    { agentId: AGENT, sessionKey: `agent:${AGENT}:test`, cwd: dir },
+    { agentId: AGENT, sessionKey: `agent:${AGENT}:test`, cwd: workspace },
   );
   return verdict && "block" in verdict ? "block" : "allow";
 }
@@ -50,7 +65,7 @@ describe("what the operator asked for actually holds", () => {
   it("grants the folder and refuses the exception, judged by the gate", async () => {
     await grantFolderWithExceptions(
       TEST_GROUP,
-      { folder: "work", exceptions: ["work/secrets"], agentId: AGENT, cwd: dir },
+      { folder: "work", exceptions: ["work/secrets"], agentId: AGENT, cwd: workspace },
       ACTOR,
     );
 
@@ -66,7 +81,7 @@ describe("what the operator asked for actually holds", () => {
     // "this folder".
     const { grant } = await grantFolderWithExceptions(
       TEST_GROUP,
-      { folder: "work", agentId: AGENT, cwd: dir },
+      { folder: "work", agentId: AGENT, cwd: workspace },
       ACTOR,
     );
 
@@ -80,7 +95,7 @@ describe("what the operator asked for actually holds", () => {
     // it becomes a pattern, or the operator has written a wildcard by accident.
     const { grant } = await grantFolderWithExceptions(
       TEST_GROUP,
-      { folder: "a.b", agentId: AGENT, cwd: dir },
+      { folder: "a.b", agentId: AGENT, cwd: workspace },
       ACTOR,
     );
 
@@ -94,7 +109,13 @@ describe("what the operator asked for actually holds", () => {
     // means. The denial is never narrowed.
     await grantFolderWithExceptions(
       TEST_GROUP,
-      { folder: "work", exceptions: ["work/secrets"], access: "read", agentId: AGENT, cwd: dir },
+      {
+        folder: "work",
+        exceptions: ["work/secrets"],
+        access: "read",
+        agentId: AGENT,
+        cwd: workspace,
+      },
       ACTOR,
     );
 
@@ -113,7 +134,7 @@ describe("what it produces is ordinary policy", () => {
     // be a package the operator cannot take apart.
     const result = await grantFolderWithExceptions(
       TEST_GROUP,
-      { folder: "work", exceptions: ["work/secrets"], agentId: AGENT, cwd: dir },
+      { folder: "work", exceptions: ["work/secrets"], agentId: AGENT, cwd: workspace },
       ACTOR,
     );
 
@@ -136,7 +157,7 @@ describe("what it produces is ordinary policy", () => {
   it("records each rule in the ledger, like any other rule addition", async () => {
     await grantFolderWithExceptions(
       TEST_GROUP,
-      { folder: "work", exceptions: ["work/secrets"], agentId: AGENT, cwd: dir },
+      { folder: "work", exceptions: ["work/secrets"], agentId: AGENT, cwd: workspace },
       ACTOR,
     );
 
@@ -152,7 +173,7 @@ describe("what it produces is ordinary policy", () => {
   it("describes each rule in words, so the list explains itself", async () => {
     const result = await grantFolderWithExceptions(
       TEST_GROUP,
-      { folder: "work", exceptions: ["work/secrets"], agentId: AGENT, cwd: dir },
+      { folder: "work", exceptions: ["work/secrets"], agentId: AGENT, cwd: workspace },
       ACTOR,
     );
 
@@ -168,7 +189,7 @@ describe("what it refuses to write", () => {
     await expect(
       grantFolderWithExceptions(
         TEST_GROUP,
-        { folder: "work", exceptions: ["etc/passwd"], agentId: AGENT, cwd: dir },
+        { folder: "work", exceptions: ["etc/passwd"], agentId: AGENT, cwd: workspace },
         ACTOR,
       ),
     ).rejects.toBeInstanceOf(FolderGrantError);
@@ -178,7 +199,7 @@ describe("what it refuses to write", () => {
     await expect(
       grantFolderWithExceptions(
         TEST_GROUP,
-        { folder: "work", exceptions: ["elsewhere"], agentId: AGENT, cwd: dir },
+        { folder: "work", exceptions: ["elsewhere"], agentId: AGENT, cwd: workspace },
         ACTOR,
       ),
     ).rejects.toThrow(/"elsewhere" is not inside "work".*its own deny rule/s);
@@ -186,7 +207,11 @@ describe("what it refuses to write", () => {
 
   it("refuses an empty folder rather than writing a rule matching everything", async () => {
     await expect(
-      grantFolderWithExceptions(TEST_GROUP, { folder: "   ", agentId: AGENT, cwd: dir }, ACTOR),
+      grantFolderWithExceptions(
+        TEST_GROUP,
+        { folder: "   ", agentId: AGENT, cwd: workspace },
+        ACTOR,
+      ),
     ).rejects.toBeInstanceOf(FolderGrantError);
   });
 
@@ -200,7 +225,12 @@ describe("what it refuses to write", () => {
     await expect(
       grantFolderWithExceptions(
         TEST_GROUP,
-        { folder: "work", exceptions: ["work/secrets", "etc/passwd"], agentId: AGENT, cwd: dir },
+        {
+          folder: "work",
+          exceptions: ["work/secrets", "etc/passwd"],
+          agentId: AGENT,
+          cwd: workspace,
+        },
         ACTOR,
       ),
     ).rejects.toBeInstanceOf(FolderGrantError);
@@ -218,7 +248,7 @@ describe("bounds, found by QA on this module rather than designed in", () => {
     await expect(
       grantFolderWithExceptions(
         TEST_GROUP,
-        { folder: "work", exceptions: many, agentId: AGENT, cwd: dir },
+        { folder: "work", exceptions: many, agentId: AGENT, cwd: workspace },
         ACTOR,
       ),
     ).rejects.toThrow(/at most 50 exceptions/);
@@ -232,7 +262,11 @@ describe("bounds, found by QA on this module rather than designed in", () => {
     // they typed the path.
     const long = `work/${"a".repeat(600)}`;
     await expect(
-      grantFolderWithExceptions(TEST_GROUP, { folder: long, agentId: AGENT, cwd: dir }, ACTOR),
+      grantFolderWithExceptions(
+        TEST_GROUP,
+        { folder: long, agentId: AGENT, cwd: workspace },
+        ACTOR,
+      ),
     ).rejects.toThrow(/cannot be expressed as a rule/);
   });
 
@@ -240,7 +274,7 @@ describe("bounds, found by QA on this module rather than designed in", () => {
     const many = Array.from({ length: 50 }, (_, i) => `work/x${i}`);
     const result = await grantFolderWithExceptions(
       TEST_GROUP,
-      { folder: "work", exceptions: many, agentId: AGENT, cwd: dir },
+      { folder: "work", exceptions: many, agentId: AGENT, cwd: workspace },
       ACTOR,
     );
     expect(result.exceptions).toHaveLength(50);

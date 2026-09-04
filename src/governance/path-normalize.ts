@@ -37,7 +37,7 @@
 // Nothing here is new path logic. All three steps reuse helpers the host
 // already ships and already tests.
 import { realpath } from "node:fs/promises";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import { resolveToCwd } from "../agents/sessions/tools/path-utils.js";
 import { formatPathRelativeToCwdOrAbsolute } from "../agents/utils/paths.js";
 
@@ -183,6 +183,68 @@ export async function resolveGovernedPath(
     resource: clamp(formatPathRelativeToCwdOrAbsolute(canonicalPath, canonicalBase)),
     absolute: canonicalPath,
     redirected: !addressesSameFile(absolute, canonicalPath),
+  };
+}
+
+/**
+ * Every spelling of one governed path that a rule may legitimately be written
+ * in, for matching against. **Finding 253, and it is wider than the defect that
+ * exposed it.**
+ *
+ * ## The problem this closes
+ *
+ * The canonical form above is workspace-relative *inside* the workspace and
+ * absolute *outside* it, which is the right form to record and the right form
+ * to keep rules portable. But "inside" is decided by `cwd`, and `cwd` is a
+ * property of **the session making the call**, not of the rule. So the same
+ * file has two legitimate names, and which one a rule has to be written in
+ * depends on something the person writing it does not know and cannot control.
+ *
+ * A rule written as `^C:/Users/kinan/work/secrets(/|$)` never matches, because
+ * the gate is asking about `work/secrets/prod.key`. Nothing warns, because
+ * nothing is wrong with either string: they are two names for one file, and
+ * only one of them was being compared.
+ *
+ * Finding 253 found this through the folder-grant control, which builds an
+ * absolute pattern from a path an operator typed and then lists the useless
+ * rules back as confirmation. But **the control is not the defect**. A rule
+ * hand-written with an absolute path in the ordinary add-rule form is inert in
+ * exactly the same way, and so is an absolute denial consulted by T7's search
+ * withholding, where the consequence is that a forbidden file is *not* removed
+ * from a search result.
+ *
+ * ## Why matching both forms is safe, and not merely convenient
+ *
+ * The absolute form here is the canonical absolute path of the file the gate
+ * has already resolved: links followed, `..` collapsed. A rule that matches it
+ * is a rule about that actual file. There is no string a pattern can match
+ * through this that is not the real path of the resource being judged.
+ *
+ * **The escape-detection property is untouched**, and that is the load-bearing
+ * part. `formatPathRelativeToCwdOrAbsolute` returns a relative form *only* for
+ * paths genuinely inside the workspace: `getCwdRelativePath` rejects `..`,
+ * `../` and absolute results outright and returns `undefined` for all of them,
+ * so the canonical form of an escape is already absolute and there is no second
+ * form to add. `workspace/../../etc/passwd` still arrives as `/etc/passwd` and
+ * still cannot match `^src/`. This function never manufactures a `..`-relative
+ * spelling, which is the one thing that would reopen that hole.
+ *
+ * The forms are returned rather than the match being done here, because the
+ * caller needs the canonical one for the ledger and the message: an operator
+ * reads `work/secrets/prod.key`, not whichever spelling happened to match.
+ */
+export async function resolveGovernedPathForms(
+  raw: string,
+  cwd?: string,
+): Promise<{ recorded: string; forms: string[] }> {
+  const resolution = await resolveGovernedPath(raw, cwd);
+  const absolute = clamp(resolution.absolute.split(sep).join("/"));
+  return {
+    recorded: resolution.resource,
+    // Deduped, because a path outside the workspace already *is* its absolute
+    // form and would otherwise be tested twice against every rule.
+    forms:
+      resolution.resource === absolute ? [resolution.resource] : [resolution.resource, absolute],
   };
 }
 

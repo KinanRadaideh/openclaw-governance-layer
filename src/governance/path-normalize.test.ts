@@ -8,9 +8,9 @@
 // the round-five lesson recorded in GOVERNANCE.md.
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { normalizeGovernedPath } from "./path-normalize.js";
+import { normalizeGovernedPath, resolveGovernedPathForms } from "./path-normalize.js";
 import { evaluateGovernancePolicy } from "./policy-engine.js";
 import { addRule, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
@@ -260,5 +260,108 @@ describe("a link is followed however many components are missing (finding 208)",
       join("also", "absent"),
     );
     expect(typeof resolved).toBe("string");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Finding 253: one file inside the workspace has two legitimate spellings, and
+// a rule written in the other one used to match nothing at all.
+// ---------------------------------------------------------------------------
+
+describe("both spellings of an in-workspace path bind (253)", () => {
+  it("offers the canonical form and the absolute form, and records the canonical one", async () => {
+    const { recorded, forms } = await resolveGovernedPathForms("src/app.ts", workspace);
+
+    // What the ledger and the refusal message say. Unchanged by this fix, on
+    // purpose: an operator reads the form the rest of the system speaks.
+    expect(recorded).toBe("src/app.ts");
+    expect(forms).toContain("src/app.ts");
+    expect(forms.some((form) => form.endsWith("/src/app.ts") && form !== "src/app.ts")).toBe(true);
+  });
+
+  it("offers one form only for a path outside the workspace, never a `..` spelling", async () => {
+    // The load-bearing half. A second, `..`-relative spelling would reopen the
+    // traversal hole this module exists to close, so an escaped path must have
+    // exactly one form and it must be the absolute one.
+    const { recorded, forms } = await resolveGovernedPathForms(
+      join(workspace, "..", "elsewhere.txt"),
+      workspace,
+    );
+
+    expect(forms).toEqual([recorded]);
+    expect(forms.some((form) => form.includes(".."))).toBe(false);
+  });
+
+  it("enforces a deny rule written with an absolute path, over an allowance", async () => {
+    // The defect, at the gate. The grant control builds exactly this pattern
+    // from an absolute path an operator typed, and it used to bind nothing
+    // while the panel confirmed it to them.
+    //
+    // **The allowance is what makes this test mean anything, and leaving it out
+    // was a real mistake worth recording.** The fixture runs `ask: "off"`,
+    // which is strict default-deny, so `src/app.ts` is blocked whether or not
+    // any rule matches it. The first version of this test asserted `block`,
+    // passed, and went on passing when the fix was deliberately removed: true
+    // for the wrong reason, which is exactly the shape findings 206, 221 and
+    // 224 record. Granting the file in the *relative* spelling first means the
+    // only thing that can produce `block` is the absolute denial being matched.
+    const absolute = join(workspace, "src").split(sep).join("/");
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "path", pattern: "^src(/|$)", effect: "allow" },
+      TEST_ACTOR,
+    );
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "path", pattern: `^${absolute}(/|$)`, effect: "deny" },
+      TEST_ACTOR,
+    );
+
+    const decision = await evaluateGovernancePolicy(
+      { toolName: "read", params: { path: "src/app.ts" } },
+      ctx(),
+    );
+
+    expect(verdict(decision)).toBe("block");
+  });
+
+  it("honours an allow rule written with an absolute path", async () => {
+    // The other direction, and the one the folder grant actually needs: the
+    // allowance half of a grant has to bind too, or the folder it named stays
+    // unreachable. Strict default-deny is the fixture, so `allow` here can only
+    // come from the absolute rule matching.
+    const absolute = join(workspace, "src").split(sep).join("/");
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "path", pattern: `^${absolute}(/|$)`, effect: "allow" },
+      TEST_ACTOR,
+    );
+
+    const decision = await evaluateGovernancePolicy(
+      { toolName: "read", params: { path: "src/app.ts" } },
+      ctx(),
+    );
+
+    expect(verdict(decision)).toBe("allow");
+  });
+
+  it("still refuses an escape, with an absolute rule in force", async () => {
+    // The property that must survive the fix: matching a second spelling must
+    // not let a workspace-relative rule reach outside the workspace.
+    const absolute = join(workspace, "src").split(sep).join("/");
+    await addRule(
+      TEST_GROUP,
+      { resourceKind: "path", pattern: `^${absolute}(/|$)`, effect: "allow" },
+      TEST_ACTOR,
+    );
+
+    // `src/../../etc/passwd` leaves the workspace, so it must not be covered by
+    // the allowance on `src`, whichever spelling that allowance was written in.
+    const decision = await evaluateGovernancePolicy(
+      { toolName: "read", params: { path: join("src", "..", "..", "etc", "passwd") } },
+      ctx(),
+    );
+
+    expect(verdict(decision)).not.toBe("allow");
   });
 });

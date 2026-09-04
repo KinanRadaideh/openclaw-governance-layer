@@ -43,12 +43,19 @@ same person after a break. Everything else in `mg/` is detail beneath this.
 > - **The engineering on the backlog is finished, and that is not the same as
 >   "no bugs left".** Thirteen sweeps, the VPS deployment and one conflict between
 >   two sections of this file, and one operator using the dashboard twice, across
->   2026-09-01/04, found **eighty-two defects between them (172–253), nineteen
->   security-relevant and two more latent. Eighty-one are closed; **253 is open
->   as a decision, T54**, and it is the one to read: a folder grant on an
->   absolute path writes an allowance and an exception that bind nothing, and
->   the panel lists both back to the operator as confirmation. Relative paths
->   work, which is why nobody hit it.**
+>   2026-09-01/04, found **eighty-three defects between them (172–254), twenty
+>   security-relevant and two more latent. All eighty-three are closed.**
+>   **254 is the one to read, and it was found while fixing 253 rather than
+>   while looking for it.** A core denial Root cannot switch off protects "the
+>   governance directory in use", derived absolute from the live
+>   `OPENCLAW_GOVERNANCE_DIR`. Relocate that store inside an agent's workspace —
+>   a configuration the deployment report has a field for — and the paths
+>   normalise workspace-relative, so the absolute pattern bound nothing and the
+>   static `.openclaw/governance` sibling did not cover a relocated directory
+>   either. Measured with the fix removed and restored: `policy.json`,
+>   `users.json`, `audit-ledger.jsonl` and **`ledger.key`** all read ALLOWED
+>   before and REFUSED after. Reading the signing key defeats requirement 8
+>   outright. The default layout was never exposed.
 >   **The last ten are the dashboard as an operator sees it**, and one of them
 >   explains the other nine: the only test in this project that can measure
 >   layout sits inside the documented verification command and skips silently

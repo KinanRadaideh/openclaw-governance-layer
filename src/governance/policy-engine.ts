@@ -21,7 +21,7 @@ import {
   MAX_LEDGER_RESOURCE_LENGTH,
   type LedgerDecision,
 } from "./audit-ledger.js";
-import { resolveGovernedPath } from "./path-normalize.js";
+import { resolveGovernedPath, resolveGovernedPathForms } from "./path-normalize.js";
 import { INSTALLATION_LEDGER_GROUP, isUnconfiguredTestRun } from "./paths.js";
 import { matchesPattern } from "./pattern-match.js";
 import { recordTimedOutEscalation } from "./pending-decisions.js";
@@ -377,6 +377,41 @@ export function resolveHitlTimeoutMs(
   return Math.max(1, override ?? doc.hitlTimeoutSeconds) * 1000;
 }
 
+/**
+ * A lookup from a resource to every spelling a rule may match it by.
+ *
+ * Returns a function rather than a map so the call sites read the same as they
+ * did before, and so a resource kind with only one spelling costs nothing: for
+ * commands and network resources the forms are the resource itself and no
+ * filesystem work happens at all.
+ *
+ * The recorded resource is always the canonical one. Only matching sees both,
+ * because an operator reading the ledger or a refusal wants the form the rest
+ * of the system speaks, not whichever spelling happened to match.
+ */
+async function resolvePathMatchForms(
+  spec: GovernedToolSpec,
+  resources: readonly string[],
+  cwd?: string,
+): Promise<(resource: string) => readonly string[]> {
+  if (spec.resourceKind !== "path") {
+    return (resource) => [resource];
+  }
+  const byResource = new Map<string, readonly string[]>();
+  for (const resource of resources) {
+    if (byResource.has(resource)) {
+      continue;
+    }
+    // Re-resolving a path already resolved once is the cost of this fix, and it
+    // is one `realpath` per distinct resource on a call that has already done
+    // several. Measured against the alternative — threading a second return
+    // value through every extractor in `resource-extraction.ts` — this keeps
+    // the change inside the gate, where the defect is.
+    byResource.set(resource, (await resolveGovernedPathForms(resource, cwd)).forms);
+  }
+  return (resource) => byResource.get(resource) ?? [resource];
+}
+
 export async function evaluateGovernancePolicy(
   event: ToolCallEvent,
   ctx: ToolCallContext,
@@ -636,6 +671,18 @@ export async function evaluateGovernancePolicy(
   const paramBinding = await resolveGovernedParamBinding(event, spec, ctx.cwd);
   const judgedEvent = paramBinding ? { ...event, params: paramBinding } : event;
   const resources = await spec.extract(judgedEvent, ctx.cwd);
+  // **Both spellings of every path resource, matched against; one of them
+  // recorded** (finding 253).
+  //
+  // A file inside the workspace has two legitimate names — `work/secrets/key`
+  // and `C:/Users/kinan/work/secrets/key` — and which one a rule has to be
+  // written in depended on the *session's* working directory, which the person
+  // writing the rule does not know. So a rule spelled the other way matched
+  // nothing, silently. See `resolveGovernedPathForms` for why testing both is
+  // safe and why it cannot reopen the traversal hole.
+  //
+  // Only paths have a second spelling: a command or a URL is one string.
+  const matchForms = await resolvePathMatchForms(spec, resources, ctx.cwd);
   if (resources.length === 0) {
     // A governed tool whose payload yielded nothing to check. Typically a
     // shape the extractor does not recognise. We still do not fail closed on
@@ -707,7 +754,9 @@ export async function evaluateGovernancePolicy(
   // were never decided, because the call is refused before they are reached.
   const refusals: Array<{ resource: string; rule: (typeof denials)[number] }> = [];
   for (const resource of resources) {
-    const denied = denials.find((rule) => matchesPattern(rule.pattern, resource));
+    const denied = denials.find((rule) =>
+      matchForms(resource).some((form) => matchesPattern(rule.pattern, form)),
+    );
     if (denied) {
       refusals.push({ resource, rule: denied });
     }
@@ -766,7 +815,9 @@ export async function evaluateGovernancePolicy(
   // requirement and hides the full blast radius of a multi-path edit.
   let firstMiss: string | undefined;
   for (const resource of resources) {
-    const matched = activeRules.find((rule) => matchesPattern(rule.pattern, resource));
+    const matched = activeRules.find((rule) =>
+      matchForms(resource).some((form) => matchesPattern(rule.pattern, form)),
+    );
     // The recorded decision is always what the policy actually concluded.
     // Monitor mode changes whether we *act* on it, never what we write down,
     // a dry run whose log says "ask" when the rule says "deny" would make the

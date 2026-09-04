@@ -938,3 +938,138 @@ the comment to be revisited, rather than leaving a silent pass behind.
 which has been read several times and whose comments are careful and correct
 about everything except this. By granting a folder and then _asking the gate_
 whether the exception held.
+
+---
+
+## 2026-09-04 (late): T54 answered with a fifth option, and 254 underneath it
+
+**Kinan asked for more options than the four in the decision document, then for
+the most thorough one to be built.** Brainstorming produced a fifth that none of
+the first four had reached, and building it exposed a security defect in the
+self-protecting core tier that nobody was looking for.
+
+### The four options, and why none of them was the answer
+
+`docs-notes/T54-DECISION.md` listed: resolve against the named agent's
+workspace; refuse a path the control cannot express; build the pattern
+position-independently; or document the limitation. The recommendation was the
+second, on the grounds that it removes the silent failure and costs nothing.
+
+**Every one of them treats the folder-grant control as the thing that is
+wrong.** That framing is what kept the answer small, and it was wrong. The
+control is one of _three_ places a path becomes a pattern, and the same
+disagreement lives in the other two — a rule hand-written with an absolute path
+in the ordinary add-rule form is inert in exactly the same way, and nobody had
+noticed because nobody had written one.
+
+### The fifth option: fix the comparison, not the writer
+
+**A file inside the workspace has two legitimate names.** `work/secrets/key` and
+`C:/Users/kinan/work/secrets/key` are the same file. The canonical form picks
+one of them, and which one it picks depends on `cwd` — a property of _the
+session making the call_, which the person writing the rule does not know and
+cannot control.
+
+So the defect is not "the control writes the wrong spelling". It is that **a
+canonical form which varies by observer is not canonical**, and the gate was
+comparing against one name while the operator had written the other.
+
+`resolveGovernedPathForms` returns both spellings; the gate matches every rule
+against both, and records the canonical one. That is four call sites: the deny
+pass, the allow pass, and T7's two search-audit passes.
+
+**Why this is the thorough answer.** It fixes folder grants, hand-written
+absolute rules, and search withholding, from every surface, in one place. It
+needs no new data, no migration, and nothing an operator has to know. And it
+puts the repair where the ambiguity is: the gate owns "does this rule bind this
+resource", and the resource had two names.
+
+**Why it is safe, which is the part that took the longest to establish.** The
+absolute form is the canonical absolute path the gate has _already resolved_ —
+links followed, `..` collapsed. A rule matching it is a rule about that actual
+file; there is no string reachable through this that is not the real path of the
+resource being judged. And the escape-detection property is untouched, because
+`getCwdRelativePath` returns `undefined` for anything outside the workspace,
+rejecting `..`, `../` and absolute results outright. **An escaped path has only
+one form and it is already absolute.** The one thing that would reopen the hole —
+manufacturing a `..`-relative spelling — is exactly what this never does, and
+there is a test asserting so.
+
+**The option that was rejected, and the reason is worth keeping.** Building the
+pattern position-independently with `(^|/)`, as every shipped rule does, is a
+one-line change and was tempting. It is also _looser than the operator asked
+for_: a grant on `src` would cover `vendor/src` and anything else ending in
+`/src`. Every shipped rule using that trick is a **denial**, where matching too
+much is safe. This control writes an **allowance**, where matching too much
+hands out access nobody asked for. Widening access to fix a matching bug is the
+wrong direction to be wrong in.
+
+### Finding 254, which the fix found on its way in
+
+Twelve tests failed the moment the fix landed, all over-blocking. The cause was
+not the fix.
+
+**There is a core denial, one of the self-protecting ones Root cannot switch
+off, on "the governance directory in use".** It is generated on every load from
+the live `OPENCLAW_GOVERNANCE_DIR`, so relocating the store moves the protection
+with it — and it is generated **absolute**, under a comment stating the
+assumption it rests on:
+
+> absolute whenever the target is outside the workspace, which the governance
+> directory always is.
+
+It is not always. Point the store somewhere inside an agent's workspace, which
+the deployment report treats as a supported configuration — it reports
+`governanceDirRelocated` — and the paths become workspace-relative and **the
+absolute pattern matches nothing**. The static sibling does not cover it either:
+that one is `(^|/)\.openclaw/governance(/|$)`, and a relocated directory is by
+definition not at that path.
+
+**Measured, not argued** (`docs-notes/qa-sweep-2026-09-04/relocated-governance-dir.ts`),
+with the fix removed and put back:
+
+```
+WITHOUT the fix                      WITH the fix
+  policy.json          ALLOWED         REFUSED
+  users.json           ALLOWED         REFUSED
+  audit-ledger.jsonl   ALLOWED         REFUSED
+  ledger.key           ALLOWED         REFUSED
+```
+
+All four. The policy the agent is governed by, the accounts, the audit trail,
+and **the signing key that makes the ledger tamper-evident** — reading which
+defeats requirement 8 outright, because with the key the whole chain can be
+forged. The credential-file fallback does not catch `ledger.key`: that pattern
+lists `.pem`, `.pfx`, `.p12` and `.keystore`, and not `.key`.
+
+**Narrow but real.** It needs the store relocated to a path not containing
+`.openclaw/governance` _and_ that path inside an agent's workspace. The default
+layout is safe, because the static pattern covers it. But relocation is a
+configuration this project ships a report field for.
+
+**Why the twelve tests had been passing.** `search-filter.test.ts`,
+`search-filter-hook.test.ts` and `folder-grant.test.ts` all used the governance
+directory _as the agent's workspace_. No installation does that, and it was
+harmless only while the rule was inert. With the rule working, an agent working
+inside the policy store is correctly refused everything. The fixtures now have a
+workspace of their own, which is what production has.
+
+### Two mistakes made and caught while doing this, both the same one
+
+**The first was in the unit test for the fix.** It added a deny rule with an
+absolute pattern, read a file, and asserted `block`. It passed — and went on
+passing when the fix was deliberately removed. The fixture runs `ask: "off"`,
+strict default-deny, so the file was blocked whether or not any rule matched it.
+True for the wrong reason. Fixed by granting the file in the _relative_ spelling
+first, so `block` can only come from the absolute denial binding.
+
+**The second was in the 254 probe, an hour later, identically.** It reported
+`REFUSED` before and after the fix, and the write-up nearly claimed a defect
+that the evidence did not support. Same cause, same repair: allow the path
+broadly first, so the core denial is the only thing that can still refuse it.
+
+**Mutation testing is what caught both**, and it is the only thing that could
+have. Removing `forms` and re-running took seconds; three of the five new
+assertions go red, and the two that do not are the negative safety ones, which
+guard a different future mistake. A green suite says nothing about whether it
+depends on the code.

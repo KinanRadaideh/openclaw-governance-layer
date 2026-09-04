@@ -1,5 +1,42 @@
 # T54: what should a folder grant measure against?
 
+> ## ✅ Decided and built, 2026-09-04
+>
+> **None of the four options below is what was built.**
+>
+> Kinan asked for more options, then for the most thorough one. Brainstorming
+> produced a **fifth** that the first four had all missed, because all four
+> share a framing that turned out to be wrong.
+>
+> **The four below treat the folder-grant control as the thing at fault.** It is
+> not. It is one of three places a path becomes a pattern, and the same
+> disagreement lives in the other two: a rule hand-written with an absolute path
+> in the ordinary add-rule form was inert in exactly the same way, and so was an
+> absolute denial consulted by the search-withholding half of T7, where the
+> consequence is a forbidden file staying in the results the model reads.
+>
+> **The fifth option: fix the comparison, not the writer.** A file inside the
+> workspace has two legitimate names, and which one the canonical form picks
+> depends on the _session's_ working directory — something the person writing a
+> rule cannot know. So rules are now matched against **both** spellings, and the
+> canonical one is still the one recorded. Four call sites, one helper
+> (`resolveGovernedPathForms`), no new data, no migration, and nothing an
+> operator has to understand.
+>
+> **Building it found finding 254**, which is more serious than the defect that
+> started this: a core denial Root cannot switch off, protecting "the governance
+> directory in use", was generated as an absolute pattern and therefore matched
+> nothing when the store was relocated inside an agent's workspace. Measured,
+> the agent could read `policy.json`, `users.json`, `audit-ledger.jsonl` and
+> `ledger.key` — the signing key that makes the ledger tamper-evident.
+>
+> **The rest of this document is kept as written**, because the reasoning in it
+> is why the fifth option was recognised as better, and because §3's Option 3
+> is a trap worth leaving visible: it is the one-line change, and it widens
+> access. See `mg/SESSION-LOG-2026-09.md` §2026-09-04 (late) for what was built.
+
+---
+
 **A decision for Kinan, with Mohammad and Malek.** Finding 253. Nothing is
 blocked on it — the system is safe to keep using — but the answer changes a
 control that exists to protect secrets, so it is worth reading properly rather
@@ -159,6 +196,33 @@ is written to match at the start of the path _or_ just after a slash, so
   as such a dozen times. I would argue against it.
 
 ---
+
+### Option 5 — Fix the comparison instead of the writer (**this is what was built**)
+
+Leave the rule alone. **Match it against both of the file's legitimate names.**
+
+The gate already resolves every path to a canonical absolute form and then
+throws it away, keeping only the short one. Keep both, test rules against both,
+and go on recording the short one.
+
+- **Good:** it fixes folder grants, hand-written absolute rules and search
+  withholding at once, from every surface, because it repairs the comparison
+  rather than each of the three places that write a pattern. No new data, no
+  migration, nothing an operator has to know, and no capability removed.
+- **Good:** it puts the repair where the ambiguity actually is. The gate owns
+  "does this rule bind this resource", and the resource had two names.
+- **Safe, and this is the part that needed establishing rather than asserting.**
+  The absolute form is the path the gate has _already_ resolved — links
+  followed, `..` collapsed — so a rule matching it is a rule about that actual
+  file. And the escape-detection property is untouched: the helper that produces
+  the short form returns nothing at all for a path outside the workspace,
+  rejecting `..`, `../` and absolute results outright. An escaped path therefore
+  has exactly **one** form, the absolute one, and `^src/` still cannot match it.
+  Manufacturing a `..`-relative spelling is the one thing that would reopen the
+  hole, and there is a test asserting it never happens.
+- **Cost:** one extra path resolution per distinct resource on a call that
+  already does several, and one extra regex test per rule. Patterns are cached
+  and rules are few.
 
 ## 4. What I would do
 
