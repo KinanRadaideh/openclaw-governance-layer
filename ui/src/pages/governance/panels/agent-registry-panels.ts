@@ -190,11 +190,11 @@ function renderRemoveChoice(
       >
         ${t("governance.agents.unregister")}
       </button>
-      <div class="settings-row__description">${t("governance.agents.unregisterExplain")}</div>
+      <div class="settings-row__desc">${t("governance.agents.unregisterExplain")}</div>
     </div>
     <div>
       <button
-        class="btn btn-danger"
+        class="btn danger"
         ?disabled=${props.busy}
         @click=${() =>
           void props.confirmThen(
@@ -217,7 +217,7 @@ function renderRemoveChoice(
       >
         ${t("governance.agents.delete")}
       </button>
-      <div class="settings-row__description">${t("governance.agents.deleteExplain")}</div>
+      <div class="settings-row__desc">${t("governance.agents.deleteExplain")}</div>
     </div>
     <button class="btn" @click=${() => props.onDraft({ removeChoiceFor: "" })}>
       ${t("governance.agents.cancelRemove")}
@@ -415,7 +415,7 @@ function renderProvisionForm(props: AgentRegistryPanelProps): TemplateResult {
           </select>`
         : nothing}
       <button
-        class="btn btn-primary"
+        class="btn primary"
         ?disabled=${props.busy || !name || blockedOnOwner || ownerMissing}
         @click=${() =>
           void props.run(async () => {

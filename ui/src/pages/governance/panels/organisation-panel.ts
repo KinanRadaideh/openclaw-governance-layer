@@ -94,7 +94,7 @@ export function renderOrganisationSection(
             }}
           />
           <button
-            class="btn btn--danger"
+            class="btn danger"
             ?disabled=${props.busy || !matches}
             title=${matches
               ? ""

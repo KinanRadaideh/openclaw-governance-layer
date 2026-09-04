@@ -128,7 +128,7 @@ export function renderFolderGrantPanel(
         />
         <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
           <button
-            class="btn btn--primary"
+            class="btn primary"
             ?disabled=${busy || !draft.folder.trim()}
             @click=${() =>
               props.run(async () => {

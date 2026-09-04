@@ -271,23 +271,59 @@ describe("the core-rule switch appears only where it can work (T24)", () => {
     description: "The governance command line, which can switch the gate off",
   });
 
+  /**
+   * The switch-off *buttons* on the page.
+   *
+   * These assertions used to read `textContent` for the phrase "Switch off",
+   * which conflated three different things: a button, the button's label
+   * echoed in a tooltip, and prose about buttons. The third is what broke it —
+   * the row explaining *why* some rules have no switch necessarily names the
+   * control it is explaining, and a page-text match cannot tell that apart
+   * from the control itself. Ask for the button.
+   */
+  const switchOffButtons = (el: Element): HTMLButtonElement[] =>
+    [...el.querySelectorAll("button")].filter((button) =>
+      button.textContent?.includes("Switch off"),
+    );
+
   it("offers Root a switch on a core rule that is not self-protecting", async () => {
     const el = await mount({ identity: identity("root"), policy: policy([coreRule]) });
-    expect(el.textContent).toContain("Switch off");
+    expect(switchOffButtons(el)).toHaveLength(1);
   });
 
   it("offers no switch on a self-protecting core rule", async () => {
     // Refused by the server regardless, so a button here would always fail,
     // the shape of finding 100. No control at all is the honest rendering.
     const el = await mount({ identity: identity("root"), policy: policy([selfProtecting]) });
-    expect(el.textContent).not.toContain("Switch off");
+    expect(switchOffButtons(el)).toHaveLength(0);
+  });
+
+  it("says on the row that a self-protecting rule cannot be switched off", async () => {
+    // **A missing button is not a message.** Some core denials offer the
+    // switch and some do not, and with nothing in the control column the
+    // difference read as a page that had failed to render half its buttons
+    // rather than as a rule being enforced. This is the same answer the Root
+    // account row already gives with "root (permanent, cannot be changed)".
+    const el = await mount({ identity: identity("root"), policy: policy([selfProtecting]) });
+    expect(el.textContent).toContain("Cannot be switched off");
+  });
+
+  it("explains once, above the list, why some rules have no switch", async () => {
+    // The reason belongs to the tier, not to any one rule, so it is stated
+    // once where somebody reading the list will meet it, rather than five
+    // times on the rows or in a `title=` that touch devices never show.
+    const el = await mount({ identity: identity("root"), policy: policy([selfProtecting]) });
+    expect(el.textContent).toContain("Why some built-in rules have no Switch off");
   });
 
   it("offers no switch to an Administrator", async () => {
     // Lowering the shipped floor is Root's, deliberately the narrower of the
     // two readings available when T24 was decided.
     const el = await mount({ identity: identity("administrator"), policy: policy([coreRule]) });
-    expect(el.textContent).not.toContain("Switch off");
+    expect(switchOffButtons(el)).toHaveLength(0);
+    // And the explanation goes with it: a tier they cannot act on is not a
+    // question they are being asked.
+    expect(el.textContent).not.toContain("Why some built-in rules have no Switch off");
   });
 
   it("offers no Remove on a core rule, to anybody", async () => {

@@ -463,7 +463,7 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
               ${t("governance.users.setPassword")}
             </button>
             <button
-              class="btn btn--danger"
+              class="btn danger"
               ?disabled=${props.busy || user.username === props.identity?.username}
               title=${user.username === props.identity?.username
                 ? // Names the act that *does* remove this account rather than
@@ -556,7 +556,7 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
               html`<span class="settings-hint">${t("governance.users.noAdministrators")}</span>`
             : nothing}
           <button
-            class="btn btn--primary"
+            class="btn primary"
             ?disabled=${props.busy ||
             !props.drafts.newUserName ||
             !props.drafts.newUserPassword ||
@@ -630,14 +630,14 @@ export function renderRuleRequestsSection(
           ? html`
               <div class="settings-row__control" style="gap:0.5rem">
                 <button
-                  class="btn btn--primary"
+                  class="btn primary"
                   ?disabled=${props.busy}
                   @click=${() => props.run(() => props.api().decideRuleRequest(request.id, true))}
                 >
                   ${t("governance.requests.approve")}
                 </button>
                 <button
-                  class="btn btn--danger"
+                  class="btn danger"
                   ?disabled=${props.busy}
                   @click=${() => props.run(() => props.api().decideRuleRequest(request.id, false))}
                 >
@@ -731,7 +731,7 @@ export function renderRuleRequestsSection(
                 }}
               />
               <button
-                class="btn btn--primary"
+                class="btn primary"
                 ?disabled=${props.busy ||
                 !props.drafts.requestPattern ||
                 !props.drafts.requestReason}

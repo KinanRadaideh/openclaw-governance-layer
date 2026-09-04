@@ -182,7 +182,7 @@ export function renderLogin(props: LoginPanelProps): TemplateResult {
                 />`
               : nothing}
             <button
-              class="btn btn--primary"
+              class="btn primary"
               ?disabled=${props.busy ||
               !props.drafts.loginUsername ||
               !props.drafts.loginPassword ||

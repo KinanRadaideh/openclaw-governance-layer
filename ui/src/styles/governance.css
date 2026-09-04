@@ -63,9 +63,241 @@
   gap: var(--space-4, 1rem);
 }
 
+/* **The sections' own separation lives here, and this is why.**
+
+   `settings.css` spaces sections with a gap on `.settings-page` and a
+   `> .settings-section + .settings-section` margin for the intro case. Both
+   are *child* selectors, and this page puts its sections two levels down,
+   inside the jump-nav layout. So neither rule ever matched: every section on
+   the governance page sat flush against the one above it, with only the
+   section's own `--space-3` between a heading and its card. "ACCOUNTS" was
+   printed hard against the bottom edge of the Identity card, which reads as
+   one run-on block rather than as thirteen separate panels.
+
+   Restated here rather than by loosening the settings selectors, because that
+   pair is doing deliberate work for every other settings page and a descendant
+   selector there would also space nested groups nobody asked to space. */
 .governance-page__body {
   flex: 1 1 auto;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8, 2rem);
+}
+
+/* ------------------------------------------------------------------ */
+/* Control clusters inside a stacked row                               */
+/* ------------------------------------------------------------------ */
+
+/* **The overflow that clipped "Set password", the create-account fields and
+   the rule-request form, all one defect.**
+
+   These panels hand `renderSettingsRow` a control that is itself a
+   `<div class="settings-row__control">`, so the class lands twice: once on the
+   cell the helper wraps around it, once on the cluster inside. The class
+   carries `flex: 0 0 auto`, which is right for the outer cell (a control
+   column should not stretch) and wrong for the inner one: with no shrink and
+   an `auto` basis, a wrapping flex container resolves to its **max-content**
+   width and then refuses to come back down. The cluster therefore rendered at
+   whatever width its widest single line wanted, ran past the card, and
+   `.settings-group`'s `overflow: hidden` cut it off. That is why the last
+   control in each cluster was the one missing.
+
+   A stacked row means "the control has the whole width", so say so: full
+   width, allowed to shrink, allowed to wrap.
+
+   Scoped to `--stacked` deliberately. Two non-stacked rows (the per-agent
+   posture and ask overrides) carry an inline `min-width: max-content` that
+   T38 added to stop the mode name rendering one letter per line, and widening
+   this selector to cover them would put that defect back. */
+.governance-page .settings-row--stacked .settings-row__control .settings-row__control {
+  flex: 1 1 100%;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+/* **A wider floor for the fields inside those clusters, and the reason is a
+   measurement rather than a preference.**
+
+   The general floor above is `24ch`, which is about 168px and was enough for
+   the short placeholders the settings surface was built for. The authoring
+   forms use sentences: "Agent id (blank = all agents)" and
+   "Minutes (blank = never expires)" both need roughly 190px, so both rendered
+   clipped mid-word — "Agent id (blank = all ager" — and both carried an inline
+   `max-width` of 9 to 11rem that stopped them growing at all.
+
+   Those caps were right when the body was ~490px wide, where widening one
+   field pushed the Add rule button off the edge. The page is `--wide` now and
+   the cluster wraps, so the cap is protecting against a layout that no longer
+   exists; they are gone and this floor replaces them.
+
+   `min()` keeps the floor below the container, so a narrow viewport still
+   shrinks the field rather than overflowing the card. Scoped to the nested
+   clusters, because that is where the forms are, and the general 24ch stays
+   right for a single control sitting in a row. */
+.governance-page
+  .settings-row--stacked
+  .settings-row__control
+  .settings-row__control
+  > .input:not(select) {
+  min-width: min(100%, 31ch);
+}
+
+/* The same for the plain `<div>` button clusters the folder-grant form uses:
+   they are not `.settings-row__control`, but they sit in the same place and
+   must wrap rather than push the card open. */
+.governance-page .settings-row--stacked .settings-row__control > div {
+  max-width: 100%;
+}
+
+/* ------------------------------------------------------------------ */
+/* Disclosures ("Why this is off by default", "What this does")        */
+/* ------------------------------------------------------------------ */
+
+/* **These two had no styling at all**, which showed up as the two complaints
+   they always produce: the Codex one renders as a direct child of
+   `.settings-group`, a surface with no padding of its own, so its paragraphs
+   sat flush against the card's border; and the folder-grant one renders inside
+   a stacked control cluster, where the max-content sizing described above took
+   a page of prose as a single very long line and ran it off the card.
+
+   Both are prose an operator reads to decide something, so they get a reading
+   measure rather than the full card width, and the same row padding as the
+   settings rows they sit between. */
+.governance-codex-learn-more,
+.governance-folder-grant-learn-more {
+  min-width: 0;
+  max-width: 100%;
+  padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+  font-size: var(--control-ui-text-sm);
+  color: var(--muted);
+}
+
+/* The Codex disclosure is a sibling of the rows in its group, so it takes the
+   same divider they take from each other. The folder-grant one is nested
+   inside a row and must not draw a second line across it. */
+.settings-row + .governance-codex-learn-more {
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.governance-folder-grant-learn-more {
+  padding-inline: 0;
+}
+
+.governance-codex-learn-more > summary,
+.governance-folder-grant-learn-more > summary {
+  cursor: pointer;
+  color: var(--text-strong, var(--fg));
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.governance-codex-learn-more > div,
+.governance-folder-grant-learn-more > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3, 0.75rem);
+
+  /* A measure, not the card width: forty to seventy characters is where prose
+     stays readable, and these run to nine paragraphs. */
+  max-width: 68ch;
+  margin-top: var(--space-3, 0.75rem);
+  line-height: 1.6;
+}
+
+.governance-codex-learn-more p,
+.governance-folder-grant-learn-more p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------ */
+/* Rule rows                                                           */
+/* ------------------------------------------------------------------ */
+
+/* The regular expression under a rule's description. It is the exact thing
+   the engine matches on, so it stays complete and selectable; it is also up
+   to two hundred case-folded characters long, so it is set smaller and
+   quieter than the sentence above it and allowed to break anywhere rather
+   than widening the row. Named by the markup since the list was written, and
+   defined here for the first time. */
+.governance-page .governance-rule__pattern {
+  display: inline-block;
+  max-width: 100%;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: var(--control-ui-text-xs);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* The answer to "Who does this affect?", which appears inline in the control
+   column beside the button that asked. Also previously undefined, so a list of
+   agent ids arrived at full body weight in the middle of a button cluster. */
+.governance-page .governance-rule__targets {
+  max-width: 100%;
+  color: var(--muted);
+  font-size: var(--control-ui-text-sm);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------ */
+/* Secondary notes on a row                                            */
+/* ------------------------------------------------------------------ */
+
+/* **Both of these classes were being used and neither existed.** Six call
+   sites across three panels — the search caveat on a rule, the "pick one of
+   your agents" note, the list of rules a folder grant wrote, the
+   "no Administrators yet" note — all reached for a hint style that is not in
+   `settings.css`, in this file, or anywhere else in `ui/src`. They rendered at
+   full body weight and colour, so a note meant to sit *beside* a decision read
+   as part of it.
+
+   The two names are kept rather than unified because they mark different
+   things: `--hint` is a note attached to a row, `settings-hint` is a note
+   attached to a control inside one. They are given the same appearance, which
+   is the fact that was missing, not the same selector. */
+.governance-page .settings-row__hint,
+.governance-page .settings-hint {
+  display: inline-block;
+  max-width: 100%;
+  color: var(--muted);
+  font-size: var(--control-ui-text-sm);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* A grant's written-rules list is a block, not an inline aside. */
+.governance-page div.settings-row__hint {
+  display: block;
+}
+
+/* ------------------------------------------------------------------ */
+/* Section headers carrying a cluster of actions                       */
+/* ------------------------------------------------------------------ */
+
+/* The audit ledger puts five controls in the header slot `settings-ui` sizes
+   for one or two. `space-between` then squeezed the heading into a two-line
+   column beside a two-line button block, and the section read as a collision
+   rather than as a title and its filters.
+
+   Three or more actions take their own line beneath the heading, which is what
+   the rule list already does with its filter row. Scoped by count so a header
+   that genuinely has one trailing button keeps it inline. */
+.governance-page .settings-section__header:has(.settings-section__actions > :nth-child(3)) {
+  flex-wrap: wrap;
+  row-gap: var(--space-2, 0.5rem);
+}
+
+.governance-page
+  .settings-section__header:has(.settings-section__actions > :nth-child(3))
+  > .settings-section__actions {
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  justify-content: flex-start;
 }
 
 /* Sticky, and scrollable on its own so a long section list never pushes the

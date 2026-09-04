@@ -3603,6 +3603,10 @@ export const en: TranslationMap = {
       coreRuleDisable: "Switch off",
       coreRuleHint:
         "Stop enforcing this shipped denial. It stays declared and can be switched back on. The deployment report will report the installation as failing while it is off.",
+      coreRuleLocked: "Cannot be switched off",
+      coreTierTitle: "Why some built-in rules have no Switch off",
+      coreTierHint:
+        "The built-in denials come in two kinds. Most are ordinary security opinions, and Root can switch those off. The rest are what stop a governed agent reaching the policy, the accounts, the audit ledger and the signing key that makes the ledger tamper-evident — switching one off would let an agent grant itself permissions and then erase the record of having done so. The server refuses that for every account, Root included, so those rows say “Cannot be switched off” instead of offering a button that could not work.",
       agentRequiredPlaceholder: "Agent id (required)",
       agentRequiredHint:
         "Pick one of your agents. Only an Administrator can write a rule that binds every agent.",

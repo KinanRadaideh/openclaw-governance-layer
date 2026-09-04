@@ -98,7 +98,7 @@ export function renderAgentPolicySection(props: PolicyPanelProps): TemplateResul
           )}
         </datalist>
         <button
-          class="btn btn-primary"
+          class="btn primary"
           ?disabled=${props.busy || !props.drafts.agentPolicyAgentId.trim()}
           @click=${() =>
             props.run(() => props.loadAgentPolicy(props.drafts.agentPolicyAgentId.trim()))}

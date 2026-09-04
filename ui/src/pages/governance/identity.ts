@@ -56,6 +56,39 @@ export function canManageAnyAgent(identity: GovernanceIdentity | null): boolean 
 }
 
 /**
+ * Whether this operator may write policy at all, before asking about any
+ * particular agent.
+ *
+ * The browser-side twin of `canWritePolicy` in `src/governance/permissions.ts`,
+ * and it exists for the reason `canManageAgent` below does: the server asks a
+ * question the page was not asking. Administrator and Root always may, and the
+ * flag is deliberately not consulted for them, because a Root who could revoke
+ * their own authoring would be a lockout. A Viewer never may. A User may unless
+ * Root has withheld it (T27).
+ *
+ * **Nothing in the dashboard read this until now, and that was the defect.**
+ * The route has sent `canAuthorPolicy` on the identity since the switch was
+ * built, this module's own `GovernanceIdentity` type declares it with the note
+ * "absent means allowed", and every authoring route enforces it — but the page
+ * gated its authoring controls on `canManageAnyAgent`, which answers *does this
+ * tier touch agents at all*. So Root could withhold authoring from a User and
+ * that User still saw the add-rule form, the folder-grant form and a Remove
+ * button on every rule, each of which came back refused with nothing on screen
+ * explaining why. T27 exists precisely to separate *may I act on this agent?*
+ * from *may I change the rules it is judged by?*, and the dashboard was
+ * answering only the first.
+ */
+export function canWritePolicy(identity: GovernanceIdentity | null): boolean {
+  if (canAdminister(identity)) {
+    return true;
+  }
+  if (identity?.role !== "user") {
+    return false;
+  }
+  return identity.canAuthorPolicy !== false;
+}
+
+/**
  * Whether this operator may act on **this** agent. Stop it, release it, write
  * its rules.
  *

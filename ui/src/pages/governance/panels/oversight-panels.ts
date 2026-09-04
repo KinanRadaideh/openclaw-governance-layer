@@ -113,7 +113,7 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
   // feature amounts to much the same thing.
   const visibleLedger = filterLedger(ledger, ledgerFilter);
   const filterButton = (value: LedgerFilter, label: string) => html`<button
-    class="btn ${ledgerFilter === value ? "btn-primary" : ""}"
+    class="btn ${ledgerFilter === value ? "primary" : ""}"
     aria-pressed=${ledgerFilter === value ? "true" : "false"}
     @click=${() => {
       onFilter(value);

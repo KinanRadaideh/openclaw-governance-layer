@@ -1101,6 +1101,24 @@ class GovernancePage extends OpenClawLightDomElement {
         </div>
       `,
       {
+        // **Wide, because this page is not shaped like a settings page.**
+        //
+        // The default 760px column assumes a short label on the left and one
+        // right-aligned control on the right. Governance puts a 13.5rem
+        // jump-nav beside the content and then fills the rest with rows
+        // carrying three or four controls each: a role picker, an agent list,
+        // a password field and two buttons on one line. At 760px the body was
+        // roughly 490px after the nav and the page padding, which is narrower
+        // than the control clusters it has to hold, so they overflowed the
+        // card and `.settings-group`'s `overflow: hidden` clipped them.
+        //
+        // Widening is the honest fix rather than shrinking the controls: the
+        // page is list-heavy and table-like, which is the case
+        // `.settings-page--wide` already exists for (sessions, automations,
+        // plugins). The wrapping rules in `governance.css` still handle a
+        // narrow viewport; this stops a 1440px screen being asked to render
+        // fourteen sections through a 490px slot.
+        wide: true,
         intro: html`${t("governance.intro")}
         ${renderDocsLink(GOVERNANCE_REPO_URL, t("common.learnMore"))}`,
       },

@@ -50,6 +50,7 @@ import type {
   GovernanceRuleWarning,
   GovernanceUserRecord,
 } from "../api.ts";
+import { canWritePolicy } from "../identity.ts";
 import {
   EMPTY_RULE_FILTER,
   filterRules,
@@ -63,6 +64,7 @@ import { type CodexBackendState, renderCodexBackendPanel } from "./codex-backend
 import { renderFolderGrantPanel } from "./folder-grant-panel.ts";
 import { formatDuration } from "./format.ts";
 import { renderAgentTimeoutRow } from "./policy-agent-timeout.ts";
+import { renderPolicyReadingNotes } from "./policy-reading-notes.ts";
 import { renderRootPolicySettings } from "./policy-root-settings.ts";
 
 /**
@@ -380,7 +382,24 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
   // timeout is Administrator and above since 2026-09-03. Hiding either for a
   // lower tier is a courtesy, never the control. See the note above the rows.
   const isRoot = props.identity?.role === "root";
-  const canEditRules = props.canManageAnyAgent && !props.busy;
+  // **`canWritePolicy`, not `canManageAnyAgent`.** The second answers "does
+  // this tier touch agents at all", which is the question the kill switch and
+  // the prompt box ask. Authoring asks a narrower one, and T27 exists to keep
+  // the two apart: Root may withhold policy authoring from a User without
+  // taking away their ability to stop their own agent. Gating these controls on
+  // the wider predicate meant a withheld User was still shown the add-rule
+  // form, the folder-grant form and a Remove button on every rule, and learned
+  // they could not use them only from the refusal.
+  const canEditRules = canWritePolicy(props.identity) && !props.busy;
+  // **Per-agent posture and escalation overrides are Administrator and above,
+  // and had stayed on the User gate after the floor moved.** Finding 218 moved
+  // both routes to `requireRole(..., "administrator")` — an escalation override
+  // turns a hard refusal into a request somebody might grant, which is a
+  // widening the paper does not give the User tier — and `permissions.ts` says
+  // so at length. The three controls here kept the old gate, so a User was
+  // shown "Observe an agent" and a "Clear override" on each row, and every one
+  // of them came back 403.
+  const canEditPostures = canEditGlobal;
   return renderSettingsSection({ title: t("governance.policy.title") }, [
     renderSettingsRow({
       title: t("governance.policy.mode"),
@@ -506,7 +525,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
             ${renderSettingsValue(
               ask === "off" ? t("governance.policy.askOff") : t("governance.policy.askOnMiss"),
             )}
-            ${canEditRules
+            ${canEditPostures
               ? html`<button
                   class="btn"
                   ?disabled=${props.busy}
@@ -549,7 +568,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
                   ? t("governance.policy.modeOff")
                   : t("governance.policy.modeEnforce"),
             )}
-            ${canEditRules
+            ${canEditPostures
               ? html`<button
                   class="btn"
                   ?disabled=${props.busy}
@@ -562,7 +581,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
         `,
       }),
     ),
-    canEditRules
+    canEditPostures
       ? renderSettingsRow({
           title: t("governance.policy.observeAgent"),
           description: t("governance.policy.observeAgentHint"),
@@ -599,38 +618,9 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
         })
       : nothing,
     renderAgentTimeoutRow(props),
-    // **Two things an operator has to know to read this list correctly, said
-    // on the page rather than in a tooltip.**
-    //
-    // Both were already true and neither was visible. Precedence lived in the
-    // `title=` attribute of the effect dropdown in the form below. Hover-only,
-    // absent on touch, and gone entirely once you are reading rules rather than
-    // writing one. The search limitation was in the backlog and the report and
-    // nowhere a person using the page could see it.
-    //
-    // They are here, above the rules, because that is where the reader is when
-    // the question arises: *what does this set of rules actually do?* Putting
-    // them beside the form would answer it only for whoever is authoring, and
-    // the person who needs the search caveat most is the one reading back a
-    // grant somebody else wrote.
-    //
-    // The second is a disclosed limitation rather than a warning about a
-    // mistake, and it is worded as one. An interface that lets somebody express
-    // "this folder, except that subfolder" while a search walks straight
-    // through the exception is making a promise the gate does not keep. The
-    // failure this project has recorded four times in code (findings 112, 113,
-    // 120, T28) and would here be making to a person, in words they chose. It
-    // stays visible until T7's prevention half closes it, and then it goes.
-    renderSettingsRow({
-      title: t("governance.policy.evaluationTitle"),
-      description: t("governance.policy.evaluationHint"),
-      control: nothing,
-    }),
-    renderSettingsRow({
-      title: t("governance.policy.searchCaveatTitle"),
-      description: t("governance.policy.searchCaveatHint"),
-      control: nothing,
-    }),
+    // The three explanatory rows, in their own module: see its header for why
+    // the split happened here rather than a suppression comment landing here.
+    ...renderPolicyReadingNotes(isRoot),
     // The filter (Q-89). Rendered above the list rather than beside the
     // heading so it reads as belonging to the rows beneath it.
     policy.rules.length > 0 ? renderRuleFilter(policy.rules, props) : nothing,
@@ -716,33 +706,50 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
             // decision is about *this* rule and a separate panel would
             // separate the choice from the thing it is about.
             //
-            // The self-protecting three carry no control at all rather than a
+            // The self-protecting ones carry no *button* rather than a
             // disabled one: the server refuses them, and a button that cannot
             // work is the shape of finding 100.
-            props.identity?.role === "root" &&
-            rule.tier === "core" &&
-            !CORE_RULES_ROOT_CANNOT_DISABLE.some((fragment) => rule.id.includes(fragment))
-              ? html`<button
-                  class="btn btn--danger"
-                  ?disabled=${props.busy}
-                  title=${t("governance.policy.coreRuleHint")}
-                  @click=${() =>
-                    props.confirmThen(
-                      {
-                        message: t("governance.confirm.disableCoreRule"),
-                        details: rule.description ?? rule.pattern,
-                        confirmLabel: t("governance.policy.coreRuleDisable"),
-                      },
-                      () => props.api().setCoreRule(rule.id, false),
-                    )}
-                >
-                  ${t("governance.policy.coreRuleDisable")}
-                </button>`
+            //
+            // **They do carry a sentence, and that is the point.** Rendering
+            // `nothing` made a list where some core denials offer Switch off
+            // and some silently do not, with no way to tell which rule you
+            // were looking at or why — and "the button is missing" is
+            // indistinguishable from a page that failed to render, which is
+            // the exact reasoning the Root account row already uses for
+            // "root (permanent, cannot be changed)". An operator reading this
+            // list should be able to answer *why* without leaving the page;
+            // the split core tier is a design decision, not an accident, and a
+            // decision nobody can see is not one the interface has made.
+            props.identity?.role === "root" && rule.tier === "core"
+              ? CORE_RULES_ROOT_CANNOT_DISABLE.some((fragment) => rule.id.includes(fragment))
+                ? // The same shape the Root account row uses for the role it
+                  // cannot be given: a right-aligned value where the control
+                  // would be, stating the fact. Short, because *why* is a
+                  // property of the whole tier rather than of this one rule,
+                  // and is answered once in the row above the list rather
+                  // than repeated five times or hidden in a tooltip.
+                  renderSettingsValue(t("governance.policy.coreRuleLocked"))
+                : html`<button
+                    class="btn danger"
+                    ?disabled=${props.busy}
+                    title=${t("governance.policy.coreRuleHint")}
+                    @click=${() =>
+                      props.confirmThen(
+                        {
+                          message: t("governance.confirm.disableCoreRule"),
+                          details: rule.description ?? rule.pattern,
+                          confirmLabel: t("governance.policy.coreRuleDisable"),
+                        },
+                        () => props.api().setCoreRule(rule.id, false),
+                      )}
+                  >
+                    ${t("governance.policy.coreRuleDisable")}
+                  </button>`
               : nothing
           }
           ${canEditRules && rule.tier !== "core"
             ? html`<button
-                class="btn btn--danger"
+                class="btn danger"
                 @click=${() =>
                   props.confirmThen(
                     {
@@ -863,7 +870,6 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
                 html`<input
                     class="input"
                     type="text"
-                    style="max-width:11rem"
                     list="governance-new-rule-agents"
                     ?required=${!props.canAdminister}
                     aria-label=${t("governance.policy.ruleAgentLabel")}
@@ -889,7 +895,6 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
                 class="input"
                 type="number"
                 min="1"
-                style="max-width:9rem"
                 aria-label=${t("governance.policy.ttlLabel")}
                 placeholder=${t("governance.policy.ttlPlaceholder")}
                 title=${t("governance.policy.ttlHint")}
@@ -899,7 +904,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
                 }}
               />
               <button
-                class="btn btn--primary"
+                class="btn primary"
                 ?disabled=${!props.drafts.newRulePattern}
                 @click=${() =>
                   props.run(async () => {

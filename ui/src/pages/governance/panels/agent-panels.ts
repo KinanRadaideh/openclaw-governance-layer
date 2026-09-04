@@ -229,14 +229,14 @@ export function renderPendingDecisionsSection(
         control: html`
           <div class="settings-row__control" style="gap:0.5rem">
             <button
-              class="btn btn--primary"
+              class="btn primary"
               ?disabled=${props.busy}
               @click=${() => props.run(() => props.api().decidePendingDecision(entry.id, true))}
             >
               ${t("governance.pending.allow")}
             </button>
             <button
-              class="btn btn--danger"
+              class="btn danger"
               ?disabled=${props.busy}
               @click=${() => props.run(() => props.api().decidePendingDecision(entry.id, false))}
             >
@@ -303,7 +303,7 @@ export function renderActiveSessionsSection(
             })}
             ${canStop && !entry.lockedDown
               ? html`<button
-                  class="btn btn--danger"
+                  class="btn danger"
                   ?disabled=${props.busy}
                   @click=${() =>
                     props.confirmThen(
@@ -446,7 +446,7 @@ export function renderKillSwitchSection(props: KillSwitchProps): TemplateResult 
             }
           </datalist>
           <button
-            class="btn btn--danger"
+            class="btn danger"
             ?disabled=${props.busy || !typed || !canManageAgent(props.identity, typed)}
             @click=${() =>
               props.run(async () => {
@@ -638,7 +638,7 @@ export function renderConversation(
               }}
             />
             <button
-              class="btn btn-primary"
+              class="btn primary"
               ?disabled=${props.promptPending ||
               props.attachmentUploading ||
               !props.promptDraft.trim()}
