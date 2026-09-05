@@ -34,6 +34,18 @@ another's, and a shared browser session silently defeats that.
 2. Kinan creates the Root account, then an Administrator for Mohammad.
 3. Mohammad creates Malek's User account and assigns it one agent.
 4. Malek's Viewer account is created last, at §4.
+5. **Kinan sets the escalation timeout to 30 seconds before anybody starts, and
+   leaves it there.** The shipped default is `DEFAULT_HITL_TIMEOUT_SECONDS = 300`,
+   five minutes, which is right for a real installation and wrong for a test
+   session: every row that waits for an unanswered escalation to lapse costs
+   five minutes of watching a screen, and there are several. Thirty seconds is
+   the same behaviour at a tenth of the wall-clock cost. §1.5.1 sets it anyway;
+   doing it first is the difference between an afternoon and an evening. Set it
+   back afterwards if the installation is going to be used for anything real.
+6. **Do T2 first if you can.** Several rows — §3.2.1's streaming reply, §4.4's
+   model intent — need a real model behind the agent. Without one you are
+   testing the gate rather than the system, which is still worth doing, but say
+   so in the results rather than marking them passed.
 
 ### How to record a result
 
@@ -362,17 +374,45 @@ in code, and all four are here anyway, because each one is a promise about
 **what an operator sees** and the automated checks only prove what the store
 holds. They need two people, and row 6.1 is the one to do first.
 
-| #       | Who              | Do this                                                                                                                                                                                                                                                                                                                   | What must happen                                                                                                                                                                                                                                                                                                          |
-| ------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **6.1** | Kinan + Malek    | Malek signs in and sends the agent a prompt with something recognisable in it ("the Ahmad matter"). Kinan sets Malek's escalation override to `off`, then **deletes Malek's account**. Kinan then creates a **new** account with the **same username** and gives it to Mohammad to sign into.                             | Mohammad sees an **empty conversation**. He is **not** carrying an escalation override — the panel should show the installation default, not a per-account one. If either is wrong, stop and record it: that is finding 256 back, and it is a confidentiality failure across the account boundary                         |
-| **6.2** | Kinan            | Before deleting an account that has a transcript, note the number of turns. After deleting, open the audit ledger and search for the deleted account's name.                                                                                                                                                              | The **ledger still holds the prompts**. The transcript is gone and the record is not. If the ledger is also empty, stop immediately — deletion must never be able to erase its own trail                                                                                                                                  |
-| **6.3** | Kinan            | Read the ledger entry for the deletion itself.                                                                                                                                                                                                                                                                            | It **names what it destroyed** — a turn count, and the escalation override if there was one. An entry that says only "account deleted" is the silent-destruction case this row exists to catch                                                                                                                            |
-| **6.4** | Malek + Mohammad | Malek's agent triggers a stream of distinct escalations that nobody answers (any repeated action against a path that is denied and set to escalate, varying the path each time). While that is happening, Mohammad's agent triggers **one** escalation, also unanswered. Wait for Malek's to exceed the stack's capacity. | Mohammad's **single unanswered question is still on the pending list**. If it has gone, that is finding 260 back: one agent's noise evicting another's question. Note also whether anything on screen says entries were dropped — **it currently does not, and that is T56**, so record what you would have wanted to see |
+| #       | Who              | Do this                                                                                                                                                                                                                                                                                       | What must happen                                                                                                                                                                                                                                                                                  |
+| ------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **6.1** | Kinan + Malek    | Malek signs in and sends the agent a prompt with something recognisable in it ("the Ahmad matter"). Kinan sets Malek's escalation override to `off`, then **deletes Malek's account**. Kinan then creates a **new** account with the **same username** and gives it to Mohammad to sign into. | Mohammad sees an **empty conversation**. He is **not** carrying an escalation override — the panel should show the installation default, not a per-account one. If either is wrong, stop and record it: that is finding 256 back, and it is a confidentiality failure across the account boundary |
+| **6.2** | Kinan            | Before deleting an account that has a transcript, note the number of turns. After deleting, open the audit ledger and search for the deleted account's name.                                                                                                                                  | The **ledger still holds the prompts**. The transcript is gone and the record is not. If the ledger is also empty, stop immediately — deletion must never be able to erase its own trail                                                                                                          |
+| **6.3** | Kinan            | Read the ledger entry for the deletion itself.                                                                                                                                                                                                                                                | It **names what it destroyed** — a turn count, and the escalation override if there was one. An entry that says only "account deleted" is the silent-destruction case this row exists to catch                                                                                                    |
+| **6.4** | Malek + Mohammad | **Do not try to fill the stack by hand — see the note below.** Malek's agent triggers **three or four** distinct unanswered escalations (any action against a path that is denied and set to escalate, varying the path each time), and Mohammad's agent triggers one.                        | Both agents' questions appear on the pending list, each naming the right agent. Then read the note below and answer the question it asks, which is the actual point of this row                                                                                                                   |
 
-**Row 6.4 is the one worth doing even though the code is fixed**, because the
-half that is _not_ fixed is exactly the half a person notices and a test cannot:
-the list silently shrinks. Write down what you would have expected the screen to
-tell you. That sentence is the specification T56 needs.
+**About row 6.4, and why it is not what it first was.** The defect behind it
+(finding 260) was that one agent's flood of distinct unanswered questions evicted
+every _other_ agent's question from the pending list, because the list held 200
+and shed the oldest globally. That is fixed: the busiest agent now loses its own
+oldest row first.
+
+**Reproducing the flood by hand is not sensible and this row no longer asks you
+to.** The stack holds `MAX_PENDING_UNDECIDED = 200`, so filling it means 200
+distinct unanswered escalations; at the 30-second timeout §0 sets, that is over
+an hour and a half of waiting, and at the shipped 300-second default it is a day.
+**The aiming half is already measured** by
+`docs-notes/qa-sweep-2026-09-05/bounds-sweep.ts`, which drives 210 questions
+through the real code in a few seconds and asserts the other agent's question
+survives. Re-running that script is the right way to check the fix, and it takes
+one command.
+
+**What a person is for here is the half no script can see.** When the list does
+drop entries, **nothing on screen says so** — an operator reads 200 items with no
+indication there were 210. So the question this row actually asks is:
+
+> With a handful of questions on the pending list from two different agents, is
+> there anything on the page that would tell you the list is **not complete**?
+> If entries had been dropped, how would you know?
+
+Write down what you would have wanted to see, and where on the page you would
+have wanted to see it. **That sentence is the specification T56 needs**, and it
+is the only thing in this section that cannot be produced by running something.
+
+_(This row previously asked Malek to "trigger a stream of distinct escalations
+until the stack's capacity is exceeded", which was written without checking the
+capacity against the timeout. 200 × 30s is not a test-plan row. Corrected
+2026-09-05.)_
 
 ## 7. When you are done
 
