@@ -1418,3 +1418,144 @@ type error. It was reported as `[tsgo] FAILED (exit 1)` and an `echo` on the
 same line printed "core clean" underneath it, because `echo` succeeds whatever
 came before. **Run one at a time, and read the output rather than the line after
 it** — §4 says both, and both were broken in one command.
+
+## 2026-09-05 (ii): two more axes — contention, and what a cap sheds
+
+**Findings 260 and 261, both fixed.** Two sweeps on axes nothing had sampled,
+run after the lifecycle one. The first found no defect and is worth keeping
+anyway; the second found the one this day was looking for.
+
+### Sweep A: contention, across real processes
+
+`file-lock.ts` opens by stating its own reason for existing: _"An in-process
+promise queue only serializes callers inside one Node process. The governance
+CLI and the Gateway are separate processes that write the same policy document
+and audit ledger."_
+
+**That claim had never been measured.** `file-lock.test.ts` drives contention
+with `Promise.all` inside one process, which exercises the promise queue and not
+the OS-level exclusion the module is built on, and every store's own tests are
+single-process. So the property requirement 8 rests on — no duplicate `seq`, no
+`prevHash` pointing at the wrong entry — was asserted nowhere.
+
+`docs-notes/qa-sweep-2026-09-05/concurrency-sweep.ts` spawns **four genuine
+child processes** and makes them fight over three stores: the hash-chained
+ledger, the policy document, and the account store's uniqueness check.
+
+**10/10, and the lock holds.** The chain verifies, no append was lost, no
+sequence number was issued twice, all 60 rules survived, no two rules share an
+id, and exactly one process wins a contested username.
+
+**A confirmatory result is only worth the mutation that proves it could fail.**
+With `withFileLock` reduced to a pass-through the same probe reports: chain
+broken at #7, ten duplicate sequence numbers, a worker killed by `EEXIST` on
+`policy.json`, and **35 of 60 authored rules gone**. So the green above is a
+measurement rather than a hope.
+
+**One of the ten checks was mine and could not fail.** "Exactly one process wins
+a contested username" asserted only that the store ends with one row — and it
+**passed with the lock removed**, where four processes each reported creating
+the account and three writes were silently overwritten. A check reading "one
+account exists" cannot tell a working lock from three lost updates, and three
+operators told they created an account that does not exist is the worse outcome,
+not the better one. Split into two checks; the second goes red under mutation.
+
+That is the **fourth** check this day that had to be repaired before it measured
+anything. The pattern is consistent enough to state plainly: **a check that
+asserts an end state, rather than the mechanism that produced it, tends to pass
+for the wrong reason.**
+
+### Sweep B: what each cap sheds, and whether it can be aimed
+
+Finding 225 is the reason for this axis. The login throttle held a bounded table
+keyed on a username an attacker supplies freely, so filling it evicted the
+record protecting a real account: a cap that degraded in the attacker's favour.
+**The repair was specific to that table and the generalisation was never swept.**
+
+This layer has at least eight hard caps. Three questions were asked of each:
+what is shed, can it be aimed, and is it visible.
+`docs-notes/qa-sweep-2026-09-05/bounds-sweep.ts`, eleven checks.
+
+**What held.** The policy ruleset **refuses** at `MAX_POLICY_RULES` with a named
+remedy rather than shedding, so a flood of allows cannot push out an existing
+deny — measured with a guard deny in place. Rule requests hold a per-user
+pending quota that bit at exactly 20, and one User exhausting theirs did not stop
+another User asking; a pending request is never dropped to make room.
+
+**Finding 260: the pending-decision stack's cap was aimable.** The stack is per
+organisation while its rows are per agent, and it shed the oldest row
+_globally_. Measured: **210 distinct questions from one agent left 200 rows and
+none of the other agent's** — including one an operator was meant to answer.
+`sameQuestion` collapsing does not help and is not meant to; it defends against a
+_wedged_ agent repeating one question and does nothing against one whose
+resource string varies, which is the ordinary case since the resource is
+whatever path or command the agent touched.
+
+**Repaired in the same shape as 225: keep the bound, change which record is
+shed.** `shedToUndecidedCap` now drops the **busiest agent's own oldest row**, so
+a flood consumes its own quota before anyone else's, and no agent can push
+another's question off the stack until it holds more rows than that agent does.
+The victim-selection rule was never argued for in the first place: both cap
+comments argue for the caps existing, which is not in dispute, and neither says
+why the globally-oldest row is the right one to lose.
+
+**How serious it is, stated exactly.** The ledger keeps the escalation
+independently, so eviction costs the operator's worklist rather than the audit
+record — and that sentence is only true because the probe was fixed to measure
+it. The first version called `recordTimedOutEscalation` directly and then
+asserted the ledger held the entry; it did not, because the ledger append lives
+in `policy-engine.ts` _beside_ that call rather than inside it. **The check was
+measuring the probe's own omission and reporting it as a product defect.** It now
+drives `evaluateGovernancePolicy` until it asks for approval and resolves it as
+`timeout` — the same `onResolution` the host calls when nobody answers — so both
+writes happen exactly as production does. Fifth repaired check of the day, and
+the only one that would have produced a _false_ finding rather than a missing
+one.
+
+**Left open, and named rather than fixed: the drop is still silent.** Nothing
+records that rows were shed, so an operator reads a list that does not say it is
+incomplete. Making it visible touches all three consumers of
+`listPendingDecisions` — the CLI, the dashboard API and the oversight route — so
+it is scoped as **T56** rather than folded in here. The aiming was the security-
+shaped half and is closed; the visibility is a surface change.
+
+### Finding 261: the dashboard's password rule was a hand-copy nothing checked
+
+Found while answering a question about password validation, which is worth
+recording as its own small lesson: the question was "what are the rules", and
+the answer required reading two files that both claim to hold them.
+
+The server enforces `MIN_PASSWORD_LENGTH = 8` at the store boundary, in
+`createUser` and `setUserPassword` both. The dashboard holds its **own** copy in
+`account-panels.ts`, hand-mirrored because the bundle deliberately does not
+import from `src/`, and its comment says the copy exists "only so the form can
+state the rule _before_ the request rather than relaying the refusal
+afterwards".
+
+**Nothing asserted the two agreed.** No test in the repository referenced either
+constant. Raise the server minimum and the form keeps advertising 8, producing
+precisely the after-the-fact refusal the copy was written to prevent. This is the
+project's most-repeated shape once more — two things that must agree, written
+twice from one intention — and the guard costs four lines.
+`ui/src/pages/governance/password-rule-mirror.test.ts` pins them, in the same
+arrangement `ui/src/lib/agents/display.test.ts` already uses for the avatar
+limit; a test may import from `src/` even though the bundle may not. Mutated the
+dashboard copy to 6 and it goes red.
+
+**For the record, since it was asked**: the only requirement is eight
+characters. No maximum, no complexity rule, no breach or dictionary check, no
+reuse history, no expiry. Around it: scrypt at `N=16384, r=8, p=1` with the
+parameters recorded in the stored hash so cost can be raised later and existing
+passwords upgrade on next sign-in; `timingSafeEqual` comparison; a decoy hash on
+the unknown-username path so it is not measurably faster; and the five-attempt,
+fifteen-minute lockout, which is dashboard-only by design.
+
+### What was run
+
+| Command           | Result                                            |
+| ----------------- | ------------------------------------------------- |
+| Governance suite  | see §1 of `HANDOFF.md` for the re-measured figure |
+| Concurrency sweep | 10/10, and 5/10 with the lock neutered            |
+| Bounds sweep      | 11/11 after the repair, 10/11 before              |
+| Lifecycle sweeps  | 8/8 and 2/5 (the three are T55), unchanged        |
+| Feature sweep     | 20/20, unchanged                                  |

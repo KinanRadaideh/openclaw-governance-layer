@@ -114,13 +114,79 @@ function sameQuestion(a: PendingDecision, b: PendingDecision): boolean {
 }
 
 /**
- * Drops the oldest entries once the store exceeds its caps: decided ones first,
- * then the oldest undecided ones if they alone exceed the ceiling.
+ * Holds the undecided rows to their ceiling, shedding from the **busiest agent**
+ * first (finding 260).
+ *
+ * ## Why not simply the oldest
+ *
+ * It was the oldest, globally, and that made the bound aimable. The stack is
+ * per organisation while the rows are per agent, so one agent asking
+ * `MAX_PENDING_UNDECIDED` distinct questions evicted every other agent's
+ * unanswered question, oldest first. Measured: 210 distinct questions from one
+ * agent left 200 rows, none of them belonging to the agent whose question an
+ * operator actually needed to answer.
+ *
+ * `sameQuestion` collapsing does not help here and is not meant to: it is the
+ * defence against a *wedged* agent repeating one question, and does nothing
+ * against one whose resource string varies — which is the ordinary case, since
+ * the resource is whatever path or command the agent touched.
+ *
+ * **This is finding 225's repair, one store over, and deliberately the same
+ * shape**: keep the bound, change which record is shed. There the fix was to
+ * exempt the account under attack and shed the least protective row; here it is
+ * to make a flood consume its own quota before anyone else's. An agent cannot
+ * push another agent's question off the stack until it holds more rows than
+ * that agent does.
+ *
+ * The victim-selection rule was never argued for in the first place. The
+ * comments on both caps argue for the caps *existing*, which is not in dispute;
+ * neither says why the oldest row globally is the right one to lose.
+ */
+function shedToUndecidedCap(pendingNewestFirst: PendingDecision[]): PendingDecision[] {
+  if (pendingNewestFirst.length <= MAX_PENDING_UNDECIDED) {
+    return pendingNewestFirst;
+  }
+  const kept = [...pendingNewestFirst];
+  // Recounting each round rather than sorting once: after a drop the busiest
+  // agent may have changed, and a single pass would shed the whole overflow
+  // from whoever led at the start. Bounded by the cap plus the overflow of one
+  // write, so this is a few hundred iterations at the very most, and it runs
+  // only on the writes that are actually over the line.
+  while (kept.length > MAX_PENDING_UNDECIDED) {
+    const perAgent = new Map<string, number>();
+    for (const entry of kept) {
+      perAgent.set(entry.agentId, (perAgent.get(entry.agentId) ?? 0) + 1);
+    }
+    let busiest: string | undefined;
+    let most = 0;
+    for (const [agentId, count] of perAgent) {
+      if (count > most) {
+        most = count;
+        busiest = agentId;
+      }
+    }
+    // The busiest agent's own oldest row. Newest-first ordering, so that is the
+    // last index carrying its id.
+    const victim = kept.findLastIndex((entry) => entry.agentId === busiest);
+    if (victim < 0) {
+      break;
+    }
+    kept.splice(victim, 1);
+  }
+  return kept;
+}
+
+/**
+ * Drops entries once the store exceeds its caps: decided ones first, then
+ * undecided ones if they alone exceed the ceiling.
+ *
+ * **The undecided rows are shed per agent** rather than oldest-first; see
+ * `shedToUndecidedCap` for why that distinction is the finding.
  */
 function pruneDecided(decisions: PendingDecision[]): PendingDecision[] {
   const pendingAll = decisions.filter((entry) => entry.status === "pending");
   // Newest-first ordering, so the head is newest and the tail is oldest.
-  const pending = pendingAll.slice(0, MAX_PENDING_UNDECIDED);
+  const pending = shedToUndecidedCap(pendingAll);
   const decided = decisions.filter((entry) => entry.status !== "pending");
   if (pending.length === pendingAll.length && decisions.length <= MAX_STORED_PENDING_DECISIONS) {
     return decisions;

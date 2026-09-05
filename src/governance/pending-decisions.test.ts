@@ -170,6 +170,60 @@ describe("unanswered escalations do not grow without bound", () => {
     );
   });
 
+  // --------------------------------------------------------------------
+  // Finding 260: the undecided cap was aimable.
+  //
+  // The stack is per organisation and the rows are per agent, so shedding the
+  // oldest row globally let one agent's flood evict every other agent's
+  // unanswered question. Measured before the repair: 210 distinct questions
+  // from one agent left 200 rows and none of the other agent's.
+  //
+  // Both tests below were checked against the unrepaired code and both fail
+  // there. The first is the finding; the second is the property the original
+  // cap existed for, kept so the repair cannot be undone by reverting to
+  // "shed nothing".
+  // --------------------------------------------------------------------
+  it("one agent's flood cannot push another agent's question off the stack", async () => {
+    const victim = await recordTimedOutEscalation(TEST_GROUP, {
+      ...question,
+      agentId: "agent-b",
+      sessionKey: "agent:agent-b:main",
+      resource: "the-one-that-matters",
+    });
+    for (let i = 0; i < MAX_PENDING_UNDECIDED + 25; i += 1) {
+      // Distinct resources, so `sameQuestion` cannot collapse them: that
+      // collapsing defends against a wedged agent repeating one question and
+      // does nothing against one whose resource varies, which is the ordinary
+      // case since the resource is whatever the agent touched.
+      await recordTimedOutEscalation(TEST_GROUP, {
+        ...question,
+        agentId: "agent-a",
+        resource: `flood-${i}`,
+      });
+    }
+    const stored = await listPendingDecisions(TEST_GROUP);
+    expect(stored.some((entry) => entry.id === victim.id)).toBe(true);
+    expect(stored.length).toBeLessThanOrEqual(MAX_PENDING_UNDECIDED);
+  });
+
+  it("still sheds the flooding agent's own oldest rows to hold the cap", async () => {
+    for (let i = 0; i < MAX_PENDING_UNDECIDED + 25; i += 1) {
+      await recordTimedOutEscalation(TEST_GROUP, {
+        ...question,
+        agentId: "agent-a",
+        resource: `only-agent-a-${i}`,
+      });
+    }
+    const stored = await listPendingDecisions(TEST_GROUP);
+    expect(stored.length).toBeLessThanOrEqual(MAX_PENDING_UNDECIDED);
+    // Its newest survives and its oldest is gone: within one agent the rule is
+    // unchanged, which is what keeps the bound meaningful.
+    expect(
+      stored.some((entry) => entry.resource === `only-agent-a-${MAX_PENDING_UNDECIDED + 24}`),
+    ).toBe(true);
+    expect(stored.some((entry) => entry.resource === "only-agent-a-0")).toBe(false);
+  });
+
   it("a repeat does not resurrect an already-decided question", async () => {
     const first = await recordTimedOutEscalation(TEST_GROUP, question);
     await decidePendingDecision(TEST_GROUP, { id: first.id, allow: false, decidedBy: "kinan" });
