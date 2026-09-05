@@ -4326,11 +4326,13 @@ were written into `mg/REMAINING-WORK.md`, `mg/HANDOFF.md`,
 This is recorded rather than quietly backfilled, because several documents
 describe findings as being "written up in all three registers" and that phrase
 has not been true since 2026-08-27. Anyone auditing the QA history from this file
-alone will be **eighty-seven findings short**, 135 through 221, and will not be
-told so. _(This sentence said "fifteen findings short" when the count was 149,
-and "fifty-nine" when it was 193, "sixty-eight" at 202, "seventy" at 204,
-"seventy-four" at 208, "eighty-five" at 219 and "eighty-six" at 220; the number is derived from the table below rather than
-edited in place, which is the same correction the backlog count needed.)_
+alone will be **one hundred and twenty-seven findings short**, 135 through 261,
+and will not be told so. _(This sentence said "fifteen findings short" when the
+count was 149, and "fifty-nine" when it was 193, "sixty-eight" at 202, "seventy"
+at 204, "seventy-four" at 208, "eighty-five" at 219, "eighty-six" at 220 and
+"eighty-seven" at 221; the number is derived by subtraction from the current
+highest finding rather than edited in place, which is the same correction the
+backlog count needed. 261 − 135 + 1 = 127.)_
 
 **The security findings among them are scattered across four sections**, and if
 you are auditing this project's security history from one document these are the
@@ -4351,6 +4353,21 @@ ones you cannot skip:
   policy document as typed and read back canonically. The same missing fold
   silently disabled per-agent postures, per-agent escalation overrides, and
   every agent-scoped rule.
+- `SESSION-LOG-2026-09.md` §"2026-09-05: the lifecycle axis": **256**, an
+  account's _name_ outliving the account. The record is keyed by an immutable
+  minted id; the escalation override, the agent transcript and the login
+  throttle are keyed by the canonical **username**, which is released on
+  deletion and reclaimable. A new account given a departed employee's username
+  read their agent transcript in full, inherited Root's escalation judgement
+  about them, and met their login lockout. Fixed at the lifecycle owner, with
+  the ledger deliberately kept.
+- Same section: **260**, which is **finding 225 one store over**. The
+  pending-decision stack is per organisation while its rows are per agent, and
+  it shed the oldest row _globally_, so one agent's flood of distinct questions
+  evicted every other agent's unanswered question. Repaired in 225's exact
+  shape: keep the bound, change which record is shed. The ledger holds the
+  escalations independently, so the cost was the operator's worklist rather than
+  the audit record; the drop is still silent, which is T56.
 - §"A seventh 20% segment": **209** and **211**. 209 is a **privilege
   restoration**: `issueSession` never copied `canAuthorPolicy` onto the session,
   so a User whose Root had withheld policy authoring got it back by signing out

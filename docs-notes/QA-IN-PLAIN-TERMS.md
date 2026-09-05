@@ -6831,3 +6831,146 @@ id, and nothing on the command line could print one.** So the consolation prize
 for the missing commands could not itself be collected. There is now a command
 that lists accounts with their ids, which is a read and carries none of the
 risk the other four do.
+
+## 5.98 The day we asked what happens _afterwards_
+
+Every check up to here asked the same kind of question: does this work, right
+now? Three sweeps on 2026-09-05 asked a different one, and it turned out to be
+the question nobody had asked.
+
+### An employee leaves, and their replacement inherits their conversations
+
+Suppose someone leaves the company. Their account is deleted. Months later a new
+person starts and is given the same username — `jsmith`, say, which is exactly
+how most organisations hand out usernames.
+
+We tried it. **The new person opened the agent panel and read the previous
+person's conversation with the agent.** In our test that conversation began
+_"Draft the Q3 severance letter for the Ahmad matter, confidential."_
+
+They also inherited two other things: a setting the Root account had made
+specifically about the previous person — a judgement about how much that
+individual should be trusted to act without a human checking — and the previous
+person's login lockout, so their very first sign-in attempt was refused for
+fifteen minutes with nothing on screen explaining why.
+
+**Why it happened.** The account itself is filed under a permanent, private id
+number, which is never given to anyone else. But three other things — the
+conversation, the trust setting and the lockout counter — were filed under the
+**username**. And a username is not permanent: it is handed back the moment the
+account is deleted, and the next person can be given it.
+
+So all three were quietly answering a question about a _name_ when they were
+meant to be answering a question about a _person_.
+
+**The fix, and where it belongs.** Each of those three was, in its own terms,
+behaving correctly: each was asked "what do you hold about the account called
+jsmith?" and gave a true answer. What was missing is that nobody ever told them
+jsmith had gone. So the fix went in at the point the account is deleted, rather
+than in three separate places that would each have to learn to distrust their own
+filing system.
+
+**What we deliberately did not delete: the audit trail.** Every one of those
+prompts was written into the tamper-evident log at the moment it was made, and
+that log is the whole point of the system. Deleting an account now clears the
+convenience copy and leaves the permanent record exactly where it was — and the
+deletion entry itself now says what it destroyed, because destroying somebody's
+transcript is an act, and afterwards the log is the only thing left that can say
+it happened. There is a test whose only job is to make sure a future change
+cannot start deleting the audit trail too.
+
+### A cap that could be pointed at somebody
+
+The second sweep asked a question we had only ever asked about one thing before:
+**when a list is full, what gets thrown away — and can somebody choose?**
+
+There is a list of questions the system asked a human and never got an answer
+to. An agent tried to do something, the system asked permission, nobody replied
+in time, so the action was refused and the question was kept for an operator to
+answer later. That list holds 200.
+
+We had one agent ask 210 different questions. Result: **200 questions on the
+list, and not one of them belonged to the other agent** — including a question a
+person was actually meant to answer.
+
+This is the same shape as a problem we found and fixed a few days earlier in the
+login system, one list over. There the fix was: keep the limit, but change _which_
+entry gets dropped. We did the same thing here. The busiest agent now loses its
+own oldest question first, so an agent that floods the list eats through its own
+share before it touches anybody else's.
+
+**How bad was it, honestly?** Not as bad as it first looked, and the reason
+matters. The permanent audit log records every one of those questions
+independently, so nothing was actually _lost_ — what was lost was the operator's
+to-do list. That distinction only exists because we went back and measured it
+properly; see the next section, because we very nearly reported this as worse
+than it is.
+
+**What is still not fixed:** the list does not say when it has dropped anything.
+An operator reads 200 items and has no way to know there were 210. Making it say
+so means changing three different screens, so it is written down as a job rather
+than folded in here.
+
+### Things that turned out to be fine, which is also a result
+
+The same sweep checked the other limits in the system, and they behaved well:
+
+- **The rulebook** refuses a new rule when it is full and tells you to delete
+  something, rather than silently dropping an old one. We specifically checked
+  that flooding it with _permissions_ cannot push out a _prohibition_, since that
+  would be the dangerous direction. It cannot.
+- **Rule requests** cap at 20 per person, and one person using up their whole
+  allowance does not stop anybody else asking for something.
+
+### The lock we had been trusting without checking
+
+A third sweep checked something the system says about itself. Two separate
+programs write to the same files — the command line and the background service —
+and there is a lock that is supposed to stop them writing at the same time and
+corrupting each other's work.
+
+**Nobody had ever tested it with two actual programs.** The existing test ran
+everything inside one program, which tests a completely different mechanism.
+
+So we ran four real programs at once, all fighting over the audit log, the
+rulebook and the account list. **Everything held.** The audit log's tamper-proof
+chain stayed intact, nothing was lost, no entry got the same position number
+twice, no rule vanished, and exactly one program won the race to create an
+account.
+
+Then, because a passing test that cannot fail is worthless, we deliberately broke
+the lock and ran it again. This time: the chain snapped, ten entries had
+duplicate positions, and **35 of 60 rules an operator had written simply did not
+exist**. So the clean result is a real measurement, not a lucky one.
+
+### A password rule written down in two places
+
+Asked a simple question — what are the rules for a password? — and answering it
+needed two files, which is itself the answer.
+
+The server requires at least 8 characters. The dashboard _also_ has its own copy
+of "8", so the form can tell you the rule before you submit rather than bouncing
+you afterwards. Sensible. But **nothing checked that the two numbers matched.**
+Raise the server's requirement to 12 and the form would carry on telling people 8
+and then rejecting them — precisely the experience the second copy exists to
+prevent. A four-line test now holds them together.
+
+### The part worth admitting: five of our own checks were broken
+
+Across these three sweeps, **five checks had to be repaired before they measured
+anything at all.** Four of them simply could not have failed — like checking that
+a deleted person's conversation is gone, on a test account that had never had a
+conversation.
+
+The fifth is the one to remember, because it was worse than useless. It reported
+that the audit log did _not_ contain a record it should have, and we were about
+to write that up as a serious fault in the system. It wasn't. Our test had been
+calling one internal function directly, while the real program calls that
+function _and_ writes the audit entry beside it. **The check was measuring our own
+shortcut and blaming the product for it.**
+
+The pattern underneath all five is worth stating plainly: **a check that looks
+only at the final state, rather than at the machinery that produced it, tends to
+pass — or fail — for the wrong reason.** Three of the previous four working days
+also caught a test proving nothing. It keeps happening, and the only thing that
+catches it is deliberately breaking the code and confirming something goes red.

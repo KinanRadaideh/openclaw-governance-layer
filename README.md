@@ -121,7 +121,7 @@ This fork answers with the policy, or `Not signed in.` Stock OpenClaw answers `u
 
 ## Status
 
-The layer is built and verified: **2,700 or so automated tests across the governance suite**, both typechecks clean, and the full lint gate green. Thirteen QA sweeps and one real deployment have found and closed 238 defects to date.
+The layer is built and verified: **2,750 passing tests across 152 files in the governance suite** (plus 20 skipped by design), both typechecks clean, the test typecheck clean, and the full lint gate green end to end. Repeated QA sweeps on rotating axes, one real deployment and one operator using the dashboard have found **261 defects: 258 fixed**, one withdrawn as not a defect, and two open — one an unexplained observation, one a product decision rather than a repair. Figures re-measured 2026-09-05; the register in [`GOVERNANCE.md`](GOVERNANCE.md) and the backlog in `mg/REMAINING-WORK.md` are the authorities, and both are meant to be re-derived rather than quoted.
 
 Two honest caveats, both deliberate:
 

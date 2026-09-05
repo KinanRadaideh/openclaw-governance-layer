@@ -119,6 +119,55 @@ refusal message still advised "promote another account to Root before demoting
 it", a step the other guard always refuses. The rule is now stated once and the
 message says what is actually true.
 
+### What deleting an account actually removes (2026-09-05, finding 256)
+
+The table above answers _who may delete whom_. This answers _what deletion
+does_, which until 2026-09-05 was not written down anywhere and was not
+completely true in the code either.
+
+**The problem it fixes.** An account record is keyed by an immutable minted
+`id`. Three other things are keyed by the **canonical username**: Root's
+per-account escalation override (`policy.userAsk`), the account's agent
+transcript (`conversations.json`), and its entry in the login throttle. A
+username is _not_ immutable — it is released the moment the account is deleted
+and can be given to somebody else, which is the ordinary way organisations
+allocate names. Measured: a new account created with a departed employee's
+username read that employee's agent transcript in full, inherited Root's
+escalation judgement about them, and met their brute-force lockout.
+
+**What now happens, in one act, at the point of deletion:**
+
+| Removed with the account                         | Kept, deliberately                                           |
+| ------------------------------------------------ | ------------------------------------------------------------ |
+| The agent transcript, across every agent         | **The audit ledger**, entire                                 |
+| Root's escalation override for that account name | The record of every prompt that account made                 |
+| The login throttle's entry for that name         | Every administrative act performed on it                     |
+| Every live session (`revokeSessionsForUser`)     | The deletion entry itself, which now names what it destroyed |
+
+**Why the ledger is the exception and must stay one.** Every purged prompt was
+written to the tamper-evident chain at the moment it was made; that record is
+requirement 8 and is the reason the system exists. Deletion clears the working
+copies that answer questions about a _name_ and leaves the permanent record of
+what a _person_ did exactly where it was. Organisation deletion already makes
+the same choice, retaining the ledger while removing everything around it. There
+is a test in `account-purge.test.ts` whose only job is to fail if a future change
+starts deleting the trail.
+
+**Where the repair lives, and why there.** All three reads were correct on their
+own terms — each asks "what does this layer hold about the account called X?"
+and gets a true answer. What was missing is that nothing ever told them X had
+gone. So the repair is at the lifecycle owner, `deleteUser`, through
+`account-purge.ts`, rather than in three consumers each learning to distrust its
+own key. `deleteGroupAccounts` takes the throttle half of it, because
+organisation deletion removes the group's directory a few steps later but the
+attempt table is in memory and installation-wide.
+
+**The one thing deletion still does not do**, and it is deliberate: it does not
+free the username for _uniqueness_ purposes any differently than before, and it
+does not warn the operator that the name is being released. If a name should
+never be reissued, that is an organisational policy rather than something this
+layer enforces.
+
 **The cost, stated plainly.** There is no in-product handover of the Root role.
 Transferring an installation means Root resetting the successor's password and
 passing on the credentials, or editing `users.json` directly and restarting.

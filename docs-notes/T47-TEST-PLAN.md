@@ -355,7 +355,26 @@ Do these with all three of you signed in at once.
 
 ---
 
-## 6. When you are done
+## 6. Four rows added 2026-09-05, from findings 256 and 260
+
+These come out of the lifecycle and bounds sweeps. All four were found and fixed
+in code, and all four are here anyway, because each one is a promise about
+**what an operator sees** and the automated checks only prove what the store
+holds. They need two people, and row 6.1 is the one to do first.
+
+| #       | Who              | Do this                                                                                                                                                                                                                                                                                                                   | What must happen                                                                                                                                                                                                                                                                                                          |
+| ------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **6.1** | Kinan + Malek    | Malek signs in and sends the agent a prompt with something recognisable in it ("the Ahmad matter"). Kinan sets Malek's escalation override to `off`, then **deletes Malek's account**. Kinan then creates a **new** account with the **same username** and gives it to Mohammad to sign into.                             | Mohammad sees an **empty conversation**. He is **not** carrying an escalation override — the panel should show the installation default, not a per-account one. If either is wrong, stop and record it: that is finding 256 back, and it is a confidentiality failure across the account boundary                         |
+| **6.2** | Kinan            | Before deleting an account that has a transcript, note the number of turns. After deleting, open the audit ledger and search for the deleted account's name.                                                                                                                                                              | The **ledger still holds the prompts**. The transcript is gone and the record is not. If the ledger is also empty, stop immediately — deletion must never be able to erase its own trail                                                                                                                                  |
+| **6.3** | Kinan            | Read the ledger entry for the deletion itself.                                                                                                                                                                                                                                                                            | It **names what it destroyed** — a turn count, and the escalation override if there was one. An entry that says only "account deleted" is the silent-destruction case this row exists to catch                                                                                                                            |
+| **6.4** | Malek + Mohammad | Malek's agent triggers a stream of distinct escalations that nobody answers (any repeated action against a path that is denied and set to escalate, varying the path each time). While that is happening, Mohammad's agent triggers **one** escalation, also unanswered. Wait for Malek's to exceed the stack's capacity. | Mohammad's **single unanswered question is still on the pending list**. If it has gone, that is finding 260 back: one agent's noise evicting another's question. Note also whether anything on screen says entries were dropped — **it currently does not, and that is T56**, so record what you would have wanted to see |
+
+**Row 6.4 is the one worth doing even though the code is fixed**, because the
+half that is _not_ fixed is exactly the half a person notices and a test cannot:
+the list silently shrinks. Write down what you would have expected the screen to
+tell you. That sentence is the specification T56 needs.
+
+## 7. When you are done
 
 1. **Collect the screenshots.** Every refusal you photographed is Chapter 4
    evidence.

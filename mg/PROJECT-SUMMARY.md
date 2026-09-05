@@ -728,7 +728,7 @@ conclusion.
   **fully green, 263 passed, 0 failed** (192 in `native-hook-relay.test.ts`
   plus 71 in `host-hooks.contract.test.ts`) since T25 closed on 2026-08-25; the
   relay file had been 18 failed / 174 passed for the life of the project.
-- **The verification set is six commands**, not five. The sixth typechecks the
+- **The verification set is seven commands**, not five and no longer six. **The seventh was added 2026-09-04 and is the only one that can see the dashboard**: `cd ui && vitest run --config vitest.config.ts --project browser`, 22 files and 198 tests, after `npx playwright install chromium`. It is finding 250: the six that stood here could not see a layout defect, **and the first of them looked as though it could**, because it collects the one file that measures layout through the root jsdom config, where the file skips itself and the skip is a number nobody reads. Playwright's browsers had never been downloaded on the development machine either, so no browser test in this repository had ever executed. Running it found two more defects (251, 252) in its first minute. The sixth typechecks the
   test files, which nothing did until 2026-08-31, so a test could reference a
   symbol that does not exist and pass, with the assertion silently reading
   `undefined` (finding 162). T37 took `tsgo:test:src` from 189 errors to zero and
@@ -742,7 +742,7 @@ conclusion.
   fixing them, that it edits two upstream test files, was questioned and did
   not survive: T25 had already paid exactly that cost for eight files of the
   same class. **The caveat it taught outlives its own fix and must not be
-  deleted with it:** the six commands are not the repository. T39 narrowed the
+  deleted with it:** the seven commands are not the repository. T39 narrowed the
   gap on 2026-09-01, the sixth command is now `tsgo:core:test`, which does
   cover `ui/` and `packages/`, and the gap is still real: `test/` is outside it,
   and so is every check the six do not name. No document should claim the
