@@ -536,6 +536,60 @@ export async function readDeploymentStatus(
   // Governance's own state, which the host's security audit knows nothing
   // about.
   // -------------------------------------------------------------------
+
+  // -------------------------------------------------------------------
+  // **The gate's own off switch, asserted rather than assumed.**
+  //
+  // `isUnconfiguredTestRun()` in `paths.ts` is true when a `VITEST` variable is
+  // present and `OPENCLAW_GOVERNANCE_DIR` is not, and two places consult it:
+  // a fresh policy starts `mode: "off"`, and the engine waves through a call
+  // whose agent has no resolvable group. Both are correct for OpenClaw's own
+  // harness suite, which has no operator, no policy and no approver.
+  //
+  // **What makes it worth a deployment check is the failure mode rather than
+  // the likelihood.** `mode: "off"` returns before the lockdown check and
+  // before the core denials, and deliberately records nothing, because
+  // recording would imply oversight that is not happening. So a Gateway that
+  // reached this state would enforce nothing, refuse nothing, and write no
+  // ledger entry saying so: requirements 1, 5, 7 and 8 failing at once, with a
+  // dashboard that looks entirely normal. There is no other check in this
+  // report whose absence is that quiet.
+  //
+  // `OPENCLAW_GOVERNANCE_DIR` is normally **unset** in production, since the
+  // home directory is the default, so the entire guard rests on `VITEST` not
+  // being in the environment. That is a property of how the process was
+  // started, not of this code, and it is exactly the kind of thing a
+  // deployment report exists to state out loud. `live-agent-probes.ts` already
+  // strips four `VITEST*` variables before spawning children, so the leak is a
+  // recognised one.
+  //
+  // **Two states, not three, and the dropped one is the point.** An earlier
+  // draft warned whenever a `VITEST` variable was present even though
+  // `OPENCLAW_GOVERNANCE_DIR` was set and the gate was therefore armed. That
+  // fires on every single run of this project's own suite, and a check that is
+  // amber on arrival is one everybody learns to skip: the same argument T37
+  // makes for bringing a gate to zero before adding it. So the check reports
+  // what is true of the gate, and nothing about how close to untrue it is.
+  const gateDisarmed =
+    ["VITEST", "VITEST_WORKER_ID"].some((name) => Boolean(env[name])) &&
+    !env.OPENCLAW_GOVERNANCE_DIR?.trim();
+  checks.push(
+    gateDisarmed
+      ? check(
+          "deployment.gate_not_disarmed",
+          "The governance gate is armed",
+          "fail",
+          'A VITEST variable is present and OPENCLAW_GOVERNANCE_DIR is unset, so this process is treated as an unconfigured test run: a fresh policy starts in "off", an agent with no resolvable group is allowed through, and neither is written to the ledger. The gate is not enforcing.',
+          "Unset VITEST and VITEST_WORKER_ID in the environment this Gateway starts from, then restart it. If this is genuinely a test process, no action is needed and this report is not describing an installation.",
+        )
+      : check(
+          "deployment.gate_not_disarmed",
+          "The governance gate is armed",
+          "pass",
+          "The test-only posture that disables the gate does not apply here, so the shipped enforce default is in force.",
+        ),
+  );
+
   if (!posixPermissions) {
     checks.push(
       check(

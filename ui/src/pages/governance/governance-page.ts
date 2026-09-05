@@ -16,7 +16,6 @@ import { codexIds } from "./agent-directory.ts";
 import {
   GovernanceApi,
   GovernanceApiError,
-  type GovernanceAttachment,
   type GovernanceIdentity,
   type GovernanceLedgerEntry,
   type GovernanceLedgerVerification,
@@ -34,9 +33,9 @@ import {
   type GovernanceRuleRequest,
   type GovernanceDeploymentStatus,
   type GovernanceSystemStatus,
-  type GovernanceTranscript,
   type GovernanceUserRecord,
 } from "./api.ts";
+import { ConversationController, type ConversationSlice } from "./conversation-controller.ts";
 import { canAdminister, canManageAnyAgent, isSessionLost, panelCapabilities } from "./identity.ts";
 import type { LedgerFilter } from "./ledger-filter.ts";
 import { MIN_PASSWORD_LENGTH } from "./panels/account-panels.ts";
@@ -202,6 +201,28 @@ class GovernancePage extends OpenClawLightDomElement {
    * need to own moved to the panels that do.
    */
   private readonly accounts = new AccountsController(this);
+  /** The conversation composer and its transcript (T53). See `conversation-controller.ts`. */
+  private readonly conversation = new ConversationController(this, { api: () => this.api() });
+
+  /**
+   * Test-only forwarding of the conversation fields onto their controller.
+   *
+   * `governance-page.test.ts` mounts the component and *then* assigns state,
+   * because `connectedCallback` starts a load that clears `identity` and a page
+   * configured before connection renders the sign-in form instead. Those
+   * assignments used to land on nine `@state` fields here; T53 moved them into
+   * `ConversationController`, so this keeps the harness's one entry point
+   * working rather than making twenty tests reach through to the controller.
+   *
+   * A setter rather than a method because `Object.assign` is what the harness
+   * uses, and a setter is the only thing an assignment can trigger.
+   */
+  set conversationStateForTests(seed: Partial<ConversationSlice>) {
+    // Named `seed` rather than `state`: `state` is lit's decorator, imported at
+    // the top of this file, and shadowing it is an error the type-aware lint
+    // gate catches and the plain one does not (T50 again).
+    this.conversation.seedForTests(seed);
+  }
   @state() private newRuleAgentId = "";
   /** Root-only policy settings that had no dashboard control until finding 140. */
   @state() private hitlTimeoutDraft = "";
@@ -211,15 +232,8 @@ class GovernancePage extends OpenClawLightDomElement {
   @state() private agentTimeoutAgentId = "";
   @state() private agentTimeoutSeconds = "";
   /** Agent currently open in the conversation panel, and its state. */
-  @state() private conversationAgentId = "";
-  @state() private transcript: GovernanceTranscript | null = null;
-  @state() private promptDraft = "";
   /** Attachments already uploaded and waiting to be sent with the next prompt (T14). */
-  @state() private promptAttachments: GovernanceAttachment[] = [];
   /** True while bytes are on the wire, so the composer can refuse a second send. */
-  @state() private attachmentUploading = false;
-  @state() private promptPending = false;
-  @state() private promptError: string | null = null;
   /**
    * The reply as it arrives, and the id of the run producing it.
    *
@@ -228,8 +242,6 @@ class GovernancePage extends OpenClawLightDomElement {
    * recorded yet. Mixing an in-flight draft into the stored record would make
    * the panel show something the ledger does not have.
    */
-  @state() private promptStream = "";
-  @state() private promptRunId = "";
   /**
    * Which slice of the ruleset the operator is looking at (Q-89).
    *
@@ -381,21 +393,27 @@ class GovernancePage extends OpenClawLightDomElement {
       canAdminister: canAdminister(this.identity),
       canManageAnyAgent: canManageAnyAgent(this.identity),
       pendingDecisions: this.pendingDecisions,
-      conversationAgentId: this.conversationAgentId,
-      transcript: this.transcript,
-      promptDraft: this.promptDraft,
-      promptAttachments: this.promptAttachments,
-      promptError: this.promptError,
-      promptPending: this.promptPending,
-      promptRunId: this.promptRunId,
-      promptStream: this.promptStream,
-      attachmentUploading: this.attachmentUploading,
-      onDraft: (patch) => Object.assign(this, patch),
-      sendPrompt: () => this.sendPrompt(),
-      cancelPrompt: () => this.cancelPrompt(),
-      addAttachments: (files) => this.addAttachments(files),
-      removeAttachment: (held) => this.removeAttachment(held),
-      openConversation: (agentId) => this.openConversation(agentId),
+      ...this.conversation.slice(),
+      // **Routes, rather than narrows.** A first attempt at T53 restricted this
+      // to `promptDraft` on the grounds that the composer is the only thing
+      // that drafts — which was wrong and the kill-switch tests said so: this
+      // one callback also carries `killAgentId`, which is still the page's.
+      // So the conversation's own key goes to its controller and everything
+      // else keeps landing on the component exactly as before.
+      onDraft: (patch) => {
+        const { promptDraft, ...rest } = patch as { promptDraft?: string };
+        if (typeof promptDraft === "string") {
+          this.conversation.setDraft(promptDraft);
+        }
+        if (Object.keys(rest).length > 0) {
+          Object.assign(this, rest);
+        }
+      },
+      sendPrompt: () => this.conversation.sendPrompt(),
+      cancelPrompt: () => this.conversation.cancelPrompt(),
+      addAttachments: (files) => this.conversation.addAttachments(files),
+      removeAttachment: (held) => this.conversation.removeAttachment(held),
+      openConversation: (agentId) => this.conversation.openConversation(agentId),
     };
   }
 
@@ -768,178 +786,9 @@ class GovernancePage extends OpenClawLightDomElement {
    * The transcript is fetched on open rather than kept for every agent, because
    * a User may be assigned several and only ever talks to one at a time.
    */
-  private async openConversation(agentId: string): Promise<void> {
-    if (this.conversationAgentId === agentId) {
-      this.conversationAgentId = "";
-      this.transcript = null;
-      return;
-    }
-    this.conversationAgentId = agentId;
-    this.transcript = null;
-    this.promptError = null;
-    try {
-      this.transcript = await this.api().agentTranscript(agentId);
-    } catch (err) {
-      this.promptError = err instanceof Error ? err.message : String(err);
-    }
-  }
-
-  /**
-   * Sends the drafted prompt.
-   *
-   * Deliberately not routed through `this.run()`, which sets the page-wide busy
-   * flag and triggers a full reload: an agent run can take a long time, and
-   * freezing every other control on the page for its duration would make the
-   * dashboard feel broken during exactly the operation it was built for. The
-   * composer carries its own pending state instead.
-   */
-  /**
-   * Uploads the chosen files, one at a time, before any prompt is sent.
-   *
-   * Sequential rather than parallel on purpose: the per-account quota is
-   * checked as each file lands, so two uploads racing could both read the same
-   * "space remaining" and both be accepted. Sending them in order makes the
-   * quota mean what it says.
-   *
-   * A failure stops the batch and keeps whatever already succeeded. The
-   * alternative, discarding the lot, throws away good uploads because a
-   * later one was too big, and the operator would have to re-pick every file.
-   */
-  private async addAttachments(files: FileList | null): Promise<void> {
-    if (!files || files.length === 0 || this.attachmentUploading) {
-      return;
-    }
-    const agentId = this.conversationAgentId;
-    if (!agentId) {
-      return;
-    }
-    this.attachmentUploading = true;
-    this.promptError = null;
-    try {
-      for (const file of Array.from(files)) {
-        const stored = await this.api().uploadAttachment(agentId, file);
-        // Content-addressed, so re-picking the same file is not an error and
-        // must not queue it twice, the server stores one copy either way.
-        if (!this.promptAttachments.some((held) => held.sha256 === stored.sha256)) {
-          this.promptAttachments = [...this.promptAttachments, stored];
-        }
-      }
-    } catch (err) {
-      this.promptError = err instanceof Error ? err.message : String(err);
-    } finally {
-      this.attachmentUploading = false;
-    }
-  }
-
-  /**
-   * Takes a file off the message, and gives the bytes back.
-   *
-   * The chip is dropped either way, because the operator asked for that and a
-   * control that sometimes does nothing is worse than one that does less than
-   * it claims. The release is best-effort: if the server refuses, which it
-   * does once a prompt has named the file, the bytes stay, correctly, and
-   * there is nothing useful to tell somebody who is editing a message.
-   *
-   * Without this the quota was a trap (QA round 17, finding 113). Uploading
-   * when a file is *chosen* is what makes its size and type known before the
-   * prompt goes out, and it means an abandoned pick had been charged to the
-   * account permanently, with no way to get it back.
-   */
   /** Administrators in this group, who are the only accounts that may manage a User (M3). */
   private administrators(): GovernanceUserRecord[] {
     return (this.users as GovernanceUserRecord[]).filter((user) => user.role === "administrator");
-  }
-
-  private async removeAttachment(held: GovernanceAttachment): Promise<void> {
-    this.promptAttachments = this.promptAttachments.filter((other) => other.sha256 !== held.sha256);
-    try {
-      await this.api().releaseAttachment(held.sha256);
-    } catch {
-      // See above: refused releases are expected, not exceptional.
-    }
-  }
-
-  private async sendPrompt(): Promise<void> {
-    const agentId = this.conversationAgentId;
-    const message = this.promptDraft.trim();
-    if (!agentId || !message || this.promptPending || this.attachmentUploading) {
-      return;
-    }
-    this.promptPending = true;
-    this.promptError = null;
-    // Cleared before the run rather than after, so the partial reply from a
-    // previous prompt is never left on screen beside a new one.
-    this.promptStream = "";
-    this.promptRunId = "";
-    try {
-      const outcome = await this.api().promptAgentStreaming(
-        agentId,
-        message,
-        {
-          onStart: (info) => {
-            this.promptRunId = info.runId;
-          },
-          onProgress: (replySoFar) => {
-            this.promptStream = replySoFar;
-          },
-        },
-        undefined,
-        this.promptAttachments.map((held) => held.sha256),
-      );
-      this.promptDraft = "";
-      // Cleared only on a completed send. A prompt that threw leaves them
-      // queued, because the files are already uploaded and making the operator
-      // pick them again would be a second failure caused by the first.
-      this.promptAttachments = [];
-      if (!outcome.ok) {
-        // A cancellation is not a failure and is not reported as one. The
-        // operator asked for it, they already know, and dressing it up as an
-        // error is how a page teaches somebody to stop reading its errors.
-        this.promptError =
-          outcome.ending === "cancelled"
-            ? null
-            : (outcome.error ?? t("governance.conversation.failed"));
-      }
-    } catch (err) {
-      // A refused prompt (409 for a locked-down agent) arrives here as a thrown
-      // API error; it is a result the operator needs to read, not a page fault.
-      this.promptError = err instanceof Error ? err.message : String(err);
-    } finally {
-      this.promptPending = false;
-      this.promptStream = "";
-      this.promptRunId = "";
-      try {
-        this.transcript = await this.api().agentTranscript(agentId);
-      } catch {
-        // The prompt already succeeded or failed on its own terms; a transcript
-        // refresh that fails must not overwrite the message explaining that.
-      }
-    }
-  }
-
-  /**
-   * Stops the prompt that is running, without stopping the agent.
-   *
-   * Deliberately *not* the kill switch. Lockdown stops an agent doing anything
-   * at all and has to be released by hand; this withdraws one request. Offering
-   * the emergency control as the way out of an ordinary mistake is how an
-   * emergency control stops being treated as one.
-   *
-   * The run id only exists once the server has replied, so this is asked of the
-   * server by id rather than by aborting the fetch: closing the connection also
-   * cancels the run, but doing it this way means the cancellation is recorded
-   * against the account that asked for it.
-   */
-  private async cancelPrompt(): Promise<void> {
-    const runId = this.promptRunId;
-    if (!runId) {
-      return;
-    }
-    try {
-      await this.api().cancelPrompt(runId);
-    } catch (err) {
-      this.promptError = err instanceof Error ? err.message : String(err);
-    }
   }
 
   override render(): unknown {
@@ -1139,23 +988,3 @@ class GovernancePage extends OpenClawLightDomElement {
 if (!customElements.get("openclaw-governance-page")) {
   customElements.define("openclaw-governance-page", GovernancePage);
 }
-
-/* oxlint-disable max-lines -- 735 lines against a 700 limit, and this is a
-   deliberate, recorded exception rather than a silent one.
-
-   **Four files were split properly on 2026-09-04 rather than suppressed**: the
-   per-agent timeout route moved to `governance-dashboard-agent-control.ts`, its
-   dashboard row to `panels/policy-agent-timeout.ts`, the deployment types to
-   `api.deployment.ts`, and the pre-sign-in gate to `session-panels.ts`. This
-   file is the one with no cheap seam left. It is a page component whose job is
-   composing fourteen sections, and every remaining candidate (the two prop
-   builders, the data loaders) reads twenty or more private fields, so moving
-   one relocates the same lines and adds the plumbing to pass them.
-
-   The real fix is splitting the component in two, an outer shell and an inner
-   signed-in view, which is a genuine refactor with real regression risk. It is
-   **T53** on the backlog rather than something done in the last hour before a
-   handoff.
-
-   It was at roughly 690 before this session; the jump-nav, the tooltip wiring,
-   the page header and two draft fields took it over. */

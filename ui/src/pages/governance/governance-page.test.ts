@@ -93,7 +93,33 @@ async function mount(state: Partial<PageState>): Promise<PageState> {
   // afterwards is also closer to what the component does in life: it renders
   // empty, then fills in.
   await page.updateComplete;
-  Object.assign(page, { loading: false, users: [], ...state });
+  // The conversation fields live on `ConversationController` since T53, so they
+  // are routed through the page's test-only setter rather than assigned onto
+  // the component. Everything else is assigned exactly as before.
+  const CONVERSATION_KEYS = [
+    "conversationAgentId",
+    "transcript",
+    "promptDraft",
+    "promptAttachments",
+    "promptError",
+    "promptPending",
+    "promptRunId",
+    "promptStream",
+    "attachmentUploading",
+  ] as const;
+  const merged: Record<string, unknown> = { loading: false, users: [], ...state };
+  const conversation: Record<string, unknown> = {};
+  for (const key of CONVERSATION_KEYS) {
+    if (key in merged) {
+      conversation[key] = merged[key];
+      delete merged[key];
+    }
+  }
+  Object.assign(page, merged);
+  if (Object.keys(conversation).length > 0) {
+    (page as unknown as { conversationStateForTests: unknown }).conversationStateForTests =
+      conversation;
+  }
   page.requestUpdate();
   await page.updateComplete;
   // A second turn: several sections render from state set during the first

@@ -65,6 +65,60 @@ at four boxes is placed to catch.
 
 ---
 
+### T17 audit: every figure read against the code, 2026-09-05
+
+**All 21 figures compared to the source they describe, and all three forms
+checked for completeness. Two defects found, both fixed, and one of them would
+have stopped the report compiling.**
+
+**Completeness first, because it is the cheapest thing to get wrong.** Twenty-two
+`F` headings, twenty-one of each form. The gap is **F18**, and it is correct: F18
+is a _cross-reference_ marked CUT, a pointer at F19 rather than a figure, and it
+carries no forms because there is nothing there to draw. So **every real figure
+has prose, Mermaid and TikZ**, verified by counting headings rather than by
+reading.
+
+| Defect                         | Figure  | What it was                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **The TikZ would not compile** | **F21** | Five line breaks had lost a backslash — `{Agent starts\a session}`, `{Root:\backend\enabled?}`, `{Administrator:\agent\permitted?}` — so LaTeX would read `\a`, `\backend`, `\enabled`, `\agent` and `\permitted` as undefined control sequences. Three more nodes wrote `\\scriptsize`, a line break followed by the **literal word** "scriptsize", which would have printed that word inside the box. The house form, used correctly by every other figure, is `\\\scriptsize`: a break, then the command. Fixed, and the whole file re-scanned: **no unknown control sequence remains in any of the 23 LaTeX blocks, and all 15 `\\\scriptsize` are the correct form** |
+| **A claim the cap made false** | **F12** | Every form said an installation **may hold more than one organisation**. `createUser` has refused that since 2026-08-30: `DuplicateOrganisationError` for a second group and `DuplicateRootError` for a second Root, both checked inside the write's own lock. Corrected in prose, caption and recommendation                                                                                                                                                                                                                                                                                                                                                             |
+
+**F12 is worth dwelling on, because the same correction had already been made
+once and this figure was missed.** The 2026-09-01 note above records F2 being
+fixed for saying a machine "may hold several Roots". **F12 is the figure that
+claim actually belongs to** — it is _the_ multi-tenancy picture — and the earlier
+pass corrected the figure that mentioned the fact in passing while leaving the
+one built on it. A correction applied to the first artefact it was noticed in
+rather than to the one that owns the subject.
+
+The drawing itself was left alone and is still right: two closed worlds and a
+line nothing crosses is exactly what the code enforces per group. What changed is
+the claim about how many such worlds an installation can have. That is the T49
+tension in one picture, and the caption now states it — the isolation is real and
+is **verified by test rather than by deployment**.
+
+**Figures confirmed correct against the code, and why each was checked:**
+
+| Figure                                | Checked because                                                                                                          | Verdict                                                                                                                                                                                                                                   |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **F21** (two-layer Codex)             | 2026-09-05 measured the Codex scope and found the backend switch is installation-wide while its setter takes a `groupId` | **Content correct, and better than the code reads.** The figure already says Root decides "whether the backend exists on this **installation** at all", which is exactly what `readCodexBackendState()` — taking no group id — implements |
+| **F19** (tenant model)                | Describes the M-series, which the cap most affects                                                                       | Correct. It describes the _dependency chain_ between M3–M6, not how many organisations may exist, so the cap does not touch it                                                                                                            |
+| **F13** (two entry points)            | T51 found the CLI cannot see the Gateway's runs                                                                          | Correct and unaffected. It draws tool-call routing into the gate; T51 is about `governance agent runs`, which is not on this path                                                                                                         |
+| **F9** (four modules, one definition) | Finding 256 found three more stores keyed by canonical username                                                          | Correct. It is about the consumers of the folding _function_, not about everything keyed by a username, and it is marked CUT in any case                                                                                                  |
+| **F2** (RBAC hierarchy)               | Corrected twice before                                                                                                   | Still correct; the 2026-09-01 fix holds                                                                                                                                                                                                   |
+
+**The method note.** The compile defect was found by scanning the LaTeX blocks
+mechanically for control sequences that are not commands, not by reading them —
+and reading is what three previous passes over this file did. **A figure file is
+source code for a document, and the same rule applies to it as to everything
+else here: run it, or at least parse it, rather than reading it.** Nobody had
+compiled these, which is why a figure that cannot compile survived three
+reviews. Compiling all 21 against the preamble in this file is the check that
+would close the remaining risk, and it needs a LaTeX toolchain this machine does
+not have.
+
+---
+
 ## What to add to the LaTeX preamble
 
 The PSUT template loads no drawing package, so add these to `main.tex` after
@@ -1049,17 +1103,39 @@ preamble for the brace.)_
 
 **Source:** §3.5.30 (M3) · **Proposed number:** Figure 3.8
 
-**Recommendation: KEEP.** Multi-tenancy is a substantial feature added late, and
-the whole claim rests on what does not cross the line between two groups. A
-figure with a literal dividing line, labelled with what cannot cross it, makes
-the isolation argument in one glance. Prose has to enumerate the same facts and
-the reader has to assemble the picture themselves.
+**Recommendation: KEEP, with the caption corrected.** Multi-tenancy is a
+substantial feature added late, and the whole claim rests on what does not cross
+the line between two groups. A figure with a literal dividing line, labelled
+with what cannot cross it, makes the isolation argument in one glance. Prose has
+to enumerate the same facts and the reader has to assemble the picture
+themselves.
+
+> **Corrected 2026-09-05, and this is the same correction F2 already carried.**
+> Every form of this figure said an installation **may** hold more than one
+> organisation. The **2026-08-30 cap made that false**: `createUser` raises
+> `DuplicateOrganisationError` when an account would start a second group, and
+> `DuplicateRootError` when it would be a second Root, both checked inside the
+> same file lock as the write. The header note above records F2 being fixed for
+> saying a machine "may hold several Roots"; **F12 is the figure that claim
+> actually belongs to and it was missed.**
+>
+> The drawing is unchanged and still correct, because what it draws — two closed
+> worlds and a line nothing crosses — is exactly what the code enforces per
+> group. What changed is only the claim about how many of these an installation
+> can have at once, which is a caption and a sentence rather than a shape. This
+> is the T49 tension in one picture: the isolation is real and is verified by
+> test rather than by deployment, and the figure should say so rather than imply
+> a deployment nobody can create.
 
 ### Prose form
 
-An installation may hold more than one organisation, and each is a closed world.
-Every account belongs to exactly one group, and every User and Viewer has exactly
-one Administrator answerable for it. Within a group there is one Root, who
+The layer models an installation as holding one or more organisations, each a
+closed world. **A shipped installation holds exactly one**, capped since
+2026-08-30 so that installation-wide controls have an unambiguous owner; the
+second organisation in this figure is what the isolation is written and tested
+against rather than something an operator can create. Every account belongs to
+exactly one group, and every User and Viewer has exactly one Administrator
+answerable for it. Within a group there is one Root, who
 manages people, and one or more Administrators, who manage agents; Users and
 Viewers hang off individual Administrators. Nothing crosses between groups:
 neither accounts, nor the list of accounts, nor agent assignment. The
@@ -1123,7 +1199,9 @@ flowchart TB
   \node[gnote, align=center] at ($(ga.east)!0.5!(gb.west) + (0,-26mm)$)
     {does not cross:\\accounts\\the account list\\agent assignment};
 \end{tikzpicture}
-\caption{Two groups on one installation, and what does not cross between them.}
+\caption{The group boundary. Two organisations and what does not cross between
+them; a shipped installation is capped at one, so the second is what the isolation is
+tested against rather than a deployment an operator can create.}
 \label{fig:groups}
 \end{figure}
 ```
@@ -1742,12 +1820,12 @@ flowchart LR
 \begin{figure}[htbp]
 \centering
 \begin{tikzpicture}[node distance=8mm and 13mm]
-  \node[gbox] (a) {Agent starts\a session};
-  \node[gdec, right=of a]  (r)  {Root:\backend\enabled?};
-  \node[gdec, right=of r]  (ad) {Administrator:\agent\permitted?};
-  \node[gbox, right=of ad] (cx) {Codex runtime\\scriptsize reach recorded, not withheld};
-  \node[gbox, below=16mm of ad] (ip) {In-process runtime\\scriptsize denied results withheld};
-  \node[gbox, below=9mm of cx]  (ref) {Refused\\scriptsize \texttt{agent-not-permitted-on-codex}};
+  \node[gbox] (a) {Agent starts\\a session};
+  \node[gdec, right=of a]  (r)  {Root:\\backend\\enabled?};
+  \node[gdec, right=of r]  (ad) {Administrator:\\agent\\permitted?};
+  \node[gbox, right=of ad] (cx) {Codex runtime\\\scriptsize reach recorded, not withheld};
+  \node[gbox, below=16mm of ad] (ip) {In-process runtime\\\scriptsize denied results withheld};
+  \node[gbox, below=9mm of cx]  (ref) {Refused\\\scriptsize \texttt{agent-not-permitted-on-codex}};
 
   \draw[gflow] (a)  -- (r);
   \draw[gflow] (r)  -- node[glab, above] {yes} (ad);

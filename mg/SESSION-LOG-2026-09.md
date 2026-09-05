@@ -1559,3 +1559,142 @@ fifteen-minute lockout, which is dashboard-only by design.
 | Bounds sweep      | 11/11 after the repair, 10/11 before              |
 | Lifecycle sweeps  | 8/8 and 2/5 (the three are T55), unchanged        |
 | Feature sweep     | 20/20, unchanged                                  |
+
+## 2026-09-05 (iii): T53, two guards, and five days re-attacked
+
+**T53 closed. Findings 262 and 263. One sweep over the M-series, one over the
+five days, and the figures audited against the code (T17's mechanical half).**
+
+### T53: the page split, and the claim in its own exception was wrong
+
+`governance-page.ts` carried a **recorded** `max-lines` exception rather than a
+silent one, and the reasoning written into it said every remaining candidate
+"reads twenty or more private fields, so moving one relocates the same lines and
+adds the plumbing to pass them".
+
+That is true of the two prop builders and of `refreshData`. **It was not true of
+the conversation cluster, which the exception never assessed.** Five methods —
+`openConversation`, `addAttachments`, `removeAttachment`, `sendPrompt`,
+`cancelPrompt` — touch nine fields, and those nine are read by one line of
+`agentPanelProps` and by nothing else on the page. Measured before moving
+anything, by listing every reference.
+
+So the cheap seam the exception said did not exist was there, and the shape is
+the house one rather than a new idea: `AccountsController`,
+`AgentRegistryController` and `SectionNavController` already sit beside the page
+and already expose a `slice()` the props builder spreads.
+`ConversationController` is the fourth.
+
+**735 code lines to 619, against a 700 limit. The suppression is deleted, not
+moved**, and oxlint passes on merit.
+
+Two things came out of doing it that were not the point:
+
+- **Two doc comments had come adrift from their functions.** The one describing
+  how a prompt is sent sat above `addAttachments`; the one about taking a file
+  off a message sat above `administrators()`. Finding 135's shape — a JSDoc
+  orphaned by a later insertion — and both are reattached.
+- **`administrators()` was sitting in the middle of the conversation block** and
+  belongs to accounts. It stayed on the page.
+
+**One regression, caught by the tests rather than by me.** The first version
+narrowed `onDraft` to `promptDraft` on the reasoning that the composer is the
+only thing that drafts. It is not: that one callback also carries `killAgentId`,
+and two kill-switch tests went red. It now _routes_ — the conversation's key to
+its controller, everything else onto the component as before — rather than
+restricting.
+
+### 262: the gate's own off switch is now in the deployment report
+
+`isUnconfiguredTestRun()` is true when a `VITEST` variable is present and
+`OPENCLAW_GOVERNANCE_DIR` is not, and two places consult it: a fresh policy
+starts `mode: "off"`, and the engine waves through a call whose agent has no
+resolvable group. Both are right for OpenClaw's own harness suite, which has no
+operator, no policy and no approver.
+
+**What makes it worth reporting is the failure mode.** `off` returns before the
+lockdown check and before the core denials, and deliberately records nothing,
+because recording would imply oversight that is not happening. A Gateway in that
+state enforces nothing, refuses nothing and writes no ledger entry saying so:
+requirements 1, 5, 7 and 8 failing at once behind a dashboard that looks normal.
+There is no other condition in this system whose absence is that quiet.
+
+`OPENCLAW_GOVERNANCE_DIR` is normally **unset** in production — the home
+directory is the default — so the whole guard rests on `VITEST` not being in the
+environment, which is a property of how the process was started rather than of
+this code. `live-agent-probes.ts` already strips four `VITEST*` variables before
+spawning children, so the leak is a recognised one.
+
+`deployment.gate_not_disarmed` reports it, **two states rather than three**. An
+earlier draft warned whenever a `VITEST` variable was present even with the
+directory set — which fires on every run of this project's own suite, and a
+check amber on arrival is one everybody learns to skip. That is T37's argument
+for bringing a gate to zero before adding it, and it applies to a report row as
+much as to a lint rule.
+
+### 263: the deployment types were a hand-copy nothing checked
+
+`ui/src/pages/governance/api.deployment.ts` restates `DeploymentStatus` by hand,
+because the dashboard bundle does not import from `src/`. **Nothing asserted the
+two agreed.** Same arrangement as finding 261 one file over, and the drift that
+matters here is structural: the server gains a check status, or a facts field,
+and the dashboard's copy quietly describes a shape the server no longer sends.
+
+Pinned by `deployment-mirror.contract.test.ts`, and it is **type-level rather
+than value-level**, enforced by `tsgo -p tsconfig.core.test.json`, the sixth
+verification command, which covers `src/` and `ui/` in one program. A runtime
+`expect` cannot see a missing field on a type. Mutated the dashboard's status
+union to drop `"unknown"` and the typecheck fails with three named errors.
+
+### The M-series swept, and three answers that had to stay the same
+
+`m-series-sweep.ts`, **16/16**. Kinan asked three questions and the answers are
+unchanged:
+
+|                                                     |                                                                                                                                                                                         |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Several devices, one organisation, different tiers? | **Yes.** Four sessions issued and verified at once, each carrying its own tier                                                                                                          |
+| A one-account-per-device limit?                     | **No.** Two sessions for one account are both valid; issuing the second does not revoke the first. The limit is one account per **cookie jar**, not per machine                         |
+| Codex per organisation and per agent?               | **Still works.** `scout` and `porter` set independently and read back independently; the backend stance is installation-wide by construction, unchanged from the 2026-09-05 measurement |
+
+Also confirmed: per-group storage puts the policy under `groups/<id>/`, the
+registry lists only its own organisation's agents, a User reaches the agent
+assigned to them and not another, a Viewer manages nothing even when assigned,
+and the chain verifies after all of it.
+
+### Five days re-attacked
+
+`five-day-regression-sweep.ts`, **10/10**. Every unit test asserts that the code
+does what a fix intended; this asks whether the **original attack** still fails,
+which is a different question and has come apart three times this week.
+
+- **202** — locked `Scout`, gate refuses `scout`, released as `SCOUT`. The kill
+  switch folds at all three.
+- **225** — 1,200 junk lockouts in a 1,000-key table, then guessed a real
+  account: **locked out on attempt 6**. Before the repair it was five hundred
+  guesses with the counter never exceeding one.
+- **256** — a reissued username inherits no transcript.
+- **Requirement 8** — the ledger edited on disk (detected by content hash) and
+  truncated by one line (detected by the checkpoint, which a chain alone cannot
+  see).
+- **254** — the agent cannot read `users.json` or `ledger.key` on the default
+  layout.
+
+### The sixth fixture error of the week, and the second to invent a defect
+
+That 254 check **failed on the first run** and said the self-protecting tier was
+not protecting. It was not: the probe asked about a tool called `read_file`,
+which **does not exist in OpenClaw**. An unlisted tool is recorded `ungoverned`
+and allowed, which looks exactly like a defeated denial.
+
+`resource-extraction.ts` carries a comment saying an early version of that
+registry guessed `read_file` and `write_file`, so the entire `path` resource kind
+governed nothing. **The probe reproduced a documented defect while checking that
+a different defect stayed fixed**, and had I trusted the red I would have
+reported a critical regression that does not exist.
+
+Running total for the week: **six fixture errors, two of which would have
+produced a false finding rather than a missing one.** The rule that catches both
+kinds is the same — reproduce the mechanism, not the end state — and the rule
+that catches this particular kind is narrower: **use the real name, and check it
+against the source that owns it.**

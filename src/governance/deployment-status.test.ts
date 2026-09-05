@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { SecurityAuditFinding } from "../security/audit.types.js";
 import {
   readDeploymentStatus,
+  type DeploymentCheck,
   type DeploymentEnvironmentInput,
   type ReadDeploymentStatusOptions,
 } from "./deployment-status.js";
@@ -448,5 +449,59 @@ describe("A7. Secrets do not reach the report", () => {
     // QA round 13 finding 86 showed the location is materially important. What
     // it should not do is print an absolute home path when a `~` will do.
     expect(status.facts.governanceDir).not.toMatch(/\/home\/[a-z]/i);
+  });
+});
+
+describe("the gate's own off switch is reported (2026-09-05)", () => {
+  // `isUnconfiguredTestRun()` in `paths.ts` disables the gate when a VITEST
+  // variable is present and OPENCLAW_GOVERNANCE_DIR is not: a fresh policy
+  // starts `mode: "off"` and the engine waves through a call whose agent has no
+  // resolvable group. Both are right for OpenClaw's own harness suite. What
+  // makes it worth reporting is the failure mode: `off` returns before the
+  // lockdown check and the core denials and records nothing, so a Gateway in
+  // that state enforces nothing and says nothing.
+  //
+  // Driven through the injected `env`, like every other check in this module,
+  // so the assertions describe the code rather than the shell the suite ran in.
+  function gateCheck(status: { checks: readonly DeploymentCheck[] }) {
+    return status.checks.find((entry) => entry.id === "deployment.gate_not_disarmed");
+  }
+
+  it("fails when a VITEST variable is present and the governance dir is not", async () => {
+    const status = await readDeploymentStatus(
+      TEST_GROUP,
+      conformingInput(),
+      options({ env: { VITEST: "1" } }),
+    );
+    const entry = gateCheck(status);
+    expect(entry?.status).toBe("fail");
+    expect(entry?.detail).toContain("not enforcing");
+    expect(entry?.remediation).toMatch(/[Uu]nset/);
+    // A disarmed gate must drag the whole report down, or an operator reading
+    // only the summary sees a green deployment enforcing nothing.
+    expect(status.overall).toBe("fail");
+  });
+
+  it("fails on VITEST_WORKER_ID too, not only on VITEST", async () => {
+    const status = await readDeploymentStatus(
+      TEST_GROUP,
+      conformingInput(),
+      options({ env: { VITEST_WORKER_ID: "3" } }),
+    );
+    expect(gateCheck(status)?.status).toBe("fail");
+  });
+
+  it("passes when the governance directory is set, which is what arms it", async () => {
+    const status = await readDeploymentStatus(
+      TEST_GROUP,
+      conformingInput(),
+      options({ env: { VITEST: "1", OPENCLAW_GOVERNANCE_DIR: dir } }),
+    );
+    expect(gateCheck(status)?.status).toBe("pass");
+  });
+
+  it("passes on an ordinary installation with no VITEST variable at all", async () => {
+    const status = await readDeploymentStatus(TEST_GROUP, conformingInput(), options({ env: {} }));
+    expect(gateCheck(status)?.status).toBe("pass");
   });
 });
