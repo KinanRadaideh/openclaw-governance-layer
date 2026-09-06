@@ -6974,3 +6974,121 @@ only at the final state, rather than at the machinery that produced it, tends to
 pass — or fail — for the wrong reason.** Three of the previous four working days
 also caught a test proving nothing. It keeps happening, and the only thing that
 catches it is deliberately breaking the code and confirming something goes red.
+
+## 5.99 The day somebody actually tried to use it
+
+Five problems, all found by Kinan sitting down with the dashboard and trying to
+do ordinary things: make an agent, talk to it, read the log. Not one of them was
+findable by reading the code, **because the code was right**. Every single one
+was the same shape:
+
+> The system could do the thing. The screen gave you no way to ask for it.
+
+### "Register an agent OpenClaw already has" — you couldn't
+
+The agents panel says, in its own words, _"Create one below, or register an agent
+OpenClaw already has."_ And there genuinely is a Register button: it appears next
+to any agent that exists in OpenClaw but isn't being governed yet. There's even a
+test that has checked that button works since August.
+
+**You could never get to it.** The list of agents was built from two sources:
+agents somebody had already written a rule about, and agents currently running.
+An agent that OpenClaw had, that you'd never mentioned in a rule and that wasn't
+running, appeared in neither. So on a fresh install the panel said "No agents
+yet" and offered you nothing to register — while promising, one line above, that
+you could.
+
+Fixed by having the list also ask OpenClaw what agents it actually has.
+
+### The model box that wasn't there
+
+When the governance layer creates an agent, it can tell OpenClaw which model to
+use. The server accepts it. The message format includes it. The thing that sends
+the message includes it. **The form was the only part of the chain that never
+asked you.** So if you wanted a specific model you had to go to the command line.
+
+What makes this one slightly embarrassing: the code that adds the "who owns
+this agent?" dropdown has a comment explaining that the capability had existed
+for ages and the form had never offered it. That comment sits four lines above
+the field with exactly the same problem.
+
+### Boxes that didn't say what they were
+
+Two of the three fields on the create form read "Optional, derived from the name"
+and "Optional, OpenClaw chooses one". Both tell you the field is optional.
+Neither tells you what it _is_. Kinan asked what the third box was — it's the
+folder the agent works in.
+
+They now say so. And the "agent created" message now tells you what the id is
+_for_, because the very next thing the page asks you for is that id.
+
+### Being asked to type something the page already knew
+
+After creating an agent called Andrew, the "talk to an agent" panel said: _"You
+manage every agent, so there is no assigned list. Enter the id of the one you
+want."_
+
+The page had the list. It was displaying it two sections higher up. It just
+wasn't offering it here. There's a dropdown now.
+
+### The audit log, on three counts
+
+**"What is `user-1788466851277-8255cb2c`?"** An account id — the Administrator
+who owns the new agent. The entry said "registered to account
+&lt;that&gt;", which is an internal reference number appearing nowhere else on
+screen, in the one place whose entire job is recording _who did what_. Every
+other line names a person. Now this one does too, with the reference number kept
+alongside, because names can be changed later and the number can't.
+
+**"Why is there a red dot saying admin?"** That column tells you what kind of
+entry it is: an administrative action, or an agent action that was allowed or
+denied. It had **no heading and no label of any kind** — just a coloured dot and
+a word. It now identifies itself when you hover over it, and to a screen reader.
+
+**"Verify chain integrity just says it's fine."** This is the one worth reading.
+
+The audit log is meant to be tamper-evident: you can tell if someone edited it.
+Press the button and it said **"Intact, entries verified"** — and nothing else.
+Which is, as Kinan put it, the system saying _trust me_. A feature whose entire
+purpose is not having to take things on trust, asking you to take its own answer
+on trust.
+
+It now shows its working:
+
+- **What it did.** Every entry is stamped with a fingerprint calculated from its
+  contents plus a secret key held by this installation, and each entry also
+  carries the fingerprint of the one before it — so they form a chain. Verifying
+  recalculates every fingerprint and checks every link.
+- **Where the chain ends**, as an actual value you can read.
+- **What the separate checkpoint file says.** This is the part that catches
+  someone deleting entries off the end: a chain with its tail cut off still looks
+  perfectly valid, so the only way to notice is a second record, kept elsewhere,
+  that says how long the chain is _supposed_ to be. The panel now shows both
+  numbers agreeing.
+- **The command to check it yourself**, from a terminal, without the dashboard
+  involved. If the two disagree, something is wrong with one of them — and that
+  is exactly the situation you would want to know about.
+
+The button also used to shove the page down when you pressed it, because the
+answer appeared above the list you were looking at. It now brings the answer to
+you instead.
+
+### Two things moved because they read better that way
+
+The emergency kill switch now sits directly under "Agent permissions" (renamed
+from "What an agent may do"), because the two are one question in two steps:
+what may this agent do, and then — stop it doing anything.
+
+And the approval timeout box said "Between 5 seconds and 24 hours" above a box
+containing `300`, without ever saying `300` was seconds. It does now.
+
+### The thread running through all five
+
+None of these was a bug in the sense of code computing the wrong answer. Every
+one was the **screen failing to offer something the system could already do** —
+and in three cases, actively advertising it while not offering it.
+
+That is worth stating because it is the fourth separate occasion where an hour of
+somebody actually using the dashboard produced better findings than a day of
+reading it. Reading finds code that is wrong. It cannot find a correct
+implementation nobody can reach.

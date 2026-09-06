@@ -615,15 +615,14 @@ it; and it honours `linguist-` overrides in `.gitattributes`, which in this
 repository marks `ui/src/i18n/.i18n/*` as generated.
 
 **What of it is this project's own work.** Measured as lines added on branch
-`governance-layer` against `main`, **310 files and 122,699 insertions against 349
-deletions, across 109 commits** (re-measured 2026-09-05). That total is only
+`governance-layer` against `main`, **316 files and 125,135 insertions against 349
+deletions, across 113 commits** (re-measured 2026-09-06). That total is only
 useful once split, because this repository's prose is unusually large:
 
-| Slice                                                                                                               | Files | Insertions |
-| ------------------------------------------------------------------------------------------------------------------- | ----- | ---------- |
-| **Prose** (`mg/`, `docs-notes/`, `GOVERNANCE.md`, `README.md`, `REPORT.md` and the two report files)                | 44    | 51,890     |
-| **Code and everything else**                                                                                        | 266   | 70,809     |
-| of which **the governance layer proper** (`src/governance/`, `src/gateway/governance*`, `ui/src/pages/governance/`) | 212   | 64,164     |
+| Slice                                                                                                      | Files | Insertions |
+| ---------------------------------------------------------------------------------------------------------- | ----- | ---------- |
+| **Prose** (`mg/`, `docs-notes/`, `GOVERNANCE.md`, `README.md`, `REPORT.md` and the two report files)       | 48    | 53,613     |
+| **The governance layer proper** (`src/governance/`, `src/gateway/governance*`, `ui/src/pages/governance/`) | 214   | 64,861     |
 
 **Two things to say about the code figure before quoting it.** It counts added
 lines in modified upstream files as well as whole new ones, and it counts test
@@ -633,7 +632,7 @@ added 27 lines of code against 41 of comment. A line count is therefore a
 measure of _written_ work rather than of logic, and the production/test/comment
 split matters more than the total.
 
-_(This paragraph read "144 files, 43,014 insertions ... across fifteen commits"
+_(This paragraph read "144 files, 43,014 insertions ... across fifteen commits" until 2026-09-05, and 310/122,699 until 2026-09-06,
 until 2026-09-05, which was accurate when written and had been overtaken by
 ninety-four commits. It is the same failure mode the suite-figure rows carry a
 warning about, in the section that measures the fork: **re-run the command, do

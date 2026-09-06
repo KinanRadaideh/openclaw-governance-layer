@@ -317,12 +317,12 @@ You manage **the agents assigned to you** and nothing else.
 
 ### 3.6 The audit ledger
 
-| #     | Do this                          | Expect                              |
-| ----- | -------------------------------- | ----------------------------------- |
-| 3.6.1 | Open the ledger                  | You see entries for your own agents |
-| 3.6.2 | Filter to **Agent actions**      | Only agent entries                  |
-| 3.6.3 | Filter to **Policy changes**     | Only administrative ones            |
-| 3.6.4 | Press **Verify chain integrity** | Reports intact, with a count        |
+| #     | Do this                          | Expect                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ----- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3.6.1 | Open the ledger                  | You see entries for your own agents                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 3.6.2 | Filter to **Agent actions**      | Only agent entries                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| 3.6.3 | Filter to **Policy changes**     | Only administrative ones                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 3.6.4 | Press **Verify chain integrity** | Reports intact **with its working shown** (2026-09-06, finding 268): a sentence on how verification works, the chain head it ended at, the independent checkpoint agreeing with it, and the terminal command that recomputes the same thing. **Read the head hash, run that command, and compare** — that is the row's real content. A verdict with no evidence behind it is what this finding was about. Also check the page does not jump when you press it |
 
 ### 3.7 The refusals (record the exact wording of each)
 
@@ -340,15 +340,15 @@ You manage **the agents assigned to you** and nothing else.
 
 A Viewer sees the audit trail and changes nothing.
 
-| #   | Do this                                    | Expect                                                                                                        |
-| --- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| 4.1 | Sign in as the Viewer                      | Identity says `viewer`                                                                                        |
-| 4.2 | Count the controls on the whole page       | There should be **no button that changes anything**                                                           |
-| 4.3 | Read the ledger                            | Visible, but **resource details are masked** — confirm you cannot read the file paths and commands a User can |
-| 4.4 | Read the model's stated intent on an entry | You get a placeholder, not the text                                                                           |
-| 4.5 | Try to stop an agent                       | No control, and the route refuses                                                                             |
-| 4.6 | Try to submit a rule request               | Refused — proposing is the User tier                                                                          |
-| 4.7 | Verify the chain                           | Allowed. Oversight is the point of the tier                                                                   |
+| #   | Do this                                    | Expect                                                                                                                                                      |
+| --- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 4.1 | Sign in as the Viewer                      | Identity says `viewer`                                                                                                                                      |
+| 4.2 | Count the controls on the whole page       | There should be **no button that changes anything**                                                                                                         |
+| 4.3 | Read the ledger                            | Visible, but **resource details are masked** — confirm you cannot read the file paths and commands a User can                                               |
+| 4.4 | Read the model's stated intent on an entry | You get a placeholder, not the text                                                                                                                         |
+| 4.5 | Try to stop an agent                       | No control, and the route refuses                                                                                                                           |
+| 4.6 | Try to submit a rule request               | Refused — proposing is the User tier                                                                                                                        |
+| 4.7 | Verify the chain                           | Allowed, **and a Viewer sees the same evidence** — the head hash and checkpoint are oversight information, not a secret. Oversight is the point of the tier |
 
 ---
 
