@@ -305,12 +305,26 @@ function assertOwnerEligible(
     // to be.
     throw new AgentOwnerError("the nominated Administrator was not found in this group");
   }
-  if (owner.role !== "administrator") {
-    // Root is excluded for the reason M3 excludes it from `managedBy`: if Root
-    // wants to own an agent directly it creates an Administrator account and
-    // signs into that, which keeps one statable rule and keeps the act
-    // attributable to the hat it was done in.
-    throw new AgentOwnerError("agents are owned by an Administrator");
+  if (owner.role !== "administrator" && owner.role !== "root") {
+    // **Root became eligible on 2026-09-06, at Kinan's decision.** It was
+    // excluded for the reason M3 excludes it from `managedBy`: Root wanting an
+    // agent of its own could create an Administrator and sign into that, which
+    // kept one statable rule and kept the act attributable to the hat it was
+    // done in.
+    //
+    // What changed is the cost of that indirection rather than the reasoning
+    // behind it. Requiring an Administrator to exist before any agent can means
+    // a fresh installation cannot hold an agent until a second account is made,
+    // and the person most likely to be setting one up is Root. The rule it
+    // replaces is still one sentence: **an agent is owned by an Administrator,
+    // or by the Root of its own organisation.**
+    //
+    // The consequence is handled in `assertAssignable` rather than left
+    // implicit: an agent Root owns sits in no Administrator's silo, so it is
+    // assignable to anyone in the group, because there is no boundary between
+    // Administrators for it to cross. A User or Viewer still answers to an
+    // Administrator; that half of M3 is untouched.
+    throw new AgentOwnerError("agents are owned by an Administrator, or by this group's Root");
   }
 }
 
@@ -721,9 +735,28 @@ export async function assertAssignable(
       throw new AgentNotAssignableError(`agent "${agentId}" is not yours to assign`);
     }
     if (managerId && agent.adminId !== managerId) {
-      throw new AgentNotAssignableError(
-        `agent "${agentId}" belongs to a different Administrator, so it cannot be assigned here`,
+      // **An agent owned by this group's Root crosses no boundary.** The rule
+      // exists to stop one Administrator's agent reaching another
+      // Administrator's User; a Root-owned agent sits in no Administrator's
+      // silo, and Root is above every Administrator in the group, so there is
+      // nothing here for the check to protect. Looked up rather than assumed:
+      // `adminId` alone cannot say which tier its holder is.
+      //
+      // Without this, allowing Root to own an agent would have quietly created
+      // a class of agent **no User could ever be assigned**, which is the
+      // "two statable rules instead of one" the old exclusion was avoiding —
+      // arriving as a silent gap rather than as a stated rule.
+      const ownerIsGroupRoot = (await listUsers()).some(
+        (account) =>
+          account.id === agent.adminId &&
+          account.role === "root" &&
+          account.groupId === agent.groupId,
       );
+      if (!ownerIsGroupRoot) {
+        throw new AgentNotAssignableError(
+          `agent "${agentId}" belongs to a different Administrator, so it cannot be assigned here`,
+        );
+      }
     }
   }
 }

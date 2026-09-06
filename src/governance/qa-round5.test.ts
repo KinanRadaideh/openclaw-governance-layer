@@ -15,6 +15,7 @@ import { evaluateGovernancePolicy } from "./policy-engine.js";
 import { addRule, loadPolicy, lockAgent, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
 import { resolveGovernedTool } from "./resource-extraction.js";
+import { listRuleRequests } from "./rule-requests.js";
 import { seedGroupWithAgents } from "./test-group.js";
 
 /**
@@ -182,13 +183,24 @@ describe("an approved escalation grants only what was reviewed", () => {
     if (!decision || !("requireApproval" in decision)) {
       throw new Error("expected an escalation");
     }
-    expect(decision.requireApproval.allowedDecisions).toEqual(["allow-once", "deny"]);
+    // `allow-always` returned on 2026-09-06 (finding 276) and files a rule
+    // *request* rather than a rule. **The property this test exists for is
+    // unchanged and is the assertion below**: whatever the host's approval
+    // machinery sends back, the callback may not author policy.
+    expect(decision.requireApproval.allowedDecisions).toEqual([
+      "allow-once",
+      "allow-always",
+      "deny",
+    ]);
 
-    // Even handed the withdrawn decision by the host's approval machinery,
-    // a separate component that takes its own view of what it may send, the
-    // callback must not write a rule.
     await decision.requireApproval.onResolution("allow-always");
     expect((await loadPolicy(TEST_GROUP)).rules).toHaveLength(before);
+
+    // What it produces instead: a proposal, pending, for a named account to
+    // decide on a surface that knows who they are.
+    const proposed = await listRuleRequests(TEST_GROUP);
+    expect(proposed).toHaveLength(1);
+    expect(proposed[0]?.status).toBe("pending");
 
     // The next identical action escalates again rather than being silently
     // permitted, for this agent and for any other.

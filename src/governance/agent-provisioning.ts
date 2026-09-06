@@ -390,6 +390,13 @@ export async function provisionAgent(
 
   const created = await createAgent({
     entry: { id: agentId, name: displayName },
+    // The Administrator typed this name into a form, so the agent must not
+    // then ask what to call itself. Without this, a governed agent greeted its
+    // owner with "what would you like to call me?" and could be told something
+    // else, leaving the registry's record and the agent's own identity file
+    // disagreeing about who it is — on the one surface whose job is saying
+    // which agent did what.
+    identityIsAuthoritative: true,
     ...(input.workspace ? { workspace: input.workspace } : {}),
     ...(input.model ? { model: input.model } : {}),
   });

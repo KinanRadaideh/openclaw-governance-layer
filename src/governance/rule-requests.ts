@@ -247,10 +247,16 @@ export async function submitRuleRequest(
     return request;
   });
   await recordAdminAction(groupId, {
-    actor: {
-      name: created.requestedBy,
-      ...(input.requestedByRole ? { role: input.requestedByRole } : {}),
-    },
+    // **The bare-string arm when there is no tier, so a labelled origin can
+    // file one.** An escalation answered "allow always" files a request under
+    // `HITL_ACTOR`, and that name is reserved: passing it as `{ name }` throws
+    // `FabricatedActorError`, which is the guard doing its job rather than a
+    // problem to work around. A bare string is how this codebase has always
+    // written "an origin that holds no tier", and for a named account with no
+    // role it is what `splitAuditActor` produced anyway.
+    actor: input.requestedByRole
+      ? { name: created.requestedBy, role: input.requestedByRole }
+      : created.requestedBy,
     action: ADMIN_ACTIONS.ruleRequestSubmit,
     target: describeRequest(created),
     subjectId: created.id,
@@ -373,6 +379,34 @@ export async function reopenRuleRequest(groupId: string, id: string): Promise<vo
 }
 
 /** Reads one pending request without deciding it, for validation before granting. */
+/**
+ * A pending request already asking for exactly this, if there is one.
+ *
+ * Escalations repeat: an agent retrying a refused command produces the same
+ * prompt again, and an operator pressing "allow always" each time would file a
+ * queue full of identical proposals for an Administrator to wade through. The
+ * per-requester cap would eventually stop it, but by refusing the twenty-first
+ * rather than by keeping the list meaningful.
+ *
+ * Matched on the three fields that decide what a grant would permit: the kind,
+ * the exact pattern, and the agent it binds. Two requests differing in any of
+ * those are different grants and both belong in the queue.
+ */
+export async function findPendingRuleRequestFor(
+  groupId: string,
+  match: { resourceKind: ResourceKind; pattern: string; agentId?: string },
+): Promise<RuleRequest | undefined> {
+  const file = await readFileOrEmpty(groupId);
+  return file.requests.find(
+    (candidate) =>
+      candidate.status === "pending" &&
+      candidate.kind !== "agent-setting" &&
+      candidate.resourceKind === match.resourceKind &&
+      candidate.pattern === match.pattern &&
+      (candidate.agentId ?? undefined) === (match.agentId ?? undefined),
+  );
+}
+
 export async function findPendingRuleRequest(
   groupId: string,
   id: string,

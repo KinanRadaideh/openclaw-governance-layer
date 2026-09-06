@@ -396,14 +396,20 @@ describe("qa round 12, escalation on a chat deployment", () => {
     // stops rendering and the action silently fails closed on timeout instead.
     const approval = decision && "requireApproval" in decision ? decision.requireApproval : null;
     expect(approval?.severity).toBe("warning");
-    // `allow-always` was withdrawn in QA round 13 (finding 83). It called
-    // `addRule`, so one button in a Discord thread wrote a permanent rule into
-    // `policy.json`. Authored by someone holding no governance account, in
-    // none of the four tiers, authenticated only by that platform. Granting the
-    // action in the moment is what an escalation is for and `allow-once` still
-    // does it; making a grant permanent is policy authorship and belongs on a
-    // surface that knows who is asking.
-    expect(approval?.allowedDecisions).toEqual(["allow-once", "deny"]);
+    // **`allow-always` is offered again as of 2026-09-06 (finding 276), and
+    // this assertion used to say the opposite.** Round 13 withdrew it because
+    // it called `addRule`: one button in a Discord thread wrote a permanent
+    // rule into `policy.json`, authored by someone holding no governance
+    // account, in none of the four tiers, authenticated only by that platform.
+    //
+    // **That reasoning was re-checked and still holds** — the approval
+    // machinery hands back a decision and not a person. What changed is that
+    // answering it now files a rule *request* rather than a rule, so the
+    // Discord button proposes and a named Administrator disposes. The property
+    // round 13 was protecting is asserted where it belongs, in
+    // `qa-round5.test.ts` and `escalation-allow-always.test.ts`: an escalation
+    // cannot author policy.
+    expect(approval?.allowedDecisions).toEqual(["allow-once", "allow-always", "deny"]);
     expect(typeof approval?.timeoutMs).toBe("number");
     expect(typeof approval?.onResolution).toBe("function");
   });

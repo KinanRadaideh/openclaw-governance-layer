@@ -413,6 +413,25 @@ describe("createAgent", () => {
     });
   });
 
+  it("writes the identity when the caller already decided the name", async () => {
+    // The ceremony this defers to exists to obtain a name **nobody supplied**,
+    // which is why a bare `createAgent({ name })` still leaves the template
+    // alone above. `identityIsAuthoritative` says one was supplied: an
+    // Administrator typed it into the governed provisioning form, and an agent
+    // that then asks "what would you like to call me?" invites an answer that
+    // disagrees with the registry's record of who it is.
+    await createAgent({ name: "researcher", identityIsAuthoritative: true });
+
+    expect(mocks.rootWrite).toHaveBeenCalled();
+    expect(mocks.persisted).toMatchObject({
+      agents: {
+        entries: {
+          researcher: expect.objectContaining({ identity: { name: "researcher" } }),
+        },
+      },
+    });
+  });
+
   it("does not publish config when identity setup is unsafe", async () => {
     mocks.ensureAgentWorkspace.mockImplementation(async ({ dir }: { dir: string }) => ({
       dir,

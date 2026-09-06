@@ -60,13 +60,18 @@ export type AgentRegistryDrafts = {
    */
   provisionModel: string;
   /**
-   * Which Administrator will own the new agent.
+   * Which account will own the new agent.
    *
    * Only Root ever chooses: an Administrator provisioning an agent owns it, and
-   * the route defaults to the caller. Root cannot own an agent at all (M4 keeps
-   * one statable rule: every agent answers to an Administrator), which is why
-   * Root provisioning without this produced "The agent could not be given an
-   * owner" and no way to fix it from this screen.
+   * the route defaults to the caller.
+   *
+   * **Root became eligible on 2026-09-06 and this comment used to say it could
+   * not be.** M4 kept one statable rule, every agent answers to an
+   * Administrator, and Root wanting one of its own could create an
+   * Administrator and sign into that. What that cost was a fresh installation
+   * being unable to hold an agent until a second account existed. The rule is
+   * still one sentence: an agent is owned by an Administrator, or by its own
+   * group's Root.
    */
   provisionAdminId: string;
   /** Which row currently has its remove chooser open, or "" for none. */
@@ -370,21 +375,23 @@ function renderProvisionForm(props: AgentRegistryPanelProps): TemplateResult {
   // the form in, press the button, and be told "The agent could not be given an
   // owner: agents are owned by an Administrator" with nothing on the screen to
   // act on. The capability existed; the affordance did not.
+  // Root still names an owner explicitly, and may now name itself. Kept as a
+  // required choice rather than defaulting to Root: an agent's owner decides
+  // who can be assigned it, so it is worth one deliberate click.
   const mustChooseOwner = props.identity?.role === "root";
   const owners = props.administrators;
   const ownerChosen = props.drafts.provisionAdminId.trim();
-  const blockedOnOwner = mustChooseOwner && owners.length === 0;
+  // **The "create an Administrator first" dead end is gone with the rule that
+  // caused it.** Root is now an eligible owner and is always in this list, so
+  // an organisation of one can create an agent. The only remaining empty case
+  // is the moment before accounts have loaded, where a hint naming a missing
+  // Administrator would be plainly false; the disabled button carries it.
   const ownerMissing = mustChooseOwner && !ownerChosen;
   return renderSettingsRow({
     title: t("governance.agents.createTitle"),
     description: t("governance.agents.createHint"),
     stacked: true,
     control: html`<div class="settings-row__control" style="flex-direction:column;gap:0.5rem">
-      ${blockedOnOwner
-        ? html`<p class="settings-row__desc" role="note">
-            ${t("governance.agents.ownerNoneHint")}
-          </p>`
-        : nothing}
       <input
         class="input"
         type="text"
@@ -431,13 +438,20 @@ function renderProvisionForm(props: AgentRegistryPanelProps): TemplateResult {
           >
             <option value="">${t("governance.agents.ownerPlaceholder")}</option>
             ${owners.map(
-              (account) => html`<option value=${account.id}>${account.username}</option>`,
+              (account) => html`<option value=${account.id}>
+                ${account.role === "root"
+                  ? // Named as themselves, because "Root" alone in a list of
+                    // usernames reads as a different person rather than as the
+                    // operator filling the form in.
+                    t("governance.agents.ownerRootSuffix", { username: account.username })
+                  : account.username}
+              </option>`,
             )}
           </select>`
         : nothing}
       <button
         class="btn primary"
-        ?disabled=${props.busy || !name || blockedOnOwner || ownerMissing}
+        ?disabled=${props.busy || !name || ownerMissing}
         @click=${() =>
           void props.run(async () => {
             const result = await props.api().provisionAgent({

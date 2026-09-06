@@ -27,6 +27,16 @@ import { governanceHomeDir, ledgerKeyFilePath } from "./paths.js";
 const KEY_BYTES = 32;
 
 /**
+ * How many times a caller re-reads a key another writer is still writing.
+ *
+ * Twenty attempts at 25ms is half a second, which is orders of magnitude longer
+ * than the write it is waiting on and short enough that a genuinely broken key
+ * is reported promptly rather than hung on.
+ */
+const KEY_READ_ATTEMPTS = 20;
+const KEY_READ_RETRY_MS = 25;
+
+/**
  * Shortest key this installation will accept from
  * `OPENCLAW_GOVERNANCE_LEDGER_KEY`.
  *
@@ -124,6 +134,44 @@ export class LedgerKeyUnusableError extends Error {
  * Validated explicitly, in the order the failures actually occur: the text must
  * be hexadecimal, of even length, and decode to the full key size.
  */
+/**
+ * Reads a key another writer has just created, waiting for it to be written.
+ *
+ * The window is one filesystem write wide and is normally over before the first
+ * read, so this almost always succeeds immediately. The retries exist for the
+ * case that is otherwise unrecoverable: a caller that reads too early gets a
+ * permanent-looking "the key is unusable" for a key that is perfectly fine a
+ * millisecond later.
+ *
+ * Bounded rather than open-ended. A file that is still empty after this many
+ * attempts is not a race, it is a genuinely broken key, and saying so is more
+ * use than waiting for it.
+ */
+async function readKeyOnceWritten(path: string, firstRead?: string): Promise<Buffer> {
+  let text = firstRead ?? (await readFile(path, "utf8")).trim();
+  for (let attempt = 0; attempt < KEY_READ_ATTEMPTS; attempt += 1) {
+    if (text.length > 0) {
+      try {
+        return decodeStoredKey(text);
+      } catch {
+        // Partial content is indistinguishable from corrupt content by
+        // inspection — half a hex key is still hex — so the only way to tell
+        // them apart is to look again and see whether it settles.
+      }
+    }
+    await new Promise((resolve) => {
+      setTimeout(resolve, KEY_READ_RETRY_MS);
+    });
+    text = (await readFile(path, "utf8")).trim();
+  }
+  if (text.length === 0) {
+    throw new LedgerKeyUnusableError("it is empty");
+  }
+  // Still unusable after waiting: this is a broken key rather than a young one,
+  // and `decodeStoredKey` says which way it is broken.
+  return decodeStoredKey(text);
+}
+
 function decodeStoredKey(text: string): Buffer {
   if (!/^[0-9a-fA-F]+$/.test(text)) {
     throw new LedgerKeyUnusableError("it contains characters that are not hexadecimal");
@@ -170,12 +218,22 @@ export async function loadLedgerKey(): Promise<Buffer> {
     // the defect: the `wx` write below fails with EEXIST against the file that
     // is already there, and the recovery branch then re-read it unchecked.
     //
-    // An empty file reaches `decodeStoredKey` and is refused too. It is not a
-    // normal state, the only way to produce one is a crash between creating
-    // and writing, and refusing it says so, where generating a replacement
-    // would quietly mint a key that cannot verify anything already written.
+    // **An unusable file is looked at again before it is refused** (finding
+    // 277). This block used to hand an empty file straight to
+    // `decodeStoredKey`, on the stated grounds that "the only way to produce
+    // one is a crash between creating and writing". That is the assumption the
+    // finding disproved: a **concurrent writer** produces exactly that state,
+    // transiently and with no crash, because the `wx` write below creates the
+    // file before it fills it. Two callers arriving together, which is ordinary
+    // on a busy installation and guaranteed on a fresh one, and the second sees
+    // a key that is empty for as long as one write takes.
+    //
+    // Waiting costs half a second on a key that really is broken, which is
+    // nothing against reporting a working installation as corrupt. What it must
+    // not do is generate a replacement: a second key cannot verify anything
+    // written under the first.
     if (existing !== undefined) {
-      cachedKey = decodeStoredKey(existing);
+      cachedKey = await readKeyOnceWritten(path, existing);
       return cachedKey;
     }
   } catch (err) {
@@ -187,9 +245,9 @@ export async function loadLedgerKey(): Promise<Buffer> {
     }
   }
   const generated = randomBytes(KEY_BYTES);
-  // `wx` so two processes racing on first run cannot both write a key. The
-  // loser re-reads the winner's. Two different keys would split the chain into
-  // two mutually unverifiable halves.
+  // `wx` so two writers racing on first run cannot both mint a key. The loser
+  // re-reads the winner's. Two different keys would split the chain into two
+  // mutually unverifiable halves.
   try {
     await writeFile(path, generated.toString("hex"), { encoding: "utf8", flag: "wx", mode: 0o600 });
     cachedKey = generated;
@@ -197,9 +255,23 @@ export async function loadLedgerKey(): Promise<Buffer> {
     if ((err as NodeJS.ErrnoException).code !== "EEXIST") {
       throw err;
     }
-    // The loser of the race, or an empty file that another process has since
-    // filled. Validated on the same terms as the ordinary read above.
-    cachedKey = decodeStoredKey((await readFile(path, "utf8")).trim());
+    // **The loser waits for the content, and used to read once.** `wx` makes
+    // the file *exist* before it holds anything, so `EEXIST` says only that
+    // somebody got there first — not that they have finished writing. Reading
+    // immediately could return an empty or half-written file, which
+    // `decodeStoredKey` correctly refuses as "not hexadecimal", and that
+    // refusal propagates as a failed ledger write, which the gate turns into a
+    // blocked tool call. An agent stops working, and the message says the key
+    // is corrupt when it is merely young.
+    //
+    // Found by the capacity test that floods one account with concurrent
+    // prompts: they all miss the cache, one wins the `wx`, and the rest read a
+    // key that is not there yet.
+    //
+    // **It fails closed and never weakened**: `decodeStoredKey` checks the
+    // decoded length, so a truncated read is refused rather than accepted as a
+    // shorter key. This is availability, not tamper-evidence.
+    cachedKey = await readKeyOnceWritten(path);
   }
   // Reassert the mode: an inherited umask or a file restored from a backup can
   // leave it readable, and a world-readable key is the same as no key.

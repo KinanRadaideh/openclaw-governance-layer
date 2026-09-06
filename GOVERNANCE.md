@@ -4326,15 +4326,15 @@ were written into `mg/REMAINING-WORK.md`, `mg/HANDOFF.md`,
 This is recorded rather than quietly backfilled, because several documents
 describe findings as being "written up in all three registers" and that phrase
 has not been true since 2026-08-27. Anyone auditing the QA history from this file
-alone will be **one hundred and thirty-eight findings short**, 135 through 272,
+alone will be **one hundred and forty-three findings short**, 135 through 277,
 and will not be told so. _(This sentence said "fifteen findings short" when the
 count was 149, and "fifty-nine" when it was 193, "sixty-eight" at 202, "seventy"
 at 204, "seventy-four" at 208, "eighty-five" at 219, "eighty-six" at 220 and
 "eighty-seven" at 221, "one hundred and twenty-seven" at 261 and "one hundred
-and thirty-four" at 268 and "one hundred and thirty-six" at 270; the number is
+and thirty-four" at 268 and "one hundred and thirty-six" at 270 and "one hundred and thirty-eight" at 272; the number is
 derived by subtraction from the current highest finding rather than edited in
 place, which is the same correction the backlog count needed.
-272 − 135 + 1 = 138.)_
+277 − 135 + 1 = 143.)_
 
 **The security findings among them are scattered across four sections**, and if
 you are auditing this project's security history from one document these are the

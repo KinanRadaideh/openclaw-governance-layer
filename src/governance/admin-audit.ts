@@ -283,22 +283,32 @@ export const UNAUTHENTICATED_ACTOR = "unauthenticated";
 /**
  * Actor recorded for a rule created by an approved escalation.
  *
- * **No code writes this any more, and the paragraph that used to stand here
- * described the behaviour in the present tense (finding 170).** It read: *"When
- * a human answers 'allow always' to a governance prompt, a rule is written as a
- * direct consequence."* **Finding 83 removed that.** `allowedDecisions` on an
- * escalation is now `["allow-once", "deny"]`, because the button is rendered in
- * Discord or Telegram and the person pressing it holds no governance account and
- * sits in none of the four tiers: so making a grant *permanent* from there was
- * policy authorship by somebody the layer could not name.
+ * **This has a writer again as of 2026-09-06, and finding 83 was re-opened
+ * before it was given one — which is what the previous version of this comment
+ * asked for, and it is recorded here rather than left for someone to discover.**
  *
- * **The constant survives deliberately, for reading rather than writing.**
- * Entries written before that change still carry this actor, and the ledger
- * never deletes; `ledger-filter.ts` and `RESERVED_ACTOR_NAMES` both need the
- * label to recognise them. Removing it would make historical entries
- * unclassifiable.
+ * The history, because it decides what the writer is allowed to do. This
+ * paragraph once read *"When a human answers 'allow always' to a governance
+ * prompt, a rule is written as a direct consequence"*, and **finding 83 removed
+ * that behaviour**: the button renders in Discord or Telegram, and whoever
+ * presses it holds no governance account and sits in none of the four tiers, so
+ * making a grant *permanent* from there was policy authorship by somebody the
+ * layer could not name. Finding 170 then caught the comment still describing it
+ * in the present tense, and warned that a reader wiring the button back up would
+ * find documentation inviting them to.
  *
- * Do not reintroduce a writer for it without re-opening finding 83.
+ * **That analysis still stands, and the new writer does not contradict it.**
+ * `allow-always` is offered again, and answering it writes **no rule**. It files
+ * a rule *request* under this actor: a proposal an Administrator or Root
+ * approves on the dashboard, signed in, named, and recorded against them. The
+ * permanent widening still needs an account the layer can name — which is
+ * precisely what finding 83 was protecting.
+ *
+ * So this label now means one of two things, and both are honestly anonymous:
+ * an entry from before the removal, or a proposal that no account authored.
+ * `ledger-filter.ts` and `RESERVED_ACTOR_NAMES` need it for both.
+ *
+ * Do not give it a writer that grants anything without re-opening finding 83.
  */
 export const HITL_ACTOR = "hitl-approval";
 

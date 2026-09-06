@@ -3867,10 +3867,9 @@ export const en: TranslationMap = {
       idPlaceholder: "Agent id — optional, derived from the name",
       workspaceLabel: "Workspace",
       workspacePlaceholder: "Working directory — optional, OpenClaw chooses one",
-      ownerLabel: "Owning Administrator",
-      ownerPlaceholder: "Choose an Administrator...",
-      ownerNoneHint:
-        "Agents are owned by an Administrator, and Root cannot own one. First create an Administrator account in Accounts, then come back here.",
+      ownerLabel: "Owning account",
+      ownerPlaceholder: "Choose who owns this agent...",
+      ownerRootSuffix: "{username} (you, Root)",
       create: "Create agent",
       created:
         "Created {id}, and OpenClaw has picked it up. That id is what you use to talk to it, write rules for it, or stop it.",

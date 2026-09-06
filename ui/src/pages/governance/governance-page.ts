@@ -399,7 +399,9 @@ class GovernancePage extends OpenClawLightDomElement {
       ...this.effects(),
       busy: this.busy,
       agents: this.agents,
-      administrators: this.administrators(),
+      // The agent panels' owner picker, not the accounts panel's manager
+      // picker: Root may own an agent and may not be answered to.
+      administrators: this.agentOwners(),
       refresh: () => this.refreshData(),
       policy: this.policy,
       identity: this.identity,
@@ -833,6 +835,23 @@ class GovernancePage extends OpenClawLightDomElement {
   /** Administrators in this group, who are the only accounts that may manage a User (M3). */
   private administrators(): GovernanceUserRecord[] {
     return (this.users as GovernanceUserRecord[]).filter((user) => user.role === "administrator");
+  }
+
+  /**
+   * Accounts eligible to own an agent: the Administrators, plus this group's Root.
+   *
+   * **A second list rather than a widened one**, because the two questions
+   * stopped having the same answer on 2026-09-06. `administrators()` still
+   * answers "who may an account answer to?", where M3 excludes Root
+   * deliberately, and this answers "who may own an agent?", where Root became
+   * eligible. Sharing one list would have quietly put Root into the `managedBy`
+   * picker as well, which is a different rule in a different panel — the shape
+   * that produced four findings in a single sweep.
+   */
+  private agentOwners(): GovernanceUserRecord[] {
+    return (this.users as GovernanceUserRecord[]).filter(
+      (user) => user.role === "administrator" || user.role === "root",
+    );
   }
 
   override render(): unknown {

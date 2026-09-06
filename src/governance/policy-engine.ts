@@ -12,6 +12,7 @@
 // existing check unchanged.
 import { normalizeAgentId } from "../routing/session-key.js";
 import { parseAgentSessionKey } from "../sessions/session-key-utils.js";
+import { HITL_ACTOR } from "./admin-audit.js";
 import { parseGovernanceSessionKey } from "./agent-conversation.js";
 import { resolveAgentGroup } from "./agent-group.js";
 import { readAgentIntent } from "./agent-intent.js";
@@ -23,11 +24,17 @@ import {
 } from "./audit-ledger.js";
 import { resolveGovernedPath, resolveGovernedPathForms } from "./path-normalize.js";
 import { INSTALLATION_LEDGER_GROUP, isUnconfiguredTestRun } from "./paths.js";
-import { matchesPattern } from "./pattern-match.js";
+import { escapeRegExp, matchesPattern } from "./pattern-match.js";
 import { recordTimedOutEscalation } from "./pending-decisions.js";
 import { loadPolicy } from "./policy-store.js";
-import { isRuleExpired, type PolicyDocument, resolveAskMode } from "./policy-types.js";
+import {
+  isRuleExpired,
+  type PolicyDocument,
+  type ResourceKind,
+  resolveAskMode,
+} from "./policy-types.js";
 import { type GovernedToolSpec, resolveGovernedTool } from "./resource-extraction.js";
+import { findPendingRuleRequestFor, submitRuleRequest } from "./rule-requests.js";
 import { findLockedAncestor, lineageUnknown } from "./session-lineage.js";
 import { findUsersForAgent } from "./user-store.js";
 
@@ -353,6 +360,94 @@ async function resolveGovernedParamBinding(
     return undefined;
   }
   return { ...event.params, [key]: resolved.absolute };
+}
+
+/**
+ * Files the rule an escalation's "allow always" is asking for, as a proposal.
+ *
+ * **Nothing here widens the policy.** It writes one pending rule request that
+ * an Administrator or Root approves on the dashboard, where the approver is
+ * signed in and the grant is recorded against them. That is the whole reason
+ * this exists rather than a call to `addRule`: see the block on
+ * `allowedDecisions` above, and finding 83.
+ *
+ * Three properties this function is responsible for, and each is a way it
+ * could otherwise grant more than the operator saw:
+ *
+ *   1. **The pattern is the resource, escaped and anchored.** A rule pattern is
+ *      a regular expression and a resource is a literal string, so handing one
+ *      to the other unescaped would turn `.` into "any character" and let an
+ *      approval permit a family of commands the prompt never showed. Through
+ *      `escapeRegExp`, which anchors `^…$`, so approving grants exactly the
+ *      string that was escalated and nothing else.
+ *   2. **It is scoped to the agent that asked.** `agentId` is carried on the
+ *      request, because a request without one asks for a rule binding *every*
+ *      agent — an escalation about one agent must never quietly become an
+ *      installation-wide grant.
+ *   3. **It carries the access half for paths.** A read that was escalated
+ *      proposes a read, not a read and a write.
+ *
+ * Best-effort by design: the grant has already been made by the host, and a
+ * full queue or a failed write must not retract it. Failures are recorded.
+ */
+async function proposeRuleFromEscalation(
+  groupId: string,
+  input: {
+    agentId: string | undefined;
+    resourceKind: ResourceKind;
+    resource: string;
+    toolName: string;
+    access?: "read" | "write";
+  },
+): Promise<void> {
+  const pattern = escapeRegExp(input.resource);
+  const agentId = input.agentId?.trim();
+  try {
+    // One proposal per distinct grant. A retrying agent re-raises the same
+    // prompt, and an operator answering it twice should not fill an
+    // Administrator's queue with copies of one question.
+    const existing = await findPendingRuleRequestFor(groupId, {
+      resourceKind: input.resourceKind,
+      pattern,
+      ...(agentId ? { agentId } : {}),
+    });
+    if (existing) {
+      return;
+    }
+    await submitRuleRequest(groupId, {
+      resourceKind: input.resourceKind,
+      pattern,
+      ...(agentId ? { agentId } : {}),
+      requestedBy: HITL_ACTOR,
+      reason:
+        `Approved once at an escalation: agent "${agentId ?? "unknown"}" ran ` +
+        `"${input.toolName}" against ${input.resourceKind} "${input.resource}"` +
+        `${input.access ? ` (${input.access})` : ""}. ` +
+        "Approving makes that permanent; rejecting leaves it needing approval each time.",
+    });
+  } catch {
+    // Recorded rather than swallowed: an operator who pressed "allow always"
+    // and then finds nothing in the review queue is owed an explanation, and
+    // the chain is where this layer keeps them — `src/governance/` has no
+    // logger of its own on purpose.
+    //
+    // Guarded in turn, because the thing that just failed may be the same
+    // thing this needs. A best-effort record that throws would take the
+    // operator's grant down with it, which is the outcome the whole
+    // best-effort shape exists to avoid.
+    try {
+      await appendLedgerEntry(groupId, {
+        agentId,
+        toolName: input.toolName,
+        resourceKind: input.resourceKind,
+        resource: input.resource,
+        ruleId: "escalation-proposal-failed",
+        decision: "ungoverned",
+      });
+    } catch {
+      // Nothing left that can be trusted to record it. The grant stands.
+    }
+  }
 }
 
 /**
@@ -901,29 +996,30 @@ export async function evaluateGovernancePolicy(
         // disagree about how long the operator was actually given.
         timeoutMs: hitlTimeoutMs,
         // ---------------------------------------------------------------
-        // **`allow-always` is deliberately not offered** (QA round 13,
-        // finding 83).
+        // **`allow-always` is offered again as of 2026-09-06, and it does not
+        // write a rule.** Finding 83 removed it, and the reason it gave still
+        // holds: answering it used to call `addRule`, so one button on an
+        // escalation wrote a permanent rule into `policy.json`. On a chat
+        // deployment that button renders in Discord or Telegram, and whoever
+        // presses it holds no governance account, sits in none of the four
+        // tiers, and is authenticated only by that platform's access controls.
+        // The approval machinery still reports a decision and not a person, so
+        // that objection is as true now as it was then.
         //
-        // It used to be, and answering it called `addRule`, so clicking one
-        // button on an escalation wrote a **permanent rule into
-        // `policy.json`**. On a chat deployment that button is rendered in
-        // Discord or Telegram, and the person pressing it holds no governance
-        // account, sits in none of the four tiers, and is authenticated only by
-        // that platform's access controls. Every other write to the policy in
-        // this system requires a named account with a tier and is recorded
-        // against that person; this one required neither and was recorded
-        // against `hitl-approval`. The code already conceded the point, in the
-        // comment explaining that the approval machinery "reports the decision
-        // but not which person made it".
+        // What changed is the answer, not the analysis. `allow-always` now
+        // **files a rule request** — a proposal, not a grant. The action is
+        // permitted in the moment exactly as `allow-once` permits it, and the
+        // permanent widening happens only when an Administrator or Root
+        // approves it on the dashboard, signed in, named, and recorded against
+        // them. Requirement 5's "administrative approval" keeps meaning what it
+        // says: one party asked, another granted.
         //
-        // Granting the action in the moment is exactly what an escalation is
-        // for, and `allow-once` still does it with no delay. Making a grant
-        // *permanent* is policy authorship, and it belongs on a surface that
-        // knows who is asking. The dashboard, or the CLI. The question is not
-        // lost either way: a refusal lands on the pending-decision stack for an
-        // operator to answer properly.
+        // The request itself is filed under `HITL_ACTOR`, a labelled origin
+        // rather than an invented account, for the same reason `host-prompt`
+        // exists (T57): an entry that announces attribution is missing invites
+        // the question, and one naming an account answers it wrongly.
         // ---------------------------------------------------------------
-        allowedDecisions: ["allow-once", "deny"],
+        allowedDecisions: ["allow-once", "allow-always", "deny"],
         onResolution: async (resolutionDecision) => {
           // A timeout means nobody answered. The action is already denied by
           // the host; preserve the question so the operator can answer it
@@ -950,12 +1046,21 @@ export async function evaluateGovernancePolicy(
             });
             return;
           }
-          // `allow-always` is not in `allowedDecisions`, but the host's
-          // approval machinery is a separate component and this callback takes
-          // whatever it is handed. Treated as a one-off grant rather than
-          // ignored: the operator did approve the action, so refusing it here
-          // would be a worse answer than honouring the part of it that is
-          // legitimate. What it must not do is write a rule.
+          // **`allow-always` grants this call and proposes the rule.** The
+          // grant is the host's, already made by the time this runs; what
+          // happens here is the proposal, and it is deliberately best-effort:
+          // the operator approved the action, so a queue that is full or a
+          // write that fails must not retract a grant they were given. The
+          // failure is recorded instead of being swallowed.
+          if (resolutionDecision === "allow-always") {
+            await proposeRuleFromEscalation(groupId, {
+              agentId,
+              resourceKind: spec.resourceKind,
+              resource,
+              toolName: event.toolName,
+              ...(spec.access ? { access: spec.access } : {}),
+            });
+          }
           const finalDecision: LedgerDecision = resolutionDecision === "deny" ? "deny" : "allow";
           await appendLedgerEntry(groupId, {
             agentId,

@@ -65,6 +65,22 @@ type CreateAgentParams = {
   avatar?: unknown;
   agentDir?: string;
   skipBootstrap?: boolean;
+  /**
+   * The caller has already decided this agent's name, so do not ask for it.
+   *
+   * A brand-new workspace normally keeps `IDENTITY.md` templated until the
+   * first-turn bootstrap ceremony fills it in, because a name in config is not
+   * proof the workspace hatched. That is right when nobody has supplied a name
+   * and the agent's first job is to ask for one.
+   *
+   * It is wrong when an operator has just typed the name into a form. The
+   * governed provisioning path (M6) always carries one, and the agent then
+   * greeted its owner with "what would you like to call me?" — asking a
+   * question that had already been answered, and answering it differently
+   * would leave the registry's record and the agent's own sense of itself
+   * disagreeing about who it is.
+   */
+  identityIsAuthoritative?: boolean;
   skipOptionalBootstrapFiles?: OptionalBootstrapFileName[];
   bindingSpecs?: string[];
   transformConfig?: typeof transformConfigFileWithRetry;
@@ -295,9 +311,15 @@ export async function createAgent(params: CreateAgentParams): Promise<CreateAgen
             }
           }
           await fs.mkdir(resolveSessionTranscriptsDirForAgent(agentId), { recursive: true });
-          // A creation-time name is config, not proof that the fresh workspace hatched.
-          // Keep IDENTITY.md templated until BOOTSTRAP completes its first-turn ceremony.
-          if (!workspace.bootstrapPending) {
+          // A creation-time name is config, not proof that the fresh workspace
+          // hatched, so IDENTITY.md normally stays templated until BOOTSTRAP
+          // completes its first-turn ceremony — whose purpose is to obtain a
+          // name nobody supplied.
+          //
+          // `identityIsAuthoritative` says one was supplied. The ceremony still
+          // runs for everything else it does; only the question that already
+          // has an answer is skipped.
+          if (!workspace.bootstrapPending || params.identityIsAuthoritative === true) {
             await writeIdentityFile({ workspaceDir: workspace.dir, identity });
           }
 

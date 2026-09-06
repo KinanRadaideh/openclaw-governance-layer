@@ -187,24 +187,51 @@ describe("an agent is a record, not an inference", () => {
   });
 });
 
-describe("an agent has exactly one owning Administrator", () => {
-  it("refuses an owner who is not an Administrator", async () => {
-    // Root is excluded for the reason M3 excludes it from `managedBy`: if Root
-    // wants to own an agent it creates an Administrator and signs into that,
-    // which keeps one statable rule instead of two.
+describe("an agent has exactly one owning account", () => {
+  it("refuses an owner below the Administrator tier", async () => {
+    // A User cannot own an agent: ownership is what makes an Administrator
+    // answerable for it, and a User is the tier that gets *assigned* agents.
     const org = await organisation("alpha");
-    await expect(
-      registerAgent(
-        { id: "agent-a", displayName: "A", groupId: org.groupId, adminId: org.root.id },
-        "alpha-root",
-      ),
-    ).rejects.toBeInstanceOf(AgentOwnerError);
     await expect(
       registerAgent(
         { id: "agent-a", displayName: "A", groupId: org.groupId, adminId: org.user.id },
         "alpha-root",
       ),
     ).rejects.toBeInstanceOf(AgentOwnerError);
+  });
+
+  it("accepts this group's Root as an owner", async () => {
+    // **Changed 2026-09-06, and this test used to assert the opposite.** Root
+    // was excluded for the reason M3 excludes it from `managedBy`: it could
+    // create an Administrator and sign into that, which kept one statable rule
+    // instead of two. What changed is the cost of that indirection — a fresh
+    // installation could not hold an agent until a second account existed, and
+    // the person setting one up is Root. The rule is still one sentence: an
+    // agent is owned by an Administrator, or by its own group's Root.
+    const org = await organisation("alpha");
+    await registerAgent(
+      { id: "agent-root-owned", displayName: "Root's", groupId: org.groupId, adminId: org.root.id },
+      "alpha-root",
+    );
+    expect(await agentIdsOwnedBy(org.root.id, org.groupId)).toEqual(["agent-root-owned"]);
+  });
+
+  it("lets a Root-owned agent be assigned to a User under an Administrator", async () => {
+    // **The consequence of the change above, handled rather than left
+    // implicit.** `assertAssignable` matches an agent's owner against the
+    // account's own Administrator, so without this a Root-owned agent would be
+    // assignable to nobody — a class of agent no User could ever hold, which is
+    // the "two rules instead of one" the old exclusion was avoiding, arriving
+    // as a silent gap instead of a stated rule. Root sits above every
+    // Administrator in the group, so there is no boundary here to cross.
+    const org = await organisation("alpha");
+    await registerAgent(
+      { id: "agent-root-owned", displayName: "Root's", groupId: org.groupId, adminId: org.root.id },
+      "alpha-root",
+    );
+    await expect(
+      assertAssignable(["agent-root-owned"], org.admin.id, org.groupId),
+    ).resolves.toBeUndefined();
   });
 
   it("refuses an owner from another group, and says nothing about it", async () => {

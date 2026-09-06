@@ -182,34 +182,82 @@ describe("section order", () => {
 });
 
 describe("creating an agent as Root", () => {
-  it("offers a picker of the Administrators who could own it", async () => {
+  it("offers a picker of every account that could own it", async () => {
     await mount({
       identity: identity("root"),
-      users: [userRecord("kinan", "root"), userRecord("malek", "administrator", "id-malek")],
+      users: [
+        userRecord("kinan", "root", "id-kinan"),
+        userRecord("malek", "administrator", "id-malek"),
+      ],
     });
 
-    const select = page.querySelector<HTMLSelectElement>(
-      'select[aria-label="Owning Administrator"]',
-    );
+    const select = page.querySelector<HTMLSelectElement>('select[aria-label="Owning account"]');
     expect(select).not.toBeNull();
     const options = [...(select?.options ?? [])].map((option) => option.value);
-    // The blank prompt plus the one eligible account. Root is not in the list:
-    // Root cannot own an agent, which is the rule that produced the dead end.
-    expect(options).toEqual(["", "id-malek"]);
+    // **Root is in this list as of 2026-09-06, and used not to be.** The
+    // exclusion was M3's reasoning carried across from `managedBy`: Root could
+    // create an Administrator and sign into that. What it cost was a fresh
+    // installation being unable to hold an agent until a second account
+    // existed, and the person setting one up is Root.
+    expect(options).toEqual(["", "id-kinan", "id-malek"]);
   });
 
-  it("says what to do first when the organisation has no Administrator", async () => {
+  it("names Root as the operator rather than as another username", async () => {
+    // "kinan" alone in a list of usernames reads as a different person rather
+    // than as whoever is filling the form in.
     await mount({
       identity: identity("root"),
-      users: [userRecord("kinan", "root")],
+      users: [userRecord("kinan", "root", "id-kinan")],
+    });
+    const text = (page.textContent ?? "").replace(/\s+/g, " ");
+    expect(text).toContain("kinan (you, Root)");
+  });
+
+  it("lets an organisation of one create an agent", async () => {
+    // **This test replaces one asserting the opposite**, and the reversal is
+    // the point. It used to check for "First create an Administrator account
+    // in Accounts", because Root could not own an agent and a lone Root hit a
+    // dead end. Root is now eligible, so the dead end and its hint are both
+    // gone — the fix removes the wall rather than signposting it.
+    await mount({
+      identity: identity("root"),
+      users: [userRecord("kinan", "root", "id-kinan")],
       ...fullState(),
     });
 
-    // The failure this replaces was a server error after the fact -- "The agent
-    // could not be given an owner" -- with nothing on screen to act on.
     const text = (page.textContent ?? "").replace(/\s+/g, " ");
-    expect(text).toContain("First create an Administrator account in Accounts");
-    expect(page.querySelector('select[aria-label="Owning Administrator"]')).toBeNull();
+    expect(text).not.toContain("First create an Administrator account");
+    const select = page.querySelector<HTMLSelectElement>('select[aria-label="Owning account"]');
+    expect(select, "a lone Root is offered itself as the owner").not.toBeNull();
+    expect([...(select?.options ?? [])].map((o) => o.value)).toContain("id-kinan");
+  });
+
+  it("keeps Root out of the picker that asks who an account answers to", async () => {
+    // **Two questions that stopped having the same answer.** Root may own an
+    // agent; Root may still not be the Administrator a User or Viewer answers
+    // to, which is M3 and unchanged. They read from separate lists for exactly
+    // this reason — one widened list would have quietly put Root into both.
+    await mount({
+      identity: identity("root"),
+      users: [
+        userRecord("kinan", "root", "id-kinan"),
+        userRecord("malek", "administrator", "id-malek"),
+      ],
+    });
+
+    const managedBy = page.querySelector<HTMLSelectElement>(
+      'select[aria-label="Administrator answerable for this account"]',
+    );
+    if (managedBy) {
+      const options = [...managedBy.options].map((o) => o.value);
+      expect(options, "Root cannot be answered to").not.toContain("id-kinan");
+      expect(options).toContain("id-malek");
+    } else {
+      // The picker only renders once a role needing a manager is chosen; the
+      // owner picker beside it must still be there, or this test is asserting
+      // nothing about a page that failed to render.
+      expect(page.querySelector('select[aria-label="Owning account"]')).not.toBeNull();
+    }
   });
 
   it("refuses to submit until an owner is chosen", async () => {
