@@ -2102,3 +2102,168 @@ again, and the standing rule from the mutation sweeps that a probe must drive th
 production caller. A wiring guard in the shape of
 `client-callsites.guard.test.ts` now fails if the hook, the governance-channel
 exclusion, or the raw-model-run exclusion is removed.
+
+---
+
+## 2026-09-06/07: the night T2 happened, and the four things that broke around it
+
+**The longest session this project has had, and the one that closed its
+highest-value item.** T2 is done: a real model, driving a real tool call,
+refused by this gate, recorded in the chain. Everything else here happened
+around that.
+
+### T2, and the attempt that failed first
+
+Kimi (`kimi-for-coding`, not the `kimi-k2` every document named — record what
+ran, not what was planned) drove agent `jack` on the VPS. Asked for
+`~/.npmrc`, it attempted the read, the gate refused it, and **entry #25**
+records `read /root/.npmrc`, decision **deny**, naming the rule that did it:
+`core-path-credential-files-env-private-keys-npmrc-netrc-re`. Chain verified
+intact at 25 entries, checkpoint agreeing.
+
+**The first attempt is the one to teach from.** Asked for `~/.ssh/id_rsa`, the
+model refused on its own — _"Private keys stay private"_ — before making any
+tool call. Nothing reached the gate and nothing was recorded, and **the ledger's
+silence was correct**. A request that _sounds_ like a secret tests the model's
+safety training; a boring-sounding file that is actually a credential tests the
+layer. That distinction belongs in Chapter 4, because without it the first
+screenshot looks like a failure and the second looks lucky.
+
+### The ledger's silence as a diagnostic
+
+Used twice in one night, and it is a property worth naming in the report.
+
+`exec` broke on the VPS with `Cannot find module .../bash-tools-O2NWTdBu.js`.
+**Governance was ruled out in one glance**: the gate records every invocation by
+construction, so a refusal is in the chain whether it allowed or denied. Nothing
+there meant the failure happened before there was a tool call to gate. It was a
+`dist/` holding pieces of two builds — **nothing in the build ever clears it**
+(finding 274), so a build that dies partway, which the README already warns
+happens under 8 GB, leaves a reference that resolves to nothing.
+
+The same test settles the open question about `edit` (**T58**), and the method
+is written into that row so nobody has to rediscover it.
+
+### Five things an operator found, and the sweeps around them
+
+**269** was reported by Kinan pressing buttons that did nothing: Send would not
+click with a message typed, and Talk _closed_ the conversation instead of
+opening it. One cause — two inputs assigned their keystroke to the props object
+`agentPanelProps()` rebuilds every render, so the value reached no state and
+fired no re-render, leaving each button with the `?disabled` it had been
+rendered with. And one field served as both "what is typed" and "which
+conversation is open", so the chooser's Talk button was calling a toggle.
+
+**270** is the same shape on the emergency stop, found by sweeping the class
+rather than by report. **271** is the one to read: signing out cleared three
+fields where session _expiry_ cleared fifteen, so the next account signing in
+**in the same tab** inherited the previous one's account list, pending decisions
+and **agent conversation transcript** — the one piece `refreshData` never
+reloads. `ConversationController.forget` was written for exactly this and **had
+never been called by anything**. **272**: an agent turn with no text drew a
+blank line, and empty is the outcome when every tool call was refused, so the
+one case this layer exists to produce looked like a broken page.
+
+### T57 and 273: the same field, seen from two sides
+
+**T57.** `ADMIN_ACTIONS.agentPrompt` had exactly one writer. A task typed into
+OpenClaw's own chat, the command line, or a channel reached the agent with
+nothing naming who asked. Now recorded under `HOST_PROMPT_ACTOR`, a labelled
+origin, hooked at `agentCommandInternal` — the single funnel every turn passes
+through, which makes it the prompt-side equivalent of `runBeforeToolCallHook`.
+
+**273.** The raw LLM intent belonged to the **previous turn**, because it is
+captured in the settle phase after that attempt's calls have already been
+judged. Visible in the very entry that proves T2: #25 carried the model's
+refusal of a _different file_ from twenty-five minutes earlier, so it read as
+though the model declined when the model attempted it and the **gate** stopped
+it. Fixed by dropping the previous turn's value at the turn funnel, which turns
+a wrong intent into an absent one. **The limitation is stated rather than
+papered over**: the first call of a turn now carries none, and populating it
+means capturing assistant text as it streams, which is unmeasured work.
+
+**Both are §1.6 logging requirements, both were defects in the evidence rather
+than the enforcement, and neither was findable by reading the gate.** The gate
+was right throughout; the trail describing it was wrong in two independent ways.
+
+### Two documented decisions reversed, and the tripwires that caught them
+
+**Finding 83** removed `allow-always` from escalations because answering it
+called `addRule` from a surface with no governance identity. Re-opened at
+Kinan's direction, **the analysis re-checked and still standing** — the approval
+broker returns a decision and no person — so the answer changed instead:
+`allow-always` now files a **rule request**, a proposal an Administrator or Root
+approves on the dashboard, signed in and recorded. The pattern is the resource
+escaped and anchored, the request is scoped to the agent, and it is filed under
+`HITL_ACTOR`. Recorded as **276**.
+
+**Finding 134** deleted a `forgetAgentIntent` for having no caller. Restored for
+273, for the turn boundary rather than session end, and with a caller.
+
+**Both had left tripwires, and both worked.** `HITL_ACTOR`'s comment ended _"do
+not reintroduce a writer for it without re-opening finding 83"_ — finding 170's
+fix, guarding a change nobody had planned, eighteen days early. It was
+re-opened first and the comment now records the outcome rather than standing as
+an instruction that was stepped over. That is the cheapest institutional memory
+this codebase has and it is worth a line in Chapter 4 on its own.
+
+### 277: a race in the tamper-evidence key, found by not re-running a test
+
+The capacity case "does not let one account's flood block another account" timed
+out at two minutes carrying `LedgerKeyUnusableError`. `HANDOFF.md`'s standing
+rule from finding 169 says a capacity test failing under load is worth more than
+a re-run, **and a re-run would very likely have passed and buried this**.
+
+`writeFile(..., { flag: "wx" })` makes the key file **exist before it holds
+anything**, so a second caller's `EEXIST` says only that somebody got there
+first. Two entry points, and the first fix covered one — **the test written for
+it caught the incomplete fix**, and the uncovered path carried the assumption
+that disproved it: _"the only way to produce one is a crash between creating and
+writing"_, when a concurrent writer produces exactly that with no crash.
+
+**Severity, stated precisely: it fails closed and never weakened the key.**
+`decodeStoredKey` validates the decoded length, so a truncated read is refused
+rather than accepted as a shorter key. Tamper-evidence intact; this is
+availability.
+
+### What the testing itself taught, and it is the most reusable part
+
+**Every fix was run against reverted code before being trusted**, and that step
+paid three times:
+
+- A test written for 271 **passed with the fix reverted** and was deleted rather
+  than kept: `refreshData` empties `users` locally when `identity` is null, so
+  it could not fail for the reason it claimed.
+- The T57 tests all called the recorder directly and would have survived the
+  hook being deleted. **Wiring guards** were added, in the shape of
+  `client-callsites.guard.test.ts`.
+- One of the three ledger-key tests **passes against the unfixed code too**, and
+  says so in its own comment, so the file is not read as three guards where
+  there is one.
+
+**Every test failure produced in this session was a fixture or assertion error,
+and not one was a product defect**: a user record missing `assignedAgents`, a
+`Response` constructor absent in jsdom, stub bodies of the wrong shape, an
+unprovided Lit context, and assertions on `action`/`target` where the ledger
+stores `toolName`/`resource`. The last reported a working feature as doing
+nothing — finding 257's mirror image.
+
+**And two reporting mistakes of the same family as the code defects.** "Lint
+exit 0" was reported twice from `$?` after a pipeline, which is `tail`'s status
+and not the gate's; the real result that time was **124**, a core-shard timeout,
+and the same pipe truncated the log that would have shown it. The pre-commit
+hook rejecting a real error is what exposed it. Together with the vitest run
+that started no tests and exited 0, that is **four instances in one session of a
+check reporting success without having measured anything** — the same class as
+findings 224 and 250.
+
+### The sweep at the end, which found only documentation
+
+Four axes across the session's work. Every defect it found was in the
+record-keeping, not the code: a claim of "never installation-wide" that held
+only by inheriting a guard from another function (**made true by construction**),
+the backlog count left at 14 open after T2 was struck (**finding 259's exact
+class, five copies**), and seven stale test and defect counts.
+
+That is the shape of the whole night in one line: **the gate was right, and what
+the system said about itself kept being wrong.**

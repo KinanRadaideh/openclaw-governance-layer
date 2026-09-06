@@ -25,6 +25,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   extractIntentText,
+  forgetAgentIntent,
   MAX_INTENT_LENGTH,
   MAX_TRACKED_SESSIONS,
   normalizeIntent,
@@ -352,5 +353,88 @@ describe("finding 133. A Viewer must not read the model's narration", () => {
     const entry = (await tailLedger(groupId, 10)).find((e) => e.toolName === "read");
     const masked = sanitizeLedgerEntry(entry as NonNullable<typeof entry>);
     expect(Object.hasOwn(masked, "intent")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Finding 273. The intent belonged to the wrong turn.
+//
+// `completeEmbeddedAttemptResult` records it in the **settle** phase, after the
+// attempt's tool calls have already been judged, so the value it stores is not
+// available to the calls it describes — it is available to the next turn's.
+// `readAgentIntent`'s comment said the value "is replaced on the next turn,
+// which is when it stops being true", and the replacement lands one step too
+// late for the first attempt of that turn.
+//
+// Seen in the ledger that records T2: a refused read of `.npmrc` carried the
+// model's refusal of a *different* file from twenty-five minutes earlier, so
+// the entry read as though the model had declined when the model attempted it
+// and the gate stopped it. A mismatched intent is worse than an absent one,
+// because §1.6 asks for this field so the trail can be read as "it said it was
+// doing X, and then did Y".
+//
+// The turn funnel now drops the previous turn's value, so a call carries
+// narration from its own turn or none at all.
+// ---------------------------------------------------------------------------
+
+describe("an intent belongs to the turn that produced the call (finding 273)", () => {
+  const sessionKey = "agent:agent-a:main";
+
+  it("does not let one turn's words stand for the next turn's call", async () => {
+    recordAgentIntent({ sessionKey, assistantTexts: ["I will not read private keys."] });
+    expect(readAgentIntent(sessionKey)).toContain("private keys");
+
+    // A new turn begins. Nothing has been said in it yet.
+    forgetAgentIntent(sessionKey);
+
+    expect(
+      readAgentIntent(sessionKey),
+      "the previous turn's sentence must not be attached to this turn's tool call",
+    ).toBeUndefined();
+  });
+
+  it("keeps this turn's words for the rest of this turn", async () => {
+    // The property that made it "read rather than consumed" in the first
+    // place: one turn commonly issues several tool calls and they share one
+    // statement of purpose. Clearing at the turn boundary must not break that.
+    forgetAgentIntent(sessionKey);
+    recordAgentIntent({ sessionKey, assistantTexts: ["Setting up the workspace."] });
+    expect(readAgentIntent(sessionKey)).toContain("Setting up");
+    expect(readAgentIntent(sessionKey), "still there for the second call").toContain("Setting up");
+  });
+
+  it("leaves other sessions alone", async () => {
+    // One agent starting a turn must not blank another agent's intent: the
+    // store is keyed by session precisely because several run at once.
+    recordAgentIntent({ sessionKey: "agent:other:main", assistantTexts: ["Other agent talking."] });
+    recordAgentIntent({ sessionKey, assistantTexts: ["This agent talking."] });
+    forgetAgentIntent(sessionKey);
+    expect(readAgentIntent("agent:other:main")).toContain("Other agent");
+  });
+
+  it("is safe to call for a session that has none", () => {
+    expect(() => {
+      forgetAgentIntent("agent:never-spoke:main");
+      forgetAgentIntent(undefined);
+    }).not.toThrow();
+  });
+});
+
+// The wiring, not just the function. Every test above calls
+// `forgetAgentIntent` directly, so all of them would keep passing if the call
+// site were deleted — which is how the stale intent existed in the first place.
+// Same guard shape as `client-callsites.guard.test.ts`, and the same reason:
+// driving the real funnel needs a model and a session store, and the failure
+// that matters is somebody removing the line.
+describe("the turn funnel drops the previous turn's intent", () => {
+  it("calls forgetAgentIntent", async () => {
+    // Imported here rather than at the top: this file already destructures
+    // `readFile` inside a test above, and a second binding in the outer scope
+    // shadows it.
+    const { readFile } = await import("node:fs/promises");
+    const source = await readFile(new URL("../agents/agent-command.ts", import.meta.url), "utf8");
+    expect(source, "without this the intent silently belongs to the previous turn again").toContain(
+      "forgetAgentIntent(prepared.sessionKey)",
+    );
   });
 });

@@ -6,6 +6,7 @@ import { resolveSessionWorkStartError } from "../config/sessions/lifecycle.js";
 import { buildRestartRecoveryClaimCleanupPatch } from "../config/sessions/restart-recovery-state.js";
 import type { RestartRecoveryTerminalDeliveryEvidenceResult } from "../config/sessions/restart-recovery-types.js";
 import type { SessionEntry } from "../config/sessions/types.js";
+import { forgetAgentIntent } from "../governance/agent-intent.js";
 import { recordHostPrompt } from "../governance/host-prompt-audit.js";
 import {
   assertAgentRunLifecycleGenerationCurrent,
@@ -96,6 +97,12 @@ async function agentCommandInternal(
   // Awaited before the turn rather than alongside it: for a governed agent the
   // record has to exist before the work does, or a run that dies mid-way leaves
   // no trace of having been asked for.
+  // T57's sibling, and finding 273. The intent store holds what the model said
+  // on the **previous** turn, because it is filled in the settle phase after
+  // this turn's tool calls have already been judged. Dropping it here means a
+  // call either carries narration from its own turn or carries none, instead of
+  // carrying a sentence about something else entirely.
+  forgetAgentIntent(prepared.sessionKey);
   if (!isRawModelRun && initialOpts.messageChannel !== "governance") {
     await recordHostPrompt({
       agentId: prepared.sessionAgentId,

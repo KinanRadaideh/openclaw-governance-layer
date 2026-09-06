@@ -209,6 +209,56 @@ export function readAgentIntent(sessionKey: string | undefined): string | undefi
   return intents.get(key);
 }
 
+/**
+ * Drops the intent standing for a session, at the start of a new turn.
+ *
+ * **This reverses finding 134, which deleted a `forgetAgentIntent` for having
+ * no caller, and it is a different function for a different reason.** That one
+ * was for *session end*, where the cap already bounds the store and a finished
+ * session simply stops being re-read; an exported function nothing called was
+ * finding 113's shape. This one is called, from the single funnel every agent
+ * turn passes through, and it exists to stop a falsehood rather than to tidy
+ * memory.
+ *
+ * ## What it fixes (finding 273)
+ *
+ * The intent is captured in `completeEmbeddedAttemptResult`, which runs in the
+ * **settle** phase — after the attempt's tool calls have already been through
+ * the gate. So the value it stores is not available to the calls it describes;
+ * it is available to the *next* turn's. `readAgentIntent`'s own comment said
+ * the value "is replaced on the next turn, which is when it stops being true",
+ * and the replacement happens one step too late for the first attempt of that
+ * turn.
+ *
+ * Seen in the ledger that records T2: entry #25, a refused read of `.npmrc`,
+ * carried the model's refusal of a *different* file from a turn twenty-five
+ * minutes earlier. Read literally, the entry says the model declined — when the
+ * model in fact attempted it and the **gate** stopped it. The enforcement was
+ * right and the evidence inverted the story, which is a worse failure than an
+ * empty field: §1.6 asks for the intent so the trail can be read as "it said it
+ * was doing X, and then did Y", and a mismatched X makes that reading wrong
+ * rather than merely unavailable.
+ *
+ * ## Why clearing rather than capturing earlier
+ *
+ * Capturing at the moment a tool call fires would need the assistant's text to
+ * reach the gate, which is the thing this module exists because it does not:
+ * `before_tool_call` is handed a tool name, its parameters and a session key.
+ * Clearing converts a **wrong** intent into an **absent** one, and absence is
+ * already documented as normal rather than an error. Later attempts within the
+ * same turn still carry that turn's narration, which is correct and is the
+ * common case for a multi-step task.
+ *
+ * The honest claim it leaves is: an intent that is present belongs to the turn
+ * that produced the call. That was not true before.
+ */
+export function forgetAgentIntent(sessionKey: string | undefined): void {
+  const key = sessionKey?.trim();
+  if (key) {
+    intents.delete(key);
+  }
+}
+
 /** Test seam, matching `resetLedgerKeyCacheForTests`. */
 export function resetAgentIntentsForTests(): void {
   intents.clear();

@@ -402,6 +402,19 @@ async function proposeRuleFromEscalation(
 ): Promise<void> {
   const pattern = escapeRegExp(input.resource);
   const agentId = input.agentId?.trim();
+  if (!agentId) {
+    // **Refused rather than widened, and this is belt to the gate's braces.**
+    // A rule request with no agent asks for a rule binding *every* agent, so
+    // an escalation that could not name one would propose an installation-wide
+    // grant — the opposite of what the operator was shown.
+    //
+    // It should be unreachable: the gate resolves a group from the agent id
+    // before it can escalate, and no id means no group means a refusal several
+    // hundred lines above this. That argument depends on a guard in another
+    // function, and "scoped to the agent" is a claim worth being true by
+    // construction rather than by inheritance.
+    return;
+  }
   try {
     // One proposal per distinct grant. A retrying agent re-raises the same
     // prompt, and an operator answering it twice should not fill an
@@ -409,7 +422,7 @@ async function proposeRuleFromEscalation(
     const existing = await findPendingRuleRequestFor(groupId, {
       resourceKind: input.resourceKind,
       pattern,
-      ...(agentId ? { agentId } : {}),
+      agentId,
     });
     if (existing) {
       return;
@@ -417,10 +430,10 @@ async function proposeRuleFromEscalation(
     await submitRuleRequest(groupId, {
       resourceKind: input.resourceKind,
       pattern,
-      ...(agentId ? { agentId } : {}),
+      agentId,
       requestedBy: HITL_ACTOR,
       reason:
-        `Approved once at an escalation: agent "${agentId ?? "unknown"}" ran ` +
+        `Approved once at an escalation: agent "${agentId}" ran ` +
         `"${input.toolName}" against ${input.resourceKind} "${input.resource}"` +
         `${input.access ? ` (${input.access})` : ""}. ` +
         "Approving makes that permanent; rejecting leaves it needing approval each time.",

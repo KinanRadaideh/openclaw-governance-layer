@@ -42,20 +42,34 @@ another's, and a shared browser session silently defeats that.
    the same behaviour at a tenth of the wall-clock cost. §1.5.1 sets it anyway;
    doing it first is the difference between an afternoon and an evening. Set it
    back afterwards if the installation is going to be used for anything real.
-6. **Do T2 first if you can.** Several rows — §3.2.1's streaming reply, §4.4's
-   model intent — need a real model behind the agent. Without one you are
-   testing the gate rather than the system, which is still worth doing, but say
-   so in the results rather than marking them passed.
+6. ~~**Do T2 first if you can.**~~ **T2 was done on 2026-09-06** and the
+   installation has a live model. Kimi drove agent `jack` at `~/.npmrc`, the
+   gate refused it, and ledger entry #25 records the refusal. So §3.2.1's
+   streaming reply and §4.4's model intent can be tested for real rather than
+   noted as untested — **confirm the model is still connected before you start**
+   (Models settings should show a verified connection), because a row that
+   silently has no model behind it looks like a governance result and is not.
+7. **Ask for a boring file, not a scary one.** When a row wants the gate to
+   refuse something, `~/.npmrc` or a `.env` is the request to make. A model
+   asked for `~/.ssh/id_rsa` refuses on its own, before any tool call, so
+   nothing reaches the gate and nothing is recorded — the empty ledger is
+   correct and the row proves nothing about this layer. This cost the first
+   attempt at T2 and is the single easiest way to waste a session.
 
 ### How to record a result
 
-Every row has three columns to fill in. **Write what actually happened, not
-"OK".** The value of this exercise is in the wording of the refusals, and "OK"
-throws that away.
+**Results go in the shared sheet, not in this file.** One row per finding,
+with dropdowns for who found it, which tier you were signed in as, severity and
+status:
 
-```
-| # | What you did | What you expected | What happened |
-```
+<https://docs.google.com/spreadsheets/d/1p8cP0liDAu8yVmDSwtm5tmlWuy9OEyTWIYJoyMriF14/edit>
+
+**Write what actually happened, not "OK".** The value of this exercise is in the
+wording of the refusals, and "OK" throws that away. The sheet has an **Error /
+rule shown** column for the exact text or rule id — `governance: ...` or
+`core-path-credential-files-env-private-keys-npmrc-netrc-re` — which is what
+turns "it was refused" into "it was refused _by this rule_", the difference
+between a report somebody can act on and one that needs re-running.
 
 **Two things to write down every single time:**
 
@@ -93,20 +107,24 @@ an Administrator control were once the same function.
 
 ### 1.2 Accounts
 
-| #      | Do this                                                        | Expect                                                                                                                                         |
-| ------ | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1.2.1  | Create an Administrator for Mohammad                           | Appears in the list with role `administrator`                                                                                                  |
-| 1.2.2  | Try to create a second Root                                    | Refused, and the message says there can be only one                                                                                            |
-| 1.2.3  | Create a User with **no** Administrator chosen                 | Refused **before** you submit, or refused with a message naming what to fix                                                                    |
-| 1.2.4  | Create a User and pick Mohammad as its Administrator           | Created. The row shows who answers for it                                                                                                      |
-| 1.2.5  | Change that User to Viewer                                     | A confirmation appears **first**, naming the account and both roles                                                                            |
-| 1.2.6  | Try to change your own Root row's role                         | No control offered. The row states `root (permanent, cannot be changed)`                                                                       |
-| 1.2.7  | Set a new password on Mohammad's account                       | Succeeds. Mohammad's existing session should **stop working** — check with him                                                                 |
-| 1.2.8  | Set your own password, sign out, sign back in with the new one | Works                                                                                                                                          |
-| 1.2.9  | Try to delete your own Root account                            | Refused, and the message names deleting the **organisation** as the act that does remove it                                                    |
-| 1.2.10 | Delete a spare account you created for this                    | Confirmation names the account. Gone from the list                                                                                             |
-| 1.2.11 | Run `openclaw governance accounts` on the server               | The same people, with their ids. **Cross-check it against the screen**: two surfaces disagreeing about who exists is the thing this row is for |
-| 1.2.12 | Run it as Mohammad (Administrator)                             | Refused. Accounts are Root's, and the command enforces that itself rather than trusting the page                                               |
+| #      | Do this                                                                | Expect                                                                                                                                                                                                                                                               |
+| ------ | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.2.1  | Create an Administrator for Mohammad                                   | Appears in the list with role `administrator`                                                                                                                                                                                                                        |
+| 1.2.2  | Try to create a second Root                                            | Refused, and the message says there can be only one                                                                                                                                                                                                                  |
+| 1.2.3  | Create a User with **no** Administrator chosen                         | Refused **before** you submit, or refused with a message naming what to fix                                                                                                                                                                                          |
+| 1.2.4  | Create a User and pick Mohammad as its Administrator                   | Created. The row shows who answers for it                                                                                                                                                                                                                            |
+| 1.2.5  | Change that User to Viewer                                             | A confirmation appears **first**, naming the account and both roles                                                                                                                                                                                                  |
+| 1.2.6  | Try to change your own Root row's role                                 | No control offered. The row states `root (permanent, cannot be changed)`                                                                                                                                                                                             |
+| 1.2.7  | Set a new password on Mohammad's account                               | Succeeds. Mohammad's existing session should **stop working** — check with him                                                                                                                                                                                       |
+| 1.2.8  | Set your own password, sign out, sign back in with the new one         | Works                                                                                                                                                                                                                                                                |
+| 1.2.9  | Try to delete your own Root account                                    | Refused, and the message names deleting the **organisation** as the act that does remove it                                                                                                                                                                          |
+| 1.2.10 | Delete a spare account you created for this                            | Confirmation names the account. Gone from the list                                                                                                                                                                                                                   |
+| 1.2.11 | Run `openclaw governance accounts` on the server                       | The same people, with their ids. **Cross-check it against the screen**: two surfaces disagreeing about who exists is the thing this row is for                                                                                                                       |
+| 1.2.12 | Run it as Mohammad (Administrator)                                     | Refused. Accounts are Root's, and the command enforces that itself rather than trusting the page                                                                                                                                                                     |
+| 1.2.13 | **New 2026-09-06.** Create an agent and pick **yourself** as its owner | Accepted. Root is an eligible owner now, and the picker names you as "(you, Root)" rather than as another username. This used to be refused, and a lone Root could not create an agent at all                                                                        |
+| 1.2.14 | Ask Mohammad to assign that Root-owned agent to Malek                  | Accepted. An agent Root owns sits in no Administrator's silo, so it is assignable to anyone in the organisation. If this is refused, say so: it would mean a class of agent nobody can be given                                                                      |
+| 1.2.15 | Check the picker that asks who a **User answers to**                   | Root is **not** in that list. Owning an agent and being answered to are different questions, and Root is eligible for one and not the other                                                                                                                          |
+| 1.2.16 | Sign out, then sign back in **in the same browser tab**                | The previous session's account list, pending decisions and any open agent conversation are **gone**. If you can still read a transcript from before signing out, stop and record it — that is finding 271 back, and the next person at that machine would see it too |
 
 ### 1.3 Withholding policy authoring (T27)
 
@@ -197,17 +215,19 @@ also refuse. Hiding a control is a courtesy; it is never the control.
 
 ### 2.2 The agent registry
 
-| #     | Do this                                                 | Expect                                                                                         |
-| ----- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 2.2.1 | Open **Agents in your organisation** on a fresh install | "No agents yet", and an explanation of the two ways to get one                                 |
-| 2.2.2 | Create an agent, leaving the owner blank                | Either refused before submitting, or a message naming what to choose                           |
-| 2.2.3 | Create an agent with yourself as owner                  | It appears **and** exists in OpenClaw — check with `openclaw agents list`                      |
-| 2.2.4 | Create a second agent with the same id                  | Refused as a duplicate                                                                         |
-| 2.2.5 | Create one with the id typed in **different case**      | Refused as a duplicate. Case must not be a way round uniqueness                                |
-| 2.2.6 | Register an agent OpenClaw already has                  | Recorded without creating a second one                                                         |
-| 2.2.7 | Press Remove on an agent                                | **Two named options** with their consequences, then a confirmation stating it cannot be undone |
-| 2.2.8 | Choose "unregister"                                     | The governance record goes; the OpenClaw agent stays                                           |
-| 2.2.9 | Choose "delete" on another                              | Both go                                                                                        |
+| #      | Do this                                                                                         | Expect                                                                                                                                                                                                                                 |
+| ------ | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2.2.1  | Open **Agents in your organisation** on a fresh install                                         | "No agents yet", and an explanation of the two ways to get one                                                                                                                                                                         |
+| 2.2.2  | Create an agent, leaving the owner blank                                                        | Either refused before submitting, or a message naming what to choose                                                                                                                                                                   |
+| 2.2.3  | Create an agent with yourself as owner                                                          | It appears **and** exists in OpenClaw — check with `openclaw agents list`                                                                                                                                                              |
+| 2.2.4  | Create a second agent with the same id                                                          | Refused as a duplicate                                                                                                                                                                                                                 |
+| 2.2.5  | Create one with the id typed in **different case**                                              | Refused as a duplicate. Case must not be a way round uniqueness                                                                                                                                                                        |
+| 2.2.6  | Register an agent OpenClaw already has                                                          | Recorded without creating a second one                                                                                                                                                                                                 |
+| 2.2.7  | Press Remove on an agent                                                                        | **Two named options** with their consequences, then a confirmation stating it cannot be undone                                                                                                                                         |
+| 2.2.8  | Choose "unregister"                                                                             | The governance record goes; the OpenClaw agent stays                                                                                                                                                                                   |
+| 2.2.9  | Choose "delete" on another                                                                      | Both go                                                                                                                                                                                                                                |
+| 2.2.10 | **New 2026-09-06.** Create an agent with a distinctive name, then ask it _"what is your name?"_ | It answers with the name you gave it. It must **not** greet you with "what would you like to call me?" — an agent that asks after being named can be told something else, and then the registry and the agent disagree about who it is |
+| 2.2.11 | Read the third and fourth boxes on the create form                                              | They say what they **are** — a working directory and a model — not only that they are optional                                                                                                                                         |
 
 ### 2.3 Assigning agents to people
 
@@ -254,12 +274,16 @@ also refuse. Hiding a control is a courtesy; it is never the control.
 
 ### 2.7 Rule requests
 
-| #     | Do this                              | Expect                                                                                      |
-| ----- | ------------------------------------ | ------------------------------------------------------------------------------------------- |
-| 2.7.1 | Look at Malek's pending request      | Shows the pattern, the reason, who asked, and **whether it binds one agent or all of them** |
-| 2.7.2 | Approve it                           | The rule appears in the policy list                                                         |
-| 2.7.3 | Try to decide the same request again | Refused — the first decision stands                                                         |
-| 2.7.4 | Reject another                       | Recorded as rejected, with your name on it                                                  |
+| #     | Do this                                                                                   | Expect                                                                                                                                                                                                                                                                               |
+| ----- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2.7.1 | Look at Malek's pending request                                                           | Shows the pattern, the reason, who asked, and **whether it binds one agent or all of them**                                                                                                                                                                                          |
+| 2.7.2 | Approve it                                                                                | The rule appears in the policy list                                                                                                                                                                                                                                                  |
+| 2.7.3 | Try to decide the same request again                                                      | Refused — the first decision stands                                                                                                                                                                                                                                                  |
+| 2.7.4 | Reject another                                                                            | Recorded as rejected, with your name on it                                                                                                                                                                                                                                           |
+| 2.7.5 | **New 2026-09-06.** Get an agent to trigger an escalation, and answer it **Allow always** | Three buttons now: Allow once, Allow always, Deny. Allow always lets the action through **and files a rule request** — it must **not** create a rule by itself. Check the policy list: no new rule. Check the request queue: one pending proposal                                    |
+| 2.7.6 | Read that proposal before approving it                                                    | It names the **exact** command or path that was escalated, anchored so it matches that and nothing else, and it is scoped to **one agent** rather than to every agent. If it asks for a rule binding all agents, stop and record it                                                  |
+| 2.7.7 | Approve it, then read the ledger                                                          | The rule now exists and the approval is recorded against **you**, by name and tier. The proposal itself was filed by `hitl-approval` — a label, not an account, because the person clicking a prompt is not identified to this layer. That split is the point of the whole mechanism |
+| 2.7.8 | Trigger the same escalation again and answer Allow always twice                           | **One** proposal in the queue, not two or three. A retrying agent must not fill your review list with copies of one question                                                                                                                                                         |
 
 ---
 
@@ -278,13 +302,16 @@ You manage **the agents assigned to you** and nothing else.
 
 ### 3.2 Using your agent
 
-| #     | Do this                            | Expect                                                                                             |
-| ----- | ---------------------------------- | -------------------------------------------------------------------------------------------------- |
-| 3.2.1 | Send your agent a prompt           | The reply arrives as it is written, not all at once at the end                                     |
-| 3.2.2 | Cancel a running prompt            | The prompt stops. **The agent is not locked down** — send another to prove it                      |
-| 3.2.3 | Send a prompt with a file attached | Recorded by hash, type and size. **Open the ledger and confirm the file's contents are not in it** |
-| 3.2.4 | Send many prompts quickly          | You are bounded. The message says so rather than silently dropping them                            |
-| 3.2.5 | Read the transcript back           | Your prompt is recorded against **your** account                                                   |
+| #     | Do this                                                          | Expect                                                                                                                                                                                                                                       |
+| ----- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3.2.1 | Send your agent a prompt                                         | The reply arrives as it is written, not all at once at the end                                                                                                                                                                               |
+| 3.2.2 | Cancel a running prompt                                          | The prompt stops. **The agent is not locked down** — send another to prove it                                                                                                                                                                |
+| 3.2.3 | Send a prompt with a file attached                               | Recorded by hash, type and size. **Open the ledger and confirm the file's contents are not in it**                                                                                                                                           |
+| 3.2.4 | Send many prompts quickly                                        | You are bounded. The message says so rather than silently dropping them                                                                                                                                                                      |
+| 3.2.5 | Read the transcript back                                         | Your prompt is recorded against **your** account                                                                                                                                                                                             |
+| 3.2.6 | **New 2026-09-06.** Type a message and watch the **Send** button | It becomes clickable as you type. If it stays greyed out with text in the box, that is finding 269 back                                                                                                                                      |
+| 3.2.7 | Pick your agent from the list, then press **Talk**               | The conversation opens and stays open. Pressing Talk must not close it or empty the id box                                                                                                                                                   |
+| 3.2.8 | Ask the agent for something your policy refuses (`~/.npmrc`)     | The refusal is in the ledger, and if the agent replies with **nothing at all** the panel says so in words. A blank line where a reply should be is finding 272 back — and an empty reply is the normal outcome when every action was refused |
 
 ### 3.3 Stopping your own agent
 
