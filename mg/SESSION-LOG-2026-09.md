@@ -1698,3 +1698,144 @@ produced a false finding rather than a missing one.** The rule that catches both
 kinds is the same — reproduce the mechanism, not the end state — and the rule
 that catches this particular kind is narrower: **use the real name, and check it
 against the source that owns it.**
+
+## 2026-09-06: an operator's second sitting, and what it found
+
+**Findings 264–268.** Kinan created an agent, tried to talk to it, and read the
+ledger. Seven observations, five of them defects, and the pattern across them is
+one this project already has a name for: **the capability existed and the
+affordance did not.**
+
+### 264: "register an agent OpenClaw already has" could not be done
+
+The agents panel's empty state says _"Create one below, or register an agent
+OpenClaw already has."_ The row for an unregistered agent carries a **Register**
+button and a hint explaining that it exists in OpenClaw but is not governed, and
+`agent-registry-panel.test.ts` has asserted both since M4.
+
+**None of it was reachable.** The listing's fallback was
+`knownAgentIds(policy, liveSessions)`, so an agent the host has appeared only
+once somebody had already written a rule about it or it happened to be running.
+On a fresh installation with configured agents the panel says "No agents yet"
+and offers no way to register any of them.
+
+The host roster is now part of the fallback. Read **at the route** and passed
+in, because `src/governance/` must not import `src/config/` — the same
+arrangement the deployment report uses for its gateway findings.
+
+**Two tests changed and one of them is the interesting one.**
+`"shows one group nothing of another's"` asserted `toEqual([])`, which is a
+stronger claim than its own name and became false for a reason that is not a
+leak: `main` is OpenClaw's default agent, belongs to no group, and alpha seeing
+it _is_ the new capability. The assertion now says what the name says — no other
+**group's** agent appears, and anything from the fallback is unregistered by
+definition. `listAgentsWithFallback` still drops ids registered elsewhere and
+that logic was not touched.
+
+### 265: the model the route accepts, that the form never asked for
+
+`provisionAgent` takes a `model`. The HTTP route forwards it. The API client
+declares it. **The form was the only link in that chain that did not ask**, so
+an operator wanting a specific model had to use the command line.
+
+That is the same gap the owner picker was added to close, and the comment
+recording _that_ fix sits four lines above the field that had it. Added.
+
+### 266: three fields that did not say what they were
+
+`"Optional, derived from the name"` and `"Optional, OpenClaw chooses one"` say
+what is optional without saying what the field is. Kinan asked what the third
+box was; it is the workspace. Both now name themselves, and the created-agent
+notice says what the id is **for** — "that id is what you use to talk to it,
+write rules for it, or stop it" — because the next screen asks for it.
+
+### 267: an id the page was holding, asked for as free text
+
+"Agent to talk to" told an Administrator _"there is no assigned list, enter the
+id of the one you want"_ — while the page held the full list and rendered it two
+sections above. A picker now appears when there are agents to pick, with the
+free-text box kept for an id that is not in the list.
+
+The panel's props did not declare `agents`, though `agentPanelProps()` has been
+spreading it into the same object all along. Declared.
+
+### 268: the audit ledger, on three counts
+
+Kinan read one entry and asked three questions, all fair.
+
+**"What is `user-1788466851277-8255cb2c`?"** An account id, and the entry read
+_"registered to account user-1788466851277-8255cb2c"_. Every other line of that
+ledger names a person — "by Kinan (root)" — so the one that does not is the odd
+one out rather than the convention. It now reads `registered to mohammad
+(user-…)`: **the name for the reader, the id for the record**, because a
+username can be changed later and the id cannot.
+
+**"Why does it have a red dot saying admin?"** That column is the entry's kind
+or verdict — `admin` for an administrative act, `allow`/`deny` for an agent
+action — and it **had no label at all**. It now names itself on hover and to a
+screen reader, which is finding 103's repair for the unnamed "×", one column
+over.
+
+**"Verify chain integrity scrolls the page and then says 'trust me'."** Both
+true, and the second is the one that matters.
+
+- **The scroll.** The verdict renders _above_ the ledger list, so its appearing
+  pushed the list down: a reader part-way through the entries was left looking at
+  a different one with the answer off-screen above them. The result now scrolls
+  itself into view, `block: "nearest"` so somebody already looking at it is not
+  moved.
+- **The evidence.** "Intact, entries verified" is a verdict an operator can only
+  take on trust, and **a tamper-evidence feature whose output must be trusted is
+  missing the half that matters.** `verifyLedgerChain` now returns what it
+  established on the way through — nothing newly computed — and the panel shows
+  it: how verification works in one sentence, then the chain head it terminated
+  at, the **independent checkpoint** that agrees with it, and that the entries
+  are signed with this installation's key. Plus the terminal command that
+  recomputes the same thing, so the two can be compared.
+
+That last part is the point. The dashboard is no longer the only witness.
+
+### Two layout requests
+
+The kill switch moved to sit directly under **Agent permissions** — renamed from
+"What an agent may do" — because the two read as one question in two steps.
+**This supersedes a 2026-09-04 request** that put it after Active agent
+sessions, and the test that pinned that order now records the change rather than
+being quietly re-pinned: a test asserting a layout decision is only as good as
+the decision, and the next reader should be able to see it moved on purpose.
+
+The approval timeout said "Between 5 seconds and 24 hours" over a box containing
+`300`. It now says the value is in seconds and that 300 is five minutes.
+
+### The sweep
+
+`docs-notes/qa-sweep-2026-09-06/dashboard-changes-sweep.ts`, **7/7**, covering
+the two changes with a server half. The evidence check is deliberately
+adversarial: it is not enough that a `headHash` comes back, it must be **the hash
+an independent reader finds at the end of the file**, and it must move when the
+chain does. A field returning a plausible-looking constant would satisfy a
+weaker check and prove nothing.
+
+Four suite tests asserted the verification result with `toEqual` and saw an
+extra key. Changed to `toMatchObject`, which keeps what each was actually
+asserting — the verdict and the count — rather than the shape of the whole
+result. The empty-ledger case still uses `toEqual`, correctly: with no entries
+there is no evidence to return, and that is itself worth pinning.
+
+### One flaky pair, and why it is recorded rather than shrugged at
+
+The first full-suite run after these changes reported **four** failures. Two were
+the `toEqual` assertions above. The other two were
+`agent-conversation.test.ts`'s prompt-capacity pair — _"refuses a prompt over the
+account's limit"_ and _"does not let one account's flood block another
+account"_ — which **passed in isolation and passed on the next full run**, with
+the suite green at 2,756 / 20 across 153 files.
+
+So they were load contention, which §4 of `HANDOFF.md` warns about in those
+words: a loaded machine pushes a slow test past its timeout, and two runs on
+2026-08-30 reported failures that did not exist. **It is written down anyway**,
+because finding 169 is open for exactly the opposite mistake — a failure whose
+name was discarded by a `| tail` and never reproduced — and "it passed the second
+time" is the sentence that turns a real intermittent defect into a closed one.
+Capacity tests that measure timing under load are the plausible place for a real
+one to hide. If either name appears again, it is worth more than a re-run.

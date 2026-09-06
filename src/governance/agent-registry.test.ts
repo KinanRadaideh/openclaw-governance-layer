@@ -424,6 +424,14 @@ describe("the registry writes to the same audit chain as everything else", () =>
     const entry = entries.find((e) => e.toolName === ADMIN_ACTIONS.agentRegister);
     expect(entry?.resource).toContain("agent-a");
     expect(entry?.resource).toContain(org.admin.id);
+    // **And the owner's name, added 2026-09-06.** The entry used to read
+    // "registered to account user-1788466851277-8255cb2c", a minted id that
+    // appears nowhere else on the dashboard and that nothing on the page
+    // resolves, while every other line of this ledger names a person. The id
+    // stays alongside, because it is the stable key and a username is not.
+    const owner = (await listUsers(org.groupId)).find((u) => u.id === org.admin.id);
+    expect(owner?.username).toBeTruthy();
+    expect(entry?.resource).toContain(owner!.username);
   });
 
   it("records a transfer as a transition, since one owner alone does not say who lost it", async () => {

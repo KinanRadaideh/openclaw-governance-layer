@@ -648,6 +648,33 @@ export type LedgerVerification = {
   entriesChecked: number;
   brokenAtSeq?: number;
   reason?: string;
+  /**
+   * What the verification actually observed, so a green result can be checked
+   * rather than believed.
+   *
+   * Added 2026-09-06 because the dashboard reported "Intact, entries verified"
+   * and nothing else, which an operator can only take on trust — and a
+   * tamper-evidence feature whose output has to be taken on trust is missing
+   * the half that matters. These four are the facts the loop above already
+   * establishes on its way through; none is newly computed.
+   *
+   * `headHash` is the value every earlier entry's `prevHash` chain terminates
+   * at, so an operator can copy it, run `governance audit verify` at the
+   * terminal, and compare. `checkpointSeq` is the *independent* record the
+   * chain is measured against, which is what makes truncation detectable at
+   * all. `keyed` says the entries were hashed with this installation's signing
+   * key rather than in the pre-key format anyone can produce.
+   */
+  evidence?: {
+    /** Sequence number of the newest entry the chain ends at. */
+    headSeq: number;
+    /** Hash of that entry: the end of the linked chain. */
+    headHash: string;
+    /** What the independent checkpoint file says the newest entry is. */
+    checkpointSeq?: number;
+    /** Whether the newest entry was hashed with the installation's key. */
+    keyed: boolean;
+  };
 };
 
 type LedgerCheckpoint = { seq: number; hash: string; updatedAt: string };
@@ -880,5 +907,18 @@ export async function verifyLedgerChain(groupId: string): Promise<LedgerVerifica
       };
     }
   }
-  return { ok: true, entriesChecked: checked };
+  return {
+    ok: true,
+    entriesChecked: checked,
+    ...(lastEntry
+      ? {
+          evidence: {
+            headSeq: lastEntry.seq,
+            headHash: lastEntry.hash,
+            ...(checkpoint ? { checkpointSeq: checkpoint.seq } : {}),
+            keyed: lastEntry.keyed === true,
+          },
+        }
+      : {}),
+  };
 }

@@ -62,7 +62,24 @@ describe("audit ledger hash chain", () => {
     await ledger.appendLedgerEntry(TEST_GROUP, entryInput("one"));
     await ledger.appendLedgerEntry(TEST_GROUP, entryInput("two"));
     await ledger.appendLedgerEntry(TEST_GROUP, entryInput("three"));
-    expect(await ledger.verifyLedgerChain(TEST_GROUP)).toEqual({ ok: true, entriesChecked: 3 });
+    const verified = await ledger.verifyLedgerChain(TEST_GROUP);
+    expect(verified.ok).toBe(true);
+    expect(verified.entriesChecked).toBe(3);
+    // **The evidence is asserted, not merely allowed** (2026-09-06). A green
+    // verdict an operator has to take on trust is the half of tamper-evidence
+    // that was missing from the dashboard, so the shape that carries the proof
+    // is pinned here: the chain head the run terminates at, the independent
+    // checkpoint it was measured against, and whether the entries were hashed
+    // with this installation's key rather than in the pre-key format anyone
+    // can produce.
+    expect(verified.evidence?.headSeq).toBe(3);
+    expect(verified.evidence?.checkpointSeq).toBe(3);
+    expect(verified.evidence?.keyed).toBe(true);
+    expect(verified.evidence?.headHash).toMatch(/^[0-9a-f]{64}$/);
+    // The head hash is the newest entry's own hash, so it must be the value a
+    // reader finds at the end of the file rather than a number invented here.
+    const tail = await ledger.tailLedger(TEST_GROUP, 1);
+    expect(verified.evidence?.headHash).toBe(tail[0]?.hash);
   });
 
   it("verifies clean on an empty ledger", async () => {

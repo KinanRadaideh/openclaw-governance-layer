@@ -113,6 +113,15 @@ export type ConversationProps = AgentPanelBase & {
 
 export type AgentsSectionProps = ConversationProps & {
   openConversation: (agentId: string) => Promise<void>;
+  /**
+   * Every agent this caller can see, for the picker below.
+   *
+   * The page already passes this — `agentPanelProps()` spreads `agents` into
+   * the same object the registry panel reads — and this section simply never
+   * declared it. Which is why an Administrator who had just created an agent
+   * was shown a free-text box asking for an id the page was holding.
+   */
+  agents: readonly { agentId: string; displayName?: string }[];
 };
 
 /**
@@ -708,6 +717,28 @@ export function renderAgentsSection(props: AgentsSectionProps): TemplateResult |
             description: t("governance.conversation.chooseAgentHint"),
             stacked: true,
             control: html`<div class="settings-row__control" style="gap:0.5rem">
+              ${props.agents.length > 0
+                ? html`<select
+                    class="input"
+                    aria-label=${t("governance.conversation.chooseAgent")}
+                    ?disabled=${props.busy}
+                    @change=${(e: Event) => {
+                      const chosen = (e.target as HTMLSelectElement).value;
+                      if (chosen) {
+                        void props.openConversation(chosen);
+                      }
+                    }}
+                  >
+                    <option value="">${t("governance.conversation.chooseAgentPick")}</option>
+                    ${props.agents.map(
+                      (agent) => html`<option value=${agent.agentId}>
+                        ${agent.displayName
+                          ? `${agent.displayName} (${agent.agentId})`
+                          : agent.agentId}
+                      </option>`,
+                    )}
+                  </select>`
+                : nothing}
               <input
                 class="input"
                 type="text"

@@ -137,12 +137,38 @@ export async function handleGovernanceAgentRoutes(
       lockedAgents: policy.lockedAgents,
       groupAgentIds: (await listAgents(groupId)).map((agent) => agent.id),
     });
+    // **The host's own roster is part of the fallback, and used not to be.**
+    //
+    // The empty state on this panel says "register an agent OpenClaw already
+    // has", and the row for an unregistered agent carries a Register button and
+    // a hint explaining that it exists in OpenClaw but is not governed. Both
+    // were unreachable: the fallback was `knownAgentIds(policy, liveSessions)`,
+    // so an agent the host has appeared here only once somebody had already
+    // written a rule about it or it happened to be running. On a fresh
+    // installation with configured agents the panel said "No agents yet" and
+    // offered no way to register any of them — an interface describing a
+    // capability it does not offer, which is the shape finding 100 is about.
+    //
+    // Read here rather than inside `listAgentsWithFallback`, because
+    // `src/governance/` must not import `src/config/` (see the header of
+    // `deployment-status.ts`); the host facts arrive as a parameter, exactly as
+    // the deployment report's gateway findings do. Lazily imported for the same
+    // reason the provision route below does it.
+    const hostAgentIds = await (async () => {
+      try {
+        const { getRuntimeConfig } = await import("../config/config.js");
+        const { listAgentEntries } = await import("../agents/agent-scope-config.js");
+        const { normalizeAgentId } = await import("../routing/session-key.js");
+        return listAgentEntries(getRuntimeConfig()).map((entry) => normalizeAgentId(entry.id));
+      } catch {
+        // A roster this route cannot read is not a reason to fail the listing:
+        // the registry half is the authoritative one and still answers.
+        return [] as string[];
+      }
+    })();
     const entries = await listAgentsWithFallback(
       session.groupId,
-      knownAgentIds(
-        policy,
-        live.sessions.map((entry) => entry.agentId),
-      ),
+      knownAgentIds(policy, [...live.sessions.map((entry) => entry.agentId), ...hostAgentIds]),
     );
     const visible = new Set(
       visibleAgents(

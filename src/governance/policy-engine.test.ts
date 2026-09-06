@@ -408,7 +408,11 @@ describe("governance policy engine", () => {
       );
     }
     const { verifyLedgerChain } = await import("./audit-ledger.js");
-    expect(await verifyLedgerChain(TEST_GROUP)).toEqual({ ok: true, entriesChecked: 15 });
+    // `toMatchObject`, not `toEqual`: verification also returns the evidence
+    // it established (chain head, checkpoint, whether entries are keyed), and
+    // this assertion is about the verdict and the count rather than about the
+    // shape of the whole result. Added 2026-09-06.
+    expect(await verifyLedgerChain(TEST_GROUP)).toMatchObject({ ok: true, entriesChecked: 15 });
   });
 });
 

@@ -883,6 +883,10 @@ class GovernancePage extends OpenClawLightDomElement {
               activeSessions: this.activeSessions,
               engageKillSwitch: (agentId) => this.engageKillSwitch(agentId),
             })}
+            ${renderAgentPolicySection(policyProps)}
+            <!-- The kill switch sits directly under Agent permissions, at
+                 Kinan's request: the two answer one question in sequence,
+                 "what may this agent do" and then "stop it doing anything". -->
             ${renderKillSwitchSection({
               ...agentProps,
               killAgentId: this.killAgentId,
@@ -891,7 +895,7 @@ class GovernancePage extends OpenClawLightDomElement {
               agentLabel: (agentId) => agentLabel(this.agents, agentId),
               engageKillSwitch: (agentId) => this.engageKillSwitch(agentId),
             })}
-            ${renderAgentPolicySection(policyProps)} ${renderPolicySection(policyProps)}
+            ${renderPolicySection(policyProps)}
             ${renderLedgerSection({
               ledger: this.ledger,
               ledgerFilter: this.ledgerFilter,
@@ -903,6 +907,20 @@ class GovernancePage extends OpenClawLightDomElement {
               onVerify: () =>
                 void this.run(async () => {
                   this.verification = await this.api().verifyLedger();
+                  // **Bring the result to the reader** rather than leaving them
+                  // where the inserted row put them. The verdict renders above
+                  // the ledger list, so appearing pushes the list down: somebody
+                  // part-way through the entries was left looking at a different
+                  // one with the answer off-screen above, which reads as the page
+                  // scrolling itself downward.
+                  //
+                  // `block: "nearest"` so a reader who is already looking at the
+                  // row is not moved at all.
+                  await this.updateComplete;
+                  this.querySelector("#governance-chain-integrity")?.scrollIntoView({
+                    block: "nearest",
+                    behavior: "smooth",
+                  });
                 }),
             })}
             ${renderRuleRequestsSection({

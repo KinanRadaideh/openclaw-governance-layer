@@ -49,6 +49,17 @@ export type AgentRegistryDrafts = {
   /** Where the agent works. Blank lets the host choose its default. */
   provisionWorkspace: string;
   /**
+   * Which model the new agent runs on. Blank lets OpenClaw pick its default.
+   *
+   * **Offered here because the route has always accepted it.** `provisionAgent`
+   * takes `model`, the HTTP route forwards it and the API client declares it,
+   * and this form was the only link in that chain that did not ask. That is
+   * the same gap the owner picker above was added to close — the capability
+   * existed and the affordance did not — sitting one field over from the
+   * comment that says so.
+   */
+  provisionModel: string;
+  /**
    * Which Administrator will own the new agent.
    *
    * Only Root ever chooses: an Administrator provisioning an agent owns it, and
@@ -95,6 +106,7 @@ export function emptyAgentRegistryDrafts(): AgentRegistryDrafts {
     provisionName: "",
     provisionId: "",
     provisionWorkspace: "",
+    provisionModel: "",
     provisionAdminId: "",
     removeChoiceFor: "",
     provisionNotice: "",
@@ -399,6 +411,15 @@ function renderProvisionForm(props: AgentRegistryPanelProps): TemplateResult {
         @input=${(e: Event) =>
           props.onDraft({ provisionWorkspace: (e.target as HTMLInputElement).value })}
       />
+      <input
+        class="input"
+        type="text"
+        aria-label=${t("governance.agents.modelLabel")}
+        placeholder=${t("governance.agents.modelPlaceholder")}
+        .value=${props.drafts.provisionModel}
+        @input=${(e: Event) =>
+          props.onDraft({ provisionModel: (e.target as HTMLInputElement).value })}
+      />
       ${mustChooseOwner && owners.length > 0
         ? html`<select
             class="input"
@@ -428,6 +449,9 @@ function renderProvisionForm(props: AgentRegistryPanelProps): TemplateResult {
               ...(props.drafts.provisionWorkspace.trim()
                 ? { workspace: props.drafts.provisionWorkspace.trim() }
                 : {}),
+              ...(props.drafts.provisionModel.trim()
+                ? { model: props.drafts.provisionModel.trim() }
+                : {}),
             });
             // The notice distinguishes "created and running" from "created,
             // not yet visible". Collapsing them would make the success message
@@ -437,6 +461,7 @@ function renderProvisionForm(props: AgentRegistryPanelProps): TemplateResult {
               provisionName: "",
               provisionId: "",
               provisionWorkspace: "",
+              provisionModel: "",
               provisionAdminId: "",
               provisionNotice:
                 result.warning ?? t("governance.agents.created", { id: result.agent.id }),

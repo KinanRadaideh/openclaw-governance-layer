@@ -168,16 +168,33 @@ describe("listing agents", () => {
     });
     const reply = await call("GET", "agents", sessionFor(org.admin));
     expect(reply.status).toBe(200);
-    expect(reply.body.agents).toEqual([
-      {
-        agentId: "agent-known",
-        displayName: "Known",
-        adminId: org.admin.id,
-        registered: true,
-        codexAllowed: false,
-      },
-      { agentId: "agent-legacy", registered: false },
-    ]);
+    const agents = reply.body.agents as {
+      agentId: string;
+      registered: boolean;
+      displayName?: string;
+      adminId?: string;
+      codexAllowed?: boolean;
+    }[];
+    // **The registry row first, then the reconstructed one**, which is the
+    // ordering this test is named for. Asserted by picking the two out rather
+    // than by `toEqual` on the whole array: since 2026-09-06 the listing also
+    // carries the **host's** unregistered agents, so that the Register button
+    // this panel advertises is reachable at all. An exhaustive match would make
+    // this test a statement about the host's roster as well as about the two
+    // sources it exists to check.
+    expect(agents.find((entry) => entry.agentId === "agent-known")).toEqual({
+      agentId: "agent-known",
+      displayName: "Known",
+      adminId: org.admin.id,
+      registered: true,
+      codexAllowed: false,
+    });
+    expect(agents.find((entry) => entry.agentId === "agent-legacy")).toEqual({
+      agentId: "agent-legacy",
+      registered: false,
+    });
+    const ids = agents.map((entry) => entry.agentId);
+    expect(ids.indexOf("agent-known")).toBeLessThan(ids.indexOf("agent-legacy"));
   });
 
   it("narrows the list to what a scoped account was assigned", async () => {
@@ -208,7 +225,24 @@ describe("listing agents", () => {
       "beta-admin",
     );
     const reply = await call("GET", "agents", sessionFor(alpha.admin));
-    expect(reply.body.agents).toEqual([]);
+    const ids = reply.body.agents.map((entry: { agentId: string }) => entry.agentId);
+    // **Asserted as the test's own name, not as "nothing at all".**
+    //
+    // This read `toEqual([])` until 2026-09-06, which was a stronger claim than
+    // the name and became false for a reason that is not a leak: the listing now
+    // includes the **host's** unregistered agents, so that the Register button
+    // this panel advertises is reachable. `main` is OpenClaw's default agent and
+    // belongs to no group; alpha seeing it is the new capability working.
+    //
+    // What must never appear is another *group's* agent, and that is what is
+    // asserted. `listAgentsWithFallback` still drops ids registered elsewhere
+    // (its `elsewhere` set), and that logic is untouched.
+    expect(ids).not.toContain("agent-b");
+    for (const entry of reply.body.agents as { registered: boolean }[]) {
+      // Anything alpha does see from the fallback is ungoverned by definition:
+      // a registered row here would mean a record from another group leaked.
+      expect(entry.registered).toBe(false);
+    }
   });
 });
 

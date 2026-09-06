@@ -410,13 +410,29 @@ export async function registerAgent(
   // so there is no ambiguity here, and `created.groupId` is the value the
   // route took from the session rather than from the request, which is what
   // stops an Administrator writing into another organisation's trail (M5).
+  // Resolved from the accounts already read above, so this costs no extra I/O.
+  const ownerName = accounts.find((account) => account.id === created.adminId)?.username;
   await recordAdminAction(created.groupId, {
     actor,
     action: ADMIN_ACTIONS.agentRegister,
     // The owner is the security-relevant half of registering an agent, so it is
     // recorded here rather than left to be inferred from an ownership-change
     // entry that may never exist.
-    target: `agent ${created.id} ("${created.displayName}") registered to account ${created.adminId}`,
+    // **The owner's username, not just their account id.**
+    //
+    // This read `registered to account ${created.adminId}`, so the entry an
+    // operator actually reads said "registered to account
+    // user-1788466851277-8255cb2c" — a minted id that appears nowhere else on
+    // the dashboard and that nothing on the page resolves. Every other line of
+    // this ledger names people ("by Kinan (root)"), so one that does not is the
+    // odd one out rather than the convention.
+    //
+    // The id is kept alongside, because it is the stable key and the username
+    // is not: an account renamed later would otherwise make the trail ambiguous
+    // about which account was meant. Name for the reader, id for the record.
+    target:
+      `agent ${created.id} ("${created.displayName}") registered to ` +
+      (ownerName ? `${ownerName} (${created.adminId})` : `account ${created.adminId}`),
     agentId: created.id,
     subjectId: created.id,
   });

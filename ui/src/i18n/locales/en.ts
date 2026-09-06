@@ -3638,7 +3638,7 @@ export const en: TranslationMap = {
       agentHitlTimeoutSave: "Set for this agent",
       hitlTimeout: "Approval timeout",
       hitlTimeoutHint:
-        "How long an escalation waits for a human before it times out. Between 5 seconds and 24 hours. Administrator and above.",
+        "How long an escalation waits for a human before it times out. The value is in seconds: 300 is five minutes. Between 5 (five seconds) and 86400 (24 hours). Administrator and above.",
       hitlTimeoutSave: "Set timeout",
       userAsk: "Account override",
       userAskHint:
@@ -3707,7 +3707,7 @@ export const en: TranslationMap = {
         "Accounts given this agent by assignment. Administrators and Root reach every agent by role and are not listed.",
       accessNobody: "Nobody. No User or Viewer has been assigned this agent.",
       accessUnknown: "Could not load who has access.",
-      title: "What an agent may do",
+      title: "Agent permissions",
       hint: "Every rule in force for one agent. The global rules that bind every agent, plus any written for this one. This is what the gate consults, not just what the document lists.",
       pick: "Agent",
       pickHint: "Pick an agent you manage, or type its id.",
@@ -3730,6 +3730,15 @@ export const en: TranslationMap = {
       intent: "Agent said",
       verify: "Verify chain integrity",
       integrity: "Chain integrity",
+      integrityHow:
+        "Every entry is hashed with this installation's signing key, and each one carries the hash of the entry before it. Verifying recomputes all of them and compares each link, then checks the total against a separate checkpoint file so that entries deleted from the end are detected too.",
+      integrityEvidence:
+        "Checked {count} entries, ending at #{headSeq}. Chain head {headHash}. Checkpoint agrees at #{checkpointSeq}. Entries are signed with this installation's key.",
+      integrityEvidenceNoCheckpoint:
+        "Checked {count} entries, ending at #{headSeq}. Chain head {headHash}.",
+      integrityRecheck:
+        "Run {command} at the terminal to recompute this independently of the dashboard; the chain head above should match.",
+      kindColumn: "Kind",
       intact: "Intact, entries verified",
       tampered: "TAMPERED at entry",
       empty: "No audit entries yet",
@@ -3826,7 +3835,8 @@ export const en: TranslationMap = {
     agents: {
       title: "Agents in your organisation",
       none: "No agents yet",
-      noneHint: "Create one below, or register an agent OpenClaw already has.",
+      noneHint:
+        "Create one below. Agents OpenClaw already has appear here too, with a Register button, once this page can see them.",
       ownedBy: "Owned by {owner}",
       unregisteredHint:
         "This agent exists in OpenClaw but is not governed, so every tool call it makes is refused. Register it to bring it under your policy.",
@@ -3845,20 +3855,25 @@ export const en: TranslationMap = {
       confirmDelete: "Permanently delete “{name}”?",
       confirmDeleteDetails:
         "This deletes the agent from OpenClaw, not just from governance. Its workspace and transcripts go with it. This cannot be undone.",
+      idLabelHelp: "Identifier",
+      workspaceLabelHelp: "Working directory",
+      modelLabel: "Model",
+      modelPlaceholder: "Model, optional — OpenClaw uses its default",
       createTitle: "Create an agent",
       createHint:
         "Creates a real OpenClaw agent and records it here in one step. You own it, and it is governed from the moment it exists.",
       nameLabel: "Agent name",
       idLabel: "Agent id",
-      idPlaceholder: "Optional, derived from the name",
+      idPlaceholder: "Agent id — optional, derived from the name",
       workspaceLabel: "Workspace",
-      workspacePlaceholder: "Optional, OpenClaw chooses one",
+      workspacePlaceholder: "Working directory — optional, OpenClaw chooses one",
       ownerLabel: "Owning Administrator",
       ownerPlaceholder: "Choose an Administrator...",
       ownerNoneHint:
         "Agents are owned by an Administrator, and Root cannot own one. First create an Administrator account in Accounts, then come back here.",
       create: "Create agent",
-      created: "Created {id}, and OpenClaw has picked it up.",
+      created:
+        "Created {id}, and OpenClaw has picked it up. That id is what you use to talk to it, write rules for it, or stop it.",
     },
     conversation: {
       title: "Your agents",
@@ -3868,7 +3883,8 @@ export const en: TranslationMap = {
         "Send this agent a task. Every action it takes is still checked against your policy.",
       chooseAgent: "Agent to talk to",
       chooseAgentHint:
-        "You manage every agent, so there is no assigned list. Enter the id of the one you want.",
+        "You manage every agent, so there is no assigned list. Pick one, or type an id.",
+      chooseAgentPick: "Choose an agent…",
       loading: "Loading the conversation…",
       empty: "No messages yet. Send the first one below.",
       you: "You",

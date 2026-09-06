@@ -261,6 +261,17 @@ export type GovernanceLedgerVerification = {
   entriesChecked: number;
   brokenAtSeq?: number;
   reason?: string;
+  /**
+   * What the check observed, so a green verdict can be examined rather than
+   * believed. Mirrored by hand from `LedgerVerification` in
+   * `src/governance/audit-ledger.ts`, like every type in this file.
+   */
+  evidence?: {
+    headSeq: number;
+    headHash: string;
+    checkpointSeq?: number;
+    keyed: boolean;
+  };
 };
 
 export type GovernanceIdentity = {

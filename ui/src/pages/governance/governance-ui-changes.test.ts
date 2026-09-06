@@ -142,7 +142,19 @@ describe("section order", () => {
     expect(accounts).toBeLessThan(agents);
   });
 
-  it("puts the emergency kill switch directly after active sessions", async () => {
+  it("puts the emergency kill switch directly after agent permissions", async () => {
+    // **This supersedes an earlier request and the test that pinned it.**
+    //
+    // The kill switch sat directly after "Active agent sessions" from
+    // 2026-09-04, on the reasoning that an emergency control belongs beside the
+    // panel showing the thing you need to stop. Kinan moved it on 2026-09-06 to
+    // sit under "Agent permissions" instead, which reads as one question in two
+    // steps: what may this agent do, and then stop it doing anything.
+    //
+    // Recorded rather than quietly re-pinned, because a test asserting a layout
+    // decision is only as good as the decision, and the next person reading
+    // this should be able to see that the order changed on purpose rather than
+    // wonder which of two comments was true.
     await mount({
       identity: identity("root"),
       users: [userRecord("kinan", "root")],
@@ -150,12 +162,10 @@ describe("section order", () => {
     });
 
     const headings = sectionHeadings();
-    const sessions = headings.findIndex((heading) => /active agent sessions/i.test(heading));
+    const permissions = headings.findIndex((heading) => /agent permissions/i.test(heading));
     const kill = headings.findIndex((heading) => /kill switch/i.test(heading));
-    expect(sessions).toBeGreaterThanOrEqual(0);
-    // Directly after: an emergency control belongs beside the panel that shows
-    // you the thing you need to stop, not at the bottom of a long page.
-    expect(kill).toBe(sessions + 1);
+    expect(permissions).toBeGreaterThanOrEqual(0);
+    expect(kill).toBe(permissions + 1);
   });
 
   it("puts deployment and network posture last", async () => {

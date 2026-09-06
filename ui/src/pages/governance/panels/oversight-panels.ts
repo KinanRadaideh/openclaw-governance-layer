@@ -135,7 +135,44 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
     [
       verification
         ? renderSettingsRow({
-            title: t("governance.ledger.integrity"),
+            // The id is an anchor the page scrolls to after verifying. Inserting
+            // this row pushes the ledger list down, so a reader part-way through
+            // the list was left looking at a different entry with the result
+            // off-screen above them, which read as the page scrolling itself.
+            title: html`<span id="governance-chain-integrity"
+              >${t("governance.ledger.integrity")}</span
+            >`,
+            // **How, and on what evidence.** "Intact, entries verified" alone is
+            // a verdict an operator can only take on trust, and a
+            // tamper-evidence feature whose output must be trusted is missing
+            // the half that matters. The first paragraph says what verifying
+            // does; the second gives the facts it established, including the
+            // chain head, which can be compared against the terminal command.
+            description: verification.ok
+              ? html`${t("governance.ledger.integrityHow")}
+                  <span style="display:block;margin-top:0.35rem">
+                    ${verification.evidence
+                      ? verification.evidence.checkpointSeq !== undefined
+                        ? t("governance.ledger.integrityEvidence", {
+                            count: String(verification.entriesChecked),
+                            headSeq: String(verification.evidence.headSeq),
+                            headHash: verification.evidence.headHash.slice(0, 16),
+                            checkpointSeq: String(verification.evidence.checkpointSeq),
+                          })
+                        : t("governance.ledger.integrityEvidenceNoCheckpoint", {
+                            count: String(verification.entriesChecked),
+                            headSeq: String(verification.evidence.headSeq),
+                            headHash: verification.evidence.headHash.slice(0, 16),
+                          })
+                      : nothing}
+                  </span>
+                  <span style="display:block;margin-top:0.35rem;opacity:0.85">
+                    ${t("governance.ledger.integrityRecheck", {
+                      command: "openclaw governance audit verify",
+                    })}
+                  </span>`
+              : t("governance.ledger.integrityHow"),
+            stacked: true,
             control: renderSettingsStatus({
               kind: verification.ok ? "ok" : "warn",
               label: verification.ok
@@ -181,18 +218,31 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
                   <em>${t("governance.ledger.intent")}:</em> ${entry.intent}
                 </span>`
               : nothing}`,
-            control: renderSettingsStatus({
-              kind:
-                entry.entryKind === "admin"
-                  ? "accent"
-                  : entry.decision === "allow"
-                    ? "ok"
-                    : entry.decision === "deny"
-                      ? "warn"
-                      : "muted",
-              label:
-                entry.entryKind === "admin" ? t("governance.ledger.adminBadge") : entry.decision,
-            }),
+            // The badge is the row's **kind or verdict**, and it carried no
+            // label at all: an operator seeing a red dot reading "admin" beside
+            // every row had nothing telling them what that column was. `title`
+            // names it on hover and `aria-label` names it for a screen reader,
+            // which is the same repair finding 103 made for the unnamed "×".
+            control: html`<span
+              title=${`${t("governance.ledger.kindColumn")}: ${
+                entry.entryKind === "admin" ? t("governance.ledger.adminBadge") : entry.decision
+              }`}
+              aria-label=${`${t("governance.ledger.kindColumn")}: ${
+                entry.entryKind === "admin" ? t("governance.ledger.adminBadge") : entry.decision
+              }`}
+              >${renderSettingsStatus({
+                kind:
+                  entry.entryKind === "admin"
+                    ? "accent"
+                    : entry.decision === "allow"
+                      ? "ok"
+                      : entry.decision === "deny"
+                        ? "warn"
+                        : "muted",
+                label:
+                  entry.entryKind === "admin" ? t("governance.ledger.adminBadge") : entry.decision,
+              })}</span
+            >`,
           }),
         ),
     ],

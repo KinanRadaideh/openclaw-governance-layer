@@ -310,7 +310,11 @@ describe("tamper-evidence survives the added fields", () => {
     // The format change must not make existing history look tampered with. A
     // log whose own migration invalidates its past is not a tamper-evident log.
     await writeFile(ledgerFilePath(TEST_GROUP), legacyLine(), { mode: 0o600 });
-    expect(await verifyLedgerChain(TEST_GROUP)).toEqual({ ok: true, entriesChecked: 1 });
+    // `toMatchObject`, not `toEqual`: verification also returns the evidence
+    // it established (chain head, checkpoint, whether entries are keyed), and
+    // this assertion is about the verdict and the count rather than about the
+    // shape of the whole result. Added 2026-09-06.
+    expect(await verifyLedgerChain(TEST_GROUP)).toMatchObject({ ok: true, entriesChecked: 1 });
   });
 
   it("continues an old chain with new administrative entries", async () => {
