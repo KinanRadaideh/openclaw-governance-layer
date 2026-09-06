@@ -158,6 +158,14 @@ export class ConversationController implements ReactiveController {
     this.changed();
   }
 
+  /**
+   * Open this agent's conversation, or close it when it is already the open one.
+   *
+   * The toggle is right for the assigned-agent rows, whose button label flips
+   * between "Talk" and "Close", so the second press has something to mean.
+   * It is wrong for any control that says "Talk" whatever the state; those
+   * call `showConversation`.
+   */
   async openConversation(agentId: string): Promise<void> {
     if (this.agentId === agentId) {
       this.agentId = "";
@@ -165,6 +173,20 @@ export class ConversationController implements ReactiveController {
       this.changed();
       return;
     }
+    await this.showConversation(agentId);
+  }
+
+  /**
+   * Open this agent's conversation, re-fetching even when it is already open.
+   *
+   * Split out of `openConversation` because the chooser's button is labelled
+   * "Talk" in every state, and routing it through the toggle made it a Close
+   * button wearing an Open button's label: pressing it on the agent already
+   * showing shut the panel, emptied the field and disabled the button, with
+   * nothing on screen saying why. The caller that wants "close it again" is
+   * the one with a label that changes.
+   */
+  async showConversation(agentId: string): Promise<void> {
     this.agentId = agentId;
     this.transcript = null;
     this.error = null;

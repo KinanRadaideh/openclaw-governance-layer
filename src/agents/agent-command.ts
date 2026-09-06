@@ -6,6 +6,7 @@ import { resolveSessionWorkStartError } from "../config/sessions/lifecycle.js";
 import { buildRestartRecoveryClaimCleanupPatch } from "../config/sessions/restart-recovery-state.js";
 import type { RestartRecoveryTerminalDeliveryEvidenceResult } from "../config/sessions/restart-recovery-types.js";
 import type { SessionEntry } from "../config/sessions/types.js";
+import { recordHostPrompt } from "../governance/host-prompt-audit.js";
 import {
   assertAgentRunLifecycleGenerationCurrent,
   captureAgentRunLifecycleGeneration,
@@ -77,6 +78,32 @@ async function agentCommandInternal(
 ) {
   const resolvedDeps = await resolveAgentCommandDeps(deps);
   const isRawModelRun = initialOpts.modelRun === true || initialOpts.promptMode === "none";
+  // T57. Every agent turn in this process funnels through here — the local
+  // command path and every ingress path alike — which makes it the prompt-side
+  // equivalent of `runBeforeToolCallHook`, and the only place a prompt can be
+  // recorded once regardless of which surface it arrived on.
+  //
+  // Two exclusions, and both are about not writing the same fact twice or
+  // writing a fact that is not a prompt:
+  //
+  // - `governance` is the channel `governance-agent-runner.ts` stamps on runs
+  //   the dashboard started. Those are already in the chain under the account
+  //   that sent them, which is a strictly better entry than an anonymous one.
+  // - a raw model run is not somebody asking an agent to do something; it is
+  //   the runtime driving the model directly, and recording it would file
+  //   machinery as instruction.
+  //
+  // Awaited before the turn rather than alongside it: for a governed agent the
+  // record has to exist before the work does, or a run that dies mid-way leaves
+  // no trace of having been asked for.
+  if (!isRawModelRun && initialOpts.messageChannel !== "governance") {
+    await recordHostPrompt({
+      agentId: prepared.sessionAgentId,
+      message: initialOpts.message ?? "",
+      channel: initialOpts.messageChannel ?? initialOpts.channel,
+      runId: prepared.runId,
+    });
+  }
   const suppressVisibleSessionEffects = initialOpts.sessionEffects === "internal";
   const preserveUserFacingSessionModelState =
     initialOpts.preserveUserFacingSessionModelState === true;

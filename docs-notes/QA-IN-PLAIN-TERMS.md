@@ -7092,3 +7092,96 @@ That is worth stating because it is the fourth separate occasion where an hour o
 somebody actually using the dashboard produced better findings than a day of
 reading it. Reading finds code that is wrong. It cannot find a correct
 implementation nobody can reach.
+
+---
+
+## 5.100 The buttons that would not press
+
+The day after the last one, the same operator sat down with the same dashboard
+and hit something different in kind: not a missing feature, but a screen that
+plainly did not work.
+
+Three complaints, in his words:
+
+- The **Send** button would not click, even with a message typed in the box.
+- The **Talk** button "does not work" — pressing it emptied the agent id, greyed
+  the button out, and made the whole conversation vanish.
+- The only way back was to set the agent chooser to "Choose an agent…" and pick
+  the agent again — at which point the conversation opened **on its own**,
+  without Talk being pressed.
+
+### What was actually wrong
+
+All three were the same mistake, made twice.
+
+When you type into a box on this page, the keystroke has to be handed to the
+part of the program that remembers things. Every other box on the page does that
+correctly. These two handed it to a **scratch copy** instead — an object the page
+throws away and rebuilds from scratch every time it redraws.
+
+So the letters appeared on screen, because the browser puts them there, and went
+nowhere else. The program never learned you had typed anything. And since the
+Send button decides whether to be clickable by asking "is there a message yet?",
+and the answer it had was the empty one from before you started typing, it stayed
+switched off for ever. The same for Talk.
+
+**It is the difference between writing something down and writing it on a piece
+of paper you are about to throw in the bin.**
+
+### And one box that was trying to be two things
+
+The agent id box was worse, because a single piece of memory was being used for
+two different questions at once: _"what has the operator typed?"_ and _"which
+conversation is currently open?"_
+
+Those are not the same question, and treating them as one produced behaviour that
+looked haunted. Opening a conversation filled the box in by itself, because
+opening a conversation was the same act as typing in the box. And the Talk button
+was wired to a switch that means "open this, or close it if it is already open" —
+which is right for a button whose label changes between "Talk" and "Close", and
+wrong for this one, which says "Talk" no matter what. So pressing Talk on the
+conversation you were already looking at **closed** it.
+
+The workaround he found by accident is the proof: re-picking from the dropdown
+worked _because_ the first press had already closed things, leaving the switch
+free to open them again.
+
+### The line that meant well
+
+The person who wrote it had seen this coming. There is a comment right above the
+broken line saying, in effect, "force this to reload even though the box already
+holds the id" — and the line beneath it tries to do that by clearing the box.
+
+But it cleared the **scratch copy**. So the intention was recorded in the comment,
+the code could not carry it out, and nobody reading the file afterwards noticed,
+because the comment says what everyone expects to be true.
+
+### A second one, found by looking for the shape rather than the symptom
+
+Once the pattern was named, it was worth asking where else it lived. There was
+one more, on the **emergency stop**: after stopping an agent, the box was supposed
+to clear itself and did not, for exactly the same reason.
+
+The stop itself worked. But this is the one control where "did that actually
+work?" is the question in the operator's mind, and a box still holding the agent's
+name invites you to press it again. Fixed with the rest.
+
+### Why the tests said everything was fine
+
+This is the uncomfortable part, and it is the same lesson this project has now
+learned four times.
+
+There were thirteen tests covering this panel. They checked that the message box
+appears, that the attach button can be reached from the keyboard, that a queued
+file is readable. **Not one of them typed anything.** Every single test handed the
+page a message that was already there and checked what got drawn.
+
+So thirteen tests examined the picture and none touched the button. The bug was
+in the button.
+
+The three new tests type for real. And before trusting them, they were run against
+the **broken** version first: three failed, twenty-seven passed, and the three
+failures were word for word the three things the operator had complained about.
+Only then were they run against the fix, where all thirty pass.
+
+A test that has never been seen to fail is not evidence. It is a hope.

@@ -3887,6 +3887,9 @@ export const en: TranslationMap = {
       chooseAgentPick: "Choose an agent…",
       loading: "Loading the conversation…",
       empty: "No messages yet. Send the first one below.",
+      emptyReply:
+        "The agent finished without saying anything. That is a real outcome, not a failure — it happens when every action it tried was refused by your policy. The audit ledger below records what it attempted.",
+      transcriptLabel: "Conversation with {agent}",
       you: "You",
       send: "Send",
       sending: "Working…",

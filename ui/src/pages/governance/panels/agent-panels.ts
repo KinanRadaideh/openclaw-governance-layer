@@ -63,6 +63,7 @@ import { formatAttachmentSize, formatDuration } from "./format.ts";
 export type AgentDrafts = {
   killAgentId: string;
   promptDraft: string;
+  conversationAgentDraft: string;
 };
 
 type AgentPanelBase = PanelEffects & {
@@ -113,6 +114,10 @@ export type ConversationProps = AgentPanelBase & {
 
 export type AgentsSectionProps = ConversationProps & {
   openConversation: (agentId: string) => Promise<void>;
+  /** Always opens, never closes. The chooser's button, which never says "Close". */
+  showConversation: (agentId: string) => Promise<void>;
+  /** What is typed in the id box, which is not the id of the open conversation. */
+  conversationAgentDraft: string;
   /**
    * Every agent this caller can see, for the picker below.
    *
@@ -460,7 +465,13 @@ export function renderKillSwitchSection(props: KillSwitchProps): TemplateResult 
             @click=${() =>
               props.run(async () => {
                 await props.engageKillSwitch(typed);
-                props.killAgentId = "";
+                // Through `onDraft`: the field four lines above is bound that
+                // way and this clear was not, so it wrote into a per-render
+                // snapshot and the id stayed in the box after a stop had been
+                // engaged. Harmless to the stop itself, which had already
+                // happened, and misleading on the one control where "did that
+                // work?" is the question being asked.
+                props.onDraft({ killAgentId: "" });
               })}
           >
             ${t("governance.kill.button")}
@@ -522,17 +533,45 @@ export function renderConversation(
     <div class="settings-empty" style="display:flex;flex-direction:column;gap:0.5rem">
       ${transcript.turns.length === 0
         ? html`<span>${t("governance.conversation.empty")}</span>`
-        : transcript.turns.map(
-            (turn) => html`<div>
-              <strong>${turn.role === "user" ? t("governance.conversation.you") : agentId}</strong>
-              <span style="opacity:0.6"> · ${new Date(turn.at).toLocaleTimeString()}</span>
-              <div style="white-space:pre-wrap">
-                ${turn.error
-                  ? html`<em>${t("governance.conversation.failed")}: ${turn.error}</em>`
-                  : turn.body}
-              </div>
-            </div>`,
-          )}
+        : html`<div
+            role="log"
+            aria-live="polite"
+            aria-label=${t("governance.conversation.transcriptLabel", { agent: agentId })}
+            style="display:flex;flex-direction:column;gap:0.75rem;max-height:24rem;overflow-y:auto"
+          >
+            ${
+              // `role="log"` with `aria-live="polite"` so a reply that arrives
+              // after the operator has looked away is announced rather than
+              // appearing silently, and capped in height so a long conversation
+              // scrolls inside itself instead of pushing the composer off the
+              // screen — which on a page this long means the reply arrives and
+              // the box you type into is no longer where you left it.
+              transcript.turns.map(
+                (turn) => html`<div>
+                  <strong
+                    >${turn.role === "user" ? t("governance.conversation.you") : agentId}</strong
+                  >
+                  <span style="opacity:0.6"> · ${new Date(turn.at).toLocaleTimeString()}</span>
+                  <div style="white-space:pre-wrap">
+                    ${turn.error
+                      ? html`<em>${t("governance.conversation.failed")}: ${turn.error}</em>`
+                      : turn.body
+                        ? turn.body
+                        : // **An agent turn with no text used to render as a
+                          // blank line.** Empty is a real outcome and the
+                          // runner says so in its own comment — it is what
+                          // happens when every tool call the agent tried was
+                          // refused — but the panel drew nothing at all, so the
+                          // one case this layer exists to produce looked like
+                          // the page had broken. Said in words instead.
+                          html`<em style="opacity:0.75"
+                            >${t("governance.conversation.emptyReply")}</em
+                          >`}
+                  </div>
+                </div>`,
+              )
+            }
+          </div>`}
       ${props.promptPending
         ? html`<div>
             <strong>${agentId}</strong>
@@ -585,7 +624,12 @@ export function renderConversation(
               .value=${props.promptDraft}
               ?disabled=${props.promptPending}
               @input=${(e: Event) => {
-                props.promptDraft = (e.target as HTMLInputElement).value;
+                // `onDraft` routes this to the conversation controller. Assigning
+                // to `props.promptDraft` wrote into a per-render snapshot, so the
+                // typed message reached no state at all: Send's `?disabled` still
+                // read the empty draft it was rendered with, and the button never
+                // came alive however much was typed.
+                props.onDraft({ promptDraft: (e.target as HTMLInputElement).value });
               }}
               @keydown=${(e: KeyboardEvent) => {
                 // Enter sends, which is what every chat input on the web does.
@@ -725,7 +769,9 @@ export function renderAgentsSection(props: AgentsSectionProps): TemplateResult |
                     @change=${(e: Event) => {
                       const chosen = (e.target as HTMLSelectElement).value;
                       if (chosen) {
-                        void props.openConversation(chosen);
+                        // Picking a name from a list is a request to open that
+                        // one, never to close it.
+                        void props.showConversation(chosen);
                       }
                     }}
                   >
@@ -744,19 +790,21 @@ export function renderAgentsSection(props: AgentsSectionProps): TemplateResult |
                 type="text"
                 aria-label=${t("governance.conversation.chooseAgent")}
                 placeholder=${t("governance.kill.agentIdPlaceholder")}
-                .value=${props.conversationAgentId}
+                .value=${props.conversationAgentDraft}
                 @input=${(e: Event) => {
-                  props.conversationAgentId = (e.target as HTMLInputElement).value;
+                  // Through `onDraft`, like every other field on this page.
+                  // Assigning to `props` wrote into the object `agentPanelProps()`
+                  // rebuilds each render, so the keystroke reached no state and
+                  // fired no re-render: the button below stayed disabled however
+                  // much was typed, and the value vanished on the next paint.
+                  props.onDraft({ conversationAgentDraft: (e.target as HTMLInputElement).value });
                 }}
               />
               <button
                 class="btn"
-                ?disabled=${props.busy || !props.conversationAgentId.trim()}
+                ?disabled=${props.busy || !props.conversationAgentDraft.trim()}
                 @click=${() => {
-                  const agentId = props.conversationAgentId.trim();
-                  // Force a fetch even though the field already holds the id.
-                  props.conversationAgentId = "";
-                  void props.openConversation(agentId);
+                  void props.showConversation(props.conversationAgentDraft.trim());
                 }}
               >
                 ${t("governance.conversation.open")}

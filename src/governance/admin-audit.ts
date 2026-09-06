@@ -364,6 +364,11 @@ const RESERVED_ACTOR_NAMES: ReadonlySet<string> = new Set([
   "unknown",
   "unauthenticated",
   "hitl-approval",
+  // T57. A prompt that reached an agent on one of the host's own surfaces,
+  // where no governance account exists to attribute it to. Reserved for the
+  // same reason as the rest: an account called `host-prompt` would produce
+  // entries indistinguishable from the anonymous ones.
+  "host-prompt",
 ]);
 
 /** Thrown when a named actor claims a labelled origin's name, with or without a tier. */

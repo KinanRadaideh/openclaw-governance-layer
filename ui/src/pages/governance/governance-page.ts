@@ -189,6 +189,19 @@ class GovernancePage extends OpenClawLightDomElement {
   @state() private folderGrant = { folder: "", exceptions: "", agentId: "", written: null };
   @state() private newRuleTtl = "";
   @state() private killAgentId = "";
+  /**
+   * The id half-typed into the conversation chooser, kept apart from the id of
+   * the conversation actually open.
+   *
+   * One field used to do both jobs, and the two meanings pulled in opposite
+   * directions: the box was bound to the *open* conversation, so it filled
+   * itself in when a conversation opened, and typing into it was read as
+   * "change which conversation is open". It sits here rather than on
+   * `ConversationController` for the same reason `killAgentId` does — it is a
+   * half-finished instruction to the page, not state of the conversation, and
+   * it must survive the controller clearing itself.
+   */
+  @state() private conversationAgentDraft = "";
   @state() private users: GovernanceUserRecord[] = [];
   /**
    * The account panels' half-typed form fields, including the Administrator a
@@ -393,6 +406,7 @@ class GovernancePage extends OpenClawLightDomElement {
       canAdminister: canAdminister(this.identity),
       canManageAnyAgent: canManageAnyAgent(this.identity),
       pendingDecisions: this.pendingDecisions,
+      conversationAgentDraft: this.conversationAgentDraft,
       ...this.conversation.slice(),
       // **Routes, rather than narrows.** A first attempt at T53 restricted this
       // to `promptDraft` on the grounds that the composer is the only thing
@@ -414,6 +428,7 @@ class GovernancePage extends OpenClawLightDomElement {
       addAttachments: (files) => this.conversation.addAttachments(files),
       removeAttachment: (held) => this.conversation.removeAttachment(held),
       openConversation: (agentId) => this.conversation.openConversation(agentId),
+      showConversation: (agentId) => this.conversation.showConversation(agentId),
     };
   }
 
@@ -599,8 +614,34 @@ class GovernancePage extends OpenClawLightDomElement {
    * state of the system.
    */
   private markSessionExpired(): void {
-    this.identity = null;
+    this.endSession();
     this.sessionExpired = true;
+  }
+
+  /**
+   * Everything an ended session leaves behind, dropped in one place.
+   *
+   * **Both ways out of a session come through here, and they used not to.**
+   * `markSessionExpired` cleared fifteen things; signing out deliberately
+   * cleared three — `identity`, `ledger`, `policy` — so the *voluntary* exit
+   * was the leaky one. The page is not torn down by signing out, so the next
+   * account to sign in **in the same tab** was rendered against whatever the
+   * previous one had loaded: the account list, the pending decisions, the
+   * deployment report, and the agent conversation.
+   *
+   * The conversation is the one that matters, and neither path cleared it.
+   * `ConversationController.forget` was written for exactly this — its own
+   * comment says "clears the composer when a session ends" — and **nothing has
+   * ever called it**. It is also the only one of these that `refreshData`
+   * does not overwrite on sign-in, because a transcript is loaded by opening a
+   * conversation and never by the refresh, so one account's conversation with
+   * an agent stayed on screen for the next account indefinitely.
+   *
+   * Same family as finding 209 (state outliving the sign-in that authorised
+   * it) and 256 (one holder's data reaching the next).
+   */
+  private endSession(): void {
+    this.identity = null;
     this.policy = null;
     this.ledger = [];
     this.users = [];
@@ -611,6 +652,9 @@ class GovernancePage extends OpenClawLightDomElement {
     this.systemStatus = null;
     this.deployment = null;
     this.verification = null;
+    this.conversation.forget();
+    this.killAgentId = "";
+    this.conversationAgentDraft = "";
     // Drafted credentials go with everything else.
     //
     // This method exists to make sure nothing from an ended session is left
@@ -850,10 +894,10 @@ class GovernancePage extends OpenClawLightDomElement {
               ...this.effects(),
               identity: this.identity,
               busy: this.busy,
+              // The same reset the expiry path uses. Signing out used to clear
+              // three fields of the fifteen an ended session leaves behind.
               onSignOut: () => {
-                this.identity = null;
-                this.ledger = [];
-                this.policy = null;
+                this.endSession();
               },
             })}
             ${renderUsersSection({

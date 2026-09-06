@@ -1839,3 +1839,266 @@ name was discarded by a `| tail` and never reproduced — and "it passed the sec
 time" is the sentence that turns a real intermittent defect into a closed one.
 Capacity tests that measure timing under load are the plausible place for a real
 one to hide. If either name appears again, it is worth more than a re-run.
+
+---
+
+## 2026-09-06 (ii): the talk panel, and one field doing two jobs
+
+**Findings 269 and 270, both fixed.** The fifth occasion running where the most
+useful finding of a day came from Kinan operating the system rather than from
+anybody reading it — and the first where the report was of something that
+plainly did not work, rather than of something missing.
+
+### What was reported
+
+Three symptoms, described from the screen: the **Send** button would not click
+with `hey` typed in the composer; the **Talk** button "does not work", and
+pressing it emptied the id box, greyed the button out and made the conversation
+disappear; and the only way back was to set the chooser to "Choose an agent…"
+and pick `andrew` again, at which point the conversation opened **without Talk
+being pressed at all**.
+
+### One cause underneath all three
+
+Two inputs in `agent-panels.ts` wrote their keystroke straight onto the `props`
+object:
+
+```ts
+props.promptDraft = (e.target as HTMLInputElement).value;
+```
+
+`agentPanelProps()` rebuilds that object on **every render**, spreading
+`...this.conversation.slice()` into a fresh plain object. So the assignment
+landed on a snapshot that was thrown away, reached no state, and — because
+nothing called `requestUpdate` — triggered no re-render. Which meant the button
+beside each input kept the `?disabled` it had been **rendered** with:
+
+- `Send` reads `!props.promptDraft.trim()`, and the draft it read was still the
+  empty one from the last paint. It could never come alive by typing.
+- The chooser's `Talk` reads the same field it types into, so it could never
+  come alive either.
+
+Every other input on this page routes through `props.onDraft({ ... })`, which
+reaches `ConversationController.setDraft` and ends in `changed()`. These two did
+not, and nothing made them look different.
+
+### And the part that made it stranger than a dead button
+
+The id box was bound to `conversationAgentId` — **the id of the conversation
+currently open**. One field was doing two jobs: "what the operator has typed"
+and "which conversation is showing". That is why the box filled itself in on its
+own, and why it emptied when the panel closed.
+
+It also explains the Talk button appearing to do the opposite of its label.
+`openConversation` is a **toggle** — correct for the assigned-agent rows, whose
+button says "Talk" or "Close" depending on state. The chooser's button says
+"Talk" in every state, and was calling the toggle. So pressing it on the agent
+already showing **closed** it. The handler had tried to defeat exactly this:
+
+```ts
+// Force a fetch even though the field already holds the id.
+props.conversationAgentId = "";
+```
+
+That write was meant to clear the controller's idea of the open agent so the
+toggle would open rather than close. It went to the discarded snapshot like the
+others, so the controller still saw `andrew` as open and shut it. **A comment
+describing an intention the line could not carry out** — and the workaround
+Kinan found (re-pick from the dropdown) worked precisely because the first press
+had already closed the conversation, leaving the toggle free to open it.
+
+### The fix
+
+Three changes, none of them clever:
+
+1. `conversationAgentDraft` is a new field on the page, separate from the id of
+   the open conversation, sitting beside `killAgentId` because it is the same
+   kind of thing: a half-finished instruction to the page, not state of the
+   conversation.
+2. Both inputs route through `onDraft`, like every other field on the page.
+3. `showConversation` splits out of `openConversation`: it always opens and
+   re-fetches. The chooser and the dropdown call it; the assigned-agent rows,
+   whose label changes, keep the toggle.
+
+### 270, which was swept for rather than reported
+
+Grepping the class — an input handler assigning to `props` instead of routing
+through `onDraft` — found one more, on the **emergency stop**:
+
+```ts
+await props.engageKillSwitch(typed);
+props.killAgentId = "";
+```
+
+The stop itself works; the field four lines above is correctly bound. Only the
+clear-after-stop went to the snapshot, so the agent id stayed in the box after a
+stop had been engaged. Harmless to the stop, and misleading on the one control
+where "did that actually work?" is the question being asked. Fixed the same way.
+
+The whole-`ui/` sweep for the pattern now returns nothing.
+
+### Why the suite did not catch this, which is the part worth keeping
+
+`governance-page.test.ts` had thirteen tests over this panel, including ones
+that assert the composer renders, that Attach is reachable by keyboard, and that
+a queued file is legible. **Not one of them typed anything.** Every test handed
+the component a `promptDraft` already filled in and asserted what rendered from
+it — so all thirteen exercised the template and none exercised the input, and
+the input was where the defect was.
+
+That is findings 206, 221 and 224 again: a green test that describes its own
+fixture rather than the product. The three tests added here dispatch real
+`input` events, and **were run against the unfixed code first**: 3 failed, 27
+passed, with the failures reproducing the operator's three symptoms exactly.
+Then re-run against the fix: 30 passed. A test that has never been seen to fail
+is a claim, not evidence.
+
+### The standing lesson, restated because the axis keeps paying
+
+Four of the last five most valuable findings came from somebody **using** the
+screen. This one is stronger than that: the code was not merely missing an
+affordance, it was actively wrong in a way three separate reading passes over
+`agent-panels.ts` had not noticed — including the pass that wrote the comment
+above the broken line.
+
+---
+
+## 2026-09-06 (iii): a prompt recorded wherever it comes from, and two decisions taken by precedent
+
+**T57, built the same day it was added, at Kinan's direction.** Plus findings
+271 and 272, both fixed.
+
+### The gap
+
+`ADMIN_ACTIONS.agentPrompt` had exactly one writer: `agent-conversation.ts`,
+which serves the dashboard's prompt route. Measured, not assumed — one grep over
+the repository, and nothing else records a prompt at all.
+
+So a task typed into OpenClaw's own chat, sent from the command line, or
+arriving over a channel reached the agent with **nothing in the chain naming who
+asked**. The trail could say _"the agent attempted to read a credential file and
+was refused"_ but not _"because somebody asked it to"_.
+
+**The unaffected half is the larger half and must be said plainly:** the gate
+sits at `runBeforeToolCallHook`, so every tool call was governed and logged
+whatever door the prompt came through. A refusal still refused. What was missing
+is the instruction and its origin.
+
+### The shape, chosen by Kinan
+
+The labelled-origin option. `HOST_PROMPT_ACTOR` (`host-prompt`) joins `cli`,
+`bootstrap`, `hitl-approval` and `unauthenticated` in `RESERVED_ACTOR_NAMES`, so
+no real account can produce an entry that reads as an anonymous one. There is no
+governance account on those surfaces to attribute to — OpenClaw's chat is
+authenticated by the Gateway and the command line by neither — and naming one
+would be finding 161's exact mistake: **an entry saying `unknown` announces that
+attribution is missing and invites the question, while an entry naming an
+account answers it wrongly and nothing downstream can tell it from the real
+thing.** The channel is named in the entry instead, so an auditor still learns
+the surface without it being dressed up as an identity.
+
+### Where it hooks, and why there
+
+`agentCommandInternal`. Every agent turn in the process funnels through it — the
+local command path and every ingress path alike — which makes it the prompt-side
+equivalent of `runBeforeToolCallHook`, and the only place a prompt can be
+recorded once regardless of surface.
+
+Two exclusions. Runs stamped with the `governance` channel are already in the
+chain under the account that sent them, which is a strictly better entry than an
+anonymous one. Raw model runs are the runtime driving the model directly, and
+recording them would file machinery as instruction.
+
+### The two open questions were answered by precedent, and one answer changed
+
+Kinan's instruction was to take the design that exists and, for each, make the
+decision most aligned with previous similar decisions. Both were then settled by
+citation rather than judgement, which is worth recording as a method: **the
+answers were already in the codebase, and one of them contradicted what had been
+written the hour before.**
+
+- **An agent with no group is recorded, not skipped.** The first draft returned
+  silently, reasoning that there is no chain to write to. The gate does not do
+  that. When `resolveAgentGroup` returns nothing, `evaluateGovernancePolicy`
+  writes into `INSTALLATION_LEDGER_GROUP` — which exists precisely because there
+  is no group chain — and its comment gives the reason: _"requirement #5 asks for
+  every action, and 'an unregistered agent tried to act' is exactly the one an
+  operator needs"._ A prompt to such an agent is that same fact one step earlier.
+  **The first draft would have made the case an operator most needs the one case
+  nothing records.**
+- **The prompt is still not refused there**, and that half stood. The gate blocks
+  an unregistered agent's tool calls; duplicating that enforcement one layer up
+  puts the same rule in two places, and the second copy is the one that goes
+  stale — the shape that produced four findings in a single sweep.
+- **A failed ledger write stops the turn.** Also the gate's answer rather than a
+  new one: its `catch` returns `blocked: true`, so a write that fails takes the
+  tool call with it. Recorded before the turn so there is something to stop.
+- **The `isUnconfiguredTestRun()` exemption is taken verbatim**, not invented. A
+  process that never asked for a governance directory is not an installation.
+
+**Retrying a failed write was raised and declined, on the code's own evidence.**
+`withFileLock` already retries lock _acquisition_ with randomised backoff, and
+deliberately excludes the critical section's own errors, its comment saying that
+treating an EACCES as contention "re-ran a non-idempotent append in a loop". The
+append is not idempotent: if the failure lands after `appendFile` has succeeded
+— in the checkpoint write or the rotation — a retry appends the entry twice, and
+a duplicate in a hash chain defeats the verification requirement 6 rests on. A
+permanent error (full disk, read-only filesystem) would also hang the turn for
+ever instead of failing closed. Left as it is, with Kinan's agreement.
+
+### 271: signing out cleared three things of fifteen
+
+Found while sweeping the class that produced 269. `markSessionExpired` cleared
+fifteen fields; `onSignOut` cleared `identity`, `ledger` and `policy`. **The
+voluntary exit was the leaky one.**
+
+The page is not torn down by signing out, so the next account to sign in **in the
+same tab** was rendered against whatever the previous one had loaded: the account
+list, the pending decisions, the deployment report, and the agent conversation
+transcript.
+
+The transcript is the one that matters, and it is the one `refreshData` never
+reloads — a transcript is fetched by opening a conversation and by nothing else —
+so one account's conversation with an agent stayed on screen for the next account
+indefinitely. `ConversationController.forget` was written for exactly this, its
+own comment says "clears the composer when a session ends", and **nothing had
+ever called it.** Both exits now go through one `endSession`.
+
+Same family as 209 (state outliving the sign-in that authorised it) and 256 (one
+holder's data reaching the next).
+
+### 272: the reply that rendered as a blank line
+
+An agent turn with no text drew nothing at all. Empty is a real outcome rather
+than a fault — `governance-agent-runner.ts` says so in its own comment, it is
+what happens when every tool call the agent tried was refused — which means
+**the single case this whole layer exists to produce looked like a broken
+page.** It now says so in words and points at the ledger. The transcript is also
+a `role="log"` region with `aria-live="polite"` and a capped height, so a reply
+arriving after the operator looked away is announced and a long conversation
+scrolls inside itself rather than pushing the composer off the screen.
+
+### A test that would have passed either way, deleted rather than kept
+
+Two tests were written for 271. One asserted the account list is cleared, and it
+**passed with the fix reverted**: `refreshData` runs straight after the sign-out
+and, with `identity` null, resolves `listUsers` to `[]` locally without asking
+the server, so `users` empties either way. It was deleted, with the reasoning
+left in its place. A test that cannot fail for the reason it claims is worse than
+no test, because it is counted.
+
+**Five of the day's test failures were fixture errors, none was a product
+error**: a user record missing `assignedAgents`, a `Response` constructor absent
+in jsdom, stub bodies of the wrong shape, an unprovided Lit context, and
+asserting on `action`/`target` — the _input_ field names — when
+`recordAdminAction` stores them as `toolName`/`resource`. The last one reported a
+working feature as doing nothing, which is finding 257's mirror image: same root
+cause, opposite symptom, and only one of the two is loud.
+
+**And the T57 tests were themselves found wanting before they were trusted.**
+All of them called `recordHostPrompt` directly, so every one would have kept
+passing if the call site in the funnel were deleted — the panel's thirteen tests
+again, and the standing rule from the mutation sweeps that a probe must drive the
+production caller. A wiring guard in the shape of
+`client-callsites.guard.test.ts` now fails if the hook, the governance-channel
+exclusion, or the raw-model-run exclusion is removed.

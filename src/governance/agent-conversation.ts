@@ -209,6 +209,19 @@ function sanitize(value: string, max: number): string {
   return clamp(redactToolPayloadText(value), max);
 }
 
+/**
+ * The same treatment for a prompt recorded from outside this route (T57).
+ *
+ * Exported rather than copied. `host-prompt-audit.ts` records prompts that
+ * arrive on the host's own surfaces, and the two entries land in the same
+ * chain, so they must be redacted and clamped identically — a second copy of
+ * this is the shape that produced four findings in one sweep, a fact kept in
+ * two places with one copy maintained.
+ */
+export function sanitizePromptForAudit(value: string): string {
+  return sanitize(value, MAX_PROMPT_LENGTH);
+}
+
 async function ensureHomeDir(groupId: string): Promise<void> {
   // The **group's** directory, not just the installation root (M5).
   //
