@@ -340,6 +340,17 @@ caller. `HITL_ACTOR`'s comment ended _"do not reintroduce a writer without
 re-opening finding 83"_ — finding 170's fix, guarding a change nobody had
 planned, eighteen days early.
 
+**278 came from reading a real install log**, and it is partly this file's own
+fault. The rebuild command written here the night before said `pnpm build &&
+pnpm ui:build` — but `ui:build` is already a phase of `pnpm build`, so the UI was
+built twice and **two generations of content-hashed chunks** landed in `dist/`,
+the same "two builds coexisting" state that broke `exec`. `scripts/vps-install.sh`
+had the same duplicate. **The worse half is `--skip-ui`**, which skipped only
+the duplicate — the UI was built regardless — while telling the operator "the
+governance dashboard will not be served". A flag reporting a consequence it does
+not have. Both are fixed, and the command here now begins with `git pull` and
+ends with a version check.
+
 **277 is the one to read on method.** A capacity test timed out carrying
 `LedgerKeyUnusableError`. §7's rule from finding 169 says such a failure is
 worth more than a re-run, **and a re-run would have passed and buried it**:
@@ -3789,20 +3800,67 @@ deprioritised. Sorted below by who has to move first.
 between the current build and the server, and it is also finding 274's repair:
 
 ```bash
-cd /opt/openclaw-governance && openclaw daemon stop && rm -rf dist dist-runtime && pnpm build && pnpm ui:build && openclaw daemon start
+cd /opt/openclaw-governance && git pull && openclaw daemon stop && rm -rf dist dist-runtime && pnpm build && openclaw daemon start
 ```
+
+**`git pull` first, and it used not to be in this command.** A rebuild without
+it recompiles the code the server already had, which is what happened on
+2026-09-07: the build ran cleanly and reported `OpenClaw 2026.8.1 (d6a0121)`,
+the _previous_ commit, because the pull came afterwards. The build succeeded and
+changed nothing.
+
+**Do not add `pnpm ui:build`.** `ui:build` is a phase of `pnpm build`
+(`scripts/build-all.mjs`, the `full` profile), so running it again builds the
+Control UI twice and writes **two generations of content-hashed chunks** into
+`dist/` — the same "two builds coexisting" state that broke `exec`, arriving
+from the command rather than from a crash. This instruction carried that
+mistake, and `scripts/vps-install.sh` carried it too (finding 278).
 
 `rm -rf dist` matters more than `pnpm build` does. **Nothing in the build ever
 clears `dist/`**, so a build that dies partway — which the README already warns
 happens under 8 GB — leaves new chunks beside old ones and a reference that
 resolves to nothing. That is what broke `exec` on 2026-09-06, and a restart
 masked it rather than fixing it. Check `free -h` first and add swap if it is
-tight, or the rebuild dies the same way.
+tight; **the 2026-09-07 rebuild did not run out of memory**, completing the full
+build in 42s with caches restored, so the OOM warning is a precaution rather
+than an observed failure on this host.
 
-**It also brings up three things the server does not have yet**: agents knowing
-the name they were given, the escalation's "allow always", and finding 273's
-fix, so a demonstration screenshot taken before it will still show an intent
-from the wrong turn.
+**It also brings up the things the server does not have yet**: agents knowing
+the name they were given, the escalation's "allow always", Root being able to
+own an agent, and finding 273's fix — so a demonstration screenshot taken before
+it will still show an intent from the wrong turn.
+
+#### Then check which code is actually running, because a green build does not tell you
+
+```bash
+openclaw --version
+```
+
+**This is the step that was missing on 2026-09-07 and it cost a whole rebuild.**
+The build ran cleanly for 42 seconds, printed every asset, reported success, and
+announced `OpenClaw 2026.8.1 (d6a0121)` — the **previous** commit — because the
+`git pull` came after it rather than before. Nothing was wrong with the build.
+It rebuilt the code the server already had, and every subsequent screenshot
+would have shown behaviour from the day before while looking entirely healthy.
+
+If the hash is not newer than the one you pulled, the pull did not take and
+nothing is live. **A build that succeeds says nothing about which code it
+built**, which is the same class as the other three "green means measured"
+mistakes recorded this week: a test run that started no worker and exited 0, a
+lint gate whose exit code was `tail`'s, and a browser test that skipped itself
+silently.
+
+A quick way to see the rest of the state at once, once the daemon is up:
+
+```bash
+openclaw governance deployment
+```
+
+**`dist/` may hold several generations of chunks** until the corrected installer
+is on the server, because `vps-install.sh` built the Control UI twice until
+finding 278 (below). Harmless — `index.html` points at the newest set — but a
+clean `rm -rf dist` pass is worth doing once, and after that the double build is
+gone.
 
 **Then commit and push.** Both halves, in that order. A push does not carry an
 uncommitted tree.

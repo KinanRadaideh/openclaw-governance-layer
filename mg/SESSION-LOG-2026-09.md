@@ -2267,3 +2267,42 @@ class, five copies**), and seven stale test and defect counts.
 
 That is the shape of the whole night in one line: **the gate was right, and what
 the system said about itself kept being wrong.**
+
+### Postscript, 2026-09-07: the rebuild that rebuilt yesterday
+
+Kinan ran the rebuild this file's own handoff had prescribed, and it worked
+perfectly on the wrong code.
+
+The build was clean: 42 seconds, every asset written, caches restored, no
+OOM — the memory warning this project has repeated since the README was written
+has still never actually fired on this host. And it announced **`OpenClaw
+2026.8.1 (d6a0121)`**, the _previous_ commit, because the `git pull` came after
+the rebuild rather than before. Nothing failed. It recompiled the code the
+server already had, and every screenshot taken afterwards would have shown
+yesterday's behaviour while looking entirely healthy.
+
+**A build that succeeds says nothing about which code it built.** That is the
+fourth member of this week's "green means measured" family, after a vitest run
+that started no worker and exited 0, a lint gate whose exit code was `tail`'s,
+and a browser test that skipped itself silently. The command in `HANDOFF.md` now
+begins with `git pull` and ends with `openclaw --version`.
+
+**And the log contained a defect nobody had thought to look for** (finding 278).
+Two complete vite builds ran, producing different content hashes for the same
+modules, so both generations sit in `dist/`. `ui:build` is a phase of
+`pnpm build`, and both the handoff's command and `scripts/vps-install.sh` ran it
+again afterwards. Harmless in itself, and it is **the same "two builds
+coexisting" state that broke `exec` two days earlier**, arriving from the
+installer rather than from a crash.
+
+The worse half was the flag. `--skip-ui` skipped only the duplicate, so the
+Control UI was built regardless while the operator was told _"the governance
+dashboard will not be served"_. There is no build profile that omits the UI, so
+the flag could never do what its name promised. Finding 113's class — a
+capability that looks present and is not — in an installer this project has run
+on a real server three times without reading its output closely.
+
+**Reading the log of a thing that worked is an axis this project had not used.**
+Every previous sweep looked at code, at surfaces, at tests, or at a failure. This
+one looked at a success, and found a defect in the installer and a mistake in
+the instructions written the night before.

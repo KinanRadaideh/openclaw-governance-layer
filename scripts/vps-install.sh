@@ -203,12 +203,29 @@ $PNPM build
 [ -f dist/entry.js ] || [ -f dist/entry.mjs ] || die "build finished but dist/entry.(m)js is missing"
 ok "dist/entry built"
 
+# **The Control UI is built by `pnpm build` above** (`ui:build` is a phase of the
+# `full` profile in `scripts/build-all.mjs`), and this used to run it a second
+# time. Two consequences, both found on 2026-09-07 by reading a real install log
+# (finding 278):
+#
+#   1. Vite ran twice and wrote **two generations of content-hashed chunks**
+#      into `dist/`, because nothing clears it between them. `index.html` points
+#      at the newer set so it works, and the older set is dead weight — which is
+#      the same "two builds coexisting" state that broke `exec` on this server
+#      (finding 274), arriving from the installer rather than from a crash.
+#   2. `--skip-ui` skipped **only the duplicate**. The UI was built regardless,
+#      while the operator was told "the governance dashboard will not be served",
+#      which was false and is the worse half: a flag that reports a consequence
+#      it does not have.
+#
+# There is no build-all profile that omits the UI, so the flag cannot do what
+# its name promises. It is kept because scripts may pass it, and it now says
+# what is actually true.
 if [ "$SKIP_UI" -eq 1 ]; then
-  warn "skipping the Control UI build (--skip-ui); the governance dashboard will not be served"
-else
-  $PNPM ui:build
-  ok "control UI built"
+  warn "--skip-ui has no effect: the Control UI is a phase of \`pnpm build\` and was built with it"
 fi
+[ -d dist/control-ui ] || die "build finished but dist/control-ui is missing"
+ok "control UI built"
 
 # --------------------------------------------------------------------------
 step "Platform checks"
