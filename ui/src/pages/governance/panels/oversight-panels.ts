@@ -251,10 +251,24 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
         ? renderSettingsRow({
             title: renderSettingsStatus({
               kind: visibleLedger.length > shownRows ? "warn" : "muted",
-              label: t("governance.ledger.showing", {
-                shown: String(shownRows),
-                total: String(visibleLedger.length),
-              }),
+              // **"matching" when a filter is on** (finding 340). The count
+              // describes `visibleLedger`, the *filtered* set, and the
+              // unqualified sentence read "Showing the 39 most recent of 39
+              // entries" on a page holding 114 — measured with the Sign-ins
+              // filter active. An operator reads that as the size of the
+              // trail. Finding 329's repair was right to count what is on
+              // screen and wrong to leave what the number counts unsaid.
+              label:
+                ledgerFilter === "all"
+                  ? t("governance.ledger.showing", {
+                      shown: String(shownRows),
+                      total: String(visibleLedger.length),
+                    })
+                  : t("governance.ledger.showingFiltered", {
+                      shown: String(shownRows),
+                      total: String(visibleLedger.length),
+                      held: String(ledger.length),
+                    }),
             }),
             // Only when something is actually out of reach. The count above is
             // unconditional; this sentence is the *consequence*, and printing

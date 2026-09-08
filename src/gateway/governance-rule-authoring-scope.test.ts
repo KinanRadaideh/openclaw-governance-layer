@@ -910,3 +910,76 @@ describe("deciding a timed-out escalation", () => {
     expect(await listRuleRequests(TEST_GROUP)).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// The ledger's page window, and who loses rows to it (finding 333).
+//
+// The route took the newest `limit` entries and filtered them for the caller
+// afterwards, so a tier scoped by `canViewAgent` spent its window on entries it
+// may not see. Measured on a running gateway, one Viewer, one moment:
+// `?limit=50` returned 0 rows and `?limit=200` returned 5. The dashboard asks
+// for 200, so it worked until 200 newer entries existed — at which point the
+// panel goes blank and tells the oversight tier the trail is empty.
+//
+// The scan is now a constant (`MAX_LEDGER_PAGE`) rather than the caller's
+// number, so the worst-case read is exactly what it already was and finding
+// 82's denial-of-service bound is untouched.
+// ---------------------------------------------------------------------------
+
+describe("the audit ledger's window is spent on entries the caller can see", () => {
+  /** Writes `count` entries for one agent, so the window can be crowded out. */
+  async function writeEntriesFor(agentId: string, count: number): Promise<void> {
+    const { appendLedgerEntry } = await import("../governance/audit-ledger.js");
+    for (let i = 0; i < count; i += 1) {
+      await appendLedgerEntry(TEST_GROUP, {
+        agentId,
+        sessionKey: `agent:${agentId}:host`,
+        toolName: "read",
+        resourceKind: "path",
+        resource: `/srv/${agentId}/file-${i}.txt`,
+        ruleId: "-",
+        decision: "allow",
+      });
+    }
+  }
+
+  it("still finds a scoped caller's rows when newer entries crowd the page", async () => {
+    // One row the User may see, then a wall of rows they may not.
+    await writeEntriesFor("mine", 1);
+    await writeEntriesFor("theirs", 40);
+
+    const res = await send("GET", "ledger?limit=5", session("user", ["mine"]));
+    expect(res.status).toBe(200);
+    // Fails against the unrepaired route: the newest five are all `theirs`,
+    // every one is filtered out, and the caller is handed an empty array while
+    // a row they are entitled to sits just behind them.
+    expect(res.body.length, "the one row this account may see must survive a crowded window").toBe(
+      1,
+    );
+    expect(res.body[0]?.agentId).toBe("mine");
+  });
+
+  it("still honours the page size for a caller who can see everything", async () => {
+    // The guard: filtering before paging must not start over-serving. An
+    // Administrator sees every row, so the page size is the whole answer.
+    await writeEntriesFor("mine", 12);
+
+    const res = await send("GET", "ledger?limit=5", session("administrator"));
+    expect(res.status).toBe(200);
+    expect(res.body.length, "the page size still bounds the response").toBe(5);
+  });
+
+  it("returns the newest rows, not the oldest", async () => {
+    // `tailLedger` yields oldest-first, so the page is taken from the end.
+    // Getting this backwards would quietly serve ancient history to a panel
+    // whose whole value is recency.
+    await writeEntriesFor("mine", 6);
+
+    const res = await send("GET", "ledger?limit=2", session("administrator"));
+    const seqs = res.body.map((entry: { seq: number }) => entry.seq);
+    expect(seqs).toEqual([...seqs].toSorted((a: number, b: number) => a - b));
+    const all = await send("GET", "ledger?limit=1000", session("administrator"));
+    const newest = all.body.at(-1)?.seq;
+    expect(res.body.at(-1)?.seq, "the last row served is the newest entry").toBe(newest);
+  });
+});

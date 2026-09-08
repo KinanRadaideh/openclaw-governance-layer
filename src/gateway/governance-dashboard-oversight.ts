@@ -94,16 +94,44 @@ export async function handleGovernanceOversightRoutes(
     // Clamped rather than rejected: a caller asking for more than the page size
     // wants "as much as you have", and refusing a number would break the
     // dashboard for a request that has an obvious correct answer.
-    const entries = await tailLedger(
-      groupId,
-      Number.isFinite(limit) && limit > 0 ? Math.min(limit, MAX_LEDGER_PAGE) : 200,
-    );
+    const page = Number.isFinite(limit) && limit > 0 ? Math.min(limit, MAX_LEDGER_PAGE) : 200;
+    // ------------------------------------------------------------------
+    // **Scan a fixed window, then filter, then page** (finding 333).
+    //
+    // This read used to take the newest `page` entries and filter them
+    // afterwards, so the window was spent on entries the caller may not see.
+    // For a tier scoped by `canViewAgent` that is not a cosmetic ordering
+    // problem: measured on one Viewer at one moment, `?limit=50` returned
+    // **0 entries** and `?limit=200` returned **5**. The rows existed; the
+    // window had been used up by other agents' entries.
+    //
+    // The dashboard asks for 200, so it worked — until the day 200 entries
+    // newer than yours exist, when the panel goes blank and says *"No audit
+    // entries yet"* to the tier whose entire definition is reading the audit
+    // trail. Requirement 8's own oversight surface answering "nothing is
+    // recorded" about a full ledger.
+    //
+    // **The scan is `MAX_LEDGER_PAGE`, a constant, and never the caller's
+    // number.** That is what makes this safe rather than a re-opening of
+    // finding 82: the worst-case read is exactly what it already was for a
+    // caller passing the maximum, so the denial-of-service bound that finding
+    // closed is unchanged while every scoped caller stops losing rows to it.
+    // No trade was needed; the old shape was simply spending the budget in the
+    // wrong order.
+    //
+    // What remains true, and the panel says so: beyond the newest
+    // `MAX_LEDGER_PAGE` entries this route cannot look, and the whole chain is
+    // read with `node scripts/verify-ledger.mjs`.
+    // ------------------------------------------------------------------
+    const scanned = await tailLedger(groupId, MAX_LEDGER_PAGE);
     // The design doc grants Viewers "sanitized audit logs" specifically, a
     // narrower view than the tiers above them. A Viewer sees that an action
     // happened, when, by which agent, and how it was decided, but not the
     // literal command, path, or host, which can itself disclose sensitive
     // workspace detail. This is what distinguishes Viewer from User.
-    sendJson(res, 200, projectLedgerForActor(entries, toActor(session)));
+    const visible = projectLedgerForActor(scanned, toActor(session));
+    // `slice(-page)`, so the newest are kept: `tailLedger` returns oldest-first.
+    sendJson(res, 200, visible.slice(-page));
     return true;
   }
 

@@ -3563,8 +3563,17 @@ export const en: TranslationMap = {
         "User. You operate the agents assigned to you: prompt them, stop them, read their audit trail, and write their rules.",
       canDoUserWithheld:
         "User. You operate the agents assigned to you: prompt them, stop them, and read their audit trail. Root has withheld rule editing from this account, so to change a rule you request it and an Administrator approves.",
+      // **The masking promise was wider than the masking** (finding 331,
+      // decided by Kinan 2026-09-09). The ledger does mask a Viewer's
+      // resource details — `[redacted for viewer role]` — and one section
+      // down, Rule requests shows that same Viewer the full pattern and the
+      // requester's reason. Both are deliberate: reading the queue is
+      // oversight, which is the tier's job, and narrowing it would remove a
+      // capability to keep a sentence true. So the sentence is what changes.
+      // It now says where masking applies rather than implying it is
+      // everywhere, which is the honest version of the same promise.
       canDoViewer:
-        "Viewer. You can read the audit trail for the agents assigned to you, with resource details masked. You cannot change anything or prompt an agent.",
+        "Viewer. You can read the audit trail for the agents assigned to you, with resource details masked there, and you can read the rule requests queue in full. You cannot change anything or prompt an agent.",
     },
     policy: {
       title: "Policy",
@@ -3778,6 +3787,9 @@ export const en: TranslationMap = {
       // Said always, not only when something is missing: a count that appears
       // only on truncation is a count nobody learns to look for (T56's rule).
       showing: "Showing the {shown} most recent of {total} entries",
+      // Under a filter, {total} counts matches and not the trail.
+      showingFiltered:
+        "Showing the {shown} most recent of {total} matching, out of {held} entries loaded",
       showingCapped:
         "Older entries are on disk and are not loaded here. Run {command} at the terminal to read the whole chain.",
       empty: "No audit entries yet",

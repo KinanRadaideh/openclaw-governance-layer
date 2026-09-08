@@ -571,7 +571,20 @@ export function renderKillSwitchSection(props: KillSwitchProps): TemplateResult 
           </datalist>
           <button
             class="btn danger"
-            ?disabled=${props.busy || !typed || !canManageAgent(props.identity, typed)}
+            ?disabled=${props.busy ||
+            !typed ||
+            !canManageAgent(props.identity, typed) ||
+            // **`unregistered` joins the disable list** (finding 341). The
+            // warning above tells the operator the stop will be refused, and
+            // the button beside it stayed pressable — measured as Root, who
+            // passes `canManageAgent` for any id. This page's own rule, stated
+            // where the role picker drops `root`, is that it "does not offer a
+            // control whose only possible outcome is a refusal", and an agent
+            // governance holds no record for is exactly that: there is nothing
+            // to lock down, whoever is asking. Distinct from the *unknown* id
+            // one branch up, which stays enabled on purpose: an id this page
+            // has never seen may still be a real, idle agent.
+            unregistered(props, typed)}
             @click=${() =>
               props.run(async () => {
                 await props.engageKillSwitch(typed);

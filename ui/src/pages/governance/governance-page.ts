@@ -59,6 +59,7 @@ import { renderAgentPolicySection } from "./panels/agent-policy-lookup.ts";
 import type { AgentRegistryPageProps } from "./panels/agent-registry-panels.ts";
 import {
   AgentRegistryController,
+  agentOwners,
   renderAgentRegistrySection,
 } from "./panels/agent-registry-panels.ts";
 import { renderOrganisationSection } from "./panels/organisation-panel.ts";
@@ -76,6 +77,7 @@ import {
 } from "./panels/policy-panels.ts";
 import { renderSectionNav, SectionNavController } from "./panels/section-nav.ts";
 import { renderGovernanceGate, renderIdentityRow } from "./panels/session-panels.ts";
+import { focusNewRefusal } from "./refusal-focus.ts";
 import "../../styles/governance.css";
 import { EMPTY_RULE_FILTER, type RuleFilter } from "./rule-filter.ts";
 
@@ -413,7 +415,7 @@ class GovernancePage extends OpenClawLightDomElement {
       agents: this.agents,
       // The agent panels' owner picker, not the accounts panel's manager
       // picker: Root may own an agent and may not be answered to.
-      administrators: this.agentOwners(),
+      administrators: agentOwners(this.users),
       refresh: () => this.refreshData(),
       policy: this.policy,
       identity: this.identity,
@@ -918,6 +920,10 @@ class GovernancePage extends OpenClawLightDomElement {
   override updated(changed: Map<string, unknown>): void {
     super.updated(changed);
     this.sectionNav.refresh();
+    // The subject moved out whole when this file crossed the 700-line limit,
+    // which is T16's rule; `refusal-focus.ts` carries the reasoning and the two
+    // measurements behind it.
+    focusNewRefusal(this, this.error);
   }
 
   private async run(action: () => Promise<unknown>): Promise<void> {
@@ -1053,12 +1059,6 @@ class GovernancePage extends OpenClawLightDomElement {
    * picker as well, which is a different rule in a different panel — the shape
    * that produced four findings in a single sweep.
    */
-  private agentOwners(): GovernanceUserRecord[] {
-    return (this.users as GovernanceUserRecord[]).filter(
-      (user) => user.role === "administrator" || user.role === "root",
-    );
-  }
-
   override render(): unknown {
     // The header renders for every state, including the sign-in screen. Every
     // other settings page shows its title before it shows its content, and a

@@ -4962,3 +4962,141 @@ distinction that matters: the **Gateway credential** is upstream's and is
 switched off on the throwaway instance; the **governance sign-in** is this
 project's subject and stays on. A pass that disabled the second would be
 measuring nothing.
+
+## 2026-09-09: the coverage claim checked, and what checking it found
+
+**Kinan asked whether all the sections had really been driven to the standard the
+brief set. They had not, and saying so was the useful part.** The honest picture:
+sections 1–5 were driven by earlier passes and my "re-check" of them was a
+_render_ comparison, not a hands-on drive; sections 7, 10, 11 and 13 got API
+matrices and reads rather than pressed buttons. Only 6, 8, 12 and 14 had had a
+real pass from me.
+
+Re-driving them by hand produced **three findings in the first twenty minutes**,
+all of which every earlier method had walked past.
+
+### 339: every refusal on this page was invisible
+
+Typing a nonexistent agent into an account row and pressing **Save agents** did
+nothing visible. The server had refused, correctly and with an excellent
+sentence — and the banner carrying it was at **y = -151**. From the foot of the
+page, **y = -12617**.
+
+One banner, at the top, on a **fourteen-section** page. Almost every control is
+far from it, so this is not one panel's defect: **every refused action on the
+governance dashboard reported itself off-screen**. The refusals are the good
+part of this product —
+
+```
+agent "ghost-agent-42" is not in the agent registry, so it cannot be assigned.
+An Administrator must register it first.
+
+Cannot delete haitham: 4 account(s) answer to them, lina, noor, omar, alice.
+Assign those accounts to another Administrator first, or remove them. An
+account that answers to nobody is the state this refuses to create.
+```
+
+— and nobody could see any of them. The worst bug class this repository names,
+sitting on top of its best work.
+
+**Three things went wrong on the way to fixing it, and each is worth keeping.**
+
+1. The first repair keyed on Lit's changed-properties map
+   (`changed.has("error") && !changed.get("error")`) and **never fired**:
+   `run()` sets `busy` and `error` together, so both arrive in one update and
+   the transition it was watching for never appears alone. Rewritten to compare
+   the **message**.
+2. The second repair used `behavior: "smooth"` and **also** did nothing —
+   measured, `-12588` before and `-12588` after, while `auto` landed it at
+   `+145`. The banner sits _above_ `.governance-page__body`, so its scroll
+   parent is the settings pane and not the list `section-nav.ts` scrolls.
+3. The test then failed with `scrollIntoView is not a function`: **jsdom does
+   not implement it**, and the unguarded call threw from inside a render hook.
+   The test written for the repair found a way the repair could break the page.
+
+**Twice I believed a fix that had not worked**, because a manual
+`scrollIntoView` in a previous probe had left the banner in view and the next
+measurement inherited it. The check that settled it was scrolling _away_ first
+and measuring again — the same discipline as reading the store rather than the
+screen.
+
+### 340, and it was mine
+
+With the **Sign-ins** filter on, the ledger read _"Showing the 39 most recent of
+39 entries"_ on a page holding **114**. The number counts matches; the sentence
+does not say so, so it reads as the size of the trail. **Finding 329's own
+repair, one day old** — it was right to count what is on screen and wrong to
+leave what the number counts unsaid.
+
+### 341: a danger button armed for a guaranteed refusal
+
+Typing `main` — an agent OpenClaw has and governance has never been told about —
+into the kill switch showed finding 332's new warning _and left "Lock down"
+pressable_, because Root passes `canManageAgent` for any id. This page states
+its own rule where the role picker drops `root`: it **"does not offer a control
+whose only possible outcome is a refusal"**. Now disabled for that case, and
+deliberately still armed for an id the page has simply never seen, which may be
+a real idle agent.
+
+### 333 closed, and it needed no trade
+
+The open question was thought to be a trade: paging after the visibility filter
+means walking further through the archive, which re-opens finding 82's
+denial-of-service bound. **It does not.** The scan window is now the constant
+`MAX_LEDGER_PAGE` rather than the caller's `limit`, so the worst-case read is
+exactly what it already was for a caller passing the maximum — the old shape was
+simply spending the budget in the wrong order. Measured live on the account that
+found it:
+
+| Viewer `noor`      | before        | after                           |
+| ------------------ | ------------- | ------------------------------- |
+| `ledger?limit=50`  | **0 entries** | **38**                          |
+| `ledger?limit=200` | 5             | 38                              |
+| Root `limit=50`    | 50            | 50 — the page size still bounds |
+
+### 331 decided
+
+Kinan chose: **the rule-requests queue stays readable and the sentence is
+corrected.** Narrowing the queue would have removed a capability to make a
+sentence true, and reading it is the Viewer tier's job. The Identity panel now
+says where the masking applies rather than implying it is everywhere.
+
+### What the section table now records
+
+Every row that was re-driven says so, and says by which pass. The coverage claim
+that started this is the thing that changed: **"driven" now means driven, and
+where it did not, the table says re-driven 09-09.**
+
+### Two smaller things confirmed right while driving
+
+- **Deleting an Administrator with dependants** is refused with the count, the
+  names, both remedies and the invariant behind it.
+- **A role change** names the exact transition (`noor: viewer → administrator`),
+  clears `managedBy` when the new tier answers to the group, and writes a
+  precise ledger entry. The assignment survives the promotion, inert, and
+  returns on demotion.
+
+### The gates, and the budget after this pass
+
+**2,830 passed / 21 skipped across 147 files, exit 0** — the delta is exactly the
+fourteen tests this pass added (three ledger tests across the three projects
+that file runs under, plus five in the browser-facing suite). Both typechecks,
+`oxlint` over `src`, `ui/src`, `scripts` and `docs-notes`, and
+`node scripts/build-all.mjs`, all green.
+
+**The startup budget is down to 92 bytes.** 321 bought 413; T55 spent it to 255;
+2026-09-08's five sentences to 118; and this pass's two corrected sentences — the
+filtered ledger count and the Viewer's own description — to **92**. That is not
+a sentence any more, it is a clause. **T64 is now the gate on operator-facing
+text, not a tidy-up after it.**
+
+### One test that could not fail, caught before it shipped
+
+Finding 340's first test set the ledger filter to _Sign-ins_ against twenty
+administrative rows. Nothing matched; the count row is gated on a non-empty
+list, so it never rendered, and the assertion passed against the unfixed code as
+happily as against the fixed one. **Watched failing is the only thing that
+separates a regression test from a comment**, and this one was watched passing.
+Rewritten to filter on _Policy changes_, which matches all twenty, so the
+wording is the only difference between the two versions — and it then failed
+against the revert, as it should have from the start.

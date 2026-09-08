@@ -130,6 +130,24 @@ export type AgentRegistryPanelProps = PanelEffects & {
  */
 export type AgentRegistryPageProps = Omit<AgentRegistryPanelProps, "drafts" | "onDraft">;
 
+/**
+ * The accounts that may own an agent, for Root's owner picker.
+ *
+ * **Administrator or Root**, which is the whole rule: M4 kept one statable
+ * sentence — an agent answers to an Administrator, or to its own group's Root —
+ * and this is that sentence as a filter. Root became eligible on 2026-09-06 so
+ * that a fresh installation can hold an agent before a second account exists.
+ *
+ * A pure function beside the picker that reads it, rather than a method on the
+ * page, because `governance-page.ts` sits **exactly** on the inherited 700-line
+ * limit: every repair that adds a line there has to move a subject out, and
+ * "who may own an agent" belongs with the control that offers the choice. T16's
+ * rule, applied again (finding 339's repair is what needed the room).
+ */
+export function agentOwners(users: readonly GovernanceUserRecord[]): GovernanceUserRecord[] {
+  return users.filter((user) => user.role === "administrator" || user.role === "root");
+}
+
 /** Blank drafts, so the page and the tests agree on the starting state. */
 export function emptyAgentRegistryDrafts(): AgentRegistryDrafts {
   return {

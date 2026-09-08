@@ -317,3 +317,115 @@ describe("332: the kill switch and an agent governance has never been told about
     expect(sectionText("Emergency kill switch")).not.toContain("there is no policy record");
   });
 });
+
+// ---------------------------------------------------------------------------
+// The hands-on re-drive, 2026-09-09. Findings 339, 340 and 341.
+// ---------------------------------------------------------------------------
+
+describe("339: a refusal reaches the person who caused it", () => {
+  it("renders the banner with the role the scroll depends on", async () => {
+    // jsdom has no layout, so the *scroll* is measured live and recorded in the
+    // session log (from the foot of the page: y = -12617 before, +145 after).
+    // What can be pinned here is the selector that repair hangs on: if the
+    // banner stops being `role="alert"`, the scroll silently stops finding it
+    // and the defect returns with nothing failing.
+    await mount({ identity: identity("root"), policy: policyNaming([]) });
+    Object.assign(page, { error: "something was refused" });
+    page.requestUpdate();
+    await page.updateComplete;
+
+    const alert = page.querySelector('[role="alert"]');
+    expect(alert, "the scroll in updated() looks for exactly this").toBeTruthy();
+    expect(alert?.textContent).toContain("something was refused");
+  });
+});
+
+describe("340: the ledger count says what it is counting", () => {
+  it("qualifies the number when a filter is narrowing the list", async () => {
+    await mount({
+      identity: identity("root"),
+      policy: policyNaming([]),
+      ledger: ledgerEntries(20),
+      ledgerFilter: "admin",
+    });
+
+    // **The filter has to match something, or this cannot fail.** The first
+    // draft used the "Sign-ins" filter against twenty admin rows: nothing
+    // matched, the count row is gated on a non-empty list, so it never
+    // rendered and the assertion passed against the unfixed code as happily as
+    // against the fixed one. Finding 224's trap, met while repairing 340.
+    //
+    // Every seeded row *is* an admin entry, so "Policy changes" matches all
+    // twenty and the row renders — and the wording is then the only difference
+    // between the two versions.
+    const text = sectionText("Audit ledger");
+    expect(text, "the count row has to be on screen for this to mean anything").toContain(
+      "most recent of 20",
+    );
+    expect(text).not.toContain("most recent of 20 entries");
+    expect(text).toContain("matching");
+  });
+
+  it("keeps the plain sentence when nothing is filtered", async () => {
+    // The guard: the qualifier must not leak into the ordinary case, where
+    // "entries" is exactly right and "matching" would be noise.
+    await mount({
+      identity: identity("root"),
+      policy: policyNaming([]),
+      ledger: ledgerEntries(20),
+    });
+
+    expect(sectionText("Audit ledger")).toContain("Showing the 20 most recent of 20 entries");
+  });
+});
+
+describe("341: the kill switch does not arm for an agent it knows is ungoverned", () => {
+  /** The Lock down button's disabled state for a typed id. */
+  async function lockDownDisabledFor(agentId: string): Promise<boolean | undefined> {
+    Object.assign(page, { killAgentId: agentId });
+    page.requestUpdate();
+    await page.updateComplete;
+    const section = [...page.querySelectorAll(".settings-section")].find(
+      (el) =>
+        el.querySelector(".settings-section__heading")?.textContent?.trim() ===
+        "Emergency kill switch",
+    );
+    const button = [...(section?.querySelectorAll("button") ?? [])].find(
+      (el) => el.textContent?.trim() === "Lock down",
+    );
+    return (button as HTMLButtonElement | undefined)?.disabled;
+  }
+
+  it("disables it for a known but unregistered agent", async () => {
+    await mount({
+      identity: identity("root"),
+      agents: [
+        { agentId: "main", registered: false },
+        { agentId: "scout", registered: true },
+      ],
+      policy: policyNaming(["scout"]),
+    });
+
+    // Root passes `canManageAgent` for any id, which is why this stayed
+    // pressable: the warning said the stop would be refused and the danger
+    // button beside it invited the press anyway.
+    expect(await lockDownDisabledFor("main")).toBe(true);
+  });
+
+  it("leaves it armed for a registered agent, and for one it has never seen", async () => {
+    await mount({
+      identity: identity("root"),
+      agents: [
+        { agentId: "main", registered: false },
+        { agentId: "scout", registered: true },
+      ],
+      policy: policyNaming(["scout"]),
+    });
+
+    expect(await lockDownDisabledFor("scout"), "a real agent must stay stoppable").toBe(false);
+    // The guard against overreach: an id this page has never seen may still be
+    // a real, idle agent, and stopping one is legitimate — that branch warns
+    // and deliberately does not block.
+    expect(await lockDownDisabledFor("never-seen-at-all")).toBe(false);
+  });
+});
