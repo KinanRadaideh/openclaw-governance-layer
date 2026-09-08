@@ -15,7 +15,7 @@ the authority, and correct whichever of these is stale.
 
 ## Where this pass got to
 
-**Eleven findings, 326–336. Nine fixed, two open.** Every fix has a test that
+**Thirteen findings, 326–338. Eleven fixed, two open.** Every fix has a test that
 was watched failing against the unfixed code, plus guards that pass either way
 on purpose so the repairs cannot overreach —
 `ui/src/pages/governance/dashboard-sweep-2026-09-08.test.ts` for the browser
@@ -34,6 +34,8 @@ half, and `src/gateway/governance-rule-authoring-scope.test.ts` for 335.
 | 334 | 12, Organisation               | _"To confirm, type the Root username **exactly**"_ — the check deliberately folds, and `" KINAN "` destroyed the organisation it was typed at                                                                                                                                                                                                                                                                                                                               | **Fixed**                                                                       |
 | 335 | 8, Policy                      | Five authoring routes reported only the **first half** of a conjunction, so a User whose rule editing Root had withheld met _"You do not manage agent `scout`"_ about an agent they demonstrably manage — they stopped it one request later. **T27's own distinction, erased by the refusal it produced**                                                                                                                                                                   | **Fixed**                                                                       |
 | 336 | Documentation                  | Chapter 3's **requirement #9** row said the layer had "never been built or started on Linux" and that "nothing has run on a VPS", and cited a script renamed eleven days earlier. All false for between five and eleven days. The row's own closing line warns that _"the status column is the one the report quotes"_ — it was guarded against being too **optimistic** and went stale the other way, understating the project in the document that feeds the dissertation | **Fixed**                                                                       |
+| 337 | The kept ledger verifier       | It could not tell _"I could not check"_ from _"this is broken"_. A missing key threw a stack trace and **exit 1**; a wrong key said **"BROKEN at entry 1"**. Its own header promises an exit 2 that nothing produced, and argues that a verifier which cries wolf is worse than none                                                                                                                                                                                        | **Fixed**                                                                       |
+| 338 | **14, Awaiting your decision** | The section no sweep had ever rendered. Its hint promised that allowing _"tells you to add a rule so the next attempt succeeds"_ and nothing did — the row left the worklist and the next identical attempt timed out into the same queue                                                                                                                                                                                                                                   | **Fixed**                                                                       |
 
 **How this pass was run, because the method is worth keeping.** The harness this
 session runs under refuses to type a password into a form, so the dashboard
@@ -46,6 +48,12 @@ default from here:
 - `ui/src/pages/governance/qa-tier-sweep.browser.test.ts` renders the **real
   page from those real answers** in real Chromium and prints, per tier, every
   section, every sentence, and every control with its disabled state.
+
+**The Gateway credential is switched off on the throwaway QA instance and the
+governance sign-in is not** — Kinan's standing decision, with the three
+conditions that keep it out of the repository, is recorded in `mg/HANDOFF.md`
+§6 under _"Standing policy: gateway auth during a live dashboard run"_. Read it
+before the next live run rather than re-deciding it.
 
 A hand-written fixture cannot omit what the server actually sends, and a fixture
 omitting exactly that is the shared cause of findings 251 and 313. Both files

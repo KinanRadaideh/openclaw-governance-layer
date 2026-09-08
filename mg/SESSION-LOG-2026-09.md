@@ -4813,3 +4813,152 @@ configured model was retired upstream (`404`). The prompt path was exercised as
 far as admission — a withheld User's prompt was admitted and given a run id —
 and no further. T2 covers the live half on the VPS; T3 is where it is
 re-measured.
+
+## 2026-09-08 (ix): the fourteenth section, and the verifier's third verdict
+
+**The dashboard sweep was not finished after all.** There are **fourteen**
+sections, not thirteen, and the fourteenth had never been rendered by any sweep,
+fixture or hand-driven pass. Findings **337** and **338**, both fixed.
+
+### How a whole section hid for eight passes
+
+`renderPendingDecisionsSection` — _"Awaiting your decision"_, the timed-out
+escalation queue — begins:
+
+```ts
+if (waiting.length === 0 && props.pendingDecisionsShed <= 0) {
+  return nothing;
+}
+```
+
+Nothing was ever waiting. Producing a row means driving the gate to **escalate**
+and then letting the escalation **time out**, and no fixture had done it: the
+suite's policy fixtures set `ask: "off"`, which refuses outright and never
+escalates. So the section was absent from every render, every tier snapshot and
+every screenshot, and eight passes scrolled past a section that was not on the
+page.
+
+**`section-nav.ts` had said so in its own header the whole time** — _"fourteen
+sections on one very long page"_ — while §6's table counted thirteen. Two
+documents disagreeing, again, and this time about how many things there are to
+check.
+
+**The generalisable lesson, and it is the useful part.** A panel's early
+`return nothing` is a statement about the state a sweep would have to construct
+to see it. **The way to find the next hidden section is to read every early
+return and ask what it is waiting for**, rather than to look at the page.
+
+### 337: the verifier reported tampering when it merely lacked a key
+
+Found while checking Kinan's other question — that the archived command line is
+recoverable and the one kept command still works. It works: three chains INTACT,
+chain heads, checkpoint agreement, with the Gateway stopped. Then it was tested
+for whether it can **fail**, because a verifier that only ever says INTACT
+proves nothing:
+
+|                        | before                            | after                   |
+| ---------------------- | --------------------------------- | ----------------------- |
+| entry #21 rewritten    | BROKEN at 21, exit 1              | unchanged               |
+| last 5 entries deleted | BROKEN, checkpoint catches it     | unchanged               |
+| **no key at all**      | **unhandled stack trace, exit 1** | COULD NOT CHECK, exit 2 |
+| **wrong key**          | **"BROKEN at entry 1", exit 1**   | COULD NOT CHECK, exit 2 |
+
+The script's own header promises `2 = the check could not be performed, which is
+not the same as a pass`, and **nothing ever produced it**. Exit 1 means, by this
+tool's own contract, _at least one chain is not intact_. So a missing key
+announced tampering.
+
+**Reachable by following this project's own advice.** The deployment report
+recommends holding the ledger key off-host; an operator who does that and runs
+the verifier without the environment variable got a stack trace saying their
+audit chain was broken. And the wrong-key arm was reached _by accident, in the
+ordinary way_: putting the key file's hex into `OPENCLAW_GOVERNANCE_LEDGER_KEY`,
+which takes a passphrase. The two encodings invite exactly that mistake.
+
+**The distinction is principled, not a heuristic.** Tampering with entry 1 means
+recomputing every later `prevHash` too, and anyone who can do that holds the key
+and would produce a chain that _verifies_. Nothing at all verifying is what a
+key that does not belong to this chain looks like. So **zero entries verified
+before the break, on a keyed chain, is "could not check"**; one good entry in
+front of it is a real break and still exits 1. That last case is a test, because
+a repair that softened it would have disarmed the tool it was meant to make
+trustworthy.
+
+This is finding 287's defect returning by another road, and it matters more here
+than anywhere: this file's header argues that **a verifier which cries wolf is
+worse than no verifier**, because the one time it is believed is the time it is
+wrong.
+
+### 338: "Would allow" led nowhere
+
+Section 14's hint read:
+
+> The action was denied and the agent moved on. Answering here records your
+> judgement; **allow also tells you to add a rule so the next attempt succeeds.**
+
+Nothing told anybody anything. `decidePendingDecision` marks the row and writes
+a ledger entry; `run()` discards the result; the row leaves the worklist. **The
+next identical attempt times out into the same queue.** So the one action that
+would make the operator's judgement matter was the one the text named and the
+product did not offer — this repository's named category, operator-facing text
+contradicting shipped behaviour.
+
+**Fixed as a proposal, not a grant**, which is the decision already taken for
+`allow-always` at the live escalation and argued at length in `policy-engine.ts`:
+permitting an action in the moment is one thing, widening the policy permanently
+is an administrative act that has to be somebody's, signed in and named.
+Requirement 5's _"one party asked, another granted"_ keeps meaning what it says.
+`proposeRuleFromEscalation` was already there, already de-duplicating, already
+scoping to the agent; it is now exported and the decide route calls it.
+
+**No new notice channel was needed**, which is why this is small: the proposal
+appears in **Rule requests**, on the same page, in the refresh the same click
+triggers. The hint now describes what happens, and is shorter than the sentence
+it replaces.
+
+**Driven live, end to end, on the running gateway:**
+
+```
+lina presses "Would allow"  →  rule request filed:
+    pending  path  ^C:/var/data/payroll-export\.csv$  | agent scout | by hitl-approval
+the same read, proposal still pending   →  still gated  (a proposal is not a grant)
+haitham approves it                     →  the same read is ALLOWED
+a neighbouring path nobody approved     →  still gated  (correctly scoped)
+"Keep denied"                           →  files nothing
+```
+
+That is the loop the hint had always described, closing for the first time.
+
+### What section 14 got right, measured rather than assumed
+
+Rendered in real Chromium from live server data, at five accounts:
+
+| tier                  | rows                                            |
+| --------------------- | ----------------------------------------------- |
+| Root                  | 4 — and the page finally shows **14 sections**  |
+| Administrator         | 4                                               |
+| User assigned `scout` | **3** — `probe1`'s row correctly absent         |
+| User assigned nothing | section **not rendered**                        |
+| Viewer                | section **not rendered**; the route answers 403 |
+
+And at the store: a decided row keeps its answer rather than being deleted; the
+decision reaches the tamper-evident trail naming the account and the tier
+(`#7 governance.pending-decision.decide — allowed held escalation: read on path
+…, by lina`); a question already answered cannot be answered again by somebody
+else; an unknown id is refused. Ten checks in
+`docs-notes/qa-sweep-2026-09-08/pending-decisions-sweep.ts`, 10/10.
+
+**The buttons say "Would allow" and "Keep denied"**, in the conditional, which
+was right before this pass and is worth naming: the moment has passed and the
+action is already denied, and a button labelled "Allow" would promise to undo
+that. The text was honest about the tense and wrong only about the consequence.
+
+### A standing policy, recorded rather than re-decided
+
+Kinan's decision about the Gateway credential during a live dashboard run is now
+written into §6 as **"Standing policy: gateway auth during a live dashboard
+run"**, with the three conditions that keep it out of the repository and the
+distinction that matters: the **Gateway credential** is upstream's and is
+switched off on the throwaway instance; the **governance sign-in** is this
+project's subject and stays on. A pass that disabled the second would be
+measuring nothing.

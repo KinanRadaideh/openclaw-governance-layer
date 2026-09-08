@@ -400,7 +400,14 @@ async function resolveGovernedParamBinding(
  * Best-effort by design: the grant has already been made by the host, and a
  * full queue or a failed write must not retract it. Failures are recorded.
  */
-async function proposeRuleFromEscalation(
+// **Exported since 2026-09-08 (finding 338).** The timed-out queue answers the
+// same question this does, one moment later: an operator saying "that should
+// have been allowed" needs a rule to exist, or the next identical attempt times
+// out into the same queue. The dashboard's decide route calls this so that the
+// judgement it records leads somewhere, which is what the panel's own hint has
+// always said it did. Same proposal, same de-duplication, same "one party
+// asked, another granted" — never a grant taken here.
+export async function proposeRuleFromEscalation(
   groupId: string,
   input: {
     agentId: string | undefined;

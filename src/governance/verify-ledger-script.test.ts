@@ -190,6 +190,63 @@ describe("the standalone verifier agrees with the product", () => {
     expect(code, "an unusable key means the check did not happen").toBe(2);
   });
 
+  // -------------------------------------------------------------------------
+  // The two ways this tool used to announce tampering it had not found
+  // (finding 337, 2026-09-08). Both are the same root cause: it could not tell
+  // *"I could not check"* from *"this is broken"*, and its own header argues
+  // that a verifier which cries wolf is worse than no verifier, because the one
+  // time it is believed is the time it is wrong.
+  // -------------------------------------------------------------------------
+
+  it("says it could not check when the chain is keyed and no key exists at all", async () => {
+    await seedEntries();
+    await rm(join(dir, "ledger.key"), { force: true });
+
+    const { code, stdout } = await runScript();
+    // Before the repair this threw an unhandled Error, so the operator got a
+    // Node stack trace and **exit 1** — which by this tool's own contract means
+    // "at least one chain is not intact". Reachable by following the project's
+    // own advice: the deployment report recommends holding the key off-host.
+    expect(code, "a missing key means the check did not happen").toBe(2);
+    expect(stdout).toContain("COULD NOT CHECK");
+    expect(stdout).not.toContain("BROKEN");
+  });
+
+  it("says it could not check when the key does not belong to this chain", async () => {
+    await seedEntries();
+
+    // A well-formed key of the right shape that simply is not the one the chain
+    // was written with — which is what an operator produces by putting the
+    // file's hex into the passphrase variable, a mistake the two encodings
+    // invite. It used to answer `BROKEN at entry 1`, exit 1, about an intact
+    // chain.
+    const { code, stdout } = await runScriptIn(dir, {
+      OPENCLAW_GOVERNANCE_LEDGER_KEY: "a-perfectly-valid-but-entirely-wrong-passphrase",
+    });
+
+    expect(code, "a wrong key is not evidence of tampering").toBe(2);
+    expect(stdout).toContain("COULD NOT CHECK");
+    expect(stdout).not.toContain("BROKEN");
+  });
+
+  it("still calls a real forgery BROKEN, which is the half that must not move", async () => {
+    // The guard. The repair keys on "nothing verified before the break", so a
+    // break with good entries in front of it has to stay a break — otherwise
+    // 337's fix would have disarmed the tool it was meant to make trustworthy.
+    await seedEntries();
+    const path = ledgerFilePath(group);
+    const lines = (await readFile(path, "utf8")).split("\n").filter(Boolean);
+    // The second entry, so entry one verifies first and `checked` is non-zero —
+    // and the same flip the suite's own tamper test uses, a refusal turned into
+    // an approval, which is the edit the chain exists to make visible.
+    lines[1] = (lines[1] ?? "").replace('"decision":"deny"', '"decision":"allow"');
+    await writeFile(path, `${lines.join("\n")}\n`);
+
+    const { code, stdout } = await runScript();
+    expect(code, "an edited entry after a good one is tampering").toBe(1);
+    expect(stdout).toContain("BROKEN");
+  });
+
   it("says a lagging checkpoint is behind the ledger, not ahead of it", async () => {
     // **The one disagreement that is not tampering, and it was reported as the
     // one that is.** `appendLedgerEntry` writes the entry first and the

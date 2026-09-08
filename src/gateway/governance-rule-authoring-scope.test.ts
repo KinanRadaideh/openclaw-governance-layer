@@ -811,3 +811,102 @@ describe("a withheld User is told what is actually withheld", () => {
     expect((await loadPolicy(TEST_GROUP)).agentHitlTimeout?.mine).toBe(90);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Answering a timed-out escalation leads somewhere (finding 338, 2026-09-08).
+//
+// Section 14 — "Awaiting your decision" — is the one dashboard section no sweep
+// had rendered, because it is invisible unless an escalation has actually timed
+// out. Driving it turned up operator-facing text promising something the
+// product did not do: the panel's hint read *"allow also tells you to add a
+// rule so the next attempt succeeds"*, and `decidePendingDecision` marked the
+// row, wrote a ledger entry and stopped. The row left the worklist and the next
+// identical attempt timed out into the same queue.
+//
+// A **proposal, not a grant**, which is the answer `allow-always` was already
+// given at the live escalation and argued at length in `policy-engine.ts`:
+// permitting an action in the moment is one thing; widening the policy
+// permanently is an administrative act that has to be somebody's, signed in and
+// named. Requirement 5 keeps meaning what it says.
+// ---------------------------------------------------------------------------
+
+describe("deciding a timed-out escalation", () => {
+  /** Puts one real timed-out escalation in the store, through the gate. */
+  async function timeOutAnEscalation(agentId: string, path: string): Promise<string> {
+    const { evaluateGovernancePolicy } = await import("../governance/policy-engine.js");
+    await savePolicy(TEST_GROUP, {
+      ...defaultPolicyDocument(),
+      mode: "enforce",
+      ask: "on-miss",
+      hitlTimeoutSeconds: 5,
+    });
+    const decision = await evaluateGovernancePolicy(
+      { toolName: "read", params: { path } },
+      { agentId, sessionKey: `agent:${agentId}:governance:user` },
+    );
+    if (!decision || !("requireApproval" in decision)) {
+      throw new Error(`expected the gate to escalate a read of ${path}`);
+    }
+    // The production path when nobody answers.
+    await decision.requireApproval.onResolution?.("timeout");
+    const { readPendingDecisions } = await import("../governance/pending-decisions.js");
+    const waiting = (await readPendingDecisions(TEST_GROUP)).decisions.filter(
+      (entry) => entry.status === "pending",
+    );
+    const row = waiting.at(-1);
+    if (!row) {
+      throw new Error("the escalation did not reach the pending stack");
+    }
+    return row.id;
+  }
+
+  it('files a scoped rule request when the answer is "would allow"', async () => {
+    const id = await timeOutAnEscalation("mine", "/var/data/report.csv");
+    const { listRuleRequests } = await import("../governance/rule-requests.js");
+    expect(await listRuleRequests(TEST_GROUP)).toHaveLength(0);
+
+    const res = await send("POST", "pending-decisions/decide", session("user", ["mine"]), {
+      id,
+      allow: true,
+    });
+    expect(res.status).toBe(200);
+
+    const requests = await listRuleRequests(TEST_GROUP);
+    // Fails against the unrepaired route, which recorded the judgement and
+    // filed nothing, leaving the hint's promise unkept.
+    expect(requests, "the judgement has to lead to a rule, or it changes nothing").toHaveLength(1);
+    // **Scoped to the agent that asked**, never global: a proposal that widened
+    // the policy for every agent would be the opposite of what was shown.
+    expect(requests[0]?.agentId).toBe("mine");
+    expect(requests[0]?.status).toBe("pending");
+  });
+
+  it("is a proposal and not a grant, so the action stays refused until somebody approves", async () => {
+    const id = await timeOutAnEscalation("mine", "/var/data/second.csv");
+    await send("POST", "pending-decisions/decide", session("user", ["mine"]), { id, allow: true });
+
+    const { evaluateGovernancePolicy } = await import("../governance/policy-engine.js");
+    const after = await evaluateGovernancePolicy(
+      { toolName: "read", params: { path: "/var/data/second.csv" } },
+      { agentId: "mine", sessionKey: "agent:mine:host" },
+    );
+    // Still gated. Requirement 5's "one party asked, another granted" would be
+    // defeated if answering your own escalation widened the policy.
+    expect(after, "a pending proposal must not be a permission").toBeDefined();
+  });
+
+  it('files nothing when the answer is "keep denied"', async () => {
+    const id = await timeOutAnEscalation("mine", "/var/data/third.csv");
+
+    const res = await send("POST", "pending-decisions/decide", session("user", ["mine"]), {
+      id,
+      allow: false,
+    });
+    expect(res.status).toBe(200);
+
+    const { listRuleRequests } = await import("../governance/rule-requests.js");
+    // The guard. Upholding a denial must not propose widening the policy —
+    // that would turn the safe answer into the dangerous one.
+    expect(await listRuleRequests(TEST_GROUP)).toHaveLength(0);
+  });
+});

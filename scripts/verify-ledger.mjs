@@ -105,12 +105,47 @@ function canonicalPayload(e) {
   return JSON.stringify(e.keyed ? [...withIntent, "keyed"] : withIntent);
 }
 
+/**
+ * "I could not check", which is neither a pass nor a failure.
+ *
+ * **The third verdict this tool documents and did not have** (finding 337). Its
+ * own header promises `2 = the check could not be performed, which is not the
+ * same as a pass`, and nothing ever produced it: a keyed chain with no key threw
+ * an unhandled `Error`, so an operator got a Node stack trace and **exit 1**,
+ * which by this tool's own contract means *at least one chain is not intact*.
+ *
+ * That is finding 287's defect returning by another road, and it matters more
+ * here than anywhere else in the project: the header of this file argues that a
+ * verifier which cries wolf is worse than no verifier, because the one time it
+ * is believed is the time it is wrong. **A tamper-evidence tool that reports
+ * tampering when it simply lacks a key teaches its operator to discount it.**
+ *
+ * Reachable by following this project's own advice. The deployment report
+ * recommends holding the key off-host, and an operator who does that and then
+ * runs this without the environment variable set met a stack trace saying their
+ * audit chain was broken.
+ */
+class Uncheckable extends Error {
+  constructor(why, remedy) {
+    super(why);
+    this.name = "Uncheckable";
+    this.remedy = remedy;
+  }
+}
+
 /** HMAC when the entry is keyed, plain SHA-256 for entries predating the key. */
 function hashEntry(entry, key) {
   const payload = canonicalPayload(entry);
   if (entry.keyed) {
     if (!key) {
-      throw new Error("entry is keyed but no ledger key was found");
+      // Signalled, not thrown as a bare `Error`, so `verifyChain` can report
+      // **"could not check"** rather than letting a stack trace out of a tool
+      // whose whole job is a clear verdict. See `UNCHECKABLE` below.
+      throw new Uncheckable(
+        "this chain is keyed and no ledger key was found, so its hashes cannot be recomputed",
+        "Put `ledger.key` back in the governance directory, or supply the key through " +
+          "OPENCLAW_GOVERNANCE_LEDGER_KEY.",
+      );
     }
     return createHmac("sha256", key).update(payload).digest("hex");
   }
@@ -208,7 +243,46 @@ function verifyChain({ entries, key, installationIsKeyed, checkpoint }) {
       };
     }
     const { hash, ...withoutHash } = entry;
-    if (hashEntry(withoutHash, key) !== hash) {
+    let recomputed;
+    try {
+      recomputed = hashEntry(withoutHash, key);
+    } catch (err) {
+      if (err instanceof Uncheckable) {
+        return { ok: false, uncheckable: true, checked, why: err.message, remedy: err.remedy };
+      }
+      throw err;
+    }
+    if (recomputed !== hash) {
+      // ------------------------------------------------------------------
+      // **A break on the very first entry is a wrong key, not a forgery**
+      // (finding 337). Both produce this comparison failing, and the tool
+      // reported them identically — measured by feeding the file's hex into
+      // `OPENCLAW_GOVERNANCE_LEDGER_KEY`, which expects a passphrase: the
+      // answer was `BROKEN at entry 1`, exit 1, about a chain that was
+      // perfectly intact.
+      //
+      // The two are distinguishable, and cheaply. Tampering with entry 1 means
+      // recomputing every subsequent `prevHash` as well, and an attacker able
+      // to do that holds the key and would produce a chain that *verifies*.
+      // Whereas nothing at all verifying is exactly what a key that does not
+      // belong to this chain looks like. So: nothing checked before the break,
+      // on a keyed chain, is reported as **could not check**.
+      //
+      // Deliberately narrow. One good entry before the break and this is a real
+      // break again, reported as one — which is the case the tool exists for
+      // and the case the tamper test drives.
+      // ------------------------------------------------------------------
+      if (checked === 0 && entry.keyed === true) {
+        return {
+          ok: false,
+          uncheckable: true,
+          checked,
+          why: "not one entry could be recomputed, which is what a key that does not belong to this chain looks like rather than a forgery",
+          remedy:
+            "Check the ledger key. The file holds 32 bytes of hex; " +
+            "OPENCLAW_GOVERNANCE_LEDGER_KEY holds the passphrase it was created with, and the two are not interchangeable.",
+        };
+      }
       return {
         ok: false,
         checked,
@@ -321,6 +395,7 @@ async function main() {
   }
 
   let anyBroken = false;
+  let anyUncheckable = false;
   let anyChecked = false;
 
   for (const group of groups) {
@@ -358,6 +433,18 @@ async function main() {
     anyChecked = true;
 
     console.log(`\n${group}:`);
+    if (!result.ok && result.uncheckable) {
+      // **Not counted as broken**, which is the whole point of the third
+      // verdict: an operator reading "BROKEN" acts, and acting on a key they
+      // have simply not supplied wastes an incident and teaches them to
+      // discount the tool the next time it speaks.
+      anyUncheckable = true;
+      console.log(`  COULD NOT CHECK — ${result.why}`);
+      if (result.remedy) {
+        console.log(`  ${result.remedy}`);
+      }
+      continue;
+    }
     if (!result.ok) {
       anyBroken = true;
       console.log(`  BROKEN at entry ${result.at}: ${result.why}`);
@@ -396,12 +483,27 @@ async function main() {
     }
   }
 
-  if (!anyChecked && !anyBroken) {
+  if (!anyChecked && !anyBroken && !anyUncheckable) {
     console.error("\ncannot verify: no ledgers were found to check");
     process.exit(2);
   }
-  console.log(anyBroken ? "\nAt least one chain is BROKEN." : "\nEvery chain checked is intact.");
-  process.exit(anyBroken ? 1 : 0);
+  // **Broken outranks uncheckable, and both outrank intact.** A run that proved
+  // one chain forged and could not read another has found tampering, and that
+  // is the headline. A run that only failed to read has found nothing, and must
+  // not be reported as though it had.
+  if (anyBroken) {
+    console.log("\nAt least one chain is BROKEN.");
+    process.exit(1);
+  }
+  if (anyUncheckable) {
+    console.log(
+      "\nAt least one chain COULD NOT BE CHECKED. That is not a pass and not a failure: " +
+        "nothing here says those entries are intact, and nothing here says they are not.",
+    );
+    process.exit(2);
+  }
+  console.log("\nEvery chain checked is intact.");
+  process.exit(0);
 }
 
 await main();

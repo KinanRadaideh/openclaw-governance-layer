@@ -20,6 +20,7 @@ import {
   visibleAgents,
   type GovernanceActor,
 } from "../governance/permissions.js";
+import { proposeRuleFromEscalation } from "../governance/policy-engine.js";
 import { agentPolicyView, agentsForRule, knownAgentIds } from "../governance/policy-projection.js";
 // Every policy mutation below goes through a named setter that requires an
 // actor. `updatePolicy`, the raw read-modify-write, is deliberately no longer
@@ -461,6 +462,51 @@ export async function handleGovernanceApiRequest(
       decidedBy: session.username,
       decidedByRole: session.role,
     });
+    // ------------------------------------------------------------------
+    // **"Would allow" now leads somewhere** (finding 338, 2026-09-08).
+    //
+    // The panel's hint has always read *"allow also tells you to add a rule so
+    // the next attempt succeeds"*, and nothing did: `decidePendingDecision`
+    // marks the row and writes a ledger entry, the row leaves the worklist, and
+    // the operator is left with a judgement that changes nothing. The next
+    // identical attempt times out into this same queue. **The one action that
+    // makes the decision matter was the one the text mentioned and the product
+    // did not offer** — this repository's named category, operator-facing text
+    // contradicting shipped behaviour.
+    //
+    // A **proposal, not a grant**, which is the decision already taken for
+    // `allow-always` at the live escalation and argued at length there:
+    // permitting the action in the moment is one thing, widening the policy
+    // permanently is an administrative act that must be somebody's, signed in
+    // and named. Requirement 5 keeps meaning what it says. So this files the
+    // same rule request, de-duplicated by the same helper, and an Administrator
+    // approves it or does not.
+    //
+    // The outcome is visible without a new notice channel: the proposal appears
+    // in **Rule requests**, on the same page, in the refresh this call triggers.
+    //
+    // Best-effort, and deliberately after the decision is recorded. The
+    // judgement is the thing being asked for; a full proposal queue must not
+    // cost the operator their answer.
+    // ------------------------------------------------------------------
+    // `isResourceKind` because a `PendingDecision` records whatever the gate
+    // extracted, which is wider than the three kinds a rule can name. A row that
+    // is not one of them has no rule that could be written for it, so no
+    // proposal is filed — silence here is correct, and the judgement is still
+    // recorded above.
+    if (decided && allow && isResourceKind(decided.resourceKind)) {
+      try {
+        await proposeRuleFromEscalation(groupId, {
+          agentId: decided.agentId,
+          resourceKind: decided.resourceKind,
+          resource: decided.resource,
+          toolName: decided.toolName,
+        });
+      } catch {
+        // Swallowed for the reason above: the answer is recorded either way,
+        // and `proposeRuleFromEscalation` records its own failures.
+      }
+    }
     sendJson(res, 200, decided ?? { ok: true });
     return true;
   }

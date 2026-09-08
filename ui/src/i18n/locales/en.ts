@@ -3891,8 +3891,14 @@ export const en: TranslationMap = {
       shedTitle: "This list is incomplete",
       shed: "This stack has dropped {count} unanswered question(s) to stay under its limit, so it is not a complete list of what is waiting. Every escalation is still in the audit ledger.",
       explainer: "These escalations timed out before anyone answered",
+      // **"tells you to add a rule" was not true until 2026-09-08** (finding
+      // 338): nothing followed a decision, the row simply left the list, and
+      // the next identical attempt timed out into this same queue. Deciding
+      // to allow now files a rule request, which appears in Rule requests
+      // below — a proposal an Administrator approves, never a grant taken
+      // here, which is the same answer `allow-always` was given.
       explainerHint:
-        "The action was denied and the agent moved on. Answering here records your judgement; allow also tells you to add a rule so the next attempt succeeds.",
+        'The action was denied and the agent moved on. Answering records your judgement, and "Would allow" also files a rule request below, so an Administrator can make the next attempt succeed.',
       agent: "agent",
       timedOut: "timed out",
       allow: "Would allow",
