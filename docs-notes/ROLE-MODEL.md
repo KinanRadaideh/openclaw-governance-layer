@@ -261,7 +261,7 @@ The one act that removes the Root account. It deletes **every account in the
 organisation, Root's own included, and every agent it holds, from OpenClaw as
 well as from governance.** `src/governance/organisation-deletion.ts`, served at
 `POST /control-ui/governance/organisation/delete` and run from the terminal as
-`openclaw governance organisation delete --confirm <root-username> --yes`.
+the **Organisation** panel on the dashboard, which requires typing the Root username to confirm. _(This was also a command until 2026-09-07; the governance command line was removed.)_
 
 | Question                              | Answer                                                                      |
 | ------------------------------------- | --------------------------------------------------------------------------- |
@@ -326,7 +326,7 @@ the governance layer's own state (directory and file permissions, whether the
 ledger key is held off-host, whether the checkpoint exists) and the stated
 constraints (Linux target, 8 GB minimum). `src/governance/deployment-status.ts`,
 served at `GET /control-ui/governance/deployment` and printed by
-`openclaw governance deployment`.
+the **Deployment report** panel on the dashboard.
 
 **It is read-only, and that is a design decision rather than a shortfall.**
 "Overseeing" was implemented as _seeing and judging_, not editing. Changing a

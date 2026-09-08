@@ -163,8 +163,14 @@ the twin cannot drift from its original.
 3. **Allowances**. Baseline, admin, and any operator rule.
 4. **Default**. Deny outright (`ask: off`), or escalate to a human
    (`ask: on-miss`), which is handed to OpenClaw's existing approval machinery
-   rather than reimplemented. An `allow-always` answer is written back as a rule
-   scoped to the agent the approver was shown.
+   rather than reimplemented. An `allow-always` answer permits that one call and
+   **files a rule request** scoped to the agent the approver was shown, anchored
+   to the exact resource and carrying the direction of access for paths; the
+   permanent widening happens only when an Administrator or Root approves that
+   request while signed in. _(This read "is written back as a rule" from before
+   finding 83 removed the option until 2026-09-07 — through the two weeks it did
+   not exist at all, and past the 2026-09-06 change that brought it back as a
+   proposal. Finding 282.)_
 
 Rules carry an **effect** (`allow`/`deny`), a **tier** (`core`/`baseline`/
 `admin`), an optional **access** narrowing for paths (`read`/`write`), an
@@ -347,7 +353,9 @@ rather than by role alone:
 > The single-Root rule did not weaken. Its scope moved. One Root per _group_
 > rather than per installation, and the original argument holds unchanged at the
 > new scope. Accounts written before groups existed cannot sign in, and
-> `openclaw governance groups migrate --delete` removes them.
+> the **Accounts** panel removes them. _(This read `openclaw governance groups
+migrate --delete` until 2026-09-07, when the governance command line was
+> removed.)_
 >
 > ~~**Isolation is currently enforced by the layer, not by storage**, one policy
 > document and one audit chain still serve every group until M5.~~
@@ -580,7 +588,7 @@ a rule argued from a property of the system, where the property stopped being
 true and the rule did not move.
 
 **The dashboard now says what survived, as the command line always did (finding
-212).** `openclaw governance organisation delete` has always printed `audit
+212).** Organisation deletion has always reported `audit
 ledger kept at <path>`; the panel printed only the counts, so the operator who
 used the dashboard was the one who could not learn that anything was retained.
 Harmless while the retained thing was one unreachable file; not harmless once it
@@ -1024,14 +1032,15 @@ Root gets a **read-only report** that reads the live installation and judges it
 against the architecture the design describes, with a verdict on each check
 rather than a page of numbers.
 
-```bash
-openclaw governance deployment            # human-readable
-openclaw governance deployment --json     # for a provisioning script
-openclaw governance deployment --strict   # exit 1 if any check failed
-```
+It is served to Root only, at `GET /control-ui/governance/deployment`, and
+rendered on the dashboard's **Deployment report** panel.
 
-and the same report on the dashboard, for Root only, at
-`GET /control-ui/governance/deployment`.
+_(There were three command-line forms of the same report until 2026-09-07 —
+human-readable, `--json` for a provisioning script, and `--strict` to exit 1 on
+any failed check. The `--json` and `--strict` shapes are the ones worth noting as
+lost: the route returns the same data, but nothing now gives a provisioning
+script a non-zero exit code from a failed check. See
+`docs-notes/removed-cli-surface/README.md`.)_
 
 **What it checks.** The four claims Chapter 1 makes about how this is deployed,
 loopback-only listener, no standard web port exposed, a tunnel as the only route
@@ -1222,7 +1231,7 @@ Ubuntu 24.04, and `scripts/governance-linux-check.mjs` provides a
 dependency-free platform harness (file locking, POSIX permissions, path
 handling, hashing) for any deployment target.
 
-Command-line usage is documented in full in `docs-notes/CLI-REFERENCE.md`.
+~~Command-line usage is documented in full in `docs-notes/CLI-REFERENCE.md`.~~ **The governance command line was removed on 2026-09-07.** Its full specification is kept, with the reasons and a restore procedure, in `docs-notes/removed-cli-surface/`.
 Operators learning to author permissions should start with
 `docs-notes/WRITING-PERMISSIONS.md`.
 
@@ -3265,8 +3274,23 @@ three-register rule says a finding is not finished until it appears in
 terms document **never uses finding numbers at all**. Deliberately, since a
 number is jargon to the reader it is written for. So coverage there is _topical_
 rather than numeric and cannot be checked by matching numbers. That is the right
-design and it means the register-coverage half of T29 needs reading rather than
-counting; it is **not** done, and is recorded as still open.
+design and it means the register-coverage half of T29 needs **reading** rather
+than counting.
+
+**It was read, and closed, on 2026-08-28.** The coverage of rounds one to
+twenty-one was found sound — 54 topical sections, naming only some rounds by
+number because it is organised by what a reader would look for rather than by
+review order — and the real gap was at the end, where it stopped at round
+twenty-one with nothing for rounds twenty-two to twenty-five. That was written.
+_(This paragraph said "it is **not** done, and is recorded as still open" for
+ten days after it closed, while the backlog row said DONE IN FULL throughout.)_
+
+**And it has drifted again since, which is the point of the "reading rather than
+counting" clause.** On 2026-09-07 the plain-language register still stopped at
+the two defects an operator found on 2026-09-06, eight findings behind. A
+coverage check that can only be done by reading is a check that has to be
+**re-done**, not passed once; §5.101 there now records where it stops and why,
+in the same shape as this section.
 
 **Why this belongs in the report.** The finding count is quoted in Chapter 4. An
 off-by-one in it is a defect a reader can check, and this one survived eighteen
@@ -4274,9 +4298,9 @@ belief.
 
 ### Finding 134: an exported function nothing called
 
-| #   | Component         | Defect                                                                                                                     | Fix                                                                                                                                        |
-| --- | ----------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| 134 | `agent-intent.ts` | `forgetAgentIntent` was written, exported and never called. The size cap already bounds the store, so it had nothing to do | Deleted, on T28's precedent, with a note saying why there is no session-end hook, so the next reader does not add one to give it a purpose |
+| #   | Component         | Defect                                                                                                                                                                                                                                                                                                                                              | Fix                                                                                                                                        |
+| --- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 134 | `agent-intent.ts` | `forgetAgentIntent` was written, exported and never called. The size cap already bounds the store, so it had nothing to do **Reversed on 2026-09-07 by finding 273**, with a caller this time: the new `forgetAgentIntent` is for the _start of a turn_ rather than for session end, and it exists to stop a falsehood rather than to bound memory. | Deleted, on T28's precedent, with a note saying why there is no session-end hook, so the next reader does not add one to give it a purpose |
 
 Finding 113's shape (`sweepOrphans` exported and never called), and the fourth
 member of that family. Deleting rather than wiring: an unused function invites a
@@ -4293,13 +4317,25 @@ no intent, Viewer masking, and, the one that matters most, **a chain mixing
 entries with and without an intent verifying end to end**, plus detection of an
 intent edited after the fact.
 
-**Not verified, and it needs T2**: that `llm_output` fires before the tool calls
-of the same turn execute. The ordering is what the runner's structure implies,
-the dispatch sits in `attempt-result.ts`, and an attempt's tool calls follow its
-result, but no language model has driven a tool call through this layer
-(§7 caveat 1), so the end-to-end path is reasoned rather than observed. **On a
-real run the field is either populated or absent; it cannot be wrong**, because
-an intent is only ever read for the session that produced it.
+**Settled by T2, and the answer was not the one this paragraph expected.**
+Until 2026-09-06 this read: _"no language model has driven a tool call through
+this layer, so the end-to-end path is reasoned rather than observed"_, and it
+closed by asserting that on a real run **"the field is either populated or
+absent; it cannot be wrong"**.
+
+T2 ran, and the field was wrong. Ledger entry #25 — the entry that demonstrates
+the gate refusing a credential read — carried the model's refusal of a
+_different_ file from a turn twenty-five minutes earlier, so it read as though
+the model had declined when the **gate** had. `llm_output` does not fire before
+the same turn's tool calls: the intent is captured in the **settle** phase,
+after the attempt's calls have already been judged, so the value standing at the
+gate belongs to the previous turn. Finding 273, fixed by dropping the standing
+intent at the start of every turn (`forgetAgentIntent`), which converts a wrong
+intent into an absent one. **The claim "it cannot be wrong" was the thing that
+needed observing, and it was false.**
+
+_(Kept in this shape rather than rewritten, because the paragraph is a better
+argument for running the thing than any summary of it would be.)_
 
 ### Divergence from the specification, stated
 
@@ -4326,15 +4362,17 @@ were written into `mg/REMAINING-WORK.md`, `mg/HANDOFF.md`,
 This is recorded rather than quietly backfilled, because several documents
 describe findings as being "written up in all three registers" and that phrase
 has not been true since 2026-08-27. Anyone auditing the QA history from this file
-alone will be **one hundred and forty-four findings short**, 135 through 278,
+alone will be **two hundred and two findings short**, 135 through 336,
 and will not be told so. _(This sentence said "fifteen findings short" when the
 count was 149, and "fifty-nine" when it was 193, "sixty-eight" at 202, "seventy"
 at 204, "seventy-four" at 208, "eighty-five" at 219, "eighty-six" at 220 and
 "eighty-seven" at 221, "one hundred and twenty-seven" at 261 and "one hundred
-and thirty-four" at 268 and "one hundred and thirty-six" at 270 and "one hundred and thirty-eight" at 272; the number is
+and thirty-four" at 268 and "one hundred and thirty-six" at 270 and "one hundred and thirty-eight" at 272 and "one
+hundred and forty-four" at 278, "one hundred and fifty" at 284 and "one hundred
+and ninety-one" at 325; the number is
 derived by subtraction from the current highest finding rather than edited in
 place, which is the same correction the backlog count needed.
-278 − 135 + 1 = 144.)_
+336 − 135 + 1 = 202.)_
 
 **The security findings among them are scattered across four sections**, and if
 you are auditing this project's security history from one document these are the
@@ -4369,7 +4407,24 @@ ones you cannot skip:
   evicted every other agent's unanswered question. Repaired in 225's exact
   shape: keep the bound, change which record is shed. The ledger holds the
   escalations independently, so the cost was the operator's worklist rather than
-  the audit record; the drop is still silent, which is T56.
+  the audit record. ~~The drop is still silent, which is T56.~~ **T56 closed
+  2026-09-07:** the stack now carries a count of the unanswered questions it has
+  shed, incremented inside the lock that sheds them, and both the command line
+  and the dashboard say so — the dashboard even when nothing is left waiting,
+  because a flood shed and then answered leaves nothing waiting _and_ an
+  incomplete record.
+- `SESSION-LOG-2026-09.md` §"2026-09-07 (ii)": **279**, a grant wider than the
+  one an operator was shown. Answering an escalation with "Allow always" files a
+  rule request rather than writing a rule (finding 83's repair, restored as a
+  proposal on 2026-09-06), and the proposal did not carry **which direction of
+  access** had been escalated — `RuleRequest` had no field for it, so it reached
+  the reviewer only inside the request's prose. An absent `access` on a rule
+  means **both directions**, so approving a proposal filed from a _read_ granted
+  a permission to **write** the same path, while the queue row displayed
+  "(read)". Measured at the gate through the real approval route rather than
+  reasoned about. The implementation comment listed three properties it
+  guaranteed; the two with tests behind them held and the third, this one, was
+  never built.
 - §"A seventh 20% segment": **209** and **211**. 209 is a **privilege
   restoration**: `issueSession` never copied `canAuthorPolicy` onto the session,
   so a User whose Root had withheld policy authoring got it back by signing out

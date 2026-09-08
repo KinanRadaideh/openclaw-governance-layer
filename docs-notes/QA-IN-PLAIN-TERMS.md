@@ -6592,10 +6592,21 @@ He filled in the form, pressed the button, and the system said:
 
 > The agent could not be given an owner: agents are owned by an Administrator
 
-That refusal is **correct**. The rule is that every agent has exactly one
-Administrator answerable for it, and the Root account is deliberately not
-allowed to be that person, because letting it would mean two rules instead of
-one.
+That refusal was **correct at the time**. The rule was that every agent has
+exactly one Administrator answerable for it, and the Root account was
+deliberately not allowed to be that person, because letting it would mean two
+rules instead of one.
+
+_(Changed on 2026-09-06, at Kinan's decision, and this paragraph stated the old
+rule as a present-tense fact until 2026-09-07 — finding 282. **Root may now own
+an agent**, and the rule is still one sentence: an agent is owned by an
+Administrator, or by the Root of its own organisation. What changed was the cost
+of the indirection rather than the reasoning behind it — requiring an
+Administrator to exist before any agent can means a fresh installation cannot
+hold an agent until a second account is made, and the person setting one up is
+usually Root. The consequence was handled rather than left implicit: an agent
+Root owns sits in no Administrator's silo, so it is assignable to anyone in the
+group.)_
 
 The problem is that the form gave him no way to satisfy the rule. There was
 nothing to pick an owner with, and no message saying what to do instead. A dead
@@ -7185,3 +7196,361 @@ failures were word for word the three things the operator had complained about.
 Only then were they run against the fix, where all thirty pass.
 
 A test that has never been seen to fail is not evidence. It is a hope.
+
+---
+
+## 5.101 The promise written in the margin
+
+> **This file skips from the previous section to this one, and that is a gap
+> rather than a tidy join.** §5.100 covers the two defects an operator found on
+> 2026-09-06; the eight between them and these — the night the system was first
+> driven by a real model, and the four things that broke around it — were written
+> up in `mg/SESSION-LOG-2026-09.md` and `mg/REMAINING-WORK.md` and never brought
+> across into ordinary language. Recorded here rather than quietly closed over,
+> for the same reason `GOVERNANCE.md` carries a paragraph saying where its own
+> register stops: anyone reading the QA history from this file alone will be
+> eight defects short and would not otherwise be told.
+
+Every feature built over the previous three days had tests. Each set of tests
+drove its own feature on its own, in a clean installation made a moment earlier.
+That is the right first thing to do, and it turns out not to be the same question
+as: what happens when two of these meet?
+
+So this round drove them against each other instead. It found three things.
+
+### The button that granted more than it showed you
+
+When an agent tries to do something no rule covers, the system can stop and ask a
+person. The person gets three buttons: allow this once, always allow, or refuse.
+
+"Always allow" does not, despite its name, create a permanent permission on its
+own. It lets the action through this once and **files a request** — a proposal
+that an administrator has to approve while signed in, so that a permanent
+widening always has a named person behind it. That design is deliberate and it is
+there because of an earlier defect: the person clicking a button in a chat window
+may have no account in this system at all.
+
+The code that files that proposal opens with a comment listing three promises it
+makes. The third reads:
+
+> It carries the access half for paths. A read that was escalated proposes a
+> read, not a read and a write.
+
+In other words: if the agent was stopped while trying to **read** a file, the
+proposal should ask for permission to read it — not to rewrite it.
+
+**It did not do that.** The proposal had nowhere to record the difference. The
+words "(read)" appeared in the human-readable explanation an administrator sees,
+and nowhere in the actual request. And a permission with no direction recorded
+means _both_ directions, by design and for good reasons elsewhere.
+
+So: an agent is stopped trying to read a file. Somebody presses "Always allow".
+An administrator opens the queue, reads a row that says **"(read)"**, and
+approves it. The agent can now **overwrite that file**.
+
+That was not deduced from reading the code. It was driven: escalate a read,
+press the button, approve it through the real approval route, then ask the system
+whether the agent may now write. It said yes.
+
+**The part worth remembering is which promise failed.** The comment made three.
+Two of them — that the permission covers exactly the one file and not a family of
+similar names, and that it binds only the one agent — have tests, and both turned
+out to be true. The third had no test, and was never built. Nothing anywhere
+disagreed with it, because a sentence in a comment cannot fail.
+
+A promise written in a comment is a to-do until something measures it.
+
+### The screen that kept the last person's work
+
+A fortnight earlier a defect was fixed where signing out left the previous
+account's conversation on screen for whoever signed in next at the same machine.
+The fix was found by listing what the page holds and asking which pieces nobody
+clears.
+
+**This round ran that same list properly.** The page holds fifty pieces of state.
+Signing out cleared fifteen. Of the thirty-five left, the routine that reloads
+everything on sign-in refreshes twelve — so **twenty-three survived a sign-out**,
+not one.
+
+Among them: the Agent permissions panel stayed open on the previous account's
+agent, showing its rules and **the list of people assigned to it**. A warning
+banner announcing an emergency stop stayed on screen for somebody who had not
+ordered one. And the forms for writing a new rule and requesting a permission
+came back **filled in**, still naming the agent and the account the previous
+person had been working on.
+
+The first repair covered three of the twenty-three — and that was the same
+mistake, one layer down. It was caught by running the listing again _after_
+fixing, rather than by anybody noticing.
+
+**A fix worked out from a list is not finished until you run the list again
+against the fixed version.** Signing out now clears forty-eight of the fifty, and
+the two exceptions are named in the code with the reason each is one.
+
+### The queue that quietly filled up
+
+Every proposal filed by "Always allow" is filed under the same label, because
+there is no account to attribute it to. The queue limits how many pending
+requests any one filer may have to twenty.
+
+So every escalation proposal in the whole organisation shares **one budget of
+twenty**. Twenty-five presses of "Always allow", on twenty-five different
+actions, produced twenty proposals. The other five let the action through and
+filed nothing — recorded only in the audit ledger, which is not somewhere anyone
+looks to find out what is waiting for them.
+
+**Nothing widened.** A full queue can only fail to propose; it can never grant
+something. But the operator who pressed the button was told nothing, and the
+button still says "Always allow".
+
+This one is left open on purpose, as a decision rather than a repair, because
+"what should the button say" and "how big should the budget be" are questions for
+the person who owns the product. It is written up as T60.
+
+### And a list that had stopped saying it was incomplete
+
+Separately: when too many unanswered questions pile up, the system drops the
+oldest to stay within a limit. Which one it drops was fixed a few days ago so
+that a noisy agent loses its own questions rather than everyone else's.
+
+What was still true is that it dropped them **silently**. An operator read a list
+of "what is waiting for you" that had quietly stopped being complete.
+
+Both the dashboard and the command line now say so, in the same sentence, from
+the same count — and the dashboard says it **even when nothing is left waiting**,
+because a flood that was dropped and then dealt with leaves an empty list and an
+incomplete record at the same time. "Nothing is waiting" is exactly the wrong
+thing to conclude from that.
+
+### Four of the mistakes this round were the tester's
+
+Worth saying plainly, because it is the most repeated lesson in this file.
+
+Four times, a check reported a problem that was not there:
+
+- A helper looked for the wrong shape of refusal, so a **refusal read as an
+  approval** and the round briefly reported a permission that had never been
+  granted.
+- A test file was placed inside the protected directory, so the system refused
+  to touch it before the question being asked could even be reached.
+- A test used a file called `secrets.env`, which is refused outright as a
+  credential, so nothing ever escalated and the test measured nothing.
+- A check asked the account store to update a signed-in session, which is not its
+  job — the screen that changes a person's role does that on the next line, and
+  it is the only thing in the product that changes a role.
+
+Two of those were badly written checks. **The other two were the system being
+right** and the check asking a question it was not entitled to ask. That second
+kind is the more interesting failure: the question was reasonable, the answer was
+correct, and the check still had to be rewritten.
+
+A check that fails is a claim about the check until somebody has read the check.
+
+---
+
+## 5.102 Taking a whole surface away
+
+> **A note for anyone reading the sections above.** Several of them describe
+> things you could type at a terminal — `openclaw governance kill`,
+> `openclaw governance policy show`, and others. **Those commands no longer
+> exist.** The command line was removed on 2026-09-07. The defects those sections
+> describe were real and were fixed; the commands they were fixed in are gone.
+
+There were three ways to work with this system: an HTTP interface, a web
+dashboard built on it, and a set of terminal commands. On 2026-09-07 the terminal
+commands were removed — all fifty-five of them, about three thousand lines and a
+hundred tests.
+
+**This is unusual enough to explain.** Almost everything else in this document is
+a defect found and repaired. This is the opposite: working code, tested, that was
+deleted on purpose.
+
+### Why
+
+**Nobody had asked for it.** The project has nine written requirements. They ask
+for the permission tiers, the rule engine, the tamper-evident log, the pause-and-
+ask-a-human step, and a Linux deployment. **None of them asks for a command
+line.** It had been added because a system with two ways to do something looks
+unfinished next to one with three — which is a feeling about symmetry, not a
+reason.
+
+The project had even gone as far as _auditing the rule_ that every feature must
+appear on all three, found that rule wrong in four places, and softened it. What
+nobody asked, in either pass, was the question underneath: **why three?**
+
+**It broke, in front of the person using it.** Signing in at the terminal asked
+for an account name, then failed to print the word "Password", failed to hide the
+password as it was typed, and refused a password that was correct. That happened
+while trying to read the audit log to answer a question — and the dashboard
+answered the same question straight away.
+
+**It could not be defended.** Asked "why does this exist?", the honest answer was
+"it seemed incomplete without one".
+
+### The number that settled it
+
+The worry was time. There is a by-hand test plan that needs three people at three
+machines and has 158 checks on it, and there was doubt about finishing it before
+the deadline.
+
+**The command line accounted for two of those 158 checks.** About one percent. Its
+automated tests were already written and already passing, so deleting it made the
+test suite _smaller_ rather than saving any effort at all. What it saves is
+future work: every new feature no longer has to be built three times.
+
+### What was actually lost
+
+Two things, and pretending otherwise would be dishonest.
+
+**The way in when the front door is locked.** The terminal commands read files
+directly, so they worked when the server was down. The dashboard cannot: it needs
+the server running. The documentation had argued this exact point — that the
+terminal "is the surface that works before the tunnel exists" — and that argument
+was correct. It has been left in place, with a note, rather than quietly deleted.
+
+**A way of catching mistakes.** When two separate pieces of code answer the same
+question, comparing them finds bugs. That is how the worst defect in this project
+was found — an emergency stop that reported success and stopped nothing. There is
+now one fewer way for that kind of mistake to announce itself.
+
+**Neither weakens security**, and the reason is worth stating precisely: the
+check that stops an agent doing something is not on either surface. It sits at
+the single point every tool call passes through. Removing a way for a _person_ to
+change the rules does not change what an _agent_ is allowed to do. That was
+measured after the removal, not assumed.
+
+### Nothing was thrown away
+
+Every file, every test, the reasoning, and step-by-step instructions for putting
+it all back are kept in `docs-notes/removed-cli-surface/`. Restoring it takes
+about ten minutes. Anyone who thinks this was the wrong call — including a future
+reader — can reverse it.
+
+### The bug the deletion left behind
+
+Removing something is not the same as removing every trace of it, and this is the
+part worth remembering.
+
+All eight source files were deleted. The entry that loaded them was deleted. Three
+separate type checks passed, and both code-quality checks passed. And
+`openclaw --help` **still listed the command**, because the list of commands the
+help screen prints lives in a different file from the commands themselves.
+
+So the system would have advertised something that could no longer run.
+
+The test suite could not have caught it — deleting a feature deletes its tests, so
+what remains passes automatically. It was caught by a purpose-written check that
+asked the help system directly. **Deleting the thing does not delete the sign
+pointing at it, and the sign is what a person meets first.**
+
+---
+
+## 5.103 The screen that never asked again
+
+Two days of the dashboard being driven by hand, one section at a time, signed in
+as each of the four kinds of account in turn: Root, Administrator, User, Viewer.
+Twenty-one problems came out of it. Nineteen of them could only be seen from an
+account that was **not** Root.
+
+That is worth stopping on, because it explains why they lasted so long. Every
+earlier check of this screen was done as Root. Root can see everything, so every
+sentence on the page gets written with Root in mind, and every sentence that is
+wrong for somebody else is invisible to the person writing it.
+
+### The one that mattered most, and it was not about the section being tested
+
+Somebody signs in. The page loads. It asks the server three questions at that
+moment — _who am I, what may I do, which agents are mine_ — and then, for as long
+as that person stays signed in, **it never asks again.**
+
+Everything else on the page refreshes every fifteen seconds. The rules, the audit
+trail, the running agents, the list of accounts. Just not the answer to "who is
+this".
+
+Here is what that looks like from the outside. Two people, two machines.
+
+- The **manager** gives someone a new agent to work with, and tells them. The
+  other person looks at their screen. Nothing. The agent is not there, and there
+  is nothing on the page saying "reload me". As far as they can tell, the manager
+  did not do it.
+- The **manager takes an agent away.** The other person's screen still shows it,
+  still offers a box to type into, still looks entirely normal — and every
+  message they send comes back refused. They are being told "no" by a screen that
+  is still saying "yes".
+- The **manager withholds permission to edit rules**, which is a deliberate,
+  recorded act. The other person's screen keeps every rule-editing button lit,
+  and keeps a sentence telling them they are allowed to edit rules.
+
+**Nobody could do anything they were not entitled to.** The server checked every
+one of these and refused correctly. What was wrong was the screen, and being told
+you can do something and then refused is its own kind of harm: it teaches people
+that the system is unreliable rather than that they lack permission.
+
+### Why this one is a lesson and not just a bug
+
+The day before, a different problem had been fixed: the server was not telling
+the browser whether someone's rule-editing permission had been withheld. That fix
+was checked by **signing in as a withheld person** and looking. It worked.
+
+But that is the one situation that was already fine. The interesting case is
+withholding it from somebody who is **already** signed in and watching — and that
+never worked, because of the problem above. So a fix that was tested, confirmed
+and written up was, in the situation people would actually meet, only half done.
+
+**Checking a repair on the case that prompted it is not the same as checking the
+repair.** This project has now recorded that mistake three times, and it has
+never once been caused by carelessness. It is caused by testing the thing you
+just fixed, in the way you were thinking about when you fixed it.
+
+### The smaller ones, and what they have in common
+
+- Root and managers could **open** a conversation with an agent and had no way to
+  close it. The control that looked like the way back — setting the picker to
+  "Choose an agent…" — did nothing at all, so the picker went blank while the
+  conversation stayed open underneath it, the two disagreeing about what was on
+  the screen.
+- The message you had just sent **vanished** while the agent was answering. On a
+  brand-new conversation the panel said "No messages yet" directly above the
+  agent's reply arriving live. The ordinary chat on the very same page shows your
+  message straight away, which is what made this read as broken rather than as a
+  convention.
+- A person with agents assigned to them saw only the agent's **id** — `scout` —
+  while managers, one tier up, saw `Scout Bot (scout)`. The name was already in
+  the browser. The screen was choosing the less useful half, on the one kind of
+  account this part of the page exists for.
+- A person with **no** agents assigned was told, correctly, "you can only work
+  with agents an Administrator assigns to you" — and then handed a box inviting
+  them to type an agent's name in. Typing a real one got them refused. That
+  sentence had been corrected the previous day; the box it was describing had not
+  been.
+- The box you type a task into was **about twenty characters wide**, at every
+  window size, because of how the panel measured itself. The ordinary chat box on
+  the same page is four times that.
+
+The thread through all of them: **the screen said something that was not true,
+while the part of the system that enforces the rules behaved perfectly.** None of
+these was a hole in the security. All of them made the product feel unreliable,
+which is a different problem and not a smaller one.
+
+### And one about the tests, which is the honest part
+
+The only test in this project that can measure what a screen actually looks like
+had never been shown this panel. Its fixture — the pretend page it builds before
+measuring — had no open conversation and no agents in it, so the message box and
+the agent picker were simply not on the page being measured. Every test passed,
+about a page missing the thing that was broken.
+
+This is the second time that same fixture has hidden something. The first time,
+it had no rules in it, so the biggest section of the page had never been measured
+either.
+
+**A test can only see what its fixture puts in front of it**, and a fixture is
+easy to leave incomplete because nothing complains when you do.
+
+There is a second confession attached. A test was written to guard the
+twenty-character box, and **it was thrown away rather than kept**, because three
+different versions of it passed just as happily against the broken code as
+against the fixed code. The pretend page the test builds is not shaped enough
+like the real one for the difference to show. Keeping it would have meant
+shipping something that looks like protection and is not — and that, by this
+project's own count, is the single most common way its tests have let it down.

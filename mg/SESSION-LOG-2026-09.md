@@ -2306,3 +2306,2510 @@ on a real server three times without reading its output closely.
 Every previous sweep looked at code, at surfaces, at tests, or at a failure. This
 one looked at a success, and found a defect in the installer and a mistake in
 the instructions written the night before.
+
+---
+
+## 2026-09-07 (ii): the composition axis, and a property that was documented rather than built
+
+**A QA session aimed at the three days before it.** Baseline re-measured first
+and it matched the documented figure exactly: **2,794 passed / 20 skipped across
+156 files**, exit 0.
+
+**Green at the end of it too, on a tree that had moved:** **2,817 passed / 20
+skipped across 156 files**, exit 0 — twenty-three tests added by findings 279 and
+280 and by T56. Three typechecks clean (core, UI, tests) and the **full** lint
+gate green, which is the one that matters here because the plain one was green
+while the full one was not (see below).
+
+_(One run was thrown away rather than reported. The first full-suite verification
+was started and then **edited underneath** while it ran, because T56's code
+landed mid-run; vitest collects once but imports at test time, so the result
+would have been a mixture of two trees. It was killed and re-run on a frozen
+tree. A green number measured against a tree that no longer exists is the same
+class of claim as a build that succeeds without saying which code it built —
+finding 278, four days old and already applicable to my own process.)_
+
+### The axis, and why it was the one to pick
+
+Every feature landed between 2026-09-05 and 2026-09-07 has tests, and reading
+them showed the same shape in all of them: each drives its feature **alone, in a
+governance directory made one line earlier**. That is the right first check. It
+is not the same question as what happens on the second run, in an installation
+that already holds a released agent id, a full queue, or a rule somebody approved
+yesterday.
+
+The eight axes this project has used — modules, capabilities across surfaces, a
+cold machine, the checking machinery, failure branches, time, bounds, lifecycle —
+each sampled one thing at a time, and the ninth (2026-09-07 (i)) read the log of
+something that worked. This one samples **the seams between two new things**.
+
+Two standing probes came out of it, in `docs-notes/qa-sweep-2026-09-07/`:
+
+- `composition-sweep.ts` — 10 checks. Six passed on first run; the two that still
+  fail are the two open decisions (T55's reused-id question and T60's queue).
+- `policy-semantics-sweep.ts` — 7 checks, **7 passed**. The decision procedure
+  itself, which no standing probe drove: a deny beats an allow whichever was
+  written first, a core deny beats an operator allow, an expired rule stops
+  applying _at the gate_ rather than at the next prune, `monitor` records where
+  `enforce` blocks, a per-agent posture overrides the installation's in both
+  directions, and a locked-down agent is refused a call an explicit allow rule
+  permits. Confirmatory, and worth having: these are what requirements 1 to 5
+  actually mean, and they were asserted only by unit tests over single calls.
+
+### 279: a property that was written down rather than built
+
+`proposeRuleFromEscalation` lists three properties it says it is responsible for,
+each described as a way the escalation could otherwise grant more than the
+operator saw. The third:
+
+> **It carries the access half for paths.** A read that was escalated proposes a
+> read, not a read and a write.
+
+**It did not.** `RuleRequest` had no `access` field. The direction reached the
+function, went into the human-readable `reason` string, and stopped there; the
+rule an approval built carried none, and an absent `access` on a `PolicyRule`
+means **both directions** by design.
+
+Measured at the gate rather than argued: escalate a read of a file, answer
+Allow always, approve the proposal through the **real decide route**, then ask
+the gate for a **write** to the same path. It came back `undefined` — allowed.
+Meanwhile `describeRequest` prints the request's `reason`, so the row the
+Administrator approved said **"(read)"**.
+
+**The other two claimed properties held.** The pattern is the resource escaped
+and anchored, and the proposal is scoped to the agent that asked — both confirmed
+at the gate. The difference between them and the third is that both have tests
+and the third did not; the test file heading that lists "six properties" does not
+include it. **A claim in a comment is not a property. The ones with no test
+behind them are where to look.**
+
+The fix carries `access` on the request, through both approval surfaces (the
+dashboard route and the CLI), into `describeRequest` so the reviewer's own
+sentence says what they are granting, and into `findPendingRuleRequestFor` —
+without which a read proposal would swallow a later write proposal and grant only
+the first, the same defect arriving through the de-duplication.
+
+**One of the four new tests was vacuous and was caught by the revert.** It
+asserted that `describeRequest` contains "(read)", which was already true through
+the reason prose, so it passed with the change reverted. It now asserts the half
+_before_ the reason. The same deletion this project recorded making for 271,
+caught the same way: by running the test against unfixed code rather than by
+reading it.
+
+### 280: the same listing, run properly
+
+Finding 271 asked which fields `refreshData` never overwrites and answered "the
+transcript". Running that listing mechanically — 50 `@state()` fields against the
+15 `endSession` cleared — says **twenty-three survived a sign-out**, and
+`refreshData` reloads only three of those.
+
+Among the twenty: the Agent permissions panel stayed open on the previous
+account's agent, showing its rules and **the usernames assigned to it**; a stale
+`killNotice` rendered as a `role="alert"` announcing an emergency stop the next
+person did not order; and the authoring and request forms came back **filled in**
+with the previous account's half-typed rule and the agent and account it named.
+
+**The first repair cleared three of the twenty-three and was the same mistake one
+layer down.** It was caught by re-running the listing after fixing. That is the
+rule worth keeping, and it is cheap:
+
+> **A fix derived from a listing is not finished until the listing is run again
+> against the fixed code.**
+
+`endSession` now clears **48 of 50**, written as "everything, less the
+exceptions" with the two exceptions named and argued in place — `needsBootstrap`
+is a fact about the installation rather than the session, and `loading` belongs
+to a loader that is often still running. A field added to that component in
+future is session state until somebody argues otherwise in that list.
+
+### 281 becomes T60, and it is a decision
+
+Every escalation proposal is filed under the one labelled origin `hitl-approval`,
+and `MAX_PENDING_REQUESTS_PER_USER` counts by requester — so all of them share
+**a single 20-slot budget for the whole organisation**. Twenty-five distinct
+escalations answered Allow always filed **twenty** proposals. The other five
+granted the call and filed nothing, recorded only as an
+`escalation-proposal-failed` ledger entry that no surface reads.
+
+And the button still reads **"Always allow"**, with an escalation description
+that says nothing about a proposal — a control promising a consequence it does
+not have, which is finding 278's `--skip-ui` class exactly.
+
+**The safe half is real and must survive whatever is decided: a full queue never
+widens the policy, it only fails to propose.**
+
+### 282: the documentation, and the check that finds this class
+
+The 2026-09-06 restoration of `allow-always` changed behaviour and **updated no
+document outside the code**. Six documents still said an "allow always" answer
+writes a permanent rule — the behaviour QA round 13 removed as a security defect:
+`FIGURES.md` (F3, in both the prose and the TikZ caption), `CHAT-DEPLOYMENTS.md`,
+`CLI-REFERENCE.md`, `PERMISSION-SPEC.md`, `CHAPTER3-MATERIAL.md` (twice, one of
+them a Mermaid `opt` branch reading `persist new rule`) and `GOVERNANCE.md`.
+
+`CHAT-DEPLOYMENTS.md` is the one that mattered most, because it is the document
+about the surface the concern actually lives on, and it carried a whole
+blockquote explaining that the button had been withdrawn for every surface.
+
+**F3 carries the method lesson, and it is the reusable output of this session.**
+The 2026-09-05 figure audit read every figure against the code, and it could not
+have caught this. The claim had been false since long before that audit, because
+it described a capability that at the time **did not exist in the code at all**.
+
+> A check that asks _"does the code do what this figure says?"_ cannot see a
+> figure describing something the code no longer has. There is nothing to compare
+> against, so the sentence sails through.
+>
+> **The complementary check is the reverse direction: take each removed or
+> changed feature and grep the documents for it.**
+
+That is how all of these were found — from a three-day commit list, not from a
+read. Three figures (F3, and F6 and F13, which understate the layer since T57)
+and nine prose claims across seven files.
+
+**Also struck this pass:**
+
+- **"the field is populated or absent, never wrong"**, the intent field's safety
+  claim, still standing in three live documents after T2 produced the third
+  outcome nobody had allowed for (273). `T2-LIVE-RUN.md` had offered exactly two
+  possible answers to its own question and the run produced a third — **a runbook
+  that enumerates the outcomes it expects will not notice the one it did not
+  think of.**
+- **Six stale T2/T3 claims**, including `GOVERNANCE.md` saying _"no language
+  model has driven a tool call through this layer"_ — the register contradicting
+  the project's headline result, a day after five copies of the same sentence
+  were struck elsewhere.
+- **"the Root account is deliberately not allowed to be that person"** in
+  `QA-IN-PLAIN-TERMS.md`, stating the pre-2026-09-06 ownership rule as a
+  present-tense fact.
+- **The handoff's own table.** `HANDOFF.md` §6's **"The fifteen open"** held
+  fourteen rows, two of them closed (T53, T57), and omitted three that were open
+  (T1, T58, T59). The count above it — 44 struck, 15 open — was **right**.
+  Finding 259 in reverse: there the count was stale and the rows current, so the
+  fix was to count the rows; here the count was re-derived from
+  `REMAINING-WORK.md` and the list printed beside it was not. **Deriving a number
+  from the right source does not check the list you print next to it, and a
+  reader takes the list.**
+
+And one trap left for whoever re-derives that count next: **T13 carries a struck
+row reading DRAFTED**, for the drafting sub-task, while T13 itself is open. A
+grep counting the struck form reports 45 struck and 15 open; the answer is 44 and 16. It caught me, and the note is now in the cell.
+
+### A second sweep, on five systems around the gate rather than inside it
+
+`docs-notes/qa-sweep-2026-09-07/systems-sweep.ts`, **17 checks, 17 passed.** The
+standing probes drive the tiers, the throttle, the ledger's tamper-evidence,
+agent-id folding and the path protections; `policy-semantics-sweep.ts` added the
+decision procedure. These five are the systems the report leans on that nothing
+was driving:
+
+- **Sessions.** A revoked token stops verifying; revoking every session for an
+  account reaches all of them; and a demotion binds on a session **already
+  issued**, so an operator demoted for cause does not keep an elevated cookie.
+- **Rule-authoring guardrails.** The authoring API refuses to mint a `core`-tier
+  rule (`ImmutableRuleError`) and silently coerces `baseline` to `admin`, so an
+  operator rule cannot present itself as a shipped restriction. The conflict
+  detector reports an allow written behind an existing denial — **and the sweep
+  then checks at the gate that the shadowed grant really is inert**, which is
+  what makes the warning worth printing rather than merely present.
+- **Folder grants (T54).** The grant reaches inside the folder, the exception
+  carves a hole in it, an exception outside the folder is refused **before
+  anything is written**, and — the one worth driving rather than reading — a
+  grant on one folder does not reach a **sibling whose name starts the same
+  way**, tested with a real sibling directory rather than by inspecting the
+  pattern.
+- **The deployment report (A7).** Twenty-one named checks; its `summary` counts
+  agree with the rows it printed; and `overall` is the worst **non-unknown**
+  status, so a machine that cannot perform a check can neither turn a failure
+  into a pass nor an unknown into a failure. On Windows two checks report
+  `unknown`, which is the honest answer for the POSIX mode bits.
+
+**One of these started as a reported defect and was mine.** The session check
+first called `setUserRole` and expected a standing session to follow, and it did
+not — reported as privilege retention. It is not: `governance-dashboard-accounts.ts`
+calls `updateSessionsRoleForUser` on the next line with exactly the right reason
+written above it, and that route is the **only** writer of the role in the
+product. There is no CLI `set-role`.
+
+What is worth keeping is the shape underneath: **the guarantee is a property of
+one caller rather than of the store**, so a second writer added later would not
+inherit it and nothing would say so. That is findings 119 and 139's shape — a
+route written before an invariant existed. Not a defect; the sweep now pins both
+halves so that moving the propagation into the store is a visible change rather
+than a silent one.
+
+### T56, closed — and the decision it was waiting on did not exist
+
+The row read _"Claude, once Kinan says which surfaces"_, and named **all three
+consumers of `listPendingDecisions`**. Two of the three are listings. The third,
+`governance-dashboard-api.ts:447`, is a lookup by id for the decide route: it
+displays no worklist and has nothing to be incomplete about. So the choice was
+never "three or one" but "both listings or only the dashboard", and leaving the
+command line silent would have left it printing _"No escalations are waiting for
+a decision"_ over a stack that had dropped questions.
+
+**Built so the count cannot drift from the rows:**
+
+- `pending-decisions.json` gains a cumulative `shedUndecided`, incremented
+  **inside the same lock that did the shedding**.
+- `pruneDecided` returns what it shed rather than a tally being kept beside it,
+  so the number is the difference between what went in and what stayed.
+- One `readPendingDecisions` returns rows and count from a **single read**;
+  `listPendingDecisions` delegates to it. No surface can print the two from
+  different moments.
+- `describeShedPendingDecisions` is shared by the command line and, through
+  i18n, by the dashboard — finding 255 caught those two describing one thing in
+  different words already.
+
+**Three decisions inside it worth stating:**
+
+1. **Only undecided rows are counted.** Losing a decided row costs an operator
+   nothing to act on; the answer is already in the ledger. Counting it would
+   describe a bound rather than their worklist.
+2. **Cumulative, not "what is missing now".** The rows are gone and cannot be
+   recovered, so the only honest sentence is about the store's history.
+3. **The panel renders when there is a count and no rows.** A flood that was
+   shed and then answered leaves nothing waiting _and_ an incomplete record, and
+   "nothing is waiting" is exactly the reading an operator must not take from
+   that. The panel's own empty check would have hidden it.
+
+Six store tests and three panel tests, all run against reverted code: neutering
+the counter fails three of the six, neutering the notice fails two of the three.
+
+### T50 got its first two numbers, from running the thing
+
+The row has said since 2026-09-05 that nothing automatic runs the full lint gate
+and that the choice is hook, CI, or documented-as-manual. Nobody had measured
+either half of what that costs. Both numbers came out of this session by
+accident:
+
+- **The full gate takes about eighteen minutes here, measured twice** —
+  `node scripts/run-lint.mjs`, 05:24:15 to 05:42:02 and again 05:55 to 06:14,
+  almost all of it in twenty per-extension `oxlint` passes,
+  several logging _"still running after 30s"_. A pre-commit hook costing eighteen
+  minutes gets bypassed on its first bad day, which makes "put it in the hook"
+  the option that produces a gate nobody runs.
+- **The two gates disagreed, on a change made ten minutes earlier.** Plain
+  `oxlint` over `src ui/src` exited 0. The full gate exited **1** on
+  `typescript(require-array-sort-compare)`, a type-aware rule the plain pass
+  cannot evaluate — against a line plain `oxlint` had itself demanded, since
+  `unicorn(no-array-sort)` asked for `.toSorted()` and the type-aware rule then
+  asked that `.toSorted()` for a comparator.
+
+So "the hook is close enough" is now falsified by example rather than argued
+about, and the middle option is the dangerous one: a hook running the cheap
+subset **looks** like coverage, and it is what let this change reach a
+commit-ready state twice in one evening.
+
+**And the reporting trap the handoff warns about fired in my favour for once.**
+The gate's own summary tail is twenty lines of `[oxlint:extensions:N] finished`
+with no error in it; the failure is at line 25 of an 82-line log and the exit
+code is the only thing that says so. Read from the tail, this run looks green.
+The rule the handoff states — _never pipe the output through `tail`, read the
+exit code directly_ — is what caught it, and this is the first time in the record
+that it caught something rather than being cited after the fact.
+
+### The fixtures, because four were mine
+
+- `wasAllowed` in the composition sweep tested for a `deny` key that **no
+  decision shape has** — a refusal is `{ block: true, blockReason }` — so a
+  core-tier denial read as "allowed" and the sweep reported a reused agent id
+  inheriting a grant that had never been made.
+- The same sweep's first target file sat **inside the governance directory**, so
+  finding 254's core denial refused it before any escalation could happen. The
+  protection working, and a fixture asking the wrong question.
+- The first end-to-end test used `/srv/app/secrets.env`, refused outright by the
+  credential-file core rule, so nothing escalated. **The same trap that cost the
+  first T2 attempt, arriving from the other side**: there a file that sounded
+  like a secret was refused by the model, here one was refused by the gate.
+
+- The systems sweep called `setUserRole` and expected a standing session's tier
+  to follow. It does not, and does not claim to: the dashboard route calls
+  `updateSessionsRoleForUser` on the next line and is the only writer of the
+  role in the product. Reported as privilege retention; it was a fixture asking
+  the store for a guarantee the route owns.
+
+Four fixture errors, three of which pointed at defects that were not there. That
+is now the seventh through tenth in a fortnight, and the standing note holds:
+**a probe that fails is a claim about the probe until the probe has been read.**
+
+Worth separating, because they are not the same mistake: two were **wrong
+code** (a decision shape that does not exist, a wrong argument order) and two
+were **the product being correct** — a core denial refusing a file inside the
+governance directory, and M3 refusing to demote an account without naming a
+manager. The second kind is the more interesting failure, because the probe was
+well-formed and the answer it got was the right one to a question worth asking
+differently.
+
+---
+
+## 2026-09-07 (iii): a surface removed, and the arithmetic that proves nothing else went with it
+
+**The `openclaw governance` command line was removed**, at Kinan's decision.
+Fifty-five commands, 3,162 lines and 101 tests. Archived first, then deleted.
+
+### The decision, and the number that made it
+
+The worry was time: T47 needs three people and three machines, 158 checks, and
+there was doubt about finishing it. So the first thing measured was **how much of
+that plan the command line actually accounted for**:
+
+|                                        |                      |
+| -------------------------------------- | -------------------- |
+| Commands                               | 55                   |
+| Source lines                           | 3,162 across 8 files |
+| Tests                                  | 101 across 14 files  |
+| **T47 rows touching the command line** | **2 of 158**         |
+
+**About one percent.** And because the 101 tests were already written and green,
+removing the surface _reduced_ the suite rather than saving effort. The saving is
+entirely in future work, not in the work that was worrying him.
+
+The reasons that did decide it were different ones, and worth separating:
+
+- **No design requirement asks for a command line.** §1.3 names the tiers, the
+  policy engine, the ledger, HITL and a Linux deployment. The third surface was
+  self-imposed. The project had even audited the _rule_ — T34, 2026-08-31, which
+  found "every capability reaches all three surfaces" false of four capability
+  groups and softened it — **without anyone asking the prior question: why
+  three?**
+- **It was the surface that broke in front of an operator**, the same evening.
+  `governance login` printed no password label, did not mask the password, and
+  refused valid credentials. That blocked reading the ledger for T58; the
+  dashboard answered the same question immediately.
+- **It could not be defended in a presentation.** "It seemed incomplete without
+  one" is a statement about symmetry, not need.
+
+### Archive before delete
+
+`docs-notes/removed-cli-surface/` holds every source file and every test as
+`.ts.txt` — the same device `qa-round13-probes/` uses, so nothing is compiled,
+linted or collected — plus a README with the reasoning, what was lost, and a
+ten-minute restore procedure. `CLI-REFERENCE.md` moved in with it under a banner
+saying it documents a surface that no longer exists.
+
+**The parity suites are why this is an archive rather than a `git revert` note.**
+`cli-agent-control-parity`, `cli-rule-request-parity`, `cli-pending-decision-parity`,
+`cli-transcript-parity`, `cli-user-ask-parity` and `cli-surface-parity` each
+assert that two independent implementations reach the same decision. A restored
+surface without them would be worse than none.
+
+### The arithmetic, which is the whole verification
+
+**A removal is the one change where a green suite proves least.** Deleting a
+surface deletes its tests, so the count falls and everything remaining passes by
+construction. "Still green" is nearly content-free.
+
+What has content is the subtraction:
+
+```
+2,817 → 2,716   (−101, exactly the archived tests)
+  156 → 142     (−14,  exactly the archived files)
+```
+
+The suite lost **precisely** what was archived and nothing else. That is the
+check; the green is not.
+
+**Measured twice, because a laptop restart landed in the middle of the
+verification.** The tree was checked for integrity before anything was re-run —
+22 deletions still staged, the archive complete, every pre-crash edit present —
+and then the whole verification was redone from scratch rather than resumed:
+three typechecks, both lint gates, all five sweeps and the suite. Both suite runs
+gave 2,716 / 142. A verification interrupted halfway is not a verification, which
+is the same rule that made the earlier run in this session get thrown away for
+being measured against a tree that had moved underneath it.
+
+### What the sweep caught that the suite could not
+
+`docs-notes/qa-sweep-2026-09-07/cli-removal-sweep.ts`, **7/7**, and it earned its
+existence on the first run: **`core-command-descriptors.ts` still declared a
+`governance` descriptor.** The eight source files were gone, the registry entry
+was gone, three typechecks and lint were clean — and `--help`, argv routing and
+command suggestions would all still have **advertised a command that no longer
+existed**. Finding 100's class, arriving through a deletion rather than through a
+half-built feature.
+
+The other two things it asserts are the ones Kinan asked for by name:
+
+- **All ten upstream command groups still register** — `onboard`, `daemon`,
+  `models`, `config`, `agent`, `cron`, `doctor`, `dashboard`, `audit`, `message`.
+  The 63 upstream CLI test files, 1,067 tests, pass unchanged.
+- **Enforcement is untouched.** An unlisted action and a core-tier denial are
+  both still refused after the removal. That is asserted rather than assumed,
+  because "we only deleted an operator surface" is a claim about blast radius and
+  this project has been wrong about blast radius before.
+
+It also checks, by behaviour rather than by reading the set, that `cli` is still
+a **reserved actor name**: historic ledger entries name it, the chain is
+tamper-evident so they cannot be rewritten, and a future account called `cli`
+must not be able to have its actions read as historical command-line ones.
+
+### Two more probe faults of mine, and one was instructive
+
+- The probe first walked the registry module's exports by reflection, found
+  nothing, and **reported it as a failure rather than as a green check**. That is
+  the only reason it was noticed — a check that cannot read its subject must say
+  so, not pass.
+- It then checked only the core registry and reported `daemon`, `models` and
+  `cron` as casualties of the removal. They live in `register.subclis-core.ts`.
+  **A probe that does not know where a thing lives will report its own ignorance
+  as a defect** — the third time that happened this session, and the reason the
+  first draft's failure was worth reading rather than acting on.
+
+### The second pass, and the thing the first one missed
+
+Kinan asked for the removal to be gone through **again**. That second pass found
+finding **284**, and it is the most important result of the whole change.
+
+After the first pass reported the removal complete — every source file gone, both
+registries clean, the `--help` descriptor removed (283), three typechecks and both
+lint gates green, the dedicated removal sweep 7/7 — `dist/` still contained
+**`register.governance-BfFo31MS.js`**: the entire compiled command tree, plus the
+descriptor string inside `dist/argv-*.js`. On any machine running the shipped
+build, **including the VPS**, `openclaw governance …` still worked.
+
+> **Deleting source does not delete the product.**
+>
+> Every check this project runs — typecheck, lint, the suite, and the removal
+> sweep written for this very change — reads the **source tree**. What a user
+> runs is the **build**. Nothing was comparing the two.
+
+And it is finding **274**'s mechanism a third time: nothing in the build clears
+`dist/`, so a plain `pnpm build` would have left a compiled command tree orphaned
+there indefinitely — source-less and still runnable, which is a worse state than
+either end. Only `rm -rf dist && pnpm build` removes it, which is why the rebuild
+command in the handoff carries that `rm -rf` and why it is the first instruction
+in §6.
+
+**The sweep now checks the artefact**, and it **skips rather than passes** when
+there is no `dist/` to inspect: an absent build is not a clean one, and a green
+tick for "nothing found in a directory that does not exist" is exactly the false
+comfort this project keeps recording.
+
+After a clean `rm -rf dist dist-runtime` and a full rebuild (15m 10s, exit 0), the
+compiled command tree is gone, both of its distinctive strings are gone from the
+whole of `dist/`, and the sweep passes **8/8**.
+
+**One mistake of mine, recorded because it cost real time.** The first rebuild ran
+`pnpm build`, and `pnpm` is not on this shell's PATH — so the command deleted
+`dist/` and then failed with exit 127, leaving the machine with no build at all
+for several minutes. `package.json` says `build` is `node scripts/build-all.mjs`,
+which is what should have been run directly. Nothing tracked was affected;
+`dist/` is gitignored. **A destructive step and its replacement should not be
+chained behind a command whose availability has not been checked.**
+
+Two source comments were also repointed: `user-store.ts` and `login-throttle.ts`
+both cited `cli-identity.ts` as a live file. `login-throttle.ts`'s is worth the
+rewrite rather than a strike — its point generalises: **an in-memory throttle
+protects exactly one process**, so any future surface running outside the Gateway
+inherits the same limitation and owes the same record.
+
+### T62: the one capability that came back, and why as a script
+
+Raised and closed the same evening. Removing the command line took away the
+second reader of the audit chain — finding 268's repair had printed a terminal
+command beside the dashboard's verdict precisely so the head hash could be
+recomputed independently, and the claim was _"the dashboard is no longer the only
+witness"_. Kinan chose to restore that one capability without the surface.
+
+`scripts/verify-ledger.mjs`. **It is a better witness than the command it
+replaces**, on three counts, and the third is the interesting one:
+
+- **It imports nothing from `src/`.** Plain Node, no build, no dependencies, so
+  it runs when the build is broken, the Gateway is down, or the layer refuses to
+  start — which is exactly when somebody wants to know whether the record is
+  intact. It also runs against files copied **off** the machine, which is the
+  arrangement §7 caveat 4 says actually closes the residual.
+- **It cannot sign in.** The removed `audit verify` required a governance session
+  before it would verify. That is the wrong way round for an audit tool:
+  authenticating to a possibly-compromised installation makes the audit depend on
+  the thing under audit. This reads three files.
+- **It re-implements the hashing** rather than importing it, so a defect in
+  `audit-ledger.ts` cannot agree with itself.
+
+> **Independence bought with a pinning test is a different thing from
+> independence asserted.** Re-implementing means the two can drift, and a
+> verifier that cries wolf is worse than none — the first false alarm teaches
+> everyone to discount the next real one. So seven tests run both against real
+> chains and require the same verdict.
+
+**The fixture had to be mixed, and the revert proved it.** The chain is seeded
+with tool-call entries _and_ administrative ones, because the payload includes
+fields by **presence** and an admin entry carries three a tool call does not.
+Deleting the admin branch from the script fails two tests; on a chain of one
+shape it would have failed none. That is the difference between a test that
+covers the code and one that covers the _inputs_.
+
+**It answers three ways rather than two**: 0 intact, 1 broken, **2 could not
+check**. An unusable key exits 2, not 0 and not 1 — collapsing "I could not
+check" into either is how a verifier starts reporting infrastructure as
+tampering, or silence as safety.
+
+Driven end to end outside the harness as well: three real refusals appended, the
+script reported `INTACT — 3 entries verified`, the chain head, and `checkpoint #3
+agrees`; one `deny` flipped to `allow` on disk and it reported `BROKEN at entry
+1: entry hash does not match its own recomputed content`, exit 1.
+
+### The documentation, which was most of the work
+
+Nineteen files carried instructions to run commands that no longer exist. The
+operator-facing ones were rewritten to point at the dashboard: `README.md`,
+`FIRST-RUN.md`, `LINUX-INSTALL.md`, `T2-LIVE-RUN.md`, `ROLE-MODEL.md`,
+`WRITING-PERMISSIONS.md`, `PERMISSION-SPEC.md`, `BASELINE-RULES.md`,
+`T47-TEST-PLAN.md`, `GOVERNANCE.md`, and the guidance `vps-install.sh` prints at
+the end of an install.
+
+**Historical narrative was left alone**, deliberately. A session log describing
+what was done on 2026-08-31 is correct as history; rewriting it to match today
+would be the opposite of what this project's registers are for.
+
+**One passage was kept precisely because it argued against the removal.**
+`LINUX-INSTALL.md` said the deployment report "was written for exactly this
+moment" because it ran over a plain SSH session before any tunnel existed. That
+argument was correct, and the cost it names is now real rather than
+hypothetical — so it stays, with a note, rather than being quietly dropped.
+
+### T51 closed by removing the question — and one defect recovered from it
+
+The row asked whether the command line should reach the Gateway's runs. All three
+of its options were about how far to extend a surface nothing required.
+
+While surveying it, a real defect surfaced and is recorded rather than deleted
+with the code: a comment in `register.governance.ts` stated that `agent cancel`
+"reaches the _Gateway's_ run registry" and could stop a dashboard-started run.
+**It could not** — `cancelPromptRun` reads the same per-process `Map`. That is
+the comment an operator reads _during an incident_, deciding whether they hold a
+narrow tool or only the kill switch. Finding 278's class in a comment rather than
+in a flag.
+
+### T61 added, not fixed
+
+Reported by Kinan the same evening: the dashboard answers a **mistyped password**
+with _"Your session ended, so the page was cleared rather than left showing
+out-of-date information."_ Nothing had ended.
+
+Diagnosed rather than guessed: `run()` in `governance-page.ts` maps **any** error
+satisfying `isSessionLost` — that is, any 401 — to `markSessionExpired()`, and
+the sign-in route answers a bad password with 401 like every other route. The
+test file already half-knew this; its sign-out helper says the stub is
+"deliberately **not** a 401: that would send `run()` down the _expiry_ path".
+
+Left as a task at Kinan's instruction. The fix that stops it recurring is
+distinguishing _unauthenticated_ from _session lost_ at the API layer, rather
+than special-casing the login call.
+
+---
+
+## 2026-09-07: the day in one page
+
+**Three sessions ran on 2026-09-07 and they are unusually different from each
+other.** Reading all three in order is the wrong way to meet the day. This table
+says which to open and why.
+
+| Entry                                                     | What it was                                                                                                                      | Open it if                                                                                                                                                                            |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **(i)** T2 done, and the four things that broke around it | The night the layer was first driven by a real model. Findings 269–278                                                           | You want the demonstration, or the story of a green build that built the wrong commit                                                                                                 |
+| **(ii)** The composition axis                             | A QA session on the three days before it, on a new axis: the **seams between** features rather than each alone. Findings 279–282 | You want the QA method, or the security defect found by testing a comment's own claim                                                                                                 |
+| **(iii)** A surface removed                               | The governance command line deleted, archived, and one capability rebuilt. Findings 283–284, T51/T56/T62 closed, T60/T61 added   | You are picking the project up now. **This is the one that changed what the product is**                                                                                              |
+| **(iv)** The removal audited from outside                 | A QA session on the two days before it, asking what still _names_ the deleted surface **to a person**. Findings 285–295          | You want the QA method, or you are about to trust `scripts/verify-ledger.mjs`. **285 is the one to read**: requirement 8's second witness pointed at a command deleted the day before |
+
+### If you read one paragraph
+
+**The governance command line no longer exists.** No design requirement asked for
+it; it was the surface that broke in front of an operator; and it accounted for
+**2 of the 158 rows** in the by-hand test plan whose length was the stated worry.
+Two surfaces now: the HTTP control plane and the dashboard on it. Everything is
+archived in `docs-notes/removed-cli-surface/` with a restore procedure. **The one
+capability that was load-bearing for a design requirement came back as a script**
+— `scripts/verify-ledger.mjs` — because requirement 8's tamper-evidence needs a
+reader that is not the thing being audited.
+
+### The four numbers to re-derive rather than quote
+
+|                 |                                                                                                                                                                                                                                                                   |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Suite           | 2,723 passed / 20 skipped across 143 files                                                                                                                                                                                                                        |
+| Backlog         | 62 items, 47 struck, 15 open (T1 among them, not being done)                                                                                                                                                                                                      |
+| Findings        | 284 found, 281 fixed, 3 open — 169 unexplained, 258 (T55) and 281 (T60) decisions _(**snapshot: the state on 2026-09-07, not the current count.** Kept frozen because this is a dated record; re-derive from `mg/HANDOFF.md` §1's state table, never from here.)_ |
+| Standing probes | 20, in `docs-notes/qa-sweep-*/`                                                                                                                                                                                                                                   |
+
+### What the day taught, in three lines
+
+**A claim in a comment is not a property** (279). `proposeRuleFromEscalation`
+listed three guarantees; the two with tests held and the third — that a _read_
+escalation proposes a read and not a read-and-write — was never built. Approving
+it granted a write.
+
+**A fix derived from a listing is not finished until the listing is run again**
+(280). Finding 271's repair cleared 3 of 23 surviving fields; re-running the same
+listing after fixing is what found the other 20.
+
+**A removal is the hardest change to verify** (283, 284). Every gate passes by
+construction after one, because deleting a surface deletes its tests. The
+compiled command tree sat in `dist/` for hours after its source was gone, with
+three typechecks, both lint gates and a purpose-written removal sweep all green.
+
+### A postscript on reading exit codes, because it happened three times in an hour
+
+The full lint gate was run four times at the end of this session. **Every one of
+the first three reported "completed (exit code 0)" through the harness, and none
+of them had passed:**
+
+| Run | The gate's own exit | What it actually was                                                                |
+| --- | ------------------- | ----------------------------------------------------------------------------------- |
+| 1   | 1                   | `plugin-sdk boundary root shims timed out after 300000ms` — a phase cap, under load |
+| 2   | 1                   | A real rule: `use-unknown-in-catch-callback-variable`, in a test written that hour  |
+| 3   | **124**             | `[oxlint:core] timed out after 900s` — a shard cap                                  |
+| 4   | **0**               | Clean, with `OPENCLAW_OXLINT_SHARD_TIMEOUT_MS` raised                               |
+
+The notification was reporting the **wrapper's** success at launching the
+command, not the command's verdict. That is the third distinct way this project
+has been caught reading somebody else's exit code instead of the gate's — after
+the `| tail` that left finding 169 permanently open, and the `$?`-after-a-pipeline
+that reported "lint exit 0" twice on 2026-09-06.
+
+**The habit that survives all three**: redirect, append the status explicitly,
+and read the file.
+
+```bash
+node scripts/run-lint.mjs > lint.log 2>&1; echo "EXIT=$?" >> lint.log
+```
+
+**And keep 124 apart from 1.** A timeout says the machine was busy; a rule says
+the code is wrong. Collapsing them costs twice — once when a timeout is reported
+as a defect and somebody goes looking for it, and once when the reverse happens.
+Run 2 is the reason this matters: it was a genuine error sitting between two
+timeouts, and treating the whole sequence as "the machine is being flaky" would
+have shipped it.
+
+_(Run 4 needed its cap raised from fifteen minutes to forty-five, on a machine
+that had restarted twice. **That number must not be folded into T50**, whose
+~18-minute figure came from two clean runs and is the one that should inform the
+hook-or-CI decision.)_
+
+### The one thing that is not finished
+
+**The VPS is still running the pre-removal build**, so it still serves the
+command line and does not have this day's fixes. The rebuild is one command and
+is the first item in `HANDOFF.md` §6.
+
+---
+
+## 2026-09-07 (iv): the removal audited from the outside, and the second witness that pointed at a deleted command
+
+**A QA session aimed at the two days before it**, 2026-09-06 and 2026-09-07, on
+a tenth axis. Baseline re-measured first and it matched the documented figure
+**exactly**: **2,723 passed / 20 skipped across 143 files**, exit 0. Three
+typechecks clean. All five standing sweeps in `docs-notes/qa-sweep-2026-09-07/`
+re-run at their documented results — 8/8 (9/9 once this session extended it), 7/7, 17/17, 5/5, 7/7 for 2026-09-06's, and composition at
+**8/10 with the two failures being T55 and T60**, which is the record agreeing
+with itself rather than a regression.
+
+### The axis, and why it was the one to pick
+
+The three sessions of 2026-09-07 removed a surface, and §7 caveat 22 says a
+removal is the hardest change to verify because every gate passes by
+construction afterwards. Finding 284 had already caught the compiled tree
+surviving in `dist/`. So this session asked the next question in that family:
+
+> After a removal, **what still names the deleted thing to somebody?** Not "does
+> the code still reference it" — three typechecks and a purpose-written sweep
+> answer that — but what a person is still _told_.
+
+The 2026-09-07 (iii) pass answered it for documents: nineteen were rewritten
+from a three-day commit list. **It grepped `.md` files.** Six of this session's
+eleven findings are outside that set, and the most important one is not in a
+document at all.
+
+### 285: the dashboard told the operator to run a command that no longer exists
+
+`ui/src/pages/governance/panels/oversight-panels.ts` printed, beside every
+successful chain verification:
+
+> Run **`openclaw governance audit verify`** at the terminal to recompute this
+> independently of the dashboard; the chain head above should match.
+
+**That row is finding 268's fix**, and finding 268 is the one the handoff calls
+the most important of the operator's five: verifying the audit chain used to
+report "Intact, entries verified" and nothing else, so requirement 8's own
+output had to be taken on trust. The repair printed the head hash, the
+checkpoint, and a terminal command — _"the dashboard is no longer the only
+witness"_. Twenty-four hours later the command was deleted and **the sentence
+naming it was the one copy nobody grepped**, because it is a TypeScript string
+literal rather than prose in a `.md` file, and because `en.ts` holds the
+sentence while the _command_ is interpolated from the panel.
+
+So requirement 8's independence claim pointed at nothing for a day. T62 had
+already built the replacement — `scripts/verify-ledger.mjs` — and the dashboard
+did not know about it.
+
+Fixed, and **pinned in both directions**: the panel test now asserts the page
+names `node scripts/verify-ledger.mjs` _and_ that it contains no
+`openclaw governance` at all. The positive half alone would pass on a page
+printing both; the negative half alone would pass on a page that had simply
+dropped the sentence, which is finding 268 undone.
+
+> **The generalisable lesson, and it is the reusable output of this session.**
+> 2026-09-07 (ii) established the complementary check for a removed feature:
+> _take the removed thing and grep the documents for it._ This is the next
+> correction to it: **operator-facing text is not only in documents.** Grep the
+> source too, and grep it for the string a person reads rather than for the
+> symbol a compiler resolves. Nothing in the source tree had a broken reference
+> here; `openclaw governance audit verify` is not an identifier.
+
+### 286 and 287: the second witness, audited as the thing it audits
+
+Having pointed the dashboard at `scripts/verify-ledger.mjs`, the obvious next
+question was whether the replacement deserves the trust the old one was given.
+It was driven rather than read — a real chain, a real key, a separate process —
+and it had two defects, one of which is the failure its own header warns about.
+
+**286: it reported a lagging checkpoint as "AHEAD of the ledger".** `verifyChain`
+already returns BROKEN when the checkpoint is genuinely _ahead_, because that
+means entries were removed from the end. So any disagreement surviving to the
+reporting line can only be the checkpoint sitting **behind** — and that state is
+legitimate and reachable _by design_: `appendLedgerEntry` writes the entry first
+and the checkpoint second, deliberately, so a crash between the two leaves
+exactly this. Measured: a three-entry chain with the checkpoint left at #2
+printed
+
+```
+  INTACT — 3 entries verified
+  checkpoint: #2 AHEAD of the ledger
+```
+
+Two consecutive lines, the second saying the opposite of the truth and reading
+as _an entry was deleted_, which is the single conclusion this tool exists to
+let an operator draw correctly. It now names the direction and the distance and
+says the chain itself verifies.
+
+**287: it accepted a signing key the product refuses.** `decodeSuppliedKey` in
+`ledger-key.ts` enforces `MIN_SUPPLIED_KEY_LENGTH` — 16 characters — and throws
+`LedgerKeyUnusableError` below it, because a guessable key defeats the whole
+tamper-evidence claim (finding 78's road, reached through the environment). The
+script validated the **file** path to exactly 32 bytes and validated the
+**environment** path not at all, while its own comment said "validated the way
+the product validates it". So `OPENCLAW_GOVERNANCE_LEDGER_KEY=x` made it HMAC
+every entry under a one-byte key, disagree with all of them, and report
+
+```
+  BROKEN at entry 1: entry hash does not match its own recomputed content
+```
+
+exit **1**. A misconfiguration announced as tampering — which is precisely what
+the file's header says the third exit code exists to prevent, in those words.
+It is now an exit 2.
+
+**Both were found by driving it, and neither was findable by reading**, because
+both are cases the tests did not construct: every existing fixture had a
+checkpoint written by the product (so never behind) and a key read from the file
+(so never supplied). Two tests added, both run against reverted code and both
+fail there.
+
+### 288: a live core rule struck through as removed
+
+`docs-notes/BASELINE-RULES.md` §3 is the specification of the core denials. Its
+sixth row — `governance <policy|agent|kill|ledger|sessions|pending|users>`, the
+denial that stops a governed agent switching its own gate off — was struck
+through and annotated **"removed 2026-09-07"**.
+
+**The rule was not removed. The command line was.** Re-derived from `CORE_RULES`
+and then driven at the gate behind the broad `^(node|npm|npx|pnpm) .*$` operator
+allowance the row exists to survive: all three spellings still refused by name.
+
+```
+REFUSED  openclaw governance policy set-mode off
+REFUSED  npx openclaw governance users list
+REFUSED  pnpm openclaw governance kill jack
+```
+
+The consequence is countable, which is why it matters more than a strikethrough
+usually would: the table then described **seven** core rules and **two**
+self-protecting ones, where the product has **eight and three** — and eight is
+`5 + 3`, the split **T24** rests on and that `HANDOFF.md` and `PROJECT-SUMMARY.md`
+both quote. A documentation edit made in the safe direction still moved a number
+three registers depend on.
+
+The rule stays, for two reasons now written into the row: the archive carries a
+ten-minute restore procedure, so the surface can return without anyone noticing
+the rule went; and a denial keyed to a subcommand pair costs nothing while the
+subcommand does not exist.
+
+### 289: two sentences, two lines apart, in the VPS runbook
+
+`LINUX-INSTALL.md` §6 is the "confirm it is actually governing" step. The
+removal pass replaced its three commands with three dashboard panels and added a
+careful note — _"That is now a real cost of the removal: set the tunnel up
+first, because there is no longer a way to answer these questions without it."_
+
+Immediately below it, untouched, in the present tense:
+
+> `governance deployment` was written for exactly this moment. It runs over a
+> plain SSH session, before any tunnel exists.
+
+That is the passage 2026-09-07 (iii) records **deliberately keeping** because it
+argued against the removal. Keeping the argument was right; leaving it phrased
+as an instruction was not, and a reader takes the instruction. It is now quoted
+as history.
+
+And the gap it names is now half-closed rather than only lamented: **one check
+still needs no tunnel, no build and no sign-in**, and §6 says so and the
+installer's closing guidance says so. `node scripts/verify-ledger.mjs` is
+exactly the shape `governance deployment` was praised for.
+
+### 290: a helper written to stop one sentence existing twice, which became the second copy
+
+`describeShedPendingDecisions` shipped with **T56** the same evening, documented
+as _"Shared by both listing surfaces on purpose. The command line and the
+dashboard describing the same condition in different words is exactly the drift
+`describeRequest` exists to prevent."_
+
+Every clause of that was false within hours. The command line was removed later
+the same day. The dashboard never called it and cannot: an operator-facing
+sentence has to be translatable, so the panel renders `governance.pending.shed`
+from `en.ts`. **Nothing in the product reached it** — only its own two tests —
+and the two copies had _already_ drifted, this one naming the limit
+(`MAX_PENDING_UNDECIDED`) and the string an operator actually reads not naming
+it.
+
+Deleted on finding 134's precedent rather than wired up to give it something to
+do. The two tests that read it went with it, and neither was a loss: they
+asserted the count and the word "ledger" in a string nothing displayed, and the
+correct singular _"1 unanswered question"_ while the rendered copy says
+_"question(s)"_ — finding 224's family, a passing test measuring something other
+than the product. Both properties are asserted against the panel already.
+
+**The T56 plumbing is untouched and remains correct**: the count is accumulated
+inside the lock that did the shedding, rows and count come from one read, and
+the panel renders when there is a count and no rows.
+
+### 291 and 292: two counted claims that went stale inside their own session
+
+**291.** `README.md` §"How it works" listed, among what the layer adds, _"and a
+command line that carries the same permissions as the dashboard"_ — one
+paragraph above **"One surface sits on top"** and its note that the command line
+was removed. The front door of the repository contradicting itself in adjacent
+paragraphs, in the direction of claiming a surface that does not exist.
+
+**292.** `endSession` in `governance-page.ts` carries finding 280's listing as a
+comment: _"fifty declared, fifteen cleared … forty-eight of the fifty are
+cleared"_. Re-run mechanically against the tree: **51 declared, 49 cleared, 2
+kept.** T56 added `pendingDecisionsShed` to the same component hours later, in
+the same session.
+
+**The behaviour is right and that is the whole point of the entry.** The field
+_is_ cleared, because the comment's own closing sentence — _"a field added to
+this component in future is session state until somebody argues otherwise in
+this list"_ — worked exactly as designed. What went stale is the measurement
+printed beside it. Finding 280's own lesson, applied one level up:
+
+> **A fix derived from a listing is not finished until the listing is run again
+> — and the number written down beside it is stale the moment the next change
+> lands.** Finding 280's five numbers are kept as the measurement the finding
+> rests on, with the current pair beside them and a note that both are
+> re-derivable in nine lines.
+
+### 293: three self-references stale in files edited the same day
+
+Grouped because they are one habit rather than three defects, and all three are
+in code written or edited on 2026-09-07:
+
+- `scripts/verify-ledger.mjs` cited **`scripts/verify-ledger.test.ts`** as the
+  test pinning it against the production verifier. That file has never existed;
+  it is `src/governance/verify-ledger-script.test.ts`. The file's central claim
+  — that re-implementing the hashing is safe _because_ a test pins the two —
+  rested on a pointer that was wrong.
+- `agent-intent.ts`'s module header still asserts **"There is deliberately no
+  `forgetAgentIntent`"**. True as written, for _session end_; one now exists for
+  the _turn_ boundary (finding 273), added the same week. A reader meeting the
+  header first takes it as saying the symbol is absent.
+- `paths.ts` kept a doubled blank line where `cliSessionFilePath` was cut.
+
+### 294: two registers disagreeing about the project's headline number
+
+Found while bringing the registers level for this entry, which is the same way
+**259** was found. On 2026-09-07, `HANDOFF.md` said **284 found, 281 fixed, 3
+open**. `mg/PROJECT-SUMMARY.md`, dated the same day, said **277 found, 275
+fixed, two open**. Both are the project's headline defect number and they
+differ by seven — after a commit whose message is _"docs: every register and
+handoff document brought level for handoff"_.
+
+**Its internal arithmetic did not close either**: 275 fixed, plus one withdrawn
+as not a defect (157), plus two open is **278**, not the 277 the same sentence
+states. A number that does not agree with its own breakdown had been quoted for
+days.
+
+This is finding **227**'s shape (one fact, four live copies, one maintained) and
+**259**'s (a count re-derived in one register and not in the one printed beside
+it). The correction is not to edit the number: it is that the cell now says
+**re-derive from the register** and shows the arithmetic that failed, so the
+next reader distrusts the cell rather than the register.
+
+### 295: a lesson recorded in the narrative and not applied to the instruction
+
+`removed-cli-surface/README.md` §4b tells whoever restores or removes the
+surface to run:
+
+```bash
+rm -rf dist dist-runtime && pnpm build
+```
+
+That is the **exact command** 2026-09-07 (iii) records going wrong: `pnpm` is
+not on this shell's `PATH`, so it deleted `dist/` and then exited **127**,
+leaving the machine with no build at all for several minutes. The session log
+drew the right conclusion that evening — _a destructive step and its replacement
+should not be chained behind a command whose availability has not been checked_
+— and wrote it into the **narrative**, while the **instruction** that caused it,
+in a different file, was left as it was.
+
+It is now `node scripts/build-all.mjs`, which is what `package.json` defines
+`build` as, with the reason beside it.
+
+**This is the class worth carrying into Chapter 4**, because it is what a
+register is _for_ and it is the failure mode of having several: a project that
+writes down what it learned, in the place where it learned it, and not in the
+place where the mistake can be made again. Same family as 282 (the code changed
+and six documents did not) and 259 (the count re-derived in one register and not
+in the list printed beside it), and it is the one of the three that can destroy
+something.
+
+### The durable half: the removal sweep gained the check that would have caught 285
+
+A panel test pins one string. `cli-removal-sweep.ts` now pins the **class**, and
+it is the ninth check in a sweep that had eight: it walks
+`ui/src/pages/governance` and `ui/src/i18n/locales` and fails on any
+non-comment line containing `openclaw governance`.
+
+**Every other check in that sweep asks whether the code still _reaches_ the
+deleted surface** — imports, both registries, the `--help` descriptor, the
+compiled chunk in `dist/`. None of them can see a sentence, which is exactly why
+283 and 284 were caught and 285 was not.
+
+Verified to fail rather than assumed to work: putting `openclaw governance audit
+verify` back took the sweep to **8/9** and named the file and the line. And its
+own first run reported a defect that was not one — it flagged
+`governance-panels.test.ts`, whose only contribution is the _negative_ assertion
+added for 285. Tests are excluded now, with that reason written in the code: a
+probe that reports the guard against a defect **as** the defect is the same
+fixture fault this project has now recorded eleven times in a fortnight.
+
+### The fixtures, because one was mine again
+
+The archive's imports were checked to confirm the ten-minute restore procedure
+would still resolve — and the check reported five missing modules,
+`register.governance.agents.js` and its four siblings. They are not missing:
+they live in `src/cli/program/` and the probe mapped every relative import into
+`src/governance/`. **A probe that does not know where a thing lives reports its
+own ignorance as a defect**, the same note as 2026-09-07 (iii)'s. Everything the
+archive imports still exists, and the restore procedure's eight `cp` lines match
+the eight archived files exactly.
+
+### What was re-derived rather than quoted
+
+| Claim                                                                      | Verdict                                                                                                                                                                                          |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Suite 2,723 / 20 across 143 files                                          | **Exact**                                                                                                                                                                                        |
+| Archive: 8 source files, 14 test files, 3,162 lines                        | **Exact, all three**                                                                                                                                                                             |
+| Backlog 62 rows T1–T62, no gaps, 15 open                                   | **Exact**                                                                                                                                                                                        |
+| `GOVERNANCE.md` register holds 1–134 with no gaps, and says where it stops | **Exact**                                                                                                                                                                                        |
+| `dist/` free of the compiled command tree and the descriptor               | **Confirmed**                                                                                                                                                                                    |
+| Standing probes: 20                                                        | 20 files, of which `concurrency-worker.ts` is a worker for another sweep rather than a probe you run. The documented derivation (`ls docs-notes/qa-sweep-*/`) gives 20; the runnable count is 19 |
+| `BASELINE-RULES.md`: the core rules                                        | **Wrong — finding 288**                                                                                                                                                                          |
+| `endSession`: 50 declared / 48 cleared                                     | **Wrong — finding 292**                                                                                                                                                                          |
+
+### The shape of the day in one line
+
+**The gate was right throughout, again.** Not one of the eleven findings is an
+access-control defect. **Five are a surface or a register out of step with the
+removal**, and they split into two kinds worth keeping apart: four name
+something that no longer exists (285, 289, 291, and 293's first item), and
+**288 is the mirror — it declares a live rule removed.** Of the rest, two are a
+verifier misreporting its own confidence, one is dead code with a false
+rationale, two are stale counts, and **295 is a destructive command left
+chained behind one whose availability is not checked**. That is the fourth
+consecutive session with that shape, and §7 caveat 18 is why it keeps mattering
+— **the two in `verify-ledger.mjs` are defects in requirement 8's evidence,
+which is the requirement whose entire value is that its output can be checked
+rather than believed.**
+
+---
+
+## 2026-09-08: the dashboard driven section by section — Identity and Accounts
+
+**A QA session with a running gateway, a fresh governance directory, and the
+page driven by hand** rather than read. Kinan asked for the sections one at a
+time, edge cases and basics alike, fixing bugs without changing features that
+work and clarifying what the screen does not explain. Two sections done:
+**Identity** and **Accounts**. Findings **296–300**, all closed, and **T61 with
+them**.
+
+**This is caveat 19's fourth confirmation and its strongest.** An hour of using
+the dashboard produced one defect that could brick an installation and three
+that misreported what had just happened — and none of the four was findable by
+reading, because in every case _the code was doing the right thing and saying
+the wrong one_.
+
+### 296: a reserved name could be an account, and the account could not be used
+
+Bootstrapping the first Root as **`cli`** succeeded. `cli` is one of six
+labelled origins the ledger uses for actions no account performed, and
+`splitAuditActor` throws when a named account carries one — so every
+administrative action that Root then attempted was refused. But **Root is
+permanent**: it cannot be deleted or demoted, and bootstrap refuses once an
+installation is claimed. The only way out was deleting `users.json` on the
+server by hand.
+
+**And the failure was not clean, which is the half that matters.** Creating an
+Administrator as that Root returned **400 to the operator, created the account
+anyway, and wrote no ledger entry for it**:
+
+```
+users.json:  cli | root        malek | administrator
+ledger:      #1 admin | actor: bootstrap | account cli created with role root
+```
+
+`createUser` writes inside its lock and records the action _after_ it, so the
+throw left the write committed and the trail empty. **An administrative action
+that happened, was reported as a failure, and is absent from the audit trail**
+— which is the whole of requirement 5, reachable by choosing a username.
+
+Fixed by refusing reserved names in `createUser`, the one place both the
+dashboard's `users` route and `bootstrap-root` pass through, inside the lock and
+before the write. **Folded before comparing**, and that half is load-bearing:
+the reserved set is lower case, `createUser` stores a username with its case
+intact, and `CLI` therefore sailed through — an account that worked, folded onto
+`cli` for uniqueness, and produced entries a reader could not distinguish from
+the labelled origin's. Finding 202's shape, and `account-name.ts`'s own rule:
+the guard and the value it guards have to be the same string.
+
+Driven afterwards through the form: all six names refused in every spelling
+(`cli`, `CLI`, `Cli`, `  cli  `, `HITL-Approval`, …), `kinan` accepted, nothing
+written on refusal. Seven tests, all seven failing against the unguarded code.
+
+### 297: T61, closed — a wrong password is not an expired session
+
+Reproduced exactly as the row describes: mistyping a password showed _"Your
+session ended, so the page was cleared rather than left showing out-of-date
+information. Sign in again to continue."_ Nothing had ended; the operator was
+told to do what they were already doing; and the server's own answer — a plain
+**"Invalid credentials"** — never reached the screen.
+
+Fixed at the API layer, which is the option T61's row argued _stops it
+recurring_: `GovernanceApiError` now carries whether the failing call was itself
+an attempt to authenticate, and `isSessionLost` reads it. A 401 from `login` or
+`bootstrap-root` means _those credentials are wrong_; a 401 anywhere else still
+means _your session is gone_.
+
+**Both halves verified on the running gateway**: wrong password now shows
+"Invalid credentials"; a session revoked server-side still clears the page with
+the expiry banner.
+
+### 298: signing out was reported as something happening _to_ the operator
+
+Not on the backlog, found by clicking Sign out and watching the network.
+
+`refreshData` dispatches a dozen requests; a browser holds six connections per
+origin; the queued remainder go out **after** `logout` has cleared the cookie.
+Observed exactly that:
+
+```
+.458–.464  GET  … → 200 OK      (five, before)
+.473       POST logout → 200 OK
+.474–.479  GET  … → 401         (six, after — one batch, straddling)
+```
+
+Those 401s satisfied `isSessionLost`, so a deliberate sign-out announced _"Your
+session ended…"_. Suppressing that alone left a second falsehood: the same
+rejected requests set `partialFailure`, so **signing back in was greeted with
+"Some panels could not be reloaded and may be out of date"** about panels that
+had just loaded cleanly.
+
+**And the half that is not cosmetic.** Everything after that check writes
+`policy`, `ledger`, `users` and the rest into component state, and a straddling
+batch carries **fulfilled** results too. Letting it run on repopulates the
+previous account's data _after_ `endSession` cleared it, behind the sign-in
+screen, for whoever uses the tab next. **Finding 271 by a different road**: not
+a field the clear missed, but a write arriving after the clear.
+
+`refreshData` now returns as soon as it sees there is no identity. Three tests,
+and two of them **passed against the first revert** and had to be reworked until
+they failed — see below.
+
+### 299: the confirmation named the wrong Administrator
+
+The role control's own comment calls it _"the most consequential control on the
+page"_. Its confirmation dialog was built from `successorFor(...)` — the first
+_other_ Administrator — while the request it confirmed sent
+`user.managedBy ?? successorFor(...)`. One fact, two derivations, disagreeing in
+both directions. Measured on screen:
+
+| Shown                                               | Done                                                     |
+| --------------------------------------------------- | -------------------------------------------------------- |
+| `lina: viewer → user (will answer to malek)`        | kept **haitham**, whom lina actually answered to         |
+| `omar: user → administrator (will answer to malek)` | `managedBy: (none)` — Administrators answer to the group |
+
+The behaviour was right both times. The sentence shown immediately before an
+irreversible act was wrong, which is finding 278's class in the worst place it
+can appear. Now one exported `managerForRoleChange`, read by the sentence and by
+the request, so they cannot drift again; five tests, two of which fail against
+the old derivation.
+
+### 300: five things the screen did not explain
+
+Not defects in behaviour — the sections work — and all of them the answer to
+_"how do I use this?"_, which is what Kinan asked for.
+
+- **Identity answered "who am I" with a bare lowercase token.** `kinan (root)`
+  and nothing else, while the only explanation of the tiers anywhere sits inside
+  Root's _create an account_ box — which no Viewer, User or Administrator can
+  see. It now also says what the signed-in tier may do. Driven as an
+  Administrator afterwards: the page is visibly smaller than Root's, and this is
+  the one line that says the reason is the tier rather than a page that failed
+  to load.
+- **The Accounts list never showed who answers to whom.** Every User and Viewer
+  has exactly one Administrator over them; it is the invariant M3 exists for,
+  the create form makes Root choose it, a deletion is refused because of it, and
+  the role dialog names it — and the list Root reads the organisation off was
+  the only surface that never displayed it. Rows now read
+  `Created 9/8/2026 · Answers to haitham`.
+- **A dead Create button with no reason.** When Administrators exist and none is
+  picked, the button is disabled with no hint, no title and no `aria-disabled` —
+  while the _harder_ case, no Administrators at all, has always been explained.
+- **The sole Administrator's role control showed one option, silently.** Correct
+  — nobody would be left answerable — and the Root row beside it states its own
+  case for exactly this reason: a control with one option is indistinguishable
+  from a page that failed to draw the rest.
+- **A tooltip running two sentences together**: _"…the account you are signed in
+  with To remove your own Root account…"_.
+
+### What was checked and was right
+
+Worth recording, because the section is mostly sound and a report of five
+findings should not read as five failures:
+
+- **Server-side tier enforcement**, tested past the hidden panel: as an
+  Administrator, `GET users`, `POST users` and `POST users/delete` on Root all
+  returned **403** naming the required and actual tier. Hiding a panel is a
+  convenience; the route is the control, as the panel's header claims.
+- **Deleting an Administrator with dependents** is refused, with the best
+  message on the page: _"Cannot delete malek: 1 account(s) answer to them, omar.
+  … An account that answers to nobody is the state this refuses to create."_
+- **Duplicate usernames**, including `MALEK` against `malek` — the fold holds.
+- **Assigning an unregistered agent** is refused (409) and names the **folded**
+  id `scout` for a typed `Scout`, so finding 200's repair is still working.
+- **Password rules** on both surfaces: short refused before the request, valid
+  applied end to end — the new password signs in, the old one is refused — and
+  gated behind a confirmation that warns other devices will be signed out.
+- **Self-deletion** disabled, with the way round it named.
+- **The audit trail of the whole session**: 28 entries, every create, role
+  change, password reset, authoring change, deletion, sign-in and sign-out
+  attributed to the account that did it — and **no entries for the refused
+  operations**, because nothing happened.
+
+### The fixtures, because four were mine again
+
+Three "defects" I nearly reported and checked first: the `bootstrap-root` POST
+on every page load is a **documented probe**; the Create button being dead with
+empty fields is a **disabled button**; and "Enter does not submit the sign-in
+form" was my automation sending `Return` instead of `Enter`. A fourth was a
+selector: I read `.settings-row__description` where the class is
+`settings-row__desc` and briefly concluded a row rendered nothing.
+
+**And the one that is worth more than those.** Of the three tests written for
+298, **two passed against the revert**. The first checked for the partial-failure
+banner immediately after sign-out — where the sign-in screen is rendered and no
+freshness row exists at all — so it could not fail. It is now asserted after
+signing back in, where the state is actually read, and fails against the partial
+fix. That is finding 280's rule turned on the tests themselves: **a fix derived
+from a listing is not finished until the listing is run again, and a test is not
+a guard until it has been watched failing.**
+
+Each of the four fixes was reverted and re-run: 296 fails 7 tests, 297 fails 1,
+298 fails 1 against the full revert and 2 more against the _partial_ one, and
+299 fails 2. `tsgo:core:test` also refused two of my own fixtures — one missing
+`createdAt`, one casting to a props type without its effects — which is the
+sixth verification command doing exactly what T39 added it for.
+
+---
+
+## 2026-09-08 (ii): the same three sections, read from all four tiers
+
+**Kinan asked for two more things** after the Identity and Accounts pass: that
+the _text_ in and around those sections be checked for whether it actually helps
+an operator, and that every section be driven **from each of the four tiers**
+rather than from Root alone. Then **Agents in your organisation** on the same
+terms. Findings **301–304**, all closed.
+
+**Driving as a Viewer and as a User is what this session was**, and it is worth
+saying why that matters: every earlier dashboard sweep in this project — 239,
+240, 241–252, 264–268 — was done as **Root**. Root sees the whole page and is
+the tier every string gets written for. Three of the four findings here are
+invisible from Root by construction.
+
+### 301: the withhold never reached the browser
+
+`GovernanceIdentity` in the dashboard declares `canAuthorPolicy` with **absent
+means allowed**, and the browser's own `canWritePolicy` is `!== false`. The
+identity routes — `login`, `whoami` — **never sent the field**. Measured against
+the running gateway with a withheld User signed in:
+
+```
+stored:  lina | user | canAuthorPolicy: false
+whoami:  {"username":"lina","role":"user","assignedAgents":[]}
+```
+
+So the page had every withheld User down as allowed, and offered them the
+authoring controls: **five enabled Remove buttons on policy rules**, and a live
+add-rule form. After the fix, the same account, same page: **zero**.
+
+**Not an access defect** — `requireRole` and `canWritePolicy` on the routes are
+the control and were never in doubt; the server refuses all of it. It is finding
+100's: a control that looks available and is not. And it defeats the _point_ of
+**T27**, which is that withholding authoring from a User should be legible to
+that User rather than discovered from a refusal. The panel that gates on this
+carries a long comment about having fixed exactly this class — the gating
+expression was right, and **the fact it gates on never arrived**.
+
+The session record already carried `canAuthorPolicy` and updates it in place
+when Root changes it, so the fix is presence-based on the way out and costs no
+extra read. An account never withheld still sends nothing and still reads as
+allowed.
+
+### 302: an agent's owner was an account id to everyone below Root
+
+The registry panel renders `owner?.username ?? agent.adminId`, resolving the id
+against the account list — and that list comes from **`users`, which is
+Root-only**. So every tier below Root fell through to the raw id. Signed in as
+an Administrator:
+
+```
+main    Owned by user-1788814759825-7e0761b7
+probe1  Owned by user-1788818931193-79fc92c0
+```
+
+where Root sees `Owned by kinan` and `Owned by haitham`.
+
+**This is finding 264 again** — a minted id shown where a name belongs, on a
+surface whose job is saying who is answerable — one panel over, and landing on
+the **Administrator**: the tier this section exists for, and the one that has to
+know which agents are theirs. Fixed on the server, because only the server can:
+the id→name mapping _is_ the account list, and the client below Root is not
+allowed to have it. The listing now carries `adminUsername` for accounts in the
+caller's own group, which discloses nothing the row was not already naming.
+
+### 303: three sentences written for whichever tier was in front of them
+
+One habit, three places, and all three say something false to a tier that was
+never the one being pictured.
+
+| Where                   | Said                                                          | To whom it is false                                                                                                             |
+| ----------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| The conversation picker | _"You manage every agent, so there is no assigned list."_     | A **User with nothing assigned**. It is the exact inverse of their tier, and an invitation to type an id the server will refuse |
+| Agent permissions       | _"Pick an agent you manage, or type its id."_                 | A **Viewer**, who manages nothing. Reading what is in force is their whole job, so they reach this panel legitimately           |
+| Create an agent         | _"You own it, and it is governed from the moment it exists."_ | **Root**, who is the one tier shown an owner picker, and whose agent is answerable to the Administrator they choose             |
+
+The first is the sharpest, because the branch is `assigned.length > 0` — and an
+empty assignment list means _"no list, my scope is everything"_ for an
+Administrator and _"my list is empty"_ for a User. One condition, two meanings,
+and the sentence was written for the first.
+
+All three now key on the tier. The section's own header comment already said the
+right thing — _"Administrator and above have no assignment list (their scope is
+every agent), so they get an id box instead"_ — which is the second time this
+week a correct comment sat above a condition that did not implement it (279 was
+the first).
+
+### 304: the text pass Kinan asked for, and one thing it corrected in my own work
+
+Reading the two finished sections as an operator rather than as their author:
+
+- **The tier hint described three tiers out of four.** _"Root manages people;
+  Administrator manages agents. Viewers see the audit trail…"_ — **User**, the
+  option immediately below it in the dropdown, the least self-evident of the
+  set, and the only one with a further control attached, was simply absent.
+- **A permission whose state was invisible.** The rule-editing control is a
+  button labelled with its _action_, and "Allow rule editing" reads equally as
+  _this account may_ and as _click to let it_. Nothing else on the row resolved
+  it. The row now states the permission and the button states the action:
+  `lina · Answers to haitham · Cannot write rules — Root withheld it`.
+- **A tooltip running two sentences together**, joined by a bare space.
+- **And a line I had written the day before was wrong.** The Identity panel's
+  User description said rule changes had to be requested from an Administrator.
+  A User **writes rules for their own agents by default** — `canWritePolicy` is
+  `canAuthorPolicy !== false` — and the request path is the _withheld_ case.
+  Checked against `permissions.ts` rather than against the sentence, which is
+  how it was caught. The Root line was loose in the other direction and is now
+  accurate too. Both User variants are now chosen by `canAuthorPolicy`, which is
+  the same fact 301 made available.
+
+### What the four-tier sweep confirmed was already right
+
+- **Section visibility by tier**: Root 13 sections, Administrator 10 (no
+  Accounts, no Organisation, no Deployment), User 9, Viewer 7 (no Your agents,
+  no kill switch). Agents in your organisation is Root and Administrator only.
+- **The server, past the hidden panel**: as an Administrator, `GET users`,
+  `POST users` and `POST users/delete` on Root all returned **403** naming the
+  required and the actual tier. The panel hiding is a courtesy; the route is the
+  control, exactly as its header claims.
+- **A withheld User's authoring buttons are disabled, not merely hidden** — and
+  after 301 they are correctly gone.
+
+### Agents in your organisation, driven
+
+- **Registering the ungoverned agent** the host already had: worked, wrote
+  `governance.agent.register` naming the owner, and the row changed from _"exists
+  in OpenClaw but is not governed"_ to owned-and-governed.
+- **Creating an agent** end to end: a typed id of `Scout` was **folded to
+  `scout`** in the registry and the ledger while the display name kept its case
+  — finding 128's repair still holding — and two entries were written, provision
+  then register, the second naming the chosen owner.
+- **A duplicate** (`SCOUT` against `scout`) was refused with _"The id "scout" is
+  already registered."_, naming the **folded** id, and the form kept its input so
+  it could be corrected.
+- **Three fast clicks on Create produced exactly one provision request.** The
+  busy guard holds, which matters because provisioning takes about ten seconds
+  and the temptation to click again is real.
+- **Provisioning is slow and says so afterwards**: _"Created probe1, and OpenClaw
+  has picked it up. That id is what you use to talk to it, write rules for it,
+  or stop it."_
+
+### One thing observed and deliberately not changed
+
+A withheld User can **type into** the rule pattern, folder and timeout fields;
+only the submit buttons are disabled. The action is gated and the disabled
+button is visible, so this is a handled case rather than a broken one, and
+disabling the inputs would be a change to something that works. Recorded rather
+than fixed.
+
+### The fixtures, because two more were mine
+
+The `users/policy-authoring` route takes `allowed`; my first test body used
+`canAuthorPolicy`, the store's name, and got a 400. And a probe read
+`.settings-row__description` where the class is `settings-row__desc`, which made
+a rendered row look empty. Both caught before anything was reported.
+
+**And the suite caught 302's fix on the way out.** Adding `adminUsername` to the
+agents listing failed `governance-agent-registry.test.ts`, which asserts that
+route's row shape with `toEqual` — exhaustively, on purpose. A field appearing
+that nobody meant to send is exactly what that exhaustiveness is for, so the
+test was updated to expect the new field rather than relaxed to
+`toMatchObject`. Relaxing it would have spent the guard to avoid a one-line
+edit.
+
+**The one worth carrying**: my check of whether "Set password" had worked ran
+_before_ I had confirmed the dialog, and my check of a created agent ran before
+provisioning finished. Twice I was a moment away from filing a defect against an
+operation that was still in flight. The habit that caught both is the same one:
+**read the store and the ledger, not the screen, when deciding whether something
+happened.**
+
+---
+
+## 2026-09-08 (iii): Your agents, driven from all four tiers
+
+**The fourth section of the dashboard sweep**, on the same terms as Identity,
+Accounts and Agents in your organisation: a running Gateway, a throwaway
+governance directory, the page driven by hand from each tier in turn, bugs fixed
+and working features left alone. Findings **305–316**. Eleven closed, **316 is
+open and is a decision** (§6, T63).
+
+**The section is the User tier's whole purpose** — §1.6's "Users may strictly
+prompt the agents for task execution" — and eight of the twelve are invisible
+from Root, which is the tier every string on this page gets written for. That is
+the tier sweep earning its place for the second day running.
+
+**The one to read is 305**, because it is not about this section at all: the
+dashboard never re-read **who the signed-in account is**. `refreshIdentity()` ran
+from `connectedCallback` and from nowhere else, and signing in assigned
+`identity` directly, so for the life of a session the browser's copy of an
+account's tier, its assigned agents and its authoring permission was whatever it
+had been at the first paint — while ten panels reloaded around it every fifteen
+seconds. **That makes finding 301 half-delivered**: 301 taught the routes to send
+`canAuthorPolicy`, and was verified by signing in _as_ a withheld User, which is
+the one path that already worked.
+
+### The fixture, and it came first this time
+
+A **throwaway install on port 18801**, isolated by `OPENCLAW_STATE_DIR` and
+`OPENCLAW_GOVERNANCE_DIR` with `OPENCLAW_ALLOW_MULTI_GATEWAY=1`, because a
+gateway was already holding the machine's single-instance lock. Five accounts and
+three agents:
+
+```
+kinan   root
+haitham administrator
+lina    user       answers to haitham, assigned scout + probe1
+omar    user       answers to haitham, assigned nothing
+noor    viewer     answers to haitham
+main (owned by kinan) · scout, probe1 (owned by haitham)
+```
+
+**`omar` is the account this session turned on.** A User with an _empty_
+assignment is a different screen from a User with agents and from an
+Administrator with no list, and three of the twelve findings are only visible
+from it.
+
+### 305: the page never asked who it was signed in as
+
+Driven, not read. With a User signed in and the page open throughout:
+
+| Root did this           | `whoami` answered        | The page showed                                                                                                        |
+| ----------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| took `scout` off lina   | `["probe1"]`             | `scout` still listed, with a live Talk/Close and a working composer, **45s later**                                     |
+| gave lina `main`        | `["probe1","main"]`      | nothing; no hint that a reload was needed                                                                              |
+| withheld rule authoring | `canAuthorPolicy: false` | **six enabled Remove buttons** on policy rules, and an Identity panel still saying the account may "write their rules" |
+
+The server was right every time, and refused every action the stale screen
+offered — `You do not manage agent "scout"` on a send. So this is finding 100's
+class, not an access defect. **The revoked case is the one that reads worst and
+the granted case is the one that happens daily**: an Administrator assigns an
+agent, tells the User, and the User's dashboard never shows it.
+
+**The counterfactual was established from the source rather than from the
+screen**, which matters because the auto-refresh also skips while the tab is
+hidden and an early measurement was taken that way: `refreshIdentity()` had
+exactly one caller, `connectedCallback`. Nothing else re-read it, so no refresh —
+timer, mutation or otherwise — could have picked any of this up.
+
+Fixed by appending `api.whoami()` to `refreshData`'s batch, at the end, for the
+positional-destructuring reason that block already states, and assigning before
+the panels are rendered. A rejection leaves the previous identity standing, which
+is the rule every other assignment there follows: a failed read costs that panel,
+not the session. Four tests; **three fail against the unfixed code and the
+fourth is a guard against over-correcting** and says so.
+
+### 306, 307: opening a conversation, and then what
+
+Two defects with one shape — the panel was built for the assigned-agent rows and
+the picker path was left holding the same markup without the controls that make
+it work.
+
+- **306: Root and every Administrator could open a conversation and had nothing
+  to close it with.** The Talk/Close toggle lives on the assigned rows; the
+  picker path has no toggle. And the control that _looks_ like the way back is
+  inert — picking "Choose an agent…" is dropped by `if (chosen)`, so the select
+  reset itself and left the transcript standing beneath it. Measured:
+  `select.value === ""` with the row still headed `scout`, the control and the
+  panel disagreeing about what was on screen.
+- **307: the conversation rendered after the whole list, headed with the agent id
+  a second time.** Opening the first of three assigned agents put the transcript
+  below the third, and `scout` appeared twice in one section. The row that opens
+  it already sets `stacked` for exactly this and **nothing had ever been placed
+  in it**.
+
+Both fixed together: an assigned agent's conversation now renders inside its own
+row, and the trailing row is the picker path's alone and carries a Close.
+
+### 308: the message you just sent appeared nowhere
+
+The transcript is written when the run ends, so between pressing Send and the
+reply arriving the operator's own message existed nowhere on screen — the
+composer emptied and no turn appeared. On a first exchange the panel read **"No
+messages yet. Send the first one below."** directly above a live "replying…"
+block; on a conversation that already had turns, the previous exchange sat there
+as though nothing had been sent.
+
+**The host's own chat, on this same page, shows the message immediately**, which
+is what makes this read as the governance panel being broken rather than as a
+convention.
+
+The message is now held on the controller for the length of the run, and "No
+messages yet" is suppressed while one is in flight. Deliberately not derived from
+the draft: the draft is cleared on a completed send and kept on a failed one, so
+it is a record of what to retry rather than of what is running.
+
+### 309, 310, 311: three things the section said to the wrong tier
+
+- **309: the assigned rows named an agent by its id while the page was holding
+  its name.** Root and the Administrator read "Scout Bot (scout)" in the picker;
+  the User — the tier this section exists for — read `scout`. The names arrive on
+  the same `agents` listing the picker uses, which is Viewer-and-above and scoped
+  to the caller's assignment, so a User's browser already had them (measured
+  signed in as lina: `Scout Bot`, `Probe One`).
+- **310: a typed id kept its case.** Typing `SCOUT` opens `scout`'s conversation —
+  the server folds at `canManageAgent`, `readConversation` and `promptAgent`
+  alike — and the panel headed the thread `SCOUT`, an id the installation does
+  not use, while the same agent reached through the picker rendered `scout`.
+  Finding 128's class.
+- **311: a User with nothing assigned was handed an id box that could only be
+  refused.** The sentence beside it — finding 303's repair, one day old — says
+  _"You can only work with agents an Administrator assigns to you"_, and the box
+  was offered anyway. Driven as `omar`: typed a real id (`scout`), pressed Talk,
+  got _"You do not manage agent "scout""_, and that id then stood as a heading
+  with nothing to dismiss it. **The exact inverse of what 303 had just corrected
+  in the words above it**, and the section's own header already says who the box
+  is for: _"Administrator and above have no assignment list (their scope is every
+  agent), so they get an id box instead."_ The row title went with it: "Agent to
+  talk to" labelled a control that tier no longer has.
+
+### 312, 313: the message box was 155px wide, and nothing could see it
+
+**312.** The conversation panel is a flex item in `.settings-row__control` with
+no grow factor, so it sizes to its own content rather than to the row. Measured
+at a **1900px** viewport: section 856px, control cell 822px, and the panel
+**424px — identical to its width at 1280** — with the message box inside it at
+**155px**, an `<input>`'s default intrinsic width. `flex:1` was on the input and
+had no free space to claim; with Cancel present the composer row needed 412px in
+the 392px it had. **The host's own chat box on the same page is 648px.** After
+the fix, same viewport: 554px and 380px.
+
+**313 is why it survived.** `rootState()` in
+`governance-textbox-fit.browser.test.ts` — the only test in this project that can
+measure layout — set no `conversationAgentId`, no `transcript` and no `agents`,
+so neither the composer nor the agent picker had ever been rendered in front of a
+layout engine. **Finding 251 exactly, one panel over**: 251 was this same fixture
+having no `policy`.
+
+**And the guard for 312 was withdrawn rather than shipped.** Three drafts of a
+width assertion passed against every candidate revert — a pixel floor, the block
+against its own wrapper, the block against the row — because in this harness the
+mounted component is a bare 1100px block and the live page's row geometry comes
+from the settings pane around it, which the harness does not build. The panel
+measures 802px of an 834px row there **with the fix and without it**. A fourth
+draft would have been a fourth guess, so the file now pins the thing it can pin —
+that the composer is on the page at all — and says in place why the width claim
+lives in this log instead. **Finding 224's rule applied to my own test: a check
+that cannot fail is worse than no check.**
+
+### 314, 315: two small ones
+
+- **314: the auto-refresh had no in-flight guard.** It skips on `busy`, on a
+  missing identity and on a hidden tab, and `busy` covers a _mutation_, not a
+  refresh — so a batch slower than the fifteen-second interval is joined by the
+  next one. Eleven requests a tick, six connections per origin. Measured from the
+  page's own resource timings after one slow first load, on routes `curl` was
+  answering in 0.25s: 0.26s, 5.3s, 10.2s, **44.3s**. An operator reads that as a
+  dashboard stuck on "Loading…".
+- **315:** the agent picker and the id box beside it both answered to the
+  accessible name "Agent to talk to", so the row offered a screen reader two
+  controls it could not tell apart.
+
+### 316 (open, T63): a control the server is waiting to serve
+
+`GET agent/runs` exists, is tier-gated and group-scoped, and its own comment says
+what it is for: _"so the dashboard can offer a cancel control for a prompt whose
+original tab is gone."_ `GovernanceApi.listPromptRuns` exists to call it. **No
+screen calls either.**
+
+Hit for real during this session: a run in flight, the tab reloaded, and the only
+control left for it is the emergency kill switch — which the code beside
+`cancelPrompt` argues at length must not become the way out of an ordinary
+mistake.
+
+**Not fixed, because it is a new control rather than a repair**, and this sweep
+was asked to fix bugs without changing features that work. It is findings
+264–268's class — a capability the code has and the screen does not offer — so it
+is written up as a decision rather than closed silently. §6 carries it as **T63**.
+
+### What was checked and was right
+
+- **Section visibility by tier**, re-measured: Root 13, Administrator 10, User 9,
+  Viewer 7, with _Your agents_ absent for the Viewer.
+- **The routes, past the hidden panel.** As the Viewer, `agent/transcript`,
+  `agent/prompt`, `agent/runs` and `kill` all returned **403** naming the
+  required and the actual tier. The panel hiding is a courtesy; the route is the
+  control.
+- **Conversations are per account.** Root prompted `scout` and the Administrator
+  opening the same agent saw an empty thread, which is what `readConversation`'s
+  "read back under the caller's own name" claims.
+- **A locked-down agent refuses a prompt and says why**, and the refusal is in
+  the ledger rather than absent from it: _"Agent "scout" is locked down. Release
+  it before prompting."_ on screen, and entry #20 `governance.agent.prompt`,
+  decision **deny**, `prompt refused: agent "scout" is locked down`, attributed
+  to `lina`.
+- **An unknown id is refused vaguely on purpose.** _"You do not manage agent
+  "nosuchagent""_ to **Root**, who manages every agent, is not a bug:
+  `requireAgentInGroup` deliberately gives the tier refusal's own words so the
+  route cannot become an existence oracle for another organisation's agent ids.
+  Nearly filed; left alone.
+- **Signing out is clean** — no expiry banner, no partial-failure banner, which
+  is finding 298's fix holding.
+- **An agent's owner is a username to the Administrator** (finding 302 holding):
+  `Owned by kinan`, `Owned by haitham`.
+
+### The fixtures, because three were mine again
+
+- **The one that would have been a false finding.** The first measurement of 305
+  was taken with the Browser pane hidden, where the refresh timer skips _by
+  design_ — so "the page did not update" proved nothing about the mechanism. It
+  was settled by triggering a refresh through a real mutation, and then by
+  reading `refreshIdentity`'s call sites in the source.
+- **"The dashboard is stuck on Loading" twice**, and both times the operation was
+  still in flight — the habit that caught it is the one this sweep inherited:
+  read the store and the ledger, not the screen.
+- **Two `signed in as administrator` entries for one visible sign-in**, which
+  looked like a duplicate write and was my own `curl` login plus the browser's.
+
+### Not a governance finding, and recorded so nobody re-derives it
+
+The Gateway's event loop blocks for **40–50 seconds** at a time while an embedded
+agent run is in flight on this machine: every HTTP route stops answering and one
+core pins at 100%. **It does it on a run started from the host's own chat too**,
+so it is not this layer's prompt path; it recovers when the run ends. Separately,
+the configured `google/gemini-2.5-flash` has been **retired upstream** (404), so
+the QA config was pointed at `google/gemini-3.1-pro-preview`. Between them, no
+model run could be carried to a reply, which is why the outcome paths above were
+exercised by refusal rather than by a finished answer.
+
+---
+
+## 2026-09-08 (iv): the last day's work re-swept, properly this time
+
+**The first pass over 285–304 was not thorough and is recorded as such.** It read
+the diffs for `user-store`, `api`, `admin-audit`, `governance-page`, `identity`
+and the two gateway route files, and stopped there — leaving `account-panels`,
+`session-panels`, `oversight-panels`, `agent-registry-panels`,
+`agent-policy-lookup`, `pending-decisions`, `rule-requests`, `policy-engine`,
+`vps-install.sh`, the new standalone verifier and all five standing probes
+unread and unrun. This is that pass. Findings **317** and **318**.
+
+### What the second pass ran that the first did not
+
+|                                            |                                                                           |
+| ------------------------------------------ | ------------------------------------------------------------------------- |
+| `scripts/verify-ledger.mjs`                | Exit **0**, `INTACT — 41 entries verified`, checkpoint agrees             |
+| The dashboard's own verdict, cross-checked | `headSeq 41`, same hash, `checkpointSeq 41` — **the two witnesses agree** |
+| `cli-removal-sweep.ts`                     | **9/9**                                                                   |
+| `policy-semantics-sweep.ts`                | **7/7**                                                                   |
+| `systems-sweep.ts`                         | **17/17**                                                                 |
+| `composition-sweep.ts`                     | **8/10**, and see 318                                                     |
+| Governance suite                           | **2,761 passed / 21 skipped across 145 files**, exit 0                    |
+
+**The cross-check is the one worth keeping.** The script said head **#40** and
+the dashboard said **#41** — which looks like exactly the disagreement §4 says is
+itself the finding, and was not: entry #41 is the `curl` sign-in performed
+_between_ the two reads. Re-running the script afterwards gave #41 and the same
+hash. A witness that disagrees because the thing it witnesses moved is not a
+witness that disagrees.
+
+**Both of the verifier's own repairs were driven rather than read.** A key too
+short to be a key answered `cannot verify: ledger.key decodes to 1 bytes, not 32`
+and exited **2** — "could not check", which finding 287 established is not a
+pass and must not be reported as `BROKEN`. A ledger truncated by one line, which
+a hash chain alone cannot see, answered `BROKEN at entry 40: ledger ends at entry
+40 but the checkpoint records entry 41: 1 entry was removed from the end` and
+exited 1. That is requirement 8's central claim measured against the attack it
+names.
+
+### 317: the installer never clears the build, and says it is safe to re-run
+
+`scripts/vps-install.sh` line 18: **"Idempotent: safe to re-run after a `git
+pull`."** Its build step is `$PNPM build`, and the script contains **no `rm -rf`
+at all**.
+
+Nothing in the build clears `dist/` — no clean step, no `emptyOutDir` — which is
+finding **274** (a half-finished build leaves a reference resolving to nothing;
+on the VPS that broke `exec` outright) and finding **284** (the deleted command
+line survived in `dist/` and still ran on the shipped artefact, with every source
+file gone and every gate green). `mg/HANDOFF.md` carries `rm -rf dist
+dist-runtime && pnpm build` in **three** places as the correct rebuild and
+`removed-cli-surface/README.md` in a fourth.
+
+So the manual procedure has carried 274's repair since the day it was written,
+and the script that does the same job — the one an operator is most likely to
+re-run, because it tells them they may — did not. **278 was fixed in this very
+file on 2026-09-07**, the same day 274 and 284 were written up, and the `rm -rf`
+did not travel with it.
+
+Harmless on a first install, where there is nothing to clear. The point is the
+second one. Fixed, scoped to `$REPO_ROOT`, both directories named explicitly
+rather than globbed, and announced in the output.
+
+### 318: a probe that could only ever be red
+
+`composition-sweep.ts` exits **1** with `8/10 passed`, and **two of its ten
+checks fail every time and always will** — they are T55 (finding 258, what a
+reused agent id inherits) and T60 (finding 281, one shared 20-slot proposal
+budget), both open by decision rather than unfixed by accident.
+
+Nothing said so. The T55 line mentions "T55's question" inside a detail string;
+the T60 line does not name T60 at all. A reader running this cold meets two
+failures and cannot tell them from a regression; a reader running it often
+learns that red means nothing here. **That is this project's own most-repeated
+lesson turned on one of its own artefacts** — a check whose signal has stopped
+carrying information (224, 250, 280).
+
+`check()` now takes an `expected` reason. Those two print as **OPEN**, are still
+run, still counted and now _named_ with the row that owns them, and the summary
+lists them under "open by decision, which is the expected state, not a
+regression". They no longer set the exit code.
+
+**And that was watched failing**, because the obvious risk of this change is a
+probe that can no longer go red: one of the eight ordinary checks was negated by
+hand, and the run printed `FAIL`, `7/10 passed`, `1 FAILED` and exited **1**.
+
+### One thing observed and left for its own section
+
+`agent-policy-lookup.ts` now picks its hint on `canManageAnyAgent`, which is
+finding 303's repair reaching the Agent permissions panel — a Viewer no longer
+reads _"Pick an agent you manage"_. But `canManageAnyAgent` is **true for a User
+with an empty assignment**, who manages nothing, so that tier still reads the
+sentence 303 was written to stop. Not chased here: Agent permissions is a
+section of its own and will be driven on its own terms.
+
+---
+
+## 2026-09-08 (v): Active agent sessions
+
+**The fifth section of the dashboard sweep.** Findings **319** and **320**, both
+closed. Neither is an access defect and both are about the panel telling an
+operator something untrue.
+
+### 319: the panel cannot see the runs this product starts
+
+**Measured first, explained second.** A prompt sent from the dashboard was in
+flight and `agent/runs` reported it for **twenty consecutive polls** —
+`gov-fa7fb047-50fd-4d56-b62a-afd0b2dc9fc1 / scout / kinan` — while the
+`sessions` route answered `{"supported":true,"sessions":[]}` every single time.
+On screen that is _"No agent sessions are running"_, under the hint _"Sessions
+appear here while an agent is working."_
+
+The mechanism is a call graph, not a bug in either half:
+
+- `listActiveSessions` collects from one place, the supplier installed by
+  `installGovernanceActiveSessions`, which reads `ops.chatAbortControllers`.
+- That map is written by the Gateway's **own admission path** —
+  `chat-send-admission.ts` and `agent-run-admission-phase.ts` — via
+  `registerChatAbortController`.
+- `runGovernancePrompt` calls **`agentCommandFromIngress` directly**. Nothing on
+  that path registers an abort controller, so the run exists, is governed, is
+  recorded in the ledger and is cancellable through `agent/runs` — and is absent
+  from the one view whose subject is what is running.
+
+**What that costs.** This panel is the Administrator's half of design
+requirement #2, "real-time control to suspend or terminate active sessions", and
+the comment on the auto-refresh calls it "the panel whose job is catching a
+runaway agent". It was blank for the one way the governance product itself
+starts an agent — which is also the only way the **User** tier can start one at
+all (§1.6, "Users may strictly prompt the agents for task execution"). And
+because Stop and the Monitor toggle are rendered _per row_, no row means no
+control: the only thing left is the Emergency kill switch, a **lockdown**, which
+the comment beside `cancelPrompt` argues at length must not become the ordinary
+way out of an ordinary mistake.
+
+**Why no test asked.** Every test in `active-sessions.test.ts` stubs the
+supplier. They measure the two scope filters, correctly and thoroughly, and by
+construction cannot see that the supplier is missing half the runs. A stub is
+what hid it, so the new tests drive the real prompt-run table.
+
+**Fixed by merging, not by changing the run path.** Making the governance runner
+register a Gateway abort controller would put governance into Gateway internals,
+which `agent-runner.ts` forbids in its first paragraph for reasons that still
+hold. The prompt-run table already holds the run id, the agent, the account and
+the start time. So `listActiveSessions` now draws from both registries and
+de-duplicates by run id — **merged before the two filters**, which is the load-
+bearing half: finding 139 was one of those filters missing on one path, and a
+second source that scoped itself would be that mistake waiting to recur.
+
+Seven tests. Three fail against the merge removed; the other four assert
+_absence_ — group scoping, an ended run, the de-duplication, and that
+"unavailable" is still distinguishable from "empty" — and pass either way on
+purpose, because each guards against the fix overreaching.
+
+### 320: the panel still named the command line that was deleted
+
+`governance.sessions.unavailableHint`, live and operator-facing:
+
+> "The Gateway supplies this view; it is not available from **the CLI** or
+> before startup completes."
+
+The governance command line was removed on 2026-09-07. This string survived:
+the nineteen-document rewrite that day; the eleven-finding audit on 2026-09-07
+(iv) **written for exactly this question** — "what still names the deleted
+surface to a person" — which found 285, the chain-verification row naming
+`openclaw governance audit verify`; and `cli-removal-sweep.ts`, the standing
+probe whose own check is _"no operator-facing string still tells anyone to run
+the removed command line"_, which passed.
+
+All three missed it the same way: **they searched for the command's spelling.**
+`openclaw governance …` is not in this sentence. The surface is named in prose,
+and prose is what an operator reads. Finding 285's class, with the search that
+found 285 blind to it.
+
+Fixed, and the probe widened: it now also matches prose mentions of "the CLI"
+and "command line", **scoped to the `governance:` block of `en.ts`** so that
+upstream's own legitimate sentences about running `openclaw update` "from the
+CLI" — a host command that still exists — stay quiet. Watched failing against
+the old string before the string was put back.
+
+The replacement says what is true of that state now, and adds the sentence an
+operator meeting it actually needs: _"Policy is still enforced and the audit
+ledger is still recording."_ "I cannot see what is running" reads like "the gate
+is off", and it is not.
+
+### 322: the row said what was running and not who was running it
+
+The session row rendered `<code>scout</code> gov-7dd7a3b6-6d3a-4d06-9ed0-…` —
+the agent id and an unlabelled forty-character run id, two opaque tokens in a
+row — with the session key trailing the duration underneath. So the fact an
+operator most wants on this panel, **who started this**, was present but only as
+a segment of `agent:scout:governance:kinan`, to be decoded by eye.
+
+The agent is now the row's subject; the duration, the account and the key follow
+it. The account is shown only where the key actually names one — a governance
+run — and omitted for a host run whose key names none, because this is the panel
+somebody reads to decide who to go and ask, and a guessed name there is worse
+than no name. Two tests: one fails against the old row, one passes either way and
+guards the omission.
+
+### The live proof, before and after
+
+Same experiment, same conditions, on a running gateway:
+
+|                                      | Before                   | After                       |
+| ------------------------------------ | ------------------------ | --------------------------- |
+| `sessions` during a dashboard prompt | empty on **20/20** polls | present on the **1st** poll |
+| Administrator (`haitham`)            | —                        | sees it                     |
+| User assigned the agent (`lina`)     | —                        | sees it                     |
+| User assigned nothing (`omar`)       | —                        | **does not**                |
+| Viewer (`noor`)                      | —                        | **does not**                |
+
+The last three are the half that matters: the merge happens **before** the group
+and `canViewAgent` filters, so the new source is bound by the same two checks
+finding 139 added, and that was measured rather than assumed.
+
+### What was checked and was right
+
+- **Both scope filters are present and both bind.** A User sees sessions only
+  for the agents assigned to them, a Viewer likewise, an Administrator every
+  agent in the group and nothing outside it — finding 139's repair holding, and
+  now covering the merged source too.
+- **"Cannot see" stays distinct from "nothing running."** `supported: false`
+  renders its own row rather than an empty list, which is the distinction the
+  top of the module exists to protect; there is a test that the merge did not
+  erode it.
+- **The panel gates its controls on `canManageAnyAgent`**, the tier question,
+  where the per-row `canManageAgent` exists. It does not diverge today, because
+  the server only ever sends a row the caller manages, and the file's own
+  comment already says authority is the server's. Recorded rather than changed:
+  altering it would be a change to something that works.
+
+### Not established, and said rather than assumed
+
+**Whether a host-started chat run appears in this panel was not measured.** Two
+attempts to send one through the Control UI's own chat failed before reaching
+the Gateway — "Delivery could not be confirmed after reconnect" — so the
+positive control is missing. Finding 319 does not rest on it: it rests on the
+twenty polls above and on the call graph. But "governance runs are invisible
+while host runs are visible" is a claim this session cannot make, and it is not
+made.
+
+### 321: the tree did not build, and had not since the previous session
+
+Found by running `node scripts/build-all.mjs` — which this session ran only
+because it needed a server change compiled, not because anything pointed at it.
+
+    [build-all] ui:build failed after 18.4s
+    violations:
+      - startup JS gzip: 317.6 KiB exceeds 317.0 KiB
+
+**Three points, measured by stashing and rebuilding rather than reasoned about:**
+
+| Tree                           | startup JS gzip |                               |
+| ------------------------------ | --------------- | ----------------------------- |
+| HEAD                           | 324522 B        | passes, 86 B of headroom      |
+| + findings 296–304             | 325138 B        | **over the ceiling by 530 B** |
+| + findings 305–320 (this pass) | 325241 B        | over by 633 B                 |
+
+So **the build has been failing since the previous session** and this one made
+it slightly worse. Neither was noticed, because every source-level check stayed
+green: three typechecks, both lint gates, 2,761 tests, four standing probes and
+the standalone ledger verifier. **This is finding 284 from the other side** —
+that one was source deleted and the artefact still holding it; this one is
+source that passes every check and an artefact that will not build. The handoff
+lists `rm -rf dist dist-runtime && node scripts/build-all.mjs` in §4 under the
+heading "After removing anything, check the build, not just the source", and the
+lesson turns out not to be about removals at all.
+
+**It matters immediately**: §6's "Do this before anything else" is a VPS rebuild,
+and that rebuild would have failed on the server.
+
+**The mechanism is worth more than the fix.** `ui/src/i18n/locales/*.ts` is one
+module per locale, loaded at startup, while the governance _page_ is lazily
+loaded. So an operator-facing sentence added anywhere in the product is
+multiplied across the locale set and charged to **startup** JS — and the last
+three days of this sweep have been, by explicit instruction, about writing more
+and clearer operator-facing sentences. Findings 300, 303, 304, 311, 320 are all
+text. The clarity work and the startup budget are pulling against each other
+through a coupling neither one is aware of.
+
+**Fixed by raising the fixed ceiling 317 → 318 KiB**, which restores roughly the
+headroom that existed before (391 B), with the reasoning written into the
+constant — the script's own comment asks that a budget change "accompany an
+intentional loading or chunking decision", and this is that decision stated.
+Deliberately not generous: a kilobyte per sentence is not a strategy.
+
+**The real answer is not a bigger budget** and is recorded as **T64**: split the
+locale module so a page's strings load with the page, exactly as the page's own
+code already does. That is a change to upstream's i18n loading, and it is
+Kinan's to weigh rather than mine to take in passing.
+
+_(Kinan should know this was a judgement call made mid-sweep. The alternative —
+leaving the tree unbuildable until he decided — was worse, because the VPS
+rebuild is the next thing on the list. It is one line and trivially reversible.)_
+
+### 323: the lint gate was recorded as 0 and was 4
+
+Found the same way as 321 — by running a check nothing pointed at, at the end
+rather than at the beginning. `node node_modules/oxlint/bin/oxlint --config
+.oxlintrc.json src ui/src` is the fifth verification command, and the state
+table has been recording **"plain `oxlint` 0; the full gate 0 as well"** since
+2026-09-07 (iii).
+
+    ui/src/pages/governance/api.ts:1244  max-lines: 708 (max 700)
+    ui/src/pages/governance/api.ts:1239  no-inferrable-types
+    src/gateway/governance-dashboard-agents.ts:204  no-map-spread
+    ui/src/pages/governance/governance-page.ts:1277  max-lines: 703 (max 700)
+
+**Three of the four are the previous session's** — `api.ts` grew past the limit
+with T61's `authenticating` field and the pending-decisions shape change, and
+`no-map-spread` is finding **302's own fix**, the `{ ...entry, adminUsername }`
+that resolves an owner's name. The fourth is mine.
+
+**`git stash` and re-run put it beyond doubt: HEAD lints clean, exit 0.** So all
+four entered with the last day's work, and the number in the state table was
+written the day before them and never re-derived — which is finding **227**'s
+mechanism precisely, on the row that certifies the gates.
+
+Fixed rather than excepted, in every case:
+
+- **`governance-page.ts`** by scoping the in-flight refresh guard to the _timer_
+  instead of wrapping `refreshData` in a second method. That is also the better
+  fix: a refresh that follows a mutation is asked for and must never be skipped,
+  and only the poll should stand down while one is in the air. The wrapper is
+  gone and the file is back under the limit — **without** an exception comment,
+  because T53 removed this file's exception on purpose and putting one back to
+  buy six lines would undo that.
+- **`api.ts`** by hoisting the two identical `{ authenticating: true }` literals
+  into one named constant and dropping an inferrable annotation. The
+  duplicated comment above them went with it, which is what actually paid for
+  the lines.
+- **`governance-dashboard-agents.ts`** by building the row with `Object.assign`
+  onto a fresh object. **Still a copy, deliberately**: those rows come from the
+  registry read, and writing a display-only field into them in place would be a
+  rendering concern mutating stored state — the hazard `active-sessions.ts`
+  records against the Gateway's live run registry.
+
+**Together with 321 this is one lesson, not two.** The verification list has
+eight commands; a session that changes code and runs the suite is running one of
+them. The two that were skipped are the two that read the **artefact** and the
+**whole tree** rather than the file being edited, and they are the two that were
+red. §4's own heading for the build command — "check the build, not just the
+source" — turns out to describe the lint gate as well.
+
+---
+
+## 2026-09-08 (vi): T55 decided, and the two fields nobody had measured
+
+**Mohammad's first decision**, taken with him rather than for him, and the
+conversation changed the answer twice — which is worth recording, because both
+changes came from him pushing on what I proposed.
+
+### What was decided
+
+Two removals, opposite answers:
+
+|                              |                                                                                                                                                      |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **"Remove from governance"** | Keeps everything. The agent still exists on the host and can still act; clearing its rules would disarm a live workload.                             |
+| **"Delete the agent"**       | Clears everything the id carried. OpenClaw has deleted the agent, so those rules protect nothing and can only bind a stranger who inherits the name. |
+
+Plus **(b′)**: creating or registering an agent onto a loaded id appends one
+clause to the confirmation it already shows.
+
+### The two corrections he made
+
+**He rejected the warning dialog, and was right.** My first proposal was (a)
+plus a warning at registration. He asked the obvious question — _if (a) already
+wipes the rules on deletion, what is left for the warning to warn about?_ — and
+the honest answer is: only three narrow paths, all of them somebody going around
+the product. Worse, working through it exposed a cost I had not stated: **the
+commonest reason a fresh id already carries rules is that the operator wrote
+them minutes earlier on purpose.** So the dialog would mostly fire on people who
+already knew, which is precisely how a warning becomes noise and gets dismissed
+on the one occasion it mattered. It was replaced with (b′), a clause on the
+confirmation that fires rarely and is never wrong.
+
+**He asked for the decision to be stated exactly before anything was built**,
+which caught the second thing.
+
+### 324: it was five things, not three
+
+Writing the spec out precisely meant listing what an id carries, and the policy
+document keys **five** things by agent id, not the three the 2026-09-05 sweep
+measured. The two nobody had ever tested are the per-agent **escalation
+override** — whether that agent stops and asks a human before doing something no
+rule covers — and the **timeout** that waits on the answer.
+
+Measured before deciding rather than assumed
+(`docs-notes/qa-sweep-2026-09-08/t55-remaining-fields.ts`):
+
+```
+set up:      agentAsk.scout=on-miss  agentHitlTimeout.scout=42
+after reuse: agentAsk.scout=on-miss  agentHitlTimeout.scout=42
+```
+
+They inherit identically. And the escalation override is arguably the most
+consequential of the five, because it inherits in **either** direction: set to
+`off`, a replacement is refused where you would expect it to pause and ask; set
+to `on-miss`, a replacement gets to **interrupt a human and ask for permission**
+for things no rule allows.
+
+**A decision about what a name carries was about to be taken on a list of
+three-fifths of what a name carries.** That is the finding, and it was caught by
+the request to write the spec down rather than by any check.
+
+### What was built
+
+`clearAgentPolicy` removes all five under one lock, so a reader can never see
+three of them gone. Global rules are untouched — a rule binding every agent was
+never about this one. The ledger is untouched, always. The clearing writes its
+own entry naming what went:
+
+```
+#9  cleared with the agent: 1 rule, a posture override, an escalation override,
+    an escalation timeout, an active stop
+```
+
+**Ordered host-delete → unregister → clear.** A failure before the clear leaves
+the rules in place around an agent that still exists, which is the safe
+direction; a failure _at_ the clear is reported rather than thrown, because by
+then the deletion cannot be undone (finding 229's rule), and it degrades to
+exactly the pre-T55 state while telling the operator they have a cleanup.
+
+Nine tests. **Three fail against the unfixed code; six pass either way on
+purpose** and are named as guards against overreach — global rules surviving,
+plain unregistration unchanged, reading not mutating, an empty clear writing no
+entry, and the fold on both verbs.
+
+### And the older probe was relabelled rather than left red
+
+`agent-lifecycle-sweep.ts` drives the **unregister** path, so after this
+decision its three "the new agent does NOT inherit…" checks were asserting the
+opposite of what the project had just chosen — and would have sat at 2/5 for
+ever. Its checks now assert the survival, its header says why, and it is **5/5**.
+That is finding **318**'s lesson applied the same day it was learned, instead of
+waiting for the next sweep to re-find it.
+
+### One cost, visible immediately
+
+The six new strings for (b′) took the startup bundle's headroom from 413 bytes
+to **336**. Finding 321 said the budget is charged per sentence across the
+locale set; this is what that looks like in practice, two hours later. **T64**
+is the fix.
+
+### 325: a deletion the ledger refused, announced as success
+
+Found while verifying T55 on the running gateway — by reading the deletion's
+HTTP response rather than the screen, and noticing a field was missing from it.
+
+`deprovisionAgent` computes `auditError`: the reason the audit ledger would not
+record a deletion **that has already happened**. The field's own doc comment
+ends:
+
+> _"The failure is not swallowed: it travels back and the surfaces say it."_
+
+It travels back. The route then builds its response by hand —
+`{ agentId, displayName, deletedFromHost }` — and **drops it**. And the
+dashboard's removal handler discards the response entirely, so even a forwarded
+field would have gone nowhere.
+
+**An irreversible deletion, absent from a tamper-evident trail, reporting plain
+success.** That is finding 195's shape — _"a missing entry in a tamper-evident
+trail is the more consequential half of that sentence, so it is the half an
+operator reads first"_ — arriving on the very field written to carry it. And
+since the command line was removed on 2026-09-07, this dashboard is the **only**
+surface there is to say it: the plural in "the surfaces say it" stopped being
+true a day before this was found.
+
+`clearError` — T55's own new failure, the agent gone and its rules not cleared —
+was about to be added with exactly the same gap, which is how this was noticed.
+
+Both now reach the operator, as a warning at section level with a Dismiss. **At
+section level rather than on the row deliberately**: the row it belongs to has
+just been deleted, so a notice attached to it would vanish with it, which is a
+fair description of how this stayed invisible.
+
+### Two housekeeping consequences
+
+**`api.ts` crossed 700 lines again**, and rather than shave lines the agent
+types moved into `ui/src/pages/governance/api.agents.ts` — the third such split
+after `api.accounts.ts` and `api.policy-writes.ts`, on the same rule T16 wrote:
+**move a subject out whole rather than suppress the count.** It leaves real
+headroom instead of one line of it.
+
+**And the startup budget tightened again**, 413 bytes of headroom to **255**,
+from T55's notice and 325's two warnings. Finding 321 predicted this to within a
+sentence or two. **T64** is the fix and it is Kinan's or Mohammad's to take.
+
+## 2026-09-08 (vii): the remaining eight sections, driven
+
+**The dashboard sweep finished.** Sections 6 through 13 in one pass, plus a
+re-check of 1 through 5. **Nine findings, 326–334; seven fixed, two open.**
+§6's table now reads thirteen driven, one of them only partly.
+
+### The method changed, and the replacement is better
+
+**The harness this session runs under refuses to type a password into a form**,
+so the dashboard could not be signed into by hand — which is how every earlier
+section in that table was driven. Rather than lose the pass, it was replaced
+with two pieces:
+
+- `docs-notes/qa-sweep-2026-09-08/capture-tier-snapshots.mjs` signs in as five
+  accounts against the **running gateway** and captures every dashboard read
+  route, printing which routes each tier is refused.
+- `ui/src/pages/governance/qa-tier-sweep.browser.test.ts` renders the **real
+  page from those real answers**, in real Chromium, and prints per tier every
+  section, every sentence and every control with its disabled state.
+
+**This is better than driving by hand and should be the default.** A
+hand-written fixture cannot omit what the server actually sends, and a fixture
+omitting exactly that is the shared cause of findings 251 and 313 — the two this
+project has lost most time to. The refusal matrix fell out of it for free, and
+is the cleanest statement of the tier model this project has produced:
+
+```
+root             refused: (none)
+administrator    refused: deployment=403 users=403 codexBackend=403
+user-assigned    refused: deployment=403 users=403 codexBackend=403
+user-unassigned  refused: deployment=403 users=403 codexBackend=403
+viewer           refused: deployment=403 pendingDecisions=403 users=403 codexBackend=403
+```
+
+### 333: the ledger's window is applied before the filter, and it is the worst of the nine
+
+**Found by accident and then proved on purpose.** A viewer capture came back
+with an empty ledger where the previous capture had five entries. The cause is
+one line of ordering in the route: `tailLedger(groupId, limit)` takes the newest
+`limit` entries and `projectLedgerForActor` filters them **afterwards**. So the
+page window is spent on entries the caller may not see.
+
+Measured on one account at one moment, which is what makes it undeniable:
+
+| `noor`, a Viewer   | entries returned               |
+| ------------------ | ------------------------------ |
+| `ledger?limit=50`  | **0**                          |
+| `ledger?limit=200` | **5** — #7, #24, #25, #35, #36 |
+
+The dashboard asks for 200, so it is not visible today. The day this
+installation holds 200 entries newer than those five — the throwaway one used
+here reached 83 in an hour of ordinary use — **the Viewer's panel goes blank and
+says "No audit entries yet"**, on the tier whose entire definition is reading
+the audit trail. Finding 319's shape, on requirement 8's own panel.
+
+**Left open deliberately.** The fix is to page after filtering, and the honest
+version of that walks further through the archive, which re-opens finding 82 —
+the unbounded read that was _"the cheapest denial of service in the system"_,
+reachable at Viewer. Trading a DoS bound against a correctness bug is Kinan's
+call, not one to take in passing. Written up as **A1** and **C-note** in
+`mg/REMAINING-WORK-DASHBOARD-SWEEP.md`.
+
+### 329: the same panel, the half that could be fixed today
+
+The ledger drew **50 rows out of the 81 it was holding** and said nothing at
+all. Entries #1–#31 — on a real installation the bootstrap, the account
+creations and every early sign-in — were simply absent. Two truncations, one
+under the other, neither visible.
+
+Fixed on T56's rule rather than with a "more" link: **say what is being shown,
+and say it even when nothing is missing**, because a count that appears only on
+truncation is a count nobody learns to look for. The Policy section one over has
+said _"Showing 17 of 17 rules"_ all along; this is that idiom arriving where it
+matters more.
+
+### 327: a section that answered confidently about nothing
+
+Typing `scoot` for `scout` in **Agent permissions** returned a complete page — a
+posture, an escalation setting, _"Nobody. No User or Viewer has been assigned
+this agent"_, and _"16 total, 16 global, 0 for this agent"_ — with nothing
+anywhere saying no such agent exists. The projection is not wrong (global rules
+do bind every agent, including one created tomorrow), which is exactly why the
+screen has to say so.
+
+**The page already had the answer.** `isKnownAgentId` exists, and the kill
+switch one section down has used it for a mistyped id since QA round 13. Two
+panels take the same free text and only one of them said anything.
+
+### 328, 330, 332: three sentences written for one tier and shown to all
+
+Finding 303's class, three more instances, found by reading each section's text
+**as each tier** rather than as Root:
+
+- **328** — _"Pick an agent you manage"_ to a User with an empty assignment. The
+  gate is `canManageAnyAgent`, a **tier** question, true for that account.
+  Repaired by reusing 303's own sentence rather than writing a fourth spelling
+  of it.
+- **330** — _"Ask an Administrator to allow something outside the agents you
+  manage"_, shown to the Administrator and to Root: the two tiers that decide
+  these requests and can write the rule outright. The hint was split so the tier
+  sentence goes to the tier that has somebody to ask, and the rest — true for
+  anybody — stays for everyone.
+- **332** — the kill switch armed its danger button for `main`, an agent
+  OpenClaw has that governance has never been told about, and which the section
+  above lists **with a Register button**. The server refuses it with _"You do
+  not manage agent 'main'"_, to a Root whose hint two lines up reads _"You can
+  stop any agent in your organisation."_ The page now says what is actually
+  wrong and where to fix it. The server's message is left alone on purpose: it
+  is shared with the cross-organisation case, where the vagueness is a
+  deliberate anti-oracle measure.
+
+### 326: T55 was half-delivered, and this is the fourth time
+
+`registerAgent` has returned `inheritedPolicy` since T55 landed the previous
+evening. The Register button **awaited the response and discarded it**. So part
+(b′) of Mohammad's decision — _"creating **or registering** an agent onto a
+loaded id appends one clause to the confirmation"_ — was built on the server,
+tested on the server, and delivered by the create form alone.
+
+That is the shape this repository keeps producing and has now named four times:
+a complete, tested route with nothing an operator can click reaching it.
+**Registering is the more likely of the two verbs to meet rules it did not
+write**, because the id comes from the host already named and may have been
+governed here before.
+
+### 334, and section 12 driven to completion
+
+The organisation was **actually deleted**, from Root, having been refused at all
+three lower tiers first. The store was then read on disk rather than believed
+from the screen: `users.json` and `agents.json` empty, sessions cleared, **the
+ledger and its checkpoint retained**, every account deletion recorded
+individually, and an **installation-level** ledger entry written naming the path
+where the group's retained ledger lives. That last one is a good piece of design
+and nothing had ever tested it.
+
+**334 came out of the same act.** The confirmation was typed as `" KINAN "` —
+different case, leading and trailing spaces — and it destroyed the organisation,
+under a message reading _"To confirm, type the Root username **exactly**:
+kinan"_. The folding is deliberate and the function's own contract argues for
+it; **the sentence describing it was the defect**, on the one irreversible
+control in the product, where an operator reading carefully is precisely who the
+message is for.
+
+### The budget, which is now the constraint
+
+**112 bytes of headroom.** 321 raised the ceiling to buy 413; T55 spent it to
+255; this pass's five sentences spent it to 112 — one short sentence for the
+whole product, in any locale.
+
+**T64 has stopped being tidying.** The next person who writes an operator-facing
+string will meet a red build, and no typecheck, no lint gate and no test will
+have warned them. The ceiling was **not** raised a third time: the last session
+called doing it once a judgement call and "not a strategy", and doing it again
+the next day would make the exception the rule.
+
+### What was checked and was right
+
+Recorded because "we checked and it was fine" is evidence, and the next person
+should not re-derive it: the tier scoping on every read route at five accounts;
+T42's kill-switch tier model at all four tiers; finding 302's owner name
+reaching the Administrator; finding 301's withheld authoring reaching a
+signed-in User's page and their account row; the jump-nav, the ledger filters,
+the rule filter and the per-agent projection. The **Deployment report caught a
+real misconfiguration during the sweep** — the QA gateway's own auth, switched
+off in order to run it — failed two checks and named the fix.
+
+### Not established, and said rather than assumed
+
+**No agent was prompted end to end.** The Gemini key is exhausted (`429`) and
+the previously configured model was retired upstream (`404`), so no live model
+run could be carried to a reply. Everything here is the governance layer's own
+surfaces; the run paths were exercised through refusal and through the
+registries. T2 covers the live half on the VPS, and T3 is where it is
+re-measured.
+
+**Section 8, Policy, is the one still owing a pass.** It was rendered and read
+at all four tiers and its rule list, filters and read-only projections are
+correct; the add-rule form, the folder-grant panel, rule removal and the
+per-agent overrides were not exercised.
+
+### Two fixture defects, both mine, both caught before they became findings
+
+**`runningForSeconds` omitted** from a session fixture rendered _"running for
+NaNh NaNm"_, and **`scoped` written for `agentSpecific`** rendered _"0 global,
+undefined for this agent"_. Neither is a product defect and both look exactly
+like one. That is caveat 19's cost in miniature, and the argument for the
+capture script above: **the fixtures that were wrong were the hand-written ones,
+and the ones taken off the running server could not be.**
+
+## 2026-09-08 (viii): section 8, three days re-swept, and the documents audited
+
+**The dashboard sweep is finished.** All thirteen sections driven from all four
+tiers. This pass added findings **335** and **336**, closed section 8, re-QA'd
+the last three days of work, and audited the documentation with a script instead
+of by reading it.
+
+### First, the thing that had to be checked before anything else
+
+Kinan gave permission to turn the gateway's auth off for the previous pass's
+testing. **It did not reach the repository, and that was verified rather than
+assumed**: the edited `openclaw.json` is in the OS scratchpad and `git` refuses
+to resolve the path at all ("outside repository"); the only `"mode": "none"` in
+a tracked file is `.github/workflows/openclaw-performance.yml`, which is
+upstream's and unmodified; `.claude/launch.json` is untracked and has no diff;
+and the real `~/.openclaw/openclaw.json` still reads `"mode": "token"` with an
+mtime predating the session.
+
+**One thing did need removing.** `capture-tier-snapshots.mjs` had five
+`tier:username:password` triples written into an array — throwaway credentials
+for an organisation that no longer exists, and still the wrong thing to push. A
+secret scanner cannot tell a fixture credential from a real one, and a
+repository whose subject is governance should not teach the habit. It now reads
+`GOV_QA_ACCOUNTS` from the environment and **refuses to run without it** rather
+than falling back to assumed names, because a silent fallback would snapshot the
+wrong installation and the whole value of that script is that its output can be
+trusted as what the server said.
+
+### 335: T27's distinction, erased by the refusal it produced
+
+**Found by driving section 8 as a User whose rule editing Root had withheld.**
+
+```
+lina add rule (withheld):  You do not manage agent "scout"
+lina still stop scout?  :  {"ok":true, stoppedConfirmed:true}
+```
+
+Two requests, one second apart, and the first is false. `canAuthorPolicyForAgent`
+is a conjunction — **manage this agent** _and_ **author policy at all** — and
+five routes reported only the first half of it: `policy/rules`,
+`policy/rules/remove`, `policy/agent-ask`, `policy/agent-mode` and
+`policy/folder-grant`.
+
+**T27 exists precisely to separate _may I act on this agent?_ from _may I change
+the rules it is judged by?_** The refusal collapsed them again. The
+operator-visible cost is a wrong next step: they go and ask for an assignment
+they already hold, instead of asking for their rule editing back — and Root,
+reading the same words over their shoulder, has no reason to look at the switch
+they themselves set.
+
+**Repaired at the seam rather than at five call sites.** A shared
+`requireAgentPolicyAuthoring` in `governance-dashboard-group.ts` picks the reason
+that applies, next to `requireAgentInGroup`, which already owns the _other_
+deliberate refusal message. Five sites became one, and the production line count
+went **down**.
+
+**What it does not change is the half that must not change.** The withheld
+branch is reachable only when `canManageAgent` is already true, so it is told to
+an account that is assigned the agent and can already stop it — it reveals a
+setting that account's own Identity panel shows. Everyone else still gets the
+deliberately vague _"You do not manage agent X"_, which `requireAgentInGroup`
+argues at length must stay vague so it cannot be used as an existence oracle for
+another organisation's agent ids. Measured both ways after the fix:
+
+```
+withheld lina  -> "Rule editing has been withheld from this account…"
+omar (not his) -> "You do not manage agent \"scout\""
+```
+
+Four tests, two of which fail against the unfixed route — watched failing, then
+restored — and two of which are guards: the oracle wording, and **the thing T27
+says a withheld User keeps**. That last one matters: `policy-agent-timeout.ts`
+promises in its header that a withheld User still sets their own agent's
+escalation timeout, and a repair that swept that route up would have broken the
+distinction from the other side while appearing to defend it. Measured live:
+withheld `lina` set `agentHitlTimeout.scout = 90`, prompted, and stopped the
+agent. She loses rule editing and nothing else.
+
+### Section 8, and what was right
+
+The largest section on the page, and everything else in it was correct:
+
+| Checked          | Result                                                                                                                                               |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Authoring matrix | Root/Admin/User-own-agent write; User-other-agent, Viewer refused                                                                                    |
+| Global rules     | Administrator and above; a User is refused **and told the remedy** — _"Specify agentId to scope it to an agent you manage"_                          |
+| Removal scoping  | Global needs Administrator; agent-scoped needs the agent; Viewer refused; a core rule is refused for **Root** as `immutable_rule`                    |
+| Core rules       | Switchable ones toggle off and back on, Root only; the four self-protecting ones refuse with the reason                                              |
+| Validation       | Invalid regex, **ReDoS** (`^(a+)+$`, finding 207's guard), empty pattern, negative TTL — all four refused with an actionable sentence                |
+| Account override | Root only; **finding 143's fix confirmed** — an override naming nobody is accepted (pre-onboarding is legitimate) and the panel **warns** on the row |
+| Folder grant     | One allow plus one deny per exception, correctly patterned and described                                                                             |
+
+**One thing checked and dissolved rather than filed.** The account-override
+panel folds with a local `toLowerCase()` while the server folds with
+`canonicalAccountName` (NFKC, trim, lower) — finding 215's exact shape. Tested
+by creating an account named `ａｌｉｃｅ`: `createUser` **normalises the stored
+username**, so the two sides cannot diverge and the warning cannot misfire.
+Recorded because six of this project's probe fixtures have invented a defect
+rather than missed one, and the discipline is to measure before filing.
+
+### 336: the register audited in one direction only
+
+Chapter 3's **requirement #9** row, which is the report's own source material,
+said in the present tense that the layer had _"never been built or started on
+Linux"_, that _"nothing has run on a VPS"_, and cited `scripts/linux-setup.sh`.
+
+All three were false, for between five and eleven days. T33 closed on 2026-08-28
+(Ubuntu 24.04, installer exit 0, probe 14/14); the fork has been on a VPS since
+2026-09-03; T2 was demonstrated there on 2026-09-06. The script was renamed that
+same 28 August and superseded by `scripts/vps-install.sh`.
+
+**The direction is the finding.** That cell's own closing sentence reads _"the
+status column is the one the report quotes, so the optimistic reading was in the
+place most likely to be believed"_ — it was written as a guard against
+overclaiming, and then went stale by **underclaiming**, in the document that
+feeds the dissertation. A register audited only for flattery is audited in one
+direction. The status stays _Partially met_, because one thing genuinely
+remains: **the full suite has not been re-run on Linux**, and the last
+measurement (2,548 / 133) predates T44, the command line's removal and every
+sweep since.
+
+### The documents, audited by a script rather than read
+
+`docs-notes/qa-sweep-2026-09-08/doc-audit.mjs`. Findings 220, 227, 236, 259,
+282, 294 and 323 are one shape — a number true when it was typed, in a file
+nobody re-derives — and six were caught by a person noticing two documents
+disagreeing, which is luck rather than method.
+
+**What it found, and what it taught about itself:**
+
+- **The removed command line is documented correctly.** 79 prose mentions, and
+  every one is a _record_ of the removal, properly struck through or annotated.
+  Narrowed to the check that matters — a live `openclaw governance …` inside a
+  **code fence**, which is a command someone would run — there are **three**,
+  and all three are probe output showing the core denial refusing it. Finding
+  320's class is clean.
+- **The counts disagreed in exactly one place**, and it was a session log's
+  state block: correctly frozen, and carrying nothing that said so. Annotated as
+  a snapshot rather than rewritten, and **the audit was taught the difference** —
+  the check is not "do all the numbers match" but "is every number that does not
+  match marked as history".
+- **The dead-reference check does not gate, deliberately.** It cannot settle by
+  regular expression whether `src/app.ts` in a note about path separators is a
+  reference or an illustration. Gating on 27 rows of mostly-correct prose would
+  make it cry wolf, and this project has already paid for one check nobody
+  believes (finding 224). Only the count check gates, because two documents
+  claiming different totals for one register is always wrong.
+
+**Two real staleness defects came out of it besides 336**: the Linux-evidence
+table in `REMAINING-WORK.md` describing three scripts renamed eleven days
+earlier (annotated, not rewritten — the analysis is what made the case for
+`vps-install.sh`), and `PROJECT-SUMMARY.md`'s dashboard map, which had not named
+**six modules split out of the page and the API client** between 09-05 and
+09-08. The map a newcomer reads was a week behind the tree it maps, which
+matters this week in particular: Mohammad's baseline is the PDF and nothing
+after it.
+
+### The three days re-swept
+
+The last three days' production code was re-read and the load-bearing claims
+re-measured rather than believed:
+
+- **Finding 296's fix, re-driven at the path where the brick happened.** A Root
+  named `cli` at `bootstrap-root` — refused, and so are `CLI`, `Cli`,
+  `bootstrap`, `unknown` and `hitl-approval`, because `isReservedActorName`
+  folds. The comment claiming both creation paths pass through `createUser` was
+  checked and is true: `bootstrap-root` calls it.
+- **Finding 279's fix is complete end to end**, and its test drives the real
+  gate and asserts at the gate rather than at the queue.
+- **T56's shed counter is derived by subtraction inside the lock that sheds**,
+  so it cannot drift from what was actually dropped.
+- **My own change was checked for the regression it could have caused.** The
+  per-agent timeout route is not one of the five, so a withheld User keeps it —
+  which is what `policy-agent-timeout.ts` promises, and is now a test.
+
+### Not established
+
+**Still no end-to-end agent run**: the Gemini key is exhausted (`429`) and the
+configured model was retired upstream (`404`). The prompt path was exercised as
+far as admission — a withheld User's prompt was admitted and given a run id —
+and no further. T2 covers the live half on the VPS; T3 is where it is
+re-measured.

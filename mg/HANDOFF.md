@@ -1,36 +1,114 @@
 # Handoff: read this first
 
-**Written 2026-08-19. Current as of 2026-09-04.** The single entry point for
-whoever picks this project up next, whether a teammate, a supervisor, or the
+**Written 2026-08-19. Current as of 2026-09-08.** The single entry point
+for whoever picks this project up next, whether a teammate, a supervisor, or the
 same person after a break. Everything else in `mg/` is detail beneath this.
 
 > ## Start here
 >
+> **If you are Mohammad, or talking to him, read §0b first** — his baseline is
+> `Grad_Proj___Current.pdf` and nothing after it, which is the report as it
+> stood before essentially all of the implementation existed.
+>
 > **Read §1 for the state, §6 for what is left, §7 for the caveats.** If you have
-> five minutes, read §1's **2026-09-06 (latest)** entry alone. If you have
-> fifteen, add **§7's caveats 18 and 19**: the first is what happens when a
-> tamper-evidence feature's own output has to be taken on trust, and the second
-> is the most reliable QA lesson this project has produced.
+> five minutes, read §1's **2026-09-07 (iii)** entry alone — it is the one that
+> changed what the product is. **If you are about to touch the dashboard, read
+> the 2026-09-08 entry instead**: three sections were driven by hand from all
+> four tiers and it is the only pass that has ever done that. If you have fifteen,
+> add **§7's caveats 18, 19 and 22**: how a tamper-evidence feature's own output
+> came to be taken on trust and what was done about it; the most reliable QA
+> lesson this project has produced; and why deleting something is harder to
+> verify than adding it.
+>
+> ### The four things that changed most recently
+>
+> 0. **The dashboard was driven by hand, section by section, from all four
+>    tiers** (2026-09-08). **Five of thirteen done**: Identity, Accounts,
+>    Agents in your organisation, **Your agents**, and **Active agent
+>    sessions**. **Thirty findings, 296–325; twenty-nine fixed, one open as a
+>    decision (T63).** §6 carries a **table of all thirteen sections and where
+>    each stands** — read that if you are deciding what to do next. **Start at
+>    _Agent permissions_, where one is already waiting.**
+>
+>    **The tier sweep is why it found what it did.** Every earlier dashboard
+>    pass — 239, 240, 241–252, 264–268 — was done as **Root**, the tier every
+>    string gets written for. Eight of these thirty are invisible from it.
+>
+>    **The four to read, and each teaches something different:**
+>
+>    - **296 — what a defect can cost.** A Root named `cli` bricked the
+>      installation _and_ produced an administrative action that happened, was
+>      reported as failed, and left no ledger entry. **T61 closed here** (297).
+>    - **305 — what a sweep can miss.** The dashboard **never re-read who the
+>      signed-in account is**: `refreshIdentity()` had one caller,
+>      `connectedCallback`. So an assignment or an authoring permission changed
+>      by Root never reached the screen of the account it was changed for —
+>      **which made finding 301, one day old, half-delivered**.
+>    - **319 — what a whole section can be missing.** A prompt started from
+>      the dashboard never appeared in _Active agent sessions_, so design
+>      requirement #2's real-time view was blank for the only way the User tier
+>      can start an agent at all.
+>    - **321 — what no source check can see.** The tree had stopped building,
+>      and had been broken for a day, while three typechecks, both lint gates,
+>      2,700 tests and four probes stayed green.
+>
+>    **Three things that change what you do first:**
+>
+>    - **Run `node scripts/build-all.mjs` before you trust anything** (321).
+>      The VPS rebuild in §6 would have failed.
+>    - **Run plain `oxlint` too** (323). That cell said 0 and the answer was 4,
+>      three of them from the previous session. `git stash` and re-run proved
+>      HEAD was clean. Do not read the cell; run the command.
+>    - **T55 is decided and built**, by **Mohammad** on 2026-09-08, his first.
+>      Deleting an agent clears what its id carried; unregistering keeps it.
+>      **T64 is new and open** and is the one to take next: the clarity work
+>      these sweeps produce is charged to the startup budget, and there are
+>      **255 bytes of headroom left**.
+>
+> 1. **The governance command line no longer exists.** Removed 2026-09-07 at
+>    Kinan's decision — no design requirement asked for it, and it was the
+>    surface that broke in front of an operator. **Two surfaces now: the HTTP
+>    control plane and the dashboard on it.** Every source file, every test, the
+>    reasoning and a restore procedure are in
+>    `docs-notes/removed-cli-surface/`. **If a document tells you to run
+>    `openclaw governance …`, it is out of date — say so.**
+> 2. **The audit chain can still be verified from outside the product**, which is
+>    the one capability of that surface that was rebuilt rather than archived:
+>    `node scripts/verify-ledger.mjs`. No build, no server, no sign-in.
+>    **Audited on 2026-09-07 (iv) and it had two defects, both fixed** — it
+>    called a lagging checkpoint "AHEAD of the ledger" under the word INTACT,
+>    and it accepted a key the product refuses and answered `BROKEN` where the
+>    honest answer is "could not check". Both were **false alarms**, which its
+>    own header calls worse than having no verifier. Findings 286 and 287.
+>    **And the dashboard did not know it existed**: the row that recomputes the
+>    chain still named `openclaw governance audit verify` for a day after that
+>    command was deleted (**285**, the most consequential of the ten, because
+>    that row _is_ finding 268's fix).
+> 3. **The VPS still has the old build until it is rebuilt**, and therefore still
+>    has the command line. See §6's "Do this before anything else".
 >
 > **If you want the narrative rather than the state**, `mg/SESSION-LOG-2026-09.md`
-> §"2026-09-04: the day in one page" is a one-page map of the seven entries that
-> day produced, with a table saying which to open and why. 2026-09-04 was the
-> longest run of findings this project has had (241–255) and reading seven
-> sections in order is the wrong way to meet it. **2026-09-05 and 2026-09-06 add
-> four more entries and findings 256–268**; `mg/REMAINING-WORK.md`
-> §"Where this file's findings stop" maps every finding from 241 to 268 to the
-> section that holds it, and says which two are open and why.
+> §"2026-09-04: the day in one page" maps the seven entries that day produced.
+> 2026-09-04 was the longest run of findings this project has had (241–255).
+> **2026-09-05 to 2026-09-07 add six more entries and findings 256–284**;
+> `mg/REMAINING-WORK.md` §"Where this file's findings stop" maps every finding
+> from 241 to 284 to the section that holds it, and says which three are open.
 >
-> **If you are meeting the QA method rather than the product**, the shortest
-> route is §7's caveat 19 and the last paragraph of §1's newest entry: an hour of
-> somebody _using_ the dashboard has now out-found a day of reading it on four
-> separate occasions, and six probe fixtures this week were wrong in ways that
-> twice invented a defect rather than missing one.
+> **If you are meeting the QA method rather than the product**, read §7's
+> caveats 19 and 22 together. 19 is that an hour of somebody _using_ the
+> dashboard has out-found a day of reading it on four separate occasions. 22 is
+> its mirror: after a **removal**, every gate this project runs passes by
+> construction, because deleting a surface deletes its tests — and the compiled
+> surface sat in `dist/` for hours afterwards with nothing complaining.
+> **Ten probe fixtures this fortnight were wrong, and six of those invented a
+> defect rather than missing one.**
 >
 > **If you are going to the VPS**, read two things in §1: **"Updating the VPS to
-> the current build"**, which is the four commands that get this build onto the
-> server and the five steps after it, and the **VPS trip** checklist, which
-> lists what to capture at each step and why each artefact matters.
+> the current build"**, which is the commands that get this build onto the server
+> and the steps after it, and the **VPS trip** checklist, which lists what to
+> capture at each step and why each artefact matters. **The rebuild is now
+> load-bearing rather than tidy**: until it runs, the server still serves the
+> removed command line.
 >
 > ### Where things stand
 >
@@ -51,9 +129,13 @@ same person after a break. Everything else in `mg/` is detail beneath this.
 >   second when demonstrating, or you will screenshot the wrong thing.
 >
 > - **Built, verified, deployed, and now demonstrated.** Eight of nine design
->   requirements fully met. **2,794 passed and 20 skipped across 156 file runs,
->   green on Windows** (re-measured 2026-09-06, after T57), **seven**
->   verification commands, all green, plus **fifteen standing probe scripts** in
+>   requirements fully met. **2,780 passed and 21 skipped across 146 file runs,
+>   green on Windows** (re-measured 2026-09-07 (iii), after the command line was
+>   removed and the standalone ledger verifier added. The removal took it from
+>   2,817 / 156 to 2,716 / 142 — a drop of **exactly** the 101 tests and 14 files
+>   that went with the surface, which is the check that says nothing else went
+>   with them — and T62 put 7 back in 1 file), **seven**
+>   verification commands, all green, plus **twenty standing probe scripts** in
 >   `docs-notes/qa-sweep-*/` that drive the layer rather than test it (counted, not
 >   estimated: `ls docs-notes/qa-sweep-*/`). The seventh is new, and it is finding 250:
 >   the six that stood here could not see a layout defect, and the first of them
@@ -68,10 +150,12 @@ same person after a break. Everything else in `mg/` is detail beneath this.
 > - **The engineering on the backlog is finished, and that is not the same as
 >   "no bugs left".** Sweeps on eight different axes, the VPS deployment, two
 >   conflicts between sections of this file, and **an operator using the dashboard
->   on four separate days**, across 2026-09-01/06, found **one hundred and one defects
->   between them, 172 through 272 inclusive (272 − 172 + 1 = 101). Ninety-nine are
->   closed; 169 stays open as an unexplained observation and 258 as a decision
->   rather than a repair (T55).** _(The security-relevant subset is deliberately
+>   on four separate days**, across 2026-09-01/07, found **one hundred and thirteen defects
+>   between them, 172 through 284 inclusive (284 − 172 + 1 = 113). One hundred and
+>   ten are closed; 169 stays open as an unexplained observation, 258 was open
+>   as a decision and **closed 2026-09-08 when Mohammad decided T55**, and 281
+>   stays open as a decision (T60).** _(This range stops at 284 on purpose.
+>   285–325 came later and are counted in the state table above.)_ _(The security-relevant subset is deliberately
 >   not counted here any more. It was carried as "twenty, and two more latent"
 >   for several days by incrementing rather than by re-deriving, which is the
 >   habit finding 227 exists to break. The register in `GOVERNANCE.md` §"Where
@@ -182,7 +266,7 @@ same person after a break. Everything else in `mg/` is detail beneath this.
 >   **T49** (what the multi-tenancy machinery is for, now that one installation
 >   holds one organisation) and **T50** (whether anything should enforce the full
 >   lint gate). **T45 is Claude's and is done**: `docs-notes/FIRST-RUN.md`, and so
->   is **T47's plan**: `docs-notes/T47-TEST-PLAN.md`, 138 checks as first written, four added 2026-09-05 and **thirteen added 2026-09-07** for the night T2 landed (Root owning an agent, the agent knowing its name, the Talk panel, the empty reply, signing out, and the escalation's new "Allow always"), so 155. Four added 2026-09-05** from findings 256 and 260, across
+>   is **T47's plan**: `docs-notes/T47-TEST-PLAN.md`, 138 checks as first written, four added 2026-09-05 and **thirteen added 2026-09-07** for the night T2 landed (Root owning an agent, the agent knowing its name, the Talk panel, the empty reply, signing out, and the escalation's new "Allow always"), so 155, and **three more added 2026-09-07 (ii)** for finding 279 (approve a _read_ escalation, then try to write the same file), its de-duplication, and finding 281's queue limit — **158, counted from the rows rather than incremented**. Four added 2026-09-05** from findings 256 and 260, across
 >   the four tiers. **Running T47 is yours and needs all three of you on three
 >   machines**, because half of what it tests is that one account cannot see or
 >   do another's.
@@ -290,9 +374,365 @@ you actually want" is more use to him than doing it.
 
 ---
 
+## 0b. Mohammad, and how to work with him
+
+**A second operator joins from 2026-09-08: Mohammad Al-Masri**, one of the three
+on the team (`PROJECT-SUMMARY.md` §1). Kinan's briefing, recorded verbatim
+because the instruction is his and paraphrasing it would lose the parts that
+matter:
+
+> _"A new operator will come to you, Mohammad, who hasn't worked with you or
+> previous agents before in developing this project, so his baseline knowledge
+> will be different from mine; I, Kinan, have been building this over ~24
+> sessions with different agents. When he comes he will identify himself. So when
+> he asks questions explain things about the project, how it works and how it's
+> built, from the ground up, with the understanding his knowledge is only up to
+> the `____current` pdf file which is our most recent pdf work for the report
+> we're writing. He will be working with you primarily to go through some tasks
+> which require decisions; explain the decisions and choices in lay terms and
+> from the ground up when he comes. He will also prompt you with whatever he
+> needs."_
+
+**He will identify himself.** Until he does, assume you are talking to Kinan and
+§0 applies.
+
+### What "his knowledge is only up to the pdf" means in practice
+
+The file is `Documentation/GradProj/Grad_Proj___Current.pdf` — the authoritative
+specification, and the one every requirement in this project is judged against
+(`PROJECT-SUMMARY.md` §"Where everything lives"). It is also **the report as it
+stood before essentially all of the implementation existed.** Everything the
+repository records happened after it: the build itself, **325 defects found and
+322 fixed**, **T2** (a real model refused by the gate on a real server,
+2026-09-06), the **removal of the governance command line** (2026-09-07, which
+changed the product from three surfaces to two), and the M-series multi-tenancy
+work.
+
+So when he describes how something works he may be describing the **design**
+rather than the build, and be right about the document and wrong about the code.
+That is not a mistake — it is the only source he has. **Say which of the two you
+are talking about, every time**, and when they differ, name the change that moved
+it rather than correcting him flatly.
+
+### Answering him
+
+§0's plain-language rule applies more strongly here, not less. Beyond it:
+
+- **Name a thing before using it.** "The gate", "the ledger", "a posture" are
+  this codebase's names, not the document's. He knows the concepts; not these
+  words for them.
+- **A finding number is not an explanation.** Say what happened, then give the
+  number so he can look it up.
+- **He is here mainly for decisions**, so prepare those the way the briefing
+  asks: what the system does today, the options, what each costs, and a
+  recommendation — in lay terms, from the ground up. **T55 and T60** in §6 are
+  exactly this shape. A decision he cannot restate in his own words has not been
+  made.
+- **`docs-notes/QA-IN-PLAIN-TERMS.md` is the model** and the best thing to point
+  him at; it was written to this standard on purpose.
+
+### What happened when he did arrive (2026-09-08)
+
+**He took T55, and the conversation improved the answer twice.** Recorded
+because it says how to work with him, not just what was decided.
+
+- **He rejected a proposal and was right.** The plan was to clear an agent's
+  rules on deletion _and_ warn at registration. He asked the obvious question —
+  if the first already clears them, what is left for the warning to warn about?
+  — and working it through exposed a cost that had not been stated: the
+  commonest reason a fresh id already carries rules is that the operator wrote
+  them minutes earlier on purpose, so the dialog would mostly fire on people who
+  already knew. It became a clause on the existing confirmation instead.
+- **He asked for the decision to be written out exactly before any code**, and
+  that caught **finding 324**: what an agent id carries is **five** things, not
+  the three anybody had measured. A decision about what a name carries was about
+  to be taken on three-fifths of what a name carries.
+
+**So: give him the options, take the pushback seriously, and write the spec
+before the code.** Both improvements came from him, and neither would have come
+from handing him a finished answer to approve.
+
+**Do not hand him this file as an introduction.** It is a handoff for somebody
+resuming the work and assumes the vocabulary throughout. The way in is
+`docs-notes/FIRST-RUN.md`, then `PROJECT-SUMMARY.md` §1, then the relevant part
+of `QA-IN-PLAIN-TERMS.md`.
+
+---
+
 ## 1. The one-paragraph state of things
 
-### 2026-09-07 (latest): T2 done, and the four things that broke around it
+### Handoff state, 2026-09-07 (iii)
+
+**Everything below is re-derived from the rows and the source, not carried
+forward.** If you are picking this up, this table is the shortest true summary;
+§1's entries are the narrative beneath it.
+
+|                         |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Surfaces**            | **Two**: the HTTP control plane and the dashboard on it. The command line was removed 2026-09-07 and is archived in `docs-notes/removed-cli-surface/`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| **Suite**               | 2,780 passed / 21 skipped across 146 files, Windows, exit 0. Re-measured 2026-09-08 (vi) after T55; the +9 and the +1 file are exactly `agent-policy-lifecycle.test.ts`. It was 2,771 / 145 after findings 305–323. Previously 2,745 / 20 / 144, 2026-09-08 (ii). The +20 over 2,725 and the one new file are exactly what was added: 8 reserved-name, 4 session, 5 role-manager, and 3 for the identity payload — the last is one test that runs under all three gateway projects                                                                                                                                                                                          |
+| **Typechecks**          | core, UI and tests — all 0, re-measured 2026-09-08 (v). **The build is a separate check and was failing** for a day before that: see finding 321, and run `node scripts/build-all.mjs` before believing this row means the product builds                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **Lint**                | plain `oxlint` **0**, re-measured 2026-09-08 (v) **after finding 4 errors that this row had been recording as 0** (finding 323) — three of them the previous session's, including finding 302's own fix. **Re-run it; do not read this cell.** The **full** gate has not been re-run since 2026-09-07 (iii) and its 0 is that old. They are not the same check, and the full one is the one that counts                                                                                                                                                                                                                                                                     |
+| **Standing probes**     | 21, in `docs-notes/qa-sweep-*/` (counted, not incremented: `ls docs-notes/qa-sweep-*/*.ts`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| **Backlog**             | **T63 is new and open** (finding 316), and **T61 closed** 2026-09-08. The totals this cell used to carry — 62 items / 47 struck / 15 open, derived 2026-09-07 (iii) — are **not re-derived here and should not be repeated**: a grep over `mg/REMAINING-WORK.md` counts prose cross-references as backlog rows and answers differently depending on the pattern (86 matching rows for 63 distinct T-numbers, and seven numbers that are struck in the table appear unstruck in the narrative around it). **Count from the table under §"The numbered backlog" and nowhere else** if the number is needed. Finding 227's habit applied to the one cell that kept escaping it |
+| **Findings**            | **336 found, 331 fixed, 5 open**: 169 (unexplained), 281 (T60, a decision), 316 (T63, a decision), **331 (a decision, C2 in `mg/REMAINING-WORK-DASHBOARD-SWEEP.md`)** and **333 (work, A1 there — the most serious of the nine)**. Re-derived 2026-09-08 (viii) by adding two more to (vii)'s 334/329/5: **335** (the authoring refusal that named the wrong half of a conjunction, fixed) and **336** (Chapter 3's requirement #9 row stale in the _pessimistic_ direction, fixed). The nine before them are **326–334**, seven closed, 331 and 333 left open on purpose. 258 closed 2026-09-08 (vi) when Mohammad decided T55                                             |
+| **Design requirements** | Eight of nine fully met; #9 (Linux deployment) is met in practice and unmeasured on the server — that is T3                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+
+**The three things most likely to trip you up, in order:**
+
+1. **The VPS is a different product from this repository** until it is rebuilt.
+   It still serves the removed command line and lacks this week's fixes. One
+   command, §6, "Do this before anything else".
+2. **A document telling you to run `openclaw governance …` is out of date.**
+   Every operator-facing one was corrected on 2026-09-07; historical narrative
+   was deliberately left alone. If you find a live instruction, it is a bug in
+   the docs — say so.
+3. **A green suite proves less than it looks after a removal**, and this project
+   has the scars: see §7 caveat 22.
+
+---
+
+### 2026-09-07 (iii) (latest): a surface removed, and the arithmetic that proves nothing else went with it
+
+**The `openclaw governance` command line is gone**, at Kinan's decision. Fifty-five
+commands, 3,162 lines and 101 tests, archived and then deleted.
+
+**Read `docs-notes/removed-cli-surface/README.md` before forming a view.** It
+holds every source file, every test, the reasoning, and a restore procedure that
+takes about ten minutes. The decision is reversible by anyone who disagrees with
+it.
+
+**Why.** No design requirement asks for a command line — §1.3 names the tiers,
+the engine, the ledger, HITL and a Linux deployment, and nothing else. It was
+also the surface that broke in front of an operator: `governance login` printed
+no password label, did not mask the password, and refused valid credentials,
+which blocked reading the ledger for T58 while the dashboard answered the same
+question at once. And it was carrying T51.
+
+**The measurement that settled it**, because the stated worry was time: the
+by-hand plan T47 needs three people and three machines, and the command line
+accounted for **2 of its 158 rows**. Its automated tests were already green, so
+removing the surface _reduced_ the suite rather than saving effort.
+
+**The arithmetic is the check that matters.** The suite went from 2,817 / 156 to
+**2,716 / 142** — a drop of **exactly** the 101 tests and 14 files that were
+archived. _(T62 then put 7 tests back in 1 file, so the figure to quote as
+current is **2,723 / 143**; 2,716 is the number that proves the removal took
+nothing with it.)_ A removal is the one change where a green suite proves least, because
+deleting a surface deletes its tests and everything left passes by construction.
+The subtraction is what turns "still green" into evidence.
+
+**A second, adversarial pass found the thing that mattered most, and it is
+finding 284.** After the first pass had reported the removal complete — sources
+gone, both registries clean, the `--help` descriptor removed, three typechecks
+and both lint gates green, the dedicated removal sweep 7/7 — `dist/` still held
+**`register.governance-BfFo31MS.js`**, the entire compiled command tree. On any
+machine running the shipped build, **including the VPS**, `openclaw governance …`
+still worked.
+
+**Deleting source does not delete the product.** Every check this project runs —
+typecheck, lint, suite, and the removal sweep written for this very change —
+reads the _source tree_. What a user runs is the _build_, and nothing compared
+the two. Worse, this is finding **274**'s mechanism again: nothing in the build
+clears `dist/`, so a plain `pnpm build` would have left the compiled command tree
+orphaned there indefinitely. Only `rm -rf dist && pnpm build` removes it, which
+is exactly why the rebuild command in §6 carries that `rm -rf`.
+
+**So the VPS still has the command line until it is rebuilt**, and that rebuild
+is already the first instruction in §6.
+
+**What the sweep caught that the suite could not.**
+`docs-notes/qa-sweep-2026-09-07/cli-removal-sweep.ts`, **7/7**, found a real
+leftover: `core-command-descriptors.ts` still declared a `governance` descriptor,
+which drives `--help`, argv routing and command suggestions. The files were gone
+and the command was still **advertised** — finding 100's class, arriving through
+a deletion. It also confirms all ten upstream command groups still register
+(`onboard`, `daemon`, `models`, `config`, `agent`, `cron`, `doctor`, `dashboard`,
+`audit`, `message`) and that **enforcement is untouched**: an unlisted action and
+a core-tier denial are both still refused after the removal. The 63 upstream CLI
+test files, 1,067 tests, all pass.
+
+**What was genuinely lost, and it is not nothing.** The command line was
+file-backed and ran in its own process, so it was the only way to read the
+deployment report or verify the chain **when the Gateway was down** — the
+documentation argued exactly that, and those passages are kept with a note
+because the cost is now real rather than hypothetical. And two implementations of
+one decision disagreeing is how finding **202** surfaced; that cross-check is
+gone. Neither is a security regression: the gate is on neither surface.
+
+**T51 closed by removing the question**, and one defect was recovered from it
+rather than lost — a comment claiming `agent cancel` could stop a
+dashboard-started run, which it could not. That is the comment an operator reads
+during an incident.
+
+**T62 raised and closed the same evening**, and it is the one thing the removal
+gave back. Finding 268's repair had printed a terminal command beside the chain
+verdict so the head hash could be recomputed by an independent reader — _"the
+dashboard is no longer the only witness"_ — and removing the command line took
+that away. Kinan chose to restore **that one capability without the surface**:
+`scripts/verify-ledger.mjs`.
+
+It is a better witness than the command it replaces. It **imports nothing from
+`src/`**, so it runs with the build broken and the Gateway down, and against
+files copied off the machine — which is the arrangement §7 caveat 4 says
+actually closes the residual. It **cannot sign in**, where `audit verify`
+required a governance session first: authenticating to a possibly-compromised
+installation before auditing it makes the audit depend on the thing under audit.
+And it **re-implements the hashing** rather than importing it, so a defect in
+`audit-ledger.ts` cannot agree with itself.
+
+**The cost of that independence is drift, and a verifier that cries wolf is
+worse than none**, so seven tests pin it against the product on real chains —
+intact, one decision edited on disk, entries deleted from the end, the checkpoint
+removed. Neutering the hash check fails one; neutering the checkpoint checks
+fails two. It answers **three** ways rather than two: 0 intact, 1 broken, **2
+could not check**, because collapsing the third into either of the others is how
+a verifier starts reporting infrastructure as tampering, or silence as safety.
+
+**T61 added**, reported by Kinan the same evening: the dashboard answers a
+mistyped password with _"Your session ended…"_. Diagnosed rather than guessed —
+`run()` maps **any** 401 to `markSessionExpired()`, and the sign-in route answers
+a bad password with 401 like every other route.
+
+---
+
+### 2026-09-07 (ii): the composition axis, and a property that was documented rather than built
+
+**A QA session on the three days of work that preceded it, on an axis this
+project had not used: the seams _between_ two new things.** Every feature landed
+2026-09-05/07 has tests, and every one of those tests drives it **alone, in a
+governance directory made one line earlier**. Two new standing probes
+(`docs-notes/qa-sweep-2026-09-07/`) drive them against each other instead:
+`composition-sweep.ts` (10 checks) and `policy-semantics-sweep.ts` (7 checks,
+7 passed).
+
+**279 is the one to read, and it is a security-relevant defect found by testing a
+comment.** `proposeRuleFromEscalation` lists three properties it says it
+guarantees. The third — _"it carries the access half for paths; a read that was
+escalated proposes a read, not a read and a write"_ — **was false**.
+`RuleRequest` had no `access` field, so the direction reached the reviewer only
+inside the `reason` prose and never reached the rule, and an absent `access` on a
+`PolicyRule` means **both directions**. Measured at the gate rather than reasoned
+about: escalate a read, answer Allow always, approve it through the real route,
+and a **write** to the same path comes back allowed — while the queue row said
+"(read)" the whole time, because `describeRequest` prints the reason.
+
+**Of the three properties that comment claims, the two with tests behind them
+held and the one without did not.** The test file listing "six properties" did
+not include this one. That is the transferable part: a claim in a comment is not
+a property, and the ones with no test are exactly where to look.
+
+**280 is finding 271 with the listing run properly.** 271 asked which fields
+`refreshData` never overwrites and answered "the transcript". Listing this
+component's **50** `@state()` fields against the **15** `endSession` cleared says
+**twenty-three survived a sign-out**, and `refreshData` reloads only three of
+those. The Agent permissions panel stayed open on the previous account's agent,
+showing its rules and **the usernames assigned to it**; a stale `role="alert"`
+announced an emergency stop the next person did not order; and the authoring and
+request forms came back **filled in** with the previous account's half-typed rule
+and the agent and account it named. Now **48 of 50**, with the two exceptions
+named and argued rather than left to be noticed.
+
+**The first repair covered three of the twenty-three, and was the same mistake
+one layer down.** It was caught by re-running the listing _after_ fixing, not by
+noticing — which is the rule worth keeping: **a fix derived from a listing is not
+finished until the listing is run again against the fixed code.**
+
+**281 is open as T60 and is a decision.** Every escalation proposal is filed under
+one labelled origin, and the pending cap counts by requester, so all of them share
+**a single 20-slot budget for the whole organisation**. Measured: 25 distinct
+escalations answered Allow always filed **20** proposals; the other five granted
+the call and filed nothing, recorded only as a ledger entry no surface reads. The
+button still reads **"Always allow"**. The safe half is real and should survive
+the fix: **a full queue never widens the policy, it only fails to propose.**
+
+**282 is the documentation half, and it is the largest single sweep of stale
+claims this project has recorded.** The 2026-09-06 restoration of `allow-always`
+changed behaviour and **updated no document outside the code**, so six documents
+still said an "allow always" answer writes a permanent rule — the behaviour QA
+round 13 removed as a security defect. Among them **F3**, in both its prose and
+its TikZ caption, and `CHAT-DEPLOYMENTS.md`, which is the document about the
+surface the concern actually lives on.
+
+**F3 carries the method lesson.** The 2026-09-05 figure audit read every figure
+against the code and could not have caught it: the claim had been false since
+long before that audit, because it described a capability that at the time **did
+not exist in the code at all**. A check asking "does the code do what this figure
+says?" cannot see a figure describing something the code no longer has — there is
+nothing to compare against. **The complementary check is the reverse direction:
+take each removed or changed feature and grep the documents for it**, which is
+how three figures and nine prose claims were found, from a three-day commit list
+rather than from a read.
+
+**Also struck: "the field is populated or absent, never wrong"**, the intent
+field's safety claim, still standing in three live documents after T2 produced
+the third outcome nobody had allowed for (finding 273). And this file's own
+**"The fifteen open"** table held fourteen rows, two of them closed, and omitted
+three that were open — while the count above it was right. Finding 259 in
+reverse: **deriving a number from the right source does not check the list you
+print beside it, and a reader takes the list.**
+
+**Two more sweeps and one backlog item closed.**
+`policy-semantics-sweep.ts` drives the decision procedure itself — deny beats
+allow whichever was written first, core beats operator, an expired rule stops
+applying **at the gate** rather than at the next prune, `monitor` records where
+`enforce` blocks, a per-agent posture overrides the installation's both ways,
+and a locked-down agent is refused a call an explicit allow permits: **7/7**.
+`systems-sweep.ts` drives five systems around the gate — sessions, the
+rule-authoring guardrails, folder grants and the deployment report: **17/17**,
+including that a demotion binds on a session already issued, that a grant on one
+folder does not reach a **sibling whose name starts the same way**, and that the
+deployment report's `overall` is the worst _non-unknown_ status so a machine
+that cannot perform a check cannot turn a failure into a pass.
+
+**Verification at the end, on a frozen tree.** **2,817 passed / 20 skipped across
+156 files**, exit 0 (was 2,794 at the start; twenty-three tests added by 279, 280
+and T56). Core, UI and test typechecks clean. The **full** lint gate green — and
+that qualifier is the point, because plain `oxlint` was green while the full gate
+was not.
+
+_(One suite run was thrown away rather than reported. It was started and then
+**edited underneath** while it ran, because T56's code landed mid-run; vitest
+collects once but imports at test time, so the number would have described a
+mixture of two trees. Killed and re-run on a frozen tree. A green number measured
+against a tree that no longer exists is the same class of claim as a build that
+succeeds without saying which code it built — finding 278, four days old and
+already applicable to my own process.)_
+
+**T50 got its first two numbers, and both came out of this session by accident.**
+The full lint gate takes **about eighteen minutes** on this machine, measured
+twice (05:24:15–05:42:02, then 05:55–06:14), almost all of it in twenty
+per-extension `oxlint` passes —
+so a pre-commit hook that runs it gets bypassed on its first bad day. And the two
+gates **disagreed on a change made ten minutes earlier**: plain `oxlint` exited 0
+while the full gate exited 1 on a type-aware rule, against a line plain `oxlint`
+had itself demanded. "The hook is close enough" is now falsified by example.
+
+**The gate's own tail read green while it had failed.** Twenty lines of
+`[oxlint:extensions:N] finished` and no error; the failure sits at line 25 of an
+82-line log and the **exit code is the only thing that says so**. §4's standing
+rule — read the exit code, never a tail — caught it, which is the first time in
+this record it has caught something rather than been cited afterwards.
+
+**T56 is closed, and the decision it was waiting on did not exist.** The row said
+"once Kinan says which surfaces" and named all three readers of
+`listPendingDecisions`; only **two are listings**, the third being a lookup by id
+that displays no worklist. The stack now carries a cumulative count of the
+unanswered questions it has shed, incremented **inside the lock that sheds
+them**, and both the command line and the dashboard say so in one shared
+sentence. The dashboard says it **even when nothing is left waiting** — a flood
+shed and then answered leaves nothing waiting _and_ an incomplete record, and
+that is the reading an operator must not take.
+
+**Two of my own probe fixtures were wrong first**, both in the direction that
+manufactures a defect, and one test I wrote was **vacuous** — it asserted the
+direction appears in `describeRequest`, which was already true via the reason
+prose, and passed with the change reverted. Caught by running it against reverted
+code rather than by reading it. Both are written up where they happened.
+
+---
+
+### 2026-09-07 (i): T2 done, and the four things that broke around it
 
 **The longest session this project has had, and the one that closed its
 highest-value item.** Read this entry and the opening block; the three below it
@@ -468,8 +908,10 @@ reproducing the operator's three symptoms exactly, then 30 passed against the
 fix. A test never seen to fail is a claim, not evidence.
 
 **T57 was added at Kinan's direction** and is the other thing to read: a prompt
-is recorded in the ledger from **one** surface only. Measured, not assumed —
-`ADMIN_ACTIONS.agentPrompt` has exactly one writer, the dashboard's prompt route.
+was recorded in the ledger from **one** surface only. Measured, not assumed —
+`ADMIN_ACTIONS.agentPrompt` had exactly one writer, the dashboard's prompt route.
+**Built the same day; see the 2026-09-06 (iii) entry above.** Left in the present
+tense until 2026-09-07, in a dated entry a reader could take as current.
 A task typed into OpenClaw's own chat, or the CLI, or arriving on a channel,
 reaches the agent with no entry naming who asked for it. **Tool calls are
 unaffected and still governed**, so a refusal still refuses; what is missing is
@@ -766,22 +1208,27 @@ adding the unsafe `..` spelling turns the safety assertion red.
 
 **Measurements, all 2026-09-04, all re-derived rather than repeated:**
 
-|                  |                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Governance suite | **2,814 across 156 file runs** (2,794 passed + 20 skipped), re-measured 2026-09-05 after T53 and findings 262 and 263. It was 2,766/151 earlier that day after 256, and 2,757/150 on 2026-09-04; each delta is exactly the tests added. The 20 skipped are by design: 15 need a layout engine, 5 are platform skips                                                                                              |
-| Browser project  | **22 files / 198 tests**, the seventh command                                                                                                                                                                                                                                                                                                                                                                    |
-| Feature sweep    | 20/20 (`docs-notes/qa-sweep-2026-09-04/feature-sweep.ts`)                                                                                                                                                                                                                                                                                                                                                        |
-| Gate sweep       | 17/17 (`gate-sweep.ts`)                                                                                                                                                                                                                                                                                                                                                                                          |
-| Surface parity   | 46 route/method pairs (`surface-parity.mjs`)                                                                                                                                                                                                                                                                                                                                                                     |
-| Lifecycle sweep  | 8/8 (`docs-notes/qa-sweep-2026-09-05/lifecycle-sweep.ts`), and 5/8 before finding 256's repair                                                                                                                                                                                                                                                                                                                   |
-| Agent lifecycle  | **2/5** (`agent-lifecycle-sweep.ts`), and the three are T55 rather than a regression                                                                                                                                                                                                                                                                                                                             |
-| Contention sweep | 10/10 across **four real child processes** (`concurrency-sweep.ts`), and 5/10 with the file lock neutered                                                                                                                                                                                                                                                                                                        |
-| Bounds sweep     | 11/11 (`bounds-sweep.ts`), and 10/11 before finding 260's repair                                                                                                                                                                                                                                                                                                                                                 |
-| M-series sweep   | **16/16** (`m-series-sweep.ts`). Several devices at several tiers in one organisation; no per-device account limit; Codex per agent and per installation                                                                                                                                                                                                                                                         |
-| Five-day sweep   | **10/10** (`five-day-regression-sweep.ts`), re-attacking 202, 225, 254, 256 and requirement 8 rather than re-reading them                                                                                                                                                                                                                                                                                        |
-| Dashboard sweep  | **7/7** (`docs-notes/qa-sweep-2026-09-06/dashboard-changes-sweep.ts`), the server half of the 2026-09-06 operator findings                                                                                                                                                                                                                                                                                       |
-| Backlog          | **59 items, 44 struck, T1 not being done, 15 open (14 actually outstanding).** Re-derived from the rows 2026-09-06, after T57 was built and struck the same day. This cell said "13 open" while two other copies said 14, because it silently quoted the net-of-T1 figure; both numbers are now stated. Finding 259: it read "54 items, 42 struck … 11 open" and was wrong in both directions before T55 existed |
-| Defects          | **277 found, 275 fixed**, 157 withdrawn, and **two open**: 169 as an unexplained observation, 258 as a decision (T55). 260's aiming half is fixed and its visibility half is T56                                                                                                                                                                                                                                 |
+|                   |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Governance suite  | **2,801 across 146 file runs** (2,780 passed + 21 skipped), re-measured 2026-09-08 (vi) after T55 — +9 tests in one new file, `agent-policy-lifecycle.test.ts`, which is exactly what was added. It was 2,771/145 after findings 305–323, and 2,765 across 144 (2,745 + 20) on 2026-09-08 (ii) after findings 296–304 — +17 tests in one new file, which is exactly what was added. It was 2,745 (2,725 + 20) after findings 285–295 — the delta is +3 tests added less the 1 deleted with 290's dead helper, which is the subtraction rather than the green. It was 2,743 (2,723 + 20) after findings 279 and 280 and T56, exit 0 read directly rather than from a pipe. It was 2,814/156 before those, re-measured 2026-09-05 after T53 and findings 262 and 263; It was 2,766/151 earlier that day after 256, and 2,757/150 on 2026-09-04; each delta is exactly the tests added. The 20 skipped are by design: 15 need a layout engine, 5 are platform skips                                                                                                                                                                                                                                                           |
+| Browser project   | **22 files / 198 tests**, the seventh command                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Feature sweep     | 20/20 (`docs-notes/qa-sweep-2026-09-04/feature-sweep.ts`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Gate sweep        | 17/17 (`gate-sweep.ts`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Surface parity    | 46 route/method pairs (`surface-parity.mjs`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Lifecycle sweep   | 8/8 (`docs-notes/qa-sweep-2026-09-05/lifecycle-sweep.ts`), and 5/8 before finding 256's repair                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Agent lifecycle   | **2/5** (`agent-lifecycle-sweep.ts`), and the three are T55 rather than a regression                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Contention sweep  | 10/10 across **four real child processes** (`concurrency-sweep.ts`), and 5/10 with the file lock neutered                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Bounds sweep      | 11/11 (`bounds-sweep.ts`), and 10/11 before finding 260's repair                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| M-series sweep    | **16/16** (`m-series-sweep.ts`). Several devices at several tiers in one organisation; no per-device account limit; Codex per agent and per installation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Five-day sweep    | **10/10** (`five-day-regression-sweep.ts`), re-attacking 202, 225, 254, 256 and requirement 8 rather than re-reading them                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Dashboard sweep   | **7/7** (`docs-notes/qa-sweep-2026-09-06/dashboard-changes-sweep.ts`), the server half of the 2026-09-06 operator findings                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Composition sweep | **8/10** (`docs-notes/qa-sweep-2026-09-07/composition-sweep.ts`), the seams **between** the features of 2026-09-05/07 rather than each alone. The two that fail are the two open decisions: T55's reused agent id inheriting an escalation-approved grant, and T60's shared proposal budget. It found 279                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Policy semantics  | **7/7** (`policy-semantics-sweep.ts`), the decision procedure itself against a whole document: deny beats allow either way round, core beats operator, an expired rule stops applying **at the gate** rather than at the next prune, `monitor` records where `enforce` blocks, a per-agent posture overrides the installation's in both directions, and a locked-down agent is refused a call an explicit allow permits                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Systems sweep     | **17/17** (`systems-sweep.ts`), five systems around the gate: sessions (a demotion binds on a session already issued), the authoring guardrails (`core` refused, `baseline` coerced, a shadowed grant reported **and** confirmed inert at the gate), folder grants (an exception outside the folder refused before any write; a grant not reaching a **sibling whose name starts the same way**), and the deployment report (its summary agrees with its rows; `overall` is the worst _non-unknown_ status)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| T58/T59 probe     | **5/5** (`t58-t59-probe.ts`). `edit` **is** governed (path/write), and the gate resolves a path identically whether the file exists yet or not — so it cannot hand `write` and a later `edit` two different files, which rules out the mechanism behind T58's ENOENT. Also settles the provider-agnostic claim structurally: the gate's entire input is `{toolName, params, derivedPaths}` and `{agentId, sessionKey, nativeHarness, cwd}`, with **no model or provider field anywhere**, so it cannot behave differently by model                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| CLI removal       | **9/9** (`cli-removal-sweep.ts`), the ninth added 2026-09-07 (iv) for finding **285**: it greps `ui/src/pages/governance` and `ui/src/i18n/locales` for a live `openclaw governance …` **string**, which is the one thing no typecheck, lint rule or import graph can see, and it is what the dashboard's chain-verification row was still printing. Verified to fail by putting the old command back. The governance command line is gone from both registries, all ten upstream groups still register, enforcement is unchanged, and `cli` is still refused as an account identity. **It found finding 283 on its first run** — `core-command-descriptors.ts` still advertised `governance` in `--help` after every file backing it had been deleted — and gained an eighth check for **284**, that the **built artefact** no longer holds the compiled command tree. That check **skips rather than passes** when there is no `dist/`: an absent build is not a clean one                                                                                                                                                                                                                                               |
+| Backlog           | **62 items, 47 struck, T1 not being done, 15 open (14 actually outstanding).** Re-derived from the rows 2026-09-07 (iii), after T51 and T62 closed and T61 was added. **A grep will say 46/14: T13 carries a struck row reading DRAFTED, for the drafting sub-task, while T13 itself is open**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Defects           | **336 found, 331 fixed**, and **five open**: 169 as an unexplained observation, 281 as a decision (T60), 316 as a decision (T63), **331 as a decision and 333 as work**, both from 2026-09-08 (vii)'s dashboard pass (**326–336**, nine closed) and both carried in `mg/REMAINING-WORK-DASHBOARD-SWEEP.md`. Re-derived 2026-09-08 (vii); previously 325/322/3 at (vi); **258 closed when Mohammad decided T55**. Previously 304/301/3, re-derived 2026-09-07 (iv). **285–295 are that session's**, and not one of the eleven is an access defect: five are a surface or a register out of step with the removal — four naming something that no longer exists and **288 the mirror, declaring a live core rule removed** — two are `verify-ledger.mjs` misreporting its own confidence, one is dead code with a false rationale, two are stale counts, and 295 is the archive's rebuild instruction still chaining `rm -rf dist` behind a `pnpm` that is not on every PATH — the command that left this machine with no build at all on 2026-09-07, its lesson recorded in the session log and not in the file carrying it — 294 being this row and `PROJECT-SUMMARY.md`'s equivalent disagreeing by seven on the same day |
 
 **What is left is unchanged and is still mostly yours.** T2 remains the highest
 value thing in the project: a real model, refused. T47's plan is now written and
@@ -851,7 +1298,7 @@ suite is **fully green for the first time**: the 18 pre-existing Windows
 failures used as this project's baseline were fixed on 2026-08-25 (T25), along
 with nine more in `host-hooks.contract.test.ts`. **The M-series is complete**
 (M1–M6, finished 2026-08-27), so no substantial engineering is left. The
-QA rounds and the build itself have found **277 defects: 275 fixed, one withdrawn as not a defect (157), and two open: 169 as an unexplained observation and 258 as a decision rather than a repair (T55).** 265 + 1 + 2 = 268. _(This read "240… 238 fixed" for part of 2026-09-04, while the top of this file said 255 in the same hour: a count stated twice in one document is a count that will disagree with itself, which is finding 227's mechanism and the reason §1's own state block quotes no hash. **The register in `GOVERNANCE.md` is the authority; re-derive from it rather than repeating either number.**)_ **256–261 came from three sweeps on 2026-09-05**, each on an axis nothing had sampled. **256 is the one to read**: an account record is keyed by an immutable minted id while its escalation override, agent transcript and login throttle are keyed by the canonical **username**, which the account releases on deletion and anybody may claim next, so a new starter given a departed employee's username read their agent transcript in full, inherited Root's escalation judgement about them, and met their login lockout. Repaired at the lifecycle owner (`account-purge.ts`, called from `deleteUser`), with the ledger deliberately kept and a test asserting it. **257** is a defect in the evidence rather than the product: the 2026-09-04 feature sweep's audit-actor fixture had the wrong shape, so every ledger entry it wrote recorded `actor=unknown`; none of its twenty checks asserted attribution, so the 20/20 stands, but it was not exercising the path it appeared to. **258** is a reused agent id inheriting the previous agent's agent-scoped rules, posture override and lockdown, **left open as T55** because `unregisterAgent` documents that survival as deliberate for unregistration and changing deletion semantics is a product decision. **259** is this file's own backlog count, wrong in both directions before anything was added to it, because T13 has two rows and each summary had taken a different one. **260 is finding 225 one store over**: the pending-decision stack is per organisation while its rows are per agent and it shed the oldest row globally, so 210 distinct questions from one agent left 200 rows and none of the other agent's; repaired in 225's exact shape, keep the bound and change which record is shed, with the visibility half open as T56. **261** is the dashboard's hand-copy of `MIN_PASSWORD_LENGTH` that nothing asserted against the server's. **The same three sweeps measured `file-lock.ts`'s own stated claim for the first time**, four real child processes contending over the ledger, the policy document and the account store: 10/10, and 5/10 with the lock neutered. **241–255 came from 2026-09-04**: the dashboard measured in a real browser rather than read, a path having two legitimate names that rules only ever compared one of, and a three-surface parity sweep. **239 and 240 came from Kinan using the dashboard on the VPS the same day**, and neither is about what the code computes: the create-agent form offered no way to name an owning Administrator, so Root met a correct refusal with nothing on screen to act on; and text boxes could not show their own placeholders, with one button rendered outside the visible edge. **A fifth axis, and the third consecutive day whose best findings came from somewhere other than reading: a cold machine, then the checking machinery, then a person using the screen.** **233–238 came from a twelfth and thirteenth sweep on 2026-09-03, and from a conflict between two sections of this file.** **238 is the one to read**: `governance agent runs` and `governance agent cancel` keep their in-flight table in a module-level `Map`, so it is per **process**, measured, a parent holding a run and a child spawned from it report the run and an empty list, and a CLI invocation is always a fresh process. So neither command can see anything **the Gateway** is running, which is every prompt from the dashboard, and `cancel` answered "no run is in flight" about runs that were. `CLI-REFERENCE.md` argued in its own prose that such a command "would be reporting a power it does not have" and the commands were built later without that paragraph being revisited; **every test of them asserted only the empty case, which is the only case they can reach.** They now say what they cannot see; whether the CLI should reach the Gateway's runs at all is T51. The conflict was the most productive: §1 said finding 221 was fixed and §4 said the gate was red, so the gate was run, **233**, `node scripts/run-lint.mjs` could not complete on Windows at all, dying on a `spawnSync` of the extensionless stylelint shim after every oxlint shard had passed, so its CSS check had never once run; and **237**, `git-hooks/pre-commit` **does not run that command** and never did, it runs `oxfmt` and plain `oxlint` over staged files, the narrow invocation finding 221 exists to distrust, so nothing automatic enforces the type-aware rules, `scripts/`, or the CSS check. **236** is finding 221's closure recorded here and left live-and-"open" in five other places. **234 and 235 are the two sweeps, and both are latent cross-organisation defects**, real, reproduced with the multi-organisation test switch, and **not reachable on a shipped installation**, which caps at one organisation: `governance set-policy-authoring` was the one account command that took the caller's permission and dropped their organisation, and the prompt-run registry is installation-wide but was scoped with a predicate `hasUnlimitedAgentScope` makes unconditionally true above the User tier, **finding 139 exactly, on the second registry its fix never reached**; **230–232 came from installing the fork on a clean VPS on 2026-09-03**, a fourth axis, the machine rather than the code, and three defects no amount of reading would have produced; the arithmetic is written out because this sentence has been wrong before. **225–228 came from a tenth sweep on 2026-09-03**, which changed what counts as evidence rather than what is sampled: fifteen deliberate breakages of six security-critical features, run against the tests that claim to cover them. All fifteen were caught, and the two security findings came from reading the same six features alongside. **225 is the most serious**: the login throttle’s 1,000-key memory bound could be filled with lockouts on invented usernames, after which a real account’s counter was the only unlocked record and was deleted on every attempt. Measured at 500 guesses with the counter never exceeding 1. **226**: a failed `governance login` at the terminal was recorded nowhere at all, while the dashboard route records one; `auditLoginFailure` had a single production caller. **227**: this file and `PROJECT-SUMMARY.md` warned in four live places that 56 files were uncommitted, a day after the commit that landed them, and that commit is the one whose message says it brought the handoff level. **228**: the defect register in `GOVERNANCE.md` stopped at 221, so the ninth sweep’s three findings were never entered there and 221 was still marked open in the one document that three others record as fixed. **229 came from an eleventh sweep on 2026-09-03**, on a fourth axis. The failure branch rather than the module, the capability or the test: `deleteOrganisation` guarded every step up to the point of no return and none after it, so a corrupt attachment index turned a **completed irreversible deletion** into a reported failure on both surfaces. Two siblings had the same shape and are fixed with it. **209–215 came from a seventh 20% segment on 2026-09-02**, drawn from the 42 modules the fourth, fifth and sixth had not touched. **216–221 came from an eighth, which is the remainder rather than a draw**, the eleven modules the previous four left, so the pool is now closed: every module with no evidence of having been read has been read. **216 is an authorization gap on the command line** (`governance agent transcript` made two of the four checks its route makes, so a Viewer could read a transcript the tier is defined out of), **217 is the tamper-evident ledger asserting a Codex-backend change that had failed**, **218 is `permissions.ts`, the file that defines the model, describing a power the model no longer grants**, **219 is the operator-facing CLI reference telling people the command line and the dashboard are separate conversation threads**, which T5 made false, **220 is this project's own harness baseline documented as half its size in four places**, including inside finding 204's write-up, which is the finding _about_ a stale baseline, and **221 is the lint gate failing on two shards with 38 errors the documented lint command cannot see**, 34 type-aware rules that invocation never runs, and 4 in `scripts/`, which it never targets. **All 38 are fixed and both shards are clean**; the lasting correction is that every register now names `scripts/run-lint.mjs` rather than the binary. **Two are security and four are one defect wearing four hats**: a fact kept in two places with one copy maintained and the other not. **209 is the worst of them**. A User whose policy-authoring Root had withheld got it back by signing out and signing in again, because `issueSession` never copied the flag onto the session every authorization check reads. **211 destroys evidence**: deleting an organisation kept its audit ledger, as the module argues at length that it must, and deleted the attachments that ledger's entries name. The exact delete `releaseAttachment` refuses, reachable in one command by the Root it would incriminate. **210, 213 and 215 are findings 200 and 202 arriving at the three copies those fixes did not cover**: the session's mirror of the assignment list, the `canViewAgent` comparison named in finding 200's own write-up, and its browser twin. Where it disabled the emergency stop for an agent the operator does manage. **Findings 194–202 came from two further mechanically-drawn 20% segments on 2026-09-01**, disjoint from each other and from the third, covering a little over 40% of the layer between them. **202 is the most serious defect this project has found** and is described in the box at the top of this file; 194 and 195 are the security findings from the segment before it. **203 and 204 came from the documentation review that followed**, and both are in this project's own verification instructions: the documented governance-suite command silently runs half the suite on PowerShell, and the harness baseline told a reader to accept eighteen failures that T25 had fixed six days earlier. **205–208 came from a sixth 20% segment on 2026-09-02**, disjoint from the two before it. **207 and 208 are security and both are in modules that exist to be the defence they failed to be**: the regex safety checker did not model `?`, so a pattern it called safe blocks the Gateway thread for 44 seconds; and path normalisation gave up one level early, so two missing components left a symlink unresolved and a write escaped the workspace. **205 is a default-path regression**. Every visitor to an established installation was shown the create-the-first-account form. **Findings 183–193 came from two sweeps on 2026-09-01**, one aimed at Linux, the platform the project had never run on, and one over a randomly drawn fifth of the modules. 183 would have failed the deployment report on the first VPS boot; 190 and 191 are the security ones from the segment. **Eleven of the 182 were found on 2026-09-01** by the universal sweep; five are security, and the worst is 174. Finding 144 still live on the command line a week after being fixed on the route. **Twenty-one were found on 2026-08-31** by four QA rounds run back to back. The Codex feature alone; everything else built since round twenty-eight; a universal sweep; and the day's own work re-read against the documentation. **148 is no longer the recorded-not-fixed exception: it was fixed on 2026-08-31**, once its stated reason was questioned and did not survive. The cost was "editing two upstream test files", which T25 had already paid for eight files of exactly that class, and its write-up also had one of the two failures backwards. **150 was found on 2026-08-30**, by reading this file's own claim that a test was "written to fail when T7 closes": T7 had closed, the suite was green, and one of the two had to be wrong. The dashboard's search caveat had become false on the runtime almost every agent uses, and the trip-wire test did not fire because T7 made the caveat _more specific_ rather than obsolete. A device that detects deletion, not refinement. **149 was found on 2026-08-30** by auditing the documentation against the code: `openclaw governance kill` resolved a signed-in operator and then passed the literal `"cli"` to the kill switch anyway, so the emergency stop and its release were the only administrative actions on the command line that could not name a person. `AuditActorInput`'s bare-string arm made the wrong value typecheck, and `kill-switch.test.ts` passed throughout because it calls the function directly with a good actor. The defect was the seam between authenticating and recording. The count reached **148** on 2026-08-29: **147** is the `--http-password` decision being taken and built, which found the gap was **every** component-prefixed credential flag (`--db-password=`, `--admin-password=`, `--gateway-token=`) and not the single key two write-ups had recorded; **148** is two tests that fail on Windows and always have, sitting outside the five commands §4 defines as verification, while §1 claimed "no known-failing test anywhere". The count moved from 120 to 121 when T29's numbering audit (2026-08-26) found **two different defects both numbered 104**; to 127 on 2026-08-27 when M5's four and M6's two were numbered **122–127**, having been fixed and written up in all three registers but never entered on the numbered list; to **130** the same day when **QA round nineteen** audited the M-series as one system and found **128–130**; and to **131** when **QA round twenty** read the rest of the window's work against the nine design requirements and found `search-audit.ts` writing grep's matched file content, secrets included, into the tamper-evident ledger, a direct breach of requirement 8; and to **134** when **round twenty-one** built §1.6's missing "raw LLM intent" field and audited it, finding three defects in one day's work (**132–134**); and to **136** on 2026-08-28 when **round twenty-two** re-measured the previous day's documentation against the code and found **135–136**, `entryKind`'s JSDoc orphaned by the insertion of the intent field, and **T16 regressed in the very commit whose documentation declared it closed** (`governance-page.ts` back to 703 lines against a 700-line limit, while §4 read "`max-lines` reports zero errors repo-wide"). **Standing rule from 2026-08-27: every defect gets a number when it is found.** Finding 120 was found and
+QA rounds and the build itself have found **277 defects: 275 fixed, one withdrawn as not a defect (157), and two open: 169 as an unexplained observation and 258** _(**every figure in this paragraph is the state as it stood on 2026-09-04, kept for the reasoning rather than the number.** It is **325 / 322 / 3** as of 2026-09-08 (vi), and 258 closed with T55. Re-derive from §1's state table, never from here.)_ **258 as a decision rather than a repair (T55).** 265 + 1 + 2 = 268. _(This read "240… 238 fixed" for part of 2026-09-04, while the top of this file said 255 in the same hour: a count stated twice in one document is a count that will disagree with itself, which is finding 227's mechanism and the reason §1's own state block quotes no hash. **The register in `GOVERNANCE.md` is the authority; re-derive from it rather than repeating either number.**)_ **256–261 came from three sweeps on 2026-09-05**, each on an axis nothing had sampled. **256 is the one to read**: an account record is keyed by an immutable minted id while its escalation override, agent transcript and login throttle are keyed by the canonical **username**, which the account releases on deletion and anybody may claim next, so a new starter given a departed employee's username read their agent transcript in full, inherited Root's escalation judgement about them, and met their login lockout. Repaired at the lifecycle owner (`account-purge.ts`, called from `deleteUser`), with the ledger deliberately kept and a test asserting it. **257** is a defect in the evidence rather than the product: the 2026-09-04 feature sweep's audit-actor fixture had the wrong shape, so every ledger entry it wrote recorded `actor=unknown`; none of its twenty checks asserted attribution, so the 20/20 stands, but it was not exercising the path it appeared to. **258** is a reused agent id inheriting the previous agent's agent-scoped rules, posture override and lockdown, **left open as T55** because `unregisterAgent` documents that survival as deliberate for unregistration and changing deletion semantics is a product decision. **259** is this file's own backlog count, wrong in both directions before anything was added to it, because T13 has two rows and each summary had taken a different one. **260 is finding 225 one store over**: the pending-decision stack is per organisation while its rows are per agent and it shed the oldest row globally, so 210 distinct questions from one agent left 200 rows and none of the other agent's; repaired in 225's exact shape, keep the bound and change which record is shed, with the visibility half open as T56. **261** is the dashboard's hand-copy of `MIN_PASSWORD_LENGTH` that nothing asserted against the server's. **The same three sweeps measured `file-lock.ts`'s own stated claim for the first time**, four real child processes contending over the ledger, the policy document and the account store: 10/10, and 5/10 with the lock neutered. **241–255 came from 2026-09-04**: the dashboard measured in a real browser rather than read, a path having two legitimate names that rules only ever compared one of, and a three-surface parity sweep. **239 and 240 came from Kinan using the dashboard on the VPS the same day**, and neither is about what the code computes: the create-agent form offered no way to name an owning Administrator, so Root met a correct refusal with nothing on screen to act on; and text boxes could not show their own placeholders, with one button rendered outside the visible edge. **A fifth axis, and the third consecutive day whose best findings came from somewhere other than reading: a cold machine, then the checking machinery, then a person using the screen.** **233–238 came from a twelfth and thirteenth sweep on 2026-09-03, and from a conflict between two sections of this file.** **238 is the one to read**: `governance agent runs` and `governance agent cancel` keep their in-flight table in a module-level `Map`, so it is per **process**, measured, a parent holding a run and a child spawned from it report the run and an empty list, and a CLI invocation is always a fresh process. So neither command can see anything **the Gateway** is running, which is every prompt from the dashboard, and `cancel` answered "no run is in flight" about runs that were. `CLI-REFERENCE.md` argued in its own prose that such a command "would be reporting a power it does not have" and the commands were built later without that paragraph being revisited; **every test of them asserted only the empty case, which is the only case they can reach.** They now say what they cannot see; whether the CLI should reach the Gateway's runs at all is T51. The conflict was the most productive: §1 said finding 221 was fixed and §4 said the gate was red, so the gate was run, **233**, `node scripts/run-lint.mjs` could not complete on Windows at all, dying on a `spawnSync` of the extensionless stylelint shim after every oxlint shard had passed, so its CSS check had never once run; and **237**, `git-hooks/pre-commit` **does not run that command** and never did, it runs `oxfmt` and plain `oxlint` over staged files, the narrow invocation finding 221 exists to distrust, so nothing automatic enforces the type-aware rules, `scripts/`, or the CSS check. **236** is finding 221's closure recorded here and left live-and-"open" in five other places. **234 and 235 are the two sweeps, and both are latent cross-organisation defects**, real, reproduced with the multi-organisation test switch, and **not reachable on a shipped installation**, which caps at one organisation: `governance set-policy-authoring` was the one account command that took the caller's permission and dropped their organisation, and the prompt-run registry is installation-wide but was scoped with a predicate `hasUnlimitedAgentScope` makes unconditionally true above the User tier, **finding 139 exactly, on the second registry its fix never reached**; **230–232 came from installing the fork on a clean VPS on 2026-09-03**, a fourth axis, the machine rather than the code, and three defects no amount of reading would have produced; the arithmetic is written out because this sentence has been wrong before. **225–228 came from a tenth sweep on 2026-09-03**, which changed what counts as evidence rather than what is sampled: fifteen deliberate breakages of six security-critical features, run against the tests that claim to cover them. All fifteen were caught, and the two security findings came from reading the same six features alongside. **225 is the most serious**: the login throttle’s 1,000-key memory bound could be filled with lockouts on invented usernames, after which a real account’s counter was the only unlocked record and was deleted on every attempt. Measured at 500 guesses with the counter never exceeding 1. **226**: a failed `governance login` at the terminal was recorded nowhere at all, while the dashboard route records one; `auditLoginFailure` had a single production caller. **227**: this file and `PROJECT-SUMMARY.md` warned in four live places that 56 files were uncommitted, a day after the commit that landed them, and that commit is the one whose message says it brought the handoff level. **228**: the defect register in `GOVERNANCE.md` stopped at 221, so the ninth sweep’s three findings were never entered there and 221 was still marked open in the one document that three others record as fixed. **229 came from an eleventh sweep on 2026-09-03**, on a fourth axis. The failure branch rather than the module, the capability or the test: `deleteOrganisation` guarded every step up to the point of no return and none after it, so a corrupt attachment index turned a **completed irreversible deletion** into a reported failure on both surfaces. Two siblings had the same shape and are fixed with it. **209–215 came from a seventh 20% segment on 2026-09-02**, drawn from the 42 modules the fourth, fifth and sixth had not touched. **216–221 came from an eighth, which is the remainder rather than a draw**, the eleven modules the previous four left, so the pool is now closed: every module with no evidence of having been read has been read. **216 is an authorization gap on the command line** (`governance agent transcript` made two of the four checks its route makes, so a Viewer could read a transcript the tier is defined out of), **217 is the tamper-evident ledger asserting a Codex-backend change that had failed**, **218 is `permissions.ts`, the file that defines the model, describing a power the model no longer grants**, **219 is the operator-facing CLI reference telling people the command line and the dashboard are separate conversation threads**, which T5 made false, **220 is this project's own harness baseline documented as half its size in four places**, including inside finding 204's write-up, which is the finding _about_ a stale baseline, and **221 is the lint gate failing on two shards with 38 errors the documented lint command cannot see**, 34 type-aware rules that invocation never runs, and 4 in `scripts/`, which it never targets. **All 38 are fixed and both shards are clean**; the lasting correction is that every register now names `scripts/run-lint.mjs` rather than the binary. **Two are security and four are one defect wearing four hats**: a fact kept in two places with one copy maintained and the other not. **209 is the worst of them**. A User whose policy-authoring Root had withheld got it back by signing out and signing in again, because `issueSession` never copied the flag onto the session every authorization check reads. **211 destroys evidence**: deleting an organisation kept its audit ledger, as the module argues at length that it must, and deleted the attachments that ledger's entries name. The exact delete `releaseAttachment` refuses, reachable in one command by the Root it would incriminate. **210, 213 and 215 are findings 200 and 202 arriving at the three copies those fixes did not cover**: the session's mirror of the assignment list, the `canViewAgent` comparison named in finding 200's own write-up, and its browser twin. Where it disabled the emergency stop for an agent the operator does manage. **Findings 194–202 came from two further mechanically-drawn 20% segments on 2026-09-01**, disjoint from each other and from the third, covering a little over 40% of the layer between them. **202 is the most serious defect this project has found** and is described in the box at the top of this file; 194 and 195 are the security findings from the segment before it. **203 and 204 came from the documentation review that followed**, and both are in this project's own verification instructions: the documented governance-suite command silently runs half the suite on PowerShell, and the harness baseline told a reader to accept eighteen failures that T25 had fixed six days earlier. **205–208 came from a sixth 20% segment on 2026-09-02**, disjoint from the two before it. **207 and 208 are security and both are in modules that exist to be the defence they failed to be**: the regex safety checker did not model `?`, so a pattern it called safe blocks the Gateway thread for 44 seconds; and path normalisation gave up one level early, so two missing components left a symlink unresolved and a write escaped the workspace. **205 is a default-path regression**. Every visitor to an established installation was shown the create-the-first-account form. **Findings 183–193 came from two sweeps on 2026-09-01**, one aimed at Linux, the platform the project had never run on, and one over a randomly drawn fifth of the modules. 183 would have failed the deployment report on the first VPS boot; 190 and 191 are the security ones from the segment. **Eleven of the 182 were found on 2026-09-01** by the universal sweep; five are security, and the worst is 174. Finding 144 still live on the command line a week after being fixed on the route. **Twenty-one were found on 2026-08-31** by four QA rounds run back to back. The Codex feature alone; everything else built since round twenty-eight; a universal sweep; and the day's own work re-read against the documentation. **148 is no longer the recorded-not-fixed exception: it was fixed on 2026-08-31**, once its stated reason was questioned and did not survive. The cost was "editing two upstream test files", which T25 had already paid for eight files of exactly that class, and its write-up also had one of the two failures backwards. **150 was found on 2026-08-30**, by reading this file's own claim that a test was "written to fail when T7 closes": T7 had closed, the suite was green, and one of the two had to be wrong. The dashboard's search caveat had become false on the runtime almost every agent uses, and the trip-wire test did not fire because T7 made the caveat _more specific_ rather than obsolete. A device that detects deletion, not refinement. **149 was found on 2026-08-30** by auditing the documentation against the code: `openclaw governance kill` resolved a signed-in operator and then passed the literal `"cli"` to the kill switch anyway, so the emergency stop and its release were the only administrative actions on the command line that could not name a person. `AuditActorInput`'s bare-string arm made the wrong value typecheck, and `kill-switch.test.ts` passed throughout because it calls the function directly with a good actor. The defect was the seam between authenticating and recording. The count reached **148** on 2026-08-29: **147** is the `--http-password` decision being taken and built, which found the gap was **every** component-prefixed credential flag (`--db-password=`, `--admin-password=`, `--gateway-token=`) and not the single key two write-ups had recorded; **148** is two tests that fail on Windows and always have, sitting outside the five commands §4 defines as verification, while §1 claimed "no known-failing test anywhere". The count moved from 120 to 121 when T29's numbering audit (2026-08-26) found **two different defects both numbered 104**; to 127 on 2026-08-27 when M5's four and M6's two were numbered **122–127**, having been fixed and written up in all three registers but never entered on the numbered list; to **130** the same day when **QA round nineteen** audited the M-series as one system and found **128–130**; and to **131** when **QA round twenty** read the rest of the window's work against the nine design requirements and found `search-audit.ts` writing grep's matched file content, secrets included, into the tamper-evident ledger, a direct breach of requirement 8; and to **134** when **round twenty-one** built §1.6's missing "raw LLM intent" field and audited it, finding three defects in one day's work (**132–134**); and to **136** on 2026-08-28 when **round twenty-two** re-measured the previous day's documentation against the code and found **135–136**, `entryKind`'s JSDoc orphaned by the insertion of the intent field, and **T16 regressed in the very commit whose documentation declared it closed** (`governance-page.ts` back to 703 lines against a 700-line limit, while §4 read "`max-lines` reports zero errors repo-wide"). **Standing rule from 2026-08-27: every defect gets a number when it is found.** Finding 120 was found and
 closed on 2026-08-26: T6's fail-closed branch could not fire, so a lockdown
 whose lineage records were unreadable degraded to fail-_open_. It was closed by
 probing the store with a scoped listing rather than a keyed read, which
@@ -911,9 +1358,11 @@ fires before the tool calls of the same turn.
 every older list. §"The M-series" holds **M1–M6**, a multi-tenancy feature
 requested 2026-08-24 and **complete since 2026-08-27**.
 
-**Re-derived 2026-09-06 by counting the table rather than incrementing: 57
-items, 44 struck (done or cancelled), 15 open, of which T1 is deprioritised and
-not being done, so 14 are actually outstanding.** (T57 was added and built the
+**Re-derived 2026-09-07 (iii) by counting the table rather than incrementing: 62
+items, 47 struck (done or cancelled), 15 open, of which T1 is deprioritised and
+not being done, so 14 are actually outstanding.** _(This read "57 items, 44
+struck" from 2026-09-06 until 2026-09-07 (iii); it was correct when written and
+five task-state changes went past it.)_ (T57 was added and built the
 same day, 2026-09-06: a prompt is now recorded whatever surface it arrives on.) _(This block read "54 items,
 42 struck … 11 open" until 2026-09-05, and it was wrong in **both** directions
 before T55 and T56 were added: **T13 has two rows**, struck where its drafting
@@ -1011,12 +1460,14 @@ Three checks, in this order, and each answers a different question:
 
 ```bash
 openclaw daemon status          # is it running at all?
-openclaw governance deployment  # does the live install match the design?
-openclaw governance policy show # is the governance layer the thing serving?
+ls ~/.openclaw/governance       # is this the fork, and has it initialised?
 ```
 
-`policy show` answering **"Not signed in."** rather than "unknown command" is
-the proof the fork is what is deployed. Then open the tunnel and confirm the
+The governance directory holding `policy.json`, `users.json`,
+`audit-ledger.jsonl` and a `ledger.key` is the proof the fork is what is
+deployed; stock OpenClaw never creates it. _(This was
+`openclaw governance policy show`, reading "Not signed in." as the pass, until
+the command line was removed on 2026-09-07.)_ Then open the tunnel and confirm the
 page: the Governance tab should now show a red-orange **"Governance"** title, a
 **Sections** list down the side, **Accounts** first, and the create-agent form
 should offer an **Owning Administrator** dropdown.
@@ -1056,11 +1507,11 @@ and none of it can be reconstructed afterwards.
 | #   | Do                                                                                                    | Keep                                                                                                                                            |
 | --- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | `git clone`, `git checkout governance-layer`, `./scripts/vps-install.sh`                              | The tail of the installer, including its `governance-linux-check` run, **14 checks**. This is requirement 9's evidence and it has never existed |
-| 2   | `openclaw governance deployment`                                                                      | The full report. Run it over plain SSH **before** opening the tunnel. That is the case it was written for                                       |
+| 2   | The **Deployment report** panel, through the tunnel                                                   | The full report. Run it over plain SSH **before** opening the tunnel. That is the case it was written for                                       |
 | 3   | `pnpm exec tsx scripts/governance-demo-rehearsal.mjs`                                                 | `20/20 checks passed` on Linux. Same script, same output as on Windows: that equivalence is the point                                           |
 | 4   | `openclaw models auth paste-api-key --provider moonshot`, then `openclaw models set moonshot/kimi-k2` | `openclaw models status`                                                                                                                        |
 | 5   | SSH tunnel, open the dashboard, create the first Root                                                 | A screenshot of the sign-in screen and the panel                                                                                                |
-| 6   | Prompt the agent to do something the policy **refuses**                                               | The agent's reply **and** `openclaw governance audit tail` showing the refusal                                                                  |
+| 6   | Prompt the agent to do something the policy **refuses**                                               | The agent's reply **and** the **Audit ledger** panel showing the refusal                                                                        |
 | 7   | Prompt it to do something a rule **allows**                                                           | The same pair, showing the allow                                                                                                                |
 | 8   | Press the emergency stop, prompt again                                                                | The refusal, and `stoppedConfirmed` in the response                                                                                             |
 
@@ -1077,8 +1528,10 @@ proof. Take the terminal output verbatim rather than describing it.
 >
 > **Check the branch.** `main` is upstream and has none of this. Installing the
 > wrong branch is the failure that looks like success. Everything works and
-> nothing is governed. `openclaw governance policy show` on a wrong-branch
-> install does not exist as a command; that is the tell.
+> nothing is governed. **The tell is `~/.openclaw/governance`**: this fork
+> creates it on first run, and a wrong-branch install never does. _(It used to be
+> that `openclaw governance policy show` existed at all; that command was removed
+> on 2026-09-07, so the directory is now the check.)_
 
 **Leave the Codex backend off.** It is off by default and Root-gated, and it is
 the one runtime where a denied search can be recorded but not prevented. Turning
@@ -1156,9 +1609,9 @@ machine hides"** now states all four as instructions rather than troubleshooting
 
 **Where it stopped, and what is next.** The Gateway is running, the tunnel works,
 the dashboard's Gateway gate is passed, and the create-the-first-Root form is on
-screen. `openclaw governance policy show` answers _"Not signed in"_ rather than
-_"unknown command"_, which proves the fork is what is deployed **and** shows the
-governance gate refusing an unauthenticated caller exactly as designed. Still to
+screen. _(At the time, `openclaw governance policy show` answering "Not signed
+in" rather than "unknown command" was the proof the fork was deployed. That
+command was removed on 2026-09-07; the governance directory is the check now.)_ Still to
 do, in order: **create Root on the dashboard**, paste the Kimi credential,
 **provision the first agent through the governance layer** (`governance agents
 provision`, Administrator-gated. A better demonstration than letting `onboard`
@@ -1671,9 +2124,24 @@ The project asserted, in its own code, that a capability reaching only two of th
 three surfaces is unfinished. Nobody had measured it; it was false of four
 capability groups. Writing the four reasons out first, Kinan's instruction,
 found that **two of my four predicted reasons were wrong**, and I would have kept
-two capabilities dashboard-only for reasons that are not true. The rule now
-reads: _every capability reaches all three surfaces unless a stated reason says
-otherwise_, and the reasons live in `CLI-REFERENCE.md` §2d.
+two capabilities dashboard-only for reasons that are not true. The rule then
+read: _every capability reaches all three surfaces unless a stated reason says
+otherwise_, and the reasons lived in `CLI-REFERENCE.md` §2d.
+
+**The rule is gone as of 2026-09-07 (iii), because the third surface is.** The
+governance command line was removed at Kinan's decision — no design requirement
+asked for it, it was the surface that broke in front of an operator, and it was
+carrying T51. There are now **two surfaces: the HTTP control plane and the
+dashboard built on it**, and since the dashboard is the only client of that API,
+"parity" is no longer a question that can be asked. §2d and its four stated
+exceptions are archived with the rest in
+`docs-notes/removed-cli-surface/CLI-REFERENCE.md`.
+
+**T34's lesson survives its subject**, and is the reason this paragraph is kept
+rather than deleted: the project asserted a universal rule in its own code,
+nobody had measured it, it was false of four capability groups, and _writing the
+reasons out before checking them_ got two of four predictions wrong. That is
+about unmeasured universals, not about command lines.
 
 #### Four QA rounds, twenty-one findings
 
@@ -2512,13 +2980,15 @@ seventy-four findings short. Corrected 2026-09-02. The row is what a reader
 uses to decide which file to open, so it being behind sends them to the wrong
 one.)_
 
-Operator-facing docs (`WRITING-PERMISSIONS.md`, `CLI-REFERENCE.md`,
-`PERMISSION-SPEC.md`, `ROLE-MODEL.md`, `BASELINE-RULES.md`,
-`CHAT-DEPLOYMENTS.md`, `FIGURES.md`, `LINUX-INSTALL.md`, `FIRST-RUN.md`) are
-current as of 2026-09-03 and are listed in `PROJECT-SUMMARY.md` §2.
+Operator-facing docs (`WRITING-PERMISSIONS.md`, `PERMISSION-SPEC.md`,
+`ROLE-MODEL.md`, `BASELINE-RULES.md`, `CHAT-DEPLOYMENTS.md`, `FIGURES.md`,
+`LINUX-INSTALL.md`, `FIRST-RUN.md`) are current as of **2026-09-07 (iii)**, when
+every command-line instruction in them was replaced with the dashboard
+equivalent, and are listed in `PROJECT-SUMMARY.md` §2. **`CLI-REFERENCE.md` is no
+longer among them**: it documented the surface removed that day and moved to
+`docs-notes/removed-cli-surface/` under a banner saying so.
 **`FIRST-RUN.md` sits in front of `LINUX-INSTALL.md`**: the runbook assumes you
-already know what you are installing, which T45 recorded as the gap. `CLI-REFERENCE.md` §2b
-covers groups, the migration command and `governance organisation delete` (T44);
+already know what you are installing, which T45 recorded as the gap.
 `ROLE-MODEL.md` carries dated notes on group scoping, on deleting the
 organisation, and on the agent-id folding of findings 200/202;
 `PERMISSION-SPEC.md` §4.1 carries the pattern rules including finding 207's.
@@ -2727,6 +3197,71 @@ that is done.
 
 ## 4. How to verify nothing is broken
 
+> **Two things added 2026-09-07 (iii), and both exist because the six commands
+> below were all green while something was wrong.**
+>
+> **The full lint gate is not the sixth command.** `node scripts/run-lint.mjs`
+> runs the **type-aware** rules, `scripts/` and the CSS check; plain `oxlint`
+> below does not. They disagreed on 2026-09-07 on a line plain `oxlint` had
+> itself demanded, so "the cheap one passed" is not evidence about the gate. It
+> takes **about eighteen minutes** here, measured twice, which is why nothing
+> runs it automatically (T50). **Read its exit code, never its tail**: the tail
+> is twenty lines of `finished` even on a failure, and the one error sits at
+> line 25 of an 82-line log.
+>
+> **And never read it from a wrapper's exit code either.** Running it as a
+> background job on 2026-09-07 (iii), the harness reported _"completed (exit code
+> 0)"_ **twice** while the gate itself had exited **1** — once on a phase
+> timeout under load, once on a real lint error. The wrapper was reporting its
+> own success at running the command, not the command's verdict. Capture the
+> gate's status explicitly and read that:
+>
+> ```bash
+> node scripts/run-lint.mjs > lint.log 2>&1; echo "EXIT=$?" >> lint.log
+> ```
+>
+> This is the same family as the `| tail` that cost finding 169 and the
+> `$?`-after-a-pipeline that reported "lint exit 0" twice on 2026-09-06: **three
+> different ways of reading somebody else's exit code instead of the gate's.**
+>
+> **A timeout is not a failure**, and the two must not be collapsed. Exit **124**
+> is a shard hitting its cap; exit **1** is a rule that fired. On 2026-09-07
+> (iii) the gate produced both, on a machine that had restarted twice —
+> `plugin-sdk boundary root shims timed out after 300000ms`, then
+> `[oxlint:core] timed out after 900s`. Neither says anything about the code.
+>
+> **The cap is configurable**, which is worth knowing before concluding the gate
+> "does not work here". The default shard timeout is fifteen minutes:
+>
+> ```bash
+> OPENCLAW_OXLINT_SHARD_TIMEOUT_MS=2700000 node scripts/run-lint.mjs
+> ```
+>
+> **Do not fold a raised-cap run into T50's timing.** The ~18 minutes recorded
+> there came from two clean runs on an unloaded machine and is the number that
+> should inform the hook-or-CI decision; a run that needed its cap raised is a
+> measurement of the machine.
+>
+> ```bash
+> node scripts/run-lint.mjs
+> ```
+>
+> **After removing anything, check the build, not just the source.** Every
+> command below reads the **source tree**; what a user runs is `dist/`, and
+> nothing in the build clears it (finding 274). On 2026-09-07 the whole compiled
+> governance command line sat in `dist/` for hours after its source was deleted,
+> with all six commands, both lint gates and a purpose-written removal sweep
+> green (finding 284).
+>
+> ```bash
+> rm -rf dist dist-runtime && node scripts/build-all.mjs
+> ```
+>
+> _(`pnpm build` is the same thing, when `pnpm` is on your PATH. It was not on
+> one used here, so the command deleted `dist/` and then failed — a destructive
+> step should not be chained behind a command whose availability has not been
+> checked.)_
+
 ```bash
 node node_modules/vitest/vitest.mjs run src/governance/ src/gateway/governance-*.test.ts ui/src/pages/governance/
 node scripts/run-tsgo.mjs -p tsconfig.core.json
@@ -2748,6 +3283,19 @@ npx playwright install chromium
 ```bash
 cd ui && node ../node_modules/vitest/vitest.mjs run --config vitest.config.ts --project browser
 ```
+
+**An eighth, added 2026-09-07 (iii) with T62. It is the only check in this list
+that does not run the product**, which is the whole point of it: it verifies the
+audit chain from outside, with no build, no server and no sign-in, so it still
+answers when everything else is broken.
+
+```bash
+node scripts/verify-ledger.mjs
+```
+
+Exit **0** intact, **1** broken, **2** could not check — and the third is not a
+pass. Compare its printed chain head against the dashboard's; a disagreement
+between the two is itself the finding.
 
 > **⚠ The six commands above cannot see a layout defect, and the first one
 > looks as though it can.** It includes `ui/src/pages/governance/`, which
@@ -2847,7 +3395,7 @@ Expected, and **every row below re-measured on 2026-08-27** (the table said
 
 | Command                  | Expected                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Governance suite         | **2,814 across 156 file runs (2,794 passed + 20 skipped), re-measured 2026-09-05 on Windows**, after T53 and the M-series and five-day sweeps. It was 2,770/152 earlier that day after the bounds sweep, 2,766/151 after 256, and 2,757/150 on 2026-09-04 after the parity sweep. It was 2,732/149 earlier that day after T52, 2,701/146 on 2026-09-03 after the twelfth and thirteenth sweeps, 2,695/145 before them, and 2,684/144 on 2026-09-02. **The 20 skipped are not a warning and reading them as one wastes an hour**: 15 belong to `governance-textbox-fit.browser.test.ts`, which needs a layout engine and is skipped by design in this jsdom config (finding 250), and the other 5 are the pre-existing platform skips. To actually run those 15, see the seventh verification command in §4. **Run this one from a POSIX shell or use the PowerShell form above, and check the file count rather than the exit code**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Governance suite         | **2,801 across 146 file runs (2,780 passed + 21 skipped), re-measured 2026-09-08 (vi) on Windows**, after T55: +9 tests in one new file. It was 2,771/145 after findings 305–323, and 2,765 across 144 (2,745 + 20) on 2026-09-08 (ii) after findings 296–304: +20 tests over 2,725 and one new file, matching exactly what was added. It was 2,745 (2,725 + 20) after findings 285–295. It was 2,743 (2,723 + 20) after findings 279 and 280 and T56. It was 2,814/156 on 2026-09-05 after T53 and the M-series and five-day sweeps. It was 2,770/152 earlier that day after the bounds sweep, 2,766/151 after 256, and 2,757/150 on 2026-09-04 after the parity sweep. It was 2,732/149 earlier that day after T52, 2,701/146 on 2026-09-03 after the twelfth and thirteenth sweeps, 2,695/145 before them, and 2,684/144 on 2026-09-02. **The 20 skipped are not a warning and reading them as one wastes an hour**: 15 belong to `governance-textbox-fit.browser.test.ts`, which needs a layout engine and is skipped by design in this jsdom config (finding 250), and the other 5 are the pre-existing platform skips. To actually run those 15, see the seventh verification command in §4. **Run this one from a POSIX shell or use the PowerShell form above, and check the file count rather than the exit code**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `tsgo:core`              | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `tsgo:ui`                | clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Host suites (both)       | **263 passed, 0 failed**, re-run 2026-09-02, exact match. **263 = 192 (`native-hook-relay.test.ts`) + 71 (`host-hooks.contract.test.ts`)**; older notes below quote the 192 alone and are not contradicting this row                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
@@ -3558,7 +4106,7 @@ deserved its own round; it did.
 The last unimplemented clause of the §1.6 role definitions. A Root-only
 **read-only** report that reads the live installation and judges it against the
 architecture Chapter 1 describes, on the dashboard and as
-`openclaw governance deployment`.
+the **Deployment report** panel.
 
 Implemented as _seeing and judging_ rather than editing. A deliberate
 divergence from a literal reading of the preliminary design, argued in
@@ -3649,10 +4197,10 @@ backwards when the language stops being allow-only. Report material:
 
 **Two lists, and they are different kinds of thing.**
 
-| List                                                    | What it is                                                    | State                                                                                                                                                                                                                                                                                                                                               |
-| ------------------------------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `REMAINING-WORK.md` §"The numbered backlog", **T1–T59** | The original project, plus everything added since             | **44 struck, 15 open** (44 + 15 = 59). Re-derived 2026-09-07 after T2 was demonstrated and T58/T59 added. T1 is open but not being done; T41 was cancelled and is struck. Re-derived from the rows 2026-09-05, finding 259: this cell read "T1–T53 … 39 done, 12 open" while §1 read "54 items, 42 struck … 11 open", and neither matched the table |
-| `REMAINING-WORK.md` §"The M-series", **M1–M6**          | A multi-tenancy feature requested 2026-08-24 and added on top | **COMPLETE** (6 of 6)                                                                                                                                                                                                                                                                                                                               |
+| List                                                    | What it is                                                    | State                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `REMAINING-WORK.md` §"The numbered backlog", **T1–T62** | The original project, plus everything added since             | **47 struck, 15 open** (47 + 15 = 62). Re-derived 2026-09-07 (iii) after T51 and T62 closed and T61 was added. T1 is open but not being done; T41 was cancelled and is struck. **If you re-derive this with a grep, T13 will lie to you:** it carries a struck row reading **DRAFTED**, for the drafting sub-task, while T13 itself — reading the answer until you can give it without notes — is open. A machine counting `~~**T13**~~` reports 45/15; the answer is 44/16. Re-derived from the rows 2026-09-05, finding 259: this cell read "T1–T53 … 39 done, 12 open" while §1 read "54 items, 42 struck … 11 open", and neither matched the table |
+| `REMAINING-WORK.md` §"The M-series", **M1–M6**          | A multi-tenancy feature requested 2026-08-24 and added on top | **COMPLETE** (6 of 6)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 ### ~~Step 0: before any of the below: commit~~ **Done 2026-09-02**
 
@@ -3674,7 +4222,27 @@ handoff". It landed both the work and the paragraph calling that work unlanded.
 Committing is still yours; the list of what to commit is not a thing this file
 can hold accurately, which is why the two commands in §3 replace it.)_
 
-### The fifteen open
+### The fourteen open
+
+> **The heading is a measurement, and it has been wrong before.** Re-derived
+> **2026-09-08** from the rows: **fourteen unstruck**, which is what it says.
+> T61 closed that day (finding 297) and its row is removed from the table
+> below rather than left struck, because this table is the _open_ list.
+>
+> _(Corrected 2026-09-07 (ii), finding 282's second half. The table then held
+> **fourteen rows, two of which were closed** — T53 on 2026-09-05, T57 on
+> 2026-09-06 — and **omitted three that were open**: T1, T58 and T59. The count
+> above it was right while the list below it was wrong in four places, which is
+> finding 259 in reverse: **deriving a number from the right source does not
+> check the list you print beside it, and a reader takes the list.** T56 and T62
+> closed on 2026-09-07 (ii) and (iii); T51 closed by having its question
+> removed; T60, T61 and T62 were added the same day.)_
+>
+> That is finding 259 in reverse: there the count was stale and the rows were
+> current, so the fix was to count the rows. Here the count was re-derived and
+> the rows were not, because they live in a different file. **Deriving a number
+> from the right source does not check the list you print beside it**, and a
+> reader takes the list, not the number.
 
 **Five were open before 2026-09-03. Four were added that morning and two more
 that evening from the two sweeps and the gate; T45 closed the same night. T52
@@ -3682,24 +4250,29 @@ was added and closed on 2026-09-04, and T53 came out of doing it.** T3 is now ha
 is installed and running on a VPS; what remains of it is the demonstration, not
 the deploy.
 
-| #           | Who                                 | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| ----------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ~~**T2**~~  | ~~You~~                             | **DONE 2026-09-06.** Kimi drove agent `jack` at a credential file on the VPS, the gate refused it, and ledger entry #25 records the refusal with the rule that produced it. **The first attempt is the one to read**: `~/.ssh/id_rsa` was refused by the _model_, before any tool call, so nothing reached the gate — a request that sounds like a secret tests the model, not the layer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| **T3**      | You                                 | Deploy to a Linux host. The one design requirement not fully met; T33 made the build work. **Re-run the suite there**, the last Linux measurement is 2,548/133 and predates T44 and three sweeps                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| **T13**     | You                                 | Read the prompt-injection answer (§4.x.26) until you can give it without notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| **T17**     | You                                 | Redraw the figures, 21 candidates marked. Or decide Claude drafts them for approval **The audit half is done (2026-09-06)**: all 21 figures compared against the code and checked for completeness. All three forms present for every one — F18 carries none and correctly so, being a CUT cross-reference. **Two defects fixed**: F21's TikZ would not have compiled (five line breaks had lost a backslash, so LaTeX read ``, `ackend` and three more as undefined control sequences), and F12 claimed an installation may hold more than one organisation, which the 2026-08-30 cap made false — the same correction F2 had already had, applied to the figure the claim actually belongs to. **What remains is yours**: whether to redraw them, or to have Claude draft the 21 for approval. The remaining risk is that nobody has _compiled_ them; that needs a LaTeX toolchain this machine does not have.                                                                                                             |
-| **T18**     | You                                 | Write Chapters 3, 4 and the conclusion                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ~~**T45**~~ | ~~Claude~~                          | **DONE 2026-09-03**, `docs-notes/FIRST-RUN.md`. The page before the runbook: what the layer is, how to tell the fork from stock OpenClaw in one command, and §2c's cold-server steps moved into the ordering rather than left as troubleshooting                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| **T46**     | You, then Claude                    | **The setup wizard still says "OpenClaw".** `openclaw onboard` presents upstream's text unchanged, so an operator installing _this_ project is never told what it is, no mention of the layer, the tiers, the ledger or the dashboard's second gate. You have said it should read **"OpenClaw Governance"**; the decision left is how far it goes. Banner and completion text, or new prompts too. Touches upstream files, so it grows the fork diff §3.5.2b measures                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| **T47**     | All three                           | **A by-hand test plan, one list per RBAC tier, split between K, M and O.** **The plan is written: `docs-notes/T47-TEST-PLAN.md` (2026-09-04).** 138 checks as first written, plus **four added 2026-09-05** from findings 256 and 260, across the four tiers, plus six things no one person can test alone. **Running it is what remains, and it needs three people on three machines** — half of what it tests is that one account cannot see or do another's, and a shared browser session silently defeats that. Every row asks two questions beyond pass/fail: _was the outcome visible_, and _did the refusal say what to do instead_. Produces the evidence Chapter 4 needs, and is the natural companion to T2                                                                                                                                                                                                                                                                                                        |
-| **T48**     | You                                 | **Decide whether Chapter 3 is ready to be written.** Not "is there enough material", there are ~9,300 lines across 76 sections, but "has the design stopped moving?" Findings 230–232 suggest not quite: three defects in the deployment path in one evening                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |     |
-| **T49**     | You                                 | **Decide what the multi-tenancy machinery is for now.** The 2026-08-30 cap means a shipped installation only ever has one organisation, so M5's isolation is exercised by nothing that ships, and findings 234 and 235 were **latent for exactly that reason**. Either keep it and say in the report that it is verified by test rather than by deployment, or state the cap as the boundary. What does not work is calling it "still enforced" without re-deriving that **Answer the Codex switch's scope in the same breath** (2026-09-05): `setCodexBackendEnabled` takes a `groupId` but writes an **installation-wide** config key, and the group id only routes the ledger entry — `readCodexBackendState()` takes no group id at all. Harmless while the cap stands, and if it is lifted, org A's Root switches Codex off for org B while org B's ledger says nothing. Measured in `docs-notes/qa-sweep-2026-09-05/codex-scope-probe.ts`; written up in this file's §"An observation about the Codex switch's scope". |
-| **T50**     | You, then Claude                    | **Nothing automatic runs the full lint gate** (finding 237). The hook runs plain `oxlint` over staged files; the type-aware rules, `scripts/` and the CSS check are only in `run-lint.mjs`, which a person must remember and which **could not finish on Windows at all** until finding 233. Make the hook run it, move it to CI, or leave it manual and stop calling it "what the hook runs"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| **T51**     | You, then Claude                    | **Should the command line reach the Gateway's runs?** (finding 238.) `governance agent runs` and `agent cancel` cannot see anything the Gateway is running, the in-flight table is a per-process `Map`, so they were reporting "nothing in flight" about live runs. They now say what they cannot see. Fixing it properly means giving the CLI an HTTP client, which no other governance command needs; removing them is the other honest option                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| **T53**     | Claude                              | **Split `governance-page.ts`.** 735 code lines against a 700 limit, carrying a scoped exception with its reasoning written into it rather than a silent one. Four files were split properly on 2026-09-04 instead; this one has no cheap seam, because every remaining candidate reads twenty or more private fields. The real fix is two components, an outer shell and an inner signed-in view. Deliberately not done in the last hour before a handoff                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| **T55**     | You                                 | **Decide what a reused agent id should inherit** (finding 258). A new agent registered under a released id arrives holding the previous agent's agent-scoped rules, posture override and lockdown. `unregisterAgent` documents that survival as deliberate, and for plain unregistration it is; re-registration is the case that reasoning never covered. A product decision, like T49                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| **T56**     | Claude, once you say which surfaces | **Say when the pending stack has dropped rows** (open half of finding 260). The aiming half is fixed; the drop is still silent, so an operator reads a worklist that does not say it is incomplete. Touches all three readers of `listPendingDecisions`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| **T57**     | You, then Claude                    | **Record a prompt whatever surface it arrives on** (2026-09-06). Measured: `ADMIN_ACTIONS.agentPrompt` is written from one file, the dashboard's prompt route. A task typed into OpenClaw's own chat, the CLI, or a channel reaches the agent with no ledger entry naming who asked. **Tool calls are unaffected and still governed** — what is missing is the instruction and its author. The decision that comes first is what actor an ungoverned prompt carries, since no governance account exists on those surfaces                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| #           | Who                                     | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ----------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ~~**T2**~~  | ~~You~~                                 | **DONE 2026-09-06.** Kimi drove agent `jack` at a credential file on the VPS, the gate refused it, and ledger entry #25 records the refusal with the rule that produced it. **The first attempt is the one to read**: `~/.ssh/id_rsa` was refused by the _model_, before any tool call, so nothing reached the gate — a request that sounds like a secret tests the model, not the layer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **T3**      | You                                     | Deploy to a Linux host. The one design requirement not fully met; T33 made the build work. **Re-run the suite there**, the last Linux measurement is 2,548/133 and predates T44 and three sweeps                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **T13**     | You                                     | Read the prompt-injection answer (§4.x.26) until you can give it without notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **T17**     | You                                     | Redraw the figures, 21 candidates marked. Or decide Claude drafts them for approval **The audit half is done (2026-09-06)**: all 21 figures compared against the code and checked for completeness. All three forms present for every one — F18 carries none and correctly so, being a CUT cross-reference. **Two defects fixed**: F21's TikZ would not have compiled (five line breaks had lost a backslash, so LaTeX read ``, `ackend` and three more as undefined control sequences), and F12 claimed an installation may hold more than one organisation, which the 2026-08-30 cap made false — the same correction F2 had already had, applied to the figure the claim actually belongs to. **What remains is yours**: whether to redraw them, or to have Claude draft the 21 for approval. The remaining risk is that nobody has _compiled_ them; that needs a LaTeX toolchain this machine does not have.                                                                                                             |
+| **T18**     | You                                     | Write Chapters 3, 4 and the conclusion                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ~~**T45**~~ | ~~Claude~~                              | **DONE 2026-09-03**, `docs-notes/FIRST-RUN.md`. The page before the runbook: what the layer is, how to tell the fork from stock OpenClaw in one command, and §2c's cold-server steps moved into the ordering rather than left as troubleshooting                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **T46**     | You, then Claude                        | **The setup wizard still says "OpenClaw".** `openclaw onboard` presents upstream's text unchanged, so an operator installing _this_ project is never told what it is, no mention of the layer, the tiers, the ledger or the dashboard's second gate. You have said it should read **"OpenClaw Governance"**; the decision left is how far it goes. Banner and completion text, or new prompts too. Touches upstream files, so it grows the fork diff §3.5.2b measures                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **T47**     | All three                               | **A by-hand test plan, one list per RBAC tier, split between K, M and O.** **The plan is written: `docs-notes/T47-TEST-PLAN.md` (2026-09-04).** 138 checks as first written, plus **four added 2026-09-05** from findings 256 and 260, across the four tiers, plus six things no one person can test alone. **Running it is what remains, and it needs three people on three machines** — half of what it tests is that one account cannot see or do another's, and a shared browser session silently defeats that. Every row asks two questions beyond pass/fail: _was the outcome visible_, and _did the refusal say what to do instead_. Produces the evidence Chapter 4 needs, and is the natural companion to T2                                                                                                                                                                                                                                                                                                        |
+| **T48**     | You                                     | **Decide whether Chapter 3 is ready to be written.** Not "is there enough material", there are ~9,300 lines across 76 sections, but "has the design stopped moving?" Findings 230–232 suggest not quite: three defects in the deployment path in one evening                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |     |
+| **T49**     | You                                     | **Decide what the multi-tenancy machinery is for now.** The 2026-08-30 cap means a shipped installation only ever has one organisation, so M5's isolation is exercised by nothing that ships, and findings 234 and 235 were **latent for exactly that reason**. Either keep it and say in the report that it is verified by test rather than by deployment, or state the cap as the boundary. What does not work is calling it "still enforced" without re-deriving that **Answer the Codex switch's scope in the same breath** (2026-09-05): `setCodexBackendEnabled` takes a `groupId` but writes an **installation-wide** config key, and the group id only routes the ledger entry — `readCodexBackendState()` takes no group id at all. Harmless while the cap stands, and if it is lifted, org A's Root switches Codex off for org B while org B's ledger says nothing. Measured in `docs-notes/qa-sweep-2026-09-05/codex-scope-probe.ts`; written up in this file's §"An observation about the Codex switch's scope". |
+| **T50**     | You, then Claude                        | **Nothing automatic runs the full lint gate** (finding 237). The hook runs plain `oxlint` over staged files; the type-aware rules, `scripts/` and the CSS check are only in `run-lint.mjs`, which a person must remember and which **could not finish on Windows at all** until finding 233. Make the hook run it, move it to CI, or leave it manual and stop calling it "what the hook runs"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ~~**T51**~~ | ~~You, then Claude~~                    | **CLOSED 2026-09-07 (iii) by removing the question.** The governance command line was removed entirely, so the two commands and the surface they were incomplete on are gone. One real defect was found while surveying it: a comment claiming `agent cancel` could stop a dashboard-started run, which it could not — the comment an operator would read during an incident                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ~~**T53**~~ | ~~Claude~~                              | **DONE 2026-09-05.** The page was split; the two prop builders that "read twenty or more private fields" were the seam after all. _(This row stood here as open for two days after it closed — finding 282.)_                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| **T55**     | You                                     | **Decide what a reused agent id should inherit** (finding 258). A new agent registered under a released id arrives holding the previous agent's agent-scoped rules, posture override and lockdown. `unregisterAgent` documents that survival as deliberate, and for plain unregistration it is; re-registration is the case that reasoning never covered. A product decision, like T49                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ~~**T56**~~ | ~~Claude, once you say which surfaces~~ | **DONE 2026-09-07 (ii)**, on both listing surfaces. **The decision this row asked for did not exist**: it named "all three readers of `listPendingDecisions`", and only two of the three are listings — the third is a lookup by id for the decide route, which shows no worklist. The stack now carries a cumulative count of the unanswered questions it has shed, incremented inside the lock that sheds them, and both the command line and the dashboard say so in one shared sentence. The dashboard says it **even when nothing is left waiting**, which is the case its own empty check would otherwise hide                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ~~**T57**~~ | ~~You, then Claude~~                    | **DONE 2026-09-06**, at Kinan's decision: the labelled-origin option. A prompt arriving on any surface with no governance account behind it is recorded under `host-prompt` with the channel named, hooked at `agentCommandInternal` — the single funnel every agent turn passes through. _(Stood here as open for a day after it closed — finding 282.)_                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| **T58**     | You, then Claude                        | **Settle whether `edit` is ours** (2026-09-07). Jack's tool sweep on the VPS reported `edit` failing with ENOENT on a file `write` had just created. **Three seconds of looking**: filter the ledger to Agent actions and find the `edit` call. `deny` with a rule named means governance refused it; `allow` that still failed means the fault is downstream; **no entry at all** means it never reached the gate. Reasoning says it is unlikely to be ours, and the ledger is the measurement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| **T59**     | You, then Claude                        | **Make per-agent models work, and prove they do** (2026-09-07). Upstream supports it and this layer has never exercised it, which is why two agents sharing a connection looked like a bug when it was correct behaviour with an illegible surface. Turns the provider-agnostic claim into a measurement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **T60**     | You, then Claude                        | **Decide what "Always allow" should tell the operator, and what a full proposal queue should do** (finding 281, 2026-09-07). The button promises a permanence it no longer delivers, and all escalation proposals share one 20-slot budget for the whole organisation — past it a press grants the call and files nothing. Measured: 25 presses, 20 proposals. **A full queue never widens the policy; it only fails to propose**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ~~**T62**~~ | ~~You~~                                 | **DONE 2026-09-07 (iii), option (b).** `scripts/verify-ledger.mjs` restores the second, independent reader of the audit chain without restoring a command surface: no registry entry, no `--help` presence, no tiers, no session, no write path. Imports nothing from `src/`, so it runs with the build broken and the Gateway down, and against files copied off the machine. Re-implements the hashing so a defect in `audit-ledger.ts` cannot agree with itself, and is pinned against the product on intact and tampered chains                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| **T1**      | Deprioritised                           | Listed for completeness. Not being done, and counted as neither open nor closed above                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 **T38, T39, T40, T42 and T43 all closed on 2026-09-01**, along with **eleven
 defects, five of them security-relevant**. See §1's 2026-09-01 entry. That is
@@ -3794,6 +4367,202 @@ deprioritised. Sorted below by who has to move first.
 > the authoring affordance may promise on that runtime is a decision in its own
 > right (`REMAINING-WORK.md` §"T32's decision, restated 2026-08-31").
 
+### Three files are still untracked, and two are load-bearing
+
+```
+scripts/verify-ledger.mjs                        # T62, requirement 8's second witness
+src/governance/verify-ledger-script.test.ts      # what makes its independence safe
+ui/src/pages/governance/role-change-manager.test.ts
+```
+
+`git status --porcelain` shows them as `??`. The first is the script this
+handoff's own §1 names as the way to verify the audit chain from outside the
+product, and the one the dashboard now points at. **Check this before any
+commit**: a clean clone today does not have it.
+
+### If you are continuing the dashboard sweep, start here
+
+### The thirteen sections, and where each one stands
+
+**All thirteen driven.** Driven means: signed in as Root,
+Administrator, User **and** Viewer in turn, controls actually pressed, and the
+store and the ledger read rather than the screen believed.
+
+> **Updated 2026-09-08 (viii). The sweep is complete: all thirteen sections
+> driven from all four tiers.** Findings **326–336; nine fixed, two open** (333
+> as work, 331 as a decision). Section 8 was finished in (viii) and produced
+> **335**, which is the pick of the eleven: five authoring routes reported only
+> the first half of a conjunction, so a User whose rule editing Root had
+> withheld was told _"You do not manage agent `scout`"_ — and stopped that same
+> agent one request later. **T27 exists to separate those two powers and the
+> refusal it produced erased its own distinction**, sending the operator to ask
+> for an assignment they already held.
+>
+> **Two things that pass came away with, beyond the findings.**
+>
+> **The method changed, because the harness would not let a password be typed
+> into the sign-in form.** What replaced it is better and should be kept: a
+> script captures **every dashboard read route, per tier, off the running
+> gateway** (`docs-notes/qa-sweep-2026-09-08/capture-tier-snapshots.mjs`), and a
+> browser probe renders the real page from those real answers in real Chromium.
+> A hand-written fixture cannot omit what the server actually sends, which is
+> findings 251's and 313's shared cause. It also prints, per tier, every
+> section, every sentence and every control with its disabled state — the
+> artefact this table's earlier rows were built by hand.
+>
+> **The startup budget is now the binding constraint on this work.** Finding
+> 321 raised the ceiling to buy 413 bytes; T55 spent it to 255; this pass's
+> five sentences spent it to **112**. That is one short sentence of headroom
+> for the whole product, in any locale. **T64 is no longer the tidy answer, it
+> is the next thing that blocks a text fix**, and the next person who writes an
+> operator-facing sentence will meet a red build with no warning from any
+> source-level check.
+
+| #   | Section                        | State                                      | Findings               | Notes                                                                                                                                                         |
+| --- | ------------------------------ | ------------------------------------------ | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Identity                       | **Driven** 09-08 (i)(ii), re-checked (vii) | 300, 303, 304          | Tier hint described 3 tiers of 4; a User's description was wrong about rule-writing                                                                           |
+| 2   | Accounts                       | **Driven** 09-08 (i)(ii), re-checked (vii) | 296–299, 300, 301, 304 | **296 bricked an installation.** T61 closed here                                                                                                              |
+| 3   | Agents in your organisation    | **Driven** 09-08 (ii)(vii)                 | 302, **326**           | 302's fix confirmed live at Administrator. **326: Register discarded T55's answer**                                                                           |
+| 4   | Your agents                    | **Driven** 09-08 (iii), re-checked (vii)   | 305–316                | **305 is the big one and is not about this section**                                                                                                          |
+| 5   | Active agent sessions          | **Driven** 09-08 (v), re-checked (vii)     | 319, 320, 322          | **319: the panel could not see the runs this product starts**                                                                                                 |
+| 6   | Agent permissions              | **Driven** 09-08 (vii)                     | **327, 328**           | **327: answered confidently about an agent that does not exist.** 328 is the one that was already spotted                                                     |
+| 7   | Emergency kill switch          | **Driven** 09-08 (vii)                     | **332**                | Tier model and scoping measured at all four tiers and correct. 332 is the refusal text for an unregistered agent                                              |
+| 8   | Policy                         | **Driven** 09-08 (viii)                    | **335**                | Authoring matrix, removal scoping, core rules, validation, folder grant, account override — all correct. **335: T27's distinction erased by its own refusal** |
+| 9   | Audit ledger                   | **Driven** 09-08 (vii)                     | **329, 333**           | **333 is the most serious finding of this sweep and is open**                                                                                                 |
+| 10  | Rule requests                  | **Driven** 09-08 (vii)                     | **330, 331**           | 331 is a Viewer-masking contradiction, open as a decision. T60 still open                                                                                     |
+| 11  | System resources               | **Driven** 09-08 (vii)                     | —                      | Correct at every tier. One cosmetic note in `REMAINING-WORK.md`                                                                                               |
+| 12  | Organisation                   | **Driven** 09-08 (vii)                     | **334**                | **Deletion driven to completion** and refused at all three lower tiers; ledger retained, installation-level entry written                                     |
+| 13  | Deployment and network posture | **Driven** 09-08 (vii)                     | —                      | Root-only, confirmed. Caught a real misconfiguration during the sweep                                                                                         |
+
+**Start at 6, Agent permissions**, and start with this, which was seen in
+passing on 09-08 (iv) and deliberately not chased so the section gets its own
+pass: the panel picks its hint on `canManageAnyAgent`, which is **true for a
+User with an empty assignment**. So that tier still reads _"Pick an agent you
+manage"_ while managing none — finding **303**'s exact shape, one panel over,
+and 303's repair is what put the correct sentence into the neighbouring panel.
+
+**Two more worth knowing before you plan the order:**
+
+- **Sections 8 and 12 are the two where a defect costs most** — Policy is what
+  the gate reads, and deleting the organisation is irreversible — and neither
+  has been driven from a tier below Root.
+- **Section 9 is half-done rather than untouched.** The chain-verification row
+  has been through two findings (268, 285); the ledger's own filters, its
+  masking for a Viewer, and what an entry actually reads like have not.
+
+### What driving a section has cost and returned, so far
+
+Five sections, **twenty-one findings** (305–325), of which **eight were
+invisible from Root**. The rate has not dropped: section five produced three,
+and one of them (319) is among the most consequential of the whole sweep.
+
+**Two of the twenty-one were not in any section**, and both were found by
+running a check nothing pointed at rather than by driving a screen:
+
+- **321**: the tree had stopped building, and had been broken for a day.
+- **323**: the lint gate was recorded as 0 and was 4.
+
+**Run `node scripts/build-all.mjs` and plain `oxlint` at the _start_ of a
+section, not the end.** They are the two verification commands that read the
+**artefact** and the **whole tree** rather than the file being edited, and they
+are the two that were red.
+
+**Read finding 321 before the next one.** The clarity work these sweeps produce
+is operator-facing _text_, `en.ts` is one locale module loaded at **startup**
+while every page is lazy, and the startup budget is charged per sentence across
+the locale set. The ceiling was raised once (317 → 318 KiB) and now has **413
+bytes of headroom, which is about four more sentences.** `node
+scripts/build-all.mjs` is the only check that sees this and no source-level gate
+does — run it before finishing a section, not after finishing the sweep. **T64**
+is the decision that stops this recurring.
+
+**And one thing this section changed about the method.** Finding 319 was found by
+comparing two of the product's own registries against each other while something
+was actually running — `agent/runs` said a prompt was in flight, `sessions` said
+nothing was. Neither surface was wrong on its own terms. **Where two views of
+one fact exist, read both at the same moment**; it is the cheapest thing in this
+sweep that found the largest defect.
+
+**How to set it up, which is ten minutes.** A launch entry
+`governance-gateway-qa` in `.claude/launch.json` runs the Gateway on 18799
+against a **throwaway governance directory**, so nothing here touches a real
+install.
+
+> **If a Gateway is already running, you cannot just start a second one**, and
+> this cost half an hour on 2026-09-08 (v). It fails with `gateway already
+running (pid …); lock timeout after 5000ms` — a single-instance lock, not a
+> port clash, so changing `--port` does not help. The three things it needs,
+> together, are in the `governance-gateway-qa2` entry beside it:
+>
+> ```
+> OPENCLAW_ALLOW_MULTI_GATEWAY=1     # skips the config lock
+> OPENCLAW_STATE_DIR=<throwaway>     # its own state lock
+> OPENCLAW_GOVERNANCE_DIR=<throwaway>
+> ```
+>
+> **And `OPENCLAW_STATE_DIR` relocates the config too**, so a fresh one exits
+> `78` with _"Missing config. Run `openclaw setup`"_ — copy `openclaw.json`
+> (and `agents/`) into it, or pass `--allow-unconfigured` and accept a host with
+> no agents. **Do not set `OPENCLAW_HOME`**: that moves everything and gets you
+> the same 78 with more to undo. Bootstrap a Root, then create one account at each tier — the
+> cheapest version of caveat 24 — and sign in as each in turn:
+
+```
+kinan   root           (bootstrap)
+haitham administrator
+lina    user           answers to haitham
+noor    viewer         answers to haitham
+```
+
+> **⚠ Two environment facts that will cost you an hour each if you do not know
+> them, both measured 2026-09-08 (v).**
+>
+> **The Gateway's event loop blocks for 40–50 seconds while an embedded agent
+> run is in flight on this machine.** Every HTTP route stops answering and one
+> core pins at 100%. It does it on a run started from the **host's own chat**
+> too, so it is not this layer's prompt path; it recovers when the run ends. If
+> the dashboard goes unresponsive mid-prompt, that is this and not a defect you
+> have just introduced.
+>
+> **The Gemini quota on the configured key is exhausted** (`429`), and the
+> previously-configured `google/gemini-2.5-flash` was **retired upstream**
+> (`404`). No live model run can be carried to a reply here. Everything a run
+> is needed for — the outcome paths, the transcript, T2-style demonstrations —
+> has to be exercised by **refusal** (lock the agent down, then prompt) or on
+> the VPS.
+
+**Three habits that earned their place in this sweep:**
+
+1. **Read the store and the ledger, not the screen, to decide whether
+   something happened.** Twice a check ran while the operation was still in
+   flight — once before a confirmation dialog had been answered, once while
+   an agent was still provisioning — and both times a defect was nearly
+   filed against something that then worked.
+2. **Rebuild the Control UI after every change** (`node scripts/ui.js
+build`, about 11s) and remember that **the Gateway's own auto-rebuild
+   deletes `dist/control-ui`** and serves a 503 until it has rebuilt it. A
+   server change needs the Gateway restarted; a UI change does not.
+3. **A refused operation should leave no ledger entry**, and in this sweep
+   every one of them did. That is worth checking each time: it is the
+   cheapest test of whether a failure was clean, and finding 296 is what it
+   looks like when one is not. _(A **governed** refusal is the opposite case
+   and must be recorded: prompting a locked-down agent wrote entry #20,
+   decision `deny`, naming the reason. "Refused" means the request never
+   happened; a denial is a decision the gate made and is requirement 5's
+   subject.)_
+4. **Create an account at each tier that the section is for, including the
+   awkward one.** Three of the four sections so far turned on an account
+   somebody would not think to make: a User with an **empty** assignment
+   reads a different screen from a User with agents and from an
+   Administrator with no list, and findings 303, 309 and 311 are all only
+   visible from it.
+5. **`document.hidden` stops the auto-refresh, by design.** A page that "is
+   not updating" in a background tab or an unfocused preview pane is
+   behaving correctly, and the first measurement of finding 305 was taken
+   that way and proved nothing. Trigger a refresh with a real mutation, or
+   settle the question in the source, before concluding anything about
+   staleness.
+
 ### Do this before anything else
 
 **Rebuild the VPS, with the daemon stopped.** This is the one thing standing
@@ -3830,6 +4599,16 @@ the name they were given, the escalation's "allow always", Root being able to
 own an agent, and finding 273's fix — so a demonstration screenshot taken before
 it will still show an intent from the wrong turn.
 
+**And since 2026-09-07 (iv) it is load-bearing for a screenshot you are
+otherwise likely to take.** The dashboard's chain-verification row printed _"Run
+`openclaw governance audit verify` at the terminal to recompute this
+independently"_ — a command the server will no longer have once it is rebuilt,
+and which the current build still offers, so the two are wrong in opposite
+directions and **only the rebuild makes them agree**. It now names
+`node scripts/verify-ledger.mjs` (finding 285). Requirement 8's evidence is a
+screenshot of that row beside the script's own output, and taken against the
+pre-rebuild server it would show the deleted command instead.
+
 #### Then check which code is actually running, because a green build does not tell you
 
 ```bash
@@ -3850,11 +4629,12 @@ mistakes recorded this week: a test run that started no worker and exited 0, a
 lint gate whose exit code was `tail`'s, and a browser test that skipped itself
 silently.
 
-A quick way to see the rest of the state at once, once the daemon is up:
-
-```bash
-openclaw governance deployment
-```
+A quick way to see the rest of the state at once, once the daemon is up: open
+the tunnel and read the dashboard's **Deployment report** panel. _(This was
+`openclaw governance deployment`, which ran over a plain SSH session **before**
+any tunnel existed. That command was removed on 2026-09-07 and the
+before-the-tunnel route went with it, which is the one real cost of the removal
+— set the tunnel up first.)_
 
 **`dist/` may hold several generations of chunks** until the corrected installer
 is on the server, because `vps-install.sh` built the Control UI twice until
@@ -3911,7 +4691,7 @@ see §6.)_
 | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
 | ~~**T2**~~  | ~~**Run it once with a real agent** and record what happens.~~ **DONE 2026-09-06.** Until that night every proof was a test calling the gate directly; no language model had driven a tool call through it. _The single highest-value item left_                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | 2–4 days |
 | ~~**T33**~~ | ~~**Make the fork build and start on Linux at all.**~~ **DONE 2026-08-28**. See §1's T33 entry. Bare source build (your call), verified on Ubuntu 24.04: installer exit 0, probe 14/14, `openclaw` on PATH. Setup after the build is **identical to normal OpenClaw**, `openclaw onboard --install-daemon`, `openclaw daemon status`, `openclaw dashboard`; the hand-written systemd unit was deleted in favour of the fork's own `openclaw daemon install`. **Your one step: the deploy key** (`LINUX-INSTALL.md` §1). Originally added 2026-08-28. The PowerShell launcher is _not_ the blocker (forty lines, trivially bash; a VPS wants a systemd unit anyway). The blocker is that upstream's two install routes both fetch **upstream's npm package**, so a fork must be installed from source, and that has never been done on Linux. `scripts/linux-setup.sh` hardcodes a `/mnt/c/...` WSL mount, installs with `--ignore-scripts` and never runs `pnpm build`, so `dist/`, which `openclaw.mjs` refuses to start without, has never existed there. Needs **one decision from you** (Docker, whose `COPY . .` already forks correctly, or a bare source build); after that it is mine | 1 day    |
-| **T3**      | **Deploy to a real Linux host.** The suite runs on Ubuntu under WSL2; nothing has run on a VPS, and the launcher is PowerShell-only. The one requirement (#9) not fully met. **Blocked on T33**, a VPS that cannot run the build wastes the booking rather than the afternoon                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | 3–5 days |
+| **T3**      | **Deploy to a real Linux host. Half done: the fork has been installed and running on a VPS since 2026-09-03**, and T2 was demonstrated there. The suite runs on Ubuntu under WSL2 and has not been re-run on the server. _(This row read "nothing has run on a VPS" for four days after it did; finding 282.)_ The one requirement (#9) not fully met. **Blocked on T33**, a VPS that cannot run the build wastes the booking rather than the afternoon                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | 3–5 days |
 | **T18**     | **Write Chapters 3, 4 and the conclusion.** Material is organised and keyed to section numbers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | the rest |
 | **T13**     | The prompt-injection defence answer is **drafted** (§4.x.26), read it and make it yours. You have to be able to give it without notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | 30 min   |
 
@@ -4012,8 +4792,12 @@ because the Gateway is loopback-only behind a tunnel.
   Verified by mutation testing on the 26th, which found finding 120 in the fix
 - ~~**T7**~~: search tools governed at their root only; `grep`/`find`/`ls`
   recurse. `after_tool_call` **already existed**. The **audit half shipped
-  2026-08-26** (`search-audit.ts`); only the _prevention_ half is open, and it
-  is a decision (§"Three decisions that are not M5 or M6", B), not a host limit
+  2026-08-26** (`search-audit.ts`) and the **prevention half closed 2026-08-30**
+  (§3.5.61): a denied result is withheld on the in-process runtime, and is
+  structurally unclosable on the native Codex harness, which is recorded as a
+  result rather than as a gap. _(This bullet said "only the prevention half is
+  open" for eight days after it closed, in a section whose own heading is
+  "Nothing to do".)_
 - ~~**T8**~~: **closed 2026-08-26 by decision**, not by a host change: the
   spec names three resource categories and messaging is not one, and connecting
   an agent to a channel is itself the permission. Recorded, not gated
@@ -4362,10 +5146,45 @@ Stated here so they are not discovered late.
     established on the way through — nothing newly computed: the **chain head**
     it terminated at, the **checkpoint** that independently agrees with it, and
     whether the entries are keyed. The panel prints them under one sentence
-    explaining the mechanism, plus the terminal command that recomputes the same
-    thing. **The dashboard is no longer the only witness**: the head hash can be
-    compared against `openclaw governance audit verify`, and a disagreement
-    between the two is itself the finding.
+    explaining the mechanism.
+
+    **⚠ Half of this caveat's repair was undone on 2026-09-07 (iii), and it is
+    the half worth knowing about.** The fix originally printed a **terminal
+    command** beside the verdict — `openclaw governance audit verify` — so the
+    head hash could be recomputed independently, and the claim was: _"the
+    dashboard is no longer the only witness; a disagreement between the two is
+    itself the finding."_ **That command no longer exists.** The governance
+    command line was removed, and with it the second witness.
+
+    **What survives is still more than a shrug**, and the distinction matters
+    for a viva. The panel reports the facts the verification established — the
+    chain head, the sequence it terminated at, and the **independent
+    checkpoint** that agrees with it — so an operator can see _what_ was
+    compared rather than only that a comparison happened, and truncation is
+    detectable because the checkpoint is a separate file. **What is gone is the
+    ability to recompute it from outside the dashboard.** Both readings now come
+    through the same process.
+
+    **Restored the same day as `scripts/verify-ledger.mjs` (T62).** The second
+    reader is back, and it is a better one than the command it replaces: it
+    imports nothing from `src/`, so it runs when the build is broken and the
+    Gateway is down; it **cannot sign in**, where the removed `audit verify`
+    required a governance session before it would verify — the wrong way round
+    for an audit tool, since it made the audit depend on the thing under audit;
+    and it **re-implements the hashing** rather than importing it, so a defect in
+    `audit-ledger.ts` cannot agree with itself. Compare its printed chain head
+    against the dashboard's; a disagreement between the two is itself the
+    finding.
+
+    **What is still true**: both readers run on the same host, so §7 caveat 4's
+    residual stands unchanged — an attacker who deletes **both** the key and the
+    checkpoint leaves nothing on the machine to contradict a rewritten chain.
+    The script's contribution there is that it runs against files copied **off**
+    the host, which is the arrangement that closes it. The
+    ledger is `audit-ledger.jsonl` under the governance directory and its
+    checkpoint sits beside it; anything that can read those two files and the
+    key can verify the chain without this product's help, which is the property
+    that actually matters and is the one §7 caveat 4 already describes.
 
     **What to say about it.** The tamper-evidence was never the weak part; the
     _reporting_ of it was. That distinction is worth making rather than
@@ -4389,15 +5208,198 @@ Stated here so they are not discovered late.
     and the standing recommendation is in `mg/SESSION-LOG-2026-09.md`: after any
     UI change, have somebody use it before believing it.
 
+20. **A property claimed in a comment and never tested was the one that was
+    false** (finding 279, 2026-09-07, fixed). Here because it is the cheapest
+    check this project has found and it took three days to think of.
+
+    `proposeRuleFromEscalation` opens by listing **three** properties it says it
+    is responsible for, "each a way it could otherwise grant more than the
+    operator saw". Two of them — the proposed pattern is the resource escaped
+    and anchored, and it is scoped to the agent that asked — have tests and are
+    true. The third, that a read which was escalated proposes a read and not a
+    read and a write, had no test **and was not implemented**: the direction went
+    into the request's human-readable `reason` and nowhere else, and an absent
+    `access` on a rule means both directions.
+
+    So approving a proposal filed from a _read_ granted a permission to
+    **write** the same path — measured at the gate through the real approval
+    route, not inferred — while the row the Administrator approved displayed
+    "(read)", because the queue prints the reason.
+
+    **What to say about it.** The comment was not dishonest; it described what
+    the author intended and the code did two of the three things. What made the
+    third invisible is that nothing anywhere disagreed with it: the test file
+    listing "six properties" of this feature does not include it, so the claim
+    existed only in prose, and prose does not fail. **A comment asserting a
+    security property is a to-do until something measures it**, and the cheapest
+    way to find these is to read the guarantees a module claims for itself and
+    ask which of them a test would notice the absence of.
+
+    Same family as findings 112 and 113 — an unreachable validator branch and an
+    exported function nothing called — and the same family as `--skip-ui` in
+    finding 278: **a thing that announces a consequence it does not have.**
+
+21. **A fix derived from a listing is not finished until the listing is run again
+    against the fixed code** (finding 280, 2026-09-07, fixed). Not a security
+    caveat. Here because the same mistake was made twice in one hour, the second
+    time by the person who had just written up the first.
+
+    Finding 271 asked which of the page's fields survive a sign-out and answered
+    "the transcript", from a listing. Running that listing mechanically —
+    **50 `@state()` fields against the 15 `endSession` cleared** — says
+    twenty-three survive, and `refreshData` reloads only three of them. Among the
+    twenty: the Agent permissions panel stayed open on the previous account's
+    agent showing **the usernames assigned to it**, a stale alert announced an
+    emergency stop the next person had not ordered, and the authoring forms came
+    back filled in with the previous account's half-typed rule.
+
+    **The repair for that covered three of the twenty-three, and was the same
+    mistake one layer down.** It was caught by re-running the listing after
+    fixing rather than by noticing. `endSession` now clears 48 of 50 and is
+    written as "everything, less the exceptions", with the two exceptions named
+    and argued in place, so the next field added to that component is session
+    state until somebody argues otherwise there.
+
+22. **A removal is the hardest change to verify, and every gate this project has
+    passes by construction after one** (findings 283 and 284, 2026-09-07, both
+    fixed). Here because it is a general lesson about evidence, and because a
+    panel asking "how do you know you removed it?" deserves better than "the
+    tests pass".
+
+    **Deleting a surface deletes its tests.** So the suite goes _down_ and
+    everything remaining is green for a reason that has nothing to do with the
+    change. "Still green" is nearly content-free. What has content is the
+    **subtraction**: the governance command line took the suite from 2,817 / 156
+    to 2,716 / 142, which is exactly the 101 tests and 14 files that were
+    archived and nothing else. That arithmetic is the check; the green is not.
+
+    **Two things were still wrong after every gate was green.**
+
+    **283 — the sign outlived the thing.** All eight source files gone, the
+    command-registry entry gone, three typechecks and both lint gates clean —
+    and `core-command-descriptors.ts` still declared a `governance` descriptor,
+    which drives `--help`, argv routing and command suggestions. The product
+    advertised a command that could no longer load. Nothing could have caught it
+    from the source: a descriptor is _data_, so typechecks are blind to it, and
+    the tests that would have exercised it had been deleted with the surface.
+
+    **284 — the source is not the product.** After 283 was fixed and a
+    purpose-written removal sweep passed 7/7, `dist/` still held
+    `register.governance-BfFo31MS.js`: the entire compiled command tree. On any
+    machine running the shipped build, including the VPS, the removed command
+    still worked. **Every check this project runs reads the source tree; what a
+    user runs is the build, and nothing was comparing them.** Worse, this is
+    finding 274's mechanism again — nothing in the build clears `dist/`, so a
+    plain rebuild would have left the compiled surface orphaned there
+    indefinitely, source-less and still runnable.
+
+    **What to do about it, and it is three lines.** After removing anything:
+    check the count moved by exactly what you took out; grep for the _name_
+    rather than the files, because descriptors, help text and documentation
+    outlive imports; and rebuild with `rm -rf dist` before believing any of it.
+    `docs-notes/qa-sweep-2026-09-07/cli-removal-sweep.ts` does the first and
+    third, and **skips rather than passes** when there is no `dist/` to inspect,
+    because an absent build is not a clean one.
+
+23. **"Grep for the name" means grep the source too, and for the string a person
+    reads rather than the symbol a compiler resolves** (finding 285,
+    2026-09-07 (iv), fixed). The correction to caveat 22's own advice, found by
+    following it one step further, and the reason it is a separate caveat is
+    that the removal pass **did** grep — nineteen documents were rewritten from
+    a three-day commit list — and still missed the copy that mattered most.
+
+    The dashboard's chain-verification row printed _"Run `openclaw governance
+audit verify` at the terminal to recompute this independently of the
+    dashboard"_. **That row is finding 268's fix** (caveat 18): the repair that
+    stopped requirement 8's verdict having to be taken on trust, whose stated
+    claim is _"the dashboard is no longer the only witness"_. A day later the
+    command it named was deleted, and for a day the second witness pointed at
+    nothing.
+
+    **Three reasons nothing caught it**, and each is worth separating:
+
+    - It is a **string literal in `.ts`**, not prose in `.md`, and the pass
+      grepped documents.
+    - It is **not an identifier**, so no typecheck, no lint rule and no import
+      graph has an opinion about it. The code was correct throughout.
+    - The sentence lives in `en.ts` and the **command is interpolated from the
+      panel**, so even a search of the translation file finds the sentence
+      without the command in it.
+
+    **The habit:** after removing a capability, grep the whole tree — `.ts` and
+    `.md` alike — for the _words an operator would type_, and read every hit
+    that is inside a quoted string. It is now pinned in both directions: the
+    panel test asserts the page names `node scripts/verify-ledger.mjs` **and**
+    that the string `openclaw governance` appears nowhere on it.
+
+    **And audit the replacement as hard as the thing it replaced.** Driving
+    `scripts/verify-ledger.mjs` in the same session found two defects in it
+    (286, 287), both in the direction of a **false alarm** rather than a false
+    pass, which is the failure its own header names as worse than having no
+    verifier at all.
+
+24. **Drive the dashboard as every tier, not as Root** (findings 301–303,
+    2026-09-08, all fixed). Caveat 19 says an hour of _using_ the dashboard
+    out-finds a day of reading it. This is its correction, and it cost three
+    findings to learn: **every dashboard pass this project has ever done —
+    239, 240, 241–252, 264–268 — was done as Root.**
+
+    Root is the tier every string gets written for, and it is the tier that
+    can see everything, so a whole class of defect is invisible from it by
+    construction:
+
+    - **A fact the page needs may not reach the tiers that need it.** The
+      dashboard resolves an account id to a name against the account list,
+      and that list is **Root-only** — so an agent's owner rendered as
+      `user-1788814759825-7e0761b7` to the Administrator whose agents they
+      were (302). Same for `canAuthorPolicy`, which was never sent at all,
+      so every **withheld** User read as allowed and was offered the
+      authoring controls (301).
+    - **A sentence is written for whoever was on screen when it was
+      written.** _"You manage every agent, so there is no assigned list"_ is
+      true of an Administrator and the exact inverse for a User with nothing
+      assigned — and one condition, `assigned.length === 0`, meant both
+      (303).
+
+    **The cheap version of this check**: create one account at each tier, and
+    sign in as each in turn. It is four sign-ins and it found three defects
+    the first time it was tried. **Then read every sentence the lower tier
+    sees and ask whether it is true _of them_** — not whether it is true.
+
+    And note what it did **not** find, because that is the other half of the
+    result: the tier _enforcement_ held everywhere it was pushed. An
+    Administrator asking for `users`, `users` POST and `users/delete` on Root
+    got **403** from all three, naming the required and the actual tier. The
+    panel hiding is a courtesy; the route is the control, exactly as the
+    route module's header claims.
+
 ---
 
 ## 8. If you only do one thing
 
-**Run it once with a real agent (T2), and follow `docs-notes/T2-LIVE-RUN.md`.**
+~~**Run it once with a real agent (T2).**~~ **T2 is done** — 2026-09-06, on the
+VPS, ledger entry #25. This slot has now been occupied by three things and all
+three are closed: losing the work (F1, closed 2026-08-21), the unpushed tree
+(closed 2026-08-28), and the live run.
 
-**As of 2026-09-04 the server is ready for it and only needs updating first.**
-The four commands are in §1, "Updating the VPS to the current build". Then, in
-this order and nothing else in between:
+**What occupies it now: rebuild the VPS.** It is one command, it is in §6 under
+"Do this before anything else", and until it runs the server is a different
+product from this repository — it still serves the **governance command line**
+that was removed on 2026-09-07, and it does not have that day's fixes.
+
+```bash
+cd /opt/openclaw-governance && git pull && openclaw daemon stop && rm -rf dist dist-runtime && pnpm build && openclaw daemon start
+```
+
+Then `openclaw --version`, because a build that succeeds says nothing about
+which code it built.
+
+**After that, the run to repeat is the demonstration**, and
+`docs-notes/T2-LIVE-RUN.md` is the runbook. It is worth repeating rather than
+resting on entry #25, for one reason: **finding 273 was fixed after that run**,
+so the intent field in the existing evidence belongs to the wrong turn. A fresh
+refusal, with an intent that belongs to its own turn, is the artefact Chapter 4
+wants. In this order and nothing else in between:
 
 1. Create an **Administrator** account — **optional as of 2026-09-06**, when
    Root became an eligible owner. This step used to be mandatory and this list
@@ -4408,15 +5410,22 @@ this order and nothing else in between:
 --provider moonshot`, then `openclaw models set moonshot/kimi-k2`.
 4. **Rehearse**: `pnpm exec tsx scripts/governance-demo-rehearsal.mjs`.
 5. **Ask the agent to read a credential file**, and keep both the reply and
-   `openclaw governance audit tail`.
+   the **Audit ledger** panel.
 
 Step 5 is the whole project. Everything before it is setup.
 
-This slot has been occupied by two other things and both are now closed. F1,
-losing everything, closed 2026-08-21. **The push closed 2026-08-28**, and
-nothing has been left unpushed since; check with
-`git log --oneline personal/governance-layer..HEAD | wc -l` rather than trusting
-this sentence, but the habit now is to push after every commit.
+**And capture the second witness beside it**, which is new since 2026-09-07:
+
+```bash
+node scripts/verify-ledger.mjs
+```
+
+The dashboard's verdict beside a terminal that recomputed the same chain head
+independently — no build, no server, no sign-in — is a materially stronger answer
+to _"how do you know the log was not tampered with?"_ than either alone.
+
+_(Check the tree with `git log --oneline personal/governance-layer..HEAD | wc -l`
+rather than trusting any sentence here; the habit is to push after every commit.)_
 
 **T2 is scripted as of 2026-08-28.** `docs-notes/T2-LIVE-RUN.md` has the
 scenario and why that one, the exact commands, the **contrast prompt** that turns
@@ -4441,6 +5450,6 @@ structurally cannot. Rounds 12 and 14 both demonstrated exactly that pattern:
 each found a property everything depended on that nothing had ever checked.
 
 If you have a week: T2, then T3. Deploy to a real VPS and run
-`openclaw governance deployment` on it. That single command turns four prose
+the **Deployment report** panel on it. That single report turns four prose
 claims in Chapter 1 into a screenshot, and closes the last partially-met
 requirement.

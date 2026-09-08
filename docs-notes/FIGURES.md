@@ -117,6 +117,34 @@ reviews. Compiling all 21 against the preamble in this file is the check that
 would close the remaining risk, and it needs a LaTeX toolchain this machine does
 not have.
 
+### 2026-09-07: re-read against three days of change, and one figure described a removed feature
+
+**The 2026-09-05 audit read every figure against the code and this pass found
+three more, because the code moved underneath it on 2026-09-06 and 2026-09-07.**
+A figure audit has a shelf life measured in commits, and this one lasted two
+days.
+
+| Figure  | What was wrong                                                                                                                                                                                                                                                                                           |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **F3**  | The prose **and** the TikZ caption said an "allow always" answer "is additionally persisted as a new rule" — the exact behaviour QA round 13 removed as a security defect, and the one the 2026-09-06 restoration deliberately did not bring back. It now files a rule request an administrator approves |
+| **F6**  | Drew the dashboard as _the_ governed prompt path. Since T57 a prompt arriving on any other surface is recorded too, under a labelled origin. The figure's claim is now about attribution rather than about coverage                                                                                      |
+| **F13** | Draws one choke point. Since T57 there are two: `runBeforeToolCallHook` for actions and `agentCommandInternal` for instructions. Drawing one understates the layer by the half §1.6 asks for                                                                                                             |
+
+**F3 is the one with a method lesson in it.** The 2026-09-05 pass compared every
+figure against the source it describes, and it could not have caught this: the
+claim had been false since long before that audit, because it described a
+capability that at the time **did not exist in the code at all**. A check that
+asks "does the code do what this figure says?" cannot see a figure describing
+something the code no longer has — there is nothing to compare against, so the
+sentence sails through. The complementary check is the reverse direction: **take
+each removed or changed feature and grep the figures for it.** That is how these
+three were found, from a three-day commit list rather than from a read.
+
+**Still not done, and still the biggest remaining risk here:** nobody has
+compiled these. F21's TikZ would not have compiled until 2026-09-05 and survived
+three reviews, and the only check that would close it needs a LaTeX toolchain
+this machine does not have.
+
 ---
 
 ## What to add to the LaTeX preamble
@@ -388,9 +416,10 @@ it is a sequence, which is precisely what prose handles worst. A reader followin
 five participants across a branch will lose the thread in a paragraph and hold it
 easily in a diagram. Second most important figure after F1.
 
-**One change from the draft:** the Mermaid version shows the `allow-always` rule
-being persisted, which is a nice detail but crowds the picture. The TikZ version
-below drops it into the caption instead.
+**One change from the draft:** the Mermaid version shows what an `allow-always`
+answer produces, which is a nice detail but crowds the picture. The TikZ version
+below drops it into the caption instead. **What it produces is a rule
+_request_, not a rule** — see the prose below.
 
 ### Prose form
 
@@ -411,8 +440,23 @@ produced the call. If a
 rule matches, the verdict is allow and the tool runs. If none matches and
 escalation is switched off, the call is blocked and the agent is told why. If
 none matches and escalation is on, the decision is put to a human on the
-dashboard, whose answer is itself appended to the ledger; an "allow always"
-answer additionally becomes a new persisted rule.
+dashboard, whose answer is itself appended to the ledger. An "allow always"
+answer permits that one call and **files a rule request** for an Administrator or
+Root to approve while signed in; it does not write a rule itself, because the
+person answering an approval prompt is identified by whatever surface rendered it
+and may hold no governance account at all.
+
+_(Corrected 2026-09-07, finding 282. Both this paragraph and the TikZ caption
+said an "allow always" answer "is additionally persisted as a new rule". That is
+the behaviour **QA round 13 removed as a security defect** — one button on a
+prompt rendered in a chat client writing a permanent rule into `policy.json` —
+and it is precisely what the 2026-09-06 restoration deliberately did not bring
+back. The figure survived the 2026-09-05 audit because that pass read every
+figure against the code and this claim had been false since well before it: it
+described a capability that at the time **did not exist at all**, so nothing in
+the code contradicted a sentence about it. A figure describing a removed feature
+is invisible to a check that asks "does the code do this?" and answers "there is
+no such code".)_
 
 ### Mermaid form
 
@@ -485,7 +529,8 @@ sequenceDiagram
 \caption{Policy decision sequence. An unregistered agent is refused before any
 policy is read. Of the remaining paths, the first is taken when a rule matches
 and the other two when none does, depending on whether escalation is enabled. An
-``allow always'' answer is additionally persisted as a new rule.}
+``allow always'' answer permits that one call and files a rule request for an
+administrator to approve; it does not write a rule by itself.}
 \label{fig:decision}
 \end{figure}
 ```
@@ -655,6 +700,18 @@ has eleven nodes, which is two or three too many; the versions below drop the
 
 **Merge into it:** F10 (prompt lifecycle), whose stages are the same journey
 viewed as time rather than as structure.
+
+**Add one node since T57 (2026-09-06), and it changes what the figure claims.**
+This drew the dashboard as _the_ governed prompt path, and until T57 it was the
+only one recorded: `ADMIN_ACTIONS.agentPrompt` had a single writer. A task typed
+into OpenClaw's own chat, sent from the command line or arriving over a channel
+reached the agent with **no entry naming who asked**. It is now recorded at
+`agentCommandInternal`, the single funnel every agent turn passes through, under
+the labelled origin `host-prompt` with the channel named. So the honest caption
+is not "this is how a prompt is governed" but "**this is the attributed path,
+and every other path is recorded as unattributed rather than not recorded at
+all**" — which is a stronger claim about §1.6 and a weaker one about the
+dashboard's uniqueness.
 
 ### Prose form
 
@@ -1216,6 +1273,16 @@ tested against rather than a deployment an operator can create.}
 arrives, it reaches the same gate". F8 makes it about execution arrangements and
 F13 about user-facing entry points, but a reader sees one idea drawn twice. Add
 the Discord and dashboard boxes to F8 as inputs and delete this one.
+
+**There are two choke points as of T57 (2026-09-06), and this figure draws one.**
+`runBeforeToolCallHook` is where every _action_ converges. `agentCommandInternal`
+is where every _instruction_ converges — the local command path and every ingress
+path alike — and it is where a prompt is now recorded whatever surface it arrived
+on. Whichever figure survives the merge should show both, because the pair is the
+argument: one funnel for what the agent is asked to do and one for what it then
+tries, so a trail can answer "why did this happen?" and not only "what
+happened?". Drawing only the tool-call funnel understates the layer by exactly
+the half §1.6 asks for.
 
 ### Prose form
 

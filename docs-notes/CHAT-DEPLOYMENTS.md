@@ -67,31 +67,54 @@ privilege escalation, the governance directory and the cloud metadata endpoint
 are not approvable: offering "allow once" would let anyone with access to the
 channel click past the tier that exists to be unclickable.
 
-> **Closed in QA round 13 (finding 83): the escalation offers two buttons,
-> `allow-once` and `deny`.** It used to offer a third, `allow-always`, and
-> `onResolution` called `addRule`, so the middle button **wrote a permanent
-> rule into `policy.json`**, scoped to the agent and attributed to
-> `hitl-approval`. The person clicking it holds no
-> governance account, is not any of the four tiers, and is authenticated only by
-> the chat platform's own access controls. §5 of this document is right that a
-> chat user is not a governance account; what it does not say is that one of the
-> buttons they are shown creates governance state that outlives the
-> conversation.
+> **The escalation offers three buttons again as of 2026-09-06, and the middle
+> one no longer writes anything.** This block described two buttons for two
+> weeks; the history is kept because the reasoning did not change, only the
+> answer.
 >
-> `allow-always` was withdrawn for **every** surface rather than only for
-> channel-originated turns. Simpler, and better: it removes policy authorship
-> from the escalation path entirely, and the per-channel version would have
-> needed the turn source plumbed into the engine for a distinction that does
-> not really hold. The dashboard's approval machinery reports a decision
-> without an identity too.
+> **What finding 83 found (QA round 13).** `allow-always` used to call
+> `addRule`, so the middle button **wrote a permanent rule into `policy.json`**,
+> scoped to the agent and attributed to `hitl-approval`. On a chat deployment
+> that button renders in Discord or Telegram, and the person clicking it holds
+> no governance account, is not any of the four tiers, and is authenticated only
+> by the chat platform's own access controls. §5 of this document is right that
+> a chat user is not a governance account; what it did not say is that one of
+> the buttons they are shown created governance state outliving the
+> conversation. `allow-always` was withdrawn for **every** surface, because the
+> dashboard's approval machinery reports a decision without an identity too.
 >
-> Nothing is lost operationally. `allow-once` still unblocks the agent with no
-> delay, and an escalation that goes unanswered still lands on the
-> pending-decision stack for an operator to answer properly. What changed is
-> that making a grant _permanent_ now happens on a surface that knows who is
-> asking. The callback also refuses to write a rule even if the host's approval
-> machinery, a separate component with its own view of what it may send,
-> hands it the withdrawn decision anyway.
+> **What changed, and what did not.** Kinan re-opened the decision on
+> 2026-09-06. The analysis was re-checked and still stands, so the _answer_
+> moved rather than the reasoning: `allow-always` now grants the call in the
+> moment exactly as `allow-once` does, and **files a rule request** — a proposal
+> an Administrator or Root approves on the dashboard, signed in, named, and
+> recorded against them. Requirement 5's "administrative approval" keeps meaning
+> what it says: one party asked, another granted. A chat user still cannot
+> create governance state; they can now ask for it.
+>
+> **What a chat user's press can and cannot do**, because this is the surface it
+> matters most on:
+>
+> - It **permits that one call**, as `allow-once` always did.
+> - It files **one** proposal, however many times the agent retries the same
+>   thing, scoped to that one agent and anchored to that exact resource, with
+>   the direction of access carried on it (finding 279).
+> - It writes **no rule**, changes no posture, and creates nothing an
+>   administrator does not separately approve.
+> - The proposal is filed under `hitl-approval`, a **labelled origin** rather
+>   than an invented account, so the queue announces that attribution is missing
+>   instead of answering the question wrongly.
+>
+> **Two limits worth stating on this surface.** Proposals filed this way share a
+> single pending-request budget for the whole organisation, because they all
+> carry that one labelled origin; past it, a press grants the call and files
+> nothing, and the only record is a ledger entry (finding 281, open as a
+> decision — T60). And the button still reads **"Always allow"**, which now
+> promises more than it does.
+>
+> Nothing is lost operationally either way. `allow-once` still unblocks the
+> agent with no delay, and an escalation that goes unanswered still lands on the
+> pending-decision stack for an operator to answer properly.
 
 **Nobody answering means denied.** An escalation times out after
 `hitlTimeoutSeconds` (default 300) and is denied, then pushed onto the

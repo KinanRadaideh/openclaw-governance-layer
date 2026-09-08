@@ -32,10 +32,16 @@ a governance layer built into its core. Four things it adds:
 no configuration in which an agent runs ungoverned. That is the whole design
 argument, and it is why the fork exists rather than an extension.
 
-Two surfaces sit on top of all of it: a **web dashboard** and a **command line**
-(`openclaw governance …`). The command line matters more than it sounds. The
-dashboard is deliberately reachable only through an SSH tunnel, so the terminal
-is the surface that works before the tunnel exists.
+**One surface sits on top of all of it: a web dashboard**, and the HTTP control
+plane it is built on. It is deliberately reachable only through an SSH tunnel,
+so **set the tunnel up before you need it** — there is no second way in.
+
+_(There was a command line, `openclaw governance …`, removed on 2026-09-07. Its
+argument was exactly the sentence above: it worked before the tunnel existed.
+That is a real loss and is recorded as one in
+[`removed-cli-surface/`](removed-cli-surface/README.md), along with the source
+and how to restore it. It was removed because no design requirement asked for
+it, and because it was the surface that broke in front of an operator.)_
 
 ### The one thing to understand before installing
 
@@ -56,13 +62,16 @@ all `scripts/vps-install.sh` does.
 > **How to tell which one you have**, in one command:
 >
 > ```bash
-> openclaw governance policy show
+> ls ~/.openclaw/governance
 > ```
 >
-> The fork answers with the policy, or with `Not signed in.` Stock OpenClaw
-> answers `unknown command`. **`Not signed in.` is a pass**. It means the
-> governance layer is there and refusing an unauthenticated caller, which is
-> exactly its job.
+> The fork creates that directory on first run and keeps `policy.json`,
+> `users.json`, `audit-ledger.jsonl` and the ledger signing key in it. Stock
+> OpenClaw never creates it. In a browser the same question is: does the
+> **Governance** page exist?
+>
+> _(This used to be `openclaw governance policy show`, reading `Not signed in.`
+> as the pass. That command no longer exists.)_
 
 ---
 
@@ -237,14 +246,14 @@ openclaw models status
 
 ## 6. Confirm it is actually governing
 
-**Installing and governing are different, and the difference is silent.** Three
-commands:
+**Installing and governing are different, and the difference is silent.** Open
+the dashboard through the tunnel and read three panels:
 
-```bash
-openclaw governance deployment      # does the live install match the design?
-openclaw governance policy show     # the core denials and baseline allowances
-openclaw governance audit tail      # entries appear as things happen
-```
+| Panel                 | Answers                                                                           |
+| --------------------- | --------------------------------------------------------------------------------- |
+| **Deployment report** | Does the live install match the design? Listener, permissions, memory, ledger key |
+| **Policy**            | The core denials and the baseline allowances actually in force                    |
+| **Audit ledger**      | Entries appearing as things happen                                                |
 
 `governance deployment` is written to run over a plain SSH session, before any
 tunnel exists, which is the moment you most need to know whether the listener is
@@ -279,25 +288,23 @@ entry and confirms verification catches it.
 Step 5 is the demonstration. That path is a **core denial**: Root cannot switch
 it off, so the refusal is not an artefact of a rule written for the demo. Then:
 
-```bash
-openclaw governance audit tail
-```
+Open the **Audit ledger** panel on the dashboard.
 
-The refusal is in the ledger, with the agent, the decision, and the rule that
-made it. **That entry is the point of the entire project.**
+The refusal is there, with the agent, the decision, and the rule that made it.
+**That entry is the point of the entire project.**
 
 ---
 
 ## 8. Where to go next
 
-| You want                       | Read                                                      |
-| ------------------------------ | --------------------------------------------------------- |
-| Every deployment detail        | `docs-notes/LINUX-INSTALL.md`                             |
-| Every command                  | `docs-notes/CLI-REFERENCE.md`                             |
-| What each role may do          | `docs-notes/ROLE-MODEL.md`                                |
-| How to write policy rules      | `docs-notes/WRITING-PERMISSIONS.md`, `PERMISSION-SPEC.md` |
-| What is built and what is left | `mg/HANDOFF.md`, §1 state, §6 outstanding, §7 caveats     |
-| What went wrong and was fixed  | `docs-notes/QA-IN-PLAIN-TERMS.md`, plain language         |
+| You want                       | Read                                                          |
+| ------------------------------ | ------------------------------------------------------------- |
+| Every deployment detail        | `docs-notes/LINUX-INSTALL.md`                                 |
+| The removed command line       | `docs-notes/removed-cli-surface/` (archive and restore notes) |
+| What each role may do          | `docs-notes/ROLE-MODEL.md`                                    |
+| How to write policy rules      | `docs-notes/WRITING-PERMISSIONS.md`, `PERMISSION-SPEC.md`     |
+| What is built and what is left | `mg/HANDOFF.md`, §1 state, §6 outstanding, §7 caveats         |
+| What went wrong and was fixed  | `docs-notes/QA-IN-PLAIN-TERMS.md`, plain language             |
 
 ---
 

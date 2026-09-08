@@ -200,35 +200,23 @@ harder to get wrong in a JSON file, so prefer it.
 
 ## 4. Your first rules
 
-Dashboard: **Settings → Governance → Add an allow rule**.
-Command line:
+**Settings → Governance → Add an allow rule.** Three to start with:
 
-```bash
-openclaw governance policy add-rule --kind command --pattern "^ls( .*)?$"
-```
+| Kind      | Pattern                 | What it lets the agent do |
+| --------- | ----------------------- | ------------------------- |
+| `command` | `^ls( .*)?$`            | List directories          |
+| `path`    | `^workspace/.*$`        | Work inside one folder    |
+| `network` | `^api[.]example[.]com$` | Reach one API             |
 
-Three to start with:
-
-```bash
-# Let the agent list directories
---kind command --pattern "^ls( .*)?$"
-
-# Let it work inside one folder
---kind path --pattern "^workspace/.*$"
-
-# Let it reach one API
---kind network --pattern "^api[.]example[.]com$"
-```
+_(These were also command-line invocations until 2026-09-07. The governance
+command line was removed; the dashboard is the only surface now.)_
 
 **Test before you trust.** Switch the posture to `monitor` first: decisions are
 recorded but nothing is blocked, so you can see exactly what _would_ have
 happened.
 
-```bash
-openclaw governance policy set-mode monitor
-# ...let the agent work...
-openclaw governance audit tail --limit 30
-```
+Set the posture to `monitor` on the **Policy** panel, let the agent work, then
+read the **Audit ledger** panel.
 
 When the log shows what you expect, switch to `enforce`.
 
@@ -265,7 +253,7 @@ kind of thing.
 **Command line:** `--effect deny`.
 
 ```bash
-openclaw governance policy add-rule --kind path --pattern "^billing/.*$" --effect deny
+Add a rule: kind `path`, pattern `^billing/.*$`, effect **deny**
 ```
 
 ### One thing that surprises people
@@ -295,7 +283,7 @@ access to your workspace, and changing files is something you grant on purpose.
 **Command line:** `--access read` or `--access write`.
 
 ```bash
-openclaw governance policy add-rule --kind path --pattern "^src/.*$" --access read
+Add a rule: kind `path`, pattern `^src/.*$`, access **read**
 ```
 
 Commands and network addresses have no direction, a command is not a read or a

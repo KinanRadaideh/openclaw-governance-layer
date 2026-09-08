@@ -515,8 +515,9 @@ effect except by reading the ledger.
 
 "Matches exactly one literal" means the candidate is `^…$` whose body contains
 no unescaped metacharacter, which covers every documented example and every
-rule an `allow-always` approval generates. For those the overlap question is
-decided outright rather than guessed at.
+rule an approved `allow-always` proposal generates — the escalation escapes and
+anchors the resource it saw, so those patterns are literals by construction. For
+those the overlap question is decided outright rather than guessed at.
 
 Detection is otherwise exact-match based. General regular-expression subsumption
 is not attempted: `^ls.*$` subsuming `^ls -la$` is **not** reported. A detector
@@ -725,13 +726,11 @@ while an installation-wide one (`-`) is visible only to Administrator and above.
 
 Response is the created rule plus a `conflicts` array (possibly empty).
 
-CLI equivalent:
-
-```bash
-openclaw governance policy add-rule \
-  --kind network --pattern "^api[.]example[.]com$" \
-  --description "weather API" --ttl-minutes 120 --agent agent-a
-```
+_(There was a command-line equivalent until 2026-09-07 — `openclaw governance
+policy add-rule --kind network --pattern "^api[.]example[.]com$" --description
+"weather API" --ttl-minutes 120 --agent agent-a`. The governance command line was
+removed; this route and the dashboard that calls it are the only ways to author a
+rule. See `removed-cli-surface/README.md`.)_
 
 ## 11b. Where the data lives (M5)
 
@@ -827,7 +826,7 @@ denials.
 4. **The governance CLI requires no login.** A core denial now covers
    `governance <subcommand>`, so an _agent_ cannot reach it through a broad
    allow rule such as `^(node|npm|npx|pnpm) .*$`, which it could until QA
-   round 13 (finding 73), making `openclaw governance policy set-mode off` a
+   round 13 (finding 73), making a policy set to `off` a
    one-command bypass of the whole RBAC model. That denial is a backstop
    against the agent and does nothing about a **person** with shell access,
    which was always A6's point. The proper fix is a login on the CLI, and it

@@ -33,9 +33,9 @@ The gate is compiled into the core, not loaded as a plugin. **There is no config
 
 It attaches at `runBeforeToolCallHook`, the single function every tool call passes through, and it is provider-agnostic: it inspects a command, a path or a hostname and knows nothing about which model produced it. Swapping model providers changes who decides _what to attempt_ and nothing about who decides _whether it is allowed_.
 
-Around that core the layer adds an agent registry (an agent with no record is refused on every call), per-organisation storage so one installation's data is a property of the filesystem rather than a rule every reader must remember, attachments recorded by hash and never by content, and a command line that carries the same permissions as the dashboard.
+Around that core the layer adds an agent registry (an agent with no record is refused on every call), per-organisation storage so one installation's data is a property of the filesystem rather than a rule every reader must remember, and attachments recorded by hash and never by content.
 
-Two surfaces sit on top: a **web dashboard** and `openclaw governance ...` on the **command line**. The command line matters more than it sounds, because the dashboard is reachable only through an SSH tunnel and the moment you most need to inspect an installation is often before that tunnel exists.
+**One surface sits on top: a web dashboard**, and the HTTP control plane it is built on. Everything the layer does — accounts and roles, the policy and its rules, the agent registry, the audit ledger, escalations and the emergency stop — is administered there and nowhere else. _(There was a third surface, `openclaw governance …` on the command line, removed on 2026-09-07: it was never asked for by the design requirements, and it was carrying its own defects. The complete source, its tests, and instructions for restoring it are kept in [`docs-notes/removed-cli-surface/`](docs-notes/removed-cli-surface/README.md).)_
 
 ---
 
@@ -95,11 +95,20 @@ On Windows, `.\start-governance.ps1` does the equivalent.
 
 ### Checking which one you installed
 
+Open the dashboard and look for the **Governance** page. This fork serves it;
+stock OpenClaw has no such page at all.
+
+From a shell, the same question without a browser:
+
 ```bash
-openclaw governance policy show
+ls ~/.openclaw/governance
 ```
 
-This fork answers with the policy, or `Not signed in.` Stock OpenClaw answers `unknown command`. **`Not signed in.` is a pass**: the layer is present and refusing an unauthenticated caller, which is its job.
+This fork creates that directory on first run and keeps `policy.json`,
+`users.json`, `audit-ledger.jsonl` and the signing key in it. Stock OpenClaw
+never creates it. _(This used to say `openclaw governance policy show`, and read
+`Not signed in.` as the pass. That command no longer exists — see the note about
+surfaces above.)_
 
 ### Requirements
 
@@ -109,19 +118,48 @@ This fork answers with the policy, or `Not signed in.` Stock OpenClaw answers `u
 
 ## Documentation
 
-|                                                                          |                                                                                                  |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| [`docs-notes/FIRST-RUN.md`](docs-notes/FIRST-RUN.md)                     | **Start here.** What the layer is and the shortest path from a clean machine to a governed agent |
-| [`docs-notes/LINUX-INSTALL.md`](docs-notes/LINUX-INSTALL.md)             | The full deployment runbook                                                                      |
-| [`docs-notes/CLI-REFERENCE.md`](docs-notes/CLI-REFERENCE.md)             | Every `openclaw governance` command                                                              |
-| [`docs-notes/ROLE-MODEL.md`](docs-notes/ROLE-MODEL.md)                   | What each tier may do                                                                            |
-| [`docs-notes/WRITING-PERMISSIONS.md`](docs-notes/WRITING-PERMISSIONS.md) | How to write policy rules                                                                        |
-| [`docs-notes/QA-IN-PLAIN-TERMS.md`](docs-notes/QA-IN-PLAIN-TERMS.md)     | Every defect found and fixed, in ordinary language                                               |
-| [`GOVERNANCE.md`](GOVERNANCE.md)                                         | Operator overview and the engineering defect register                                            |
+|                                                                               |                                                                                                  |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| [`docs-notes/FIRST-RUN.md`](docs-notes/FIRST-RUN.md)                          | **Start here.** What the layer is and the shortest path from a clean machine to a governed agent |
+| [`docs-notes/LINUX-INSTALL.md`](docs-notes/LINUX-INSTALL.md)                  | The full deployment runbook                                                                      |
+| [`scripts/verify-ledger.mjs`](scripts/verify-ledger.mjs)                      | Verify the audit chain from outside the product: no build, no server, no sign-in                 |
+| [`docs-notes/removed-cli-surface/`](docs-notes/removed-cli-surface/README.md) | The command-line surface that was removed on 2026-09-07, why, and how to restore it              |
+| [`docs-notes/ROLE-MODEL.md`](docs-notes/ROLE-MODEL.md)                        | What each tier may do                                                                            |
+| [`docs-notes/WRITING-PERMISSIONS.md`](docs-notes/WRITING-PERMISSIONS.md)      | How to write policy rules                                                                        |
+| [`docs-notes/QA-IN-PLAIN-TERMS.md`](docs-notes/QA-IN-PLAIN-TERMS.md)          | Every defect found and fixed, in ordinary language                                               |
+| [`GOVERNANCE.md`](GOVERNANCE.md)                                              | Operator overview and the engineering defect register                                            |
 
 ## Status
 
-The layer is built and verified: **2,794 passing tests across 156 files in the governance suite** (plus 20 skipped by design), both typechecks clean, the test typecheck clean, and the full lint gate green end to end. Repeated QA sweeps on rotating axes, one real deployment and one operator using the dashboard have found **277 defects: 275 fixed**, one withdrawn as not a defect, and two open — one an unexplained observation, one a product decision rather than a repair. Figures re-measured 2026-09-05; the register in [`GOVERNANCE.md`](GOVERNANCE.md) and the backlog in `mg/REMAINING-WORK.md` are the authorities, and both are meant to be re-derived rather than quoted.
+_Current as of 2026-09-07._
+
+**The layer has been demonstrated, not only built.** On 2026-09-06, on a Linux
+VPS, a language model driving a registered agent was asked for a credential file,
+attempted the read, and **the gate refused it**. Audit ledger entry #25 records
+the attempt, the decision `deny`, and the name of the rule that produced it; the
+chain verified intact with its independent checkpoint agreeing. Until that run
+every proof in this repository was a test calling the gate directly.
+
+_(The attempt that failed first is the more useful one. Asked for `~/.ssh/id_rsa`
+the model refused on its own, before making any tool call, so nothing reached the
+gate and nothing was recorded — and the ledger's silence was correct. A request
+that sounds like a secret tests the model's training; a boring-looking file that
+is actually a credential tests this layer.)_
+
+Built and verified: **2,723 passing tests across 143 files in the governance
+suite** (plus 20 skipped by design), both typechecks clean, the test typecheck
+clean, and the full lint gate green end to end. Repeated QA sweeps on rotating
+axes, one real deployment and an operator using the dashboard have found **284
+defects: 281 fixed**, one withdrawn as not a defect, and three open — one an
+unexplained observation and two product decisions rather than repairs. Figures
+re-measured 2026-09-07; the register in [`GOVERNANCE.md`](GOVERNANCE.md) and the
+backlog in `mg/REMAINING-WORK.md` are the authorities, and both are meant to be
+re-derived rather than quoted.
+
+_(This section described the layer as "built and verified" for a day after it had
+been demonstrated, and carried the defect counts from before the last two
+sessions. The result a reader most wants was the one the document did not
+mention.)_
 
 Two honest caveats, both deliberate:
 

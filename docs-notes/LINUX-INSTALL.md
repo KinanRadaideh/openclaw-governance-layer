@@ -415,14 +415,44 @@ already in it.
 
 Installing is not the same as governing, and the difference is silent. Check:
 
+Open the dashboard through the tunnel (§5) and read three panels:
+
+| Panel                 | Answers                                                         |
+| --------------------- | --------------------------------------------------------------- |
+| **Deployment report** | Linux target, memory floor, loopback listener, file permissions |
+| **Policy**            | The core denials and the baseline allowances in force           |
+| **Audit ledger**      | Entries appearing as things happen                              |
+
+_(Until 2026-09-07 these were three commands — `openclaw governance deployment`,
+`policy show` and `audit tail` — and this section argued that the deployment
+report "was written for exactly this moment" because it ran over a plain SSH
+session before any tunnel existed. **That is now a real cost of the removal**:
+set the tunnel up first, because there is no longer a way to answer these
+questions without it. See `removed-cli-surface/README.md`.)_
+
+_(A sentence stood here reading **"`governance deployment` was written for
+exactly this moment. It runs over a plain SSH session, before any tunnel
+exists."** — in the present tense, two lines under the note saying the command
+no longer exists. It was the passage the removal pass deliberately kept because
+it argued **against** the removal; keeping the argument was right and leaving it
+phrased as an instruction was not, so it is quoted here as history instead.)_
+
+### The one check that still needs no tunnel, no build and no sign-in
+
+The audit chain can be verified from a plain SSH session. Of the three panels
+above, none survives without the dashboard; this is the one question that does:
+
 ```bash
-openclaw governance deployment      # Linux target, memory floor, loopback listener, file permissions
-openclaw governance policy show     # the core denials and the baseline allowances
-openclaw governance audit tail      # entries appear as things happen
+node scripts/verify-ledger.mjs
 ```
 
-`governance deployment` was written for exactly this moment. It runs over a
-plain SSH session, before any tunnel exists.
+Exit `0` is intact, `1` is broken, `2` is **could not check** — which is not a
+pass. It reads three files, imports nothing from `src/`, and re-implements the
+hashing, so it answers when the build is broken or the Gateway will not start
+(T62). Keep the output: it is the second witness requirement 8 needs, because a
+verdict the audited system reports about itself is the shape of the problem
+rather than a solution to it. The dashboard's own verification row prints this
+same command beside its answer.
 
 ---
 
@@ -513,9 +543,7 @@ sentence "we drove Kimi through the gate and watched it refuse a command" cannot
 be written until somebody does it. That is the first thing to do on the VPS, and
 the ledger is where the evidence will be:
 
-```bash
-openclaw governance audit tail
-```
+Open the **Audit ledger** panel on the dashboard.
 
 An entry naming the agent, the command it attempted and the decision is the
 demonstration. Take a copy of that output. It is Chapter 4 evidence.
@@ -549,15 +577,15 @@ assumptions here have not held automatically before, which is why
 **On Ubuntu 24.04.4 LTS, Node v22.23.2, 2026-08-28**, from a clean tree with no
 `node_modules` and no `dist`:
 
-| Step                                      | Result                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm install` (workspace, 1397 packages) | **ok**                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `pnpm build`                              | **ok**, `dist/entry.js` produced                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `pnpm ui:build`                           | **ok**, `dist/control-ui` produced                                                                                                                                                                                                                                                                                                                                                                                                       |
-| Platform probe                            | **14 / 14 passed**                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `openclaw --version`                      | **OpenClaw 2026.8.1**                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `openclaw governance --help`              | **Re-measured 2026-09-01**: `agent agents audit backend deployment groups kill login logout pending policy requests sessions set-policy-authoring whoami`, fifteen subcommands. _(The row recorded nine on 2026-08-28 and did not list `policy`, which certainly existed then; it has been stale since T34 and T40 added `backend` and `requests`. A list used to confirm "the layer is present" has to be re-derived, not remembered.)_ |
-| The 8 GB check                            | Correctly **warned** at 7 GB rather than refusing                                                                                                                                                                                                                                                                                                                                                                                        |
+| Step                                      | Result                                                                                                                                                                                         |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install` (workspace, 1397 packages) | **ok**                                                                                                                                                                                         |
+| `pnpm build`                              | **ok**, `dist/entry.js` produced                                                                                                                                                               |
+| `pnpm ui:build`                           | **ok**, `dist/control-ui` produced                                                                                                                                                             |
+| Platform probe                            | **14 / 14 passed**                                                                                                                                                                             |
+| `openclaw --version`                      | **OpenClaw 2026.8.1**                                                                                                                                                                          |
+| ~~`openclaw governance --help`~~          | **Re-measured 2026-09-01**: 25 subcommands. **The surface was removed on 2026-09-07**; this row is kept because it is a measurement that was true when taken, and the command no longer exists |
+| The 8 GB check                            | Correctly **warned** at 7 GB rather than refusing                                                                                                                                              |
 
 **Not yet verified, and both need a real host. That is T3:** the dashboard
 loaded through an SSH tunnel, and the systemd unit surviving a reboot. The tree
@@ -585,8 +613,7 @@ match a tool call for a **different file**.
 shown.** `ensureGroupDir` created the tree owner-only and then the first write
 to any state file widened its parent directory back to `0755`, because none of
 the 28 governance write sites passed `dirMode`. Windows reports both permission
-checks as "unknown", so the path had never executed anywhere. On a fresh VPS
-`openclaw governance deployment` would have reported **"Mode is 0755; expected
+checks as "unknown", so the path had never executed anywhere. On a fresh VPS the deployment report would have shown **"Mode is 0755; expected
 0700"** against documentation promising 0700. Fixed by routing every governance
 write through one `writeGovernanceJson` that states both modes.
 
