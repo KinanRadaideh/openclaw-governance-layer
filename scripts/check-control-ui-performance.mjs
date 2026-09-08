@@ -24,9 +24,41 @@ export const CONTROL_UI_STARTUP_JS_GZIP_TOLERANCE_BYTES = 1024;
 export const CONTROL_UI_PERFORMANCE_BUDGETS = Object.freeze({
   startupJsRequests: 18,
   startupCssRequests: 1,
-  // 317 KiB preserves headroom after the device-auth upgrade hook and sidebar
+  // 317 KiB preserved headroom after the device-auth upgrade hook and sidebar
   // session-render extraction (2026-07); the migration UI itself remains lazy.
-  startupJsGzipBytes: 317 * KIB,
+  //
+  // **Raised to 318 KiB on 2026-09-08 (finding 321), and the reason is the
+  // whole of the intentional decision this comment asks for.**
+  //
+  // The governance layer's operator-facing text was deliberately expanded
+  // across findings 296-320, because *unclear text was itself the defect class
+  // being fixed*: a hint that told a User with no agents "You manage every
+  // agent" (303), a permission whose state was invisible (304), a panel naming
+  // a command line deleted the day before (320). Those sentences are the
+  // product, not decoration.
+  //
+  // They land in **startup** JS because `ui/src/i18n/locales/*.ts` is one
+  // module per locale, loaded up front, while the governance *page* is lazy.
+  // So every sentence added anywhere in the product is multiplied across the
+  // locale set and charged to startup. Measured on this tree, three points:
+  //
+  //     HEAD                             324522 B   passes, 86 B of headroom
+  //     + findings 296-304 (dashboard)   325138 B   over by 530 B
+  //     + findings 305-320 (this pass)   325241 B   over by 633 B
+  //
+  // **The build had been failing since the first of those and nobody had run
+  // it** — `node scripts/build-all.mjs` is in the handoff's verification list
+  // precisely because "check the build, not just the source" (finding 284), and
+  // every source-level check stayed green throughout.
+  //
+  // 318 KiB restores about the headroom that existed before (391 B). That is
+  // deliberately not generous: raising this a kilobyte per sentence is not a
+  // strategy, and **the real answer is to stop charging page-specific strings
+  // to startup** — split the locale module so a page's text loads with the
+  // page, as the page's own code already does. That is a structural change to
+  // upstream's i18n loading and is recorded as a decision (T64) rather than
+  // taken here in passing.
+  startupJsGzipBytes: 318 * KIB,
   // 45 KiB CSS ceilings maintainer-approved 2026-07 alongside the interleaved
   // sidebar zone styling; headroom over the ~36.5 KiB post-diet baseline.
   startupCssGzipBytes: 45 * KIB,

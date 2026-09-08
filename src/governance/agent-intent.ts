@@ -55,6 +55,14 @@
 //     re-read. An exported function with no caller is finding 113's shape, a
 //     capability that looks present and is not, so it was deleted rather than
 //     wired up to give it something to do.
+//
+//     **Read that as written: for *session end*.** A `forgetAgentIntent` does
+//     now exist, added 2026-09-07 for finding 273, and it clears at the start
+//     of a **turn** — a different boundary, for a different reason, and with a
+//     caller and a wiring guard behind it. See the function's own comment. This
+//     bullet stays, because the reasoning above is still why nothing clears at
+//     session end; but a reader meeting the module header first would otherwise
+//     take it as saying the symbol does not exist.
 //   - Each entry is clamped and passed through the ledger's own redactor before
 //     it is stored, not only before it is written. Model narration quotes what
 //     the model was working with, which on a bad day is a credential.

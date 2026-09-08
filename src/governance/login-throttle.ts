@@ -11,14 +11,18 @@
 // attacker cannot force a Gateway restart from here), and it keeps failed
 // login attempts out of persistent storage.
 //
-// **The command line's `governance login` is not throttled, and cannot be by
-// this module**. It runs in its own process, so every invocation would start
-// with an empty table. That is not a gap being deferred: the command line is not
-// a security boundary (`cli-identity.ts` states why, and the filesystem is the
-// real one there), so what that surface owes is a *record* rather than a
-// refusal, and it writes one (finding 226). Anyone reading this file for "why is
-// the CLI not rate-limited" should read that pair rather than add a second
-// throttle here.
+// **There is no command line any more, and this paragraph is kept because the
+// reasoning outlives it.** Until 2026-09-07 `governance login` existed and was
+// deliberately *not* throttled by this module: it ran in its own process, so
+// every invocation started with an empty table. That was not a gap being
+// deferred — the command line was not a security boundary, the filesystem was
+// the real one there, so what that surface owed was a *record* rather than a
+// refusal, and it wrote one (finding 226).
+//
+// The general shape is what to carry forward: **an in-memory throttle protects
+// exactly one process**, so any future surface that runs outside the Gateway
+// inherits the same limitation and owes the same record. The removed surface's
+// source is archived in `docs-notes/removed-cli-surface/`.
 
 import { canonicalAccountName } from "./account-name.js";
 const MAX_ATTEMPTS = 5;

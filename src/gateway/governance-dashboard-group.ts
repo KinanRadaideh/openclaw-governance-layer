@@ -6,6 +6,11 @@
 // five route modules.
 import type { ServerResponse } from "node:http";
 import { findAgent } from "../governance/agent-registry.js";
+import {
+  canAuthorPolicyForAgent,
+  canManageAgent,
+  type GovernanceActor,
+} from "../governance/permissions.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
 import { sendJson } from "./http-common.js";
 
@@ -95,6 +100,55 @@ export async function requireAgentInGroup(
   // the login response already uses to avoid an account-existence oracle.
   sendJson(res, 403, {
     error: { message: `You do not manage agent "${agentId}"`, type: "forbidden" },
+  });
+  return false;
+}
+
+/**
+ * May this caller change the rules that bind this agent? Refuses with the
+ * reason that actually applies.
+ *
+ * ## Why the reason has to be chosen rather than fixed
+ *
+ * `canAuthorPolicyForAgent` is a conjunction — **manage this agent** *and*
+ * **author policy at all** — and five routes reported only the first half of
+ * it. So a User whose rule editing Root had withheld (T27) met
+ * *"You do not manage agent \"scout\""* about an agent they demonstrably do
+ * manage: measured on a running gateway, the same account stopped that same
+ * agent through the kill switch one request later.
+ *
+ * T27 exists precisely to separate *may I act on this agent?* from *may I
+ * change the rules it is judged by?*, and the refusal it produced erased its
+ * own distinction. The operator-visible cost is a wrong next step: they go and
+ * ask for an assignment they already hold, instead of asking for their rule
+ * editing back — and Root, reading the same words, has no reason to look at the
+ * switch they themselves set.
+ *
+ * ## What it discloses, which is nothing new
+ *
+ * The withheld branch is reachable **only** when `canManageAgent` is already
+ * true, so it is told to an account that can see the agent, is assigned it, and
+ * can already stop it. It reveals a setting that account's own Identity panel
+ * shows. The "not yours" wording is unchanged for every other caller, so the
+ * anti-oracle reasoning `requireAgentInGroup` states above is untouched.
+ */
+export function requireAgentPolicyAuthoring(
+  res: ServerResponse,
+  actor: GovernanceActor,
+  agentId: string,
+): boolean {
+  if (canAuthorPolicyForAgent(actor, agentId)) {
+    return true;
+  }
+  sendJson(res, 403, {
+    error: {
+      message: canManageAgent(actor, agentId)
+        ? `Rule editing has been withheld from this account, so it cannot change the rules ` +
+          `for agent "${agentId}". You can still prompt and stop it. Ask a Root to restore ` +
+          `rule editing for this account.`
+        : `You do not manage agent "${agentId}"`,
+      type: "forbidden",
+    },
   });
   return false;
 }

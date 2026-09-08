@@ -9,10 +9,14 @@
 // other side: a canonical assignment and a query typed the way an operator
 // types it.
 //
-// Both surfaces hand this function a raw string. `register.governance.policy.ts`
-// passes `options.agent?.trim()` and `governance-dashboard-api.ts` passes
-// `agentId.trim()`, so a User assigned `scout` who types `--agent Scout` is
-// told they do not manage an agent they do manage.
+// The caller hands this function a raw string: `governance-dashboard-api.ts`
+// passes `agentId.trim()`, so a User assigned `scout` who types `Scout` is told
+// they do not manage an agent they do manage.
+//
+// _(This read "**Both** surfaces hand this function a raw string" and named
+// `register.governance.policy.ts` as the second. That surface was removed on
+// 2026-09-07; the defect and this test are unchanged, because the dashboard
+// half was always the reachable one.)_
 //
 // The failure direction is the safe one again, an unfolded query cannot match
 // a canonical entry, so it only ever withholds, which is again why nobody hit

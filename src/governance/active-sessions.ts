@@ -14,6 +14,7 @@
 // because "no sessions" and "cannot see sessions" must not look identical to
 // somebody deciding whether to intervene.
 import { canViewAgent, type GovernanceActor } from "./permissions.js";
+import { listRunningPromptsForSessions } from "./prompt-runs.js";
 
 export type ActiveAgentSession = {
   runId: string;
@@ -97,7 +98,56 @@ export function listActiveSessions(params: {
     return { supported: false, sessions: [], sampledAt };
   }
   const inGroup = new Set(params.groupAgentIds);
-  const sessions = registeredSupplier()
+  // ------------------------------------------------------------------------
+  // **Two sources, because the Gateway's registry cannot see half the runs**
+  // (2026-09-08, finding 319).
+  //
+  // The supplier above reads `ops.chatAbortControllers`, which is populated by
+  // the Gateway's own admission path (`chat-send-admission.ts` and the agent
+  // run phase). **A prompt sent from the governance dashboard never goes
+  // through it**: `runGovernancePrompt` calls `agentCommandFromIngress`
+  // directly, and nothing on that path calls `registerChatAbortController`.
+  //
+  // So this panel — the one whose stated job is catching a runaway agent, and
+  // the Administrator's half of design requirement #2 — was blank for the one
+  // way the governance product itself starts an agent, which is also the only
+  // way the **User** tier can start one at all (§1.6, "Users may strictly
+  // prompt the agents for task execution"). Measured rather than inferred: a
+  // dashboard prompt in flight showed on `agent/runs` for twenty consecutive
+  // polls while this route answered `sessions: []` every time, under the words
+  // *"No agent sessions are running"* and *"Sessions appear here while an
+  // agent is working"*.
+  //
+  // **Merged here rather than fixed at the run path**, deliberately. Making the
+  // governance runner register a Gateway abort controller would put governance
+  // into Gateway internals, which `agent-runner.ts`'s header forbids in the
+  // first paragraph and for a reason that still holds. The prompt-run table
+  // already holds the run id, the agent, the account and the start time; the
+  // view was reading one of the two registries the product keeps.
+  //
+  // **The two filters below then apply to both sources**, which is the whole
+  // reason the merge happens before them and not after: finding 139 was one of
+  // those filters missing on one path, and a second source that scoped itself
+  // would be the same mistake waiting to happen again.
+  //
+  // De-duplicated by run id. Nothing writes to both today; a future path that
+  // did would otherwise render twice.
+  // ------------------------------------------------------------------------
+  const fromGateway = registeredSupplier();
+  const seen = new Set(fromGateway.map((session) => session.runId));
+  const fromGovernance = listRunningPromptsForSessions()
+    .filter((run) => !seen.has(run.runId))
+    .map((run) => ({
+      runId: run.runId,
+      agentId: run.agentId,
+      // The per-(agent, account) conversation key this run belongs to, in the
+      // shape `governanceSessionKey` mints. Written out rather than imported so
+      // this module keeps depending on nothing but permissions and the run
+      // table; `agent-conversation.ts` reaches much further.
+      sessionKey: `agent:${run.agentId}:governance:${run.username}`,
+      startedAtMs: run.startedAt,
+    }));
+  const sessions = [...fromGateway, ...fromGovernance]
     .filter((session) => inGroup.has(session.agentId))
     .filter((session) => canViewAgent(params.actor, session.agentId))
     // A new object per session on purpose. These rows are borrowed from the

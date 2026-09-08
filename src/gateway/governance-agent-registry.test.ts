@@ -173,6 +173,7 @@ describe("listing agents", () => {
       registered: boolean;
       displayName?: string;
       adminId?: string;
+      adminUsername?: string;
       codexAllowed?: boolean;
     }[];
     // **The registry row first, then the reconstructed one**, which is the
@@ -186,6 +187,17 @@ describe("listing agents", () => {
       agentId: "agent-known",
       displayName: "Known",
       adminId: org.admin.id,
+      // **The owner's name travels with the row, since 2026-09-08** (finding
+      // 302). The panel resolves `adminId` against the account list, and that
+      // list is Root-only, so every tier below Root rendered the raw id —
+      // "Owned by user-1788814759825-7e0761b7" on an Administrator's own
+      // agents. Only the server can do the mapping for those tiers.
+      //
+      // Asserted here rather than relaxed to `toMatchObject`: this is one of
+      // two exhaustive shape checks on this route, and the exhaustiveness is
+      // what makes it catch a field appearing that nobody meant to send. It
+      // caught this one, which is the system working.
+      adminUsername: org.admin.username,
       registered: true,
       codexAllowed: false,
     });

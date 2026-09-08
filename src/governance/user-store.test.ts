@@ -570,3 +570,70 @@ describe("assigned agent ids are folded the way every other id is (finding 200)"
     expect(stored?.assignedAgents).toEqual(["main"]);
   });
 });
+
+describe("a username may not be one of the ledger's labelled origins", () => {
+  // ------------------------------------------------------------------------
+  // Found by creating a Root called `cli` on a fresh install and then using it
+  // (2026-09-08). It worked. Every administrative action it then attempted was
+  // refused by `splitAuditActor` — a named account carrying a labelled origin's
+  // name is always a mistake — while the account could not be deleted, demoted
+  // or replaced, Root being permanent and bootstrap refusing once an
+  // installation is claimed. Recoverable only by deleting `users.json` by hand.
+  //
+  // And the failure was not clean: `createUser` writes inside its lock and
+  // records the action after it, so creating an Administrator as that Root
+  // returned 400 to the operator, **created the account anyway, and wrote no
+  // ledger entry for it** — an administrative action that happened, reported as
+  // a failure, and absent from the audit trail.
+  // ------------------------------------------------------------------------
+  const RESERVED = [
+    "cli",
+    "bootstrap",
+    "unknown",
+    "unauthenticated",
+    "hitl-approval",
+    "host-prompt",
+  ];
+
+  it.each(RESERVED)("refuses %s", async (username) => {
+    await expect(
+      createUser(
+        { username, password: "correcthorse", role: "root", groupId: TEST_GROUP },
+        TEST_ACTOR,
+      ),
+    ).rejects.toThrow(/reserved/i);
+    expect(await countUsers(), "and writes nothing on the way out").toBe(0);
+  });
+
+  it("refuses a spelling that only folds onto a reserved name", async () => {
+    // **The half a raw check misses.** The reserved set is lower case and
+    // `createUser` stores a username with its case intact, so `CLI` passed
+    // straight through: an account that worked, that folded onto `cli` for
+    // uniqueness, and whose entries a human reading the trail could not tell
+    // from the labelled origin's. Finding 202's shape — one fold applied at one
+    // end of a comparison and not the other.
+    for (const spelling of ["CLI", "Cli", "  cli  ", "HITL-Approval"]) {
+      await expect(
+        createUser(
+          { username: spelling, password: "correcthorse", role: "root", groupId: TEST_GROUP },
+          TEST_ACTOR,
+        ),
+      ).rejects.toThrow(/reserved/i);
+    }
+    expect(await countUsers()).toBe(0);
+  });
+
+  it("still allows a name that merely contains one", async () => {
+    // The guard is equality after folding, not a substring test: an operator
+    // called `clive` or `bootstrapper` is not claiming a labelled origin, and a
+    // guard that refused them would be its own defect.
+    for (const username of ["clive", "bootstrapper", "unknowns"]) {
+      await expect(
+        createUser(
+          { username, password: "correcthorse", role: "administrator", groupId: TEST_GROUP },
+          TEST_ACTOR,
+        ),
+      ).resolves.toMatchObject({ username });
+    }
+  });
+});

@@ -11,7 +11,12 @@ import { readJsonIfExists } from "../infra/json-files.js";
 import { isValidAgentId, normalizeAgentId } from "../routing/session-key.js";
 import { canonicalAccountName } from "./account-name.js";
 import { purgeAccountState } from "./account-purge.js";
-import { ADMIN_ACTIONS, recordAdminAction, type AuditActorInput } from "./admin-audit.js";
+import {
+  ADMIN_ACTIONS,
+  isReservedActorName,
+  recordAdminAction,
+  type AuditActorInput,
+} from "./admin-audit.js";
 import { withFileLock } from "./file-lock.js";
 import { newGovernanceId } from "./ids.js";
 import { forgetLoginThrottle } from "./login-throttle.js";
@@ -375,6 +380,40 @@ export async function createUser(
       throw new Error(`password must be at least ${MIN_PASSWORD_LENGTH} characters`);
     }
     const canonical = canonicalUsername(normalized);
+    // ------------------------------------------------------------------
+    // **A username may not be one of the ledger's labelled origins.**
+    //
+    // Checked here, inside the lock and before the write, because this is the
+    // one place both creation paths pass through: the dashboard's `users` route
+    // and `bootstrap-root`. Anywhere later is too late — see below for what
+    // "too late" cost.
+    //
+    // **Found by creating a Root called `cli` on a fresh install** (2026-09-07).
+    // It succeeded. Every administrative action it then attempted was refused
+    // by `splitAuditActor`, because a named account carrying a labelled
+    // origin's name is always a mistake — but the account itself could not be
+    // deleted, demoted or replaced, Root being permanent and bootstrap refusing
+    // once an installation is claimed. **A brick, recoverable only by deleting
+    // `users.json` on the server by hand.**
+    //
+    // And the failure was not clean. `createUser` writes inside this lock and
+    // records the action *after* it, so creating an Administrator as that Root
+    // returned **400 to the operator, created the account anyway, and wrote no
+    // ledger entry for it** — a state change that reports failure, is real, and
+    // is absent from the audit trail. That last part is the one that matters:
+    // requirement 5 asks for every administrative action to be recorded, and
+    // this was a route to an unrecorded one.
+    //
+    // Refusing the name closes all of it at the source, which is why the fix is
+    // here rather than in ordering the write against the record.
+    // ------------------------------------------------------------------
+    if (isReservedActorName(normalized)) {
+      throw new Error(
+        `"${normalized}" is reserved: the audit ledger uses it to label actions that no ` +
+          `account performed, so an account of that name could not have its actions recorded. ` +
+          `Choose a different username.`,
+      );
+    }
     if (file.users.some((u) => canonicalUsername(u.username) === canonical)) {
       throw new Error(`username "${normalized}" already exists`);
     }
@@ -576,7 +615,10 @@ export class DuplicateOrganisationError extends Error {
  *
  * It is *not* a defence against an attacker: anyone who can edit `users.json`
  * can add a group by hand, exactly as they could add a Root. The boundary there
- * is the filesystem's, as `cli-identity.ts` says of the command line.
+ * is the filesystem's. _(This cited `cli-identity.ts`, which made the same
+ * argument for the command line. That surface was removed on 2026-09-07 and its
+ * source is archived in `docs-notes/removed-cli-surface/`; the point about the
+ * filesystem being the real boundary is unchanged and belongs here.)_
  *
  * The deployment shape this assumes is the one §1.6 describes: one VPS runs the
  * Gateway, and the organisation's people reach it from their own computers

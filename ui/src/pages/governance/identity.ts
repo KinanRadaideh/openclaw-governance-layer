@@ -42,7 +42,14 @@ import { GovernanceApiError, type GovernanceIdentity } from "./api.ts";
  * stale page and a lying one.
  */
 export function isSessionLost(err: unknown): boolean {
-  return err instanceof GovernanceApiError && err.status === 401;
+  // **`authenticating` is the whole of T61's fix.** A 401 from `login` or
+  // `bootstrap-root` says the credentials are wrong; a 401 from anything else
+  // says the session has gone. Matching on the status alone made a mistyped
+  // password render "Your session ended, so the page was cleared rather than
+  // left showing out-of-date information" — an event that had not happened, on
+  // a screen the operator was already looking at, in place of the server's own
+  // "Invalid credentials", which `run()` then never reached.
+  return err instanceof GovernanceApiError && err.status === 401 && !err.authenticating;
 }
 
 /** Administrator and Root: the tiers that may change policy and accounts. */
@@ -146,7 +153,7 @@ export function canManageAgent(identity: GovernanceIdentity | null, agentId: str
  * folding unconditionally would turn a query for `###` into a query for the
  * installation's default agent.
  */
-function canonicalAgentQuery(agentId: string): string | undefined {
+export function canonicalAgentQuery(agentId: string): string | undefined {
   const trimmed = agentId?.trim() ?? "";
   if (!trimmed) {
     return undefined;

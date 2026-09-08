@@ -1,0 +1,132 @@
+// QA scratch probe: renders the governance page in a real browser, per tier,
+// from **snapshots captured off a running gateway** rather than a hand-written
+// fixture — `docs-notes/qa-sweep-2026-09-08/capture-tier-snapshots.mjs` writes
+// the JSON beside this file.
+//
+// A fixture is part of the check (finding 251): the two layout defects this
+// project lost most time to were both a fixture omitting the thing the defect
+// lived in. Feeding the server's real answers removes that whole class of miss.
+//
+// **Not a regression test and not meant to stay.** It asserts almost nothing on
+// purpose; its printed output is the artefact.
+import { describe, expect, it } from "vitest";
+import snapshots from "./__qa-tier-snapshots.json";
+import "./governance-page.ts";
+import "../../styles.css";
+import "../../styles/governance.css";
+
+const hasBrowserLayout = !navigator.userAgent.toLowerCase().includes("jsdom");
+
+type PageState = {
+  loading: boolean;
+  updateComplete: Promise<unknown>;
+  requestUpdate(): void;
+} & HTMLElement;
+
+let page: PageState;
+
+async function mount(state: Record<string, unknown>): Promise<PageState> {
+  const { page: browserPage } = await import("vitest/browser");
+  await browserPage.viewport(1280, 900);
+  document.body.replaceChildren();
+  page = document.createElement("openclaw-governance-page") as PageState;
+  page.style.display = "block";
+  page.style.width = "1100px";
+  document.body.append(page);
+  await page.updateComplete;
+  Object.assign(page, { loading: false, ...state });
+  page.requestUpdate();
+  await page.updateComplete;
+  await page.updateComplete;
+  await new Promise((resolve) => {
+    requestAnimationFrame(() => resolve(null));
+  });
+  await new Promise((resolve) => {
+    setTimeout(resolve, 60);
+  });
+  return page;
+}
+
+type Snapshot = Record<string, { status: number; body: unknown }>;
+
+/**
+ * Turns one captured tier into the component fields the page renders from.
+ *
+ * A route the tier is refused contributes **nothing**, which is what the page
+ * itself does: `refreshData` leaves the field at its initial value when the
+ * promise rejects, so a 403 must not become an empty array here or the render
+ * would be of a state the product never reaches.
+ */
+function stateFrom(snapshot: Snapshot): Record<string, unknown> {
+  const ok = (field: string): unknown =>
+    snapshot[field]?.status === 200 ? snapshot[field]?.body : undefined;
+  const state: Record<string, unknown> = {};
+  const put = (field: string, value: unknown): void => {
+    if (value !== undefined) {
+      state[field] = value;
+    }
+  };
+  put("identity", ok("identity"));
+  put("policy", ok("policy"));
+  put("ledger", ok("ledger"));
+  put("ruleRequests", ok("ruleRequests"));
+  put("systemStatus", ok("systemStatus"));
+  put("deployment", ok("deployment"));
+  put("activeSessions", ok("activeSessions"));
+  put("users", ok("users"));
+  put("codexBackend", ok("codexBackend"));
+  const agents = ok("agents") as { agents?: unknown } | undefined;
+  put("agents", agents?.agents);
+  const pending = ok("pendingDecisions") as
+    | { decisions?: unknown; shedUndecided?: unknown }
+    | undefined;
+  put("pendingDecisions", pending?.decisions);
+  put("pendingDecisionsShed", pending?.shedUndecided);
+  return state;
+}
+
+function dumpSections(label: string): void {
+  const sections = [...page.querySelectorAll(".settings-section")];
+  const lines: string[] = [`\n########## ${label} — ${sections.length} sections ##########`];
+  for (const section of sections) {
+    const heading = section.querySelector(".settings-section__heading")?.textContent?.trim();
+    lines.push(`\n=== SECTION: ${heading ?? "(no heading)"} ===`);
+    // `innerText`, not `textContent`, and the rule is suppressed rather than
+    // followed: this probe exists to print what a person *sees*, and
+    // `textContent` runs every label, hint and button into one line with no
+    // breaks, which is unreadable for the one job this file has.
+    // eslint-disable-next-line unicorn/prefer-dom-node-text-content
+    const text = (section as HTMLElement).innerText
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .join("\n  ");
+    lines.push(`  ${text}`);
+    const controls = [...section.querySelectorAll("button, input, select, textarea")].map((el) => {
+      const tag = el.tagName.toLowerCase();
+      const name = (
+        (el as HTMLElement).textContent?.trim() ||
+        el.getAttribute("aria-label") ||
+        (el as HTMLInputElement).placeholder ||
+        ""
+      ).replace(/\s+/gu, " ");
+      const disabled = (el as HTMLButtonElement).disabled ? " [DISABLED]" : "";
+      return `${tag}:"${name}"${disabled}`;
+    });
+    lines.push(`  CONTROLS: ${controls.join(" | ")}`);
+  }
+  // eslint-disable-next-line no-console
+  console.log(lines.join("\n"));
+}
+
+const TIERS = Object.keys(snapshots as Record<string, Snapshot>);
+
+describe.skipIf(!hasBrowserLayout)("tier sweep", () => {
+  for (const tier of TIERS) {
+    it(`renders for ${tier}`, async () => {
+      await mount(stateFrom((snapshots as Record<string, Snapshot>)[tier]));
+      dumpSections(tier);
+      expect(page.querySelectorAll(".settings-section").length).toBeGreaterThan(0);
+    });
+  }
+});

@@ -28,7 +28,7 @@ import { listActiveSessions } from "../governance/active-sessions.js";
 import { listAgents } from "../governance/agent-registry.js";
 import { tailLedger, verifyLedgerChain } from "../governance/audit-ledger.js";
 import { projectLedgerForActor } from "../governance/ledger-view.js";
-import { listPendingDecisions } from "../governance/pending-decisions.js";
+import { readPendingDecisions } from "../governance/pending-decisions.js";
 import { canViewAgent, type GovernanceActor } from "../governance/permissions.js";
 import { loadPolicy } from "../governance/policy-store.js";
 import type { GovernanceRole } from "../governance/roles.js";
@@ -160,12 +160,23 @@ export async function handleGovernanceOversightRoutes(
       return true;
     }
     const actor = toActor(session);
-    const all = await listPendingDecisions(groupId);
-    sendJson(
-      res,
-      200,
-      all.filter((entry) => canViewAgent(actor, entry.agentId)),
-    );
+    // **An object rather than a bare array, since T56.** The response used to be
+    // the rows alone, which made it impossible for this surface to say the one
+    // thing an operator needs to know before trusting it: that the stack has
+    // dropped unanswered questions to stay under its cap. `readPendingDecisions`
+    // returns both from a single read so the count and the rows cannot come from
+    // two different moments.
+    //
+    // `shedUndecided` is a property of the **store**, not of this reader's
+    // filtered view, and is deliberately not adjusted for the tier filter below:
+    // it says "this stack has dropped N questions", which is true whoever is
+    // looking. Scaling it to what the caller may see would invent a number that
+    // describes nothing.
+    const { decisions, shedUndecided } = await readPendingDecisions(groupId);
+    sendJson(res, 200, {
+      decisions: decisions.filter((entry) => canViewAgent(actor, entry.agentId)),
+      shedUndecided,
+    });
     return true;
   }
 

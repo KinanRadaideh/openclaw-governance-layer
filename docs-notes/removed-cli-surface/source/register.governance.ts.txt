@@ -14,7 +14,12 @@ import {
   toCliAuditActor,
 } from "../../governance/cli-identity.js";
 import { lockDownAgent, releaseAgentLockdown } from "../../governance/kill-switch.js";
-import { decidePendingDecision, listPendingDecisions } from "../../governance/pending-decisions.js";
+import {
+  decidePendingDecision,
+  describeShedPendingDecisions,
+  listPendingDecisions,
+  readPendingDecisions,
+} from "../../governance/pending-decisions.js";
 import {
   canManageAccounts,
   canManageAgent,
@@ -371,11 +376,24 @@ export function registerGovernanceCommands(program: Command): void {
           //
           // **This is the only way to stop a run started here**, and the reason
           // is architectural: the in-flight run table is per **process**, and
-          // this command runs the agent in its own. `governance agent cancel`
-          // exists as of T34, but it reaches the *Gateway's* run registry. It
-          // can stop a run somebody started from the dashboard and cannot see
-          // this one at all. (This comment said "there is no
-          // `governance agent cancel` command" for a day after T34 added one.)
+          // this command runs the agent in its own.
+          //
+          // **`governance agent cancel` does not help, and this comment said it
+          // did** (corrected 2026-09-07 (ii), while surveying T51). It read
+          // "it reaches the *Gateway's* run registry. It can stop a run
+          // somebody started from the dashboard". It cannot: `cancelPromptRun`
+          // reads the same module-level `Map` in `prompt-runs.ts`, so from a
+          // fresh CLI process that table is empty and the command can see
+          // neither this run nor the Gateway's. It says so at the point of use;
+          // this comment was the one place that claimed otherwise.
+          //
+          // Worth correcting rather than leaving, because of *when* it would be
+          // read: an operator during an incident, deciding whether they have a
+          // narrow tool or only the kill switch. Same class as finding 278's
+          // `--skip-ui` — a description promising a consequence it does not
+          // have — arriving in a comment rather than in a flag. (This comment
+          // also said "there is no `governance agent cancel` command" for a day
+          // after T34 added one, so it has now been wrong in both directions.)
           const interrupted = new AbortController();
           const onSigint = () => interrupted.abort();
           process.once("SIGINT", onSigint);
@@ -813,9 +831,19 @@ export function registerGovernanceCommands(program: Command): void {
         // Scoped exactly as the GET route scopes it. An unscoped stack is the
         // leak the rule-request queue carries a paragraph about, one file over.
         const actor = toCliActor(identity);
-        const visible = (await listPendingDecisions(groupId)).filter((entry) =>
-          canViewAgent(actor, entry.agentId),
-        );
+        const { decisions, shedUndecided } = await readPendingDecisions(groupId);
+        const visible = decisions.filter((entry) => canViewAgent(actor, entry.agentId));
+        // **Printed before the rows, and before the empty case too** (T56).
+        // "Nothing is waiting" and "this stack has dropped questions" are both
+        // true at once when a flood has been shed and then answered, and the
+        // second is exactly the reading an operator must not be allowed to make
+        // from the first. Same sentence the dashboard shows, from the same
+        // count, so the two surfaces cannot come to describe it differently —
+        // finding 255 caught them disagreeing once already.
+        const notice = describeShedPendingDecisions(shedUndecided);
+        if (notice) {
+          defaultRuntime.log(notice);
+        }
         if (visible.length === 0) {
           // "Nothing is waiting" is a real answer an operator checks for, and
           // an empty array is indistinguishable from a failed read (finding 117).

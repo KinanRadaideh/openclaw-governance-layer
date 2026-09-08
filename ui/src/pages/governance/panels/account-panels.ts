@@ -101,6 +101,47 @@ function successorFor(
 }
 
 /**
+ * The Administrator currently answerable for an account, if it has one.
+ *
+ * Distinct from `successorFor`, and the difference is the whole of one defect:
+ * `successorFor` answers *who could take this on*, which is a candidate, while
+ * this answers *who has it now*. The role dialog was built from the first when
+ * it meant the second, and named a different person than it went on to assign.
+ */
+function managerOf(
+  user: GovernanceUserRecord,
+  props: AccountsPanelProps,
+): GovernanceUserRecord | undefined {
+  return user.managedBy
+    ? props.users.find((candidate) => candidate.id === user.managedBy)
+    : undefined;
+}
+
+/**
+ * Who will be answerable for this account **after** a role change, or nobody.
+ *
+ * Exported so the test suite can assert it directly, and written as one function
+ * because it had been two expressions that disagreed — see the call site for
+ * what that cost. Both the sentence in the confirmation and the `managedBy` sent
+ * to the server read this, so they cannot drift again.
+ *
+ * `undefined` for Root and Administrator: those answer to the group, and the
+ * server is sent no manager for them.
+ */
+export function managerForRoleChange(
+  user: GovernanceUserRecord,
+  role: GovernanceRole,
+  props: AccountsPanelProps,
+): GovernanceUserRecord | undefined {
+  if (role !== "user" && role !== "viewer") {
+    return undefined;
+  }
+  // Keep the Administrator this account already answers to. Only when it has
+  // none — it is being demoted from Administrator — does a successor apply.
+  return managerOf(user, props) ?? successorFor(user, props);
+}
+
+/**
  * The roles this account may actually be given.
  *
  * Narrowed for the same reason `root` is absent from the list entirely: the
@@ -115,6 +156,13 @@ function roleOptionsFor(
   if (user.role !== "administrator" || successorFor(user, props)) {
     return ASSIGNABLE_ROLE_OPTIONS;
   }
+  // **This second branch stopped being reachable on 2026-09-08**, and is kept
+  // rather than deleted. The caller now renders a sentence for the sole
+  // Administrator instead of a one-option control, so the narrowing never
+  // happens — but the narrowing is the *rule* and the sentence is the way it is
+  // presented, and a future caller that goes back to rendering the control
+  // should inherit the rule rather than have to rediscover it. Said out loud
+  // because an unreachable branch that looks live is its own defect.
   return ASSIGNABLE_ROLE_OPTIONS.filter((option) => option.value === "administrator");
 }
 
@@ -314,7 +362,39 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
     ...props.users.map((user) =>
       renderSettingsRow({
         title: user.username,
-        description: `${t("governance.users.created")} ${new Date(user.createdAt).toLocaleDateString()}`,
+        // **Who is answerable for this account, on the row** (added 2026-09-08).
+        // Every User and Viewer has exactly one Administrator over them: it is
+        // the invariant M3 exists for, the create form makes Root choose it,
+        // deleting an Administrator is refused because of it, and the role
+        // dialog names it. This list — the one place Root reads the whole
+        // organisation — was the only surface that never showed it, so the
+        // management tree could be set but not audited. Absent for Root and
+        // Administrator, which answer to the group rather than to a person.
+        description: [
+          `${t("governance.users.created")} ${new Date(user.createdAt).toLocaleDateString()}`,
+          managerOf(user, props)
+            ? t("governance.users.answersTo", { username: managerOf(user, props)?.username ?? "" })
+            : "",
+          // **The permission, beside the button that changes it.** The button
+          // names the *action* — "Withhold rule editing" / "Allow rule editing"
+          // — and a permission control labelled with its action is ambiguous in
+          // both directions: "Allow rule editing" reads equally as *this account
+          // may* and as *click to let it*. Nothing else on the row resolved it,
+          // so whether a User could write policy was invisible unless you
+          // hovered for the tooltip. User tier only, because the flag is inert
+          // above it and absent below.
+          // `canAuthorPolicy === false` rather than a helper: absent means
+          // allowed, and the dashboard bundle does not import from `src/` —
+          // the same reason `MIN_PASSWORD_LENGTH` is mirrored by hand above.
+          // This is the test the button below already uses.
+          user.role === "user"
+            ? user.canAuthorPolicy === false
+              ? t("governance.users.policyAuthoringStateWithheld")
+              : t("governance.users.policyAuthoringState")
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" · "),
         stacked: true,
         control: html`
           <div class="settings-row__control" style="gap:0.5rem;flex-wrap:wrap">
@@ -326,41 +406,67 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
                 // is otherwise indistinguishable from a page that failed to
                 // render.
                 renderSettingsValue(t("governance.users.rootPermanent"))
-              : renderSettingsSegmented({
-                  value: user.role,
-                  disabled: props.busy,
-                  options: roleOptionsFor(user, props),
-                  // A privilege change used to apply the instant the control
-                  // was clicked, including a mis-click onto a higher tier. It
-                  // is the most consequential control on the page and had the
-                  // lightest interaction of any of them.
-                  onChange: (role) => {
-                    void props.confirmThen(
-                      {
-                        message: t("governance.confirm.changeRole"),
-                        details: `${user.username}: ${user.role} → ${role}${
-                          successorFor(user, props)
-                            ? ` (${t("governance.users.willAnswerTo", {
-                                username: successorFor(user, props)?.username ?? "",
-                              })})`
-                            : ""
-                        }`,
-                        confirmLabel: t("governance.confirm.changeRoleAction"),
-                        danger: role === "administrator",
-                      },
-                      () =>
-                        props
-                          .api()
-                          .setUserRole(
-                            user.id,
-                            role as GovernanceRole,
-                            role === "user" || role === "viewer"
-                              ? (user.managedBy ?? successorFor(user, props)?.id)
-                              : undefined,
-                          ),
-                    );
-                  },
-                })}
+              : user.role === "administrator" && !successorFor(user, props)
+                ? // **The same courtesy the Root row above gets.** A sole
+                  // Administrator cannot become a User or a Viewer, because
+                  // nobody would be left to answer for them, so
+                  // `roleOptionsFor` narrows the control to its current value
+                  // — deliberately, and until now silently. A segmented
+                  // control showing exactly one option is indistinguishable
+                  // from a page that failed to draw the other two, which is
+                  // the reason `rootPermanent` states its own case rather
+                  // than just omitting the buttons.
+                  renderSettingsValue(t("governance.users.soleAdministrator"))
+                : renderSettingsSegmented({
+                    value: user.role,
+                    disabled: props.busy,
+                    options: roleOptionsFor(user, props),
+                    // A privilege change used to apply the instant the control
+                    // was clicked, including a mis-click onto a higher tier. It
+                    // is the most consequential control on the page and had the
+                    // lightest interaction of any of them.
+                    onChange: (role) => {
+                      // **One resolution, read by the sentence and by the call.**
+                      // They were two expressions and they disagreed, in both
+                      // directions (2026-09-08):
+                      //
+                      //   - The sentence appended "will answer to X" whenever
+                      //     *any* other Administrator existed, including when the
+                      //     target role was `administrator` — which answers to
+                      //     the group and is sent `managedBy: undefined`.
+                      //     Measured: promoting a User to Administrator said
+                      //     "(will answer to malek)" and produced `managedBy:
+                      //     (none)`.
+                      //   - Where a manager *was* sent, the sentence showed
+                      //     `successorFor(...)` — the first other Administrator —
+                      //     while the call sent `user.managedBy ?? successor`.
+                      //     For an account that already had one, those are
+                      //     different people. Measured: a Viewer answering to
+                      //     haitham was changed to User under a dialog reading
+                      //     "(will answer to malek)", and kept haitham.
+                      //
+                      // A confirmation that misstates the consequence is worse
+                      // than none, and this is the control whose comment above
+                      // calls it the most consequential on the page. Finding
+                      // 278's class, in the last thing shown before the act.
+                      const manager = managerForRoleChange(user, role as GovernanceRole, props);
+                      void props.confirmThen(
+                        {
+                          message: t("governance.confirm.changeRole"),
+                          details: `${user.username}: ${user.role} → ${role}${
+                            manager
+                              ? ` (${t("governance.users.willAnswerTo", {
+                                  username: manager.username,
+                                })})`
+                              : ""
+                          }`,
+                          confirmLabel: t("governance.confirm.changeRoleAction"),
+                          danger: role === "administrator",
+                        },
+                        () => props.api().setUserRole(user.id, role as GovernanceRole, manager?.id),
+                      );
+                    },
+                  })}
             ${user.role === "user" || user.role === "viewer"
               ? html`<input
                     class="input"
@@ -471,7 +577,15 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
                   // because it strands everybody below; deleting the
                   // organisation takes everybody below with it, and is the
                   // panel immediately underneath this one.
-                  `${t("governance.users.cannotDeleteSelf")} ${t("governance.users.cannotDeleteSelfHint")}`
+                  // **A full stop between them, because they are two
+                  // sentences.** Joined with a bare space this read "…the
+                  // account you are signed in with To remove your own Root
+                  // account…", which is the one string an operator only ever
+                  // meets as a tooltip, at the moment they are wondering why a
+                  // button is dead. The strings stay separate — the first is
+                  // the refusal and the second is the way round it, and other
+                  // callers may want only one — so the separator belongs here.
+                  `${t("governance.users.cannotDeleteSelf")}. ${t("governance.users.cannotDeleteSelfHint")}`
                 : ""}
               @click=${() =>
                 props.confirmThen(
@@ -555,6 +669,22 @@ export function renderUsersSection(props: AccountsPanelProps): TemplateResult | 
               // Administrator first. Possibly one they sign into themselves.
               html`<span class="settings-hint">${t("governance.users.noAdministrators")}</span>`
             : nothing}
+          ${
+            // **The ordinary case, which was the one left unexplained.** The
+            // branch above covers "there are no Administrators at all" and says
+            // what to do about it. When Administrators exist and none has been
+            // picked, the Create button is simply disabled with nothing said —
+            // no hint, no title, no `aria-disabled` — and the only clue is the
+            // select's own placeholder. The harder case was explained and the
+            // common one was not.
+            (props.drafts.newUserRole === "user" || props.drafts.newUserRole === "viewer") &&
+            props.administrators.length > 0 &&
+            !props.drafts.newUserManagedBy
+              ? html`<span class="settings-hint"
+                  >${t("governance.users.chooseAdministrator")}</span
+                >`
+              : nothing
+          }
           <button
             class="btn primary"
             ?disabled=${props.busy ||
@@ -680,7 +810,14 @@ export function renderRuleRequestsSection(
     canPropose
       ? renderSettingsRow({
           title: t("governance.requests.submit"),
-          description: t("governance.requests.submitHint"),
+          // The "ask an Administrator" sentence belongs to the tier that has
+          // one to ask. An Administrator and Root decide these requests and
+          // can write the rule outright, so for them the form is a way to
+          // record a request, not a way to obtain permission, and telling them
+          // to go and ask themselves is the falsehood finding 303 names.
+          description: props.canAdminister
+            ? t("governance.requests.submitHint")
+            : `${t("governance.requests.submitHintAsk")} ${t("governance.requests.submitHint")}`,
           stacked: true,
           control: html`
             <div class="settings-row__control" style="gap:0.5rem;flex-wrap:wrap">

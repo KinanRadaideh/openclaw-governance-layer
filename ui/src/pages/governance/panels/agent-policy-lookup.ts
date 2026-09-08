@@ -77,13 +77,42 @@ export function renderRuleTargets(
  * read off the document by eye, because an absent agent id means "binds
  * everyone" rather than "binds nobody".
  */
+/**
+ * The sentence under the agent picker, for the tier actually reading it.
+ *
+ * Three cases, because there are three answers and the panel used to give two.
+ * `canManageAnyAgent` is a **tier** question — "does this tier act on agents at
+ * all" — and it is true for a User whose assignment is empty, so that account
+ * was told to *"Pick an agent you manage"* while managing none, with a picker
+ * offering nothing. That is finding 303's exact shape, one panel over: 303 was
+ * the conversation picker telling the same account the same falsehood, and its
+ * repair is the sentence reused here rather than a fourth spelling of it.
+ *
+ * The Viewer case below it is the one already handled: reading what is in force
+ * is that tier's whole job, and "manage" is the one verb it never does.
+ */
+function pickHint(props: PolicyPanelProps): string {
+  if (!props.canManageAnyAgent) {
+    return t("governance.agentPolicy.pickHintReadOnly");
+  }
+  if (props.identity?.role === "user" && (props.identity.assignedAgents ?? []).length === 0) {
+    return t("governance.conversation.chooseAgentHintUnassigned");
+  }
+  return t("governance.agentPolicy.pickHint");
+}
+
 export function renderAgentPolicySection(props: PolicyPanelProps): TemplateResult | typeof nothing {
   const choices = props.knownAgentIds;
   const view = props.agentPolicyView;
   const rows = [
     renderSettingsRow({
       title: t("governance.agentPolicy.pick"),
-      description: t("governance.agentPolicy.pickHint"),
+      // A Viewer reaches this panel — reading what is in force is their whole
+      // tier — and "an agent you manage" is the one thing they do not do. The
+      // conversation picker carried the same shape of falsehood for an
+      // unassigned User; both were written for the tier that happened to be
+      // driving the page when the string was set.
+      description: pickHint(props),
       control: html`<input
           list="governance-agent-policy-ids"
           aria-label=${t("governance.agentPolicy.pick")}
@@ -116,6 +145,34 @@ export function renderAgentPolicySection(props: PolicyPanelProps): TemplateResul
     );
   }
   if (view) {
+    // ----------------------------------------------------------------------
+    // **The answer is complete, confident, and may be about nothing at all.**
+    //
+    // The projection answers for *any* id: global rules bind every agent,
+    // including one that does not exist and one created tomorrow, so a typo
+    // returns a full page — a posture, an escalation setting, "16 rules in
+    // force", and "Nobody. No User or Viewer has been assigned this agent" —
+    // with nothing anywhere saying the agent is not there. Measured on a
+    // running gateway: `scoot` for `scout` renders identically to a real
+    // lookup, and an operator checking what an agent may do reads a wrong
+    // answer as a right one.
+    //
+    // Not an error, deliberately: the projection is correct, and asking about
+    // an id before creating it is legitimate. So this labels the answer rather
+    // than withholding it — the same judgement, and the same `isKnownAgentId`,
+    // that the kill switch one section above already makes for a mistyped id.
+    // The two panels take the same free text and only one of them said so.
+    // ----------------------------------------------------------------------
+    if (!props.knownAgentIds.includes(view.posture.agentId)) {
+      rows.push(
+        renderSettingsRow({
+          title: renderSettingsStatus({
+            kind: "warn",
+            label: t("governance.agentPolicy.unknownAgent"),
+          }),
+        }),
+      );
+    }
     const access = props.agentAccess;
     rows.push(
       renderSettingsRow({

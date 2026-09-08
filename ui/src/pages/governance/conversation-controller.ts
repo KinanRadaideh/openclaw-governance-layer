@@ -32,6 +32,23 @@ import type { GovernanceApi, GovernanceAttachment, GovernanceTranscript } from "
 export type ConversationSlice = {
   conversationAgentId: string;
   transcript: GovernanceTranscript | null;
+  /**
+   * The message currently being answered, so the panel can show it (2026-09-08).
+   *
+   * The transcript is only written when the run ends, so between pressing Send
+   * and the reply arriving the operator's own message existed nowhere on
+   * screen: the composer emptied, no turn appeared, and on a first exchange the
+   * panel read **"No messages yet. Send the first one below."** directly above
+   * a live "replying..." block. Driven on the running gateway, and the same
+   * gap on a conversation that already had turns -- the last exchange stayed
+   * on screen as though nothing had been sent. The host's own chat, on this
+   * same page, shows the message immediately.
+   *
+   * Held here rather than derived from the draft because the draft is cleared
+   * on a completed send and kept on a failed one, which makes it a record of
+   * what to retry, not of what is running.
+   */
+  promptSent: string;
   promptDraft: string;
   promptAttachments: GovernanceAttachment[];
   promptError: string | null;
@@ -56,6 +73,8 @@ export class ConversationController implements ReactiveController {
   private runId = "";
   private stream = "";
   private uploading = false;
+  /** The message being answered right now. See `ConversationSlice.promptSent`. */
+  private sent = "";
 
   constructor(
     private readonly host: ReactiveControllerHost,
@@ -76,6 +95,7 @@ export class ConversationController implements ReactiveController {
     return {
       conversationAgentId: this.agentId,
       transcript: this.transcript,
+      promptSent: this.sent,
       promptDraft: this.draft,
       promptAttachments: this.attachments,
       promptError: this.error,
@@ -143,6 +163,9 @@ export class ConversationController implements ReactiveController {
     if (state.attachmentUploading !== undefined) {
       this.uploading = state.attachmentUploading;
     }
+    if (state.promptSent !== undefined) {
+      this.sent = state.promptSent;
+    }
     this.changed();
   }
 
@@ -155,6 +178,7 @@ export class ConversationController implements ReactiveController {
     this.error = null;
     this.runId = "";
     this.stream = "";
+    this.sent = "";
     this.changed();
   }
 
@@ -279,6 +303,9 @@ export class ConversationController implements ReactiveController {
       return;
     }
     this.pending = true;
+    // Held for the panel to render while the run is in flight; the transcript
+    // does not learn about it until the run ends.
+    this.sent = message;
     this.error = null;
     // Cleared before the run rather than after, so the partial reply from a
     // previous prompt is never left on screen beside a new one.
@@ -324,6 +351,10 @@ export class ConversationController implements ReactiveController {
       this.pending = false;
       this.stream = "";
       this.runId = "";
+      // Cleared here rather than beside `pending`, so the turn stays on screen
+      // for the whole run and disappears exactly when the transcript below is
+      // re-read and contains it.
+      this.sent = "";
       try {
         this.transcript = await this.bridge.api().agentTranscript(agentId);
       } catch {

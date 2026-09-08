@@ -352,6 +352,14 @@ export type {
 // still one name to import from.
 export type { GovernanceUserRecord, OrganisationDeletionResponse } from "./api.accounts.ts";
 
+// Re-exported so every consumer still imports its API types from one place.
+export type * from "./api.agents.ts";
+import type {
+  GovernanceAgentEntry,
+  GovernanceAgentPolicyHoldings,
+  GovernanceDeprovisionResult,
+} from "./api.agents.ts";
+
 const BASE = "/control-ui/governance";
 
 /**
@@ -419,30 +427,8 @@ export type GovernanceAgentAccess = {
   assignedTo: string[];
 };
 
-/**
- * One row of the agent registry (M4).
- *
- * `registered` is carried rather than inferred from a missing name, because
- * "this agent has no owner" is a fact the operator has to be told rather than
- * left to deduce from a blank cell. An unregistered row is an agent that
- * predates the registry: real, governed by every rule that names it, and owned
- * by nobody until somebody claims it.
- */
-export type GovernanceAgentEntry = {
-  agentId: string;
-  displayName?: string;
-  adminId?: string;
-  registered: boolean;
-  /**
-   * Whether this agent may run on the Codex backend (§3.5.62).
-   *
-   * Shown to **every tier that can see the agent**, Viewers included. It is a
-   * permission rather than a secret, and a Viewer's job is oversight. Noticing
-   * that an agent is permitted onto a runtime where denials are not fully
-   * enforced is precisely what oversight is for.
-   */
-  codexAllowed?: boolean;
-};
+/** See `GovernanceApiError.authenticating`. The two calls that sign in pass it. */
+const AUTHENTICATING = { authenticating: true } as const;
 
 export class GovernanceApi {
   constructor(
@@ -472,6 +458,8 @@ export class GovernanceApi {
   private async request<T>(
     path: string,
     init?: Omit<RequestInit, "body"> & { body?: unknown },
+    /** See `GovernanceApiError.authenticating`. Set by the two calls that sign in. */
+    opts?: { authenticating?: boolean },
   ): Promise<T> {
     const hasBody = init?.body !== undefined;
     const response = await fetch(this.url(path), {
@@ -490,7 +478,7 @@ export class GovernanceApi {
         typeof (parsed as { error?: { message?: unknown } }).error?.message === "string"
           ? (parsed as { error: { message: string } }).error.message
           : `Request failed (${response.status})`;
-      throw new GovernanceApiError(message, response.status);
+      throw new GovernanceApiError(message, response.status, opts?.authenticating === true);
     }
     return parsed as T;
   }
@@ -499,18 +487,22 @@ export class GovernanceApi {
     return this.request<GovernanceIdentity>("whoami");
   }
 
+  // Both pass `authenticating`, so a 401 from either reads as "those
+  // credentials are wrong" rather than "your session went" (T61). The probe in
+  // `probeBootstrapNeeded` also lands on the second with empty credentials and
+  // reads the *status*, which this does not change.
   login(username: string, password: string): Promise<GovernanceIdentity> {
-    return this.request<GovernanceIdentity>("login", {
-      method: "POST",
-      body: { username, password },
-    });
+    const body = { username, password };
+    return this.request<GovernanceIdentity>("login", { method: "POST", body }, AUTHENTICATING);
   }
 
   bootstrapRoot(username: string, password: string): Promise<GovernanceIdentity> {
-    return this.request<GovernanceIdentity>("bootstrap-root", {
-      method: "POST",
-      body: { username, password },
-    });
+    const body = { username, password };
+    return this.request<GovernanceIdentity>(
+      "bootstrap-root",
+      { method: "POST", body },
+      AUTHENTICATING,
+    );
   }
 
   logout(): Promise<{ ok: true }> {
@@ -637,8 +629,21 @@ export class GovernanceApi {
     });
   }
 
-  listPendingDecisions(): Promise<GovernancePendingDecision[]> {
-    return this.request<GovernancePendingDecision[]>("pending-decisions");
+  /**
+   * The pending stack, and how many questions it has had to drop (T56).
+   *
+   * **The route used to answer with a bare array**, which left the dashboard
+   * unable to say the one thing an operator needs before trusting the list:
+   * that it is not complete. Both come from one read on the server, so the
+   * count and the rows describe the same moment.
+   */
+  listPendingDecisions(): Promise<{
+    decisions: GovernancePendingDecision[];
+    shedUndecided: number;
+  }> {
+    return this.request<{ decisions: GovernancePendingDecision[]; shedUndecided: number }>(
+      "pending-decisions",
+    );
   }
 
   decidePendingDecision(id: string, allow: boolean): Promise<GovernancePendingDecision> {
@@ -842,6 +847,13 @@ export class GovernanceApi {
     confirmWaitedMs: number;
     /** Present only when it was created but had not appeared in time. */
     warning?: string;
+    /**
+     * What this id was already carrying (T55). Absent when it carried nothing.
+     *
+     * A brand-new agent is the more surprising place to inherit rules, because
+     * nobody expects a name they have just invented to be holding anything.
+     */
+    inheritedPolicy?: GovernanceAgentPolicyHoldings;
   }> {
     return this.request("agents/provision", { method: "POST", body: { ...input } });
   }
@@ -853,10 +865,7 @@ export class GovernanceApi {
    * flag on a destructive route is a caller who has not decided, and guessing
    * is how an irreversible act happens by omission.
    */
-  deprovisionAgent(
-    agentId: string,
-    deleteFromHost: boolean,
-  ): Promise<{ agentId: string; displayName: string; deletedFromHost: boolean }> {
+  deprovisionAgent(agentId: string, deleteFromHost: boolean): Promise<GovernanceDeprovisionResult> {
     return this.request("agents/deprovision", {
       method: "POST",
       body: { agentId, deleteFromHost },
@@ -1172,6 +1181,32 @@ export class GovernanceApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /**
+     * Whether the call that failed was itself an attempt to authenticate (T61).
+     *
+     * **A 401 means two different things and the page could not tell them
+     * apart.** Everywhere else on this API it means *the session you had has
+     * gone* — expired, revoked, or signed out in another tab — and the right
+     * response is to clear the screen so nobody acts on stale data. On `login`
+     * and `bootstrap-root` it means *those credentials are wrong*, and there was
+     * no session to lose. `isSessionLost` matched on the status alone, so
+     * mistyping a password produced **"Your session ended, so the page was
+     * cleared rather than left showing out-of-date information."** — telling the
+     * operator to do the thing they were already doing, and never showing them
+     * the server's own answer, which is the plain "Invalid credentials".
+     *
+     * Carried on the error rather than inferred from the path, because a path
+     * test here would be a second copy of a rule that lives in the two methods
+     * below — the shape this project keeps finding on the wrong side of a
+     * defect. It is set where the error is constructed, from what the caller
+     * declared it was doing.
+     *
+     * It is also mildly security-relevant in the reporting direction: an
+     * operator told "your session ended" may reasonably conclude the system
+     * logged them out rather than that they mistyped, which is the wrong mental
+     * model to carry into an incident.
+     */
+    readonly authenticating = false,
   ) {
     super(message);
     this.name = "GovernanceApiError";

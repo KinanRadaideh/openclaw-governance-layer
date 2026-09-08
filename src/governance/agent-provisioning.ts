@@ -77,6 +77,12 @@ import {
   registerAgent,
   unregisterAgent,
 } from "./agent-registry.js";
+import {
+  clearAgentPolicy,
+  holdsNothing,
+  describeAgentPolicyHoldings,
+  type AgentPolicyHoldings,
+} from "./policy-store.js";
 
 /** How long to wait for the running host to notice a roster change. */
 export const PROVISION_CONFIRM_TIMEOUT_MS = 5_000;
@@ -536,6 +542,24 @@ export type DeprovisionResult =
        * failure is not swallowed: it travels back and the surfaces say it.
        */
       auditError?: string;
+      /**
+       * What the agent id carried and no longer does (T55).
+       *
+       * Absent when it carried nothing, so a surface renders this only when
+       * there is something to say rather than testing five zeroes itself.
+       */
+      clearedPolicy?: AgentPolicyHoldings;
+      /**
+       * Why that clearing failed, when it did.
+       *
+       * Same shape and same reasoning as `auditError` above: by the time this
+       * runs the agent is gone from the host and from the registry, so throwing
+       * would report finished work as failed (finding 229). Leftover rules for a
+       * deleted agent is the state that existed before T55, so this degrades to
+       * the old behaviour — but the operator is told, because it leaves them a
+       * cleanup to do by hand.
+       */
+      clearError?: string;
     }
   | {
       ok: false;
@@ -633,8 +657,50 @@ export async function deprovisionAgent(
   }
 
   if (!input.deleteFromHost) {
+    // **Nothing else is cleared on this path, deliberately.** The agent still
+    // exists on the host and can still act; removing its rules here would
+    // disarm a live workload, which is why `unregisterAgent` keeps them and
+    // says so. See `clearAgentPolicy` below for the case where that reasoning
+    // stops applying.
     return { ok: true, agentId, displayName: removed.displayName, deletedFromHost: false };
   }
+  // ---------------------------------------------------------------------
+  // **What the id carried goes with the agent** (T55, decided 2026-09-08 by
+  // Mohammad; findings 258 and 324).
+  //
+  // An agent id is the handle for everything — rules are written about it, a
+  // posture is set on it, it is stopped by it — and nothing tracked that the
+  // thing behind the name had changed. So a **new** agent registered under a
+  // released id arrived holding the previous holder's state: measured, an allow
+  // rule on `/srv/payroll/**`, a watch-only posture and an active lockdown, and
+  // then two more nobody had ever tested, the escalation override and its
+  // timeout.
+  //
+  // **Only on this path**, and that is the whole of the decision. Plain
+  // unregistration keeps everything, because the agent is still there and
+  // disarming a live workload is the dangerous direction. Here OpenClaw has
+  // already deleted the agent, so there is nothing left for those rules to
+  // protect and the only thing they can still do is bind a stranger who
+  // inherits the name.
+  //
+  // **After the host deletion and after the unregister**, so a failure earlier
+  // leaves the rules in place around an agent that still exists. The reverse
+  // order would clear them and then fail to delete, which is the one outcome
+  // worth designing against.
+  // ---------------------------------------------------------------------
+  let cleared: AgentPolicyHoldings | undefined;
+  let clearError: string | undefined;
+  try {
+    cleared = await clearAgentPolicy(input.groupId, agentId, actor);
+  } catch (err) {
+    // Reported, never thrown, for the reason the block below states: the
+    // deletion is done and cannot be undone by failing here. Leftover rules for
+    // a deleted agent is exactly the state that existed before this change, so
+    // this degrades to the old behaviour rather than to a broken one — but the
+    // operator is told, because they now have a cleanup to do by hand.
+    clearError = formatErrorMessage(err);
+  }
+
   // Past the point of no return: the agent is gone from the host *and* from
   // governance, and neither can be put back by failing here (finding 229).
   //
@@ -653,7 +719,14 @@ export async function deprovisionAgent(
     await recordAdminAction(input.groupId, {
       actor,
       action: ADMIN_ACTIONS.agentDeprovision,
-      target: `agent ${agentId} ("${removed.displayName}") deleted from the host`,
+      target:
+        `agent ${agentId} ("${removed.displayName}") deleted from the host` +
+        // Named on the deletion entry as well as on its own, so a reader
+        // following the deletion does not have to find the second entry to
+        // learn that permissions went with it.
+        (cleared && !holdsNothing(cleared)
+          ? `; ${describeAgentPolicyHoldings(cleared)} cleared with it`
+          : ""),
       agentId,
       subjectId: agentId,
     });
@@ -665,6 +738,8 @@ export async function deprovisionAgent(
     agentId,
     displayName: removed.displayName,
     deletedFromHost: true,
+    ...(cleared && !holdsNothing(cleared) ? { clearedPolicy: cleared } : {}),
+    ...(clearError ? { clearError } : {}),
     ...(auditError ? { auditError } : {}),
   };
 }

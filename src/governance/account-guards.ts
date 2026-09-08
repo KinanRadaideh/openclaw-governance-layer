@@ -160,7 +160,14 @@ export function guardOrganisationDeletion(
   if (canonicalAccountName(confirmation ?? "") !== canonicalAccountName(actor.username)) {
     return {
       allowed: false,
-      reason: `To confirm, type the Root username exactly: ${actor.username}`,
+      // **Not "exactly", because the check above is deliberately not exact**
+      // (2026-09-08). It folds, as the contract at the top of this function
+      // says it should and as every other account key does, so ` KINAN ` is
+      // accepted — measured, and it destroyed the organisation it was typed
+      // at. The folding is right; the sentence describing it was not, and on
+      // the one irreversible control in the product an operator reading
+      // carefully is exactly who this message is for.
+      reason: `To confirm, type the Root username: ${actor.username}`,
     };
   }
   return ALLOWED;

@@ -277,6 +277,11 @@ export function registerGovernanceRuleRequestCommands(governance: Command): void
               // Grant exactly the scope that was requested and reviewed.
               // Dropping this turned every approval into a global rule.
               ...(decided.agentId ? { agentId: decided.agentId } : {}),
+              // The other half of "exactly the scope that was reviewed"
+              // (finding 279). An absent `access` on a rule means **both**
+              // directions, so dropping it turned a request to read a file
+              // into a permission to rewrite it.
+              ...(decided.access ? { access: decided.access } : {}),
               description: `Requested by ${decided.requestedBy}: ${decided.reason}`,
               createdBy: identity.username,
             },

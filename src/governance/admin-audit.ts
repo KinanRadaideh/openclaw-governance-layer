@@ -19,6 +19,7 @@
 // change governance state without saying who did it. The compiler refuses.
 // That is deliberate: a logging obligation enforced by review is one somebody
 // eventually forgets.
+import { canonicalAccountName } from "./account-name.js";
 import { appendLedgerEntry, type LedgerEntry } from "./audit-ledger.js";
 import type { GovernanceRole } from "./roles.js";
 
@@ -48,6 +49,16 @@ export const ADMIN_ACTIONS = {
    * change an operator can make to the shipped security floor.
    */
   coreRuleToggle: "governance.policy.core-rule",
+  /**
+   * Everything an agent id carried, removed with the agent (T55).
+   *
+   * Its own action rather than a run of `ruleRemove` entries, because it is one
+   * decision with one cause: the agent was deleted, so what was written about
+   * it stopped meaning anything. A reader scanning the trail should see the
+   * consequence attached to the act, not five unexplained removals next to a
+   * deletion.
+   */
+  agentPolicyCleared: "governance.policy.agent-cleared",
   agentLock: "governance.agent.lock",
   agentRelease: "governance.agent.release",
   /**
@@ -381,6 +392,35 @@ const RESERVED_ACTOR_NAMES: ReadonlySet<string> = new Set([
   "host-prompt",
 ]);
 
+/**
+ * Whether a username would collide with a labelled origin.
+ *
+ * **Exported so the guard can run where an account is *created*, not only
+ * where one acts.** Until 2026-09-07 the only check was `splitAuditActor`
+ * below, which throws when an account named `cli` performs an administrative
+ * action. Nothing stopped that account being created, and the result was worse
+ * than either half suggests: `createUser` writes the account inside its lock
+ * and records the action *after* it, so bootstrapping a Root called `cli`
+ * produced a **permanent, unusable Root** — every administrative action it
+ * attempted failed, while the account itself could not be deleted, demoted, or
+ * replaced, since bootstrap refuses once an installation is claimed. The only
+ * recovery was deleting `users.json` on the server by hand. Driven, not
+ * reasoned about: creating an Administrator as that Root returned 400, **and
+ * created the account anyway, with no ledger entry for it**.
+ *
+ * **Folded before the comparison, and that is the load-bearing half.** The set
+ * holds lower-case names and `createUser` stores a username with its case
+ * intact, so a raw check passes `CLI` straight through — an account that works,
+ * that folds onto `cli` for uniqueness, and whose entries a human reading the
+ * trail cannot tell from the labelled origin's. Finding 202's shape: one fold
+ * applied at one end of a comparison and not the other. `account-name.ts` states
+ * the rule this follows — the guard and the value it guards have to be the
+ * same string.
+ */
+export function isReservedActorName(username: string): boolean {
+  return RESERVED_ACTOR_NAMES.has(canonicalAccountName(username));
+}
+
 /** Thrown when a named actor claims a labelled origin's name, with or without a tier. */
 export class FabricatedActorError extends Error {
   constructor(name: string) {
@@ -418,7 +458,12 @@ export function splitAuditActor(actor: AuditActorInput | undefined): {
   // real actor available and is discarding it, and quietly rewriting the value
   // would hide the bug while producing a plausible entry, which is how finding
   // 149 survived for six days.
-  if (RESERVED_ACTOR_NAMES.has(actor.name)) {
+  // Folded, since 2026-09-07, for the reason `isReservedActorName` gives: this
+  // compared a case-sensitive name against a lower-case set, so `CLI` was
+  // accepted here and became an entry a reader cannot distinguish from the
+  // labelled origin's. Account creation now refuses both spellings, so this
+  // stays as the second line rather than the only one.
+  if (isReservedActorName(actor.name)) {
     throw new FabricatedActorError(actor.name);
   }
   return { name: actor.name, ...(actor.role ? { role: actor.role } : {}) };

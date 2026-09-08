@@ -34,10 +34,10 @@ import {
 } from "../governance/agent-registry.js";
 import { canViewAgent, visibleAgents, type GovernanceActor } from "../governance/permissions.js";
 import { knownAgentIds } from "../governance/policy-projection.js";
-import { loadPolicy } from "../governance/policy-store.js";
+import { holdsNothing, loadPolicy, readAgentPolicyHoldings } from "../governance/policy-store.js";
 import type { GovernanceRole } from "../governance/roles.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
-import { findUsersForAgent } from "../governance/user-store.js";
+import { findUsersForAgent, listUsers } from "../governance/user-store.js";
 import { requireGroup } from "./governance-dashboard-group.js";
 import { sendInvalidRequest, sendJson } from "./http-common.js";
 
@@ -176,7 +176,42 @@ export async function handleGovernanceAgentRoutes(
         entries.map((entry) => entry.agentId),
       ),
     );
-    sendJson(res, 200, { agents: entries.filter((entry) => visible.has(entry.agentId)) });
+    // ------------------------------------------------------------------
+    // **The owner's name, not only their id** (2026-09-08).
+    //
+    // The panel renders `owner?.username ?? agent.adminId`, resolving the id
+    // against the account list — and `users` is **Root-only**, so every tier
+    // below Root fell through to the raw id. Measured signed in as an
+    // Administrator: *"Owned by user-1788814759825-7e0761b7"* on every row,
+    // where Root sees *"Owned by kinan"*.
+    //
+    // That is finding 264 exactly — a minted id shown where a name belongs, on
+    // a surface whose job is saying who is answerable — reappearing one panel
+    // over, and it lands on the **Administrator**, the tier this section is
+    // for and the one that has to know which agents are theirs.
+    //
+    // Resolved here because only the server can: the id→name mapping is the
+    // account list, and the client below Root is not allowed to have it. Only
+    // the username is added, and only for accounts in the caller's own group,
+    // so this discloses nothing the row was not already naming.
+    // ------------------------------------------------------------------
+    const owners = new Map(
+      (await listUsers(groupId)).map((account) => [account.id, account.username]),
+    );
+    sendJson(res, 200, {
+      agents: entries
+        .filter((entry) => visible.has(entry.agentId))
+        .map((entry) => {
+          const ownerName = entry.adminId ? owners.get(entry.adminId) : undefined;
+          // `Object.assign` onto a fresh object rather than a spread, which
+          // `no-map-spread` refuses. **A copy either way, deliberately**: these
+          // rows come from the registry read above, and writing a display-only
+          // field into them in place would be a rendering concern mutating
+          // stored state — the same hazard `active-sessions.ts` records against
+          // the Gateway's live run registry.
+          return ownerName ? Object.assign({}, entry, { adminUsername: ownerName }) : entry;
+        }),
+    });
     return true;
   }
 
@@ -245,23 +280,31 @@ export async function handleGovernanceAgentRoutes(
       return true;
     }
     try {
-      sendJson(
-        res,
-        200,
-        await registerAgent(
-          {
-            id: agentId,
-            displayName,
-            // The group comes from the session and is never taken from the
-            // request, exactly as account creation does: an Administrator
-            // registering an agent into another group is the one write that
-            // would defeat the model, so the caller is given no way to say it.
-            groupId: session.groupId,
-            adminId: adminId || session.userId,
-          },
-          auditActor(session),
-        ),
+      // **Read before registering, not after** (T55, part b). Registering
+      // does not change what the id carries, but reading afterwards would race
+      // anything else writing policy, and the answer an operator is shown
+      // should describe the moment they acted.
+      const holdings = await readAgentPolicyHoldings(session.groupId, agentId);
+      const agent = await registerAgent(
+        {
+          id: agentId,
+          displayName,
+          // The group comes from the session and is never taken from the
+          // request, exactly as account creation does: an Administrator
+          // registering an agent into another group is the one write that
+          // would defeat the model, so the caller is given no way to say it.
+          groupId: session.groupId,
+          adminId: adminId || session.userId,
+        },
+        auditActor(session),
       );
+      sendJson(res, 200, {
+        ...agent,
+        // Absent when the id carried nothing, so the dashboard renders the
+        // sentence only when there is something to say rather than testing
+        // five zeroes itself.
+        ...(holdsNothing(holdings) ? {} : { inheritedPolicy: holdings }),
+      });
     } catch (err) {
       sendRegistryError(res, err);
     }
@@ -395,12 +438,17 @@ export async function handleGovernanceAgentRoutes(
       });
       return true;
     }
+    // The same question on the other way an agent comes into existence. A
+    // brand-new agent is the *more* surprising place to inherit rules, because
+    // nobody expects a name they just invented to be carrying anything.
+    const provisionedHoldings = await readAgentPolicyHoldings(groupId, result.agent.id);
     sendJson(res, 200, {
       agent: result.agent,
       workspace: result.workspace,
       confirmed: result.confirmed,
       confirmWaitedMs: result.confirmWaitedMs,
       ...(result.warning ? { warning: result.warning } : {}),
+      ...(holdsNothing(provisionedHoldings) ? {} : { inheritedPolicy: provisionedHoldings }),
     });
     return true;
   }
@@ -475,6 +523,24 @@ export async function handleGovernanceAgentRoutes(
       agentId: result.agentId,
       displayName: result.displayName,
       deletedFromHost: result.deletedFromHost,
+      // ------------------------------------------------------------------
+      // **Both failures travel, and `auditError` had not been** (finding 325).
+      //
+      // `DeprovisionResult.auditError` carries the reason the ledger would not
+      // take the entry for a deletion that has already happened, and its own
+      // doc comment ends *"The failure is not swallowed: it travels back and
+      // the surfaces say it."* It travelled as far as this line and was
+      // dropped, so an irreversible deletion missing from the audit trail
+      // reported plain success — with the command line gone, this is the only
+      // surface there is to say it. Finding 195's shape: a missing entry in a
+      // tamper-evident trail is the half an operator reads first.
+      //
+      // `clearError` is the same shape, arriving with T55: the agent is gone
+      // and its rules could not be cleared, which is recoverable by hand but
+      // only if somebody is told.
+      // ------------------------------------------------------------------
+      ...(result.auditError ? { auditError: result.auditError } : {}),
+      ...(result.clearError ? { clearError: result.clearError } : {}),
     });
     return true;
   }

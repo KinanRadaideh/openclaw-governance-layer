@@ -197,6 +197,36 @@ ok "workspace installed"
 # --------------------------------------------------------------------------
 step "Build"
 
+# **Clear the build output first, and this line is finding 274's repair
+# arriving in the one place that had been missed** (2026-09-08).
+#
+# Nothing in the build clears `dist/` — no clean step, no `emptyOutDir` — so a
+# rebuild over an existing one leaves the previous generation's content-hashed
+# chunks beside the new ones. Two things this project has already paid for:
+#
+#   * **Finding 274.** A build that dies partway (this one is OOM-killed under
+#     8 GB) leaves a reference resolving to nothing, and on the VPS that broke
+#     `exec` outright with `Cannot find module .../bash-tools-O2NWTdBu.js`.
+#   * **Finding 284.** After the governance command line was deleted, the whole
+#     compiled command tree sat in `dist/` and `openclaw governance ...` still
+#     worked on the shipped artefact — with every source file gone, both lint
+#     gates green and a purpose-written removal sweep passing.
+#
+# `mg/HANDOFF.md` carries `rm -rf dist dist-runtime && pnpm build` in three
+# places as the correct rebuild, and `removed-cli-surface/README.md` in a
+# fourth. **This script did not, while line 18 advertises it as "Idempotent:
+# safe to re-run after a `git pull`"** — which is exactly the re-run that
+# produces the state those four commands exist to prevent. Harmless on a first
+# install, where there is nothing to clear; the point is the second one.
+#
+# Scoped to `$REPO_ROOT`, which line 28 has already `cd`'d to, and named
+# explicitly rather than globbed: these two directories are build output and
+# nothing else in the tree is.
+if [ -d dist ] || [ -d dist-runtime ]; then
+  rm -rf "$REPO_ROOT/dist" "$REPO_ROOT/dist-runtime"
+  ok "cleared previous build output (findings 274, 284)"
+fi
+
 # openclaw.mjs refuses to start without dist/entry.js: "missing dist/entry.(m)js
 # (build output)". This is the step that has never run on Linux before.
 $PNPM build
@@ -315,10 +345,23 @@ cat <<NEXT
   Do not publish that port. Signup is open, so an exposed port is self-service
   Root - it is defensible only because the control plane is off the network.
 
-  Confirm the layer is actually governing, which is not the same as running:
+  Confirm the layer is actually governing, which is not the same as running.
+  Open the dashboard through the tunnel above and read three panels:
 
-    openclaw governance deployment
-    openclaw governance policy show
+    Deployment report  - every check the installation can make about itself
+    Policy             - the rules in force, and the posture they run under
+    Audit ledger       - entries appearing as things happen
+
+  One check needs no tunnel, no build and no sign-in, and it is the second
+  witness the tamper-evidence claim needs:
+
+    node scripts/verify-ledger.mjs
+
+  Exit 0 intact, 1 broken, 2 could not check - which is not a pass.
+
+  There is no governance command line. It was removed on 2026-09-07: the
+  governance layer is administered through the dashboard and the HTTP API it
+  sits on, and nothing else. See docs-notes/removed-cli-surface/README.md.
 
   Full runbook: docs-notes/LINUX-INSTALL.md
 NEXT

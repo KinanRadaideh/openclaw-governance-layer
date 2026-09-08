@@ -104,6 +104,24 @@ export function renderFreshness(props: FreshnessProps): TemplateResult | typeof 
   return nothing;
 }
 
+/**
+ * How many ledger rows this panel draws.
+ *
+ * A named constant because two places have to agree about it — the slice below
+ * and the count above it — and the defect being repaired is precisely those two
+ * disagreeing silently.
+ */
+const LEDGER_ROWS = 50;
+
+/**
+ * How many entries the route was asked for, mirrored from `api.ledger()`.
+ *
+ * Only ever compared against what came back, to tell "this is the whole trail"
+ * from "this is the most recent page of it". A wrong value here understates or
+ * overstates nothing else.
+ */
+const LEDGER_PAGE = 200;
+
 export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
   const { verification, ledger, ledgerFilter, busy, onFilter, onVerify } = props;
   // Administrative entries and agent entries answer different questions, and
@@ -112,6 +130,25 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
   // calls. The trail exists but is not usable, which for an accountability
   // feature amounts to much the same thing.
   const visibleLedger = filterLedger(ledger, ledgerFilter);
+  // ------------------------------------------------------------------------
+  // **How many of them this is**, which the panel never said (2026-09-08).
+  //
+  // Two truncations sit under this list and neither was visible. The route is
+  // asked for the most recent `LEDGER_PAGE` entries, and of those the list
+  // below renders `LEDGER_ROWS`. Measured on a running gateway: the page held
+  // 81 entries, drew 50, and #1–#31 — the bootstrap, the account creations and
+  // every sign-in from the first half of the session — were simply not there,
+  // with nothing on screen saying so. An installation crosses this on its
+  // first working day.
+  //
+  // For requirement 8's own panel that is the worst reading available: an
+  // operator asking "is it recorded?" is shown a list that answers "no" by
+  // omission. The rule this project already applies to the pending-decision
+  // stack (T56) is the one applied here — **say what was shed, and say it even
+  // when nothing was** — because a count that only appears when something is
+  // missing is a count nobody learns to look for.
+  // ------------------------------------------------------------------------
+  const shownRows = Math.min(visibleLedger.length, LEDGER_ROWS);
   const filterButton = (value: LedgerFilter, label: string) => html`<button
     class="btn ${ledgerFilter === value ? "primary" : ""}"
     aria-pressed=${ledgerFilter === value ? "true" : "false"}
@@ -167,9 +204,28 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
                       : nothing}
                   </span>
                   <span style="display:block;margin-top:0.35rem;opacity:0.85">
-                    ${t("governance.ledger.integrityRecheck", {
-                      command: "openclaw governance audit verify",
-                    })}
+                    ${
+                      // **The second witness, and it changed on 2026-09-07.**
+                      // This row is finding 268's fix: the whole point of it is
+                      // that requirement 8's verdict can be recomputed by
+                      // something that is not the dashboard. It named
+                      // `openclaw governance audit verify` — a command the
+                      // governance command line's removal deleted that same
+                      // day, while nineteen documents were rewritten and this
+                      // string, the only copy an *operator* actually reads, was
+                      // not. Finding 283's class arriving in the UI instead of
+                      // in a command descriptor: the surface still advertising
+                      // a command that no longer exists.
+                      //
+                      // `scripts/verify-ledger.mjs` (T62) is the replacement and
+                      // is a better witness than what it replaces: plain Node,
+                      // nothing imported from `src/`, no sign-in, and it
+                      // re-implements the hashing so a defect in
+                      // `audit-ledger.ts` cannot agree with itself.
+                      t("governance.ledger.integrityRecheck", {
+                        command: "node scripts/verify-ledger.mjs",
+                      })
+                    }
                   </span>`
               : t("governance.ledger.integrityHow"),
             stacked: true,
@@ -188,6 +244,30 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
             }),
           })
         : nothing,
+      // Above the rows, not below them: it says what the rows are, and a
+      // reader who stops at the bottom of a fifty-row list has already drawn
+      // their conclusion by the time a footer could correct it.
+      visibleLedger.length > 0
+        ? renderSettingsRow({
+            title: renderSettingsStatus({
+              kind: visibleLedger.length > shownRows ? "warn" : "muted",
+              label: t("governance.ledger.showing", {
+                shown: String(shownRows),
+                total: String(visibleLedger.length),
+              }),
+            }),
+            // Only when something is actually out of reach. The count above is
+            // unconditional; this sentence is the *consequence*, and printing
+            // "older entries are not shown" on an installation whose whole
+            // trail fits would be false.
+            description:
+              ledger.length >= LEDGER_PAGE
+                ? t("governance.ledger.showingCapped", {
+                    command: "node scripts/verify-ledger.mjs",
+                  })
+                : undefined,
+          })
+        : nothing,
       visibleLedger.length === 0
         ? renderSettingsRow({
             title: t("governance.ledger.empty"),
@@ -200,7 +280,7 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
         // derived from the page's `ledger` state, so reversing it in place would have
         // reordered the state behind every other reader of that array.
         .toReversed()
-        .slice(0, 50)
+        .slice(0, LEDGER_ROWS)
         .map((entry) =>
           renderSettingsRow({
             title: html`<code>#${entry.seq} ${entry.toolName}</code> ${entry.resource}`,

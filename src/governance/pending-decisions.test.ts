@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   decidePendingDecision,
   listPendingDecisions,
+  readPendingDecisions,
   recordTimedOutEscalation,
   MAX_PENDING_UNDECIDED,
   MAX_STORED_PENDING_DECISIONS,
@@ -233,4 +234,115 @@ describe("unanswered escalations do not grow without bound", () => {
     expect(stored.filter((entry) => entry.status === "pending")).toHaveLength(1);
     expect(stored.filter((entry) => entry.status === "denied")).toHaveLength(1);
   });
+});
+
+// ---------------------------------------------------------------------------
+// T56, the open half of finding 260: **the shedding was silent.**
+//
+// 260 fixed which row is shed — a flood consumes its own quota before anyone
+// else's. What stayed true is that nothing recorded that rows had been shed at
+// all, so an operator read a worklist that did not say it was incomplete, and
+// the ledger, which does hold every escalation, is not where anyone looks to
+// answer "what am I supposed to answer?".
+//
+// The count is a property of the store rather than of any one reader, so it is
+// asserted here and the two listing surfaces render it from this number.
+// ---------------------------------------------------------------------------
+
+describe("saying that the stack has dropped questions (T56)", () => {
+  const question = {
+    agentId: "agent-a",
+    sessionKey: "agent:agent-a:main",
+    toolName: "exec",
+    resourceKind: "command" as const,
+    resource: "unused",
+    waitedMs: 1000,
+  };
+
+  it("reports nothing shed on a stack that has never been over its cap", async () => {
+    await recordTimedOutEscalation(TEST_GROUP, { ...question, resource: "one" });
+    const { decisions, shedUndecided } = await readPendingDecisions(TEST_GROUP);
+    expect(decisions).toHaveLength(1);
+    // Zero rather than absent: the panel's "say nothing when the list is
+    // complete" half is asserted where it renders, in
+    // `ui/src/pages/governance/governance-panels.test.ts`. See the note where
+    // `describeShedPendingDecisions` used to live for why that is the only copy.
+    expect(shedUndecided).toBe(0);
+  });
+
+  it("counts every undecided row it sheds to hold the cap", async () => {
+    const over = 25;
+    for (let i = 0; i < MAX_PENDING_UNDECIDED + over; i += 1) {
+      await recordTimedOutEscalation(TEST_GROUP, { ...question, resource: `flood-${i}` });
+    }
+    const { decisions, shedUndecided } = await readPendingDecisions(TEST_GROUP);
+    expect(decisions.length).toBeLessThanOrEqual(MAX_PENDING_UNDECIDED);
+    // Exact, not "greater than zero": the number an operator is shown has to be
+    // the number of questions that actually went, or it is decoration.
+    expect(shedUndecided).toBe(over);
+  });
+
+  it("keeps counting across writes rather than reporting only the last one", async () => {
+    for (let i = 0; i < MAX_PENDING_UNDECIDED + 5; i += 1) {
+      await recordTimedOutEscalation(TEST_GROUP, { ...question, resource: `first-${i}` });
+    }
+    const afterFirst = (await readPendingDecisions(TEST_GROUP)).shedUndecided;
+    for (let i = 0; i < 5; i += 1) {
+      await recordTimedOutEscalation(TEST_GROUP, { ...question, resource: `second-${i}` });
+    }
+    const afterSecond = (await readPendingDecisions(TEST_GROUP)).shedUndecided;
+    expect(afterFirst).toBe(5);
+    // Each of the five later writes is over the cap too, so each sheds one.
+    expect(afterSecond).toBe(10);
+  });
+
+  it("still reports the drop after the surviving rows have all been answered", async () => {
+    // **The case the panel's empty check would otherwise hide.** A flood that
+    // was shed and then answered leaves nothing waiting *and* a stack that is
+    // not a complete record of what was asked; "nothing is waiting" is exactly
+    // the reading an operator must not take from that.
+    for (let i = 0; i < MAX_PENDING_UNDECIDED + 3; i += 1) {
+      await recordTimedOutEscalation(TEST_GROUP, { ...question, resource: `flood-${i}` });
+    }
+    for (const entry of await listPendingDecisions(TEST_GROUP)) {
+      await decidePendingDecision(TEST_GROUP, {
+        id: entry.id,
+        allow: false,
+        decidedBy: "kinan",
+        decidedByRole: "root",
+      });
+    }
+    const { decisions, shedUndecided } = await readPendingDecisions(TEST_GROUP);
+    expect(decisions.every((entry) => entry.status !== "pending")).toBe(true);
+    expect(shedUndecided).toBe(3);
+  });
+
+  it("does not count a decided row dropped by the storage cap", async () => {
+    // Only *undecided* rows are counted. Losing a decided row costs an operator
+    // nothing to act on — the answer is already in the ledger — so reporting it
+    // would describe a bound rather than their worklist.
+    for (let i = 0; i < MAX_STORED_PENDING_DECISIONS + 5; i += 1) {
+      const entry = await recordTimedOutEscalation(TEST_GROUP, {
+        ...question,
+        resource: `decided-${i}`,
+      });
+      await decidePendingDecision(TEST_GROUP, {
+        id: entry.id,
+        allow: false,
+        decidedBy: "kinan",
+        decidedByRole: "root",
+      });
+    }
+    expect((await readPendingDecisions(TEST_GROUP)).shedUndecided).toBe(0);
+  });
+
+  // **The sentence an operator reads is asserted where it is rendered**, not
+  // here. Two tests stood at this point against `describeShedPendingDecisions`,
+  // a helper the dashboard never called and the command line was removed before
+  // it could: they proved the count and the word "ledger" appeared in a string
+  // nothing displayed, and its singular ("1 unanswered question") while the
+  // rendered copy in `en.ts` says "question(s)". Both properties are now
+  // asserted against the panel in
+  // `ui/src/pages/governance/governance-panels.test.ts`. Finding 224's family —
+  // a passing test that measured something other than the product.
 });

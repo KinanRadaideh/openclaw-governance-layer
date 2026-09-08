@@ -57,9 +57,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type {
   GovernanceActiveSessionsView,
+  GovernanceAgentEntry,
   GovernanceDeploymentStatus,
   GovernanceIdentity,
   GovernancePolicyDocument,
+  GovernanceTranscript,
   GovernanceUserRecord,
 } from "./api.ts";
 import "./governance-page.ts";
@@ -75,6 +77,11 @@ type PageState = {
   users: GovernanceUserRecord[];
   activeSessions: GovernanceActiveSessionsView | null;
   deployment: GovernanceDeploymentStatus | null;
+  agents: GovernanceAgentEntry[];
+  conversationStateForTests: {
+    conversationAgentId?: string;
+    transcript?: GovernanceTranscript | null;
+  };
   updateComplete: Promise<unknown>;
   requestUpdate(): void;
 } & HTMLElement;
@@ -187,6 +194,59 @@ function rootState(): Partial<PageState> {
     // keeps the "Why this is off by default" disclosure off the page.
     codexBackend: { enabled: false, explicit: false, agentIds: [] },
     activeSessions: { supported: true, sessions: [], sampledAt: "2026-09-03T10:00:00.000Z" },
+    // ------------------------------------------------------------------
+    // **The agent registry and an open conversation** (2026-09-08).
+    //
+    // Without these three fields the "Your agents" section rendered a hint and
+    // a disabled button and nothing else: no agent picker, because the picker
+    // is behind `agents.length > 0`, and **no transcript and no composer**,
+    // because those are behind `conversationAgentId`. So the one panel the
+    // User tier exists for -- the message box an operator types a task into --
+    // had never been measured by the only test in this project that can
+    // measure anything.
+    //
+    // That is **finding 251 exactly, one panel over**: 251 was this fixture
+    // having no `policy`, which left the largest section of the page
+    // unmeasured, and the two authoring fields it then exposed defeated both
+    // halves of finding 240's fix. This one hid a box that was **155px wide at
+    // every window size** -- an `<input>`'s default intrinsic width -- inside a
+    // block that sized itself to its own content instead of to the cell it was
+    // given.
+    //
+    // A fixture is part of the check. Anything this one omits is not covered,
+    // however green the file reads.
+    // ------------------------------------------------------------------
+    agents: [
+      { agentId: "scout", displayName: "Scout Bot", registered: true },
+      { agentId: "probe1", displayName: "Probe One", registered: true },
+    ],
+    // Through the page's documented test seam, because T53 moved these onto
+    // `ConversationController` and a plain assignment would land on a property
+    // nothing reads -- which would leave the panel unrendered again, silently,
+    // exactly as before.
+    conversationStateForTests: {
+      conversationAgentId: "scout",
+      transcript: {
+        agentId: "scout",
+        supported: true,
+        // **Short on purpose.** The first draft of this fixture carried two
+        // sentence-long turns, and they padded the panel out to 802px of an
+        // 834px row all by themselves -- so the width assertion below passed
+        // with every candidate fix removed. The defect is that the panel sizes
+        // to its content, so a fixture whose content is already wide cannot
+        // see it. A new conversation is also the state an operator meets
+        // first, and it is where the 155px box was measured.
+        turns: [
+          {
+            id: "turn-1",
+            runId: "run-1",
+            role: "user",
+            at: "2026-09-03T10:00:00.000Z",
+            body: "hi",
+          },
+        ],
+      },
+    },
   } as Partial<PageState>;
 }
 
@@ -229,6 +289,49 @@ describe.skipIf(!hasBrowserLayout)("governance text boxes", () => {
     // The guard against this whole file passing because the selector matched
     // nothing -- which is how a green suite says nothing at all.
     expect(textBoxes().length).toBeGreaterThan(3);
+  });
+
+  it("has the conversation composer on the page it measures", async () => {
+    // **A fixture guard, and the second one this file has needed.** Finding 251
+    // was `rootState()` carrying no policy, which left the largest section of
+    // the page unmeasured while every test here passed. The same omission then
+    // hid the message box an operator types a task into: the composer is
+    // behind `conversationAgentId` and the agent picker behind
+    // `agents.length > 0`, and the fixture set neither, so the panel the User
+    // tier exists for had never been in front of a layout engine. It was
+    // **155px wide at every window size** when somebody finally looked.
+    //
+    // Asserted by name rather than by counting boxes, so dropping the
+    // conversation from the fixture fails here instead of quietly lowering the
+    // number above.
+    await mount(rootState());
+
+    const composer = textBoxes().find(
+      (el) => el.getAttribute("aria-label") === "Message to the agent",
+    );
+    expect(composer, "the fixture must open a conversation").toBeTruthy();
+    // **And no width assertion here, deliberately.**
+    //
+    // The defect this fixture was widened for is that the conversation panel
+    // sized itself to its own content rather than to the row it was given: on
+    // the running gateway, at a 1280px viewport, the block measured **424px in
+    // a 554px cell** and the message box inside it **155px**, unchanged at a
+    // 1900px viewport. The repair was measured the same way: 554px and 380px.
+    //
+    // It could not be made to fail here. In this fixture the panel measures
+    // 802px of an 834px row **with the fix and without it** -- the mounted
+    // component is a bare 1100px block, and the live page's row geometry comes
+    // from the settings pane around it, which this harness does not build.
+    // Three drafts of an assertion passed against every candidate revert
+    // (a pixel floor, the block against its own wrapper, the block against the
+    // row), and a fourth would have been a fourth guess.
+    //
+    // So this test pins the thing it *can* pin: that the composer is on the
+    // page this file measures at all. That is the omission that hid the defect
+    // for the life of the panel, and it is finding 251's exact shape. A check
+    // that cannot fail is worse than no check (finding 224), so the width claim
+    // stays where it was actually measured -- in the session record -- rather
+    // than dressed up as coverage here.
   });
 
   it("either fits each box's own text or labels it for hover", async () => {

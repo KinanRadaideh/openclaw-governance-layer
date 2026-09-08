@@ -157,6 +157,34 @@ describe("the audit ledger panel", () => {
     expect(text()).toContain("42");
   });
 
+  it("points the operator at a second witness that still exists", async () => {
+    // **The one string on this page that names a command, and it named a
+    // deleted one.** This row is finding 268's fix: an operator must be able to
+    // recompute requirement 8's verdict with something that is not the
+    // dashboard, or the tamper-evidence feature's own output has to be taken on
+    // trust. It printed `openclaw governance audit verify` until 2026-09-07,
+    // when the governance command line was removed — nineteen documents were
+    // rewritten that day and this, the only copy an operator actually reads,
+    // was missed because nothing asserted it.
+    //
+    // Both halves are asserted on purpose. The positive one alone would pass on
+    // a page that printed both commands; the negative one alone would pass on a
+    // page that had simply dropped the sentence, which is finding 268 undone.
+    await mount({
+      identity: identity("administrator"),
+      ledger: [ledgerEntry()],
+      verification: {
+        ok: true,
+        entriesChecked: 3,
+        evidence: { headSeq: 3, headHash: "a".repeat(64), checkpointSeq: 3, keyed: true },
+      },
+    });
+    expect(text()).toContain("node scripts/verify-ledger.mjs");
+    expect(text(), "no surface may advertise the removed command line").not.toContain(
+      "openclaw governance",
+    );
+  });
+
   it("names the broken entry when the chain fails", async () => {
     await mount({
       identity: identity("administrator"),
@@ -437,6 +465,36 @@ describe("the running-sessions panel", () => {
     expect(text()).toContain("agent-a");
   });
 
+  it("says who started a run the dashboard began (2026-09-08)", async () => {
+    // The account was reachable only by decoding the session key by eye, on the
+    // panel whose subject is what is running and who is answerable for it.
+    await mount({
+      identity: identity("administrator"),
+      activeSessions: {
+        supported: true,
+        sessions: [
+          {
+            runId: "gov-1",
+            agentId: "agent-a",
+            sessionKey: "agent:agent-a:governance:lina",
+            startedAtMs: Date.now() - 5_000,
+            runningForSeconds: 5,
+            lockedDown: false,
+          },
+        ],
+        sampledAt: "2026-08-25T10:00:00.000Z",
+      },
+    });
+    expect(text()).toContain("started by lina");
+  });
+
+  it("says nothing about an account for a run that names none", async () => {
+    // A host run's key is `agent:<id>:main`. Guessing an account there would be
+    // worse than omitting it: this panel is read to decide who to ask.
+    await mount({ identity: identity("administrator"), activeSessions: sessions });
+    expect(text()).not.toContain("started by");
+  });
+
   it("says so in words when nothing is running", async () => {
     await mount({
       identity: identity("administrator"),
@@ -479,6 +537,49 @@ describe("the timed-out escalations panel", () => {
   it("renders nothing when nothing is waiting", async () => {
     await mount({ identity: identity("administrator"), pendingDecisions: [] });
     expect(text()).not.toContain("rm -rf build");
+  });
+
+  // -------------------------------------------------------------------------
+  // T56, the open half of finding 260. The stack sheds unanswered questions to
+  // stay under its cap, and until now it did so **silently**, so an operator
+  // read a worklist that did not say it was incomplete.
+  // -------------------------------------------------------------------------
+
+  it("says so when the stack has dropped unanswered questions", async () => {
+    await mount({
+      identity: identity("administrator"),
+      pendingDecisions: [decision],
+      pendingDecisionsShed: 7,
+    } as never);
+    expect(text(), "the count, so it is a fact rather than a hedge").toContain("7");
+    expect(text()).toContain("not a complete list");
+    // The operator's next question is where they went, and the answer is that
+    // the ledger still holds them.
+    expect(text()).toContain("ledger");
+  });
+
+  it("says so even when nothing is left waiting", async () => {
+    // **The case the empty check would otherwise hide.** A flood that was shed
+    // and then answered leaves nothing waiting *and* a stack that is not a
+    // complete record of what was asked; "nothing is waiting" is exactly the
+    // reading an operator must not take from that.
+    await mount({
+      identity: identity("administrator"),
+      pendingDecisions: [],
+      pendingDecisionsShed: 3,
+    } as never);
+    expect(text()).toContain("not a complete list");
+  });
+
+  it("stays silent when the stack is complete", async () => {
+    await mount({
+      identity: identity("administrator"),
+      pendingDecisions: [decision],
+      pendingDecisionsShed: 0,
+    } as never);
+    expect(text(), "a complete list must not announce that it is complete").not.toContain(
+      "not a complete list",
+    );
   });
 });
 

@@ -18,6 +18,27 @@
 // Agent ids are not scarce and are derived from the display name, so a team
 // deleting "Scout" and provisioning a new "Scout" months later is the ordinary
 // case, exactly as with usernames.
+//
+// ## ⚠ WHAT THIS PROBE MEASURES CHANGED WHEN T55 WAS DECIDED (2026-09-08)
+//
+// This file drives **`unregisterAgent`** — plain removal, the agent still
+// exists on the host — and it found all three surviving. That is now the
+// **decided and intended** behaviour for this path, not an open question:
+// clearing an agent's rules while the agent is still able to act would disarm a
+// live workload, which is the dangerous direction.
+//
+// So the three checks below are written the way they were when the question was
+// open, and their names still read "does NOT inherit". They are relabelled
+// rather than deleted, because what they measure is still worth measuring —
+// only the expected answer changed. **They now assert the survival.**
+//
+// The other half of the decision — deleting the agent from OpenClaw clears
+// everything the id carried — is a different function and has its own probe:
+// `docs-notes/qa-sweep-2026-09-08/t55-delete-clears.ts`, plus real tests in
+// `src/governance/agent-policy-lifecycle.test.ts`.
+//
+// Left permanently red, this file would have joined the list of checks nobody
+// reads (finding 318).
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -95,29 +116,29 @@ async function main(): Promise<void> {
   const after = agentPolicyView(await loadPolicy(groupId), "scout");
 
   check(
-    "the new agent does NOT inherit the old one's allow exception",
-    after.summary.agentSpecific === 0,
-    after.summary.agentSpecific === 0
-      ? "no agent-scoped rules carried over"
-      : `INHERITED: ${after.summary.agentSpecific} agent-scoped rule(s) written for the previous agent, including ${JSON.stringify(
+    "unregistering keeps the allow exception, so a live agent is not disarmed (T55)",
+    after.summary.agentSpecific > 0,
+    after.summary.agentSpecific > 0
+      ? `kept: ${after.summary.agentSpecific} agent-scoped rule(s), ${JSON.stringify(
           after.rules
             .filter((entry) => entry.scope === "agent")
             .map((entry) => `${entry.rule.effect} ${entry.rule.pattern}`),
-        )}`,
+        )} — the agent still exists on the host and its restrictions stand`
+      : "CLEARED: an agent that still exists lost its rules, which is the dangerous direction",
   );
   check(
-    "the new agent does NOT inherit the old one's posture override",
-    !after.posture.modeIsOverride,
+    "unregistering keeps the posture override (T55)",
+    after.posture.modeIsOverride,
     after.posture.modeIsOverride
-      ? `INHERITED: posture ${after.posture.mode} as a per-agent override`
-      : `posture ${after.posture.mode}, from the installation default`,
+      ? `kept: posture ${after.posture.mode} as a per-agent override`
+      : `CLEARED: posture fell back to the installation default`,
   );
   check(
-    "the new agent does NOT arrive already locked down",
-    !after.posture.lockedDown,
+    "unregistering keeps the stop, so a stopped agent does not restart itself (T55)",
+    after.posture.lockedDown,
     after.posture.lockedDown
-      ? "INHERITED: the new agent is locked down by the previous agent's kill switch"
-      : "not locked down",
+      ? "kept: still locked down"
+      : "CLEARED: a stopped agent came back unstopped by being unregistered",
   );
 
   const failed = results.filter((r) => !r.ok);

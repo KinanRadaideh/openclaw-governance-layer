@@ -283,6 +283,44 @@ export function listPromptRuns(input: {
     }));
 }
 
+/**
+ * Every prompt currently running, unfiltered, for the active-sessions view.
+ *
+ * **Deliberately unscoped, and that is safe only because of where it is used**
+ * (2026-09-08, finding 319). `listActiveSessions` applies the group roster and
+ * `canViewAgent` to *everything* it collects, in one place, so a second source
+ * that filtered itself would be a second copy of the scoping rule — which is
+ * the shape finding 139 arrived in when only one of those two filters existed.
+ * The one caller is that function. Do not call this from a route.
+ *
+ * Separate from `listPromptRuns` above, which answers a different question for
+ * a different caller: *which runs may this account cancel*, per-account and
+ * already scoped.
+ */
+export function listRunningPromptsForSessions(): {
+  runId: string;
+  agentId: string;
+  username: string;
+  startedAt: number;
+}[] {
+  // **A cancelled run stays listed until it actually unwinds**, and the first
+  // draft of this filtered those out. That was wrong for the reason
+  // `endPromptRun` states two functions down: cancelling records *why* and
+  // aborts, and the slot is released by `finishPromptRun` when the run really
+  // ends, which "may be some time after the abort". So an entry carrying an
+  // `ending` is a prompt that has been **asked** to stop and may still be
+  // executing — and hiding it from the panel whose job is catching a runaway
+  // agent would report the ask as the outcome. That is finding 202's mistake
+  // exactly, and the same "we asked" versus "it stopped" line the kill switch
+  // draws. The row disappears when the work does.
+  return [...runs.values()].map((run) => ({
+    runId: run.runId,
+    agentId: run.agentId,
+    username: run.username,
+    startedAt: run.startedAt,
+  }));
+}
+
 /** Test helper: abandons every run and clears the table. */
 export function resetPromptRunsForTests(): void {
   for (const run of runs.values()) {

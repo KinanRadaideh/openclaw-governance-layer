@@ -92,13 +92,20 @@ export type LedgerEntry = {
   /**
    * The named account responsible for an administrative action.
    *
-   * **Command-line actions carry a real account too, since T5 (2026-08-24).**
-   * This comment read "or `"cli"` for a change made through the command line,
-   * which has no login by design" until 2026-08-30, which had been false for six
-   * days: `requireCliActor` resolves a signed-in session and `toCliAuditActor`
-   * records its username and tier. `CLI_ACTOR` survives only where no account
-   * *can* sign in: the repair command for accounts predating groups, and the
-   * bootstrap of the first account, which has `BOOTSTRAP_ACTOR` of its own.
+   * **`CLI_ACTOR` (`"cli"`) still appears in chains written before
+   * 2026-09-07, and those entries are correct history.** The governance command
+   * line was removed that day, so nothing writes it any more; the name stays
+   * defined and stays in `RESERVED_ACTOR_NAMES` for two reasons. Entries naming
+   * it cannot be rewritten — the chain is tamper-evident and rewriting history
+   * to tidy a label is the one thing this file exists to prevent — and keeping
+   * it reserved stops a future account being created as `cli` and having its
+   * actions read as historical command-line ones.
+   *
+   * _(While that surface existed this comment tracked it twice. It read "or
+   * `\"cli\"` for a change made through the command line, which has no login by
+   * design" for six days after T5 gave the command line a real login, and then
+   * described `requireCliActor` and `toCliAuditActor` — both now deleted — until
+   * the surface itself went.)_
    *
    * A real field rather than a value smuggled into `ruleId`, because "who did
    * this" is the question the administrative trail exists to answer, and an

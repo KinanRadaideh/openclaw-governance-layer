@@ -318,6 +318,12 @@ export async function handleGovernanceRuleRequestRoutes(
             // this turned every approval into a global rule, silently widening
             // a single-agent request into an installation-wide grant.
             ...(decided.agentId ? { agentId: decided.agentId } : {}),
+            // The same sentence, one field over (finding 279). An absent
+            // `access` on a rule means **both** directions, so a proposal filed
+            // from a *read* was granted as read-and-write. Measured at the
+            // gate: after approving, a write to the escalated path came back
+            // allowed.
+            ...(decided.access ? { access: decided.access } : {}),
             description: `Requested by ${decided.requestedBy}: ${decided.reason}`,
             createdBy: session.username,
           },

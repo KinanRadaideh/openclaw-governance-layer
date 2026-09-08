@@ -168,17 +168,6 @@ export function sessionsFilePath(): string {
 }
 
 /**
- * Where the command line remembers who is signed in (T5).
- *
- * Inside the governance directory, so the self-protecting core denial that
- * already covers that directory covers this too. A governed agent cannot read
- * the token and act as the operator who owns it.
- */
-export function cliSessionFilePath(): string {
-  return join(governanceHomeDir(), "cli-session.json");
-}
-
-/**
  * Where attachments sent to an agent are kept (T14).
  *
  * Inside the governance directory deliberately: the three self-protecting core

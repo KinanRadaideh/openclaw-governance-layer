@@ -174,6 +174,9 @@ export async function handleGovernanceAuthRequest(
       username: user.username,
       role: user.role,
       assignedAgents: session.assignedAgents,
+      // **T27's withhold has to reach the browser** (2026-09-08). See `whoami`
+      // below for what its absence cost.
+      ...(user.canAuthorPolicy !== undefined ? { canAuthorPolicy: user.canAuthorPolicy } : {}),
     });
     return true;
   }
@@ -210,6 +213,35 @@ export async function handleGovernanceAuthRequest(
       // route, and the dashboard needs it to list the agents this account
       // may talk to without first guessing an id.
       assignedAgents: session.assignedAgents,
+      // ------------------------------------------------------------------
+      // **Whether Root has withheld policy authoring from this account (T27).**
+      //
+      // Added 2026-09-08, and its absence was a real defect rather than a
+      // missing nicety. `GovernanceIdentity` in the dashboard declares this
+      // field with "absent means allowed" — the same presence-based reading the
+      // store uses — and `canWritePolicy` on the browser side is
+      // `actor.canAuthorPolicy !== false`. The field was never sent. So **every
+      // withheld User read as allowed**, and the dashboard offered them the
+      // authoring controls: measured with a withheld User signed in, the
+      // **Remove button on every policy rule came up enabled**, and the
+      // add-rule and folder-grant forms were live.
+      //
+      // The server refused all of it — `requireRole` and `canWritePolicy` on
+      // the routes are the control and were never in doubt — so this is not an
+      // access defect. It is finding 100's: a control that looks available and
+      // is not, and it defeats the *point* of T27, which is that withholding
+      // authoring should be legible to the person it was withheld from rather
+      // than discovered from a refusal. `governance-page.ts` reads this to
+      // choose which sentence the Identity panel shows, too.
+      //
+      // Presence-based on the way out, so an account that has never been
+      // withheld sends nothing and reads as allowed, exactly as before.
+      // `session.canAuthorPolicy` is already carried on the session record and
+      // is updated in place when Root changes it, so no extra read.
+      // ------------------------------------------------------------------
+      ...(session.canAuthorPolicy !== undefined
+        ? { canAuthorPolicy: session.canAuthorPolicy }
+        : {}),
     });
     return true;
   }

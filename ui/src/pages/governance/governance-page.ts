@@ -160,6 +160,13 @@ class GovernancePage extends OpenClawLightDomElement {
   @state() private partialFailure = false;
   @state() private lastRefreshedAt: number | null = null;
   private refreshTimer: ReturnType<typeof setInterval> | undefined;
+  /**
+   * Whether a *polled* refresh batch is still in the air.
+   *
+   * Deliberately a plain field and not `@state()`: nothing renders from it, and
+   * making it reactive would put a re-render at each end of every tick.
+   */
+  private refreshing = false;
 
   @state() private loginUsername = "";
   @state() private loginPassword = "";
@@ -277,6 +284,11 @@ class GovernancePage extends OpenClawLightDomElement {
   @state() private ruleWarnings: GovernanceRuleWarning[] | null = null;
   @state() private killNotice: GovernanceKillResult | null = null;
   @state() private pendingDecisions: GovernancePendingDecision[] = [];
+  /**
+   * How many unanswered questions the stack has dropped to stay under its cap
+   * (T56). Zero means the list below it is complete.
+   */
+  @state() private pendingDecisionsShed = 0;
 
   private api(): GovernanceApi {
     const gateway = this.context.gateway;
@@ -408,6 +420,7 @@ class GovernancePage extends OpenClawLightDomElement {
       canAdminister: canAdminister(this.identity),
       canManageAnyAgent: canManageAnyAgent(this.identity),
       pendingDecisions: this.pendingDecisions,
+      pendingDecisionsShed: this.pendingDecisionsShed,
       conversationAgentDraft: this.conversationAgentDraft,
       ...this.conversation.slice(),
       // **Routes, rather than narrows.** A first attempt at T53 restricted this
@@ -529,7 +542,9 @@ class GovernancePage extends OpenClawLightDomElement {
       api.activeSessions(),
       // Viewers may not read the stack; asking would 403 and spoil an
       // otherwise successful refresh.
-      canManageAnyAgent(this.identity) ? api.listPendingDecisions() : Promise.resolve([]),
+      canManageAnyAgent(this.identity)
+        ? api.listPendingDecisions()
+        : Promise.resolve({ decisions: [], shedUndecided: 0 }),
       // Only Root may list accounts; requesting as a lower tier would 403 and
       // surface a confusing error on an otherwise successful refresh.
       this.identity?.role === "root" ? api.listUsers() : Promise.resolve([]),
@@ -546,11 +561,83 @@ class GovernancePage extends OpenClawLightDomElement {
       // same reasoning as the two rows above. Appended at the end for the same
       // positional-destructuring reason.
       this.identity?.role === "root" ? api.codexBackend() : Promise.resolve(null),
+      // ------------------------------------------------------------------
+      // **The account's own identity, which was the one thing this batch
+      // never re-read** (2026-09-08).
+      //
+      // Ten panels refreshed every fifteen seconds and `identity` was not one
+      // of them: it was captured once at sign-in and never asked about again.
+      // So every fact Root controls *about the signed-in account* stopped at
+      // the browser's door for as long as that account stayed signed in.
+      // Measured on the running gateway, with a User signed in throughout:
+      //
+      //   - **An assignment revoked stayed on screen.** `scout` taken off
+      //     `lina`; `whoami` said `["probe1"]`; forty-five seconds later her
+      //     page still listed `scout` with a live Talk/Close and a working
+      //     composer, and sending answered `You do not manage agent "scout"`.
+      //   - **An assignment granted never appeared.** `main` added; the list
+      //     did not change, with nothing on screen saying a reload was needed.
+      //     That is the common case, and it reads as the product being broken.
+      //   - **Authoring withheld did not take.** `whoami` returned
+      //     `canAuthorPolicy: false` and the page kept **six enabled Remove
+      //     buttons** on policy rules and an Identity panel still saying the
+      //     account may "write their rules".
+      //
+      // That last one is **finding 301 by a different road**. 301 made the
+      // routes send the field; it was verified by signing in *as* a withheld
+      // User, which is the one path that already worked. Withhold it from
+      // somebody already signed in and the fix never arrives. The same shape
+      // as 280: a repair confirmed on the case that prompted it and not on
+      // the neighbouring one.
+      //
+      // Appended at the end for the positional-destructuring reason stated
+      // above, and it costs one request: `whoami` is a session-record read.
+      // ------------------------------------------------------------------
+      api.whoami(),
     ]);
 
     // A 401 anywhere means the login is gone, and that *does* end the session,
     // the distinction being drawn is between "this panel failed" and "you are
     // no longer signed in".
+    //
+    // **Unless the operator ended it themselves, which is the third case and
+    // was being reported as the second.** Signing out shows a false *"Your
+    // session ended, so the page was cleared rather than left showing
+    // out-of-date information"* whenever a refresh straddles the sign-out, and
+    // it straddles often: this batch dispatches a dozen requests, the browser
+    // holds six connections open per origin, and the queued remainder go out
+    // **after** `logout` has cleared the cookie. Observed exactly that way —
+    // five 200s, the logout, then six 401s from one batch.
+    //
+    // `endSession` stops the timer, so this is not a poll that should not have
+    // run; it is a batch already in the air, and no ordering of the sign-out
+    // handler can recall it. What distinguishes the cases is not timing but
+    // **whether there is still a session to have lost**: `endSession` clears
+    // `identity` before these land, so a null identity here means the operator
+    // signed out and the 401s are the expected consequence rather than news.
+    //
+    // The same distinction T61 drew one layer down, between a 401 that says
+    // *those credentials are wrong* and one that says *your session is gone*.
+    // This is its third arm: *you closed it yourself*.
+    //
+    // **Returning here rather than only skipping the banner, because the
+    // banner is the least of what this batch would do.** Everything below
+    // writes `policy`, `ledger`, `users`, `agents` and the rest into component
+    // state from `results`. `endSession` has just cleared exactly those fields
+    // — that is finding 280's work — and a batch that straddles the sign-out
+    // carries **fulfilled** results as well as rejected ones, so letting it run
+    // on would repopulate the previous account's data *after* it was cleared,
+    // behind the sign-in screen, for the next person to use this tab. Finding
+    // 271's defect reached by a different road: not a field the clear missed,
+    // but a write that arrives after the clear.
+    //
+    // It is also what leaves the milder falsehood: with only the banner
+    // suppressed, the five rejected requests still set `partialFailure`, so
+    // signing in was greeted with *"Some panels could not be reloaded and may
+    // be out of date"* about panels that had just loaded cleanly.
+    if (!this.identity) {
+      return;
+    }
     if (results.some((result) => result.status === "rejected" && isSessionLost(result.reason))) {
       this.markSessionExpired();
       return;
@@ -567,7 +654,17 @@ class GovernancePage extends OpenClawLightDomElement {
       deployment,
       agents,
       codexBackend,
+      whoami,
     ] = results;
+    // **Assigned before the panels below, and replaced rather than merged.**
+    // The prop builders read `this.identity` to decide what a tier may do, and
+    // a half-updated identity would gate one render on a mixture of two
+    // answers. A rejection leaves the previous one standing, which is the rule
+    // every panel here follows: a failed read costs that panel, not the
+    // session. A 401 has already been handled above, as an expiry.
+    if (whoami.status === "fulfilled") {
+      this.identity = whoami.value;
+    }
     if (policy.status === "fulfilled") {
       this.policy = policy.value;
     }
@@ -587,7 +684,8 @@ class GovernancePage extends OpenClawLightDomElement {
       this.activeSessions = activeSessions.value;
     }
     if (pendingDecisions.status === "fulfilled") {
-      this.pendingDecisions = pendingDecisions.value;
+      this.pendingDecisions = pendingDecisions.value.decisions;
+      this.pendingDecisionsShed = pendingDecisions.value.shedUndecided;
     }
     if (users.status === "fulfilled") {
       this.users = users.value;
@@ -650,11 +748,102 @@ class GovernancePage extends OpenClawLightDomElement {
     this.activeSessions = null;
     this.agents = [];
     this.pendingDecisions = [];
+    this.pendingDecisionsShed = 0;
     this.ruleRequests = [];
     this.systemStatus = null;
     this.deployment = null;
     this.verification = null;
     this.conversation.forget();
+    // ---------------------------------------------------------------------
+    // **Everything else this component holds, and the two things it keeps**
+    // (finding 280).
+    //
+    // The paragraph above asks which fields `refreshData` fails to overwrite
+    // and answers "the transcript". Listing this component's `@state()` fields
+    // against the ones cleared here answers it properly: **fifty declared,
+    // fifteen cleared, and `refreshData` reloads twelve** — so twenty-three
+    // survived a sign-out, not one.
+    //
+    // _(Those five numbers describe the component **as finding 280 found it**
+    // and are deliberately not updated, because they are the measurement the
+    // finding rests on. The current figures are **51 declared and 49 cleared**:
+    // T56 added `pendingDecisionsShed` hours later, in the same session, and
+    // the sentence below — "a field added to this component in future is
+    // session state" — is what made it arrive cleared. Re-derive rather than
+    // quote either pair; the listing is nine lines of script over `@state()`
+    // and this method, and finding 280's whole lesson is that running it again
+    // is the only thing that finishes the job.)_
+    //
+    // The first repair added the three that were provably rendering the
+    // previous account's data — the agent's rules, **the usernames assigned to
+    // it**, and the draft keeping the panel pointed at that agent — and left
+    // the rest. Listing them again afterwards is what showed that to be the
+    // same mistake one layer down: a stale `killNotice` renders as a
+    // `role="alert"` announcing an emergency stop the next person did not
+    // order, and the authoring and request forms come back **filled in** with
+    // the previous account's half-typed rule, the agent it named and the
+    // account it named.
+    //
+    // So this is written as "everything, less the exceptions" rather than as a
+    // list of fields somebody has to remember to extend. **Forty-eight of the
+    // fifty are cleared**, and the two that are not are named here rather than
+    // left to be noticed:
+    //
+    //   - `needsBootstrap` is a fact about the *installation* — whether it has
+    //     a Root at all — not about the session that just ended. Forcing it
+    //     false would hide the bootstrap form from the one person who needs it.
+    //   - `loading` is a transient in-flight flag owned by the loader that is
+    //     often still running when this is called, so resetting it here would
+    //     be this method reaching into another one's state.
+    //
+    // A field added to this component in future is session state until
+    // somebody argues otherwise in this list.
+    //
+    // Same family as 271, 209 and 256.
+    // ---------------------------------------------------------------------
+    this.agentPolicyView = null;
+    this.agentAccess = null;
+    this.agentPolicyError = null;
+    this.agentPolicyAgentId = "";
+    this.error = null;
+    this.codexBackend = null;
+    this.ruleTargets = {};
+    this.conflictNotice = null;
+    this.ruleWarnings = null;
+    this.killNotice = null;
+    this.partialFailure = false;
+    this.lastRefreshedAt = null;
+    this.busy = false;
+    // The account's own name, alongside the password fields cleared below. A
+    // shared tab should not tell the next person who used it last.
+    this.loginUsername = "";
+    // The filters and every half-typed form: the rule being authored, the
+    // request being written, the posture and timeout being set, and the folder
+    // grant — whose `written` half is the *result* of the previous account's
+    // last grant rather than a draft at all.
+    this.ledgerFilter = "all";
+    this.ruleFilter = { ...EMPTY_RULE_FILTER };
+    this.newRuleKind = "command";
+    this.newRuleEffect = "allow";
+    this.newRuleAccess = "";
+    this.newRulePattern = "";
+    this.newRuleAgentId = "";
+    this.newRuleTtl = "";
+    this.folderGrant = { folder: "", exceptions: "", agentId: "", written: null };
+    this.hitlTimeoutDraft = "";
+    this.userAskUsername = "";
+    this.postureAgentId = "";
+    this.agentTimeoutAgentId = "";
+    this.agentTimeoutSeconds = "";
+    this.requestKind = "command";
+    this.requestPattern = "";
+    this.requestReason = "";
+    this.requestAgentId = "";
+    // **`sessionExpired` is cleared here on purpose, not as a side effect.**
+    // `markSessionExpired` sets it on the line *after* it calls this, so the
+    // expiry path still shows its banner; what this stops is a plain sign-out
+    // leaving the previous session's "expired" banner standing.
+    this.sessionExpired = false;
     this.killAgentId = "";
     this.conversationAgentDraft = "";
     // Drafted credentials go with everything else.
@@ -682,16 +871,32 @@ class GovernancePage extends OpenClawLightDomElement {
   private startAutoRefresh(): void {
     this.stopAutoRefresh();
     this.refreshTimer = setInterval(() => {
-      if (this.busy || !this.identity || document.hidden) {
+      // **And not while the previous tick is still in the air** (2026-09-08).
+      // `busy` covers a mutation, not a refresh, so a batch slower than the
+      // fifteen-second interval was joined by the next one and the queue only
+      // grew: the browser holds six connections per origin and this dispatches
+      // eleven requests a tick. Measured after one slow first load, from the
+      // page's own resource timings, on routes `curl` was answering in 0.25s:
+      // 0.26s, then 5.3s, then 10.2s, then **44.3s**. An operator reads that
+      // as a dashboard stuck on "Loading...".
+      if (this.busy || this.refreshing || !this.identity || document.hidden) {
         return;
       }
-      void this.refreshData().catch((err: unknown) => {
-        if (isSessionLost(err)) {
-          this.markSessionExpired();
-        }
-        // Any other failure is left to the next tick: a transient network blip
-        // should not put an error banner over a working page.
-      });
+      // **The guard belongs to the timer, not to `refreshData`.** A refresh
+      // that follows a mutation is asked for and must never be skipped; only
+      // the poll should stand down while one is still in the air.
+      this.refreshing = true;
+      void this.refreshData()
+        .catch((err: unknown) => {
+          if (isSessionLost(err)) {
+            this.markSessionExpired();
+          }
+          // Any other failure is left to the next tick: a transient network
+          // blip should not put an error banner over a working page.
+        })
+        .finally(() => {
+          this.refreshing = false;
+        });
     }, AUTO_REFRESH_MS);
   }
 

@@ -14,7 +14,6 @@ import { isSafeObjectKey } from "../governance/object-keys.js";
 import { decidePendingDecision, listPendingDecisions } from "../governance/pending-decisions.js";
 import {
   canManageAccounts,
-  canAuthorPolicyForAgent,
   canManageAgent,
   canManageGlobalPolicy,
   canViewAgent,
@@ -58,7 +57,7 @@ import { handleGovernanceAgentControlRoutes } from "./governance-dashboard-agent
 import { handleGovernanceAgentRoutes } from "./governance-dashboard-agents.js";
 import { handleGovernanceCodexBackendRoutes } from "./governance-dashboard-backend.js";
 import { handleGovernanceFolderGrantRoutes } from "./governance-dashboard-folder-grant.js";
-import { requireGroup } from "./governance-dashboard-group.js";
+import { requireAgentPolicyAuthoring, requireGroup } from "./governance-dashboard-group.js";
 import { handleGovernanceOversightRoutes } from "./governance-dashboard-oversight.js";
 import { handleGovernanceRuleRequestRoutes } from "./governance-dashboard-rule-requests.js";
 import {
@@ -597,10 +596,7 @@ export async function handleGovernanceApiRequest(
       sendInvalidRequest(res, "ask must be off, on-miss, or null to clear the override");
       return true;
     }
-    if (!canAuthorPolicyForAgent(toActor(session), agentId.trim())) {
-      sendJson(res, 403, {
-        error: { message: `You do not manage agent "${agentId.trim()}"`, type: "forbidden" },
-      });
+    if (!requireAgentPolicyAuthoring(res, toActor(session), agentId.trim())) {
       return true;
     }
     await setAgentAskMode(
@@ -670,10 +666,7 @@ export async function handleGovernanceApiRequest(
       );
       return true;
     }
-    if (!canAuthorPolicyForAgent(toActor(session), agentId.trim())) {
-      sendJson(res, 403, {
-        error: { message: `You do not manage agent "${agentId.trim()}"`, type: "forbidden" },
-      });
+    if (!requireAgentPolicyAuthoring(res, toActor(session), agentId.trim())) {
       return true;
     }
     await setAgentMode(
@@ -766,10 +759,7 @@ export async function handleGovernanceApiRequest(
         });
         return true;
       }
-    } else if (!canAuthorPolicyForAgent(ruleActor, scopedAgentId)) {
-      sendJson(res, 403, {
-        error: { message: `You do not manage agent "${scopedAgentId}"`, type: "forbidden" },
-      });
+    } else if (!requireAgentPolicyAuthoring(res, ruleActor, scopedAgentId)) {
       return true;
     }
     if (!isResourceKind(resourceKind)) {
@@ -892,14 +882,23 @@ export async function handleGovernanceApiRequest(
       return true;
     }
     const removeActor = toActor(session);
-    const mayRemove =
-      existing.agentId === undefined
-        ? canManageGlobalPolicy(removeActor)
-        : canAuthorPolicyForAgent(removeActor, existing.agentId);
-    if (!mayRemove) {
-      sendJson(res, 403, {
-        error: { message: "You do not manage the agent this rule belongs to", type: "forbidden" },
-      });
+    // **Two shapes of refusal, because there are two reasons.** A global rule
+    // is an Administrator's to remove and the tier is the whole answer; an
+    // agent-scoped one asks the conjunction, and the helper below says which
+    // half failed rather than always naming the first (see its own comment).
+    if (existing.agentId === undefined) {
+      if (!canManageGlobalPolicy(removeActor)) {
+        sendJson(res, 403, {
+          error: {
+            message:
+              "Only an Administrator may remove a global rule. It binds every agent, " +
+              "including agents this account does not manage.",
+            type: "forbidden",
+          },
+        });
+        return true;
+      }
+    } else if (!requireAgentPolicyAuthoring(res, removeActor, existing.agentId)) {
       return true;
     }
     try {

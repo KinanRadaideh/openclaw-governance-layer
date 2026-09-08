@@ -387,6 +387,16 @@ async function resolveGovernedParamBinding(
  *   3. **It carries the access half for paths.** A read that was escalated
  *      proposes a read, not a read and a write.
  *
+ *      **This claim was false when it was written** (finding 279). `access`
+ *      reached this function and then went only into the `reason` prose, and
+ *      `RuleRequest` had no field to hold it, so the rule an approval built
+ *      carried none — and an absent `access` means *both directions*. Measured
+ *      at the gate rather than reasoned about: escalate a read, approve the
+ *      proposal, and a **write** to the same path came back allowed. The queue
+ *      row said "(read)" the whole time, because `describeRequest` prints the
+ *      reason. Of the three properties listed here, the two with tests behind
+ *      them held and the one without did not.
+ *
  * Best-effort by design: the grant has already been made by the host, and a
  * full queue or a failed write must not retract it. Failures are recorded.
  */
@@ -423,6 +433,10 @@ async function proposeRuleFromEscalation(
       resourceKind: input.resourceKind,
       pattern,
       agentId,
+      // Part of what makes two proposals the same proposal. A read of a file
+      // and a write of that file are different grants, so folding them
+      // together here would grant only whichever was asked for first.
+      ...(input.access ? { access: input.access } : {}),
     });
     if (existing) {
       return;
@@ -431,6 +445,8 @@ async function proposeRuleFromEscalation(
       resourceKind: input.resourceKind,
       pattern,
       agentId,
+      // The direction, on the request rather than only in the sentence below.
+      ...(input.access ? { access: input.access } : {}),
       requestedBy: HITL_ACTOR,
       reason:
         `Approved once at an escalation: agent "${agentId}" ran ` +

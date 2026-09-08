@@ -565,4 +565,66 @@ describe("the bootstrap probe distinguishes a claimed installation (finding 205)
       setMultiOrganisationAllowedForTests(true);
     }
   });
+
+  // -------------------------------------------------------------------------
+  // T27's withhold has to reach the browser, or it is invisible to the person
+  // it was applied to (finding 301, 2026-09-08).
+  //
+  // `GovernanceIdentity` on the dashboard declares `canAuthorPolicy` with
+  // **absent means allowed**, and the browser-side `canWritePolicy` is
+  // `!== false`. The identity routes never sent the field, so every withheld
+  // User read as allowed and was offered the authoring controls: measured with
+  // a withheld User signed in on a real gateway, **five enabled Remove buttons
+  // on policy rules**, plus a live add-rule form. The server refused all of it,
+  // so this was never an access defect — it is finding 100's, a control that
+  // looks available and is not, defeating the point of T27, which is that a
+  // withheld account should be able to *see* that it was withheld.
+  // -------------------------------------------------------------------------
+  it("tells a withheld User that policy authoring was withheld", async () => {
+    const rootCookie = await bootstrapRoot();
+    const manager = await call("POST", `${API}users`, {
+      cookie: rootCookie,
+      body: { username: "withhold-manager", password: USER_PASSWORD, role: "administrator" },
+    });
+    const managerId = (manager.body as { id: string }).id;
+    const member = await call("POST", `${API}users`, {
+      cookie: rootCookie,
+      body: {
+        username: "withheld-user",
+        password: USER_PASSWORD,
+        role: "user",
+        managedBy: managerId,
+      },
+    });
+    const memberId = (member.body as { id: string }).id;
+
+    // Allowed by default, and the field stays **absent** rather than being sent
+    // as `true`: absent is the contract on both sides, and an account that was
+    // never withheld must keep reading exactly as it did before this existed.
+    const before = await call("POST", `${AUTH}login`, {
+      body: { username: "withheld-user", password: USER_PASSWORD },
+    });
+    expect(before.status).toBe(200);
+    expect(before.body).not.toHaveProperty("canAuthorPolicy");
+    const whoBefore = await call("GET", `${AUTH}whoami`, { cookie: cookieFrom(before) });
+    expect(whoBefore.body).not.toHaveProperty("canAuthorPolicy");
+
+    const withheld = await call("POST", `${API}users/policy-authoring`, {
+      cookie: rootCookie,
+      // The route's field is `allowed`, not `canAuthorPolicy`; the first draft
+      // of this test guessed the store's name and got a 400.
+      body: { userId: memberId, allowed: false },
+    });
+    expect(withheld.status).toBe(200);
+
+    // Both identity routes, because the dashboard reads `login` on the way in
+    // and `whoami` on every reload, and a page that learned it once and forgot
+    // it on refresh would be the same defect on a timer.
+    const after = await call("POST", `${AUTH}login`, {
+      body: { username: "withheld-user", password: USER_PASSWORD },
+    });
+    expect(after.body).toMatchObject({ role: "user", canAuthorPolicy: false });
+    const whoAfter = await call("GET", `${AUTH}whoami`, { cookie: cookieFrom(after) });
+    expect(whoAfter.body).toMatchObject({ role: "user", canAuthorPolicy: false });
+  });
 });

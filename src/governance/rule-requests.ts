@@ -16,7 +16,7 @@ import { ADMIN_ACTIONS, recordAdminAction } from "./admin-audit.js";
 import { withFileLock } from "./file-lock.js";
 import { newGovernanceId } from "./ids.js";
 import { ruleRequestsFilePath, ensureGroupDir } from "./paths.js";
-import type { ResourceKind } from "./policy-types.js";
+import type { ResourceKind, RuleAccess } from "./policy-types.js";
 import type { GovernanceRole } from "./roles.js";
 import { writeGovernanceJson } from "./state-file.js";
 
@@ -51,6 +51,26 @@ export type RuleRequest = {
   value?: string;
   resourceKind?: ResourceKind;
   pattern?: string;
+  /**
+   * Which direction of access is being asked for, for `path` requests.
+   *
+   * **Added 2026-09-07, finding 279.** The escalation proposal filed by "allow
+   * always" knew whether the call it came from was a read or a write and had
+   * nowhere to put it, so the direction reached the reviewer only inside the
+   * `reason` prose and never reached the rule. An absent `access` on a
+   * `PolicyRule` means **both directions** (see `RuleAccess`), so approving a
+   * proposal filed from a *read* created a rule permitting reads and writes
+   * alike — measured at the gate, not inferred: a write to the escalated path
+   * came back allowed. The queue meanwhile displayed "(read)" on that row,
+   * because `describeRequest` includes the reason.
+   *
+   * Carried on the request for the same reason `agentId` is: an Administrator
+   * must grant exactly the scope that was asked for and reviewed, not a wider
+   * one the approval step chose. Absent keeps its existing meaning, so every
+   * request written before this — and every hand-filed request, which has no
+   * direction to state — behaves as it did.
+   */
+  access?: RuleAccess;
   /**
    * Agent the requester wants the rule scoped to. Absent means they are asking
    * for a **global** rule binding every agent.
@@ -178,6 +198,8 @@ export type SubmitRuleRequestInput = ActorTier &
         reason: string;
         requestedBy: string;
         agentId?: string;
+        /** See `RuleRequest.access`. Only meaningful for `path`. */
+        access?: RuleAccess;
       }
     | {
         kind: "agent-setting";
@@ -202,7 +224,13 @@ export function describeRequest(request: RuleRequest): string {
     const label = request.setting === "ask" ? "escalation" : "posture";
     return `requested ${label} "${request.value}" for agent ${request.agentId}: ${request.reason}`;
   }
-  return `requested ${request.resourceKind} ${request.pattern}: ${request.reason}`;
+  // **The direction is part of the sentence, not only of the reason** (finding
+  // 279). An Administrator approving a `path` request is granting one direction
+  // or both, and the difference is the whole of what they are deciding, so it
+  // belongs in the one description the queue and the ledger share rather than
+  // in prose one of them might not show.
+  const direction = request.access ? ` (${request.access})` : "";
+  return `requested ${request.resourceKind} ${request.pattern}${direction}: ${request.reason}`;
 }
 
 export async function submitRuleRequest(
@@ -236,6 +264,10 @@ export async function submitRuleRequest(
             resourceKind: input.resourceKind,
             pattern: input.pattern,
             ...(input.agentId ? { agentId: input.agentId } : {}),
+            // Omitted rather than written as `undefined` when there is none, so
+            // a hand-filed request stays byte-identical to one written before
+            // this field existed. The same rule `agentId` above follows.
+            ...(input.access ? { access: input.access } : {}),
           }),
       reason: input.reason,
       requestedBy: input.requestedBy,
@@ -388,13 +420,20 @@ export async function reopenRuleRequest(groupId: string, id: string): Promise<vo
  * per-requester cap would eventually stop it, but by refusing the twenty-first
  * rather than by keeping the list meaningful.
  *
- * Matched on the three fields that decide what a grant would permit: the kind,
- * the exact pattern, and the agent it binds. Two requests differing in any of
- * those are different grants and both belong in the queue.
+ * Matched on the four fields that decide what a grant would permit: the kind,
+ * the exact pattern, the agent it binds, and the **direction** for paths. Two
+ * requests differing in any of those are different grants and both belong in
+ * the queue.
+ *
+ * **`access` joined that list with the field itself** (finding 279). Without
+ * it, an operator who allowed a read of a file and then a write of the same
+ * file would have the second proposal silently folded into the first, and would
+ * be granted only what the first one asked for — the mirror of the defect that
+ * added the field, arriving through the de-duplication instead.
  */
 export async function findPendingRuleRequestFor(
   groupId: string,
-  match: { resourceKind: ResourceKind; pattern: string; agentId?: string },
+  match: { resourceKind: ResourceKind; pattern: string; agentId?: string; access?: RuleAccess },
 ): Promise<RuleRequest | undefined> {
   const file = await readFileOrEmpty(groupId);
   return file.requests.find(
@@ -403,7 +442,8 @@ export async function findPendingRuleRequestFor(
       candidate.kind !== "agent-setting" &&
       candidate.resourceKind === match.resourceKind &&
       candidate.pattern === match.pattern &&
-      (candidate.agentId ?? undefined) === (match.agentId ?? undefined),
+      (candidate.agentId ?? undefined) === (match.agentId ?? undefined) &&
+      (candidate.access ?? undefined) === (match.access ?? undefined),
   );
 }
 

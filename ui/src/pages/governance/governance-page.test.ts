@@ -43,6 +43,9 @@ type PageState = {
   promptAttachments: unknown[];
   attachmentUploading: boolean;
   promptDraft: string;
+  /** The sign-in drafts, so a test can drive the form without typing into it. */
+  loginUsername: string;
+  loginPassword: string;
   updateComplete: Promise<unknown>;
   requestUpdate(): void;
   remove(): void;
@@ -106,6 +109,12 @@ async function mount(state: Partial<PageState>): Promise<PageState> {
     "promptRunId",
     "promptStream",
     "attachmentUploading",
+    // Added with the in-flight turn (2026-09-08). This list mirrors
+    // `ConversationSlice`, and a key missing from it lands on the component
+    // instead of the controller, where nothing reads it -- a seeded value that
+    // silently does nothing, which is the failure mode the header of
+    // `governance-textbox-fit.browser.test.ts` is about.
+    "promptSent",
   ] as const;
   const merged: Record<string, unknown> = { loading: false, users: [], ...state };
   const conversation: Record<string, unknown> = {};
@@ -633,7 +642,10 @@ describe("typing reaches the state the buttons read", () => {
     // An Administrator has no assigned list, so this is the branch that
     // renders an id box rather than a row per agent.
     const el = await mount({ identity: identity("administrator"), policy: policy([]) });
-    const box = inputByLabel(el, "Agent to talk to");
+    // **"Or type an agent id" since 2026-09-08**, and the rename is the point:
+    // the picker beside it also answered to "Agent to talk to", so the row
+    // offered a screen reader two controls it could not tell apart.
+    const box = inputByLabel(el, "Or type an agent id");
     expect(box, "an Administrator should be offered an id box").toBeTruthy();
     expect(buttonByText(el, "Talk")?.disabled, "Talk starts disabled with nothing typed").toBe(
       true,
@@ -656,7 +668,8 @@ describe("typing reaches the state the buttons read", () => {
       conversationAgentId: "agent-a",
       transcript: { supported: true, turns: [] },
     });
-    const box = inputByLabel(el, "Agent to talk to");
+    const box = inputByLabel(el, "Or type an agent id");
+    expect(box, "an Administrator should still be offered an id box").toBeTruthy();
     expect(box?.value, "an open conversation must not fill in the id box").toBe("");
   });
 });
@@ -763,6 +776,76 @@ describe("ending a session drops what it loaded", () => {
   // The conversation above is the case this fix uniquely owns, and for the
   // same underlying reason: a transcript is the one piece `refreshData` never
   // reloads, so it is the one piece that genuinely survives a sign-out.
+
+  // **The transcript was not the only one, and this is finding 279.**
+  //
+  // Finding 271 asked "what does `refreshData` fail to overwrite?" and answered
+  // "the transcript". Listing the page's `@state()` fields against the ones
+  // `endSession` clears gives three more with exactly that property, all loaded
+  // by `loadAgentPolicy` and by nothing else: `agentPolicyView` (that agent's
+  // rules and posture), `agentAccess` (**the usernames holding it**) and the
+  // `agentPolicyAgentId` draft that keeps the panel pointed at it.
+  //
+  // So the Agent permissions panel stays open, on the previous account's agent,
+  // showing their rules and the account names assigned to it, for whoever signs
+  // in next in the same tab. `agentAccess` is the one that matters: it is a
+  // list of people.
+  it("does not carry one account's agent permissions panel into the next sign-in", async () => {
+    const el = await mount(
+      agentPolicyOpen({ agentId: "agent-a", assignedTo: ["malek", "watcher"] }),
+    );
+    expect(el.textContent, "the roster should be on screen first").toContain("malek");
+
+    await signOutThenBackIn(el, identity("administrator"));
+
+    // `refreshData` reloads `policy`, `agents`, `users` and nine others; it
+    // does not touch these, which is what makes them survivors rather than
+    // things that empty on their own. Asserted on the rendered text rather
+    // than the field so a fix that merely hides the panel still counts.
+    expect(
+      el.textContent ?? "",
+      "the previous account's agent roster must not survive the sign-in",
+    ).not.toContain("malek");
+    expect(el.textContent ?? "", "nor the second name on it").not.toContain("watcher");
+  });
+
+  // **The three fields above were not the end of it, and this is why the fix
+  // is written as a rule rather than as a list.** Listing the page's `@state()`
+  // fields against the cleared ones a second time, *after* adding those three,
+  // still left twenty-eight — and `refreshData` reloads only three of those.
+  // The rest are the previous account's notices and half-typed forms, several
+  // of which name an agent or an account.
+  //
+  // `killNotice` is the sharp one: it renders as a `role="alert"` reporting the
+  // outcome of an emergency stop. The next person to sign in at that machine
+  // reads an alert about a stop they did not order, on an agent they may not be
+  // able to see.
+  it("does not carry one account's notices and half-typed forms into the next sign-in", async () => {
+    const el = await mount({
+      identity: identity("administrator"),
+      policy: policy([]),
+      // A stop that reported no running work: the branch whose copy is a plain
+      // sentence, so it is assertable as rendered text.
+      killNotice: { stopped: true, abortedRunIds: [], stoppedConfirmed: true },
+      // A rule half-authored against a named agent, and a request half-typed
+      // about a named account. Both prefill their forms for whoever is next.
+      newRulePattern: "^cat /etc/payroll$",
+      requestReason: "needed for the payroll job",
+    } as never);
+
+    await signOutThenBackIn(el, identity("administrator"));
+
+    const text = el.textContent ?? "";
+    const values = [...el.querySelectorAll("input, textarea")].map(
+      (field) => (field as HTMLInputElement).value,
+    );
+    expect(text, "a stale emergency-stop alert must not greet the next account").not.toContain(
+      "Lockdown engaged",
+    );
+    expect(values.join(" | "), "nor the previous account's half-authored rule").not.toContain(
+      "payroll",
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -832,5 +915,338 @@ describe("reading what the agent said", () => {
     expect(log, "the transcript should be a log region").toBeTruthy();
     expect(log?.getAttribute("aria-live")).toBe("polite");
     expect(log?.getAttribute("aria-label")).toContain("agent-a");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Signing out is a third thing, and the page had only two (2026-09-08).
+//
+// A 401 meant one of two things to this component: *those credentials are
+// wrong* (T61, fixed one layer down in `api.ts`) or *your session is gone*.
+// There is a third: *you ended it yourself*, and it produced 401s that were
+// read as the second.
+//
+// **Driven on a real gateway, not imagined.** `refreshData` dispatches a dozen
+// requests, a browser holds six connections per origin, and the queued
+// remainder go out **after** `logout` has cleared the cookie — observed as five
+// 200s, the logout, then six 401s from one batch. The page showed *"Your
+// session ended, so the page was cleared rather than left showing out-of-date
+// information"* on a deliberate sign-out, and after that was suppressed, the
+// same rejected requests still set the partial-failure banner, so signing back
+// in was greeted with *"Some panels could not be reloaded"* about panels that
+// had just loaded cleanly.
+//
+// **No test in this file could have caught it**, and the sign-out helper above
+// says why in its own comment: it stubs every non-logout request as a plain
+// rejection *specifically to avoid a 401*, because a 401 would have routed
+// through the expiry path and cleared the same state for free. The case it
+// declines to construct is the case that was broken.
+// ---------------------------------------------------------------------------
+describe("signing out is not an expiry and not a failure", () => {
+  const EXPIRED = "Your session ended";
+  const PARTIAL = "Some panels could not be reloaded";
+
+  /** Signs out with the refresh batch answering 401, which is what really happens. */
+  async function signOutWithLateUnauthorized(el: PageState): Promise<void> {
+    const realFetch = globalThis.fetch;
+    const withContext = el as unknown as { context: unknown };
+    const realContext = withContext.context;
+    withContext.context = { basePath: "", gateway: { snapshot: null, connection: null } };
+    globalThis.fetch = (async (input: unknown) => {
+      if (String(input).includes("logout")) {
+        return { ok: true, status: 200, text: async () => "{}" };
+      }
+      // The queued remainder of the batch, arriving after the cookie is gone.
+      return {
+        ok: false,
+        status: 401,
+        text: async () => JSON.stringify({ error: { message: "unauthorized" } }),
+      };
+    }) as unknown as typeof globalThis.fetch;
+    try {
+      buttonByText(el, "Sign out")?.click();
+      for (let tick = 0; tick < 12; tick += 1) {
+        await new Promise((resolve) => {
+          setTimeout(resolve, 0);
+        });
+        await el.updateComplete;
+      }
+    } finally {
+      globalThis.fetch = realFetch;
+      withContext.context = realContext;
+    }
+  }
+
+  it("does not report a deliberate sign-out as an expired session", async () => {
+    const el = await mount({ identity: identity("administrator"), policy: policy([]) });
+    await signOutWithLateUnauthorized(el);
+    expect(el.identity, "the sign-out itself must still have happened").toBeNull();
+    expect(
+      el.textContent,
+      "the operator ended the session; nothing ended it for them",
+    ).not.toContain(EXPIRED);
+  });
+
+  it("does not greet the next sign-in with the last one's abandoned requests", async () => {
+    // **Asserted after signing back in, and the first draft of this test was
+    // wrong about that.** It checked for the banner immediately after the
+    // sign-out, where `renderGovernanceGate` returns the sign-in screen and no
+    // freshness row is rendered at all — so it passed against every revert,
+    // including the defect it was written for. `partialFailure` is *state*, set
+    // by the abandoned batch and still set when the next account arrives, which
+    // is exactly where it was seen on a real gateway: sign in, and be told
+    // panels are stale that had just loaded cleanly. Caught by running it
+    // against the unfixed code and watching it pass.
+    const el = await mount({ identity: identity("administrator"), policy: policy([]) });
+    await signOutWithLateUnauthorized(el);
+    el.identity = identity("administrator");
+    await el.updateComplete;
+    await el.updateComplete;
+    expect(
+      el.textContent,
+      "401s caused by signing out are the expected consequence, not a partial failure",
+    ).not.toContain(PARTIAL);
+  });
+
+  it("does not let the ended session's batch repopulate what the sign-out cleared", async () => {
+    // **The half that is not cosmetic.** Everything after the 401 check writes
+    // `policy`, `ledger`, `users` and the rest into component state, and a
+    // batch straddling the sign-out carries fulfilled results as well as
+    // rejected ones. Letting it run on would restore the previous account's
+    // data *after* `endSession` cleared it, behind the sign-in screen, for
+    // whoever uses this tab next. Finding 271 by a different road: not a field
+    // the clear missed, but a write arriving after the clear.
+    const el = await mount({
+      identity: identity("administrator"),
+      // The file's own `rule()` helper rather than an object literal: the first
+      // draft omitted `createdAt` and `tsgo:core:test` refused it, which is the
+      // gate T39 added for exactly this — a fixture shaped like the type but
+      // not of it, asserted against and silently reading `undefined`.
+      policy: policy([rule({ id: "r1" })]),
+    });
+    const realFetch = globalThis.fetch;
+    const withContext = el as unknown as { context: unknown };
+    const realContext = withContext.context;
+    withContext.context = { basePath: "", gateway: { snapshot: null, connection: null } };
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      if (url.includes("logout")) {
+        return { ok: true, status: 200, text: async () => "{}" };
+      }
+      // A fulfilled member of the same straddling batch: the previous
+      // account's policy, arriving after the sign-out.
+      if (url.includes("policy")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () =>
+            JSON.stringify({
+              mode: "enforce",
+              ask: "off",
+              rules: [
+                { id: "leaked", resourceKind: "command", pattern: "^secret$", effect: "allow" },
+              ],
+            }),
+        };
+      }
+      return { ok: false, status: 401, text: async () => "{}" };
+    }) as unknown as typeof globalThis.fetch;
+    try {
+      buttonByText(el, "Sign out")?.click();
+      for (let tick = 0; tick < 12; tick += 1) {
+        await new Promise((resolve) => {
+          setTimeout(resolve, 0);
+        });
+        await el.updateComplete;
+      }
+    } finally {
+      globalThis.fetch = realFetch;
+      withContext.context = realContext;
+    }
+    expect(el.policy, "the ended session's policy must not come back").toBeNull();
+    expect(el.textContent).not.toContain("secret");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A wrong password is not an expired session (T61, fixed 2026-09-08).
+//
+// `run()` mapped **any** 401 to `markSessionExpired()`, and the sign-in route
+// answers a bad password with 401 like every other route. So mistyping a
+// password produced *"Your session ended, so the page was cleared rather than
+// left showing out-of-date information. Sign in again to continue."* — an event
+// that had not happened, telling the operator to do the thing they were already
+// doing, and hiding the server's own plain answer.
+//
+// Fixed at the API layer rather than by special-casing the login call, which is
+// the option the register argued stops it recurring: `GovernanceApiError` now
+// carries whether the failing call was itself an attempt to authenticate, and
+// `isSessionLost` reads it.
+// ---------------------------------------------------------------------------
+describe("signing in with the wrong password", () => {
+  it("says the credentials were wrong, not that a session ended", async () => {
+    const el = await mount({ identity: null });
+    const withContext = el as unknown as { context: unknown };
+    const realContext = withContext.context;
+    const realFetch = globalThis.fetch;
+    withContext.context = { basePath: "", gateway: { snapshot: null, connection: null } };
+    globalThis.fetch = (async () => ({
+      ok: false,
+      status: 401,
+      text: async () => JSON.stringify({ error: { message: "Invalid credentials" } }),
+    })) as unknown as typeof globalThis.fetch;
+    try {
+      el.loginUsername = "kinan";
+      el.loginPassword = "wrong";
+      await el.updateComplete;
+      buttonByText(el, "Sign in")?.click();
+      for (let tick = 0; tick < 10; tick += 1) {
+        await new Promise((resolve) => {
+          setTimeout(resolve, 0);
+        });
+        await el.updateComplete;
+      }
+    } finally {
+      globalThis.fetch = realFetch;
+      withContext.context = realContext;
+    }
+    expect(el.textContent, "the server's own answer reaches the operator").toContain(
+      "Invalid credentials",
+    );
+    expect(el.textContent, "nothing ended: there was no session to lose").not.toContain(
+      "Your session ended",
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// **The account's own identity was the one thing the refresh never re-read**
+// (2026-09-08).
+//
+// `refreshIdentity()` ran from `connectedCallback` and from nowhere else, and
+// signing in assigned `identity` directly, so for the whole life of a session
+// the browser's copy of *who this account is* was whatever it had been at the
+// first paint. Ten panels reloaded every fifteen seconds around it.
+//
+// Measured on a running gateway with a User signed in throughout: an agent
+// taken off her assignment stayed on screen with a live composer for
+// forty-five seconds and answered `You do not manage agent "scout"` when used;
+// an agent added to it never appeared at all; and Root withholding rule
+// authoring left **six enabled Remove buttons** on policy rules while `whoami`
+// was already answering `canAuthorPolicy: false`.
+//
+// That last one is **finding 301 by a different road**: 301 made the routes
+// send the field and was verified by signing in *as* a withheld User, which is
+// the one path that already worked.
+// ---------------------------------------------------------------------------
+
+describe("the refresh re-reads who this account is", () => {
+  /**
+   * Drives one refresh with every governance route stubbed.
+   *
+   * `refreshData` is private and there is no control on the page that can be
+   * clicked without also asserting something about that control, so it is
+   * called directly through a cast. The alternative — pressing a button that
+   * happens to call `run()` — would make this a test of that button.
+   *
+   * The context stub is the one `signOutThenBackIn` above documents: `api()`
+   * reads a Lit context nothing provides here and throws before any request is
+   * made, so stubbing `fetch` alone cannot help.
+   */
+  async function refreshWith(el: PageState, whoami: unknown): Promise<void> {
+    const realFetch = globalThis.fetch;
+    const withContext = el as unknown as { context: unknown };
+    const realContext = withContext.context;
+    withContext.context = { basePath: "", gateway: { snapshot: null, connection: null } };
+    globalThis.fetch = (async (input: unknown) => {
+      if (String(input).includes("/whoami")) {
+        return { ok: true, status: 200, text: async () => JSON.stringify(whoami) };
+      }
+      // Everything else rejects. `refreshData` uses `Promise.allSettled`, so a
+      // rejected request assigns nothing and cannot be mistaken for a 401 —
+      // which would route through the expiry path and clear the state this is
+      // about. The same reasoning the sign-out stub above sets out.
+      throw new Error("stubbed: this test has no server");
+    }) as unknown as typeof globalThis.fetch;
+    try {
+      await (el as unknown as { refreshData: () => Promise<void> }).refreshData();
+      for (let tick = 0; tick < 5; tick += 1) {
+        await new Promise((resolve) => {
+          setTimeout(resolve, 0);
+        });
+        await el.updateComplete;
+      }
+    } finally {
+      globalThis.fetch = realFetch;
+      withContext.context = realContext;
+    }
+  }
+
+  it("picks up an agent added to this account's assignment", async () => {
+    const el = await mount({ identity: identity("user", ["probe1"]), policy: policy([]) });
+    expect(el.textContent ?? "").not.toContain("scout");
+
+    await refreshWith(el, { username: "user", role: "user", assignedAgents: ["probe1", "scout"] });
+
+    expect(
+      el.textContent ?? "",
+      "an agent assigned while the operator is signed in must appear",
+    ).toContain("scout");
+  });
+
+  it("drops an agent taken off it", async () => {
+    const el = await mount({
+      identity: identity("user", ["probe1", "scout"]),
+      policy: policy([]),
+    });
+    expect(el.textContent ?? "").toContain("scout");
+
+    await refreshWith(el, { username: "user", role: "user", assignedAgents: ["probe1"] });
+
+    expect(
+      el.textContent ?? "",
+      "a revoked agent must not keep a live composer pointed at it",
+    ).not.toContain("scout");
+  });
+
+  it("carries a withheld authoring flag through to the controls (301)", async () => {
+    const el = await mount({ identity: identity("user", ["probe1"]), policy: policy([]) });
+
+    await refreshWith(el, {
+      username: "user",
+      role: "user",
+      assignedAgents: ["probe1"],
+      canAuthorPolicy: false,
+    });
+
+    expect(
+      (el as unknown as { identity: { canAuthorPolicy?: boolean } | null }).identity
+        ?.canAuthorPolicy,
+      "the browser's copy of the withhold must follow the server's",
+    ).toBe(false);
+  });
+
+  it("leaves the previous identity standing when the read fails", async () => {
+    // A failed panel costs that panel, not the session — the rule every other
+    // assignment in `refreshData` follows. Clearing identity here would throw
+    // the operator back to the sign-in form on one bad request.
+    const el = await mount({ identity: identity("user", ["probe1"]), policy: policy([]) });
+    const realFetch = globalThis.fetch;
+    const withContext = el as unknown as { context: unknown };
+    const realContext = withContext.context;
+    withContext.context = { basePath: "", gateway: { snapshot: null, connection: null } };
+    globalThis.fetch = (async () => {
+      throw new Error("stubbed: this test has no server");
+    }) as unknown as typeof globalThis.fetch;
+    try {
+      await (el as unknown as { refreshData: () => Promise<void> }).refreshData();
+      await el.updateComplete;
+    } finally {
+      globalThis.fetch = realFetch;
+      withContext.context = realContext;
+    }
+    expect((el as unknown as { identity: GovernanceIdentity | null }).identity?.username).toBe(
+      "user",
+    );
   });
 });

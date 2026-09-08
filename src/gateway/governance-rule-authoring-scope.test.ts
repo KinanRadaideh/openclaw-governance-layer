@@ -571,3 +571,243 @@ describe("the request path actually closes the loop (T4)", () => {
     expect(res.status).toBe(400);
   });
 });
+
+// ---------------------------------------------------------------------------
+// The direction an approval grants (finding 279).
+//
+// An escalation on a `path` knows whether the call was a read or a write —
+// `resource-extraction.ts` stamps `access` on every path tool — and answering
+// it "Allow always" files a proposal for an Administrator to approve. The
+// proposal carried the direction only inside its human-readable `reason`, and
+// `RuleRequest` had no field to hold it, so the rule the approval built carried
+// none. **An absent `access` means both directions** (`RuleAccess`), so
+// approving a proposal filed from a read granted a permission to write.
+//
+// Driven end to end through the real decide route rather than a hand-rolled
+// copy of it, because the copy is what went wrong: the implementation comment
+// claimed the property, the test file listing six properties did not include
+// it, and nothing measured it. The assertion is at the **gate**, which is the
+// only place that says what a rule actually permits.
+// ---------------------------------------------------------------------------
+
+describe("approving an escalation grants the direction that was escalated", () => {
+  // **A boring file on purpose.** The first draft used `/srv/app/secrets.env`
+  // and nothing escalated: a core-tier deny rule refuses credential files
+  // outright, so the gate never reached the question this test is about. The
+  // same trap that cost the first T2 attempt, arriving from the other side.
+  const FILE = "/srv/app/notes.txt";
+
+  /** Drives the real gate until it escalates the given tool, and answers it. */
+  async function escalateAndAllowAlways(toolName: "read" | "write"): Promise<void> {
+    const { evaluateGovernancePolicy } = await import("../governance/policy-engine.js");
+    // `on-miss` is what puts an unlisted action to a human; the suite fixture
+    // sets `ask: "off"`, which refuses outright and never escalates.
+    await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce", ask: "on-miss" });
+    const decision = await evaluateGovernancePolicy(
+      { toolName, params: { path: FILE } },
+      { agentId: "mine", sessionKey: "agent:mine:main" },
+    );
+    if (!decision || !("requireApproval" in decision)) {
+      throw new Error(`expected the gate to escalate an unlisted ${toolName}`);
+    }
+    await decision.requireApproval.onResolution?.("allow-always");
+  }
+
+  /** Whether the gate lets a call through with no question and no refusal. */
+  async function allows(toolName: "read" | "write"): Promise<boolean> {
+    const { evaluateGovernancePolicy } = await import("../governance/policy-engine.js");
+    const decision = await evaluateGovernancePolicy(
+      { toolName, params: { path: FILE } },
+      { agentId: "mine", sessionKey: "agent:mine:main" },
+    );
+    return decision === undefined;
+  }
+
+  it("a read escalation, approved, permits reading and not writing", async () => {
+    await escalateAndAllowAlways("read");
+
+    const { listRuleRequests } = await import("../governance/rule-requests.js");
+    const proposal = (await listRuleRequests(TEST_GROUP)).find(
+      (request) => request.status === "pending",
+    );
+    expect(proposal, "answering Allow always must file a proposal").toBeTruthy();
+    expect(
+      proposal?.access,
+      "the proposal has to carry the direction, or the approval cannot grant it",
+    ).toBe("read");
+
+    const decided = await send("POST", "rule-requests/decide", session("administrator"), {
+      id: proposal?.id,
+      approve: true,
+    });
+    expect(decided.status).toBe(200);
+
+    expect(await allows("read"), "the grant the operator asked for").toBe(true);
+    // The assertion this test exists for. Before the fix this was `true`.
+    expect(
+      await allows("write"),
+      "approving a proposal filed from a read must not permit writing the same path",
+    ).toBe(false);
+  });
+
+  it("a write escalation, approved, permits writing", async () => {
+    // The other direction, so the fix is not "always propose read": a write
+    // that was escalated has to be grantable, or Allow always would stop
+    // working for the case it is most often used on.
+    await escalateAndAllowAlways("write");
+    const { listRuleRequests } = await import("../governance/rule-requests.js");
+    const proposal = (await listRuleRequests(TEST_GROUP)).find(
+      (request) => request.status === "pending",
+    );
+    expect(proposal?.access).toBe("write");
+
+    await send("POST", "rule-requests/decide", session("administrator"), {
+      id: proposal?.id,
+      approve: true,
+    });
+    expect(await allows("write")).toBe(true);
+  });
+
+  it("reading a file and then writing it are two proposals, not one", async () => {
+    // The de-duplication is matched on what a grant would permit, and the
+    // direction is part of that. Folding these together would file one
+    // proposal and grant only the direction that was asked for first — the
+    // same defect arriving through the dedupe instead of through the field.
+    await escalateAndAllowAlways("read");
+    await escalateAndAllowAlways("write");
+
+    const { listRuleRequests } = await import("../governance/rule-requests.js");
+    const pending = (await listRuleRequests(TEST_GROUP)).filter(
+      (request) => request.status === "pending",
+    );
+    expect(pending).toHaveLength(2);
+    // An explicit comparator: the type-aware lint rule requires one, and the
+    // array's element type includes `undefined`, so the default lexicographic
+    // sort would be ordering values it cannot be trusted to order.
+    const directions = pending
+      .map((request) => request.access ?? "")
+      .toSorted((a, b) => a.localeCompare(b));
+    expect(directions).toEqual(["read", "write"]);
+  });
+
+  it("says the direction in the one sentence the queue and the ledger share", async () => {
+    // `describeRequest` is what an Administrator reads in the review list and
+    // what the ledger records. A row that grants one direction and describes
+    // neither leaves the reviewer deciding without the fact that matters.
+    //
+    // **Asserted on the half before the reason, and the first version was not**
+    // — it checked the whole sentence for "(read)", which the escalation's own
+    // `reason` prose already contains, so it passed with the change reverted.
+    // A test that cannot fail for the reason it claims is worse than no test,
+    // because it is counted: the same deletion `governance-page.test.ts` records
+    // making for finding 271, caught here by running it against reverted code
+    // rather than by noticing.
+    await escalateAndAllowAlways("read");
+    const { listRuleRequests, describeRequest } = await import("../governance/rule-requests.js");
+    const proposal = (await listRuleRequests(TEST_GROUP)).find(
+      (request) => request.status === "pending",
+    );
+    const [whatIsGranted] = describeRequest(proposal!).split(": ");
+    expect(whatIsGranted, "the direction belongs in the grant, not only in the prose").toContain(
+      "(read)",
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Which of the two refusals an authoring route gives (finding 335, 2026-09-08).
+//
+// `canAuthorPolicyForAgent` is a conjunction — **manage this agent** *and*
+// **author policy at all** — and five routes reported only the first half of
+// it, so a User whose rule editing Root had withheld met
+// `You do not manage agent "mine"` about an agent they demonstrably manage.
+// Measured on a running gateway before the repair: the same account stopped
+// that same agent through the kill switch one request later.
+//
+// T27 exists precisely to separate *may I act on this agent?* from *may I
+// change the rules it is judged by?*, and the refusal erased its own
+// distinction. The operator-visible cost is a wrong next step: ask for an
+// assignment you already hold, instead of asking for rule editing back.
+//
+// The pair below is the whole point — one test per branch — because a repair
+// that gave every caller the new sentence would be worse than the defect: the
+// "not yours" wording is deliberately vague so it cannot be used as an
+// existence oracle for another organisation's agent ids.
+// ---------------------------------------------------------------------------
+
+describe("a withheld User is told what is actually withheld", () => {
+  /** A User who manages `mine` and whose rule editing Root has withheld. */
+  const withheld = (): GovernanceSession => ({
+    ...session("user", ["mine"]),
+    canAuthorPolicy: false,
+  });
+
+  it("names the withheld authoring, not a management they have", async () => {
+    const res = await send("POST", "policy/rules", withheld(), {
+      agentId: "mine",
+      resourceKind: "command",
+      pattern: "^echo hi$",
+      effect: "allow",
+    });
+
+    expect(res.status).toBe(403);
+    // Fails against the unrepaired route, which said "You do not manage agent".
+    expect(res.body?.error?.message).toContain("Rule editing has been withheld");
+    expect(res.body?.error?.message).not.toContain("do not manage");
+  });
+
+  it("says the same on the folder grant and on removing a rule", async () => {
+    // Three routes shared the conflated message; asserting one would leave the
+    // repair half-applied, which is finding 326's shape and this file's own
+    // "one-sided fixes need sibling proof" rule.
+    const grant = await send("POST", "policy/folder-grant", withheld(), {
+      agentId: "mine",
+      folder: "/srv/app",
+      exceptions: [],
+    });
+    expect(grant.status).toBe(403);
+    expect(grant.body?.error?.message).toContain("Rule editing has been withheld");
+
+    const created = await send("POST", "policy/rules", session("administrator"), {
+      agentId: "mine",
+      resourceKind: "command",
+      pattern: "^echo removable$",
+      effect: "allow",
+    });
+    expect(created.status).toBe(200);
+    const removal = await send("POST", "policy/rules/remove", withheld(), {
+      id: created.body.id,
+    });
+    expect(removal.status).toBe(403);
+    expect(removal.body?.error?.message).toContain("Rule editing has been withheld");
+  });
+
+  it("still says 'you do not manage' to somebody who really does not", async () => {
+    // The guard, and the half that must not change: this wording is vague on
+    // purpose so it cannot answer "does that agent id exist elsewhere?".
+    const res = await send("POST", "policy/rules", session("user", ["theirs"]), {
+      agentId: "mine",
+      resourceKind: "command",
+      pattern: "^echo hi$",
+      effect: "allow",
+    });
+
+    expect(res.status).toBe(403);
+    expect(res.body?.error?.message).toContain('You do not manage agent "mine"');
+    expect(res.body?.error?.message).not.toContain("withheld");
+  });
+
+  it("keeps what T27 says a withheld User still has", async () => {
+    // The distinction is only worth drawing if the other half is real. A
+    // withheld User still sets their own agent's escalation timeout — the
+    // panel promises exactly this in `policy-agent-timeout.ts`'s header — and
+    // that route must not have been swept up in the repair.
+    const res = await send("POST", "policy/agent-hitl-timeout", withheld(), {
+      agentId: "mine",
+      seconds: 90,
+    });
+
+    expect(res.status).toBe(200);
+    expect((await loadPolicy(TEST_GROUP)).agentHitlTimeout?.mine).toBe(90);
+  });
+});

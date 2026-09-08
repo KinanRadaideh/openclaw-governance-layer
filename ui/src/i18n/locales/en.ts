@@ -3544,6 +3544,27 @@ export const en: TranslationMap = {
       signedInAs: "Signed in as",
       signOut: "End this governance session",
       signOutButton: "Sign out",
+      // What the signed-in tier may actually do, said on the one panel whose
+      // subject is "who am I". Without it the role is a bare lowercase token
+      // and the rest of the page is the only clue: a Viewer sees far fewer
+      // sections than a Root and nothing says why, which reads as a page that
+      // failed to load rather than as a tier doing its job.
+      canDoLabel: "What this account can do",
+      canDoRoot:
+        "Root. You own this organisation and manage its people: create accounts, set roles, and delegate agents to Administrators. You can do anything an Administrator can as well.",
+      canDoAdministrator:
+        "Administrator. You manage agents: register them, write their rules, stop them, and answer escalations. Root manages the accounts.",
+      // Two Users, two different accounts. `canAuthorPolicy` is on the
+      // identity, so this panel can say which one you are rather than
+      // describing the tier and leaving you to work it out — the same
+      // ambiguity the Accounts row carried until the state was printed
+      // beside the button that changes it.
+      canDoUser:
+        "User. You operate the agents assigned to you: prompt them, stop them, read their audit trail, and write their rules.",
+      canDoUserWithheld:
+        "User. You operate the agents assigned to you: prompt them, stop them, and read their audit trail. Root has withheld rule editing from this account, so to change a rule you request it and an Administrator approves.",
+      canDoViewer:
+        "Viewer. You can read the audit trail for the agents assigned to you, with resource details masked. You cannot change anything or prompt an agent.",
     },
     policy: {
       title: "Policy",
@@ -3711,6 +3732,19 @@ export const en: TranslationMap = {
       hint: "Every rule in force for one agent. The global rules that bind every agent, plus any written for this one. This is what the gate consults, not just what the document lists.",
       pick: "Agent",
       pickHint: "Pick an agent you manage, or type its id.",
+      // **A Viewer manages nothing** (2026-09-08). The hint above is
+      // unconditional, so the one tier that can only read was told to pick
+      // an agent it "manages" — the same falsehood, one panel over, as the
+      // conversation picker telling an unassigned User they manage every
+      // agent. This panel is genuinely useful to a Viewer: reading what is
+      // in force is exactly their job.
+      pickHintReadOnly:
+        "Pick an agent assigned to you, or type its id. You can read the rules in force for it, not change them.",
+      // The answer below is real but may be about nobody: global rules bind
+      // every agent, so a mistyped id returns a full, confident page. The kill
+      // switch already says this for the same free-text field.
+      unknownAgent:
+        "No agent with this id is registered, running, or assigned to an account. What follows is what would bind it if one existed; check the id if you meant an agent that is already there.",
       show: "Show permissions",
       posture: "Posture",
       escalation: "Ask a human on a miss",
@@ -3741,6 +3775,11 @@ export const en: TranslationMap = {
       kindColumn: "Kind",
       intact: "Intact, entries verified",
       tampered: "TAMPERED at entry",
+      // Said always, not only when something is missing: a count that appears
+      // only on truncation is a count nobody learns to look for (T56's rule).
+      showing: "Showing the {shown} most recent of {total} entries",
+      showingCapped:
+        "Older entries are on disk and are not loaded here. Run {command} at the terminal to read the whole chain.",
       empty: "No audit entries yet",
       emptyHint: "Entries appear here as the agent attempts governed actions.",
       by: "by",
@@ -3778,11 +3817,30 @@ export const en: TranslationMap = {
       title: "Accounts",
       created: "Created",
       add: "Create an account",
+      // **All four tiers, since 2026-09-08.** This is the only place on the
+      // page that explains the tier model, and it described three of the four
+      // — omitting **User**, which is the option immediately below it, the
+      // least self-evident of the set, and the only one with a further
+      // control (rule editing) attached to it.
       addHint:
-        "Root manages people; Administrator manages agents. Viewers see the audit trail with resource details masked.",
+        "Root manages people. An Administrator manages agents and answers for the accounts under them. A User operates the agents assigned to it — prompting, stopping, and writing their rules unless you withhold that. A Viewer only reads the audit trail, with resource details masked.",
       addButton: "Create account",
       rootPermanent: "root (permanent, cannot be changed)",
       willAnswerTo: "will answer to {username}",
+      // Shown on the account row so Root can read the management tree off
+      // the list, rather than only being made to choose it at creation.
+      answersTo: "Answers to {username}",
+      // Shown when a manager is required and none is picked yet. The
+      // no-Administrators-at-all case has always been explained
+      // (`noAdministrators`); this, the ordinary case, left a dead button
+      // with no reason given.
+      chooseAdministrator:
+        "Choose the Administrator who will be answerable for this account before creating it.",
+      // The sole Administrator cannot be demoted, because nobody would be
+      // left to answer for them. Said out loud for the reason `rootPermanent`
+      // is: a control with one option looks like a page that failed to draw.
+      soleAdministrator:
+        "The only Administrator. Create a second one before changing this account's role, so the accounts answering to it still have someone answerable.",
       setPassword: "Set password",
       newPasswordFor: "New password for {username}",
       newUsernameLabel: "New account username",
@@ -3793,6 +3851,12 @@ export const en: TranslationMap = {
       cannotDeleteSelf: "You cannot delete the account you are signed in with",
       passwordPlaceholder: "Password (min 8 characters)",
       agentsPlaceholder: "Assigned agents (comma separated)",
+      // **The row states the permission; the button states the action.** The
+      // button alone was ambiguous in the way permission toggles always are:
+      // "Allow rule editing" reads equally as *this account may* and as
+      // *click to let it*, and nothing else on the row said which.
+      policyAuthoringState: "May write rules for its agents",
+      policyAuthoringStateWithheld: "Cannot write rules — Root withheld it",
       policyAuthoringWithhold: "Withhold rule editing",
       policyAuthoringGrant: "Allow rule editing",
       cannotDeleteSelfHint:
@@ -3824,6 +3888,8 @@ export const en: TranslationMap = {
     },
     pending: {
       title: "Awaiting your decision",
+      shedTitle: "This list is incomplete",
+      shed: "This stack has dropped {count} unanswered question(s) to stay under its limit, so it is not a complete list of what is waiting. Every escalation is still in the audit ledger.",
       explainer: "These escalations timed out before anyone answered",
       explainerHint:
         "The action was denied and the agent moved on. Answering here records your judgement; allow also tells you to add a rule so the next attempt succeeds.",
@@ -3852,6 +3918,11 @@ export const en: TranslationMap = {
       confirmUnregister: "Stop governing “{name}”?",
       confirmUnregisterDetails:
         "The agent and its workspace stay exactly as they are. It will be refused on every tool call until it is registered again, and you can register it again at any time.",
+      // Both kept to one clause: a completed-but-incomplete deletion needs the
+      // reason more than it needs prose, and every string here is charged to the
+      // startup bundle (finding 321).
+      removeAuditFailed: "Deleted, but NOT written to the audit ledger: {reason}",
+      removeClearFailed: "Deleted, but its rules could not be cleared: {reason}",
       confirmDelete: "Permanently delete “{name}”?",
       confirmDeleteDetails:
         "This deletes the agent from OpenClaw, not just from governance. Its workspace and transcripts go with it. This cannot be undone.",
@@ -3862,6 +3933,13 @@ export const en: TranslationMap = {
       createTitle: "Create an agent",
       createHint:
         "Creates a real OpenClaw agent and records it here in one step. You own it, and it is governed from the moment it exists.",
+      // **Root picks the owner, so "you own it" is not true for Root**
+      // (2026-09-08). The form shows an owner select to Root alone —
+      // `mustChooseOwner` — and an agent Root creates for an Administrator
+      // is answerable to that Administrator, not to Root. The hint was
+      // written for the tier that has no choice to make.
+      createHintChooseOwner:
+        "Creates a real OpenClaw agent and records it here in one step. It is governed from the moment it exists, and the account you choose below is the one answerable for it.",
       nameLabel: "Agent name",
       idLabel: "Agent id",
       idPlaceholder: "Agent id — optional, derived from the name",
@@ -3873,6 +3951,16 @@ export const en: TranslationMap = {
       create: "Create agent",
       created:
         "Created {id}, and OpenClaw has picked it up. That id is what you use to talk to it, write rules for it, or stop it.",
+      // Appended only when the id was already carrying something (T55). Kept to
+      // one clause because every string here is charged to the startup bundle
+      // (finding 321), and because the detail belongs in Agent permissions,
+      // which is where this points.
+      inherited: "That id already carried {what}, which now applies to this agent.",
+      inheritedRules: "{count} rule(s)",
+      inheritedMode: "a posture override",
+      inheritedAsk: "an escalation override",
+      inheritedTimeout: "an escalation timeout",
+      inheritedLocked: "an active stop",
     },
     conversation: {
       title: "Your agents",
@@ -3883,7 +3971,25 @@ export const en: TranslationMap = {
       chooseAgent: "Agent to talk to",
       chooseAgentHint:
         "You manage every agent, so there is no assigned list. Pick one, or type an id.",
+      // **The User tier reaching the same empty state means the opposite**
+      // (2026-09-08). The branch above keyed on "the assigned list is empty",
+      // which is true both for an Administrator, who has no list because
+      // their scope is every agent, and for a User who has a list with
+      // nothing in it. A User with no agents was told "You manage every
+      // agent" — the exact inverse of their tier, on the one tier the
+      // distinction is for, and an invitation to type an id the server will
+      // refuse.
+      chooseAgentHintUnassigned:
+        "No agents are assigned to you yet. You can only work with agents an Administrator assigns to you; ask yours to add one.",
       chooseAgentPick: "Choose an agent…",
+      // The row title for a User with an empty assignment. "Agent to talk
+      // to" labelled a control that is no longer offered to that tier, so
+      // it read as a field that had failed to draw (2026-09-08).
+      noAssignedTitle: "No agents assigned to you",
+      // Its own name. The picker and the id box beside it both answered
+      // to "Agent to talk to", so the row offered a screen reader two
+      // controls it could not tell apart (2026-09-08).
+      typeAgentId: "Or type an agent id",
       loading: "Loading the conversation…",
       empty: "No messages yet. Send the first one below.",
       emptyReply:
@@ -3919,11 +4025,27 @@ export const en: TranslationMap = {
       stopObserving: "Stop observing",
       observing: "observing (not blocking)",
       followsDefault: "follows installation",
+      // Kept short on purpose: every locale string is charged to the startup
+      // bundle, which finding 321 is about.
+      startedBy: "started by {username}",
       idle: "No agent sessions are running",
       idleHint: "Sessions appear here while an agent is working.",
       unavailable: "Live session view unavailable",
+      // **"not available from the CLI" named a surface removed on 2026-09-07**
+      // and said so to an operator until 2026-09-08 (finding 320). It survived
+      // the nineteen-document rewrite, the eleven-finding audit written to
+      // catch exactly this, and the standing removal probe — because all three
+      // searched for the command's *spelling*, `openclaw governance ...`, and
+      // this sentence names the surface in prose instead. Finding 285's class,
+      // one string over, with the search that found 285 unable to see it.
+      //
+      // Rewritten to what is actually true of this state now: the view needs
+      // the Gateway's own run registry, so a process that is not it, or is not
+      // finished starting, cannot answer. The second sentence is the one an
+      // operator meeting this panel needs, because "I cannot see what is
+      // running" reads like "the gate is off" and is not.
       unavailableHint:
-        "The Gateway supplies this view; it is not available from the CLI or before startup completes.",
+        "This view comes from the Gateway's own run registry, so it cannot be shown before startup finishes or from a process that does not run agents. Policy is still enforced and the audit ledger is still recording.",
     },
     system: {
       title: "System resources",
@@ -3943,8 +4065,16 @@ export const en: TranslationMap = {
       empty: "No rule requests",
       emptyHint: "A User can request access here when an action outside their scope is denied.",
       submit: "Request a rule",
+      // **Split in two, because only the first sentence has a tier in it**
+      // (2026-09-08). The whole hint was written for the User this queue
+      // exists for and was then shown to Administrator and Root as well, so
+      // the two tiers that *decide* these requests were told to "ask an
+      // Administrator" — and both can simply write the rule. Finding 303's
+      // shape: one sentence, one tier, every tier reading it.
+      submitHintAsk: "Ask an Administrator to allow something outside the agents you manage.",
+      // What the form does, which is true whoever is looking at it.
       submitHint:
-        "Ask an Administrator to allow something outside the agents you manage. Approving creates the rule. Naming an agent scopes the rule to it; leaving the agent blank asks for a rule binding every agent.",
+        "Approving creates the rule. Naming an agent scopes the rule to it; leaving the agent blank asks for a rule binding every agent.",
       reasonPlaceholder: "Why do you need this?",
       reasonLabel: "Reason for this request",
       agentLabel: "Agent this request is for",
@@ -3996,6 +4126,11 @@ export const en: TranslationMap = {
       agentIdPlaceholder: "Agent id",
       unknownAgent:
         "No agent with this id is running, locked down, or assigned to an account. Locking it down will still succeed and record an entry, but if you have mistyped the id, the agent you meant will keep running.",
+      // Known to the page and not governed, which the refusal below called
+      // "you do not manage" — false for the Root and Administrator who read
+      // it, and silent about the one thing that fixes it.
+      unregisteredAgent:
+        "This agent is not registered, so there is no policy record to lock down and the stop will be refused. Register it under Agents in your organisation first.",
       button: "Lock down",
       release: "Release",
       noneLocked: "No agents are currently locked down",

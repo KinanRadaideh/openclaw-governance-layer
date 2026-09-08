@@ -37,7 +37,12 @@ import {
   renderSettingsValue,
 } from "../../../components/settings-ui.ts";
 import { t } from "../../../i18n/index.ts";
-import type { GovernanceAgentEntry, GovernanceIdentity, GovernanceUserRecord } from "../api.ts";
+import type {
+  GovernanceAgentEntry,
+  GovernanceAgentPolicyHoldings,
+  GovernanceIdentity,
+  GovernanceUserRecord,
+} from "../api.ts";
 import { canAdminister } from "../identity.ts";
 import type { PanelEffects } from "./account-panels.ts";
 
@@ -76,6 +81,26 @@ export type AgentRegistryDrafts = {
   provisionAdminId: string;
   /** Which row currently has its remove chooser open, or "" for none. */
   removeChoiceFor: string;
+  /**
+   * The outcome of the last **per-row** verb, which has nowhere else to go.
+   *
+   * Two of them land here. What a completed deletion could not finish (finding
+   * 325): the ledger refusing the entry, and the agent's rules failing to
+   * clear, both of which reached the browser and stopped there. And what an id
+   * was already carrying when it was registered (T55 part b′, finding 326) —
+   * the server has computed and sent that since T55 landed, and the Register
+   * button **awaited the response and discarded it**, so the half of the
+   * decision that covers "registering an agent onto a loaded id" was built on
+   * the server and never delivered to anybody.
+   *
+   * Section-level rather than per-row, and that is what makes one field right
+   * for both: the deletion's row has just been removed, so a notice attached
+   * to it would vanish with it, and the registration's row re-renders as a
+   * *registered* agent, so a notice on it would be replaced.
+   */
+  rowNotice: string;
+  /** Whether `rowNotice` reports a failure rather than something that worked. */
+  rowNoticeWarning: boolean;
   /** The outcome of the last provision, kept visible until the next action. */
   provisionNotice: string;
   /** Whether that notice is a warning rather than a success. */
@@ -114,6 +139,8 @@ export function emptyAgentRegistryDrafts(): AgentRegistryDrafts {
     provisionModel: "",
     provisionAdminId: "",
     removeChoiceFor: "",
+    rowNotice: "",
+    rowNoticeWarning: false,
     provisionNotice: "",
     provisionNoticeWarning: false,
   };
@@ -226,8 +253,26 @@ function renderRemoveChoice(
               danger: true,
             },
             async () => {
-              await props.api().deprovisionAgent(agent.agentId, true);
-              props.onDraft({ removeChoiceFor: "" });
+              const result = await props.api().deprovisionAgent(agent.agentId, true);
+              // **Both, not the first.** They are independent: the ledger can
+              // refuse the entry while the rules clear cleanly, and the reverse.
+              // Joined rather than ranked, because an operator meeting either
+              // has a different thing to go and do.
+              const notice = [
+                result.auditError
+                  ? t("governance.agents.removeAuditFailed", { reason: result.auditError })
+                  : "",
+                result.clearError
+                  ? t("governance.agents.removeClearFailed", { reason: result.clearError })
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" ");
+              props.onDraft({
+                removeChoiceFor: "",
+                rowNotice: notice,
+                rowNoticeWarning: Boolean(notice),
+              });
               await props.refresh();
             },
           )}
@@ -282,7 +327,15 @@ function renderAgentRow(
     // agents it covered.
     description: agent.registered
       ? html`${t("governance.agents.ownedBy", {
-          owner: owner?.username ?? agent.adminId ?? "-",
+          // **The server's name first, then the local lookup, then the id.**
+          // `owner` is resolved from `props.users`, and that list is Root-only,
+          // so below Root this fell straight through to the raw account id:
+          // "Owned by user-1788814759825-7e0761b7" on an Administrator's own
+          // agents. `adminUsername` is sent by the listing route precisely
+          // because only the server can do the mapping for those tiers. The
+          // id stays as the last resort for an owner outside the caller's
+          // group or since deleted.
+          owner: agent.adminUsername ?? owner?.username ?? agent.adminId ?? "-",
         })}
         ${renderEngineState(agent)}`
       : t("governance.agents.unregisteredHint"),
@@ -346,9 +399,21 @@ function renderAgentRow(
                     // Registering an existing agent is the *other* verb, and
                     // the one an operator migrating an installation needs. It
                     // claims an id the host already has; it never creates one.
-                    await props
+                    const registered = await props
                       .api()
                       .registerAgent(agent.agentId, agent.displayName || agent.agentId);
+                    // **The other half of T55 part b′** (finding 326). The
+                    // route has computed `inheritedPolicy` for this verb since
+                    // T55 landed, and this call site awaited the response and
+                    // threw it away — so "registering an agent onto a loaded id
+                    // says so" was true of the create form and of nothing else.
+                    // Registering is the *more* likely of the two to meet rules
+                    // it did not write: the id comes from the host, already
+                    // named, and may have been governed here before.
+                    props.onDraft({
+                      rowNotice: inheritedClause(registered.inheritedPolicy) ?? "",
+                      rowNoticeWarning: false,
+                    });
                     await props.refresh();
                   })}
               >
@@ -389,7 +454,14 @@ function renderProvisionForm(props: AgentRegistryPanelProps): TemplateResult {
   const ownerMissing = mustChooseOwner && !ownerChosen;
   return renderSettingsRow({
     title: t("governance.agents.createTitle"),
-    description: t("governance.agents.createHint"),
+    // `mustChooseOwner` is exactly "this caller is Root", and Root is the one
+    // tier that names somebody else as owner. Telling them "You own it" while
+    // showing them a picker for who does is the same shape as the conversation
+    // hint that told an unassigned User they managed every agent: a sentence
+    // written for whichever tier happened to be in front of it.
+    description: mustChooseOwner
+      ? t("governance.agents.createHintChooseOwner")
+      : t("governance.agents.createHint"),
     stacked: true,
     control: html`<div class="settings-row__control" style="flex-direction:column;gap:0.5rem">
       <input
@@ -477,8 +549,19 @@ function renderProvisionForm(props: AgentRegistryPanelProps): TemplateResult {
               provisionWorkspace: "",
               provisionModel: "",
               provisionAdminId: "",
-              provisionNotice:
+              // **The inherited clause rides on the success notice**, not on a
+              // dialog. The commonest reason a fresh id already has rules is
+              // that the operator wrote them minutes ago on purpose, so a
+              // prompt would mostly fire on people who already know — and a
+              // warning that is usually wrong teaches everyone to dismiss it.
+              // Appended to a warning as readily as to a success: both are
+              // things that just happened to the agent they made.
+              provisionNotice: [
                 result.warning ?? t("governance.agents.created", { id: result.agent.id }),
+                inheritedClause(result.inheritedPolicy),
+              ]
+                .filter(Boolean)
+                .join(" "),
               provisionNoticeWarning: Boolean(result.warning),
             });
             await props.refresh();
@@ -504,6 +587,39 @@ function renderProvisionForm(props: AgentRegistryPanelProps): TemplateResult {
  * server refuses every route it offers to anyone below the tier regardless of
  * what the page renders.
  */
+/**
+ * The clause naming what an id was already carrying, or `undefined` (T55).
+ *
+ * Built here rather than on the server because it is a *sentence*, and a
+ * sentence has to be translatable — the same reason `describeShedPendingDecisions`
+ * was deleted rather than kept. The server sends the five counts; this turns
+ * them into words.
+ */
+function inheritedClause(holdings: GovernanceAgentPolicyHoldings | undefined): string | undefined {
+  if (!holdings) {
+    return undefined;
+  }
+  const parts: string[] = [];
+  if (holdings.rules > 0) {
+    parts.push(t("governance.agents.inheritedRules", { count: String(holdings.rules) }));
+  }
+  if (holdings.mode) {
+    parts.push(t("governance.agents.inheritedMode"));
+  }
+  if (holdings.ask) {
+    parts.push(t("governance.agents.inheritedAsk"));
+  }
+  if (holdings.hitlTimeout) {
+    parts.push(t("governance.agents.inheritedTimeout"));
+  }
+  if (holdings.locked) {
+    parts.push(t("governance.agents.inheritedLocked"));
+  }
+  return parts.length > 0
+    ? t("governance.agents.inherited", { what: parts.join(", ") })
+    : undefined;
+}
+
 export function renderAgentRegistrySection(
   props: AgentRegistryPanelProps,
 ): TemplateResult | typeof nothing {
@@ -522,6 +638,21 @@ export function renderAgentRegistrySection(
             control: renderSettingsValue("-"),
           }),
         ]),
+    // **What a completed deletion could not finish** (finding 325). At section
+    // level rather than on the row, because the row it belongs to has just been
+    // deleted — a notice attached to it would vanish with it, which is how this
+    // stayed invisible in the first place.
+    props.drafts.rowNotice
+      ? renderSettingsRow({
+          title: renderSettingsStatus({
+            kind: props.drafts.rowNoticeWarning ? "warn" : "ok",
+            label: props.drafts.rowNotice,
+          }),
+          control: html`<button class="btn" @click=${() => props.onDraft({ rowNotice: "" })}>
+            ${t("common.dismiss")}
+          </button>`,
+        })
+      : nothing,
     renderProvisionForm(props),
   ]);
 }

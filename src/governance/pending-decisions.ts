@@ -56,7 +56,32 @@ export type PendingDecision = {
   lastTimedOutAt?: string;
 };
 
-type PendingDecisionsFile = { version: 1; decisions: PendingDecision[] };
+type PendingDecisionsFile = {
+  version: 1;
+  decisions: PendingDecision[];
+  /**
+   * How many undecided rows this store has shed to stay under its cap, ever
+   * (T56, the open half of finding 260).
+   *
+   * **A worklist that has silently dropped rows is worse than a full one**,
+   * because an operator reads it as "these are the questions waiting" and acts
+   * on that. The cap itself is not in dispute and neither is which row is shed
+   * — finding 260 fixed the aim so a flood consumes its own quota first. What
+   * was missing is that the shedding left no trace anywhere a reader looks: the
+   * ledger holds every escalation, but nobody consults the audit chain to
+   * answer "what am I supposed to answer?".
+   *
+   * Cumulative rather than a live count of what is currently missing, because
+   * what is missing cannot be recovered: the rows are gone. The honest thing to
+   * report is "this stack has dropped N questions", which is a statement about
+   * the store's history and stays true.
+   *
+   * Absent means zero, the presence-based migration this codebase uses
+   * everywhere, so a store written before this field reads as having shed
+   * nothing rather than as unknown.
+   */
+  shedUndecided?: number;
+};
 
 /**
  * Retained entries. Bounded because a wedged agent could otherwise time out
@@ -183,16 +208,28 @@ function shedToUndecidedCap(pendingNewestFirst: PendingDecision[]): PendingDecis
  * **The undecided rows are shed per agent** rather than oldest-first; see
  * `shedToUndecidedCap` for why that distinction is the finding.
  */
-function pruneDecided(decisions: PendingDecision[]): PendingDecision[] {
+function pruneDecided(decisions: PendingDecision[]): {
+  decisions: PendingDecision[];
+  shedUndecided: number;
+} {
   const pendingAll = decisions.filter((entry) => entry.status === "pending");
   // Newest-first ordering, so the head is newest and the tail is oldest.
   const pending = shedToUndecidedCap(pendingAll);
+  // **Counted here rather than inside `shedToUndecidedCap`** (T56). That
+  // function is a pure victim-selection rule and is easier to reason about
+  // while it stays one; the number shed is simply the difference, which cannot
+  // drift from what was actually dropped the way a separate tally could.
+  //
+  // Only *undecided* rows are counted. Dropping a decided row loses nothing an
+  // operator has to act on — the answer is already in the ledger — so reporting
+  // it would tell them about a bound rather than about their worklist.
+  const shedUndecided = pendingAll.length - pending.length;
   const decided = decisions.filter((entry) => entry.status !== "pending");
   if (pending.length === pendingAll.length && decisions.length <= MAX_STORED_PENDING_DECISIONS) {
-    return decisions;
+    return { decisions, shedUndecided: 0 };
   }
   const keep = Math.max(0, MAX_STORED_PENDING_DECISIONS - pending.length);
-  return [...pending, ...decided.slice(0, keep)];
+  return { decisions: [...pending, ...decided.slice(0, keep)], shedUndecided };
 }
 
 export type RecordTimedOutEscalationInput = {
@@ -236,15 +273,63 @@ export async function recordTimedOutEscalation(
       return existing;
     }
     // Newest first: a stack, as the design doc specifies.
-    file.decisions = pruneDecided([decision, ...file.decisions]);
+    const pruned = pruneDecided([decision, ...file.decisions]);
+    file.decisions = pruned.decisions;
+    if (pruned.shedUndecided > 0) {
+      // Accumulated inside the same lock that did the shedding, so the count
+      // and the rows can never disagree about what happened.
+      file.shedUndecided = (file.shedUndecided ?? 0) + pruned.shedUndecided;
+    }
     await writeGovernanceJson(pendingDecisionsFilePath(groupId), file);
     return decision;
   });
 }
 
-export async function listPendingDecisions(groupId: string): Promise<PendingDecision[]> {
-  return (await readFileOrEmpty(groupId)).decisions;
+/**
+ * The stack, together with what it has had to drop (T56).
+ *
+ * **One function rather than two**, so a surface cannot print the rows from one
+ * read and the shed count from another and have them disagree — the "two
+ * descriptions of one fact" shape that is this project's most frequent defect.
+ * `listPendingDecisions` below delegates to this and exists for the callers
+ * that genuinely want only the rows.
+ */
+export async function readPendingDecisions(groupId: string): Promise<{
+  decisions: PendingDecision[];
+  shedUndecided: number;
+}> {
+  const file = await readFileOrEmpty(groupId);
+  return { decisions: file.decisions, shedUndecided: file.shedUndecided ?? 0 };
 }
+
+export async function listPendingDecisions(groupId: string): Promise<PendingDecision[]> {
+  return (await readPendingDecisions(groupId)).decisions;
+}
+
+/**
+ * **There is deliberately no `describeShedPendingDecisions` here.**
+ *
+ * One was written with T56 and deleted the same day. Its reason for existing
+ * was that the command line and the dashboard must not describe one condition
+ * in different words — finding 255's shape, and a good reason while there were
+ * two listing surfaces. There are not: the governance command line was removed
+ * on 2026-09-07, hours after this was written, and the dashboard never called
+ * it. It renders `governance.pending.shed` from `ui/src/i18n/locales/en.ts`,
+ * because an operator-facing sentence has to be translatable.
+ *
+ * So a function written to stop one sentence existing twice had become the
+ * second copy, with no caller and only its own tests reading it — finding 113's
+ * shape, and deleted on finding 134's precedent rather than wired up to give it
+ * something to do. **The two copies had already drifted** in the hours they
+ * coexisted: this one named the limit (`MAX_PENDING_UNDECIDED`) and the string
+ * an operator actually reads does not.
+ *
+ * The sentence now lives in exactly one place. What is asserted, and where, is
+ * the *rendered* notice in `ui/src/pages/governance/governance-panels.test.ts`:
+ * the count, that the list says it is incomplete, and that it says the ledger
+ * still holds what went. A property of the surface rather than of a helper
+ * nothing reaches.
+ */
 
 /**
  * Records a late answer to a timed-out escalation.

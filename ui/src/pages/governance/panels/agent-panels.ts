@@ -55,7 +55,7 @@ import type {
   GovernancePolicyDocument,
   GovernanceTranscript,
 } from "../api.ts";
-import { canManageAgent, manageableAgentIds } from "../identity.ts";
+import { canManageAgent, canonicalAgentQuery, manageableAgentIds } from "../identity.ts";
 import type { PanelEffects } from "./account-panels.ts";
 import { formatAttachmentSize, formatDuration } from "./format.ts";
 
@@ -78,6 +78,8 @@ export type PostureToggleProps = AgentPanelBase;
 
 export type PendingDecisionsProps = AgentPanelBase & {
   pendingDecisions: readonly GovernancePendingDecision[];
+  /** How many unanswered questions the stack has dropped to stay under its cap (T56). */
+  pendingDecisionsShed: number;
 };
 
 export type ActiveSessionsProps = AgentPanelBase & {
@@ -87,6 +89,21 @@ export type ActiveSessionsProps = AgentPanelBase & {
 
 export type KillSwitchProps = AgentPanelBase & {
   killAgentId: string;
+  /**
+   * The agents this caller can see, and **whether each is governed**.
+   *
+   * Declared here for the third state this panel could not distinguish
+   * (2026-09-08). `isKnownAgentId` answers "has this page ever seen this id",
+   * and an agent that exists in OpenClaw but has never been registered is
+   * *known* — the section above lists it, by name, with a Register button. So
+   * a stop typed against it passed every check this panel makes, enabled the
+   * danger button, and came back `You do not manage agent "main"` — to a Root
+   * whose own hint two lines up reads "You can stop any agent in your
+   * organisation".
+   *
+   * The page already spreads this object in; only the type left it out.
+   */
+  agents: readonly { agentId: string; registered?: boolean }[];
   knownAgentIds: readonly string[];
   isKnownAgentId: (agentId: string) => boolean;
   agentLabel: (agentId: string) => string;
@@ -98,6 +115,8 @@ export type ConversationProps = AgentPanelBase & {
   conversationAgentId: string;
   transcript: GovernanceTranscript | null;
   promptDraft: string;
+  /** The message being answered, shown as a turn while the run is in flight. */
+  promptSent: string;
   promptAttachments: readonly GovernanceAttachment[];
   promptError: string | null;
   promptPending: boolean;
@@ -228,10 +247,33 @@ export function renderPendingDecisionsSection(
     return nothing;
   }
   const waiting = props.pendingDecisions.filter((entry) => entry.status === "pending");
-  if (waiting.length === 0) {
+  // **The empty list and the shed count are independent** (T56). A flood that
+  // was shed and then answered leaves nothing waiting *and* a stack that is not
+  // a complete record of what was asked, and "nothing is waiting" is exactly the
+  // reading an operator must not take from that. So the section still renders
+  // when there is a count to report and no rows.
+  if (waiting.length === 0 && props.pendingDecisionsShed <= 0) {
     return nothing;
   }
+  const shedNotice =
+    props.pendingDecisionsShed > 0
+      ? renderSettingsRow({
+          title: t("governance.pending.shedTitle"),
+          control: renderSettingsStatus({
+            kind: "warn",
+            // `t` takes string params, so the count is stringified here rather
+            // than left to the interpolator.
+            label: t("governance.pending.shed", {
+              count: String(props.pendingDecisionsShed),
+            }),
+          }),
+        })
+      : nothing;
+  if (waiting.length === 0) {
+    return renderSettingsSection({ title: t("governance.pending.title") }, [shedNotice]);
+  }
   return renderSettingsSection({ title: t("governance.pending.title") }, [
+    shedNotice,
     renderSettingsRow({
       title: t("governance.pending.explainer"),
       description: t("governance.pending.explainerHint"),
@@ -263,6 +305,32 @@ export function renderPendingDecisionsSection(
   ]);
 }
 
+/**
+ * The account a governance session key belongs to, or `undefined`.
+ *
+ * `governanceSessionKey` mints `agent:<agentId>:governance:<account>`, with the
+ * account percent-encoded for anything outside `[a-z0-9_-]`. This decodes that
+ * one segment and nothing else: it is the documented inverse of the wire
+ * format, not a second copy of the folding rule (finding 215's distinction) —
+ * the canonical name is what the server put there, and this only makes it
+ * readable.
+ *
+ * Returns `undefined` for a host run, whose key names no account, and for
+ * anything it cannot decode. Both render as "no account shown", which is the
+ * honest answer and never a guess.
+ */
+function startedByFromSessionKey(sessionKey: string): string | undefined {
+  const parts = sessionKey.split(":");
+  if (parts.length !== 4 || parts[0] !== "agent" || parts[2] !== "governance") {
+    return undefined;
+  }
+  try {
+    return decodeURIComponent(parts[3] ?? "") || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function renderActiveSessionsSection(
   props: ActiveSessionsProps,
 ): TemplateResult | typeof nothing {
@@ -290,8 +358,27 @@ export function renderActiveSessionsSection(
       : nothing,
     ...view.sessions.map((entry) =>
       renderSettingsRow({
-        title: html`<code>${entry.agentId}</code> ${entry.runId}`,
-        description: `${t("governance.sessions.runningFor")} ${formatDuration(entry.runningForSeconds)} · ${entry.sessionKey}`,
+        // **The agent is the subject; the run id is a correlation handle.** It
+        // used to sit unlabelled beside the agent id, two opaque tokens in a
+        // row, and the fact an operator actually wants on this panel — *who
+        // started this* — was reachable only by decoding the session key by
+        // eye.
+        title: html`<code>${entry.agentId}</code>`,
+        description: [
+          `${t("governance.sessions.runningFor")} ${formatDuration(entry.runningForSeconds)}`,
+          // Present only for a run started through governance, where the key
+          // encodes the account (`agent:<id>:governance:<account>`). A host
+          // run's key names no account and this is simply omitted rather than
+          // guessed at.
+          startedByFromSessionKey(entry.sessionKey)
+            ? t("governance.sessions.startedBy", {
+                username: startedByFromSessionKey(entry.sessionKey) ?? "",
+              })
+            : "",
+          entry.sessionKey,
+        ]
+          .filter(Boolean)
+          .join(" · "),
         control: html`
           <div class="settings-row__control" style="gap:0.5rem">
             ${
@@ -353,6 +440,18 @@ export function renderActiveSessionsSection(
       }),
     ),
   ]);
+}
+
+/**
+ * True when this id names an agent the page can see that governance does not
+ * hold a record for.
+ *
+ * `registered === false` only. An entry with the field absent is one this panel
+ * cannot judge, and guessing "unregistered" there would put a warning on a
+ * perfectly stoppable agent.
+ */
+function unregistered(props: KillSwitchProps, agentId: string): boolean {
+  return props.agents.some((agent) => agent.agentId === agentId && agent.registered === false);
 }
 
 export function renderKillSwitchSection(props: KillSwitchProps): TemplateResult | typeof nothing {
@@ -438,15 +537,26 @@ export function renderKillSwitchSection(props: KillSwitchProps): TemplateResult 
               ? html`<div class="settings-empty" role="status" style="flex-basis:100%">
                   ${t("governance.kill.unknownAgent")}
                 </div>`
-              : // Known to the page, and not this operator's to stop. Said here
-                // rather than left to the server's 403, because the field is
-                // free text and an emergency control that fails after you press
-                // it is the wrong place to learn you typed someone else's agent.
-                typed && !canManageAgent(props.identity, typed)
+              : // Known, and **not governed**, which is neither of the two
+                // states below it. The kill switch acts through the policy
+                // layer, and an unregistered agent has no record there for a
+                // lockdown to attach to, so the server refuses — with the
+                // tier's message, which is false for the tier that reads it
+                // most. Said here, with the step that fixes it, because the
+                // remedy is one section up on the same page.
+                typed && unregistered(props, typed)
                 ? html`<div class="settings-empty" role="status" style="flex-basis:100%">
-                    ${t("governance.kill.notYourAgent")}
+                    ${t("governance.kill.unregisteredAgent")}
                   </div>`
-                : nothing
+                : // Known to the page, and not this operator's to stop. Said here
+                  // rather than left to the server's 403, because the field is
+                  // free text and an emergency control that fails after you press
+                  // it is the wrong place to learn you typed someone else's agent.
+                  typed && !canManageAgent(props.identity, typed)
+                  ? html`<div class="settings-empty" role="status" style="flex-basis:100%">
+                      ${t("governance.kill.notYourAgent")}
+                    </div>`
+                  : nothing
           }
           <datalist id="governance-known-agents">
             ${
@@ -529,10 +639,27 @@ export function renderConversation(
         </div>`
       : html`<div class="settings-empty">${t("governance.conversation.loading")}</div>`;
   }
+  // **`flex:1` on the block below, because it is a flex item that was sizing
+  // to its own content** (2026-09-08). `.settings-row__control` is
+  // `display:flex`, so without a grow factor this panel is shrink-to-fit:
+  // measured at a 1900px viewport the section was 856px and the control cell
+  // 822px, while this block stayed **424px — identical to its width at
+  // 1280** — and the message box inside it sat at **155px**, an `<input>`'s
+  // default intrinsic width, because the `flex:1` on it had no free space to
+  // claim and the composer row needed 412px in the 392px it had. The host's
+  // own chat box on the same page is 648px. `min-width:0` so a long
+  // transcript line shrinks the block rather than pushing it past the cell.
   return html`
-    <div class="settings-empty" style="display:flex;flex-direction:column;gap:0.5rem">
-      ${transcript.turns.length === 0
-        ? html`<span>${t("governance.conversation.empty")}</span>`
+    <div
+      class="settings-empty"
+      style="display:flex;flex-direction:column;gap:0.5rem;flex:1;min-width:0"
+    >
+      ${transcript.turns.length === 0 && !props.promptPending
+        ? // **"No messages yet" only when there really are none.** It used to
+          // render beside the live "replying..." block below, so the first
+          // exchange in a conversation said the panel was empty while an
+          // answer was streaming into it.
+          html`<span>${t("governance.conversation.empty")}</span>`
         : html`<div
             role="log"
             aria-live="polite"
@@ -572,6 +699,12 @@ export function renderConversation(
               )
             }
           </div>`}
+      ${props.promptPending && props.promptSent
+        ? html`<div>
+            <strong>${t("governance.conversation.you")}</strong>
+            <div style="white-space:pre-wrap">${props.promptSent}</div>
+          </div>`
+        : nothing}
       ${props.promptPending
         ? html`<div>
             <strong>${agentId}</strong>
@@ -737,88 +870,187 @@ export function renderAgentsSection(props: AgentsSectionProps): TemplateResult |
     return nothing;
   }
   const assigned = props.identity?.assignedAgents ?? [];
+  // **The name the page is already holding.** The picker below renders
+  // "Scout Bot (scout)"; the assigned rows rendered a bare `scout`, so the one
+  // tier this section exists for read the least informative label on the page.
+  // The names arrive on `props.agents`, which this section already declares and
+  // already uses for the picker -- the listing route is Viewer-and-above and
+  // scoped to the caller's assignment, so a User's copy holds exactly their own
+  // agents (measured signed in as `lina`: `Scout Bot`, `Probe One`).
+  const nameOf = new Map(
+    props.agents.map((agent) => [canonicalAgentQuery(agent.agentId), agent.displayName]),
+  );
+  const label = (agentId: string): TemplateResult => {
+    const displayName = nameOf.get(canonicalAgentQuery(agentId));
+    return displayName
+      ? html`${displayName} <code>${agentId}</code>`
+      : html`<code>${agentId}</code>`;
+  };
+  // **Folded for display** (2026-09-08). Typing `SCOUT` opened `scout`'s
+  // conversation -- the server folds at `canManageAgent`, `readConversation`
+  // and `promptAgent` alike -- and the panel then headed the thread `SCOUT`, an
+  // id the installation does not use, while the same agent reached through the
+  // picker one line above rendered `scout`. Finding 128's class: one surface
+  // showing an id in a spelling nothing else will echo back.
+  const openId = props.conversationAgentId
+    ? (canonicalAgentQuery(props.conversationAgentId) ?? props.conversationAgentId)
+    : "";
+  const openIsAssigned = assigned.some(
+    (agentId) => canonicalAgentQuery(agentId) === canonicalAgentQuery(openId),
+  );
   const rows =
     assigned.length > 0
-      ? assigned.map((agentId) =>
-          renderSettingsRow({
-            title: html`<code>${agentId}</code>`,
+      ? assigned.map((agentId) => {
+          const isOpen = canonicalAgentQuery(agentId) === canonicalAgentQuery(openId);
+          const toggle = html`<button
+            class="btn"
+            ?disabled=${props.busy}
+            @click=${() => void props.openConversation(agentId)}
+          >
+            ${isOpen ? t("governance.conversation.close") : t("governance.conversation.open")}
+          </button>`;
+          return renderSettingsRow({
+            title: label(agentId),
             description: t("governance.conversation.agentHint"),
-            stacked: props.conversationAgentId === agentId,
-            control: html`<button
-              class="btn"
-              ?disabled=${props.busy}
-              @click=${() => void props.openConversation(agentId)}
-            >
-              ${props.conversationAgentId === agentId
-                ? t("governance.conversation.close")
-                : t("governance.conversation.open")}
-            </button>`,
-          }),
-        )
+            stacked: isOpen,
+            // **The conversation belongs under the agent it is with.** It used
+            // to be appended as a row of its own after the whole list, headed
+            // with the agent id a second time, so opening the first of several
+            // agents put the transcript below the last one and printed `scout`
+            // twice in the same section. This row already set `stacked` for
+            // exactly that and nothing was ever placed in it.
+            control: isOpen
+              ? html`<div
+                  class="settings-row__control"
+                  style="flex-direction:column;align-items:stretch;gap:0.5rem"
+                >
+                  <div>${toggle}</div>
+                  ${renderConversation(agentId, props)}
+                </div>`
+              : toggle,
+          });
+        })
       : [
           renderSettingsRow({
-            title: t("governance.conversation.chooseAgent"),
-            description: t("governance.conversation.chooseAgentHint"),
+            // **And the title too, not only the sentence under it.** "Agent to
+            // talk to" names the picker; for a User with an empty assignment
+            // there is no picker any more, so the row was a label with nothing
+            // beneath it, which reads as a control that failed to render.
+            title: props.canAdminister
+              ? t("governance.conversation.chooseAgent")
+              : t("governance.conversation.noAssignedTitle"),
+            // **Which empty this is depends on the tier, not on the list.**
+            // `assigned.length === 0` means "no list, because my scope is every
+            // agent" for an Administrator and "my list is empty" for a User, and
+            // the hint was written for the first while being shown to both. A
+            // User with nothing assigned read "You manage every agent, so there
+            // is no assigned list" -- the inverse of their tier, on the one tier
+            // this section's own header says the assignment list exists for.
+            description: props.canAdminister
+              ? t("governance.conversation.chooseAgentHint")
+              : t("governance.conversation.chooseAgentHintUnassigned"),
             stacked: true,
-            control: html`<div class="settings-row__control" style="gap:0.5rem">
-              ${props.agents.length > 0
-                ? html`<select
+            control: props.canAdminister
+              ? html`<div class="settings-row__control" style="gap:0.5rem">
+                  ${props.agents.length > 0
+                    ? html`<select
+                        class="input"
+                        aria-label=${t("governance.conversation.chooseAgent")}
+                        ?disabled=${props.busy}
+                        .value=${openId}
+                        @change=${(e: Event) => {
+                          const chosen = (e.target as HTMLSelectElement).value;
+                          if (chosen) {
+                            // Picking a name from a list is a request to open
+                            // that one, never to close it.
+                            void props.showConversation(chosen);
+                          }
+                        }}
+                      >
+                        <option value="">${t("governance.conversation.chooseAgentPick")}</option>
+                        ${props.agents.map(
+                          (agent) => html`<option value=${agent.agentId}>
+                            ${agent.displayName
+                              ? `${agent.displayName} (${agent.agentId})`
+                              : agent.agentId}
+                          </option>`,
+                        )}
+                      </select>`
+                    : nothing}
+                  <input
                     class="input"
-                    aria-label=${t("governance.conversation.chooseAgent")}
-                    ?disabled=${props.busy}
-                    @change=${(e: Event) => {
-                      const chosen = (e.target as HTMLSelectElement).value;
-                      if (chosen) {
-                        // Picking a name from a list is a request to open that
-                        // one, never to close it.
-                        void props.showConversation(chosen);
-                      }
+                    type="text"
+                    aria-label=${t("governance.conversation.typeAgentId")}
+                    placeholder=${t("governance.kill.agentIdPlaceholder")}
+                    .value=${props.conversationAgentDraft}
+                    @input=${(e: Event) => {
+                      // Through `onDraft`, like every other field on this page.
+                      // Assigning to `props` wrote into the object
+                      // `agentPanelProps()` rebuilds each render, so the
+                      // keystroke reached no state and fired no re-render: the
+                      // button below stayed disabled however much was typed,
+                      // and the value vanished on the next paint.
+                      props.onDraft({
+                        conversationAgentDraft: (e.target as HTMLInputElement).value,
+                      });
+                    }}
+                  />
+                  <button
+                    class="btn"
+                    ?disabled=${props.busy || !props.conversationAgentDraft.trim()}
+                    @click=${() => {
+                      void props.showConversation(props.conversationAgentDraft.trim());
                     }}
                   >
-                    <option value="">${t("governance.conversation.chooseAgentPick")}</option>
-                    ${props.agents.map(
-                      (agent) => html`<option value=${agent.agentId}>
-                        ${agent.displayName
-                          ? `${agent.displayName} (${agent.agentId})`
-                          : agent.agentId}
-                      </option>`,
-                    )}
-                  </select>`
-                : nothing}
-              <input
-                class="input"
-                type="text"
-                aria-label=${t("governance.conversation.chooseAgent")}
-                placeholder=${t("governance.kill.agentIdPlaceholder")}
-                .value=${props.conversationAgentDraft}
-                @input=${(e: Event) => {
-                  // Through `onDraft`, like every other field on this page.
-                  // Assigning to `props` wrote into the object `agentPanelProps()`
-                  // rebuilds each render, so the keystroke reached no state and
-                  // fired no re-render: the button below stayed disabled however
-                  // much was typed, and the value vanished on the next paint.
-                  props.onDraft({ conversationAgentDraft: (e.target as HTMLInputElement).value });
-                }}
-              />
-              <button
-                class="btn"
-                ?disabled=${props.busy || !props.conversationAgentDraft.trim()}
-                @click=${() => {
-                  void props.showConversation(props.conversationAgentDraft.trim());
-                }}
-              >
-                ${t("governance.conversation.open")}
-              </button>
-            </div>`,
+                    ${t("governance.conversation.open")}
+                  </button>
+                </div>`
+              : // **No id box for a tier that has no agent to reach with it**
+                // (2026-09-08). The sentence beside it already says "you can
+                // only work with agents an Administrator assigns to you", and
+                // the box was offered anyway. Driven as a User with an empty
+                // assignment: typing a real id (`scout`) and pressing Talk
+                // answered `You do not manage agent "scout"` and left that id
+                // standing as a heading with nothing to dismiss it. Finding
+                // 100's class, and the exact inverse of what finding 303 had
+                // just corrected in the sentence above it. The id box belongs
+                // to the tiers this section's own header gives it to:
+                // "Administrator and above have no assignment list (their
+                // scope is every agent), so they get an id box instead".
+                nothing,
           }),
         ];
   return renderSettingsSection({ title: t("governance.conversation.title") }, [
     ...rows,
-    props.conversationAgentId
+    // The picker path only: an assigned agent's conversation renders inside its
+    // own row above. **And this one carries a Close**, which it never had. The
+    // toggle lives on the assigned rows, so Root and every Administrator -- the
+    // two tiers that always arrive here through the picker -- could open a
+    // conversation and had nothing to shut it with. Choosing the
+    // "Choose an agent..." placeholder looks like the way back and is inert
+    // (`if (chosen)` drops it), so the select reset itself and left the
+    // transcript standing beneath it: measured `select.value === ""` with the
+    // row still headed `scout`, the control and the panel disagreeing about
+    // what was on screen.
+    props.conversationAgentId && !openIsAssigned
       ? renderSettingsRow({
-          title: html`<code>${props.conversationAgentId}</code>`,
+          title: label(openId),
           stacked: true,
-          control: renderConversation(props.conversationAgentId, props),
+          control: html`<div
+            class="settings-row__control"
+            style="flex-direction:column;align-items:stretch;gap:0.5rem"
+          >
+            <div>
+              <button
+                class="btn"
+                ?disabled=${props.busy}
+                @click=${() => void props.openConversation(props.conversationAgentId)}
+              >
+                ${t("governance.conversation.close")}
+              </button>
+            </div>
+            ${renderConversation(props.conversationAgentId, props)}
+          </div>`,
         })
       : nothing,
   ]);

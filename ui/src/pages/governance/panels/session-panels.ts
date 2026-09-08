@@ -202,12 +202,61 @@ export function renderLogin(props: LoginPanelProps): TemplateResult {
   );
 }
 
+/**
+ * One sentence saying what the signed-in tier may do.
+ *
+ * **Added 2026-09-08 after driving the page as each tier.** This panel is the
+ * one whose subject is *who am I*, and it answered with a bare lowercase token
+ * — `kinan (root)` — and nothing else. The tiers are the spine of this layer
+ * and the page is shaped by them: a Viewer sees four sections where a Root sees
+ * thirteen, and nothing anywhere said the difference was the tier rather than a
+ * page that failed to load. The one place that explains the tiers at all is the
+ * hint inside Root's *create an account* box, which no Viewer, User or
+ * Administrator can see.
+ *
+ * Descriptive rather than authoritative: `permissions.ts` on the server decides
+ * what a tier may do and every route enforces it. This says what that comes to,
+ * on the screen where an operator asks.
+ */
+function roleCapability(identity: GovernanceIdentity | null): string | undefined {
+  switch (identity?.role) {
+    case "root":
+      return t("governance.identity.canDoRoot");
+    case "administrator":
+      return t("governance.identity.canDoAdministrator");
+    case "user":
+      // The one tier whose answer depends on more than the tier: Root may
+      // withhold rule editing from a User (T27) without touching anything else
+      // they can do. `canAuthorPolicy` rides on the identity, so this says which
+      // of the two accounts you are instead of describing both and leaving you
+      // to guess. Absent means allowed, as everywhere else.
+      return identity.canAuthorPolicy === false
+        ? t("governance.identity.canDoUserWithheld")
+        : t("governance.identity.canDoUser");
+    case "viewer":
+      return t("governance.identity.canDoViewer");
+    default:
+      // No identity means this panel is not rendered at all. Returning nothing
+      // rather than a fallback sentence keeps a future fifth tier visibly
+      // undescribed instead of silently described as something it is not.
+      return undefined;
+  }
+}
+
 export function renderIdentityRow(props: IdentityRowProps): TemplateResult {
+  const capability = roleCapability(props.identity);
   return renderSettingsSection({ title: t("governance.identity.title") }, [
     renderSettingsRow({
       title: t("governance.identity.signedInAs"),
       control: renderSettingsValue(`${props.identity?.username} (${props.identity?.role})`),
     }),
+    capability
+      ? renderSettingsRow({
+          title: t("governance.identity.canDoLabel"),
+          description: capability,
+          stacked: true,
+        })
+      : nothing,
     renderSettingsRow({
       title: t("governance.identity.signOut"),
       control: html`<button

@@ -16,14 +16,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AuditActorInput } from "../governance/admin-audit.js";
 import { FolderGrantError, grantFolderWithExceptions } from "../governance/folder-grant.js";
-import {
-  canAuthorPolicyForAgent,
-  canManageGlobalPolicy,
-  type GovernanceActor,
-} from "../governance/permissions.js";
+import { canManageGlobalPolicy, type GovernanceActor } from "../governance/permissions.js";
 import type { GovernanceRole } from "../governance/roles.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
-import { requireGroup } from "./governance-dashboard-group.js";
+import { requireAgentPolicyAuthoring, requireGroup } from "./governance-dashboard-group.js";
 import { sendInvalidRequest, sendJson } from "./http-common.js";
 
 export type FolderGrantRouteContext = {
@@ -120,10 +116,7 @@ export async function handleGovernanceFolderGrantRoutes(
       });
       return true;
     }
-  } else if (!canAuthorPolicyForAgent(actor, scopedAgentId)) {
-    sendJson(res, 403, {
-      error: { message: `You do not manage agent "${scopedAgentId}"`, type: "forbidden" },
-    });
+  } else if (!requireAgentPolicyAuthoring(res, actor, scopedAgentId)) {
     return true;
   }
 

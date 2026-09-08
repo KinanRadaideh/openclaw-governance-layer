@@ -801,6 +801,159 @@ export async function clearUserAskOverride(groupId: string, username: string): P
  * existing scope rules, a User may set this for an agent assigned to them,
  * an Administrator for any agent, so no new permission concept is needed.
  */
+/**
+ * What one agent id carries in the policy document.
+ *
+ * One shape for two verbs — what `clearAgentPolicy` removed, and what
+ * `readAgentPolicyHoldings` found — because they are the same five facts, and a
+ * second shape would be a second place for the list to drift.
+ */
+export type AgentPolicyHoldings = {
+  rules: number;
+  mode: boolean;
+  ask: boolean;
+  hitlTimeout: boolean;
+  locked: boolean;
+};
+
+/** True when the id carries none of the five, so a caller can stay silent. */
+export function holdsNothing(cleared: AgentPolicyHoldings): boolean {
+  return (
+    cleared.rules === 0 && !cleared.mode && !cleared.ask && !cleared.hitlTimeout && !cleared.locked
+  );
+}
+
+/**
+ * Everything this policy document keys by one agent id.
+ *
+ * **Read this before calling it: it is only correct where the agent is gone.**
+ * Removing an agent's rules while the agent still exists and can still act is
+ * the dangerous direction — it disarms a live workload — which is exactly why
+ * `unregisterAgent` keeps them and says so in its own comment. The one caller
+ * is `deprovisionAgent` on the `deleteFromHost` path, where OpenClaw has
+ * already deleted the agent itself.
+ *
+ * ## Why this exists (T55, findings 258 and 324)
+ *
+ * An agent id is the handle for everything: rules are written about it,
+ * postures are set on it, it is stopped by it. Nothing tracked that the thing
+ * behind the name had changed, so registering a **new** agent under a released
+ * id handed it the previous holder's state. Measured: an allow rule on
+ * `/srv/payroll/**`, a watch-only posture and an active lockdown all arrived
+ * with the replacement.
+ *
+ * **Five fields, not the three that were measured.** The 2026-09-05 sweep
+ * tested a rule, the posture and the lockdown. The document also keys the
+ * per-agent **escalation override** and the **timeout** that waits on it, and
+ * nothing had ever asked about those — they inherit identically
+ * (`docs-notes/qa-sweep-2026-09-08/t55-remaining-fields.ts`). Leaving two of
+ * the five behind would be the same defect with a smaller surface, which is why
+ * this clears all of them.
+ *
+ * **Global rules are untouched.** Only rules naming this agent go; a rule that
+ * binds every agent was never about this one. The audit ledger is untouched
+ * too, always: it is the record that this happened.
+ *
+ * One write under one lock, so a reader can never see three of the five gone.
+ */
+export async function clearAgentPolicy(
+  groupId: string,
+  rawAgentId: string,
+  actor: AuditActorInput,
+): Promise<AgentPolicyHoldings> {
+  // Folded like every other agent key in this document (finding 202).
+  const agentId = normalizeAgentId(rawAgentId);
+  const cleared: AgentPolicyHoldings = {
+    rules: 0,
+    mode: false,
+    ask: false,
+    hitlTimeout: false,
+    locked: false,
+  };
+  await updatePolicy(groupId, (doc) => {
+    // Both sides folded. A stored rule is normalised on the way in
+    // (`addRule`), and folding again here costs nothing and removes the
+    // assumption — the habit `canViewAgent` states.
+    const keep = doc.rules.filter(
+      (rule) => rule.agentId === undefined || normalizeAgentId(rule.agentId) !== agentId,
+    );
+    cleared.rules = doc.rules.length - keep.length;
+    doc.rules = keep;
+    cleared.mode = Object.hasOwn(doc.agentMode, agentId);
+    cleared.ask = Object.hasOwn(doc.agentAsk, agentId);
+    cleared.hitlTimeout = Object.hasOwn(doc.agentHitlTimeout, agentId);
+    delete doc.agentMode[agentId];
+    delete doc.agentAsk[agentId];
+    delete doc.agentHitlTimeout[agentId];
+    const stillLocked = doc.lockedAgents.filter((held) => normalizeAgentId(held) !== agentId);
+    cleared.locked = stillLocked.length !== doc.lockedAgents.length;
+    doc.lockedAgents = stillLocked;
+  });
+  if (!holdsNothing(cleared)) {
+    // **Recorded, because clearing a permission is an administrative action**
+    // and requirement 5 asks for every one of them. Deleting rules silently
+    // would be the one deletion this system does not account for.
+    await recordAdminAction(groupId, {
+      actor,
+      action: ADMIN_ACTIONS.agentPolicyCleared,
+      agentId,
+      target: `cleared with the agent: ${describeAgentPolicyHoldings(cleared)}`,
+    });
+  }
+  return cleared;
+}
+
+/**
+ * What this id already carries, without changing anything (T55, part b).
+ *
+ * **Read, not cleared.** It exists so that creating or registering an agent
+ * under a name that is already loaded can *say so*. The dashboard's Agent
+ * permissions section shows all of this already; what was missing is that
+ * nobody thinks to look at an agent they have just made.
+ *
+ * Deliberately **not** a warning dialog. The commonest reason a fresh id
+ * already has rules is that the operator wrote them minutes earlier on purpose,
+ * so a prompt would mostly fire on people who already know — and a warning that
+ * is usually wrong teaches everyone to dismiss it.
+ */
+export async function readAgentPolicyHoldings(
+  groupId: string,
+  rawAgentId: string,
+): Promise<AgentPolicyHoldings> {
+  const agentId = normalizeAgentId(rawAgentId);
+  const doc = await loadPolicy(groupId);
+  return {
+    rules: doc.rules.filter(
+      (rule) => rule.agentId !== undefined && normalizeAgentId(rule.agentId) === agentId,
+    ).length,
+    mode: Object.hasOwn(doc.agentMode, agentId),
+    ask: Object.hasOwn(doc.agentAsk, agentId),
+    hitlTimeout: Object.hasOwn(doc.agentHitlTimeout, agentId),
+    locked: doc.lockedAgents.some((held) => normalizeAgentId(held) === agentId),
+  };
+}
+
+/** One phrase naming what an id carries, for the ledger and for the operator. */
+export function describeAgentPolicyHoldings(cleared: AgentPolicyHoldings): string {
+  const parts: string[] = [];
+  if (cleared.rules > 0) {
+    parts.push(`${cleared.rules} rule${cleared.rules === 1 ? "" : "s"}`);
+  }
+  if (cleared.mode) {
+    parts.push("a posture override");
+  }
+  if (cleared.ask) {
+    parts.push("an escalation override");
+  }
+  if (cleared.hitlTimeout) {
+    parts.push("an escalation timeout");
+  }
+  if (cleared.locked) {
+    parts.push("an active stop");
+  }
+  return parts.length > 0 ? parts.join(", ") : "nothing";
+}
+
 export async function setAgentMode(
   groupId: string,
   rawAgentId: string,
