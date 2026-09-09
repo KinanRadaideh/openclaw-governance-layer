@@ -8,7 +8,8 @@ import { applicationContext, type ApplicationContext } from "../../app/context.t
 import { resolveControlUiAuthToken } from "../../app/control-ui-auth.ts";
 import { showConfirmDialog } from "../../components/confirm-dialog.ts";
 import { renderDocsLink, renderSettingsPage } from "../../components/settings-ui.ts";
-import { t } from "../../i18n/index.ts";
+import { i18n, t } from "../../i18n/index.ts";
+import { enGovernance } from "../../i18n/locales/en-governance.ts";
 import { startInputOverflowTitles } from "../../lib/input-overflow-title.ts";
 import { OpenClawLightDomElement } from "../../lit/openclaw-element.ts";
 import { agentLabel, isKnownAgentId, knownAgentIds, type AgentSources } from "./agent-directory.ts";
@@ -80,6 +81,26 @@ import { renderGovernanceGate, renderIdentityRow } from "./panels/session-panels
 import { focusNewRefusal } from "./refusal-focus.ts";
 import "../../styles/governance.css";
 import { EMPTY_RULE_FILTER, type RuleFilter } from "./rule-filter.ts";
+
+// ---------------------------------------------------------------------------
+// **This page brings its own English text with it** (T64, 2026-09-09).
+//
+// `en-governance.ts` is imported above rather than being part of the English
+// catalog the app loads at startup, and this line is what puts it back. The
+// import is static, so the strings are in *this* chunk — the lazy one — and
+// this call runs while that chunk evaluates, which is before the element below
+// is defined and long before anything renders. There is no window in which a
+// governance sentence is missing, and no `await` to forget.
+//
+// It is here rather than inside the component for the same reason: a component
+// registers on construction, and the section renderers are module-level
+// functions that `t()` from the moment they are called.
+//
+// The other twenty locales need nothing: each is already one lazily-imported
+// module containing every key, `governance.*` included, and `registerLocaleStrings`
+// returns without doing anything for a locale that has not been loaded yet.
+// ---------------------------------------------------------------------------
+i18n.registerLocaleStrings("en", enGovernance);
 
 /** Ordered least- to most-privileged so the control reads as a ladder. */
 

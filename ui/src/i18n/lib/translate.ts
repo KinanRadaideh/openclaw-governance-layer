@@ -1,6 +1,6 @@
 // Control UI i18n module implements translate behavior.
 import { getSafeLocalStorage } from "../../local-storage.ts";
-import { en } from "../locales/en.ts";
+import { enCore } from "../locales/en-core.ts";
 import {
   DEFAULT_LOCALE,
   SUPPORTED_LOCALES,
@@ -31,7 +31,7 @@ function syncDocumentLocale(locale: Locale): void {
 
 class I18nManager {
   private locale: Locale = DEFAULT_LOCALE;
-  private translations: Partial<Record<Locale, TranslationMap>> = { [DEFAULT_LOCALE]: en };
+  private translations: Partial<Record<Locale, TranslationMap>> = { [DEFAULT_LOCALE]: enCore };
   private subscribers: Set<Subscriber> = new Set();
   // Locale chunks are served by the gateway, so a selection made while disconnected can fail.
   // Preserve the target for the next connected transition; otherwise the chrome silently stays
@@ -222,6 +222,39 @@ class I18nManager {
 
   public registerTranslation(locale: Locale, map: TranslationMap) {
     this.translations[locale] = map;
+  }
+
+  /**
+   * Add a lazily-loaded page's strings to a locale that is already present.
+   *
+   * **Why this exists (T64, 2026-09-09).** English used to be one module
+   * imported here, so every page's text was startup JS even though every page
+   * is lazy. The governance dashboard alone was 10.5 KB gzipped of it. Its
+   * strings now travel in its own chunk and announce themselves here when that
+   * chunk evaluates.
+   *
+   * **Merged at the top level, and deliberately not deeper.** A page owns a
+   * whole namespace — `governance`, and nothing else — so one level is all the
+   * merging a page split can need, and a deep merge would quietly let two
+   * modules co-own a key and make load order decide the winner. If a page ever
+   * needs to add to a namespace the core already defines, that is a reason to
+   * reconsider the split, not to deepen this function.
+   *
+   * Registration happens while the page's chunk is evaluating, before its
+   * element renders, so nothing is ever briefly missing. `notify` is still
+   * called: a locale switched *after* a page loaded re-enters through
+   * `applyLocale`, and anything already on screen should redraw if this ever
+   * runs late.
+   */
+  public registerLocaleStrings(locale: Locale, map: TranslationMap) {
+    const existing = this.translations[locale];
+    if (!existing) {
+      // The locale has not been loaded yet, so its own module will bring these
+      // strings with it. Registering here would be replaced by that load.
+      return;
+    }
+    this.translations[locale] = { ...existing, ...map };
+    this.notify();
   }
 
   public subscribe(sub: Subscriber) {

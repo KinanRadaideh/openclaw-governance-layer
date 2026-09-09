@@ -27,71 +27,70 @@ export const CONTROL_UI_PERFORMANCE_BUDGETS = Object.freeze({
   // 317 KiB preserved headroom after the device-auth upgrade hook and sidebar
   // session-render extraction (2026-07); the migration UI itself remains lazy.
   //
-  // **Raised to 318 KiB on 2026-09-08 (finding 321), and the reason is the
-  // whole of the intentional decision this comment asks for.**
+  // **Raised to 318 KiB on 2026-09-08 (finding 321), and handed back on
+  // 2026-09-09 when the reason for it stopped existing (T64).**
   //
-  // The governance layer's operator-facing text was deliberately expanded
-  // across findings 296-320, because *unclear text was itself the defect class
-  // being fixed*: a hint that told a User with no agents "You manage every
-  // agent" (303), a permission whose state was invisible (304), a panel naming
-  // a command line deleted the day before (320). Those sentences are the
-  // product, not decoration.
+  // The raise bought room for the governance layer's operator-facing text,
+  // deliberately expanded across findings 296-320 because *unclear text was
+  // itself the defect class being fixed*: a hint that told a User with no
+  // agents "You manage every agent" (303), a permission whose state was
+  // invisible (304), a panel naming a command line deleted the day before
+  // (320). Those sentences are the product, not decoration — and the build had
+  // been failing since the first of them with nobody running it, which is why
+  // `node scripts/build-all.mjs` is in the handoff's verification list at all
+  // (finding 284).
   //
-  // They land in **startup** JS because `ui/src/i18n/locales/en.ts` is loaded
-  // up front, while the governance *page* is lazy.
-  //
-  // **Corrected 2026-09-09, finding 342.** What stood here said the cost was
-  // "multiplied across the locale set", and the sentence was repeated into
-  // `mg/HANDOFF.md` and the sweep backlog from this file. It is false, and it
-  // overstates the cost by a factor of twenty: `registry.ts` dynamic-imports
-  // all twenty non-English locales (`LAZY_LOCALE_REGISTRY`), and this build
-  // emits each of them as its own chunk — `ar`, `fa`, `hi`, `ja-JP`, `ru`,
-  // `th`, `uk`, `vi` and the rest are in the asset list and in none of the
-  // twelve startup requests. **Only English is charged here, once.**
-  //
-  // The correction cuts both ways and the second half is the useful one. A
-  // sentence costs a twentieth of what this comment claimed, so the ceiling
-  // raise below bought more than it looked like — and the *fix* is worth far
-  // more than it looked like too. The governance block is lines 3482-4156 of
-  // `en.ts`, ~32 KB of strings, **~10.5 KB gzipped**. Moving it off the
-  // startup path frees about 170 times the headroom that remains (60 B,
-  // measured on this tree 2026-09-09), which is the difference between
-  // rationing sentences and not thinking about them again.
-  //
-  // Measured on this tree, three points:
-  //
-  //     HEAD                             324522 B   passes, 86 B of headroom
+  //     HEAD                             324522 B   passed, 86 B of headroom
   //     + findings 296-304 (dashboard)   325138 B   over by 530 B
-  //     + findings 305-320 (this pass)   325241 B   over by 633 B
+  //     + findings 305-320               325241 B   over by 633 B
   //
-  // **The build had been failing since the first of those and nobody had run
-  // it** — `node scripts/build-all.mjs` is in the handoff's verification list
-  // precisely because "check the build, not just the source" (finding 284), and
-  // every source-level check stayed green throughout.
+  // **Why it was the wrong fix, established 2026-09-09 (finding 342).** The
+  // reason recorded here for the pressure was false. It said each sentence was
+  // "multiplied across the locale set", and that sentence was copied from here
+  // into `mg/HANDOFF.md` and the sweep backlog. `registry.ts` dynamic-imports
+  // all twenty non-English locales (`LAZY_LOCALE_REGISTRY`) and this build
+  // emits each as its own chunk — `ar`, `fa`, `hi`, `ja-JP`, `ru`, `th`, `uk`,
+  // `vi` and the rest appear in the asset list and in none of the twelve
+  // startup requests. **Only English was ever charged here, once.** Overstating
+  // it by twenty made the problem look unavoidable and the real fix look
+  // cosmetic; it was the opposite.
   //
-  // 318 KiB restores about the headroom that existed before (391 B). That is
-  // deliberately not generous: raising this a kilobyte per sentence is not a
-  // strategy, and **the real answer is to stop charging page-specific strings
-  // to startup** — split the locale module so a page's text loads with the
-  // page, as the page's own code already does. That is a structural change to
-  // upstream's i18n loading and is recorded as a decision (T64) rather than
-  // taken here in passing.
+  // **T64, done 2026-09-09 at Kinan's decision, and this is what it bought.**
+  // The English catalog is now three modules: `en-core.ts` is what
+  // `lib/translate.ts` imports and what every session pays for at startup,
+  // `en-governance.ts` travels in the governance page's own lazy chunk and is
+  // registered by that page as it evaluates, and `en.ts` merges both so the
+  // translation pipeline and the twenty locales see the same 4,956 keys they
+  // always did — verified key-for-key against the previous catalog: none
+  // missing, none added, no text changed.
   //
-  // **What T64 actually costs, established 2026-09-09 so the decision is taken
-  // on facts.** The runtime edge is a single line — `translate.ts` statically
-  // imports `en` — and the twenty lazy locales are the pattern to copy. The
-  // obstacle is not the runtime: `scripts/control-ui-i18n.ts` hashes the raw
-  // **text** of `locales/en.ts` (`sourceHash = sha256(sourceRaw)`) and that
-  // hash feeds the locale metadata and raw-copy baseline the i18n gate
-  // compares. Splitting the file changes it, so the split cannot land as a
-  // quiet refactor: it goes through the locale-refresh flow `ui/AGENTS.md`
-  // describes, which is upstream's and which CI would normally drive.
+  //     before the split   325565 B      67 B of headroom (ceiling 325632)
+  //     after it           316546 B    8062 B of headroom (ceiling 324608)
   //
-  // **Measured headroom on this tree, 2026-09-09: 67 B** (325565 B against a
-  // 325632 B ceiling). One short sentence, for the whole product. It was 60 B
-  // before that day's repairs, and they *added* an operator-facing sentence:
-  // reusing a string the page already ships costs nothing and can pay.
-  startupJsGzipBytes: 318 * KIB,
+  // **9,019 bytes off every first page load**, for text most sessions never
+  // read, and the ceiling goes back to what it was before the raise. 317 KiB
+  // is 324608 B, still ~8 KB above the measured figure: deliberately not tight,
+  // because this number has to hold on a Linux builder nobody has measured yet
+  // (see below), and because the point of the split was to stop rationing
+  // sentences, not to start rationing them at a lower number.
+  //
+  // **The remaining ratchet is the baseline, and it needs a Linux build.** This
+  // run printed the hint asking for `--update-baseline`, and it was not taken:
+  // the note at the top of this file says baseline updates must use CI bytes
+  // via `--startup-js-bytes`, because local zlib emits smaller streams than the
+  // Linux builder, and no Linux measurement of this tree exists. T3 is going to
+  // produce one — the VPS rebuild is already required — so the baseline drops
+  // then, with a real number rather than an invented margin. Until it does,
+  // `config/control-ui-startup-budget-baseline.json` sits ~8 KB above actual
+  // and the ceiling here is what bounds creep.
+  //
+  // **The rule the split establishes, for whoever adds the next page.** A lazy
+  // page's strings belong in a sibling `en-<page>.ts` that the page imports and
+  // registers, not in `en-core.ts`. And before writing a new operator-facing
+  // sentence at all, look for one the product already ships: on 2026-09-09 the
+  // System resources panel gained a sentence for **zero bytes** by reusing the
+  // Deployment report's own words for the same situation.
+  startupJsGzipBytes: 317 * KIB,
   // 45 KiB CSS ceilings maintainer-approved 2026-07 alongside the interleaved
   // sidebar zone styling; headroom over the ~36.5 KiB post-diet baseline.
   startupCssGzipBytes: 45 * KIB,
