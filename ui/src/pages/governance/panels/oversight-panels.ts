@@ -456,9 +456,22 @@ export function renderSystemSection(
     renderSettingsRow({
       title: t("governance.system.cpu"),
       control: renderSettingsValue(
+        // **The unsupported case is said, not dropped.** `os.loadavg()` returns
+        // three zeroes on Windows rather than failing, so the server reports
+        // `loadAverageSupported: false` and this row used to render "8 cores"
+        // with nothing at all where the load had been. An operator comparing
+        // this panel on two hosts reads the absence as "load is fine here",
+        // which is the silent-failure class this project ranks above a crash.
+        //
+        // The words are the Deployment report's own, one section down, reused
+        // rather than respelt: it already answers "we cannot measure this
+        // here" for POSIX permission bits and free disk space, and two panels
+        // giving that answer in two vocabularies is how the divergence starts.
+        // Reusing the key also costs the startup budget nothing, which is the
+        // constraint T64 exists to lift.
         status.loadAverageSupported
           ? `${status.cpuCount} cores · load ${status.loadAverage.map((n) => n.toFixed(2)).join(" / ")}`
-          : `${status.cpuCount} cores`,
+          : `${status.cpuCount} cores · load ${t("governance.deployment.status.unknown")}`,
       ),
     }),
     renderSettingsRow({

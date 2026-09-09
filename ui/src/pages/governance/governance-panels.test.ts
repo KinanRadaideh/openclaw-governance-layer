@@ -246,14 +246,19 @@ describe("the host resource panel", () => {
     expect(text()).toContain("0.50");
   });
 
-  it("reports cores alone where load average is not supported", async () => {
+  it("says load could not be measured, rather than dropping the row's second half", async () => {
     // Windows reports [0,0,0] rather than failing, so printing it would be a
-    // confident lie. The panel says less instead.
+    // confident lie. The panel used to say *less* — "8 cores", with nothing
+    // where the load had been — and an operator comparing two hosts reads an
+    // absence as "load is fine here". So it says the same thing the Deployment
+    // report one section down already says for POSIX mode bits and free disk
+    // space, in the same words, rather than in a second vocabulary.
     await mount({
       identity: identity("viewer"),
       systemStatus: { ...status, loadAverageSupported: false },
     });
     expect(text()).toContain("8 cores");
+    expect(text()).toContain("not determined here");
     expect(text()).not.toContain("0.50");
   });
 

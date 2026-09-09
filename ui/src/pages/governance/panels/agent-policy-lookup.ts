@@ -34,6 +34,7 @@ import {
   renderSettingsValue,
 } from "../../../components/settings-ui.ts";
 import { t } from "../../../i18n/index.ts";
+import { includesAgentId } from "../agent-directory.ts";
 import type { PolicyPanelProps } from "./policy-panels.ts";
 
 /**
@@ -162,8 +163,14 @@ export function renderAgentPolicySection(props: PolicyPanelProps): TemplateResul
     // than withholding it — the same judgement, and the same `isKnownAgentId`,
     // that the kill switch one section above already makes for a mistyped id.
     // The two panels take the same free text and only one of them said so.
+    //
+    // **Through `includesAgentId` rather than `.includes`** (2026-09-09). The
+    // raw comparison made this warning fire on a *correct* lookup typed in the
+    // wrong case: `SCOUT` returns the real `scout`'s projection and was then
+    // labelled "no agent with this id". A false "this agent does not exist" on
+    // a right answer is worse than the silence this row was added to break.
     // ----------------------------------------------------------------------
-    if (!props.knownAgentIds.includes(view.posture.agentId)) {
+    if (!includesAgentId(props.knownAgentIds, view.posture.agentId)) {
       rows.push(
         renderSettingsRow({
           title: renderSettingsStatus({

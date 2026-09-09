@@ -1,0 +1,21 @@
+
+[A5] a host that cannot measure load:
+    Processor 8 cores · load not determined here
+
+[A5] a host that can:
+    Processor 8 cores · load 0.50 / 0.40 / 0.30
+
+[A3] kill switch, typed "SCOUT":
+    Lock down an agent Immediately denies every future governed action from this agent. You can stop any agent in your organisation. main, Mainscout, Scout Lock down
+
+[A3] kill switch, typed "scout":
+    Lock down an agent Immediately denies every future governed action from this agent. You can stop any agent in your organisation. main, Mainscout, Scout Lock down
+
+[A3] kill switch, typed "scoot":
+    Lock down an agent Immediately denies every future governed action from this agent. You can stop any agent in your organisation. No agent with this id is running, locked down, or assigned to an account. Locking it down will still succeed and record an entry, but if you have mistyped the id, the agent you meant will keep running. main, Mainscout, Scout Lock down
+
+[A3] kill switch, typed "MAIN":
+    Lock down an agent Immediately denies every future governed action from this agent. You can stop any agent in your organisation. This agent is not registered, so there is no policy record to lock down and the stop will be refused. Register it under Agents in your organisation first. main, Mainscout, Scout Lock down
+
+[A4] one row, one remediation:
+    Gateway authentication configured The Gateway accepts unauthenticated connections. The governance login is a second gate layered on this one, not a replacement for it. Gateway auth missing on loopback: gateway.bind is loopback but no gateway auth secret is configured. If the Control UI is exposed through a reverse proxy, unauthenticated access is possible. → Configure gateway.auth with a token or

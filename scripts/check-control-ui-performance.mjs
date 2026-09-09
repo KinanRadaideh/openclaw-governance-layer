@@ -37,10 +37,28 @@ export const CONTROL_UI_PERFORMANCE_BUDGETS = Object.freeze({
   // a command line deleted the day before (320). Those sentences are the
   // product, not decoration.
   //
-  // They land in **startup** JS because `ui/src/i18n/locales/*.ts` is one
-  // module per locale, loaded up front, while the governance *page* is lazy.
-  // So every sentence added anywhere in the product is multiplied across the
-  // locale set and charged to startup. Measured on this tree, three points:
+  // They land in **startup** JS because `ui/src/i18n/locales/en.ts` is loaded
+  // up front, while the governance *page* is lazy.
+  //
+  // **Corrected 2026-09-09, finding 342.** What stood here said the cost was
+  // "multiplied across the locale set", and the sentence was repeated into
+  // `mg/HANDOFF.md` and the sweep backlog from this file. It is false, and it
+  // overstates the cost by a factor of twenty: `registry.ts` dynamic-imports
+  // all twenty non-English locales (`LAZY_LOCALE_REGISTRY`), and this build
+  // emits each of them as its own chunk — `ar`, `fa`, `hi`, `ja-JP`, `ru`,
+  // `th`, `uk`, `vi` and the rest are in the asset list and in none of the
+  // twelve startup requests. **Only English is charged here, once.**
+  //
+  // The correction cuts both ways and the second half is the useful one. A
+  // sentence costs a twentieth of what this comment claimed, so the ceiling
+  // raise below bought more than it looked like — and the *fix* is worth far
+  // more than it looked like too. The governance block is lines 3482-4156 of
+  // `en.ts`, ~32 KB of strings, **~10.5 KB gzipped**. Moving it off the
+  // startup path frees about 170 times the headroom that remains (60 B,
+  // measured on this tree 2026-09-09), which is the difference between
+  // rationing sentences and not thinking about them again.
+  //
+  // Measured on this tree, three points:
   //
   //     HEAD                             324522 B   passes, 86 B of headroom
   //     + findings 296-304 (dashboard)   325138 B   over by 530 B
@@ -58,6 +76,21 @@ export const CONTROL_UI_PERFORMANCE_BUDGETS = Object.freeze({
   // page, as the page's own code already does. That is a structural change to
   // upstream's i18n loading and is recorded as a decision (T64) rather than
   // taken here in passing.
+  //
+  // **What T64 actually costs, established 2026-09-09 so the decision is taken
+  // on facts.** The runtime edge is a single line — `translate.ts` statically
+  // imports `en` — and the twenty lazy locales are the pattern to copy. The
+  // obstacle is not the runtime: `scripts/control-ui-i18n.ts` hashes the raw
+  // **text** of `locales/en.ts` (`sourceHash = sha256(sourceRaw)`) and that
+  // hash feeds the locale metadata and raw-copy baseline the i18n gate
+  // compares. Splitting the file changes it, so the split cannot land as a
+  // quiet refactor: it goes through the locale-refresh flow `ui/AGENTS.md`
+  // describes, which is upstream's and which CI would normally drive.
+  //
+  // **Measured headroom on this tree, 2026-09-09: 67 B** (325565 B against a
+  // 325632 B ceiling). One short sentence, for the whole product. It was 60 B
+  // before that day's repairs, and they *added* an operator-facing sentence:
+  // reusing a string the page already ships costs nothing and can pay.
   startupJsGzipBytes: 318 * KIB,
   // 45 KiB CSS ceilings maintainer-approved 2026-07 alongside the interleaved
   // sidebar zone styling; headroom over the ~36.5 KiB post-diet baseline.

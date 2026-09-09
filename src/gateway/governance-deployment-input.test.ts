@@ -56,17 +56,50 @@ function statusOfCheck(
 }
 
 describe("A7. The ids the report expects are the ids the audit emits", () => {
+  /**
+   * The two auth ids are checked through the row they were folded into
+   * (2026-09-09), not by their own name.
+   *
+   * `gateway.bind_no_auth` and `gateway.loopback_no_auth` report the condition
+   * `deployment.gateway_auth` already reports — no credential is configured —
+   * so the report shows one row for it. **The property this file exists to
+   * protect is unchanged and is asserted the same way**: drive the real audit,
+   * and require its own words to arrive. If the id is renamed upstream it is no
+   * longer recognised as auth, the detail below stops matching, and this test
+   * fails — which is the same tripwire, one row over.
+   */
+  function detailOfCheck(
+    status: Awaited<ReturnType<typeof readDeploymentStatus>>,
+    id: string,
+  ): string | undefined {
+    return status.checks.find((entry) => entry.id === id)?.detail;
+  }
+
   it("sees gateway.bind_no_auth fire on an exposed bind with no credential", async () => {
     const status = await statusFor({ bind: "lan" });
-    expect(statusOfCheck(status, "gateway.bind_no_auth")).toBe("fail");
+    expect(statusOfCheck(status, "deployment.gateway_auth")).toBe("fail");
+    expect(detailOfCheck(status, "deployment.gateway_auth")).toContain(
+      "Gateway binds beyond loopback without auth",
+    );
   });
 
-  it("reports the same id as a pass when the audit is silent about it", async () => {
+  it("sees gateway.loopback_no_auth fire on a loopback bind with no credential", async () => {
+    const status = await statusFor({ bind: "loopback", controlUi: { enabled: true } });
+    expect(statusOfCheck(status, "deployment.gateway_auth")).toBe("fail");
+    expect(detailOfCheck(status, "deployment.gateway_auth")).toContain(
+      "Gateway auth missing on loopback",
+    );
+  });
+
+  it("reports the same condition as a pass when the audit is silent about it", async () => {
     // The other half of the contract. If this said `undefined` instead of
     // "pass", the expectation list and the audit would have drifted apart in
     // the direction that hides problems.
     const status = await statusFor({ bind: "loopback", auth: { token: "a".repeat(40) } });
-    expect(statusOfCheck(status, "gateway.bind_no_auth")).toBe("pass");
+    expect(statusOfCheck(status, "deployment.gateway_auth")).toBe("pass");
+    // And neither folded id is minted as a row of its own beside it.
+    expect(statusOfCheck(status, "gateway.bind_no_auth")).toBeUndefined();
+    expect(statusOfCheck(status, "gateway.loopback_no_auth")).toBeUndefined();
   });
 
   it("sees the control-UI origin wildcard check fire", async () => {
@@ -93,8 +126,9 @@ describe("A7. The ids the report expects are the ids the audit emits", () => {
     // silently vanished would fail here even if no individual test covered it.
     const status = await statusFor({ bind: "loopback", auth: { token: "a".repeat(40) } });
     for (const id of [
-      "gateway.bind_no_auth",
-      "gateway.loopback_no_auth",
+      // The two auth ids are absent by design and are covered by the two tests
+      // above; `deployment.gateway_auth` stands in their place here.
+      "deployment.gateway_auth",
       "gateway.control_ui.allowed_origins_wildcard",
       "gateway.control_ui.host_header_origin_fallback",
       "gateway.real_ip_fallback_enabled",

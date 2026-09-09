@@ -212,6 +212,22 @@ const EXPECTED_ABSENT_GATEWAY_CHECKS: readonly { id: string; title: string }[] =
   { id: "gateway.token_too_short", title: "Gateway token length" },
 ];
 
+/**
+ * The audit checks that answer a question this module already asks.
+ *
+ * Both fire on one condition — no gateway auth secret is configured — which is
+ * exactly what `deployment.gateway_auth` reports, so leaving them as rows of
+ * their own printed **two failures and two remediations for one missing
+ * credential**. They stay in `EXPECTED_ABSENT_GATEWAY_CHECKS` above, because
+ * that list is the rename tripwire and dropping them from it would make a
+ * renamed check silently absent; what changes is only where their verdict is
+ * *shown*.
+ */
+const GATEWAY_AUTH_AUDIT_CHECK_IDS: ReadonlySet<string> = new Set([
+  "gateway.bind_no_auth",
+  "gateway.loopback_no_auth",
+]);
+
 async function defaultStatPath(path: string): Promise<StatResult> {
   try {
     const info = await stat(path);
@@ -264,9 +280,12 @@ function statusForSeverity(severity: SecurityAuditFinding["severity"]): "fail" |
 function foldGatewayFindings(findings: readonly SecurityAuditFinding[]): {
   checks: DeploymentCheck[];
   notes: string[];
+  /** Auth findings held back for `gatewayAuthCheck` to fold into its one row. */
+  authFindings: SecurityAuditFinding[];
 } {
   const checks: DeploymentCheck[] = [];
   const notes: string[] = [];
+  const authFindings: SecurityAuditFinding[] = [];
   const seen = new Set<string>();
 
   for (const finding of findings) {
@@ -276,6 +295,10 @@ function foldGatewayFindings(findings: readonly SecurityAuditFinding[]): {
       continue;
     }
     seen.add(finding.checkId);
+    if (GATEWAY_AUTH_AUDIT_CHECK_IDS.has(finding.checkId)) {
+      authFindings.push(finding);
+      continue;
+    }
     // Verbatim. Re-wording here would put two descriptions of one condition
     // into the system, which is how this project's defects usually start.
     checks.push({
@@ -289,7 +312,11 @@ function foldGatewayFindings(findings: readonly SecurityAuditFinding[]): {
   }
 
   for (const expected of EXPECTED_ABSENT_GATEWAY_CHECKS) {
-    if (seen.has(expected.id)) {
+    // The auth pair is silent here in both directions. A pass row beside
+    // `deployment.gateway_auth`'s own pass would say "the Gateway is
+    // authenticated" three times on a healthy installation, which is the same
+    // defect as saying it failed twice on a broken one.
+    if (seen.has(expected.id) || GATEWAY_AUTH_AUDIT_CHECK_IDS.has(expected.id)) {
       continue;
     }
     checks.push({
@@ -300,7 +327,69 @@ function foldGatewayFindings(findings: readonly SecurityAuditFinding[]): {
       source: "gateway-audit",
     });
   }
-  return { checks, notes };
+  return { checks, notes, authFindings };
+}
+
+/**
+ * The one row for "is the Gateway authenticated", governance's reading of it
+ * and the host audit's folded together.
+ *
+ * **Worst status wins.** A fold that could lower a severity would be a way for
+ * a critical finding to vanish into a warning, which is the failure mode the
+ * comment on `EXPECTED_ABSENT_GATEWAY_CHECKS` guards against one page up. In
+ * practice it bites in exactly one case and that case is real: `gateway.auth`
+ * has a mode but no credential behind it, which this module called a `warn`
+ * and the audit calls critical. The audit is right — a mode with nothing
+ * behind it is not authentication.
+ *
+ * **The audit's words are appended verbatim**, for the reason
+ * `foldGatewayFindings` gives about re-wording: what is being removed is a
+ * duplicate *row*, never a fact.
+ */
+function gatewayAuthCheck(
+  input: DeploymentEnvironmentInput,
+  auditFindings: readonly SecurityAuditFinding[],
+): DeploymentCheck {
+  const base =
+    input.authMode === "none"
+      ? check(
+          "deployment.gateway_auth",
+          "Gateway authentication configured",
+          "fail",
+          "The Gateway accepts unauthenticated connections. The governance login is a second gate layered on this one, not a replacement for it.",
+          "Configure gateway.auth with a token or a password.",
+        )
+      : check(
+          "deployment.gateway_auth",
+          "Gateway authentication configured",
+          input.authSecretConfigured ? "pass" : "warn",
+          input.authSecretConfigured
+            ? `Gateway auth mode is "${input.authMode}" and a credential is configured.`
+            : `Gateway auth mode is "${input.authMode}" but no credential appears to be configured.`,
+          input.authSecretConfigured
+            ? undefined
+            : "Supply the credential the configured mode expects.",
+        );
+  if (auditFindings.length === 0) {
+    return base;
+  }
+  const statuses = new Set<DeploymentCheckStatus>([
+    base.status,
+    ...auditFindings
+      .map((finding) => statusForSeverity(finding.severity))
+      .filter((s) => s !== null),
+  ]);
+  const remediation =
+    base.remediation ?? auditFindings.find((finding) => finding.remediation)?.remediation;
+  return {
+    ...base,
+    status: statuses.has("fail") ? "fail" : statuses.has("warn") ? "warn" : base.status,
+    detail: [
+      base.detail,
+      ...auditFindings.map((finding) => `${finding.title}: ${finding.detail}`),
+    ].join(" "),
+    ...(remediation ? { remediation } : {}),
+  };
 }
 
 export async function readDeploymentStatus(
@@ -436,27 +525,24 @@ export async function readDeploymentStatus(
         ),
   );
 
-  checks.push(
-    input.authMode === "none"
-      ? check(
-          "deployment.gateway_auth",
-          "Gateway authentication configured",
-          "fail",
-          "The Gateway accepts unauthenticated connections. The governance login is a second gate layered on this one, not a replacement for it.",
-          "Configure gateway.auth with a token or a password.",
-        )
-      : check(
-          "deployment.gateway_auth",
-          "Gateway authentication configured",
-          input.authSecretConfigured ? "pass" : "warn",
-          input.authSecretConfigured
-            ? `Gateway auth mode is "${input.authMode}" and a credential is configured.`
-            : `Gateway auth mode is "${input.authMode}" but no credential appears to be configured.`,
-          input.authSecretConfigured
-            ? undefined
-            : "Supply the credential the configured mode expects.",
-        ),
-  );
+  // -------------------------------------------------------------------
+  // **One condition, one row** (2026-09-09).
+  //
+  // Three checks answered "is the Gateway authenticated": this one, and the
+  // audit's `gateway.bind_no_auth` and `gateway.loopback_no_auth`. With
+  // `gateway.auth.mode` set to `"none"` the report printed **two failures and
+  // two remediations for one missing credential**, and an operator counting
+  // rows read two problems. Seen for real on 2026-09-08, when the QA
+  // instance's auth was off and the report was right twice over.
+  //
+  // `foldGatewayFindings` already deduplicates *inside* the audit; the
+  // duplication was across the seam between the audit and this module. This
+  // row owns the question because it is the one that can say what the
+  // condition means here — the governance login is a second gate layered on
+  // the Gateway's, not a replacement for it — and nothing upstream knows that.
+  // -------------------------------------------------------------------
+  const gateway = foldGatewayFindings(input.gatewayFindings);
+  checks.push(gatewayAuthCheck(input, gateway.authFindings));
 
   // -------------------------------------------------------------------
   // The shipped security floor, and whether it is still where it shipped.
@@ -813,8 +899,7 @@ export async function readDeploymentStatus(
           ),
   );
 
-  const folded = foldGatewayFindings(input.gatewayFindings);
-  checks.push(...folded.checks);
+  checks.push(...gateway.checks);
 
   const summary = {
     pass: checks.filter((entry) => entry.status === "pass").length,
@@ -833,7 +918,7 @@ export async function readDeploymentStatus(
       tailscaleMode: input.tailscaleMode,
       governanceDir: shortenHomePath(home),
       governanceDirRelocated: Boolean(env.OPENCLAW_GOVERNANCE_DIR?.trim()),
-      gatewayNotes: folded.notes,
+      gatewayNotes: gateway.notes,
     },
     checks,
     summary,

@@ -17,6 +17,7 @@ import type {
   GovernancePolicyDocument,
   GovernanceUserRecord,
 } from "./api.ts";
+import { canonicalAgentQuery } from "./identity.ts";
 
 /**
  * Everywhere an agent id can come from, in one argument.
@@ -93,8 +94,35 @@ export function knownAgentIds(sources: AgentSources): string[] {
   return [...ids].toSorted();
 }
 
+/**
+ * Is `agentId` one of `ids`, asking the question the server would ask?
+ *
+ * **Folded on both sides, because the other half of this page already is.**
+ * `canManageAgent` runs both the held id and the typed one through
+ * `canonicalAgentQuery`; the membership tests beside it compared raw strings.
+ * So `SCOUT` for the registered `scout` was *manageable* and *unknown* at the
+ * same moment, and the two panels that take free text said so: the kill switch
+ * warned "No agent with this id is running" over an agent the server would
+ * have accepted, and the policy lookup labelled a correct answer as being
+ * about an agent that does not exist. Finding 202's class, on the comparison
+ * standing next to the one it was fixed in.
+ *
+ * **Exact match when the query has no canonical form**, which is the guard
+ * `canonicalAgentQuery` exists for: `normalizeAgentId` is a coercion and
+ * answers `main` for anything unparseable, so folding unconditionally would
+ * make a search for `###` a search for the installation's default agent — and
+ * report it as known.
+ */
+export function includesAgentId(ids: readonly string[], agentId: string): boolean {
+  const wanted = canonicalAgentQuery(agentId);
+  if (wanted === undefined) {
+    return ids.includes(agentId);
+  }
+  return ids.some((held) => (canonicalAgentQuery(held) ?? held) === wanted);
+}
+
 export function isKnownAgentId(sources: AgentSources, agentId: string): boolean {
-  return knownAgentIds(sources).includes(agentId);
+  return includesAgentId(knownAgentIds(sources), agentId);
 }
 
 /**

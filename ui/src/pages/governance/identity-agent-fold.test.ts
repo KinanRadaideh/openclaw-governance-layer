@@ -18,7 +18,8 @@
 // host canonicalises with, so the twin stays a twin rather than becoming a
 // second definition that drifts.
 import { describe, expect, it } from "vitest";
-import type { GovernanceIdentity } from "./api.ts";
+import { includesAgentId, isKnownAgentId, type AgentSources } from "./agent-directory.ts";
+import type { GovernanceAgentEntry, GovernanceIdentity } from "./api.ts";
 import { canManageAgent, manageableAgentIds } from "./identity.ts";
 
 const user = {
@@ -56,5 +57,53 @@ describe("browser-side agent scope", () => {
 
   it("filters a list on the same rule", () => {
     expect(manageableAgentIds(user, ["Scout", "helper"])).toEqual(["Scout"]);
+  });
+});
+
+// The other half of finding 215, found on 2026-09-09 and fixed with it.
+//
+// `canManageAgent` folds; the *membership* tests standing beside it compared
+// raw strings, so one typed id could be manageable and unknown in the same
+// breath. Two panels take that free text and both said so: the kill switch
+// warned "no agent with this id is running" about an agent the server would
+// have accepted, and the policy lookup labelled a correct projection as being
+// about an agent that does not exist. A false warning on the emergency control
+// is the case that matters — 215's own argument, on the comparison next to it.
+describe("the page's directory answers the same question the scope check does", () => {
+  const sources = (ids: readonly string[]): AgentSources => ({
+    agents: ids.map((agentId) => ({ agentId }) as GovernanceAgentEntry),
+    activeSessions: null,
+    policy: null,
+    users: [],
+    identity: null,
+  });
+
+  it("recognises a known id typed in another case", () => {
+    expect(includesAgentId(["scout"], "SCOUT")).toBe(true);
+    expect(includesAgentId(["scout"], "Scout")).toBe(true);
+    expect(includesAgentId(["scout"], " scout ")).toBe(true);
+    expect(isKnownAgentId(sources(["scout"]), "Scout")).toBe(true);
+  });
+
+  it("still calls an id it has never seen unknown", () => {
+    expect(includesAgentId(["scout"], "helper")).toBe(false);
+    expect(isKnownAgentId(sources(["scout"]), "Helper")).toBe(false);
+  });
+
+  it("does not coerce a nonsense id into the default agent", () => {
+    // `normalizeAgentId` answers `main` for anything unparseable, so an
+    // unguarded fold would report `###` as a known agent on any installation
+    // that has one — which every installation does.
+    expect(includesAgentId(["main"], "###")).toBe(false);
+    // And an id with no canonical form still matches itself, exactly.
+    expect(includesAgentId(["###"], "###")).toBe(true);
+    expect(includesAgentId(["###"], "%%%")).toBe(false);
+  });
+
+  it("agrees with canManageAgent on the id that started this", () => {
+    // The state that could not previously exist consistently: `SCOUT` was
+    // manageable and unknown at the same moment.
+    expect(canManageAgent(user, "SCOUT")).toBe(true);
+    expect(isKnownAgentId(sources(["scout"]), "SCOUT")).toBe(true);
   });
 });

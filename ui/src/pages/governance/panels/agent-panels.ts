@@ -46,6 +46,7 @@ import {
   renderSettingsStatus,
 } from "../../../components/settings-ui.ts";
 import { t } from "../../../i18n/index.ts";
+import { includesAgentId } from "../agent-directory.ts";
 import type {
   GovernanceActiveSessionsView,
   GovernanceAttachment,
@@ -449,9 +450,18 @@ export function renderActiveSessionsSection(
  * `registered === false` only. An entry with the field absent is one this panel
  * cannot judge, and guessing "unregistered" there would put a warning on a
  * perfectly stoppable agent.
+ *
+ * **Compared through `includesAgentId`** (2026-09-09), for the reason the
+ * warning one branch above it is: the field is free text, and `SCOUT` typed
+ * for an unregistered `scout` folded past this check, so finding 341's
+ * disable and its warning both missed the case they were written for and the
+ * danger button stayed armed for a stop that could only be refused.
  */
 function unregistered(props: KillSwitchProps, agentId: string): boolean {
-  return props.agents.some((agent) => agent.agentId === agentId && agent.registered === false);
+  return includesAgentId(
+    props.agents.filter((agent) => agent.registered === false).map((agent) => agent.agentId),
+    agentId,
+  );
 }
 
 export function renderKillSwitchSection(props: KillSwitchProps): TemplateResult | typeof nothing {

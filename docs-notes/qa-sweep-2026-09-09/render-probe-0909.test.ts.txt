@@ -1,0 +1,132 @@
+/* @vitest-environment jsdom */
+
+// Scratch probe for 2026-09-09 (ii). Not a gate: it writes out what an operator
+// actually reads off the repaired surfaces, so the sentences can be judged
+// rather than only asserted. Delete after the pass, as the 09-08 probes were.
+import { appendFileSync, writeFileSync } from "node:fs";
+import { describe, it } from "vitest";
+import type {
+  GovernanceAgentEntry,
+  GovernanceDeploymentStatus,
+  GovernanceIdentity,
+  GovernanceSystemStatus,
+} from "./api.ts";
+import "./governance-page.ts";
+
+type PageState = {
+  identity: GovernanceIdentity | null;
+  loading: boolean;
+  systemStatus: GovernanceSystemStatus | null;
+  deployment: GovernanceDeploymentStatus | null;
+  agents: GovernanceAgentEntry[];
+  drafts: Record<string, unknown>;
+  updateComplete: Promise<unknown>;
+  requestUpdate(): void;
+} & HTMLElement;
+
+const OUT = "probe-0909.txt";
+writeFileSync(OUT, "");
+
+let page: PageState;
+
+async function mount(state: Record<string, unknown>): Promise<PageState> {
+  page = document.createElement("openclaw-governance-page") as PageState;
+  document.body.replaceChildren(page);
+  await page.updateComplete;
+  Object.assign(page, { loading: false, users: [], ...state });
+  page.requestUpdate();
+  await page.updateComplete;
+  await page.updateComplete;
+  return page;
+}
+
+function text(): string {
+  return (page.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
+/** The last occurrence, so the jump-nav's copy of a section name is skipped. */
+function section(from: string, to: string): string {
+  const all = text();
+  const start = all.lastIndexOf(from);
+  if (start === -1) {
+    return `[not rendered: ${from}]`;
+  }
+  const end = all.indexOf(to, start);
+  return all.slice(start, end === -1 ? Math.min(start + 400, all.length) : end).trim();
+}
+
+function say(label: string, body: string): void {
+  appendFileSync(OUT, `\n${label}\n    ${body}\n`);
+}
+
+const root: GovernanceIdentity = { username: "kinan", role: "root", assignedAgents: [] };
+
+const hostNoLoad: GovernanceSystemStatus = {
+  platform: "win32",
+  cpuCount: 8,
+  loadAverage: [0, 0, 0],
+  loadAverageSupported: false,
+  totalMemoryBytes: 16 * 1024 ** 3,
+  freeMemoryBytes: 8 * 1024 ** 3,
+  usedMemoryPercent: 50,
+  uptimeSeconds: 90_000,
+  processUptimeSeconds: 3_600,
+  processMemoryBytes: 1024 ** 3,
+  sampledAt: "2026-09-09T10:00:00.000Z",
+};
+
+describe("what an operator reads, 2026-09-09", () => {
+  it("A5 — System resources, both kinds of host", async () => {
+    await mount({ identity: root, systemStatus: hostNoLoad });
+    say("[A5] a host that cannot measure load:", section("Processor", "Uptime"));
+    await mount({
+      identity: root,
+      systemStatus: { ...hostNoLoad, platform: "linux", loadAverageSupported: true, loadAverage: [0.5, 0.4, 0.3] },
+    });
+    say("[A5] a host that can:", section("Processor", "Uptime"));
+  });
+
+  it("A3 — the kill switch on an id typed in the wrong case", async () => {
+    const agents = [
+      { agentId: "scout", displayName: "Scout", registered: true },
+      { agentId: "main", displayName: "Main", registered: false },
+    ] as unknown as GovernanceAgentEntry[];
+    for (const typed of ["SCOUT", "scout", "scoot", "MAIN"]) {
+      await mount({ identity: root, agents, killAgentId: typed });
+      say(`[A3] kill switch, typed "${typed}":`, section("Lock down an agent", "No agents are currently"));
+    }
+  });
+
+  it("A4 — the deployment report with the Gateway credential switched off", async () => {
+    const deployment = {
+      facts: {
+        platform: "linux",
+        totalMemoryBytes: 16 * 1024 ** 3,
+        bind: "loopback",
+        port: 18789,
+        authMode: "none",
+        tailscaleMode: "off",
+        governanceDir: "~/.openclaw/governance",
+        governanceDirRelocated: false,
+        gatewayNotes: [],
+      },
+      checks: [
+        {
+          id: "deployment.gateway_auth",
+          title: "Gateway authentication configured",
+          status: "fail",
+          detail:
+            "The Gateway accepts unauthenticated connections. The governance login is a second gate layered on this one, not a replacement for it. " +
+            "Gateway auth missing on loopback: gateway.bind is loopback but no gateway auth secret is configured. If the Control UI is exposed through a reverse proxy, unauthenticated access is possible.",
+          remediation: "Configure gateway.auth with a token or a password.",
+          source: "governance",
+        },
+      ],
+      summary: { pass: 0, warn: 0, fail: 1, unknown: 0 },
+      overall: "fail",
+      sampledAt: "2026-09-09T10:00:00.000Z",
+    } as unknown as GovernanceDeploymentStatus;
+    await mount({ identity: root, deployment });
+    say("[A4] one row, one remediation:", section("Gateway authentication configured", "Governance directory"));
+  });
+});

@@ -92,4 +92,31 @@ if [ "${#lint_files[@]}" -gt 0 ]; then
     echo "  would be willing to write down." >&2
     exit 1
   fi
+  # --- T50, decided 2026-09-09: this hook says what it did *not* check ------
+  #
+  # The row asked for one of three answers and two of them are closed by facts
+  # rather than by preference:
+  #
+  #   - Run the full gate here. `node scripts/run-lint.mjs` takes about
+  #     eighteen minutes on this machine, measured twice. A pre-commit hook
+  #     that costs eighteen minutes is a hook people pass `--no-verify` to,
+  #     which is worse than the gap it closes.
+  #   - Move it to CI. **There is no CI on this repository.** GitHub Actions
+  #     were switched off deliberately (T21) because the fork inherited 82
+  #     upstream workflows, fifteen of them scheduled, which consumed the whole
+  #     free allowance in a day. Turning Actions back on for one lint job turns
+  #     all 82 back on, and deleting them is ruled out because §3.5.2b of the
+  #     report measures the fork diff.
+  #
+  # So it stays manual — and the third option's own condition was "stop calling
+  # it what the hook runs". That condition is met here, at the moment an
+  # operator is being told the check passed, rather than only in a document
+  # nobody reads mid-commit. Finding 323 is the argument: the full gate was
+  # recorded as clean and had four errors, three of them from the previous
+  # session, and a green line from *this* command is exactly what made that
+  # plausible.
+  echo >&2
+  echo "pre-commit: oxlint passed ${#lint_files[@]} staged file(s) — this is not the full gate." >&2
+  echo "  Type-aware rules, scripts/ and the CSS check run only in:" >&2
+  echo "    node scripts/run-lint.mjs   (~18 min; read its exit code, not its tail)" >&2
 fi

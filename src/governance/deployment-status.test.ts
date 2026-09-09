@@ -367,11 +367,14 @@ describe("A7. File permissions, tested without depending on the host's", () => {
 
 describe("A7. Folding in the host's own security audit", () => {
   const finding = (over: Partial<SecurityAuditFinding> = {}): SecurityAuditFinding => ({
-    checkId: "gateway.bind_no_auth",
+    // **Not one of the two auth ids**, deliberately: those are folded into
+    // `deployment.gateway_auth` and have their own describe block below. This
+    // one has to be a check that still becomes a row of its own.
+    checkId: "gateway.control_ui.allowed_origins_wildcard",
     severity: "critical",
-    title: "Gateway exposed without auth",
-    detail: "Bind is lan and no credential is configured.",
-    remediation: "Configure gateway.auth.",
+    title: "Control UI origin allowlist is a wildcard",
+    detail: "gateway.controlUi.allowedOrigins is ['*'].",
+    remediation: "List the origins explicitly.",
     ...over,
   });
 
@@ -408,7 +411,7 @@ describe("A7. Folding in the host's own security audit", () => {
     // Oversight has to be able to say that something is right, so absence is
     // converted into an explicit pass.
     const status = await statusOf({ gatewayFindings: [] });
-    expect(checkFor(status, "gateway.bind_no_auth").status).toBe("pass");
+    expect(checkFor(status, "gateway.control_ui.allowed_origins_wildcard").status).toBe("pass");
   });
 
   it("surfaces a finding it was not expecting rather than dropping it", async () => {
@@ -419,6 +422,91 @@ describe("A7. Folding in the host's own security audit", () => {
       gatewayFindings: [finding({ checkId: "gateway.some_future_check", severity: "warn" })],
     });
     expect(checkFor(status, "gateway.some_future_check").status).toBe("warn");
+  });
+});
+
+describe("A7. One missing credential, one row (2026-09-09)", () => {
+  // Measured on 2026-09-08's live sweep: with the QA instance's gateway auth
+  // switched off, the report failed **"Gateway authentication configured"**
+  // and **"Gateway auth missing on loopback"** — two rows, two remediations,
+  // one absent credential — and was read as two problems.
+  const authFinding = (over: Partial<SecurityAuditFinding> = {}): SecurityAuditFinding => ({
+    checkId: "gateway.loopback_no_auth",
+    severity: "critical",
+    title: "Gateway auth missing on loopback",
+    detail: "gateway.bind is loopback but no gateway auth secret is configured.",
+    remediation: "Set gateway.auth (token recommended) or keep the Control UI local-only.",
+    ...over,
+  });
+
+  function authRows(status: { checks: readonly DeploymentCheck[] }): readonly DeploymentCheck[] {
+    return status.checks.filter(
+      (entry) =>
+        entry.id === "deployment.gateway_auth" ||
+        entry.id === "gateway.bind_no_auth" ||
+        entry.id === "gateway.loopback_no_auth",
+    );
+  }
+
+  it("shows one failing row when the audit and this module agree there is none", async () => {
+    const status = await statusOf({
+      authMode: "none",
+      authSecretConfigured: false,
+      gatewayFindings: [authFinding()],
+    });
+    expect(authRows(status).map((entry) => entry.id)).toEqual(["deployment.gateway_auth"]);
+    expect(checkFor(status, "deployment.gateway_auth").status).toBe("fail");
+  });
+
+  it("keeps the audit's words, so folding a row never drops a fact", async () => {
+    const source = authFinding();
+    const status = await statusOf({
+      authMode: "none",
+      authSecretConfigured: false,
+      gatewayFindings: [source],
+    });
+    const row = checkFor(status, "deployment.gateway_auth");
+    // Verbatim, both halves: this module's sentence about the second gate, and
+    // the audit's own detail beneath it.
+    expect(row.detail).toContain("second gate layered on this one");
+    expect(row.detail).toContain(source.detail);
+    expect(row.detail).toContain(source.title);
+  });
+
+  it("takes the worse of the two verdicts, never the milder", async () => {
+    // A mode with no credential behind it: this module called it a warning and
+    // the audit calls it critical. A fold that could lower a severity would be
+    // a way for a critical finding to disappear into a warning.
+    const status = await statusOf({
+      authMode: "token",
+      authSecretConfigured: false,
+      gatewayFindings: [authFinding()],
+    });
+    expect(checkFor(status, "deployment.gateway_auth").status).toBe("fail");
+  });
+
+  it("says the Gateway is authenticated once, not three times", async () => {
+    const status = await statusOf({
+      authMode: "token",
+      authSecretConfigured: true,
+      gatewayFindings: [],
+    });
+    expect(authRows(status).map((entry) => entry.id)).toEqual(["deployment.gateway_auth"]);
+    expect(checkFor(status, "deployment.gateway_auth").status).toBe("pass");
+  });
+
+  it("still surfaces an auth check the audit renames, rather than passing it silently", async () => {
+    // The property `EXPECTED_ABSENT_GATEWAY_CHECKS` exists to protect, restated
+    // for the folded pair: a renamed id is no longer recognised as auth, so it
+    // arrives as a row of its own — visible — and no phantom `pass` is minted
+    // for the name that has gone.
+    const status = await statusOf({
+      authMode: "none",
+      authSecretConfigured: false,
+      gatewayFindings: [authFinding({ checkId: "gateway.loopback_missing_auth" })],
+    });
+    expect(checkFor(status, "gateway.loopback_missing_auth").status).toBe("fail");
+    expect(status.checks.some((entry) => entry.id === "gateway.loopback_no_auth")).toBe(false);
   });
 });
 

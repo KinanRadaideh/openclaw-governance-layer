@@ -41,6 +41,7 @@ import type {
   GovernanceUserRecord,
 } from "./api.ts";
 import "./governance-page.ts";
+import type { LedgerFilter } from "./ledger-filter.ts";
 
 type PageState = {
   identity: GovernanceIdentity | null;
@@ -51,6 +52,21 @@ type PageState = {
   ledger: GovernanceLedgerEntry[];
   ruleRequests: GovernanceRuleRequest[];
   agentPolicyView: GovernanceAgentPolicyView | null;
+  /**
+   * Declared 2026-09-09, finding 344, and the omission is the point.
+   *
+   * Finding 340's test passes `ledgerFilter` into `mount`, whose parameter is
+   * `Partial<PageState>` — so an undeclared field is an **excess property**,
+   * and `tsgo -p test/tsconfig/tsconfig.core.test.json` rejected it. That
+   * check is the sixth of the seven in `mg/HANDOFF.md` §4 and it had been red
+   * since the commit that added this test, while the state table beside it
+   * read "core, UI and tests — all 0".
+   *
+   * `governance-panels.test.ts` carries the same note about `policy`, omitted
+   * for weeks in exactly this way. **A local mirror of the page's state is a
+   * copy that goes stale**, which is worth saying twice.
+   */
+  ledgerFilter: LedgerFilter;
   updateComplete: Promise<unknown>;
   requestUpdate(): void;
 } & HTMLElement;
