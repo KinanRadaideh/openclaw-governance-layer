@@ -525,32 +525,35 @@ export async function handleGovernanceAgentControlRoutes(
     res.flushHeaders?.();
 
     const send = (event: string, data: unknown): void => {
-      if (res.writableEnded) {
+      // The tab may be gone: the run carries on without it (T63), so a write to
+      // a closed response is skipped rather than attempted.
+      if (res.writableEnded || res.destroyed) {
         return;
       }
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     };
 
-    // Closing the tab aborts the run (Q-90). Previously a disconnected client
-    // left the agent working with no way to reach it short of the kill switch,
-    // which locks the agent down entirely. An emergency control being used for
-    // "I closed the wrong window".
-    const clientGone = new AbortController();
-    const onClose = () => clientGone.abort();
-    res.on("close", onClose);
-
+    // **Closing the tab does not stop the run** (T63, decided 2026-09-12). It
+    // did (Q-90), because a disconnected client used to leave the agent working
+    // with no way to reach it short of the kill switch. That is no longer so:
+    // the task is listed in Active sessions, reopening the conversation recovers
+    // it with its Cancel, and the five-minute timeout still bounds it. Stopping
+    // on close turned a reload into a cancellation the operator never asked for.
     try {
       const outcome = await promptAgent(groupId, {
         agentId: agentId.trim(),
         username: session.username,
         message,
         ...(attachments.length > 0 ? { attachments } : {}),
-        signal: clientGone.signal,
         // Sent first, so the page can offer a cancel control while the run is
         // still going. Without it the run id arrives only with the reply, and a
         // cancel button that appears once the answer has come back is not one.
         onStart: (info) => send("started", info),
         onProgress: (replySoFar) => send("progress", { reply: replySoFar }),
+        // Sent the moment the run is stopped (a Cancel from any tab or account,
+        // or the timeout), so the page says "Stopping" while it unwinds instead
+        // of "replying" beside a Cancel that could only be refused.
+        onStopping: (ending) => send("stopping", { ending }),
       });
       send("done", outcome);
     } catch (err) {
@@ -563,7 +566,6 @@ export async function handleGovernanceAgentControlRoutes(
         error: err instanceof Error ? err.message : String(err),
       });
     } finally {
-      res.off("close", onClose);
       res.end();
     }
     return true;

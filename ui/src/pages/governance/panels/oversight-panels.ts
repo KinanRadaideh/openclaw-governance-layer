@@ -284,8 +284,12 @@ export function renderLedgerSection(props: LedgerPanelProps): TemplateResult {
         : nothing,
       visibleLedger.length === 0
         ? renderSettingsRow({
-            title: t("governance.ledger.empty"),
-            description: t("governance.ledger.emptyHint"),
+            // Entries loaded but none matching is the filter's answer, not an empty trail.
+            title:
+              ledger.length > 0
+                ? t("governance.ledger.emptyFiltered")
+                : t("governance.ledger.empty"),
+            description: ledger.length > 0 ? undefined : t("governance.ledger.emptyHint"),
           })
         : nothing,
       ...visibleLedger

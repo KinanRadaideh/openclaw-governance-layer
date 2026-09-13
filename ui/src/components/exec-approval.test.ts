@@ -140,6 +140,45 @@ describe("openclaw-exec-approval", () => {
     expect(container.querySelector(".exec-approval-warning")).toBeNull();
   });
 
+  it("shows the whole request when the plugin's description had to be cut", async () => {
+    // The governance gate cuts a long action to fit the 512-character
+    // description and sends the whole of it as `detail`. The card showed only
+    // the cut version, so a reviewer approved a path they could not fully see.
+    await renderApproval(
+      createExecRequest({
+        id: "plugin-approval-2",
+        kind: "plugin",
+        request: { command: "Governance: unlisted path", allowedDecisions: ["allow-once", "deny"] },
+        pluginTitle: "Governance: unlisted path",
+        pluginDescription: 'Agent "scout" wants to run "read" against path "C:/reports/deep/',
+        pluginDetail:
+          'Agent "scout" wants to run "read" against path "C:/reports/deep/secret-report.csv", which no policy rule currently covers.',
+      }),
+    );
+
+    await getRenderedModalDialog(container);
+
+    expect(container.textContent).toContain("secret-report.csv");
+  });
+
+  it("does not repeat a detail the description already holds", async () => {
+    const action = 'Agent "scout" wants to run "read" against path "C:/short.csv".';
+    await renderApproval(
+      createExecRequest({
+        id: "plugin-approval-3",
+        kind: "plugin",
+        request: { command: "Governance: unlisted path", allowedDecisions: ["allow-once", "deny"] },
+        pluginTitle: "Governance: unlisted path",
+        pluginDescription: `${action} An Administrator must approve the request.`,
+        pluginDetail: action,
+      }),
+    );
+
+    await getRenderedModalDialog(container);
+
+    expect(container.textContent?.split(action)).toHaveLength(2);
+  });
+
   it("renders the live expiry countdown as mm:ss", async () => {
     await renderApproval(createExecRequest({ expiresAtMs: 90_500 }), { nowMs: 0 });
     await getRenderedModalDialog(container);

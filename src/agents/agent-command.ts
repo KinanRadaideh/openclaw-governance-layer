@@ -24,6 +24,7 @@ import { ensureSessionDiffBaseline } from "../sessions/session-diff-baseline.js"
 import { beginSessionWorkAdmission } from "../sessions/session-lifecycle-admission.js";
 import { classifySessionStateActor } from "../sessions/session-state-events.js";
 import { sessionDeliveryChannel, type DeliveryContext } from "../utils/delivery-context.shared.js";
+import { GOVERNANCE_MESSAGE_CHANNEL } from "../utils/message-channel-constants.js";
 import { executionIdentity } from "./agent-command-execution-identity.js";
 import { runLocalAgentCommand } from "./agent-command-local.js";
 import { runWithAgentCommandRecoveryOwner } from "./agent-command-recovery-owner.js";
@@ -103,7 +104,7 @@ async function agentCommandInternal(
   // call either carries narration from its own turn or carries none, instead of
   // carrying a sentence about something else entirely.
   forgetAgentIntent(prepared.sessionKey);
-  if (!isRawModelRun && initialOpts.messageChannel !== "governance") {
+  if (!isRawModelRun && initialOpts.messageChannel !== GOVERNANCE_MESSAGE_CHANNEL) {
     await recordHostPrompt({
       agentId: prepared.sessionAgentId,
       message: initialOpts.message ?? "",

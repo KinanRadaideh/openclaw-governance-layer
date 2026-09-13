@@ -7,6 +7,7 @@ import {
 } from "../channels/plugins/index.js";
 import { getRuntimeConfig, type OpenClawConfig } from "../config/config.js";
 import {
+  GATEWAY_CLIENT_APPROVAL_CHANNELS,
   INTERNAL_MESSAGE_CHANNEL,
   isDeliverableMessageChannel,
   normalizeMessageChannel,
@@ -60,7 +61,7 @@ export function resolveApprovalInitiatingSurfaceState(params: {
   const channel = normalizeMessageChannel(params.channel);
   const channelLabel = labelForChannel(channel);
   const accountId = normalizeOptionalString(params.accountId);
-  if (!channel || channel === INTERNAL_MESSAGE_CHANNEL || channel === "tui") {
+  if (!channel || GATEWAY_CLIENT_APPROVAL_CHANNELS.includes(channel)) {
     return { kind: "enabled", channel, channelLabel, accountId };
   }
 
@@ -94,7 +95,7 @@ export function resolveApprovalInitiatingSurfaceState(params: {
 /** Returns whether a channel can present native exec approval UI. */
 export function supportsNativeExecApprovalClient(channel?: string | null): boolean {
   const normalized = normalizeMessageChannel(channel);
-  if (!normalized || normalized === INTERNAL_MESSAGE_CHANNEL || normalized === "tui") {
+  if (!normalized || GATEWAY_CLIENT_APPROVAL_CHANNELS.includes(normalized)) {
     return true;
   }
   return hasNativeExecApprovalCapability(normalized);
@@ -120,7 +121,7 @@ export function describeNativeExecApprovalClientSetup(params: {
   accountId?: string | null;
 }): string | null {
   const channel = normalizeMessageChannel(params.channel);
-  if (!channel || channel === INTERNAL_MESSAGE_CHANNEL || channel === "tui") {
+  if (!channel || GATEWAY_CLIENT_APPROVAL_CHANNELS.includes(channel)) {
     return null;
   }
   const channelLabel = normalizeOptionalString(params.channelLabel) ?? labelForChannel(channel);
@@ -141,7 +142,7 @@ export function describeNativePluginApprovalClientSetup(params: {
   accountId?: string | null;
 }): string | null {
   const channel = normalizeMessageChannel(params.channel);
-  if (!channel || channel === INTERNAL_MESSAGE_CHANNEL || channel === "tui") {
+  if (!channel || GATEWAY_CLIENT_APPROVAL_CHANNELS.includes(channel)) {
     return null;
   }
   const channelLabel = normalizeOptionalString(params.channelLabel) ?? labelForChannel(channel);

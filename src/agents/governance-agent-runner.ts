@@ -33,16 +33,7 @@ import { registerAgentRunner } from "../governance/agent-runner.js";
 import { onAgentEvent } from "../infra/agent-events.js";
 import { logWarn } from "../logger.js";
 import { defaultRuntime } from "../runtime.js";
-
-/**
- * Channel recorded for a governance-initiated run.
- *
- * A distinct value rather than reusing an existing channel name so these runs
- * are separable in the host's own telemetry — "this came from the governance
- * dashboard" is a fact worth being able to filter on when reading a session
- * later, and it is invisible if the run looks like any other.
- */
-const GOVERNANCE_MESSAGE_CHANNEL = "governance";
+import { GOVERNANCE_MESSAGE_CHANNEL } from "../utils/message-channel-constants.js";
 
 /**
  * Pulls the reply text out of an agent result.

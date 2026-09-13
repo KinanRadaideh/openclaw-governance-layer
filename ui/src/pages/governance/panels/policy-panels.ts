@@ -50,7 +50,7 @@ import type {
   GovernanceRuleWarning,
   GovernanceUserRecord,
 } from "../api.ts";
-import { canWritePolicy } from "../identity.ts";
+import { canRemoveRule, canWritePolicy, hasAgentToGovern } from "../identity.ts";
 import {
   EMPTY_RULE_FILTER,
   filterRules,
@@ -61,7 +61,7 @@ import {
 import type { PanelEffects } from "./account-panels.ts";
 import { renderRuleTargets } from "./agent-policy-lookup.ts";
 import { type CodexBackendState, renderCodexBackendPanel } from "./codex-backend-panel.ts";
-import { renderFolderGrantPanel } from "./folder-grant-panel.ts";
+import { renderFolderGrantPanel, type RuleNotices } from "./folder-grant-panel.ts";
 import { formatDuration } from "./format.ts";
 import { renderAgentTimeoutRow } from "./policy-agent-timeout.ts";
 import { renderPolicyReadingNotes } from "./policy-reading-notes.ts";
@@ -197,6 +197,8 @@ export type PolicyPanelProps = PanelEffects & {
   onDraft: (patch: Partial<PolicyDrafts>) => void;
   /** Clears a conflict notice the operator has read. State the page owns. */
   onDismissConflict: () => void;
+  /** Shows what a write reported beyond success: clashes and over-broad patterns. */
+  onRuleNotices: (notices: RuleNotices) => void;
   /**
    * Reports a change that took while its audit entry did not (finding 229).
    *
@@ -219,7 +221,7 @@ export function renderRuleWarnings(
     return nothing;
   }
   return html`
-    <div class="settings-empty" role="alert" style="border-left:3px solid var(--warn, #fbbf24)">
+    <div class="settings-empty governance-rule-notice" role="alert">
       <strong>${t("governance.policy.warningTitle")}</strong>
       <ul style="margin:0.5rem 0 0.5rem 1rem">
         ${warnings.map((warning) => html`<li>${warning.message}</li>`)}
@@ -235,7 +237,7 @@ export function renderConflictNotice(props: PolicyPanelProps): TemplateResult | 
     return nothing;
   }
   return html`
-    <div class="settings-empty" role="alert" style="border-left:3px solid var(--warn, #fbbf24)">
+    <div class="settings-empty governance-rule-notice" role="alert">
       <strong
         >${
           // The two kinds mean opposite things: an allowance clash says the
@@ -391,6 +393,9 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
   // form, the folder-grant form and a Remove button on every rule, and learned
   // they could not use them only from the refusal.
   const canEditRules = canWritePolicy(props.identity) && !props.busy;
+  // A User may write policy by tier yet have no agent to write it for, and then
+  // every rule the forms submit is refused. That User is told why instead.
+  const hasRuleTarget = hasAgentToGovern(props.identity);
   // **Per-agent posture and escalation overrides are Administrator and above,
   // and had stayed on the User gate after the floor moved.** Finding 218 moved
   // both routes to `requireRole(..., "administrator")` — an escalation override
@@ -478,7 +483,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
     // than as two regular expressions. Placed immediately after it, because an
     // operator looking for one is looking at the other, and its explainer says
     // in as many words that it is a shortcut to rules they could write by hand.
-    canEditRules
+    canEditRules && hasRuleTarget
       ? renderFolderGrantPanel({
           api: props.api,
           run: props.run,
@@ -490,6 +495,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
           written: props.drafts.folderGrant.written,
           onWritten: (written) =>
             props.onDraft({ folderGrant: { ...props.drafts.folderGrant, written } }),
+          onRuleNotices: props.onRuleNotices,
         })
       : nothing,
     // Which backend agents may run on, and the gap that comes with one of them.
@@ -747,7 +753,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
                   </button>`
               : nothing
           }
-          ${canEditRules && rule.tier !== "core"
+          ${canEditRules && rule.tier !== "core" && canRemoveRule(props.identity, rule)
             ? html`<button
                 class="btn danger"
                 @click=${() =>
@@ -779,7 +785,13 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
             description: t("governance.policy.noMatchingRulesHint"),
           })
         : nothing,
-    canEditRules
+    canEditRules && !hasRuleTarget
+      ? renderSettingsRow({
+          title: t("governance.policy.addRule"),
+          description: t("governance.conversation.chooseAgentHintUnassigned"),
+        })
+      : nothing,
+    canEditRules && hasRuleTarget
       ? renderSettingsRow({
           title: t("governance.policy.addRule"),
           stacked: true,
@@ -931,14 +943,20 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
                     // and silently reverting to `allow` between them is how
                     // somebody grants what they meant to forbid.
                     // Surface the clash rather than letting the operator walk
-                    // away believing a restriction took hold that did not.
-                    props.conflictNotice =
-                      created.conflicts && created.conflicts.length > 0 ? created.conflicts : null;
-                    // A pattern that is valid but broader than it looks. Shown
-                    // beside the clash notice because both say the same thing
-                    // to the operator: this is not what you probably think.
-                    props.ruleWarnings =
-                      created.warnings && created.warnings.length > 0 ? created.warnings : null;
+                    // away believing a restriction took hold that did not, and
+                    // beside it a pattern that is valid but broader than it
+                    // looks: both say "this is not what you probably think".
+                    // **Through the page, never onto `props`**: this object is
+                    // rebuilt on every render, so assigning to it drew nothing
+                    // and both notices were lost.
+                    props.onRuleNotices({
+                      conflictNotice:
+                        created.conflicts && created.conflicts.length > 0
+                          ? created.conflicts
+                          : null,
+                      ruleWarnings:
+                        created.warnings && created.warnings.length > 0 ? created.warnings : null,
+                    });
                   })}
               >
                 ${t("governance.policy.addRuleButton")}

@@ -21,10 +21,15 @@ export {
   type GatewayMessageChannel,
 } from "./message-channel-normalize.js";
 export {
+  GATEWAY_CLIENT_APPROVAL_CHANNELS,
+  GOVERNANCE_MESSAGE_CHANNEL,
   INTERNAL_MESSAGE_CHANNEL,
   isInternalNonDeliveryChannel,
 } from "./message-channel-constants.js";
-import { INTERNAL_MESSAGE_CHANNEL } from "./message-channel-constants.js";
+import {
+  GOVERNANCE_MESSAGE_CHANNEL,
+  INTERNAL_MESSAGE_CHANNEL,
+} from "./message-channel-constants.js";
 import { normalizeMessageChannel } from "./message-channel-normalize.js";
 
 /**
@@ -96,7 +101,9 @@ export function isNativeApprovalChannel(value?: string | null): boolean {
   if (!value) {
     return false;
   }
-  if (value === INTERNAL_MESSAGE_CHANNEL) {
+  // The governance dashboard awaits exec approvals inline as webchat does, so
+  // approving its card resumes the run with the real output.
+  if (value === INTERNAL_MESSAGE_CHANNEL || value === GOVERNANCE_MESSAGE_CHANNEL) {
     return true;
   }
   return listBundledChannelCatalogEntries().some(

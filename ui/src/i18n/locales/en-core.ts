@@ -1549,6 +1549,7 @@ export const enCore: TranslationMap = {
       ask: "Ask",
       severity: "Severity",
       plugin: "Plugin",
+      detail: "Full request",
     },
   },
   approvalPage: {

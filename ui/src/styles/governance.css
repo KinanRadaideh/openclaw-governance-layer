@@ -395,3 +395,21 @@
     width: auto;
   }
 }
+
+/* Refusals and failures on this page are alerts, not empty states. The shared
+   `.settings-empty` class drew them muted, small and centred, so "Failed to
+   fetch" read exactly like "No entries yet". An inline style (the conflict
+   notice's warning border) still wins over this. */
+openclaw-governance-page .settings-empty[role="alert"] {
+  color: var(--text);
+  text-align: start;
+  border-left: 3px solid var(--danger);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+}
+
+/* A rule write's warnings are a caution about a write that succeeded, not a failure. */
+openclaw-governance-page .settings-empty.governance-rule-notice[role="alert"] {
+  border-left-color: var(--warn, #fbbf24);
+  background: color-mix(in srgb, var(--warn, #fbbf24) 10%, transparent);
+}

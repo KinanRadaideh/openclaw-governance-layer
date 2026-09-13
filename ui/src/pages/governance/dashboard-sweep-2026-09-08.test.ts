@@ -256,7 +256,7 @@ describe("329: the audit ledger says how much of itself it is showing", () => {
     await mount({ identity: identity("root"), policy: policyNaming([]), ledger: [] });
 
     const text = sectionText("Audit ledger");
-    expect(text).toContain("No audit entries yet");
+    expect(text).toContain("No audit entries to show");
     expect(text).not.toContain("most recent of");
   });
 });

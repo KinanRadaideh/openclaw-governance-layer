@@ -6,7 +6,9 @@ import { property, query } from "lit/decorators.js";
 import { OpenClawLitElement } from "../lit/openclaw-element.ts";
 
 export class OpenClawModalDialog extends OpenClawLitElement {
-  @property({ type: Boolean }) open = true;
+  // Reflected so document-level code (the shell's settings Escape) can see an
+  // open modal: the native <dialog> is out of reach inside two shadow roots.
+  @property({ type: Boolean, reflect: true }) open = true;
   @property({ type: Boolean, reflect: true }) manual = false;
   @property() label = "";
   @property() description = "";

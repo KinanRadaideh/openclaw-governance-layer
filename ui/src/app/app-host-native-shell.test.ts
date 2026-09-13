@@ -1,7 +1,9 @@
 /* @vitest-environment jsdom */
 
-import { render } from "lit";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { html, nothing, render } from "lit";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import "../components/modal-dialog.ts";
+import { getRenderedModalDialog, installDialogPolyfill } from "../test-helpers/modal-dialog.ts";
 import "./app-host.ts";
 import { resetAppHostTestGlobals, type ShellKeyboardState } from "./app-host.test-support.ts";
 import type { ApplicationContext } from "./context.ts";
@@ -378,6 +380,82 @@ describe("OpenClaw native shell", () => {
 
     expect(event.defaultPrevented).toBe(false);
     expect(navigate).not.toHaveBeenCalled();
+  });
+});
+
+describe("OpenClaw settings Escape", () => {
+  type ShellEscapeState = ShellKeyboardState & {
+    routeState: { routeId: string };
+    exitSettings: () => void;
+  };
+
+  let container: HTMLDivElement;
+  let restoreDialogPolyfill: () => void;
+  let shell: ShellEscapeState;
+  let exitSettings = vi.fn<() => void>();
+  const onKeydown = (event: KeyboardEvent) => shell.handleDocumentKeydown(event);
+  const pressEscape = (target: EventTarget) =>
+    target.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Escape",
+        bubbles: true,
+        composed: true,
+        cancelable: true,
+      }),
+    );
+
+  beforeEach(() => {
+    restoreDialogPolyfill = installDialogPolyfill();
+    container = document.createElement("div");
+    document.body.append(container);
+    exitSettings = vi.fn<() => void>();
+    shell = document.createElement("openclaw-app-shell") as unknown as ShellEscapeState;
+    shell.routeState = { routeId: "governance" };
+    shell.exitSettings = exitSettings;
+    document.addEventListener("keydown", onKeydown);
+  });
+
+  afterEach(() => {
+    document.removeEventListener("keydown", onKeydown);
+    render(nothing, container);
+    container.remove();
+    restoreDialogPolyfill();
+  });
+
+  it("leaves a Settings page when nothing else owns Escape", () => {
+    render(html`<button id="plain">Plain</button>`, container);
+
+    pressEscape(container.querySelector("#plain") as HTMLButtonElement);
+
+    expect(exitSettings).toHaveBeenCalledOnce();
+  });
+
+  // Escape on a confirmation used to cancel it and leave Settings in one press,
+  // discarding the page: the native <dialog> is out of a document query's reach.
+  it("leaves Escape to an open modal even when focus is outside it", async () => {
+    render(
+      html`<openclaw-modal-dialog label="Remove this rule?">
+        <button>Cancel</button>
+      </openclaw-modal-dialog>`,
+      container,
+    );
+    await getRenderedModalDialog(container);
+
+    pressEscape(document.body);
+
+    expect(exitSettings).not.toHaveBeenCalled();
+  });
+
+  it("leaves Escape to focus slotted into an overlay's shadow root", () => {
+    const overlay = document.createElement("div");
+    overlay.attachShadow({ mode: "open" }).innerHTML = `<div role="dialog"><slot></slot></div>`;
+    const cancel = document.createElement("button");
+    overlay.append(cancel);
+    container.append(overlay);
+
+    pressEscape(cancel);
+
+    expect(exitSettings).not.toHaveBeenCalled();
   });
 });
 

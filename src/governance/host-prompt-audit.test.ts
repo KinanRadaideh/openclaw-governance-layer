@@ -191,12 +191,19 @@ describe("the recorder is wired into the funnel every turn passes through", () =
     // in the chain under the account that sent them, which is a strictly better
     // entry than an anonymous one. Losing this guard would double every
     // dashboard prompt and make the trail read as two people asking.
+    // The channel is spelled once, as a shared constant, since finding 347 needed
+    // the same name in the approval-surface checks; the scan pins the constant and
+    // the constant's value both, so neither can drift on its own.
     const source = await readFile(FUNNEL, "utf8");
-    expect(source).toContain('initialOpts.messageChannel !== "governance"');
+    const { GOVERNANCE_MESSAGE_CHANNEL } = await import("../utils/message-channel-constants.js");
+    expect(GOVERNANCE_MESSAGE_CHANNEL).toBe("governance");
+    expect(source).toContain("initialOpts.messageChannel !== GOVERNANCE_MESSAGE_CHANNEL");
   });
 
   it("does not record a raw model run as if it were somebody asking", async () => {
     const source = await readFile(FUNNEL, "utf8");
-    expect(source).toMatch(/if \(!isRawModelRun && initialOpts\.messageChannel !== "governance"\)/);
+    expect(source).toMatch(
+      /if \(!isRawModelRun && initialOpts\.messageChannel !== GOVERNANCE_MESSAGE_CHANNEL\)/,
+    );
   });
 });

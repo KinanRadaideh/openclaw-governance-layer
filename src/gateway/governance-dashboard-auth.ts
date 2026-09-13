@@ -104,6 +104,10 @@ export async function handleGovernanceAuthRequest(
   pathname: string,
   routeOptions: GovernanceAuthRouteOptions,
 ): Promise<boolean> {
+  // A governance answer belongs to one signed-in account at one moment; no
+  // cache between here and the page may keep it to replay after sign-out or to
+  // the next account. Set before authorization so refusals carry it too.
+  res.setHeader("Cache-Control", "no-store");
   const authorized = await authorizeControlUiReadRequest(req, res, routeOptions);
   if (!authorized) {
     // authorizeControlUiReadRequest already wrote the 401/403 response.

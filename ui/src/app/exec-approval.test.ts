@@ -126,6 +126,18 @@ describe("parsePluginApprovalRequested", () => {
     expect(result?.expiresAtMs).toBe(120_000);
   });
 
+  it("keeps the reviewer-only detail, so the card can show the whole request", () => {
+    // The description is capped at 512 characters and the governance gate cuts a
+    // long action to fit it; the whole action travels only in `detail`, which the
+    // protocol reserves for reviewer surfaces such as this card.
+    const result = parsePluginApprovalRequested({
+      ...validPayload,
+      request: { ...validPayload.request, detail: "the whole request, untruncated" },
+    });
+    expect(result?.pluginDetail).toBe("the whole request, untruncated");
+    expect(parsePluginApprovalRequested(validPayload)?.pluginDetail).toBeNull();
+  });
+
   it("returns null when title is missing from request", () => {
     const {
       request: { title: _, ...restRequest },

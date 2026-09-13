@@ -56,6 +56,20 @@ describe("openclaw-modal-dialog", () => {
     expect(dialog.getRootNode()).toBe(webAwesomeDialog.shadowRoot);
   });
 
+  it("reflects open onto its host, where document-level Escape handling can see it", async () => {
+    const { modal, dialog } = await renderModal();
+
+    // The native dialog is two shadow roots down; a document query only reaches the host.
+    expect(document.querySelector("dialog[open]")).toBeNull();
+    expect(dialog.open).toBe(true);
+    expect(document.querySelector("openclaw-modal-dialog[open]")).toBe(modal);
+
+    modal.hide();
+    await modal.updateComplete;
+
+    expect(modal.hasAttribute("open")).toBe(false);
+  });
+
   it("focuses the dialog container first", async () => {
     const focus = vi.spyOn(HTMLDialogElement.prototype, "focus");
     const { dialog } = await renderModal();

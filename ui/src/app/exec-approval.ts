@@ -27,6 +27,8 @@ export type ExecApprovalRequest = {
   request: ExecApprovalRequestPayload;
   pluginTitle?: string;
   pluginDescription?: string | null;
+  /** The whole request, uncapped; the protocol sends it to reviewer surfaces only. */
+  pluginDetail?: string | null;
   pluginSeverity?: string | null;
   pluginId?: string | null;
   proposalHash?: string | null;
@@ -185,6 +187,9 @@ function parsePluginApprovalRequested(payload: unknown): ExecApprovalRequest | n
     return null;
   }
   const description = typeof request.description === "string" ? request.description : null;
+  // Kept, not dropped: the description is capped for every surface, and `detail`
+  // is where a reviewer surface receives the whole of a request that was cut.
+  const detail = typeof request.detail === "string" ? request.detail : null;
   const severity = typeof request.severity === "string" ? request.severity : null;
   const pluginId = typeof request.pluginId === "string" ? request.pluginId : null;
 
@@ -199,6 +204,7 @@ function parsePluginApprovalRequested(payload: unknown): ExecApprovalRequest | n
     },
     pluginTitle: title,
     pluginDescription: description,
+    pluginDetail: detail,
     pluginSeverity: severity,
     pluginId,
     createdAtMs,

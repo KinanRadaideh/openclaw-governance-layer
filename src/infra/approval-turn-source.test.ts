@@ -70,7 +70,10 @@ describe("hasApprovalTurnSourceRoute", () => {
     expect(resolveApprovalInitiatingSurfaceStateMock).not.toHaveBeenCalled();
   });
 
-  it.each(["webchat", "tui"])(
+  // `governance` is the dashboard's channel. It had no place on this list or the
+  // resolver's, so every escalation from a dashboard prompt was refused as an
+  // unsupported surface before a card could reach the operator.
+  it.each(["webchat", "governance", "tui"])(
     "requires a live approval client for the %s turn source",
     (turnSourceChannel) => {
       expect(hasApprovalTurnSourceRoute({ turnSourceChannel })).toBe(false);

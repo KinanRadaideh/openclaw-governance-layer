@@ -5,6 +5,7 @@
 // handler directly with fake req/res objects so the tier × scope matrix is
 // checked on every run, including the negative cases, which are the ones that
 // matter for a security control.
+import { EventEmitter } from "node:events";
 import { mkdtemp, rm } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
@@ -16,6 +17,7 @@ import { addRule, savePolicy } from "../governance/policy-store.js";
 import { defaultPolicyDocument } from "../governance/policy-types.js";
 import {
   beginPromptRun,
+  cancelPromptRun,
   finishPromptRun,
   resetPromptRunsForTests,
 } from "../governance/prompt-runs.js";
@@ -644,6 +646,98 @@ describe("prompting an agent", () => {
       const result = await call("POST", "agent/prompt", session("user", ["agent-a"]), body);
       expect(result.status, JSON.stringify(body)).toBe(400);
     }
+  });
+});
+
+describe("a prompt whose browser connection closes", () => {
+  afterEach(() => {
+    clearAgentRunner();
+  });
+
+  /** Streams a prompt through the route, with a response the test can close. */
+  function streamPrompt(message: string) {
+    const payload = JSON.stringify({ agentId: "agent-a", message, stream: true });
+    const req = Readable.from([Buffer.from(payload)]) as unknown as IncomingMessage;
+    Object.assign(req, {
+      method: "POST",
+      url: "/control-ui/governance/agent/prompt",
+      headers: {
+        "content-type": "application/json",
+        "content-length": String(Buffer.byteLength(payload)),
+      },
+    });
+    const written: string[] = [];
+    const res = Object.assign(new EventEmitter(), {
+      statusCode: 200,
+      writableEnded: false,
+      destroyed: false,
+      setHeader() {},
+      getHeader() {
+        return undefined;
+      },
+      flushHeaders() {},
+      write(chunk: string) {
+        written.push(chunk);
+        return true;
+      },
+      end() {
+        res.writableEnded = true;
+        return res;
+      },
+    });
+    const handled = handleGovernanceApiRequest(
+      req,
+      res as unknown as ServerResponse,
+      "/control-ui/governance/agent/prompt",
+      session("user", ["agent-a"]),
+    );
+    return { res, written, handled };
+  }
+
+  it("keeps running after the tab closes, and writes nothing to the closed stream", async () => {
+    // T63: closing or reloading the tab cancelled the task, and the ledger
+    // recorded a cancellation the operator never asked for.
+    let started!: () => void;
+    const running = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    let finish!: () => void;
+    let signal: AbortSignal | undefined;
+    registerAgentRunner(async (request) => {
+      signal = request.signal;
+      started();
+      await new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      return { ok: true, reply: "still here" };
+    });
+    const { res, written, handled } = streamPrompt("long job");
+    await running;
+
+    res.destroyed = true;
+    res.emit("close");
+    expect(signal?.aborted).toBe(false);
+
+    finish();
+    await handled;
+    expect(signal?.aborted).toBe(false);
+    expect(written.some((chunk) => chunk.startsWith("event: done"))).toBe(false);
+  });
+
+  it("tells the stream the run is stopping the moment it is cancelled", async () => {
+    registerAgentRunner(async (request) => {
+      cancelPromptRun({
+        runId: request.runId,
+        username: "user",
+        mayCancelOthers: false,
+        groupAgentIds: ["agent-a"],
+      });
+      return { ok: false, reply: "", error: "aborted" };
+    });
+    const { written, handled } = streamPrompt("long job");
+    await handled;
+    const stopping = written.find((chunk) => chunk.startsWith("event: stopping"));
+    expect(stopping).toContain('"ending":"cancelled"');
   });
 });
 

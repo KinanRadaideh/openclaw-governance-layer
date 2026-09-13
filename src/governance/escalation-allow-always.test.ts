@@ -37,6 +37,7 @@ import {
 import { tailLedger } from "./audit-ledger.js";
 import { resetLedgerKeyCacheForTests } from "./ledger-key.js";
 import { ruleRequestsFilePath } from "./paths.js";
+import { listPendingDecisions } from "./pending-decisions.js";
 import { evaluateGovernancePolicy } from "./policy-engine.js";
 import { loadPolicy, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
@@ -78,6 +79,35 @@ async function escalate() {
   }
   return decision.requireApproval;
 }
+
+describe("an escalation that ends without an answer", () => {
+  // A cancelled wait (a stopped run, or a surface that could never show the
+  // card) was filed as a timeout that waited the whole window: the stack and
+  // the ledger described a wait that never happened.
+  it("records a cancellation as cancelled, with the wait it really had", async () => {
+    const approval = await escalate();
+
+    await approval.onResolution?.("cancelled");
+
+    const [row] = await listPendingDecisions(group);
+    expect(row?.endedBy).toBe("cancelled");
+    expect(row?.waitedMs).toBeLessThan(5_000);
+    const ruleIds = (await tailLedger(group, 20)).map((entry) => entry.ruleId);
+    expect(ruleIds).toContain("hitl-cancelled");
+    expect(ruleIds).not.toContain("hitl-timeout");
+  });
+
+  it("still records a timeout as a timeout", async () => {
+    // The guard: the repair must not relabel the case it was never about.
+    const approval = await escalate();
+
+    await approval.onResolution?.("timeout");
+
+    const [row] = await listPendingDecisions(group);
+    expect(row?.endedBy).toBe("timeout");
+    expect((await tailLedger(group, 20)).map((entry) => entry.ruleId)).toContain("hitl-timeout");
+  });
+});
 
 describe("answering an escalation with allow always", () => {
   it("offers the decision at all", async () => {

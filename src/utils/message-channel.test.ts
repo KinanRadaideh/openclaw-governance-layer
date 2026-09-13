@@ -111,7 +111,16 @@ describe("message-channel", () => {
     try {
       const channelModule = await import("./message-channel.js");
       const promptModule = await import("../channels/plugins/native-approval-prompt.js");
-      for (const channel of ["webchat", "discord", "imessage", "telegram", "whatsapp"]) {
+      // `governance`: a dashboard run awaits its exec approval inline, as webchat's
+      // does, so approving the card resumes the run with the real output.
+      for (const channel of [
+        "webchat",
+        "governance",
+        "discord",
+        "imessage",
+        "telegram",
+        "whatsapp",
+      ]) {
         expect(channelModule.isNativeApprovalChannel(channel), channel).toBe(true);
       }
       expect(promptModule.isKnownNativeApprovalPromptChannel("whatsapp")).toBe(true);

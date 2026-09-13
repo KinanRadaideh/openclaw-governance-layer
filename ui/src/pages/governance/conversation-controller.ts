@@ -68,6 +68,8 @@ export type ConversationSlice = {
   promptPending: boolean;
   promptRunId: string;
   promptStream: string;
+  /** This tab's own task was stopped and is unwinding: say "Stopping", offer no Cancel. */
+  promptStopping: boolean;
   attachmentUploading: boolean;
   promptRuns: readonly GovernancePromptRun[];
   recoveredRuns: readonly GovernancePromptRun[];
@@ -93,12 +95,15 @@ export class ConversationController implements ReactiveController {
   private pending = false;
   private runId = "";
   private stream = "";
+  private stopping = false;
   private uploading = false;
   /** The message being answered right now. See `ConversationSlice.promptSent`. */
   private sent = "";
   private runs: GovernancePromptRun[] = [];
   private runsError: string | null = null;
   private runNotice: string | null = null;
+  /** The task a "Cancellation requested" notice is about; the notice goes with it. */
+  private runNoticeRunId = "";
   private cancelling = new Set<string>();
   private runAgentId = "";
   private sessionVersion = 0;
@@ -107,6 +112,13 @@ export class ConversationController implements ReactiveController {
   private transcriptRefreshAgents = new Set<string>();
   private completionError: string | null = null;
   private retiredRunIds = new Set<string>();
+  /**
+   * This tab's own runs that have ended, each with the run-list version current
+   * when it did (R-T63-RESURRECT). Clearing the run id used to turn the list
+   * still held, read while the task ran, into a "recovered" running task with a
+   * live Cancel. Hidden until a list read that began after the end comes back.
+   */
+  private endedRunIds = new Map<string, number>();
 
   constructor(
     private readonly host: ReactiveControllerHost,
@@ -127,7 +139,9 @@ export class ConversationController implements ReactiveController {
     const identity = this.bridge.identity();
     const visibleRuns = this.runs.filter(
       (run) =>
-        canManageAgent(identity, run.agentId) && (canAdminister(identity) || run.ownedByRequester),
+        !this.endedRunIds.has(run.runId) &&
+        canManageAgent(identity, run.agentId) &&
+        (canAdminister(identity) || run.ownedByRequester),
     );
     const recoveredRuns = visibleRuns.filter(
       (run) => run.ownedByRequester && run.agentId === this.agentId && run.runId !== this.runId,
@@ -143,6 +157,7 @@ export class ConversationController implements ReactiveController {
       promptPending: (showingLocalRun && this.pending) || recoveredRuns.length > 0,
       promptRunId: showingLocalRun ? this.runId : "",
       promptStream: showingLocalRun ? this.stream : "",
+      promptStopping: showingLocalRun && this.stopping,
       attachmentUploading: this.uploading,
       promptRuns: visibleRuns,
       recoveredRuns,
@@ -388,6 +403,17 @@ export class ConversationController implements ReactiveController {
         this.retiredRunIds.add(run.runId);
       }
       this.runs = runs;
+      // A list read that began after a run ended now speaks for that run.
+      for (const [endedRunId, endedAt] of this.endedRunIds) {
+        if (version > endedAt) {
+          this.endedRunIds.delete(endedRunId);
+        }
+      }
+      if (this.runNoticeRunId && !runs.some((run) => run.runId === this.runNoticeRunId)) {
+        // The task "Cancellation requested" was about has finished stopping.
+        this.runNotice = null;
+        this.runNoticeRunId = "";
+      }
       this.runsError = null;
       this.changed();
       if (this.retiredRunIds.size > 0 && this.bridge.refreshActivity) {
@@ -532,6 +558,7 @@ export class ConversationController implements ReactiveController {
     // previous prompt is never left on screen beside a new one.
     this.stream = "";
     this.runId = "";
+    this.stopping = false;
     this.changed();
     try {
       const outcome = await this.bridge.api().promptAgentStreaming(
@@ -551,6 +578,13 @@ export class ConversationController implements ReactiveController {
               return;
             }
             this.stream = replySoFar;
+            this.changed();
+          },
+          onStopping: () => {
+            if (session !== this.sessionVersion) {
+              return;
+            }
+            this.stopping = true;
             this.changed();
           },
         },
@@ -585,6 +619,10 @@ export class ConversationController implements ReactiveController {
       if (session === this.sessionVersion) {
         this.pending = false;
         this.stream = "";
+        this.stopping = false;
+        if (this.runId) {
+          this.endedRunIds.set(this.runId, this.runsVersion);
+        }
         this.runId = "";
         // Cleared here rather than beside `pending`, so the turn stays on screen
         // for the whole run and disappears exactly when the transcript below is
@@ -614,9 +652,9 @@ export class ConversationController implements ReactiveController {
    * emergency control stops being treated as one.
    *
    * The run id only exists once the server has replied, so this is asked of the
-   * server by id rather than by aborting the fetch: closing the connection also
-   * cancels the run, but doing it this way means the cancellation is recorded
-   * against the account that asked for it.
+   * server by id rather than by aborting the fetch. Closing the connection does
+   * not cancel the run (T63): the task outlives its tab and stays stoppable from
+   * any tab, and asking by id records the cancellation against whoever pressed.
    */
   async cancelPrompt(runId = this.runId): Promise<void> {
     if (!runId || this.cancelling.has(runId)) {
@@ -633,6 +671,7 @@ export class ConversationController implements ReactiveController {
       if (session !== this.sessionVersion) {
         return;
       }
+      this.runNoticeRunId = outcome.cancelled ? runId : "";
       this.runNotice = t(
         outcome.cancelled
           ? "governance.conversation.cancelRequested"
@@ -643,6 +682,7 @@ export class ConversationController implements ReactiveController {
         return;
       }
       if (err instanceof GovernanceApiError && err.status === 404) {
+        this.runNoticeRunId = "";
         this.runNotice = t("governance.conversation.noLongerRunning");
       } else {
         this.runsError = err instanceof Error ? err.message : String(err);

@@ -850,6 +850,7 @@ export function renderRuleRequestsSection(
                 class="input"
                 type="text"
                 style="min-width:14rem"
+                maxlength="500"
                 aria-label=${t("governance.requests.reasonLabel")}
                 placeholder=${t("governance.requests.reasonPlaceholder")}
                 .value=${props.drafts.requestReason}

@@ -59,7 +59,7 @@ describe("Control UI service worker cache versioning", () => {
         "openclaw-control-new-build",
         "other-cache",
       ]),
-      open: vi.fn(),
+      open: vi.fn(async () => ({ keys: vi.fn(async () => []), delete: vi.fn(async () => true) })),
     };
     const serviceWorkerGlobal = {
       addEventListener(type: string, listener: (event: ActivateEventStub) => void) {
@@ -532,6 +532,135 @@ describe("Control UI service worker notification scope", () => {
     expect(worker.clients.openWindow).toHaveBeenCalledExactlyOnceWith(
       `${nestedScope}chat?session=42#latest`,
     );
+  });
+});
+
+describe("Control UI service worker storage", () => {
+  const origin = "https://control.example";
+
+  function loadWorker(
+    cacheContents: Record<string, string[]> = {},
+    claim: () => Promise<unknown> = async () => undefined,
+  ) {
+    const listeners = new Map<string, (event: never) => void>();
+    const deleted: string[] = [];
+    const caches = {
+      keys: vi.fn(async () => Object.keys(cacheContents)),
+      delete: vi.fn(async () => true),
+      match: vi.fn(async () => undefined),
+      open: vi.fn(async (name: string) => ({
+        keys: vi.fn(async () => (cacheContents[name] ?? []).map((url) => ({ url }))),
+        delete: vi.fn(async (request: { url: string }) => {
+          deleted.push(request.url);
+          return true;
+        }),
+        put: vi.fn(async () => undefined),
+      })),
+    };
+    const serviceWorkerGlobal = {
+      addEventListener(type: string, listener: (event: never) => void) {
+        listeners.set(type, listener);
+      },
+      clients: { claim: vi.fn(claim), matchAll: vi.fn(async () => []) },
+      location: { href: `${origin}/sw.js?v=new-build`, origin },
+      registration: { showNotification: vi.fn() },
+      skipWaiting: vi.fn(),
+    };
+    const context = vm.createContext({
+      URL,
+      caches,
+      fetch: vi.fn(async () => ({ ok: true, clone: () => ({}) })),
+      self: serviceWorkerGlobal,
+    });
+    new vm.Script(fs.readFileSync(serviceWorkerPath, "utf8"), {
+      filename: "ui/public/sw.js",
+    }).runInContext(context);
+    return { listeners, caches, deleted };
+  }
+
+  function dispatchGet(worker: ReturnType<typeof loadWorker>, url: string) {
+    const respondWith = vi.fn();
+    worker.listeners.get("fetch")?.({
+      request: { url, method: "GET", mode: "cors" },
+      respondWith,
+    } as never);
+    return respondWith;
+  }
+
+  // Governance answers were stored and replayed offline: stale, after sign-out,
+  // and to the next account on the browser (a Viewer received Root's accounts list).
+  it.each([
+    `${origin}/control-ui/governance/users`,
+    `${origin}/control-ui/governance/ledger?limit=200`,
+    `${origin}/__openclaw__/assistant-media?source=photo.png&mediaTicket=ticket`,
+    `${origin}/control-ui-config.json`,
+    `${origin}/avatar/main?meta=1`,
+  ])("leaves %s to the network, neither storing nor answering it", (url) => {
+    const worker = loadWorker();
+
+    expect(dispatchGet(worker, url)).not.toHaveBeenCalled();
+    expect(worker.caches.match).not.toHaveBeenCalled();
+  });
+
+  it("still answers hashed build assets cache-first", () => {
+    const worker = loadWorker();
+
+    expect(dispatchGet(worker, `${origin}/assets/index-abc123.js`)).toHaveBeenCalledOnce();
+    expect(worker.caches.match).toHaveBeenCalledOnce();
+  });
+
+  it("drops live responses earlier workers stored, keeping assets and the precached shell", async () => {
+    const worker = loadWorker({
+      "openclaw-control-previous": [
+        `${origin}/assets/index-old.js`,
+        `${origin}/control-ui/governance/users`,
+        `${origin}/__openclaw__/assistant-media?source=photo.png&mediaTicket=ticket`,
+      ],
+      "openclaw-control-new-build": [
+        `${origin}/`,
+        `${origin}/assets/index-new.js`,
+        `${origin}/control-ui/governance/whoami`,
+      ],
+    });
+    let activation: Promise<unknown> | undefined;
+    worker.listeners.get("activate")?.({
+      waitUntil(promise: Promise<unknown>) {
+        activation = promise;
+      },
+    } as never);
+    await activation;
+
+    expect(worker.deleted.toSorted()).toEqual([
+      `${origin}/__openclaw__/assistant-media?source=photo.png&mediaTicket=ticket`,
+      `${origin}/control-ui/governance/users`,
+      `${origin}/control-ui/governance/whoami`,
+    ]);
+  });
+
+  it("purges only once it controls the tabs the previous worker was still storing for", async () => {
+    let claimed: () => void = () => {};
+    const worker = loadWorker(
+      { "openclaw-control-previous": [`${origin}/control-ui/governance/users`] },
+      () =>
+        new Promise<void>((resolve) => {
+          claimed = resolve;
+        }),
+    );
+    let activation: Promise<unknown> | undefined;
+    worker.listeners.get("activate")?.({
+      waitUntil(promise: Promise<unknown>) {
+        activation = promise;
+      },
+    } as never);
+    for (let tick = 0; tick < 10; tick += 1) {
+      await Promise.resolve();
+    }
+    expect(worker.deleted, "nothing is purged while the old worker still writes").toEqual([]);
+
+    claimed();
+    await activation;
+
+    expect(worker.deleted).toEqual([`${origin}/control-ui/governance/users`]);
   });
 });
 

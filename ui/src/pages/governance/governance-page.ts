@@ -27,7 +27,6 @@ import {
   type GovernanceAgentEntry,
   type GovernanceAgentPolicyView,
   type GovernanceRuleTargets,
-  type GovernanceKillResult,
   type GovernancePendingDecision,
   type GovernanceRuleConflict,
   type GovernanceRuleWarning,
@@ -38,6 +37,7 @@ import {
 } from "./api.ts";
 import { ConversationController, type ConversationSlice } from "./conversation-controller.ts";
 import { canAdminister, canManageAnyAgent, isSessionLost, panelCapabilities } from "./identity.ts";
+import { keptKillNotice, revealKillNotice, type KillNotice } from "./kill-notice.ts";
 import type { LedgerFilter } from "./ledger-filter.ts";
 import { MIN_PASSWORD_LENGTH } from "./panels/account-panels.ts";
 import {
@@ -78,7 +78,7 @@ import {
 } from "./panels/policy-panels.ts";
 import { renderSectionNav, SectionNavController } from "./panels/section-nav.ts";
 import { renderGovernanceGate, renderIdentityRow } from "./panels/session-panels.ts";
-import { focusNewRefusal } from "./refusal-focus.ts";
+import { errorAfterRefresh, focusNewRefusal, revealRuleNotices } from "./refusal-focus.ts";
 import "../../styles/governance.css";
 import { EMPTY_RULE_FILTER, type RuleFilter } from "./rule-filter.ts";
 
@@ -311,7 +311,7 @@ class GovernancePage extends OpenClawLightDomElement {
   @state() private conflictNotice: GovernanceRuleConflict[] | null = null;
   /** Advisory notes about a just-created rule being looser than it looks. */
   @state() private ruleWarnings: GovernanceRuleWarning[] | null = null;
-  @state() private killNotice: GovernanceKillResult | null = null;
+  @state() private killNotice: KillNotice | null = null;
   @state() private pendingDecisions: GovernancePendingDecision[] = [];
   /**
    * How many unanswered questions the stack has dropped to stay under its cap
@@ -510,6 +510,7 @@ class GovernancePage extends OpenClawLightDomElement {
       onDismissConflict: () => {
         this.conflictNotice = null;
       },
+      onRuleNotices: (notices) => void revealRuleNotices(Object.assign(this, notices)),
       loadAgentPolicy: (agentId) => this.loadAgentPolicy(agentId),
       loadRuleTargets: (ruleId) => this.loadRuleTargets(ruleId),
     };
@@ -542,6 +543,9 @@ class GovernancePage extends OpenClawLightDomElement {
   }
 
   private async refreshData(): Promise<void> {
+    // The stop notice this refresh may retire: one set after it began is newer
+    // than the policy it is about to read.
+    const killNoticeAtStart = this.killNotice;
     const api = this.api();
     // `allSettled`, not `all`. Eight requests load this page, and with `all` a
     // single failure rejected the whole refresh, which the caller treated as
@@ -680,6 +684,7 @@ class GovernancePage extends OpenClawLightDomElement {
     }
     if (policy.status === "fulfilled") {
       this.policy = policy.value;
+      this.killNotice = keptKillNotice(this.killNotice, killNoticeAtStart, policy.value);
     }
     if (codexBackend.status === "fulfilled") {
       this.codexBackend = codexBackend.value;
@@ -714,6 +719,7 @@ class GovernancePage extends OpenClawLightDomElement {
     // Say so rather than leaving the operator to notice a panel is stale. On the
     // page whose job is oversight, silently showing old data is the failure.
     this.partialFailure = failed > 0;
+    this.error = errorAfterRefresh(this.error, failed);
     this.lastRefreshedAt = Date.now();
     await this.conversation.refreshRuns();
   }
@@ -1046,7 +1052,8 @@ class GovernancePage extends OpenClawLightDomElement {
 
   private async engageKillSwitch(agentId: string): Promise<void> {
     this.killNotice = null;
-    this.killNotice = await this.api().setLockdown(agentId, true);
+    this.killNotice = { agentId, result: await this.api().setLockdown(agentId, true) };
+    await revealKillNotice(this);
   }
 
   /**
@@ -1114,7 +1121,7 @@ class GovernancePage extends OpenClawLightDomElement {
           lastRefreshedAt: this.lastRefreshedAt,
           partialFailure: this.partialFailure,
         })}
-        ${renderKillNotice(this.killNotice)} ${renderConflictNotice(policyProps)}
+        ${renderKillNotice(this.killNotice, this.agents)} ${renderConflictNotice(policyProps)}
         ${renderRuleWarnings(this.ruleWarnings, () => {
           this.ruleWarnings = null;
         })}

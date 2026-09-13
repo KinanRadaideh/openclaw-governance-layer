@@ -421,6 +421,32 @@ describe("streaming, cancellation and capacity (A1 follow-up, and Q-90)", () => 
     expect(outcome.error).toBe("The prompt was cancelled.");
   });
 
+  it("says the run is stopping the moment it is stopped, before the reply", async () => {
+    // A Cancel from another tab or account left the sender's view on
+    // "replying" beside a Cancel that could only be refused, until the reply.
+    const stopped: string[] = [];
+    let stoppedBeforeReply: string[] = [];
+    clearAgentRunner();
+    registerAgentRunner(async (request) => {
+      cancelPromptRun({
+        runId: request.runId,
+        username: "malek",
+        mayCancelOthers: false,
+        groupAgentIds: ["agent-a"],
+      });
+      stoppedBeforeReply = [...stopped];
+      return { ok: false, reply: "", error: "aborted" };
+    });
+    await promptAgent(TEST_GROUP, {
+      agentId: "agent-a",
+      username: "malek",
+      message: "long job",
+      onStopping: (ending) => stopped.push(ending),
+    });
+    expect(stoppedBeforeReply).toEqual(["cancelled"]);
+    expect(stopped).toEqual(["cancelled"]);
+  });
+
   it("records a cancelled run distinctly in the ledger", async () => {
     clearAgentRunner();
     registerAgentRunner(async (request) => {

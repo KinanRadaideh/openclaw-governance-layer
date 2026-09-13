@@ -99,9 +99,20 @@ function renderExecBody(request: ExecApprovalRequestPayload) {
 }
 
 function renderPluginBody(active: ExecApprovalRequest) {
+  // The description is capped for every surface, so a long request arrives cut
+  // there and whole in `detail`. Shown only when it adds what the cap removed:
+  // a reviewer must be able to read all of what they are approving.
+  const detail =
+    active.pluginDetail && !active.pluginDescription?.includes(active.pluginDetail)
+      ? active.pluginDetail
+      : null;
   return html` ${active.pluginDescription
       ? html`<pre class="exec-approval-command mono" style="white-space:pre-wrap">
 ${active.pluginDescription}</pre>`
+      : nothing}
+    ${detail
+      ? html`<div class="exec-approval-meta"><span>${t("execApproval.labels.detail")}</span></div>
+          <pre class="exec-approval-command mono" style="margin-top:6px">${detail}</pre>`
       : nothing}
     <div class="exec-approval-meta">
       ${renderMetaRow(t("execApproval.labels.severity"), active.pluginSeverity)}

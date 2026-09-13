@@ -826,7 +826,10 @@ describe("ending a session drops what it loaded", () => {
       policy: policy([]),
       // A stop that reported no running work: the branch whose copy is a plain
       // sentence, so it is assertable as rendered text.
-      killNotice: { stopped: true, abortedRunIds: [], stoppedConfirmed: true },
+      killNotice: {
+        agentId: "agent-a",
+        result: { ok: true, abortedRunIds: [], stoppedConfirmed: true },
+      },
       // A rule half-authored against a named agent, and a request half-typed
       // about a named account. Both prefill their forms for whoever is next.
       newRulePattern: "^cat /etc/payroll$",

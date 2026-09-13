@@ -1,7 +1,7 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { renderSettingsRow } from "../../../components/settings-ui.ts";
 import { t } from "../../../i18n/index.ts";
-import type { GovernanceApi } from "../api.ts";
+import type { GovernanceApi, GovernanceRuleConflict, GovernanceRuleWarning } from "../api.ts";
 
 /**
  * The folder-grant form and the explainer beside it.
@@ -31,6 +31,14 @@ export type FolderGrantPanelProps = {
    */
   written: { pattern: string; effect: string }[] | null;
   onWritten: (written: { pattern: string; effect: string }[]) => void;
+  /** Shows the clashes a grant reported, in the page's notice beside the add-rule form's. */
+  onRuleNotices: (notices: RuleNotices) => void;
+};
+
+/** What a policy write reported beyond success, for the page's notice band. */
+export type RuleNotices = {
+  conflictNotice: GovernanceRuleConflict[] | null;
+  ruleWarnings: GovernanceRuleWarning[] | null;
 };
 
 /**
@@ -139,6 +147,13 @@ export function renderFolderGrantPanel(
                   ...(agentId ? { agentId } : {}),
                 });
                 props.onDraft({ folder: "", exceptions: "" });
+                // The notice the add-rule form raises, for the same reason: a
+                // grant that clashes with an existing rule was written in silence.
+                props.onRuleNotices({
+                  conflictNotice:
+                    result.conflicts && result.conflicts.length > 0 ? result.conflicts : null,
+                  ruleWarnings: null,
+                });
                 // The agent deliberately survives the reset, matching the
                 // add-rule form: somebody granting one folder to an agent is
                 // usually granting several.

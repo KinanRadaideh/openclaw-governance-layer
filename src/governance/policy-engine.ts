@@ -1033,6 +1033,9 @@ export async function evaluateGovernancePolicy(
 
     const explanation =
       '"Always allow" allows this action once and requests permission for future attempts. An Administrator must approve the request before permission becomes permanent.';
+    // When the question was put, so one that ends is recorded with the wait it
+    // really had rather than the configured window.
+    const askedAtMs = Date.now();
     const actionDescription = `Agent "${agentId ?? "unknown"}" wants to run "${event.toolName}" against ${spec.resourceKind} "${resource}", which no policy rule currently covers.`;
     return {
       requireApproval: {
@@ -1072,10 +1075,13 @@ export async function evaluateGovernancePolicy(
         // ---------------------------------------------------------------
         allowedDecisions: ["allow-once", "allow-always", "deny"],
         onResolution: async (resolutionDecision) => {
-          // A timeout means nobody answered. The action is already denied by
-          // the host; preserve the question so the operator can answer it
-          // later, instead of the agent silently failing with no trace of what
-          // it was blocked from doing.
+          // A timeout means nobody answered; a cancellation means the question
+          // ended before anyone could (the run stopped, or no surface could show
+          // it). Either way the action is already denied by the host; preserve
+          // the question so the operator can answer it later, instead of the
+          // agent silently failing with no trace of what it was blocked from
+          // doing. **Recorded as what happened**: both were filed as a timeout
+          // that waited the full window, including questions nobody was shown.
           if (resolutionDecision === "timeout" || resolutionDecision === "cancelled") {
             await recordTimedOutEscalation(groupId, {
               agentId: agentId ?? "unknown",
@@ -1083,7 +1089,8 @@ export async function evaluateGovernancePolicy(
               toolName: event.toolName,
               resourceKind: spec.resourceKind,
               resource,
-              waitedMs: hitlTimeoutMs,
+              waitedMs: Date.now() - askedAtMs,
+              endedBy: resolutionDecision,
             });
             await appendLedgerEntry(groupId, {
               agentId,
@@ -1092,7 +1099,7 @@ export async function evaluateGovernancePolicy(
               toolName: event.toolName,
               resourceKind: spec.resourceKind,
               resource,
-              ruleId: "hitl-timeout",
+              ruleId: resolutionDecision === "cancelled" ? "hitl-cancelled" : "hitl-timeout",
               decision: "deny",
             });
             return undefined;

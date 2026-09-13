@@ -335,8 +335,11 @@ export const enGovernance: TranslationMap = {
         "Showing the {shown} most recent of {total} matching, out of {held} entries loaded",
       showingCapped:
         "Older entries are on disk and are not loaded here. Run {command} at the terminal to read the whole chain.",
-      empty: "No audit entries yet",
-      emptyHint: "Entries appear here as the agent attempts governed actions.",
+      // "To show", not "yet": a scoped reader's empty view, or a filter's, is not
+      // a ledger with nothing recorded in it (finding 333's shape).
+      empty: "No audit entries to show",
+      emptyHint: "Entries appear here as governed actions happen on the agents you can see.",
+      emptyFiltered: "No loaded entries match this filter",
       by: "by",
       adminBadge: "admin",
       filterAll: "All",
@@ -345,8 +348,9 @@ export const enGovernance: TranslationMap = {
       filterAuth: "Sign-ins",
     },
     freshness: {
-      partial:
-        "Some panels could not be reloaded and may be out of date. The rest of the page is current.",
+      // Not "the rest of the page is current": when every panel failed, that was
+      // the page claiming a freshness it did not have.
+      partial: "Some panels could not be reloaded, so what they show may be out of date.",
     },
     confirm: {
       title: "Are you sure?",
@@ -445,7 +449,9 @@ export const enGovernance: TranslationMap = {
       title: "Awaiting your decision",
       shedTitle: "This list is incomplete",
       shed: "This stack has dropped {count} unanswered question(s) to stay under its limit, so it is not a complete list of what is waiting. Every escalation is still in the audit ledger.",
-      explainer: "These escalations timed out before anyone answered",
+      // "Ended", not "timed out": a wait can also be cancelled before anyone
+      // could answer, and this heading sits over both kinds.
+      explainer: "These escalations ended before anyone answered",
       // **"tells you to add a rule" was not true until 2026-09-08** (finding
       // 338): nothing followed a decision, the row simply left the list, and
       // the next identical attempt timed out into this same queue. Deciding
@@ -456,6 +462,8 @@ export const enGovernance: TranslationMap = {
         'The action was denied and the agent moved on. Answering records your judgement, and "Would allow" also files a rule request below, so an Administrator can make the next attempt succeed.',
       agent: "agent",
       timedOut: "timed out",
+      // A stopped run, or a surface that could never show the question.
+      cancelled: "cancelled",
       allow: "Would allow",
       deny: "Keep denied",
       // T60's dashboard half: the server's own sentence says why and what next.
@@ -564,6 +572,10 @@ export const enGovernance: TranslationMap = {
       // to" labelled a control that is no longer offered to that tier, so
       // it read as a field that had failed to draw (2026-09-08).
       noAssignedTitle: "No agents assigned to you",
+      // Shown in place of the message box when an agent is taken away from a
+      // User while its conversation is open: the box could only be refused.
+      noLongerAssigned:
+        "This agent is no longer assigned to you, so you cannot send it messages. Ask an Administrator if you still need it.",
       // Its own name. The picker and the id box beside it both answered
       // to "Agent to talk to", so the row offered a screen reader two
       // controls it could not tell apart (2026-09-08).
@@ -653,7 +665,7 @@ export const enGovernance: TranslationMap = {
       // What the form does, which is true whoever is looking at it.
       submitHint:
         "Approving creates the rule. Naming an agent scopes the rule to it; leaving the agent blank asks for a rule binding every agent.",
-      reasonPlaceholder: "Why do you need this?",
+      reasonPlaceholder: "Why do you need this? Up to 500 characters.",
       reasonLabel: "Reason for this request",
       agentLabel: "Agent this request is for",
       agentPlaceholder: "Agent id (blank = every agent)",

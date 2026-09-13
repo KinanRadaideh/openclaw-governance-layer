@@ -34,6 +34,7 @@
 // inherited 700-line limit when this landed, and T16's answer to that limit is
 // to move a subject out whole rather than suppress the count. The subject is
 // "how a refusal reaches the operator", and this is all of it.
+import { GOVERNANCE_RECONNECTED_MESSAGE, GOVERNANCE_UNREACHABLE_MESSAGE } from "./api.errors.ts";
 
 /**
  * Scrolls the page's error banner into view, if there is one to scroll.
@@ -97,4 +98,41 @@ export function focusNewRefusal(host: Element, error: string | null): void {
   }
   scrolledTo.set(host, error);
   scrollRefusalIntoView(host);
+}
+
+/**
+ * The page's error once a refresh has finished.
+ *
+ * "Could not reach the Gateway" is disproved by a refresh that reached it, and
+ * it stayed on screen after the Gateway came back — measured, 50 seconds through
+ * three successful refreshes, until the next button press. A refusal is not
+ * disproved by a refresh, so any other error stays until the operator acts.
+ *
+ * **Replaced, not cleared.** The message only ever reports something the operator
+ * pressed, and a refresh proves the Gateway is back, not that the press landed.
+ */
+export function errorAfterRefresh(error: string | null, failedRequests: number): string | null {
+  return failedRequests === 0 && error === GOVERNANCE_UNREACHABLE_MESSAGE
+    ? GOVERNANCE_RECONNECTED_MESSAGE
+    : error;
+}
+
+/**
+ * Brings a rule write's warnings into view once they have rendered (finding 355).
+ *
+ * They draw in the notice band at the top of the page and the forms that raise
+ * them are far below it: measured on the running Gateway, the duplicate-rule
+ * warning rendered at y = -5,475 while the operator was at the Add rule form. A
+ * warning that a rule "will never take effect", off-screen, is the silence the
+ * repair that made it render was meant to end. Returns the host so the page can
+ * store the notices and reveal them in one expression.
+ */
+export async function revealRuleNotices(
+  host: Element & { updateComplete: Promise<unknown> },
+): Promise<void> {
+  await host.updateComplete;
+  const notice = host.querySelector(".governance-rule-notice");
+  if (typeof notice?.scrollIntoView === "function") {
+    notice.scrollIntoView({ behavior: "auto", block: "nearest" });
+  }
 }

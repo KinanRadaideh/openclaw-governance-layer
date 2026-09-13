@@ -384,17 +384,25 @@ export class ShellChromeOwner {
       host.commandPalette?.isOpen ||
       overlaySnapshot?.devicePairSetupOpen ||
       (overlaySnapshot?.approvalQueue.length ?? 0) > 0 ||
-      document.querySelector("dialog[open]")
+      // The shared modal keeps its native <dialog> two shadow roots down, out of
+      // reach of a document query, so it reflects `open` onto its host instead.
+      document.querySelector("dialog[open], openclaw-modal-dialog[open]")
     ) {
       return true;
     }
-    const target = event.target;
-    return (
-      target instanceof Element &&
-      target.closest(
-        "input, textarea, select, [contenteditable], dialog, [role='dialog'], [role='menu'], [role='listbox']",
-      ) !== null
-    );
+    // The composed path, not `closest`: focus inside a modal or a Web Awesome
+    // control is slotted through shadow roots `closest` cannot climb, and Web
+    // Awesome closes its dialog from a document listener registered after this
+    // one, so `defaultPrevented` is not set yet either.
+    return event
+      .composedPath()
+      .some(
+        (target) =>
+          target instanceof Element &&
+          target.matches(
+            "input, textarea, select, [contenteditable], dialog, [role='dialog'], [role='menu'], [role='listbox']",
+          ),
+      );
   }
 
   runWithCommandPalette(action: (palette: CommandPaletteElement) => void): void {

@@ -47,7 +47,12 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-type Captured = { status: number; body: unknown; setCookie: string[] };
+type Captured = {
+  status: number;
+  body: unknown;
+  setCookie: string[];
+  headers: Map<string, unknown>;
+};
 
 /** Drives the auth/API surface with a real request body and captures the reply. */
 async function call(
@@ -69,8 +74,8 @@ async function call(
   // inheriting a default 200. An earlier version of this harness defaulted to
   // 200, so a mistyped path looked like a passing request that merely happened
   // to set no cookie. The harness invented a success the server never sent.
-  const captured: Captured = { status: 0, body: undefined, setCookie: [] };
   const headers = new Map<string, unknown>();
+  const captured: Captured = { status: 0, body: undefined, setCookie: [], headers };
   const res = {
     statusCode: 200,
     setHeader(name: string, value: unknown) {
@@ -129,6 +134,22 @@ async function bootstrapRoot(username = "root-user"): Promise<string> {
   expect(login.status).toBe(200);
   return cookieFrom(login);
 }
+
+describe("caching", () => {
+  // The Control UI's service worker stored these answers and replayed them
+  // offline to the next account on the browser; no cache may keep one.
+  it("tells every cache not to store a governance answer, refusals included", async () => {
+    const cookie = await bootstrapRoot();
+
+    const users = await call("GET", `${API}users`, { cookie });
+    expect(users.status).toBe(200);
+    expect(users.headers.get("cache-control")).toBe("no-store");
+
+    const refused = await call("GET", `${API}users`);
+    expect(refused.status).toBe(401);
+    expect(refused.headers.get("cache-control")).toBe("no-store");
+  });
+});
 
 describe("bootstrap", () => {
   it("creates the first Root and lets it sign in", async () => {

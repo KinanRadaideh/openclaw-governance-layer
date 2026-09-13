@@ -38,6 +38,12 @@ export type PendingDecision = {
   timedOutAt: string;
   /** How long the escalation waited before giving up, in milliseconds. */
   waitedMs: number;
+  /**
+   * How the wait ended: nobody answered in time, or it was cancelled first (a
+   * stopped run, or a surface that could never show the question). Absent on
+   * rows written before this was recorded, which were all filed as timeouts.
+   */
+  endedBy?: "timeout" | "cancelled";
   status: PendingDecisionStatus;
   decidedBy?: string;
   decidedAt?: string;
@@ -239,6 +245,7 @@ export type RecordTimedOutEscalationInput = {
   resourceKind: ResourceKind | (string & {});
   resource: string;
   waitedMs: number;
+  endedBy?: "timeout" | "cancelled";
 };
 
 /** Pushes a timed-out escalation onto the stack. */
@@ -258,6 +265,7 @@ export async function recordTimedOutEscalation(
       resource: input.resource,
       timedOutAt: new Date().toISOString(),
       waitedMs: input.waitedMs,
+      endedBy: input.endedBy ?? "timeout",
       status: "pending",
     };
     // A repeat of a question already waiting is counted, not stored again.
@@ -269,6 +277,9 @@ export async function recordTimedOutEscalation(
     if (existing) {
       existing.occurrences = (existing.occurrences ?? 1) + 1;
       existing.lastTimedOutAt = decision.timedOutAt;
+      // How it ended most recently: the same question can time out once and be
+      // cancelled the next time.
+      existing.endedBy = decision.endedBy;
       await writeGovernanceJson(pendingDecisionsFilePath(groupId), file);
       return existing;
     }

@@ -3,7 +3,12 @@ import { render, type ReactiveControllerHost } from "lit";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { i18n } from "../../i18n/index.ts";
 import { enGovernance } from "../../i18n/locales/en-governance.ts";
-import { GovernanceApi, type GovernanceIdentity, type GovernancePromptRun } from "./api.ts";
+import {
+  GovernanceApi,
+  type GovernanceIdentity,
+  type GovernancePromptOutcome,
+  type GovernancePromptRun,
+} from "./api.ts";
 import { ConversationController } from "./conversation-controller.ts";
 import { canAdminister, canManageAnyAgent } from "./identity.ts";
 import { renderActiveSessionsSection } from "./panels/active-sessions-panel.ts";
@@ -293,5 +298,131 @@ describe("prompt recovery in the conversation and active sessions", () => {
       promptRunNotice: null,
       promptRunsError: null,
     });
+  });
+
+  it("does not show its own finished task as a recovered, running one", async () => {
+    // R-T63-RESURRECT: the sending tab cleared its run id before re-reading the
+    // task list, so the list it still held showed its own finished task as
+    // running, beside a Cancel that could only be refused.
+    const h = harness();
+    await h.controller.showConversation("scout");
+    const reply = deferred<GovernancePromptOutcome>();
+    vi.spyOn(GovernanceApi.prototype, "promptAgentStreaming").mockImplementation(
+      async (_agentId, _message, handlers) => {
+        handlers.onStart?.({ runId: "mine", sessionKey: "agent:scout:main" });
+        return reply.promise;
+      },
+    );
+    h.list.mockResolvedValue({ runs: [task("mine")] });
+    h.controller.setDraft("long job");
+    const sending = h.controller.sendPrompt();
+    await vi.waitFor(() => expect(h.controller.slice().promptRuns).toHaveLength(1));
+    const fresh = deferred<{ runs: GovernancePromptRun[] }>();
+    h.list.mockReturnValue(fresh.promise);
+    reply.resolve({
+      ok: true,
+      runId: "mine",
+      sessionKey: "agent:scout:main",
+      reply: "done",
+    } as GovernancePromptOutcome);
+    await vi.waitFor(() => expect(h.controller.slice().promptPending).toBe(false));
+    // The fresh list has not come back: the window the finished task reappeared in.
+    h.draw();
+    expect(h.controller.slice().recoveredRuns).toEqual([]);
+    expect(cancelButtons(h.conversation)).toHaveLength(0);
+    expect(cancelButtons(h.activity)).toHaveLength(0);
+    fresh.resolve({ runs: [] });
+    await sending;
+  });
+
+  it("says Stopping in the sender's own view the moment its task is stopped", async () => {
+    // 6b.5: stopped from another tab or account, the sender's view kept saying
+    // "replying" beside an enabled Cancel until the reply arrived.
+    const h = harness();
+    await h.controller.showConversation("scout");
+    const reply = deferred<GovernancePromptOutcome>();
+    vi.spyOn(GovernanceApi.prototype, "promptAgentStreaming").mockImplementation(
+      async (_agentId, _message, handlers) => {
+        handlers.onStart?.({ runId: "mine", sessionKey: "agent:scout:main" });
+        handlers.onStopping?.("cancelled");
+        return reply.promise;
+      },
+    );
+    h.controller.setDraft("long job");
+    const sending = h.controller.sendPrompt();
+    await vi.waitFor(() => expect(h.controller.slice().promptStopping).toBe(true));
+    h.draw();
+    expect(h.conversation.textContent).toContain("Stopping");
+    expect(cancelButtons(h.conversation)[0]?.disabled).toBe(true);
+    reply.resolve({
+      ok: false,
+      runId: "mine",
+      sessionKey: "agent:scout:main",
+      reply: "",
+      ending: "cancelled",
+    } as GovernancePromptOutcome);
+    await sending;
+    expect(h.controller.slice().promptStopping).toBe(false);
+  });
+
+  it("drops the cancellation notice once the task it was about has gone", async () => {
+    // 6b.5: "Cancellation requested. The task stays listed until it finishes
+    // stopping." stayed on screen above "No agent sessions are running".
+    const h = harness("administrator");
+    h.list.mockResolvedValue({ runs: [task("stopping-task")] });
+    await h.controller.showConversation("scout");
+    h.list.mockResolvedValue({ runs: [task("stopping-task", { ending: "cancelled" })] });
+    await h.controller.cancelPrompt("stopping-task");
+    h.draw();
+    expect(h.activity.textContent).toContain("Cancellation requested");
+    h.list.mockResolvedValue({ runs: [] });
+    await h.controller.refreshRuns();
+    h.draw();
+    for (const view of [h.conversation, h.activity]) {
+      expect(view.textContent).not.toContain("Cancellation requested");
+    }
+  });
+
+  it("keeps its finished task hidden from a task list read before it finished", async () => {
+    // The race behind R-T63-RESURRECT: a list read that began while the task
+    // ran, landing after it ended but before the fresh read, must not bring the
+    // finished task back as a running one.
+    const h = harness();
+    await h.controller.showConversation("scout");
+    const reply = deferred<GovernancePromptOutcome>();
+    const staleList = deferred<{ runs: GovernancePromptRun[] }>();
+    const heldTranscript = deferred<Awaited<ReturnType<GovernanceApi["agentTranscript"]>>>();
+    vi.spyOn(GovernanceApi.prototype, "promptAgentStreaming").mockImplementation(
+      async (_agentId, _message, handlers) => {
+        handlers.onStart?.({ runId: "mine", sessionKey: "agent:scout:main" });
+        return reply.promise;
+      },
+    );
+    // The list read the task's start begins, and the transcript read its end begins.
+    h.list.mockReturnValueOnce(staleList.promise);
+    h.transcript.mockImplementationOnce(() => heldTranscript.promise);
+    h.controller.setDraft("long job");
+    const sending = h.controller.sendPrompt();
+    await vi.waitFor(() => expect(h.controller.slice().promptRunId).toBe("mine"));
+    reply.resolve({
+      ok: true,
+      runId: "mine",
+      sessionKey: "agent:scout:main",
+      reply: "done",
+    } as GovernancePromptOutcome);
+    await vi.waitFor(() => expect(h.controller.slice().promptPending).toBe(false));
+
+    // The read begun while the task ran lands now, while its end is still settling.
+    staleList.resolve({ runs: [task("mine")] });
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 0);
+    });
+    h.draw();
+    expect(h.controller.slice().recoveredRuns).toEqual([]);
+    expect(cancelButtons(h.conversation)).toHaveLength(0);
+    expect(cancelButtons(h.activity)).toHaveLength(0);
+
+    heldTranscript.resolve({ agentId: "scout", supported: true, turns: [] });
+    await sending;
   });
 });

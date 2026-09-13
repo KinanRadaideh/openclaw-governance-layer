@@ -46,17 +46,22 @@ import {
   renderSettingsStatus,
 } from "../../../components/settings-ui.ts";
 import { t } from "../../../i18n/index.ts";
-import { includesAgentId } from "../agent-directory.ts";
+import { agentLabel, includesAgentId } from "../agent-directory.ts";
 import type {
   GovernanceActiveSessionsView,
   GovernanceAttachment,
   GovernanceIdentity,
-  GovernanceKillResult,
   GovernancePendingDecision,
   GovernancePolicyDocument,
   GovernanceTranscript,
 } from "../api.ts";
-import { canManageAgent, canonicalAgentQuery, manageableAgentIds } from "../identity.ts";
+import {
+  canManageAgent,
+  canonicalAgentQuery,
+  hasAgentToGovern,
+  manageableAgentIds,
+} from "../identity.ts";
+import type { KillNotice } from "../kill-notice.ts";
 import type { PanelEffects } from "./account-panels.ts";
 import { formatAttachmentSize } from "./format.ts";
 import {
@@ -132,6 +137,8 @@ export type ConversationProps = AgentPanelBase & {
   promptPending: boolean;
   promptRunId: string;
   promptStream: string;
+  /** This tab's own task was stopped and is unwinding. */
+  promptStopping?: boolean;
   attachmentUploading: boolean;
   onDraft: (patch: Partial<AgentDrafts>) => void;
   /** Owns the streaming lifecycle; the panel only asks. Reads the page's current conversation. */
@@ -168,12 +175,16 @@ export type AgentsSectionProps = ConversationProps & {
  * has to know to go and check.
  */
 export function renderKillNotice(
-  killNotice: GovernanceKillResult | null,
+  killNotice: KillNotice | null,
+  agents: Parameters<typeof agentLabel>[0],
 ): TemplateResult | typeof nothing {
-  const notice = killNotice;
-  if (!notice) {
+  if (!killNotice) {
     return nothing;
   }
+  // Named first, inside the alert so it is announced with it: an organisation
+  // has more than one agent, and "lockdown engaged" alone did not say whose.
+  const named = html`<strong>${agentLabel(agents, killNotice.agentId)}</strong> · `;
+  const notice = killNotice.result;
   const aborted = notice.abortedRunIds?.length ?? 0;
   // Shown **before** every other outcome, and it is the only branch that can
   // combine with any of them (finding 195): the stop landed, whichever way it
@@ -181,33 +192,33 @@ export function renderKillNotice(
   // tamper-evident trail is the more consequential half of that sentence, so it
   // is the half an operator reads first.
   if (notice.auditError) {
-    return html`<div class="settings-empty" role="alert">
-      ${t("governance.kill.noticeAuditFailed", { reason: notice.auditError })}
+    return html`<div id="governance-kill-notice" class="settings-empty" role="alert">
+      ${named}${t("governance.kill.noticeAuditFailed", { reason: notice.auditError })}
     </div>`;
   }
   if (notice.inFlightTerminationSupported === false) {
-    return html`<div class="settings-empty" role="alert">
-      ${t("governance.kill.noticeNoTermination")}
+    return html`<div id="governance-kill-notice" class="settings-empty" role="alert">
+      ${named}${t("governance.kill.noticeNoTermination")}
     </div>`;
   }
   if (aborted === 0) {
-    return html`<div class="settings-empty" role="alert">
-      ${t("governance.kill.noticeNoRuns")}
+    return html`<div id="governance-kill-notice" class="settings-empty" role="alert">
+      ${named}${t("governance.kill.noticeNoRuns")}
     </div>`;
   }
   // Distinguish "confirmed stopped" from "signal sent". Reporting one number
   // for both let an operator read "we asked in 4ms" as "the agent stopped in
   // 4ms". The claim requirement #7 actually makes.
   if (notice.stoppedConfirmed === false) {
-    return html`<div class="settings-empty" role="alert">
-      ${t("governance.kill.noticeUnconfirmed")} ${aborted}
+    return html`<div id="governance-kill-notice" class="settings-empty" role="alert">
+      ${named}${t("governance.kill.noticeUnconfirmed")} ${aborted}
       ${notice.dispatchMs === undefined
         ? nothing
         : html`(${t("governance.kill.signalled")} ${notice.dispatchMs}ms)`}
     </div>`;
   }
-  return html`<div class="settings-empty" role="status">
-    ${t("governance.kill.noticeStopped")} ${aborted}
+  return html`<div id="governance-kill-notice" class="settings-empty" role="status">
+    ${named}${t("governance.kill.noticeStopped")} ${aborted}
     ${notice.elapsedMs === undefined ? nothing : html`(${notice.elapsedMs}ms)`}
   </div>`;
 }
@@ -292,7 +303,14 @@ export function renderPendingDecisionsSection(
     ...waiting.map((entry) =>
       renderSettingsRow({
         title: html`<code>${entry.toolName}</code> ${entry.resource}`,
-        description: `${t("governance.pending.agent")} ${entry.agentId} · ${t("governance.pending.timedOut")} ${new Date(entry.timedOutAt).toLocaleString()}`,
+        // "Timed out" only when nobody answered in time; a cancelled wait says so.
+        // The time is the latest ending's, the one that word describes: a repeat
+        // records how it ended most recently, and its first time is not that.
+        description: `${t("governance.pending.agent")} ${entry.agentId} · ${t(
+          entry.endedBy === "cancelled"
+            ? "governance.pending.cancelled"
+            : "governance.pending.timedOut",
+        )} ${new Date(entry.lastTimedOutAt ?? entry.timedOutAt).toLocaleString()}`,
         control: html`
           <div class="settings-row__control" style="gap:0.5rem">
             <button
@@ -382,6 +400,16 @@ export function renderKillSwitchSection(props: KillSwitchProps): TemplateResult 
   // was already the argument for this change; nobody had applied it here.
   if (!props.canManageAnyAgent) {
     return nothing;
+  }
+  // A User with nothing assigned passes the tier test and has nothing to stop:
+  // the field accepted any id and every press was refused. Said instead.
+  if (!hasAgentToGovern(props.identity)) {
+    return renderSettingsSection({ title: t("governance.kill.title") }, [
+      renderSettingsRow({
+        title: t("governance.kill.engage"),
+        description: t("governance.conversation.chooseAgentHintUnassigned"),
+      }),
+    ]);
   }
   // Every list below is the agents this operator may act on, not the agents the
   // page happens to know about.
@@ -636,7 +664,14 @@ export function renderConversation(
       ${props.promptPending && (props.promptRunId || props.promptSent)
         ? html`<div>
             <strong>${agentId}</strong>
-            <span style="opacity:0.6"> · ${t("governance.conversation.working")}</span>
+            <span style="opacity:0.6">
+              ·
+              ${t(
+                props.promptStopping
+                  ? "governance.conversation.stopping"
+                  : "governance.conversation.working",
+              )}</span
+            >
             <div style="white-space:pre-wrap">
               ${props.promptStream
                 ? props.promptStream
@@ -767,7 +802,8 @@ export function renderConversation(
             ${props.promptRunId
               ? html`<button
                   class="btn"
-                  ?disabled=${props.promptRunControls?.cancelling.includes(props.promptRunId) ||
+                  ?disabled=${props.promptStopping ||
+                  props.promptRunControls?.cancelling.includes(props.promptRunId) ||
                   props.promptRunControls?.runs.some(
                     (run) =>
                       run.runId === props.promptRunId && Boolean(run.ending || run.finishing),
@@ -983,7 +1019,18 @@ export function renderAgentsSection(props: AgentsSectionProps): TemplateResult |
                 ${t("governance.conversation.close")}
               </button>
             </div>
-            ${renderConversation(props.conversationAgentId, props)}
+            ${
+              // **Not for a User whose agent was taken away while this was open.**
+              // Losing the assignment drops the agent's row above, and the open
+              // conversation fell through to this picker path, written for the
+              // tiers that pick any agent: a live message box that could only
+              // answer "You do not manage agent" (finding 305, open half).
+              canManageAgent(props.identity, props.conversationAgentId)
+                ? renderConversation(props.conversationAgentId, props)
+                : html`<div class="settings-empty" role="status">
+                    ${t("governance.conversation.noLongerAssigned")}
+                  </div>`
+            }
           </div>`,
         })
       : nothing,

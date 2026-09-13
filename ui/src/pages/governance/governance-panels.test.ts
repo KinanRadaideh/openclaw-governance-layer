@@ -144,8 +144,10 @@ describe("the audit ledger panel", () => {
     // page whose purpose is oversight, that ambiguity is the defect, so the
     // sentence itself is asserted rather than merely "something rendered".
     await mount({ identity: identity("administrator"), ledger: [] });
-    expect(text()).toContain("No audit entries yet");
-    expect(text()).toContain("Entries appear here as the agent attempts governed actions.");
+    expect(text()).toContain("No audit entries to show");
+    expect(text()).toContain(
+      "Entries appear here as governed actions happen on the agents you can see.",
+    );
   });
 
   it("reports an intact chain with the number of entries checked", async () => {
@@ -539,6 +541,33 @@ describe("the timed-out escalations panel", () => {
     expect(text()).toContain("agent-a");
   });
 
+  it("says a cancelled escalation was cancelled, not that it timed out", async () => {
+    // A stopped run, or a surface that could never show the card, used to be
+    // described here as a question nobody answered in time.
+    await mount({
+      identity: identity("administrator"),
+      pendingDecisions: [{ ...decision, endedBy: "cancelled" }],
+    });
+    expect(text()).toContain("cancelled");
+    expect(text()).not.toContain("timed out");
+  });
+
+  it("dates a repeated question by how it ended most recently", async () => {
+    // A repeat overwrites the ending, so the time beside it must be the repeat's:
+    // "cancelled" beside the first attempt's time describes an event that did not
+    // happen then.
+    const first = "2026-08-25T09:30:00.000Z";
+    const latest = "2026-08-25T11:45:00.000Z";
+    await mount({
+      identity: identity("administrator"),
+      pendingDecisions: [
+        { ...decision, timedOutAt: first, lastTimedOutAt: latest, endedBy: "cancelled" },
+      ],
+    });
+    expect(text()).toContain(new Date(latest).toLocaleString());
+    expect(text()).not.toContain(new Date(first).toLocaleString());
+  });
+
   it("renders nothing when nothing is waiting", async () => {
     await mount({ identity: identity("administrator"), pendingDecisions: [] });
     expect(text()).not.toContain("rm -rf build");
@@ -662,11 +691,12 @@ describe("the Root-only policy settings (finding 140)", () => {
   });
 
   it("withholds the installation timeout from a User but offers the per-agent one", async () => {
-    await mount({ identity: identity("user"), policy });
+    await mount({ identity: { ...identity("user"), assignedAgents: ["scout"] }, policy });
 
     // The installation-wide window is Administrator; the per-agent override is
     // the User tier's, for the agents assigned to them, which is the whole
-    // reason that axis exists.
+    // reason that axis exists. A User assigned nothing is offered no form at all
+    // (finding 356), so this User has an agent.
     expect(page.querySelector('input[aria-label="Approval timeout"]')).toBeNull();
     expect(page.querySelector('input[aria-label="Account name"]')).toBeNull();
     expect(page.querySelector('input[aria-label="Approval timeout for one agent"]')).not.toBeNull();

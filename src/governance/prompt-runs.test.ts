@@ -209,36 +209,6 @@ describe("cancellation is owned by the account that asked", () => {
   });
 });
 
-describe("a disconnected client stops its own run", () => {
-  it("aborts when the caller's signal aborts", () => {
-    // Closing the browser tab used to leave the agent working with no way to
-    // reach it short of the kill switch, which locks the agent down entirely.
-    const parent = new AbortController();
-    counter += 1;
-    const controller = beginPromptRun({
-      runId: `gov-run-${counter}`,
-      agentId: "agent-a",
-      username: "malek",
-      parentSignal: parent.signal,
-    });
-    parent.abort();
-    expect(controller.signal.aborted).toBe(true);
-  });
-
-  it("handles a signal that was already aborted before the run began", () => {
-    const parent = new AbortController();
-    parent.abort();
-    counter += 1;
-    const controller = beginPromptRun({
-      runId: `gov-run-${counter}`,
-      agentId: "agent-a",
-      username: "malek",
-      parentSignal: parent.signal,
-    });
-    expect(controller.signal.aborted).toBe(true);
-  });
-});
-
 describe("what an account may see", () => {
   it("freezes a completed execution while its result is being saved", () => {
     vi.useFakeTimers();

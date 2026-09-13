@@ -16,6 +16,23 @@ const CONTROL_CACHE_LIMIT = 3;
 // Minimal app-shell files to precache.
 const PRECACHE_URLS = ["./"];
 
+/** Content-hashed build output: the only responses this worker stores. */
+function isBuildAsset(url) {
+  return url.pathname.includes("/assets/");
+}
+
+/** Deletes everything in a cache except build assets and the precached shell. */
+async function dropLiveResponses(cacheName) {
+  const precached = new Set(PRECACHE_URLS.map((path) => new URL(path, self.location.href).href));
+  const cache = await caches.open(cacheName);
+  const requests = await cache.keys();
+  await Promise.all(
+    requests
+      .filter((request) => !precached.has(request.url) && !isBuildAsset(new URL(request.url)))
+      .map((request) => cache.delete(request)),
+  );
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS)));
   self.skipWaiting();
@@ -36,11 +53,18 @@ self.addEventListener("activate", (event) => {
         CACHE_NAME,
       ]);
 
+      // Control first. Until the claim, the previous worker still controls open
+      // tabs and stores their responses, so a purge listed before it could miss an
+      // entry written a moment later. What remains is a write already in flight.
+      await self.clients.claim();
       await Promise.all([
-        self.clients.claim(),
         Promise.all(
           controlKeys.filter((key) => !retained.has(key)).map((key) => caches.delete(key)),
         ),
+        // Earlier workers also stored live responses (governance data, assistant
+        // media), and `caches.match` searches every cache: a retained cache keeps
+        // its assets and precache and nothing else.
+        Promise.all([...retained].map((key) => dropLiveResponses(key))),
       ]);
 
       for (const client of windowClients) {
@@ -76,34 +100,27 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Cache-first for hashed assets; network-first for HTML/other.
-  if (url.pathname.includes("/assets/")) {
-    event.respondWith(
-      caches.match(event.request).then(
-        (cached) =>
-          cached ||
-          fetch(event.request).then((response) => {
-            if (response.ok) {
-              const clone = response.clone();
-              void caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-            }
-            return response;
-          }),
-      ),
-    );
-  } else {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
+  // Only content-hashed build assets are cached (cache-first). Everything else
+  // stays on the network: navigations are skipped above, so a stored fallback
+  // never let the app open offline. It only answered live reads (governance
+  // data, assistant media) from storage as though current, after sign-out and
+  // to the next account using the browser.
+  if (!isBuildAsset(url)) {
+    return;
+  }
+  event.respondWith(
+    caches.match(event.request).then(
+      (cached) =>
+        cached ||
+        fetch(event.request).then((response) => {
           if (response.ok) {
             const clone = response.clone();
             void caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
           }
           return response;
-        })
-        .catch(() => caches.match(event.request)),
-    );
-  }
+        }),
+    ),
+  );
 });
 
 // --- Web Push ---

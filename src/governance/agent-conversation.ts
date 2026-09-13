@@ -45,6 +45,7 @@ import { loadPolicy } from "./policy-store.js";
 import {
   beginPromptRun,
   finishPromptRun,
+  listRunningPromptsForSessions,
   PromptCapacityError,
   PROMPT_TIMEOUT_MS,
   settlePromptRun,
@@ -426,7 +427,12 @@ export async function promptAgent(
       mimeType: string;
       declaredName: string;
     }[];
-    signal?: AbortSignal;
+    /**
+     * Called once if the run is stopped before it finishes: a Cancel from any
+     * tab or account, or the timeout. The reply still arrives when the run has
+     * unwound; this is what lets a page say "Stopping" in the meantime.
+     */
+    onStopping?: (ending: PromptRunEnding) => void;
     /**
      * Called with the reply **so far**, as the model produces it (A1 follow-up).
      *
@@ -561,7 +567,6 @@ export async function promptAgent(
       runId,
       agentId: input.agentId,
       username: conversationKey(input.username),
-      ...(input.signal ? { parentSignal: input.signal } : {}),
     });
   } catch (err) {
     if (!(err instanceof PromptCapacityError)) {
@@ -577,6 +582,18 @@ export async function promptAgent(
     });
     return { ok: false, runId, sessionKey, reply: "", error: err.message };
   }
+
+  controller.signal.addEventListener(
+    "abort",
+    () => {
+      // `endPromptRun` records why before it aborts, so the reason is there.
+      const ending = listRunningPromptsForSessions().find((run) => run.runId === runId)?.ending;
+      if (ending) {
+        input.onStopping?.(ending);
+      }
+    },
+    { once: true },
+  );
 
   try {
     input.onStart?.({ runId, sessionKey });

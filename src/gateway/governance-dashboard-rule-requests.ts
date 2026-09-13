@@ -46,6 +46,17 @@ function isResourceKind(value: unknown): value is ResourceKind {
   return value === "command" || value === "path" || value === "network";
 }
 
+/**
+ * The longest reason a request may carry (finding 362).
+ *
+ * It used to be cut to this length silently: a 2,000-character justification was
+ * accepted with a 200 and stored as its first 500, so the requester was told it
+ * had been submitted and the Administrator deciding it read a reason that stopped
+ * mid-sentence with no mark. Refused instead, as usernames and agent display names
+ * already are, and mirrored as the form's maxlength.
+ */
+const MAX_REQUEST_REASON_LENGTH = 500;
+
 export type RuleRequestRouteContext = {
   requireRole: (
     res: ServerResponse,
@@ -169,6 +180,10 @@ export async function handleGovernanceRuleRequestRoutes(
         sendInvalidRequest(res, "reason is required so an administrator can judge the request");
         return true;
       }
+      if (reason.length > MAX_REQUEST_REASON_LENGTH) {
+        sendInvalidRequest(res, `reason must be at most ${MAX_REQUEST_REASON_LENGTH} characters`);
+        return true;
+      }
       try {
         sendJson(
           res,
@@ -178,7 +193,7 @@ export async function handleGovernanceRuleRequestRoutes(
             agentId: settingAgentId,
             setting: settingRaw,
             value: value as string,
-            reason: reason.slice(0, 500),
+            reason,
             requestedBy: session.username,
             requestedByRole: session.role,
           }),
@@ -202,6 +217,10 @@ export async function handleGovernanceRuleRequestRoutes(
       sendInvalidRequest(res, "reason is required so an administrator can judge the request");
       return true;
     }
+    if (reason.length > MAX_REQUEST_REASON_LENGTH) {
+      sendInvalidRequest(res, `reason must be at most ${MAX_REQUEST_REASON_LENGTH} characters`);
+      return true;
+    }
     try {
       sendJson(
         res,
@@ -209,7 +228,7 @@ export async function handleGovernanceRuleRequestRoutes(
         await submitRuleRequest(groupId, {
           resourceKind,
           pattern: validatedPattern.pattern,
-          reason: reason.slice(0, 500),
+          reason,
           requestedBy: session.username,
           requestedByRole: session.role,
           ...(typeof requestedAgentId === "string" && requestedAgentId.trim()

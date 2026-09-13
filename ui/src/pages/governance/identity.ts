@@ -130,6 +130,38 @@ export function canManageAgent(identity: GovernanceIdentity | null, agentId: str
 }
 
 /**
+ * Whether this account has any agent to act on: every agent for Administrator
+ * and Root, the assigned ones for anyone else.
+ *
+ * **Asked beside a tier predicate, never instead of one** (finding 356). A User
+ * with nothing assigned passes `canManageAnyAgent` and `canWritePolicy`, and was
+ * offered the rule, folder-grant, timeout and kill-switch forms, every submission
+ * of which came back "You do not manage agent". The fix first spelled this test
+ * out at three sites, which is how twins drift, so it lives here once.
+ */
+export function hasAgentToGovern(identity: GovernanceIdentity | null): boolean {
+  return canAdminister(identity) || (identity?.assignedAgents?.length ?? 0) > 0;
+}
+
+/**
+ * Whether `policy/rules/remove` would remove this rule for this account.
+ *
+ * The route's own test, mirrored so Remove is offered only where it can work
+ * (finding 356): a rule binding every agent is an Administrator's to remove, and
+ * an agent's rule needs that agent managed. Offered anywhere else the button's
+ * only outcome was the refusal: six of them, on a fresh installation, for every
+ * User. Core rules are refused to everyone, and excluding them is the caller's.
+ */
+export function canRemoveRule(
+  identity: GovernanceIdentity | null,
+  rule: { agentId?: string },
+): boolean {
+  return rule.agentId === undefined
+    ? canAdminister(identity)
+    : canManageAgent(identity, rule.agentId);
+}
+
+/**
  * The canonical form of an agent id, or `undefined` when it has none.
  *
  * **Imported rather than reimplemented (finding 215).** This is the browser half

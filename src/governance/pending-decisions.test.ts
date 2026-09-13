@@ -61,6 +61,30 @@ describe("timed-out escalations are preserved", () => {
   });
 });
 
+describe("an escalation cancelled before anyone answered", () => {
+  it("is recorded as cancelled, with the wait it really had", async () => {
+    // A cancelled wait (a stopped run, or a surface that could never show the
+    // card) used to be filed as a full timeout: "nobody answered in 120 s"
+    // about a question nobody was ever shown.
+    const entry = await recordTimedOutEscalation(
+      TEST_GROUP,
+      escalation({ endedBy: "cancelled", waitedMs: 2_000 }),
+    );
+    expect(entry.endedBy).toBe("cancelled");
+    expect(entry.waitedMs).toBe(2_000);
+  });
+
+  it("records how a repeated question most recently ended", async () => {
+    await recordTimedOutEscalation(TEST_GROUP, escalation());
+    const repeat = await recordTimedOutEscalation(
+      TEST_GROUP,
+      escalation({ endedBy: "cancelled", waitedMs: 1_000 }),
+    );
+    expect(repeat.occurrences).toBe(2);
+    expect(repeat.endedBy).toBe("cancelled");
+  });
+});
+
 describe("answering late", () => {
   it("records an allow decision and who made it", async () => {
     const entry = await recordTimedOutEscalation(TEST_GROUP, escalation());

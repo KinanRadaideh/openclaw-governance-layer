@@ -16,10 +16,13 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { renderSettingsRow } from "../../../components/settings-ui.ts";
 import { t } from "../../../i18n/index.ts";
+import { hasAgentToGovern } from "../identity.ts";
 import type { PolicyPanelProps } from "./policy-panels.ts";
 
 export function renderAgentTimeoutRow(props: PolicyPanelProps): TemplateResult | typeof nothing {
-  return props.canManageAnyAgent
+  // **And an agent to set it for.** A User with nothing assigned passes the tier
+  // test, and every submission came back "You do not manage agent".
+  return props.canManageAnyAgent && hasAgentToGovern(props.identity)
     ? renderSettingsRow({
         title: t("governance.policy.agentHitlTimeout"),
         description: t("governance.policy.agentHitlTimeoutHint"),

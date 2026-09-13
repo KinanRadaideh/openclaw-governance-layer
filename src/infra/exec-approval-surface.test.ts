@@ -28,6 +28,7 @@ vi.mock("../channels/plugins/index.js", async () => {
 
 vi.mock("../utils/message-channel.js", () => ({
   INTERNAL_MESSAGE_CHANNEL: "web",
+  GATEWAY_CLIENT_APPROVAL_CHANNELS: ["web", "governance", "tui"],
   isDeliverableMessageChannel: (...args: unknown[]) => isDeliverableMessageChannelMock(...args),
   normalizeMessageChannel: (...args: unknown[]) => normalizeMessageChannelMock(...args),
 }));
@@ -86,6 +87,18 @@ describe("resolveExecApprovalInitiatingSurfaceState", () => {
         kind: "enabled",
         channel: "web",
         channelLabel: "Web UI",
+        accountId: undefined,
+      },
+    },
+    {
+      // The governance dashboard: its operator is a Control UI client, so its
+      // escalations are answered like webchat's. It used to fall through to
+      // "unsupported", refusing every dashboard escalation before any card.
+      channel: "governance",
+      expected: {
+        kind: "enabled",
+        channel: "governance",
+        channelLabel: "Governance",
         accountId: undefined,
       },
     },
@@ -316,5 +329,13 @@ describe("resolveExecApprovalInitiatingSurfaceState", () => {
     });
 
     expect(supportsNativeExecApprovalClient("matrix")).toBe(true);
+  });
+
+  it("counts every Gateway-client surface as a native exec approval client", () => {
+    for (const channel of ["web", "governance", "tui"]) {
+      expect(supportsNativeExecApprovalClient(channel), channel).toBe(true);
+    }
+    // Answered from the shared list, without asking any channel plugin.
+    expect(getChannelPluginMock).not.toHaveBeenCalled();
   });
 });

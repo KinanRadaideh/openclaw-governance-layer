@@ -7,6 +7,9 @@
 // issued by /control-ui/governance/login. Hence `credentials: "same-origin"`.
 import type { GovernanceRole } from "../../../../src/governance/roles.ts";
 import type { GovernanceUserRecord, OrganisationDeletionResponse } from "./api.accounts.ts";
+import { GOVERNANCE_UNREACHABLE_MESSAGE, GovernanceApiError } from "./api.errors.ts";
+
+export { GOVERNANCE_UNREACHABLE_MESSAGE, GovernanceApiError } from "./api.errors.ts";
 
 /**
  * A rule that binds an agent, and why it does.
@@ -111,7 +114,11 @@ export type GovernancePendingDecision = {
   resourceKind: string;
   resource: string;
   timedOutAt: string;
+  /** When a repeat of this question last ended; absent until it repeats. */
+  lastTimedOutAt?: string;
   waitedMs: number;
+  /** Absent on rows recorded before it was, which were all timeouts. */
+  endedBy?: "timeout" | "cancelled";
   status: "pending" | "allowed" | "denied";
   decidedBy?: string;
   decidedAt?: string;
@@ -435,14 +442,33 @@ export class GovernanceApi {
     opts?: { authenticating?: boolean },
   ): Promise<T> {
     const hasBody = init?.body !== undefined;
-    const response = await fetch(this.url(path), {
-      method: init?.method ?? "GET",
-      credentials: "same-origin",
-      headers: this.headers(hasBody),
-      ...(hasBody ? { body: JSON.stringify(init?.body) } : {}),
-    });
-    const text = await response.text();
-    const parsed: unknown = text ? JSON.parse(text) : {};
+    let response: Response;
+    let text: string;
+    try {
+      response = await fetch(this.url(path), {
+        method: init?.method ?? "GET",
+        credentials: "same-origin",
+        headers: this.headers(hasBody),
+        ...(hasBody ? { body: JSON.stringify(init?.body) } : {}),
+      });
+      text = await response.text();
+    } catch {
+      // Never reached the Gateway, or lost it mid-reply.
+      throw new GovernanceApiError(
+        GOVERNANCE_UNREACHABLE_MESSAGE,
+        0,
+        opts?.authenticating === true,
+      );
+    }
+    let parsed: unknown = {};
+    try {
+      parsed = text ? JSON.parse(text) : {};
+    } catch {
+      // Not this API's JSON (a proxy's error page, say): its status is the fact.
+      if (response.ok) {
+        throw new GovernanceApiError(`Unreadable reply (${response.status})`, response.status);
+      }
+    }
     if (!response.ok) {
       const message =
         typeof parsed === "object" &&
@@ -902,6 +928,8 @@ export class GovernanceApi {
     handlers: {
       onStart?: (info: { runId: string; sessionKey: string }) => void;
       onProgress: (replySoFar: string) => void;
+      /** The run was stopped (a Cancel from anywhere, or the timeout) and is unwinding. */
+      onStopping?: (ending: string) => void;
     },
     signal?: AbortSignal,
     attachments: readonly string[] = [],
@@ -920,6 +948,9 @@ export class GovernanceApi {
         ...(attachments.length > 0 ? { attachments } : {}),
       }),
       ...(signal ? { signal } : {}),
+    }).catch((err: unknown) => {
+      // An abort is the caller's own doing; anything else never reached the Gateway.
+      throw signal?.aborted ? err : new GovernanceApiError(GOVERNANCE_UNREACHABLE_MESSAGE, 0);
     });
     if (!response.ok || !response.body) {
       const text = await response.text();
@@ -962,6 +993,8 @@ export class GovernanceApi {
             handlers.onStart?.(parsed);
           } else if (event === "progress" && typeof parsed?.reply === "string") {
             handlers.onProgress(parsed.reply);
+          } else if (event === "stopping" && typeof parsed?.ending === "string") {
+            handlers.onStopping?.(parsed.ending);
           } else if (event === "done") {
             outcome = parsed as GovernancePromptOutcome;
           }
@@ -974,11 +1007,13 @@ export class GovernanceApi {
     };
 
     for (;;) {
-      const { done, value } = await reader.read();
-      if (done) {
+      // A dropped stream ends the read like a finished one, so the verdict check
+      // below reports "the connection ended" rather than the browser's words.
+      const chunk = await reader.read().catch(() => undefined);
+      if (!chunk || chunk.done) {
         break;
       }
-      consume(decoder.decode(value, { stream: true }));
+      consume(decoder.decode(chunk.value, { stream: true }));
     }
     consume(decoder.decode());
 
@@ -1147,41 +1182,5 @@ export class GovernanceApi {
       method: "POST",
       body: { userId, password },
     });
-  }
-}
-
-export class GovernanceApiError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-    /**
-     * Whether the call that failed was itself an attempt to authenticate (T61).
-     *
-     * **A 401 means two different things and the page could not tell them
-     * apart.** Everywhere else on this API it means *the session you had has
-     * gone* — expired, revoked, or signed out in another tab — and the right
-     * response is to clear the screen so nobody acts on stale data. On `login`
-     * and `bootstrap-root` it means *those credentials are wrong*, and there was
-     * no session to lose. `isSessionLost` matched on the status alone, so
-     * mistyping a password produced **"Your session ended, so the page was
-     * cleared rather than left showing out-of-date information."** — telling the
-     * operator to do the thing they were already doing, and never showing them
-     * the server's own answer, which is the plain "Invalid credentials".
-     *
-     * Carried on the error rather than inferred from the path, because a path
-     * test here would be a second copy of a rule that lives in the two methods
-     * below — the shape this project keeps finding on the wrong side of a
-     * defect. It is set where the error is constructed, from what the caller
-     * declared it was doing.
-     *
-     * It is also mildly security-relevant in the reporting direction: an
-     * operator told "your session ended" may reasonably conclude the system
-     * logged them out rather than that they mistyped, which is the wrong mental
-     * model to carry into an incident.
-     */
-    readonly authenticating = false,
-  ) {
-    super(message);
-    this.name = "GovernanceApiError";
   }
 }

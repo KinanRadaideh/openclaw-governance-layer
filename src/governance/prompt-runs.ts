@@ -5,11 +5,14 @@
 // agent run with no timeout, no way to cancel, and no limit on how many could be
 // in flight. Three separate consequences, and only the first is obvious:
 //
-//   1. A disconnected client still ran. Closing the browser tab abandoned the
-//      response and left the agent working, so the operator had no way to know
-//      it was still going and no way to stop it short of the kill switch,
-//      which locks the agent down entirely and is meant for an emergency, not
-//      for "I asked the wrong thing".
+//   1. A disconnected client still ran, invisibly. Closing the browser tab
+//      abandoned the response and left the agent working, with no way to know
+//      it was still going and no way to stop it short of the kill switch, which
+//      locks the agent down entirely and is meant for an emergency, not for "I
+//      asked the wrong thing". **Outliving the tab was never the fault; being
+//      unreachable was** (T63): a run is now listed, recoverable from any tab
+//      with its Cancel, and bounded by the timeout, so closing the tab no longer
+//      stops it.
 //   2. A wedged model provider held the connection open indefinitely. Nothing
 //      distinguished "thinking" from "never coming back".
 //   3. **Unbounded concurrency is a denial of service available to the lowest
@@ -137,8 +140,6 @@ export function beginPromptRun(input: {
   runId: string;
   agentId: string;
   username: string;
-  /** Aborts the run when the caller's own signal does (a closed HTTP response). */
-  parentSignal?: AbortSignal;
 }): AbortController {
   if (countFor(input.username) >= MAX_CONCURRENT_PROMPTS_PER_ACCOUNT) {
     throw new PromptCapacityError(
@@ -167,19 +168,6 @@ export function beginPromptRun(input: {
   // Never hold the process open for a prompt nobody is waiting for.
   run.timer.unref?.();
   runs.set(input.runId, run);
-  if (input.parentSignal) {
-    if (input.parentSignal.aborted) {
-      endPromptRun(input.runId, "cancelled");
-    } else {
-      input.parentSignal.addEventListener(
-        "abort",
-        () => {
-          endPromptRun(input.runId, "cancelled");
-        },
-        { once: true },
-      );
-    }
-  }
   return controller;
 }
 
