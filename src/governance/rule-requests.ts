@@ -12,13 +12,14 @@
 // failure with no path forward" that the design doctrine treats as the worst
 // outcome.
 import { readJsonIfExists } from "../infra/json-files.js";
-import { ADMIN_ACTIONS, recordAdminAction } from "./admin-audit.js";
+import { ADMIN_ACTIONS, HITL_ACTOR, recordAdminAction } from "./admin-audit.js";
 import { withFileLock } from "./file-lock.js";
 import { newGovernanceId } from "./ids.js";
 import { ruleRequestsFilePath, ensureGroupDir } from "./paths.js";
 import type { ResourceKind, RuleAccess } from "./policy-types.js";
 import type { GovernanceRole } from "./roles.js";
 import { writeGovernanceJson } from "./state-file.js";
+import { listUsers } from "./user-store.js";
 
 export type RuleRequestStatus = "pending" | "approved" | "rejected";
 
@@ -95,6 +96,20 @@ type RuleRequestsFile = { version: 1; requests: RuleRequest[] };
 
 /** Bounds the queue so a User cannot exhaust disk by spamming requests. */
 export const MAX_PENDING_REQUESTS_PER_USER = 20;
+
+export class RuleRequestCapacityError extends Error {
+  constructor(
+    readonly limit: number,
+    readonly approvalGenerated: boolean,
+  ) {
+    super(
+      approvalGenerated
+        ? `The organisation's approval request queue is full (${limit} pending requests). Ask an Administrator to review pending Rule requests, then try again.`
+        : `You already have ${limit} pending requests; wait for a decision before submitting more.`,
+    );
+    this.name = "RuleRequestCapacityError";
+  }
+}
 
 /**
  * Total retained requests. The per-user pending cap stops a burst, but decided
@@ -240,13 +255,25 @@ export async function submitRuleRequest(
   await ensureHomeDir(groupId);
   const created = await withFileLock(ruleRequestsFilePath(groupId), async () => {
     const file = await readFileOrEmpty(groupId);
+    const approvalGenerated = input.requestedBy === HITL_ACTOR;
+    // Compare and create under the same lock: simultaneous approvals must not
+    // consume two slots for the same grant, including when the queue is full.
+    if (approvalGenerated && input.kind !== "agent-setting") {
+      const existing = file.requests.find((request) => matchesPendingRuleRequest(request, input));
+      if (existing) {
+        return { request: existing, existing: true };
+      }
+    }
+    // All account tiers contribute. A reduced limit blocks new submissions;
+    // neither this check nor retention pruning removes unanswered requests.
+    const limit = approvalGenerated
+      ? 40 + 20 * (await listUsers(groupId)).length
+      : MAX_PENDING_REQUESTS_PER_USER;
     const pending = file.requests.filter(
       (request) => request.status === "pending" && request.requestedBy === input.requestedBy,
     ).length;
-    if (pending >= MAX_PENDING_REQUESTS_PER_USER) {
-      throw new Error(
-        `You already have ${MAX_PENDING_REQUESTS_PER_USER} pending requests; wait for a decision before submitting more.`,
-      );
+    if (pending >= limit) {
+      throw new RuleRequestCapacityError(limit, approvalGenerated);
     }
     const request: RuleRequest = {
       id: newGovernanceId("req"),
@@ -276,8 +303,12 @@ export async function submitRuleRequest(
     };
     file.requests = pruneDecided([...file.requests, request]);
     await writeGovernanceJson(ruleRequestsFilePath(groupId), file);
-    return request;
+    return { request, existing: false };
   });
+  if (created.existing) {
+    return created.request;
+  }
+  const request = created.request;
   await recordAdminAction(groupId, {
     // **The bare-string arm when there is no tier, so a labelled origin can
     // file one.** An escalation answered "allow always" files a request under
@@ -287,14 +318,14 @@ export async function submitRuleRequest(
     // written "an origin that holds no tier", and for a named account with no
     // role it is what `splitAuditActor` produced anyway.
     actor: input.requestedByRole
-      ? { name: created.requestedBy, role: input.requestedByRole }
-      : created.requestedBy,
+      ? { name: request.requestedBy, role: input.requestedByRole }
+      : request.requestedBy,
     action: ADMIN_ACTIONS.ruleRequestSubmit,
-    target: describeRequest(created),
-    subjectId: created.id,
-    ...(created.agentId ? { agentId: created.agentId } : {}),
+    target: describeRequest(request),
+    subjectId: request.id,
+    ...(request.agentId ? { agentId: request.agentId } : {}),
   });
-  return created;
+  return request;
 }
 
 /**
@@ -431,19 +462,17 @@ export async function reopenRuleRequest(groupId: string, id: string): Promise<vo
  * be granted only what the first one asked for — the mirror of the defect that
  * added the field, arriving through the de-duplication instead.
  */
-export async function findPendingRuleRequestFor(
-  groupId: string,
+function matchesPendingRuleRequest(
+  candidate: RuleRequest,
   match: { resourceKind: ResourceKind; pattern: string; agentId?: string; access?: RuleAccess },
-): Promise<RuleRequest | undefined> {
-  const file = await readFileOrEmpty(groupId);
-  return file.requests.find(
-    (candidate) =>
-      candidate.status === "pending" &&
-      candidate.kind !== "agent-setting" &&
-      candidate.resourceKind === match.resourceKind &&
-      candidate.pattern === match.pattern &&
-      (candidate.agentId ?? undefined) === (match.agentId ?? undefined) &&
-      (candidate.access ?? undefined) === (match.access ?? undefined),
+): boolean {
+  return (
+    candidate.status === "pending" &&
+    candidate.kind !== "agent-setting" &&
+    candidate.resourceKind === match.resourceKind &&
+    candidate.pattern === match.pattern &&
+    (candidate.agentId ?? undefined) === (match.agentId ?? undefined) &&
+    (candidate.access ?? undefined) === (match.access ?? undefined)
   );
 }
 

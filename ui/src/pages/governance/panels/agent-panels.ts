@@ -58,7 +58,12 @@ import type {
 } from "../api.ts";
 import { canManageAgent, canonicalAgentQuery, manageableAgentIds } from "../identity.ts";
 import type { PanelEffects } from "./account-panels.ts";
-import { formatAttachmentSize, formatDuration } from "./format.ts";
+import { formatAttachmentSize } from "./format.ts";
+import {
+  renderPromptRunNotices,
+  renderPromptRunRows,
+  type PromptRunControls,
+} from "./prompt-run-controls.ts";
 
 /** Fields an operator is part-way through typing in an agent panel. */
 export type AgentDrafts = {
@@ -84,8 +89,10 @@ export type PendingDecisionsProps = AgentPanelBase & {
 };
 
 export type ActiveSessionsProps = AgentPanelBase & {
+  promptRunControls?: PromptRunControls;
   activeSessions: GovernanceActiveSessionsView | null;
   engageKillSwitch: (agentId: string) => Promise<void>;
+  retiredRunIds?: readonly string[];
 };
 
 export type KillSwitchProps = AgentPanelBase & {
@@ -113,6 +120,8 @@ export type KillSwitchProps = AgentPanelBase & {
 };
 
 export type ConversationProps = AgentPanelBase & {
+  promptRunControls?: PromptRunControls;
+  recoveredRunControls?: PromptRunControls;
   conversationAgentId: string;
   transcript: GovernanceTranscript | null;
   promptDraft: string;
@@ -133,6 +142,7 @@ export type ConversationProps = AgentPanelBase & {
 };
 
 export type AgentsSectionProps = ConversationProps & {
+  promptRunControls?: PromptRunControls;
   openConversation: (agentId: string) => Promise<void>;
   /** Always opens, never closes. The chooser's button, which never says "Close". */
   showConversation: (agentId: string) => Promise<void>;
@@ -288,14 +298,14 @@ export function renderPendingDecisionsSection(
             <button
               class="btn primary"
               ?disabled=${props.busy}
-              @click=${() => props.run(() => props.api().decidePendingDecision(entry.id, true))}
+              @click=${() => decideAndReport(props, entry.id, true)}
             >
               ${t("governance.pending.allow")}
             </button>
             <button
               class="btn danger"
               ?disabled=${props.busy}
-              @click=${() => props.run(() => props.api().decidePendingDecision(entry.id, false))}
+              @click=${() => decideAndReport(props, entry.id, false)}
             >
               ${t("governance.pending.deny")}
             </button>
@@ -307,140 +317,30 @@ export function renderPendingDecisionsSection(
 }
 
 /**
- * The account a governance session key belongs to, or `undefined`.
+ * Answers a timed-out escalation, and says so when its rule request did not save.
  *
- * `governanceSessionKey` mints `agent:<agentId>:governance:<account>`, with the
- * account percent-encoded for anything outside `[a-z0-9_-]`. This decodes that
- * one segment and nothing else: it is the documented inverse of the wire
- * format, not a second copy of the folding rule (finding 215's distinction) —
- * the canonical name is what the server put there, and this only makes it
- * readable.
- *
- * Returns `undefined` for a host run, whose key names no account, and for
- * anything it cannot decode. Both render as "no account shown", which is the
- * honest answer and never a guess.
+ * **T60's dashboard half** (2026-09-11). "Would allow" files the same rule
+ * request "Always allow" does, so it meets the same full queue — and the server
+ * already returned the outcome, which this panel used to discard. Two runs, so
+ * the first one's refresh has removed the answered row before the warning lands
+ * in the page's banner, which finding 339 keeps on screen.
  */
-function startedByFromSessionKey(sessionKey: string): string | undefined {
-  const parts = sessionKey.split(":");
-  if (parts.length !== 4 || parts[0] !== "agent" || parts[2] !== "governance") {
-    return undefined;
+async function decideAndReport(
+  props: PendingDecisionsProps,
+  id: string,
+  allow: boolean,
+): Promise<void> {
+  let warning: string | undefined;
+  await props.run(async () => {
+    const { proposal } = await props.api().decidePendingDecision(id, allow);
+    warning = proposal && proposal.status !== "pending" ? proposal.warning : undefined;
+  });
+  if (warning) {
+    const reason = warning;
+    await props.run(() =>
+      Promise.reject(new Error(t("governance.pending.proposalNotSaved", { reason }))),
+    );
   }
-  try {
-    return decodeURIComponent(parts[3] ?? "") || undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-export function renderActiveSessionsSection(
-  props: ActiveSessionsProps,
-): TemplateResult | typeof nothing {
-  const view = props.activeSessions;
-  if (!view) {
-    return nothing;
-  }
-  if (!view.supported) {
-    // Distinguish "cannot see" from "nothing running". They mean very
-    // different things to somebody deciding whether to intervene.
-    return renderSettingsSection({ title: t("governance.sessions.title") }, [
-      renderSettingsRow({
-        title: t("governance.sessions.unavailable"),
-        description: t("governance.sessions.unavailableHint"),
-      }),
-    ]);
-  }
-  const canStop = props.canManageAnyAgent;
-  return renderSettingsSection({ title: t("governance.sessions.title") }, [
-    view.sessions.length === 0
-      ? renderSettingsRow({
-          title: t("governance.sessions.idle"),
-          description: t("governance.sessions.idleHint"),
-        })
-      : nothing,
-    ...view.sessions.map((entry) =>
-      renderSettingsRow({
-        // **The agent is the subject; the run id is a correlation handle.** It
-        // used to sit unlabelled beside the agent id, two opaque tokens in a
-        // row, and the fact an operator actually wants on this panel — *who
-        // started this* — was reachable only by decoding the session key by
-        // eye.
-        title: html`<code>${entry.agentId}</code>`,
-        description: [
-          `${t("governance.sessions.runningFor")} ${formatDuration(entry.runningForSeconds)}`,
-          // Present only for a run started through governance, where the key
-          // encodes the account (`agent:<id>:governance:<account>`). A host
-          // run's key names no account and this is simply omitted rather than
-          // guessed at.
-          startedByFromSessionKey(entry.sessionKey)
-            ? t("governance.sessions.startedBy", {
-                username: startedByFromSessionKey(entry.sessionKey) ?? "",
-              })
-            : "",
-          entry.sessionKey,
-        ]
-          .filter(Boolean)
-          .join(" · "),
-        control: html`
-          <div class="settings-row__control" style="gap:0.5rem">
-            ${
-              // Monitor on the row for the agent it applies to. The policy
-              // panel also carries a control, but it asks for an agent id
-              // typed into a box, and the moment somebody wants to observe an
-              // agent is the moment they are looking at it running. A control
-              // that exists and is not where the decision is made is only
-              // marginally better than one that does not exist, which is the
-              // state this feature was found in.
-              //
-              // Authority is the server's to decide and it does
-              // (`canManageAgent`): a User sees this for the agents assigned
-              // to them, an Administrator for every agent, a Viewer not at
-              // all.
-              canStop ? renderPostureToggle(entry.agentId, props) : nothing
-            }
-            ${renderSettingsStatus({
-              kind: entry.lockedDown ? "warn" : "ok",
-              label: entry.lockedDown
-                ? t("governance.sessions.lockedDown")
-                : t("governance.sessions.running"),
-            })}
-            ${canStop && !entry.lockedDown
-              ? html`<button
-                  class="btn danger"
-                  ?disabled=${props.busy}
-                  @click=${() =>
-                    props.confirmThen(
-                      {
-                        message: t("governance.confirm.stopAgent"),
-                        details: entry.agentId,
-                        confirmLabel: t("governance.sessions.stop"),
-                      },
-                      () => props.engageKillSwitch(entry.agentId),
-                    )}
-                >
-                  ${t("governance.sessions.stop")}
-                </button>`
-              : nothing}
-            ${
-              // The release control used to live only in the kill-switch
-              // section, which is Administrator-gated, so a User could stop
-              // their own agent and then had to find an administrator to
-              // start it again. Whoever is trusted to stop an agent is
-              // trusted to undo that.
-              canStop && entry.lockedDown
-                ? html`<button
-                    class="btn"
-                    ?disabled=${props.busy}
-                    @click=${() => props.run(() => props.api().setLockdown(entry.agentId, false))}
-                  >
-                    ${t("governance.kill.release")}
-                  </button>`
-                : nothing
-            }
-          </div>
-        `,
-      }),
-    ),
-  ]);
 }
 
 /**
@@ -644,6 +544,8 @@ export function renderConversation(
     return nothing;
   }
   const transcript = props.transcript;
+  const recovered = html`${renderPromptRunNotices(props.recoveredRunControls)}
+  ${renderPromptRunRows(props.recoveredRunControls)}`;
   if (!transcript) {
     // **A failed load must not look like a slow one.**
     //
@@ -657,10 +559,12 @@ export function renderConversation(
     // A progress message that cannot end is worse than an error, because it
     // tells the operator to keep waiting.
     return props.promptError
-      ? html`<div class="settings-empty" role="alert" style="color:var(--danger, #dc2626)">
-          ${props.promptError}
-        </div>`
-      : html`<div class="settings-empty">${t("governance.conversation.loading")}</div>`;
+      ? html`${recovered}
+          <div class="settings-empty" role="alert" style="color:var(--danger, #dc2626)">
+            ${props.promptError}
+          </div>`
+      : html`${recovered}
+          <div class="settings-empty">${t("governance.conversation.loading")}</div>`;
   }
   // **`flex:1` on the block below, because it is a flex item that was sizing
   // to its own content** (2026-09-08). `.settings-row__control` is
@@ -677,6 +581,7 @@ export function renderConversation(
       class="settings-empty"
       style="display:flex;flex-direction:column;gap:0.5rem;flex:1;min-width:0"
     >
+      ${recovered}
       ${transcript.turns.length === 0 && !props.promptPending
         ? // **"No messages yet" only when there really are none.** It used to
           // render beside the live "replying..." block below, so the first
@@ -728,7 +633,7 @@ export function renderConversation(
             <div style="white-space:pre-wrap">${props.promptSent}</div>
           </div>`
         : nothing}
-      ${props.promptPending
+      ${props.promptPending && (props.promptRunId || props.promptSent)
         ? html`<div>
             <strong>${agentId}</strong>
             <span style="opacity:0.6"> · ${t("governance.conversation.working")}</span>
@@ -853,14 +758,20 @@ export function renderConversation(
               !props.promptDraft.trim()}
               @click=${() => props.sendPrompt()}
             >
-              ${props.promptPending
+              ${props.promptRunId || props.promptSent
                 ? t("governance.conversation.sending")
-                : t("governance.conversation.send")}
+                : props.promptPending
+                  ? t("governance.conversation.taskInProgress")
+                  : t("governance.conversation.send")}
             </button>
-            ${props.promptPending
+            ${props.promptRunId
               ? html`<button
                   class="btn"
-                  ?disabled=${!props.promptRunId}
+                  ?disabled=${props.promptRunControls?.cancelling.includes(props.promptRunId) ||
+                  props.promptRunControls?.runs.some(
+                    (run) =>
+                      run.runId === props.promptRunId && Boolean(run.ending || run.finishing),
+                  )}
                   @click=${() => props.cancelPrompt()}
                   title=${t("governance.conversation.cancelHint")}
                 >

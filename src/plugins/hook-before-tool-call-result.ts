@@ -9,6 +9,12 @@ export const PluginApprovalResolutions = {
 export type PluginApprovalResolution =
   (typeof PluginApprovalResolutions)[keyof typeof PluginApprovalResolutions];
 
+export type PluginApprovalResolutionOutcome = {
+  /** Bounded operator-facing follow-up; reporting it never changes the decision. */
+  message: string;
+  severity: "info" | "warning";
+};
+
 export type PluginHookBeforeToolCallResult = {
   params?: Record<string, unknown>;
   block?: boolean;
@@ -16,6 +22,8 @@ export type PluginHookBeforeToolCallResult = {
   requireApproval?: {
     title: string;
     description: string;
+    /** Reviewer-only expanded action detail, bounded to 16,384 characters. */
+    detail?: string;
     severity?: "info" | "warning" | "critical";
     timeoutMs?: number;
     /**
@@ -27,6 +35,8 @@ export type PluginHookBeforeToolCallResult = {
     timeoutReason?: string;
     allowedDecisions?: Array<"allow-once" | "allow-always" | "deny">;
     pluginId?: string;
-    onResolution?: (decision: PluginApprovalResolution) => Promise<void> | void;
+    onResolution?: (
+      decision: PluginApprovalResolution,
+    ) => Promise<void | PluginApprovalResolutionOutcome> | void | PluginApprovalResolutionOutcome;
   };
 };

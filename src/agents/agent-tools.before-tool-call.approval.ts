@@ -4,6 +4,7 @@
  * timeout classification, and owner-provided approval outcomes.
  */
 import { addTimerTimeoutGraceMs } from "@openclaw/normalization-core/number-coercion";
+import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
 import { GatewayClientRequestError } from "../gateway/client.js";
 import { isEmbeddedMode } from "../infra/embedded-mode.js";
 import { getEmbeddedPluginApprovalBroker } from "../infra/embedded-plugin-approval-broker.js";
@@ -84,18 +85,42 @@ function warnDeprecatedApprovalTimeoutBehavior(approval: PluginApprovalRequest):
 function notifyPluginApprovalResolution(
   approval: PluginApprovalRequest,
   resolution: PluginApprovalResolution,
+  approvalId?: string,
 ): void {
   const onResolution = approval.onResolution;
   if (typeof onResolution !== "function") {
     return;
   }
-  try {
-    void Promise.resolve(onResolution(resolution)).catch((err: unknown) => {
+  void (async () => {
+    let outcome;
+    try {
+      outcome = await onResolution(resolution);
+    } catch (err) {
       log.warn(`plugin onResolution callback failed: ${String(err)}`);
-    });
-  } catch (err) {
-    log.warn(`plugin onResolution callback failed: ${String(err)}`);
-  }
+      outcome = {
+        severity: "warning" as const,
+        message:
+          "Your approval decision was recorded, but its follow-up could not be completed. Check the requesting plugin before relying on a permanent change.",
+      };
+    }
+    if (!approvalId) {
+      return;
+    }
+    try {
+      await callGatewayTool(
+        "plugin.approval.reportOutcome",
+        {},
+        {
+          id: approvalId,
+          ...(outcome
+            ? { outcome: { ...outcome, message: truncateUtf16Safe(outcome.message, 512) } }
+            : {}),
+        },
+      );
+    } catch (err) {
+      log.warn(`plugin approval follow-up reporting failed: ${String(err)}`);
+    }
+  })();
 }
 
 function resolvePermittedPluginApprovalResolution(
@@ -200,6 +225,7 @@ async function requestPluginToolApproval(params: {
           pluginId: approval.pluginId,
           title: approval.title,
           description: approval.description,
+          detail: approval.detail,
           severity: approval.severity,
           allowedDecisions: approval.allowedDecisions,
           toolName: params.toolName,
@@ -285,6 +311,7 @@ async function requestPluginToolApproval(params: {
         pluginId: approval.pluginId,
         title: approval.title,
         description: approval.description,
+        detail: approval.detail,
         severity: approval.severity,
         allowedDecisions: approval.allowedDecisions,
         toolName: params.toolName,
@@ -300,6 +327,7 @@ async function requestPluginToolApproval(params: {
         turnSourceThreadId: params.ctx?.turnSourceThreadId,
         timeoutMs,
         twoPhase: true,
+        reportsOutcome: typeof approval.onResolution === "function",
       },
       { expectFinal: false },
     );
@@ -374,7 +402,7 @@ async function requestPluginToolApproval(params: {
       decision = waitResult?.id === id ? waitResult.decision : undefined;
     }
     const resolution = resolvePermittedPluginApprovalResolution(decision, allowedDecisions);
-    notifyPluginApprovalResolution(approval, resolution);
+    notifyPluginApprovalResolution(approval, resolution, id);
     if (
       resolution === PluginApprovalResolutions.ALLOW_ONCE ||
       resolution === PluginApprovalResolutions.ALLOW_ALWAYS

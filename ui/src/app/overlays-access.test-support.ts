@@ -72,6 +72,11 @@ export function createGatewayHarness(
     },
   } satisfies ApplicationGateway;
   return {
+    emitEvent(event: GatewayEventFrame) {
+      for (const listener of eventListeners) {
+        listener(event);
+      }
+    },
     emitApproval(id: string, createdAtMs: number) {
       const event: GatewayEventFrame = {
         event: "exec.approval.requested",

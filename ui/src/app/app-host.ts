@@ -530,7 +530,10 @@ class OpenClawShell
         preloadOptionalElement(this, this.custodianPanelElement);
       }
     }
-    if ((context.overlays?.snapshot.approvalQueue.length ?? 0) > 0) {
+    if (
+      (context.overlays?.snapshot.approvalQueue.length ?? 0) > 0 ||
+      (context.overlays?.snapshot.approvalNotices.length ?? 0) > 0
+    ) {
       preloadOptionalElement(this, this.execApprovalElement);
     }
     const navState = {

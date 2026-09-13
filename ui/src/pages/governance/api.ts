@@ -117,6 +117,17 @@ export type GovernancePendingDecision = {
   decidedAt?: string;
 };
 
+/**
+ * What answering a timed-out escalation returns (T60). `proposal` is present
+ * when "Would allow" tried to file a rule request, and says whether it saved.
+ */
+export type GovernancePendingDecisionOutcome = GovernancePendingDecision & {
+  proposal?:
+    | { status: "pending"; requestId: string }
+    | { status: "queue-full"; limit: number; warning: string }
+    | { status: "failed"; warning: string };
+};
+
 export type GovernanceRuleConflict = {
   kind:
     | "already-permanent"
@@ -128,52 +139,6 @@ export type GovernanceRuleConflict = {
   existingRuleId: string;
   existingPattern: string;
   message: string;
-};
-
-export type GovernanceConversationTurn = {
-  id: string;
-  role: "user" | "agent";
-  body: string;
-  at: string;
-  runId: string;
-  /** Present on an agent turn that failed, in place of a reply. */
-  error?: string;
-};
-
-export type GovernanceTranscript = {
-  agentId: string;
-  /**
-   * False when nothing in the serving process can run a prompt. The page hides
-   * the composer rather than offering an input whose only outcome is an error.
-   */
-  supported: boolean;
-  turns: GovernanceConversationTurn[];
-};
-
-export type GovernancePromptOutcome = {
-  ok: boolean;
-  runId: string;
-  sessionKey: string;
-  reply: string;
-  error?: string;
-  /** True when the agent is stopped and the prompt was refused unsent. */
-  lockedDown?: boolean;
-  /**
-   * Set when the run was stopped rather than finishing.
-   *
-   * Kept apart from `error` so the page can say "you cancelled this" instead of
-   * "the run failed". Rendering both as a failure is how an operator learns to
-   * ignore failures.
-   */
-  ending?: "cancelled" | "timeout";
-};
-
-/** One prompt currently in flight, as the server reports it. */
-export type GovernancePromptRun = {
-  runId: string;
-  agentId: string;
-  username: string;
-  startedAt: number;
 };
 
 export type GovernanceActiveSession = {
@@ -359,6 +324,14 @@ import type {
   GovernanceAgentPolicyHoldings,
   GovernanceDeprovisionResult,
 } from "./api.agents.ts";
+
+// The agent-control shapes, moved out on the same rule (T60, T63).
+export type * from "./api.agent-control.ts";
+import type {
+  GovernancePromptOutcome,
+  GovernancePromptRun,
+  GovernanceTranscript,
+} from "./api.agent-control.ts";
 
 const BASE = "/control-ui/governance";
 
@@ -646,8 +619,8 @@ export class GovernanceApi {
     );
   }
 
-  decidePendingDecision(id: string, allow: boolean): Promise<GovernancePendingDecision> {
-    return this.request<GovernancePendingDecision>("pending-decisions/decide", {
+  decidePendingDecision(id: string, allow: boolean): Promise<GovernancePendingDecisionOutcome> {
+    return this.request<GovernancePendingDecisionOutcome>("pending-decisions/decide", {
       method: "POST",
       body: { id, allow },
     });

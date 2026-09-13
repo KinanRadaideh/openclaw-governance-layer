@@ -76,6 +76,7 @@ type PromptRun = {
   controller: AbortController;
   startedAt: number;
   ending?: PromptRunEnding;
+  finishing?: boolean;
   timer: ReturnType<typeof setTimeout>;
 };
 
@@ -91,10 +92,27 @@ export class PromptCapacityError extends Error {
   }
 }
 
+/**
+ * Whether a run still occupies a slot.
+ *
+ * **A run saving its reply does not** (2026-09-11). T63 keeps a run registered
+ * until its transcript and ledger entry are saved, so that a reopened
+ * conversation can tell "finished" from "vanished". But both caps bound
+ * concurrent agent *executions*, and a settled run is no longer executing.
+ * Counting it held the slot through the transcript's file lock, so four prompts
+ * from one account at once overlapped past the cap of two and the later ones
+ * were refused after their message had been recorded — `qa-round12`'s "without
+ * losing a turn" test caught it, intermittently, which is how a timing change
+ * looks. The row stays; the slot does not.
+ */
+function holdsSlot(run: PromptRun): boolean {
+  return !run.finishing;
+}
+
 function countFor(username: string): number {
   let total = 0;
   for (const run of runs.values()) {
-    if (run.username === username) {
+    if (run.username === username && holdsSlot(run)) {
       total += 1;
     }
   }
@@ -129,7 +147,7 @@ export function beginPromptRun(input: {
       "account",
     );
   }
-  if (runs.size >= MAX_CONCURRENT_PROMPTS) {
+  if ([...runs.values()].filter(holdsSlot).length >= MAX_CONCURRENT_PROMPTS) {
     throw new PromptCapacityError(
       `This installation is already running ${MAX_CONCURRENT_PROMPTS} prompts. Try again shortly.`,
       "installation",
@@ -176,6 +194,17 @@ export function finishPromptRun(runId: string): PromptRunEnding | undefined {
   return run.ending;
 }
 
+/** Freezes the execution outcome while its transcript and audit result are saved. */
+export function settlePromptRun(runId: string): PromptRunEnding | undefined {
+  const run = runs.get(runId);
+  if (!run) {
+    return undefined;
+  }
+  clearTimeout(run.timer);
+  run.finishing = true;
+  return run.ending;
+}
+
 /**
  * Stops a run and records why, without releasing the slot.
  *
@@ -187,7 +216,7 @@ export function finishPromptRun(runId: string): PromptRunEnding | undefined {
  */
 function endPromptRun(runId: string, ending: PromptRunEnding): boolean {
   const run = runs.get(runId);
-  if (!run || run.ending) {
+  if (!run || run.ending || run.finishing) {
     return false;
   }
   run.ending = ending;
@@ -262,7 +291,22 @@ export type PromptRunSummary = {
   agentId: string;
   username: string;
   startedAt: number;
+  /** Stop requested; the run still occupies its slot until it unwinds. */
+  ending?: PromptRunEnding;
+  /** Execution ended; its result is still being saved for the conversation. */
+  finishing?: boolean;
 };
+
+function summarizePromptRun(run: PromptRun): PromptRunSummary {
+  return {
+    runId: run.runId,
+    agentId: run.agentId,
+    username: run.username,
+    startedAt: run.startedAt,
+    ...(run.ending ? { ending: run.ending } : {}),
+    ...(run.finishing ? { finishing: true } : {}),
+  };
+}
 
 /** Runs an account may see: their own, or every one for an operator tier. */
 export function listPromptRuns(input: {
@@ -275,12 +319,7 @@ export function listPromptRuns(input: {
   return [...runs.values()]
     .filter((run) => inGroup.has(run.agentId))
     .filter((run) => input.includeOthers || run.username === input.username)
-    .map((run) => ({
-      runId: run.runId,
-      agentId: run.agentId,
-      username: run.username,
-      startedAt: run.startedAt,
-    }));
+    .map(summarizePromptRun);
 }
 
 /**
@@ -297,12 +336,7 @@ export function listPromptRuns(input: {
  * a different caller: *which runs may this account cancel*, per-account and
  * already scoped.
  */
-export function listRunningPromptsForSessions(): {
-  runId: string;
-  agentId: string;
-  username: string;
-  startedAt: number;
-}[] {
+export function listRunningPromptsForSessions(): PromptRunSummary[] {
   // **A cancelled run stays listed until it actually unwinds**, and the first
   // draft of this filtered those out. That was wrong for the reason
   // `endPromptRun` states two functions down: cancelling records *why* and
@@ -313,12 +347,7 @@ export function listRunningPromptsForSessions(): {
   // agent would report the ask as the outcome. That is finding 202's mistake
   // exactly, and the same "we asked" versus "it stopped" line the kill switch
   // draws. The row disappears when the work does.
-  return [...runs.values()].map((run) => ({
-    runId: run.runId,
-    agentId: run.agentId,
-    username: run.username,
-    startedAt: run.startedAt,
-  }));
+  return [...runs.values()].map(summarizePromptRun);
 }
 
 /** Test helper: abandons every run and clears the table. */

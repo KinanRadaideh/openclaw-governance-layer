@@ -21,13 +21,14 @@ import {
   EMPTY_DEVICE_AUTH_MIGRATION,
 } from "./device-auth-migration-loader.ts";
 import {
+  applyExecApprovalEvent,
   clearExecApprovalTimers,
   clearResolvedExecApprovalPrompt,
-  enqueueExecApprovalPrompt,
+  dismissApprovalFollowUp,
   isStaleApprovalResolutionError,
-  parseApprovalRequestedEvent,
-  parseExecApprovalResolved,
+  resetExecApprovalPromptState,
   resolveApprovalRequest,
+  type ApprovalFollowUpNotice,
   type ExecApprovalDecision,
   type ExecApprovalPromptState,
   type ExecApprovalRequest,
@@ -56,6 +57,7 @@ import {
 } from "./update-overlay-helpers.ts";
 
 type ApplicationOverlaySnapshot = {
+  approvalNotices: readonly ApprovalFollowUpNotice[];
   updateAvailable: UpdateAvailable | null;
   updateRunning: boolean;
   updateReconciliationPending: boolean;
@@ -79,6 +81,7 @@ export type ApplicationOverlays = {
   subscribe: (listener: (snapshot: ApplicationOverlaySnapshot) => void) => () => void;
   runUpdate: () => Promise<void>;
   decideApproval: (decision: ExecApprovalDecision, approvalId?: string) => Promise<void>;
+  dismissApprovalNotice: (id: string) => void;
   openDevicePairSetup: () => Promise<void>;
   refreshDevicePairSetup: () => Promise<void>;
   setDevicePairSetupAccess: (access: DevicePairSetupAccess) => Promise<void>;
@@ -107,6 +110,7 @@ export function createApplicationOverlays(
   } = {},
 ): ApplicationOverlays {
   let snapshot: ApplicationOverlaySnapshot = {
+    approvalNotices: [],
     updateAvailable: null,
     updateRunning: false,
     updateReconciliationPending: false,
@@ -166,6 +170,7 @@ export function createApplicationOverlays(
       approvalBusy: promptState.execApprovalBusy,
       approvalErrors: new Map(promptState.execApprovalErrors),
       approvalNowMs: promptState.execApprovalNowMs ?? Date.now(),
+      approvalNotices: promptState.execApprovalNotices ?? [],
       ...readDevicePairSetupSnapshot(devicePairSetupState),
     };
     for (const listener of listeners) {
@@ -401,15 +406,11 @@ export function createApplicationOverlays(
     }
     if (connected && !operatorAccess.canReviewApprovals) {
       approvalDecision = null;
-      promptState.execApprovalQueue = [];
-      promptState.execApprovalBusy = false;
-      promptState.execApprovalErrors.clear();
+      resetExecApprovalPromptState(promptState);
       clearExecApprovalTimers(promptState);
     }
     if (!connected || !next.client) {
-      promptState.execApprovalQueue = [];
-      promptState.execApprovalBusy = false;
-      promptState.execApprovalErrors.clear();
+      resetExecApprovalPromptState(promptState);
       snapshot = {
         ...snapshot,
         updateAvailable: null,
@@ -474,27 +475,19 @@ export function createApplicationOverlays(
     ) {
       return;
     }
-    const requestedApproval = parseApprovalRequestedEvent(event.event, event.payload);
-    if (requestedApproval) {
-      enqueueExecApprovalPrompt(promptState, requestedApproval);
+    // Requested and resolved approvals, including a plugin's post-decision
+    // follow-up (T60), are interpreted by the approval module.
+    if (applyExecApprovalEvent(promptState, event)) {
       publish();
-      return;
-    }
-    if (
-      event.event === "exec.approval.resolved" ||
-      event.event === "plugin.approval.resolved" ||
-      event.event === "openclaw.approval.resolved"
-    ) {
-      const resolved = parseExecApprovalResolved(event.payload);
-      if (resolved) {
-        clearResolvedExecApprovalPrompt(promptState, resolved.id);
-        publish();
-      }
     }
   });
   synchronizeGateway(gateway.snapshot);
 
   return {
+    dismissApprovalNotice(id) {
+      dismissApprovalFollowUp(promptState, id);
+      publish();
+    },
     get snapshot() {
       return snapshot;
     },

@@ -482,8 +482,11 @@ export async function handleGovernanceApiRequest(
     // same rule request, de-duplicated by the same helper, and an Administrator
     // approves it or does not.
     //
-    // The outcome is visible without a new notice channel: the proposal appears
-    // in **Rule requests**, on the same page, in the refresh this call triggers.
+    // A saved proposal appears in **Rule requests**, on the same page, in the
+    // refresh this call triggers. One that could not be saved — a full queue,
+    // T60 — comes back in `proposal`, and the panel shows its warning. This
+    // comment used to say no notice channel was needed, which was only true
+    // while the queue had room.
     //
     // Best-effort, and deliberately after the decision is recorded. The
     // judgement is the thing being asked for; a full proposal queue must not
@@ -494,20 +497,16 @@ export async function handleGovernanceApiRequest(
     // is not one of them has no rule that could be written for it, so no
     // proposal is filed — silence here is correct, and the judgement is still
     // recorded above.
-    if (decided && allow && isResourceKind(decided.resourceKind)) {
-      try {
-        await proposeRuleFromEscalation(groupId, {
-          agentId: decided.agentId,
-          resourceKind: decided.resourceKind,
-          resource: decided.resource,
-          toolName: decided.toolName,
-        });
-      } catch {
-        // Swallowed for the reason above: the answer is recorded either way,
-        // and `proposeRuleFromEscalation` records its own failures.
-      }
-    }
-    sendJson(res, 200, decided ?? { ok: true });
+    const proposal =
+      decided && allow && isResourceKind(decided.resourceKind)
+        ? await proposeRuleFromEscalation(groupId, {
+            agentId: decided.agentId,
+            resourceKind: decided.resourceKind,
+            resource: decided.resource,
+            toolName: decided.toolName,
+          })
+        : undefined;
+    sendJson(res, 200, { ...(decided ?? { ok: true }), ...(proposal ? { proposal } : {}) });
     return true;
   }
 

@@ -12,13 +12,20 @@ of Design Constraints → §3.4 Different Design Approaches → §3.5 Developed 
 Cross-references: `GOVERNANCE.md` (operator-facing overview + QA defect table),
 `UPSTREAM-BUG-REPORT.md` (the OpenClaw bug found during QA).
 
-> **Newest material, 2026-09-02:** §3.1's requirements table was re-verified by
-> **running** each requirement rather than re-reading its row, and carries the
-> evidence for each. §3.5.71–3.5.74 are the last four sweeps' results, and
-> §3.5.73–3.5.74 are the two worth taking into §4's methodology discussion: why
-> the sampling axis was changed once the module pool closed, and why a
-> performance property asserted in wall-clock time is asserted against the host
-> rather than the code.
+> **Newest material, 2026-09-11:** §3.5.78–§3.5.82, appended at the end of this
+> file like every section since §3.5.57. The dashboard driven as every tier
+> (§3.5.78); the project's own records audited against its commands (§3.5.79,
+> findings 342–345); charging operator text to the page that uses it (§3.5.80,
+> T64); an approval that finishes after its card has closed (§3.5.81, T60); and a
+> task that outlives its tab, with the concurrency defect finishing it introduced
+> (§3.5.82, T63). **For §4's methodology, §3.5.79 and §3.5.82 are the two to read.**
+> The chapter-by-chapter guide to this file is `docs-notes/WRITING-GUIDE.md`.
+>
+> _(This box read "Newest material, 2026-09-02" for nine days and twenty
+> sections. What it said then: §3.1's requirements table was re-verified by
+> running each requirement, §3.5.71–3.5.74 were the last four sweeps, and
+> §3.5.73–3.5.74 are the methodology pair — why the sampling axis changed, and
+> why a wall-clock property is asserted against the host rather than the code.)_
 
 ---
 
@@ -31,10 +38,10 @@ that matters for §4.4 validation.
 | #   | Requirement (abbreviated)                                        | Status            | Where implemented                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | --- | ---------------------------------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | Node.js ≥ 18, TypeScript, static type checking                   | **Met**           | Node v22.22.3; `tsconfig.json` `strict: true` + `noUncheckedIndexedAccess`; `pnpm tsgo:core` / `pnpm tsgo:ui` clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| 2   | Secure web dashboard: configure policies, monitor sessions, RBAC | **Met**           | `ui/src/pages/governance/`, policy config ✔, RBAC ✔, live session monitoring ✔ (`active-sessions.ts`), per-agent posture ✔, prompting an assigned agent ✔ (§3.5.11), and Root's deployment/network oversight ✔ (§3.5.14), the last unimplemented clause of the §1.6 role definitions. The per-agent monitor toggle was **not** reachable from any surface until the eleventh QA pass; a policy tier settable only from code does not satisfy "configure policies". See §4.x.18. **Root can also delete the whole organisation from here (T44, §3.5.67)**, which is the account surface completing itself: every other account act was already on the page, and the one that removes Root's own was refused with a message pointing nowhere. **Two dashboard controls were found not to work at all in the same week (findings 197, 200)**, demoting an Administrator returned a 500 every time, and an agent assignment typed in a different case was saved and never consulted, which is worth this row carrying, because "the dashboard can do X" is a claim about a control an operator can actually complete                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 2   | Secure web dashboard: configure policies, monitor sessions, RBAC | **Met**           | `ui/src/pages/governance/`, policy config ✔, RBAC ✔, live session monitoring ✔ (`active-sessions.ts`), per-agent posture ✔, prompting an assigned agent ✔ (§3.5.11), and Root's deployment/network oversight ✔ (§3.5.14), the last unimplemented clause of the §1.6 role definitions. The per-agent monitor toggle was **not** reachable from any surface until the eleventh QA pass; a policy tier settable only from code does not satisfy "configure policies". See §4.x.18. **Root can also delete the whole organisation from here (T44, §3.5.67)**, which is the account surface completing itself: every other account act was already on the page, and the one that removes Root's own was refused with a message pointing nowhere. **Two dashboard controls were found not to work at all in the same week (findings 197, 200)**, demoting an Administrator returned a 500 every time, and an agent assignment typed in a different case was saved and never consulted, which is worth this row carrying, because "the dashboard can do X" is a claim about a control an operator can actually complete **Added 2026-09-11:** a prompt started from the dashboard now appears in _Active agent sessions_ (finding 319), and since T63 a task whose tab was reloaded is recovered, with its Cancel, in both the conversation and that view (§3.5.82).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | 3   | Default-deny over file paths, process execution, network         | **Met**           | The _decision_ was always correct; the _coverage_ was one seventh of the host until the thirteenth pass measured it and the fixes closed it. `src/governance/policy-engine.ts` + `resource-extraction.ts`; path confinement enforced by canonicalisation (`path-normalize.ts`, §3.5.8) rather than pattern filtering. Validated §4.x.13. Hostnames canonicalised on the same principle, and coverage extended to `grep`/`find`/`ls` and the `terminal` tool's input channel. See §4.x.18. **The thirteenth pass counted the surface against the host's own `tool-catalog.ts`, 7 of its 52 tools were governed, and closed it: 18 are now governed and the other 34 carry a written reason in `DELIBERATELY_UNGOVERNED` (§4.x.20).** Every control surface that reaches the OS is default-denied: `process` (the second command channel into a running shell), `computer`/`screen`/`browser`/`mobile_ui` (desktop and device control), `nodes`, `gateway`, `automations`, `sessions_spawn`, `subagents`, `code_execution`. Residual: search tools are governed at their root only                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | 4   | Fine-grained privileges: path, command, network, time-limited    | **Met**           | `policy-types.ts` (`PolicyRule.expiresAt`), `policy-engine.ts`; one path rule now binds every path-taking tool identically (§4.x.13, row 4)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| 5   | Record 100% of agent actions, policy decisions, approvals        | **Met**           | Prompts are now recorded too, with the account that sent them (§3.5.11). The trail can finally say _who set the agent going_, not only what it did and who wrote its rules. Agent actions ✔ and policy decisions ✔ (`audit-ledger.ts` + `policy-engine.ts`; every invocation recorded, `ungoverned` included, §4.x.10). Administrative approvals ✔ (`admin-audit.ts`, §3.5.9). Policy, account, and approval changes carry a required `actor`, in the same hash chain. ~~Caveat to state: CLI-origin changes are attributed to `cli`, not a person (§3.5.9).~~ **False since T5 on 2026-08-24. Finding 163, found by T36 on 2026-08-31.** Command-line changes resolve the signed-in account through `verifySession` and are recorded by name and tier. `cli` survives only where no account _can_ sign in: the pre-groups repair command and the first-account bootstrap. **Also added since this row was written:** searches reaching a denied path are recorded (T7 audit half), and results withheld from the model are recorded distinctly from reaches (T7 prevention), so the trail now separates _what leaked_ from _what was stopped_.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 5   | Record 100% of agent actions, policy decisions, approvals        | **Met**           | Prompts are now recorded too, with the account that sent them (§3.5.11). The trail can finally say _who set the agent going_, not only what it did and who wrote its rules. Agent actions ✔ and policy decisions ✔ (`audit-ledger.ts` + `policy-engine.ts`; every invocation recorded, `ungoverned` included, §4.x.10). Administrative approvals ✔ (`admin-audit.ts`, §3.5.9). Policy, account, and approval changes carry a required `actor`, in the same hash chain. ~~Caveat to state: CLI-origin changes are attributed to `cli`, not a person (§3.5.9).~~ **False since T5 on 2026-08-24. Finding 163, found by T36 on 2026-08-31.** Command-line changes resolve the signed-in account through `verifySession` and are recorded by name and tier. `cli` survives only where no account _can_ sign in: the pre-groups repair command and the first-account bootstrap. **Also added since this row was written:** searches reaching a denied path are recorded (T7 audit half), and results withheld from the model are recorded distinctly from reaches (T7 prevention), so the trail now separates _what leaked_ from _what was stopped_. **Added 2026-09-11 (T60):** an "Always allow" whose rule request cannot be saved was recorded only in the ledger; the operator is now told, on the approval card's surface and on the dashboard, and the ledger still records it (§3.5.81).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | 6   | Tamper-evident audit logging                                     | **Met**           | `audit-ledger.ts` HMAC-SHA256 hash chain, keyed per installation, with an independent checkpoint file (§4.x.2). Evident against an attacker who wants to **alter** the record. The thirteenth pass demonstrated three routes that needed no key and defeated detection by **destroying** rather than forging, deleting the checkpoint made truncation return `ok`, a whole-history rewrite in the pre-key format verified clean, and corrupting `ledger.key` silently yielded a zero-length HMAC key, and closed all three (§4.x.20). Residual, unchanged: an attacker deleting _both_ the key and the checkpoint leaves nothing on the host to contradict a rewritten chain, which needs an off-host anchor (deployment, not code)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | 7   | Real-time control: suspend/terminate within 1 second             | **Met**           | `kill-switch.ts` + `agent-terminator.ts` + `src/gateway/governance-agent-termination.ts`. Measures **confirmed termination**, not dispatch: the run-activity probe waits for signalled runs to leave the Gateway registry, and reports `dispatchMs`, `elapsedMs` and `stoppedConfirmed` separately (§3.5.10, §4.x.17). Caveat retained: from the CLI no in-flight abort is possible, and that is reported rather than implied. **Three failure modes found and fixed in the thirteenth pass (§4.x.20)**, each of which used to return `200 OK` while stopping nothing: a mistyped agent id (the dashboard now offers known ids and warns when the typed one matches none), a hand-written `agentMode: "off"` (dropped on load), and a call carrying neither `agentId` nor `sessionKey` (refused whenever any agent is locked, recorded under `kill-switch-unattributable`). **Blast radius completed 2026-08-25 (T6, §3.5.38):** a lockdown now reaches a cross-agent child already running, by walking the `spawnedBy` chain the host records on the session entry. Finding 96 closed without any upstream change. **A fourth failure mode of the same class was found on 2026-09-01 and is the worst of the four (finding 202, §3.5.68):** the agent id was taken raw from the request body, so a stop engaged on `Scout` for an agent called `scout` wrote a lockdown the gate did not recognise, matched no runs, and reported `stoppedConfirmed: true`, because zero aborted runs reads as "nothing was in flight". Folded now at every boundary, on read as well as write. **And two throws could escape after the lockdown had landed (195)**, reporting a stop that had _worked_ as a failure; both are guarded, with the ledger write best-effort here alone and its failure carried back rather than swallowed                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | 8   | No plaintext secrets in logs                                     | **Met**           | Recorded text is redacted at the ledger boundary by OpenClaw's own `redactToolPayloadText`, so a future caller cannot reintroduce the hole by forgetting. **Restated for attachments (T14, §3.5.28):** redaction is a text operation and an image is not text, so attachment _content_ is never recorded at all. The ledger holds SHA-256, sniffed MIME type, size and the declared name, and the bytes live in a store the governed agent cannot read (inherited from the self-protecting core denial, asserted by test). The claim is therefore "recorded text is redacted; attachment content is never recorded", not "everything is scanned"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
@@ -6925,6 +6932,14 @@ fixes. This supersedes the previous version of this section, which still
 described live session monitoring and in-flight termination as unimplemented;
 both landed several rounds ago.
 
+> **Two rows gained evidence on 2026-09-11, without changing status.**
+> Requirement 2's session monitoring now includes prompts started from the
+> dashboard (finding 319) and recovers a task whose tab was reloaded (T63,
+> §3.5.82). Requirement 5's approvals: an "Always allow" whose rule request cannot
+> be saved is still recorded in the ledger and is now also reported to the operator
+> (T60, §3.5.81). **Requirement 9 remains the partial one**: the VPS runs an older
+> build, and the suite has not been re-run on Linux since before T44 (T3).
+
 _Table candidate, Table 4.x: Validation of Design Requirements._
 
 | #   | Requirement (Chapter 1 §1.3, verbatim)                                                                                                                                                                                                                   | Validation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
@@ -7052,6 +7067,13 @@ _Table candidate, Table 4.x: Validation of Design Constraints._
 | **(Scope, not a Chapter 1 constraint) Language:** the governance surface is English only.                                                                                                                                                                                                                                                  | **Stated as a decision.** The host ships 22 locales; the governance page is written in one, and fallback is per key so nothing breaks. An Arabic-locale operator gets an Arabic shell around an English governance page, with no RTL handling. Filling the rest would mean shipping strings nobody on the team can verify into a security console, where a mistranslated `deny` is a control an operator misreads. Recorded here rather than omitted, because an examiner in Amman will notice, and "we chose not to" is a better answer than silence.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 ### 4.x.6 Engineering process: QA findings
+
+> **Superseded as a summary, 2026-09-11.** The "12 defects" below were the first
+> structured pass. The project has since recorded **345 findings, 344 fixed and
+> one open**, across more than forty rounds and sweeps. The method narrative for
+> Chapter 4 is §3.5.57 onward — above all §3.5.73–§3.5.79 and §3.5.82 — and
+> `docs-notes/WRITING-GUIDE.md` says how to present it. Re-derive the count from
+> the Findings cell of `mg/HANDOFF.md` §1 before quoting it.
 
 Full table in `GOVERNANCE.md`. Summary for the report: a structured review and
 test pass found **12 defects in our own code**, two of them serious, (1) the
@@ -9692,3 +9714,176 @@ _(The removed surface is preserved in full at `docs-notes/removed-cli-surface/`:
 every source file, every test, the reasoning, and a restore procedure. It was
 archived before it was deleted, so the decision is reversible by anyone who
 disagrees with it — including a future reader of this section.)_
+
+### 3.5.78 Driving the dashboard as every tier
+
+**Method.** Between 2026-09-08 and 2026-09-09 all fourteen sections of the
+governance page were driven by hand, signed in in turn as Root, Administrator,
+User — including a User assigned nothing — and Viewer. "Driven" meant controls
+pressed and the store and ledger read afterwards, never the screen believed. When
+the harness refused to type a password into a form, the method changed for the
+better: `docs-notes/qa-sweep-2026-09-08/capture-tier-snapshots.mjs` signs in as
+each account against the running Gateway and captures every read route per tier,
+and a browser probe renders the **real page from those real answers** in
+Chromium, printing every section, sentence and control with its disabled state.
+A hand-written fixture cannot omit what the server actually sends, which was the
+shared cause of two earlier findings.
+
+**Result.** Findings **296–341**, all fixed or decided. Of the first thirty, eight
+were invisible from Root, the tier every string had been written for. The section
+table in `mg/HANDOFF.md` §6 is the per-section evidence.
+
+**Three design lessons, each generalisable:**
+
+1. **A section that renders nothing when idle is a promise about a state the test
+   must construct** (finding 338). _Awaiting your decision_ appears only after an
+   escalation has timed out; no fixture produced that, so eight passes examined a
+   page it was not on — and its hint promised a consequence nothing delivered.
+2. **One notice channel on a long page makes every refusal invisible** (339). The
+   error banner rendered at the top of a fourteen-section page, measured at
+   y = −151 from an account row and y = −12,617 from the foot. The refusals were
+   correct and well written; the fix brings the notice to the operator.
+3. **A permission split must survive its own refusal text** (335). T27 separates
+   "may act on this agent" from "may change its rules"; five authoring routes
+   reported only the first half of the conjunction, telling a withheld User they
+   did not manage an agent they could stop.
+
+_Figure candidate:_ none. The section table is the evidence and belongs in §4.
+
+### 3.5.79 The record audited against its commands
+
+**What was checked.** On 2026-09-09 the project's own documents were treated as
+claims to verify: every number re-derived by running the command it summarises,
+every stated reason tested against the tree.
+`docs-notes/qa-sweep-2026-09-08/doc-audit.mjs` mechanises part of it — dead file
+references, prose naming a removed surface, and every finding-count claim side by
+side.
+
+**Four findings, none in the product:**
+
+- **342 — a reason wrong twenty-fold.** The startup budget's pressure was
+  attributed, in three documents and in the script enforcing the budget, to every
+  sentence being "multiplied across 22 locales". Twenty locales were already
+  lazily imported; only English was charged. Overstating the cost made the problem
+  look unavoidable and the fix cosmetic — the opposite of the truth (§3.5.80).
+- **343 — rows stale against rows.** Two findings shown open in a table forty lines
+  above the rows recording them closed, and two open tasks given a second number
+  each. Earlier findings (259, 282) were a stale count beside current rows and the
+  reverse; this variant is invisible to any count discipline, because both halves
+  agree that something is open.
+- **344 — a green cell describing a red command**, for the third time (after 321,
+  the build, and 323, the lint gate), all three in one state table. The test
+  typecheck had been red at HEAD for a commit.
+- **345 — a verification scope nobody chose.** Widening one run to the whole
+  Control UI suite showed 27 failing tests across 16 files, all pre-existing and
+  none in this fork's code, in an area no documented command runs. Recorded, not
+  fixed.
+
+**The claim for Chapter 4.** A measurement written into a document does not
+re-run. The defensible practice is not better bookkeeping but a rule: **run the
+command instead of reading the cell**, and derive counts from rows rather than
+adjusting them.
+
+### 3.5.80 Charging operator text to the page that uses it (T64)
+
+**The constraint.** The Control UI enforces a gzipped startup-JavaScript ceiling
+(`scripts/check-control-ui-performance.mjs`). The English catalog was one module
+imported statically by `ui/src/i18n/lib/translate.ts`, so every page's text was
+startup cost although every page is lazily loaded. Three days of clarity work —
+operator-facing sentences were the defect class being fixed — left **67 bytes** of
+headroom.
+
+**Approaches considered.** (a) Split the catalog so a page's text loads with the
+page; (b) raise the ceiling a second time; (c) stop adding text. (b) had already
+been called "not a strategy"; (c) contradicts the product's purpose. **Measured
+before deciding:** the governance block was 395 keys, about 32 KB raw and
+**about 10.5 KB gzipped** — some 170 times the headroom left.
+
+**The obstacle was the pipeline, not the runtime.** The translation tooling imports
+`en.ts` and hashes its text into locale metadata, so `en.ts` had to stay the whole
+catalog. **Design:** `en-core.ts` (what startup loads), `en-governance.ts`
+(imported by `governance-page.ts`, so bundled into that lazy chunk), and `en.ts`
+merging both for the pipeline alone. The page registers its strings at module
+scope, before its element is defined, so no sentence is ever briefly missing. The
+merge is top-level only — one page, one namespace — so two modules can never
+co-own a key and let load order decide.
+
+**Verification.** 4,956 keys compared key for key before and after: none missing,
+none added, no text changed; the contributor i18n gate passes. **Result:** startup
+JS 325,565 B → 316,546 B, **9,019 bytes off every first page load**, and finding
+321's ceiling raise handed back. The baseline ratchet was deliberately deferred to
+a Linux build, because the budget script's own rule is that baselines use CI
+bytes.
+
+_Figure candidate:_ a before-and-after table rather than a diagram.
+
+### 3.5.81 An approval that finishes after its card has closed (T60)
+
+**The problem (finding 281).** Since 2026-09-06, "Always allow" at an escalation
+allows the call once and files a **rule request** an Administrator approves —
+requirement 5's administrative approval, preserved. But the button still read
+"Always allow", and every such proposal shared one 20-slot budget for the whole
+organisation; past it, a press granted the call and filed nothing, recorded only in
+a ledger entry no surface read.
+
+**Kinan's decisions (2026-09-10).** Explain the button beside the approval
+controls; keep a limit and say so explicitly when it is hit; raise the capacity to
+**40 plus 20 for every account in the organisation**.
+
+**Why the design needed a new Gateway method.** The approval card is upstream's
+generic plugin-approval surface. The decision reaches the agent's process, and the
+policy's `onResolution` callback files the request **after** the card has closed.
+The only route back to the reviewer is through the Gateway, so the callback now
+returns an outcome and the agent reports it with `plugin.approval.reportOutcome`:
+bound to the original requester, accepted once, within a 60-second handoff after
+the decision, and bounded to 512 characters. The Gateway re-broadcasts it to
+approval viewers, and the Control UI keeps it as a follow-up after the card closes.
+The native apps' generated protocol models were regenerated with it.
+
+**Decisions taken while building.** **Warnings only:** a request that saved reports
+nothing, because the card already said what the button does, and a dialog after
+every approval would load the most common path. The dashboard's own "Would allow"
+on a timed-out escalation files the same request and now shows the same failure
+through the page's banner. Capacity counts approval-generated requests across all
+tiers; de-duplication happens inside the file lock, so two simultaneous presses
+cannot take two slots; a shrink never deletes a queued request.
+
+**Limits to state.** On chat deployments the explanation reaches Discord or
+Telegram but the queue-full warning does not — the channel runtime acts on the
+first resolved event only. **No live approval card has been pressed;** every hop
+is tested, but the whole path needs a real escalation.
+
+_Figure candidate:_ **F23** in `docs-notes/FIGURES.md`.
+
+### 3.5.82 A task that outlives its tab, and a slot that outlived its task (T63)
+
+**The problem (finding 316).** `GET agent/runs` existed to offer a cancel control
+for a prompt whose tab was gone, and no screen called it; reloading mid-run left
+only the emergency kill switch. **Kinan's decision:** restore Cancel in the
+reopened conversation **and** list running prompts with Cancel in _Active agent
+sessions_, the conversation winning any conflict.
+
+**Design.** A run now carries `ending` (a stop requested) and `finishing` (its
+reply being saved), and **stays registered until its transcript and ledger entry
+are saved**, so that disappearing from the list reliably means finished. Ownership
+is decided by the authenticated route, not re-folded in the browser. One controller
+feeds both views from one server snapshot, with one cancel path; stale responses
+after sign-out and older snapshots are discarded. Cancel is disabled while
+stopping or saving — the server refuses both — and stays enabled on stale data,
+because the server is the authority and an ended task answers "no longer running".
+
+**The defect finishing it introduced.** Holding the run registered through the
+save also held its **concurrency slot** through the transcript's file lock. With a
+per-account cap of two, a burst of four prompts overlapped and the later ones were
+refused after their messages were recorded: user turns without replies. It
+appeared only in the wider governance suite, intermittently. **Fix at the owner:**
+the caps count runs that are still executing; a run that is only saving its reply
+keeps its row but not its slot. Two deterministic tests pin it, watched failing
+with the rule reverted.
+
+**Method note for Chapter 4.** This feature was begun by another agent and left
+untested; its summary understated how unfinished it was. Every check was run
+against the draft before continuing it, and the regression above was found only by
+running the **wider** suite rather than the tests written with the change.
+
+_Figure candidate:_ **F24** in `docs-notes/FIGURES.md`.

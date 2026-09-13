@@ -621,7 +621,12 @@ only an Administrator may grant it. Approval creates the rule from the **stored
 request**, never from the approving client's payload, so an Administrator cannot
 be tricked into granting something broader than what they reviewed. Decisions
 are single-shot, so a stale dashboard cannot flip a rejection into an approval.
-Pending requests are capped per user (20) so the queue cannot be flooded.
+Pending requests are capped so the queue cannot be flooded: **20 per requesting
+account**, and — for the requests an escalation files when somebody presses
+"Always allow", which all carry one labelled origin — **40 plus 20 for every
+account in the organisation**, counted together (T60, 2026-09-11). A full queue
+never widens the policy: the press still allows that one action, the request is
+not filed, and the operator is told so.
 
 _Why it survives even though Users can now manage their own agents:_ it is the
 escalation route for anything **outside** a User's remit. It also closes a real
@@ -637,7 +642,9 @@ _Why:_ the paper names it explicitly as a Viewer capability. Built on Node's
 `os` module, no dependency, and deliberately **no shell-out**, because the
 governance layer must never itself become a way to execute commands on the
 host. Load average is reported as unsupported on Windows rather than as zeros,
-which would misrepresent a busy machine as idle.
+which would misrepresent a busy machine as idle. The dashboard says so in words —
+_"load not determined here"_, the Deployment report's own phrase for the same
+situation — rather than dropping the figure silently (2026-09-09).
 
 ---
 

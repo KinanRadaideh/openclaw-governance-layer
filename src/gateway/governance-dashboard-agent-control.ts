@@ -726,8 +726,9 @@ export async function handleGovernanceAgentControlRoutes(
     const { listAgents } = await import("../governance/agent-registry.js");
     const { canonicalAccountName: fold } = await import("../governance/account-name.js");
     const actor = toActor(session);
+    const username = fold(session.username);
     const runs = listPromptRuns({
-      username: fold(session.username),
+      username,
       includeOthers: canManageGlobalPolicy(actor),
       // The organisation's roster (finding 235). The `canManageAgent` filter
       // below is kept because it is what narrows a User or Viewer to their
@@ -738,7 +739,12 @@ export async function handleGovernanceAgentControlRoutes(
     })
       // Within the organisation: an Administrator sees every run, a User only
       // the agents assigned to them.
-      .filter((run) => canManageAgent(actor, run.agentId));
+      .filter((run) => canManageAgent(actor, run.agentId))
+      // Ownership is established beside authentication and canonical folding,
+      // then carried to the browser. Re-deriving it there once leaked an
+      // Administrator's cached rows after that account was demoted to User.
+      // Summaries are fresh objects per call, so annotating them in place is safe.
+      .map((run) => Object.assign(run, { ownedByRequester: run.username === username }));
     sendJson(res, 200, { runs });
     return true;
   }

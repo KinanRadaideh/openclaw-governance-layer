@@ -47,6 +47,7 @@ import {
   finishPromptRun,
   PromptCapacityError,
   PROMPT_TIMEOUT_MS,
+  settlePromptRun,
   type PromptRunEnding,
 } from "./prompt-runs.js";
 import { writeGovernanceJson } from "./state-file.js";
@@ -577,12 +578,9 @@ export async function promptAgent(
     return { ok: false, runId, sessionKey, reply: "", error: err.message };
   }
 
-  input.onStart?.({ runId, sessionKey });
-
-  let outcome: AgentRunOutcome;
-  let ending: PromptRunEnding | undefined;
   try {
-    outcome = await runAgentPrompt({
+    input.onStart?.({ runId, sessionKey });
+    let outcome: AgentRunOutcome = await runAgentPrompt({
       agentId: input.agentId,
       sessionKey,
       message,
@@ -592,58 +590,61 @@ export async function promptAgent(
         ? { onProgress: (text: string) => input.onProgress?.(sanitize(text, MAX_REPLY_LENGTH)) }
         : {}),
     });
-  } finally {
-    ending = finishPromptRun(runId);
-  }
+    const ending = settlePromptRun(runId);
 
-  // A cancelled or timed-out run is reported as what it is, in preference to
-  // whatever transport error the abort produced on the way out. The underlying
-  // message ("aborted") describes the mechanism and not the decision, and the
-  // decision is the thing an operator needs to read.
-  if (ending) {
-    outcome = {
-      supported: outcome.supported,
-      ok: false,
-      reply: outcome.reply,
-      error:
-        ending === "cancelled"
-          ? "The prompt was cancelled."
-          : `The prompt ran longer than ${Math.round(PROMPT_TIMEOUT_MS / 60_000)} minutes and was stopped.`,
+    // A cancelled or timed-out run is reported as what it is, in preference to
+    // whatever transport error the abort produced on the way out. The underlying
+    // message ("aborted") describes the mechanism and not the decision, and the
+    // decision is the thing an operator needs to read.
+    if (ending) {
+      outcome = {
+        supported: outcome.supported,
+        ok: false,
+        reply: outcome.reply,
+        error:
+          ending === "cancelled"
+            ? "The prompt was cancelled."
+            : `The prompt ran longer than ${Math.round(PROMPT_TIMEOUT_MS / 60_000)} minutes and was stopped.`,
+      };
+    }
+
+    const reply = outcome.reply ? sanitize(outcome.reply, MAX_REPLY_LENGTH) : "";
+    await appendTurn(groupId, input.agentId, input.username, {
+      id: randomUUID(),
+      role: "agent",
+      body: reply,
+      at: new Date().toISOString(),
+      runId,
+      ...(outcome.ok ? {} : { error: outcome.error ?? "the run did not complete" }),
+    });
+    await recordAdminAction(groupId, {
+      actor: { name: input.username },
+      action: ADMIN_ACTIONS.agentPromptResult,
+      agentId: input.agentId,
+      subjectId: runId,
+      outcome: outcome.ok ? "allow" : "deny",
+      // Three outcomes, not two. A cancellation is recorded as a cancellation
+      // because "the operator stopped this" is a different fact from "the run
+      // failed", and an audit trail that collapses them cannot answer why an
+      // agent stopped part-way through a task.
+      target: outcome.ok
+        ? `reply delivered (${reply.length} chars)`
+        : ending
+          ? `run ${ending} after ${reply.length} chars`
+          : `run failed: ${outcome.error ?? "unknown"}`,
+    });
+
+    return {
+      ok: outcome.ok,
+      runId,
+      sessionKey,
+      reply,
+      ...(outcome.error ? { error: outcome.error } : {}),
+      ...(ending ? { ending } : {}),
     };
+  } finally {
+    // Recovery treats disappearance as completion: publish the transcript first.
+    // Failures must still release the slot, including a throwing onStart callback.
+    finishPromptRun(runId);
   }
-
-  const reply = outcome.reply ? sanitize(outcome.reply, MAX_REPLY_LENGTH) : "";
-  await appendTurn(groupId, input.agentId, input.username, {
-    id: randomUUID(),
-    role: "agent",
-    body: reply,
-    at: new Date().toISOString(),
-    runId,
-    ...(outcome.ok ? {} : { error: outcome.error ?? "the run did not complete" }),
-  });
-  await recordAdminAction(groupId, {
-    actor: { name: input.username },
-    action: ADMIN_ACTIONS.agentPromptResult,
-    agentId: input.agentId,
-    subjectId: runId,
-    outcome: outcome.ok ? "allow" : "deny",
-    // Three outcomes, not two. A cancellation is recorded as a cancellation
-    // because "the operator stopped this" is a different fact from "the run
-    // failed", and an audit trail that collapses them cannot answer why an
-    // agent stopped part-way through a task.
-    target: outcome.ok
-      ? `reply delivered (${reply.length} chars)`
-      : ending
-        ? `run ${ending} after ${reply.length} chars`
-        : `run failed: ${outcome.error ?? "unknown"}`,
-  });
-
-  return {
-    ok: outcome.ok,
-    runId,
-    sessionKey,
-    reply,
-    ...(outcome.error ? { error: outcome.error } : {}),
-    ...(ending ? { ending } : {}),
-  };
 }

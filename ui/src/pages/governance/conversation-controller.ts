@@ -26,7 +26,20 @@
 // decisions rather than describing code.
 import type { ReactiveController, ReactiveControllerHost } from "lit";
 import { t } from "../../i18n/index.ts";
-import type { GovernanceApi, GovernanceAttachment, GovernanceTranscript } from "./api.ts";
+import {
+  GovernanceApiError,
+  type GovernanceApi,
+  type GovernanceAttachment,
+  type GovernanceIdentity,
+  type GovernancePromptRun,
+  type GovernanceTranscript,
+} from "./api.ts";
+import {
+  canAdminister,
+  canManageAgent,
+  canManageAnyAgent,
+  canonicalAgentQuery,
+} from "./identity.ts";
 
 /** Everything the conversation panel reads. Spread into the agent panel props. */
 export type ConversationSlice = {
@@ -56,11 +69,19 @@ export type ConversationSlice = {
   promptRunId: string;
   promptStream: string;
   attachmentUploading: boolean;
+  promptRuns: readonly GovernancePromptRun[];
+  recoveredRuns: readonly GovernancePromptRun[];
+  promptRunsError: string | null;
+  promptRunNotice: string | null;
+  cancellingRunIds: readonly string[];
+  retiredRunIds: readonly string[];
 };
 
 /** What the controller needs from the page. Deliberately two functions, not the page. */
 export type ConversationHostBridge = {
   api: () => GovernanceApi;
+  identity: () => GovernanceIdentity | null;
+  refreshActivity?: () => Promise<void>;
 };
 
 export class ConversationController implements ReactiveController {
@@ -75,6 +96,17 @@ export class ConversationController implements ReactiveController {
   private uploading = false;
   /** The message being answered right now. See `ConversationSlice.promptSent`. */
   private sent = "";
+  private runs: GovernancePromptRun[] = [];
+  private runsError: string | null = null;
+  private runNotice: string | null = null;
+  private cancelling = new Set<string>();
+  private runAgentId = "";
+  private sessionVersion = 0;
+  private runsVersion = 0;
+  private conversationVersion = 0;
+  private transcriptRefreshAgents = new Set<string>();
+  private completionError: string | null = null;
+  private retiredRunIds = new Set<string>();
 
   constructor(
     private readonly host: ReactiveControllerHost,
@@ -92,17 +124,85 @@ export class ConversationController implements ReactiveController {
   }
 
   slice(): ConversationSlice {
+    const identity = this.bridge.identity();
+    const visibleRuns = this.runs.filter(
+      (run) =>
+        canManageAgent(identity, run.agentId) && (canAdminister(identity) || run.ownedByRequester),
+    );
+    const recoveredRuns = visibleRuns.filter(
+      (run) => run.ownedByRequester && run.agentId === this.agentId && run.runId !== this.runId,
+    );
+    const showingLocalRun = this.runAgentId === this.agentId;
     return {
       conversationAgentId: this.agentId,
       transcript: this.transcript,
-      promptSent: this.sent,
+      promptSent: showingLocalRun ? this.sent : "",
       promptDraft: this.draft,
       promptAttachments: this.attachments,
-      promptError: this.error,
-      promptPending: this.pending,
-      promptRunId: this.runId,
-      promptStream: this.stream,
+      promptError: this.error ?? this.completionError,
+      promptPending: (showingLocalRun && this.pending) || recoveredRuns.length > 0,
+      promptRunId: showingLocalRun ? this.runId : "",
+      promptStream: showingLocalRun ? this.stream : "",
       attachmentUploading: this.uploading,
+      promptRuns: visibleRuns,
+      recoveredRuns,
+      promptRunsError: this.runsError,
+      promptRunNotice: this.runNotice,
+      cancellingRunIds: [...this.cancelling],
+      retiredRunIds: [...this.retiredRunIds],
+    };
+  }
+
+  /**
+   * The conversation's whole share of the agent panel props (T53, T63).
+   *
+   * Moved here from the page when T63 pushed `governance-page.ts` past its
+   * 700-line limit, along T53's own seam: the page holds state and lifecycle,
+   * and assembling what the conversation hands its panels is the conversation's
+   * job. Both run-control bundles share one cancel path, so the composer and
+   * *Active agent sessions* can never disagree about what a press did.
+   */
+  panelProps(page: {
+    refresh: () => Promise<void>;
+    assignDrafts: (patch: Record<string, unknown>) => void;
+  }) {
+    const slice = this.slice();
+    const cancelPrompt = async (runId?: string) => {
+      await this.cancelPrompt(runId);
+      await page.refresh();
+    };
+    const shared = {
+      error: slice.promptRunsError,
+      notice: slice.promptRunNotice,
+      cancelling: slice.cancellingRunIds,
+      cancel: (runId: string) => cancelPrompt(runId),
+    };
+    return {
+      ...slice,
+      recoveredRunControls: { ...shared, runs: slice.recoveredRuns },
+      promptRunControls: { ...shared, runs: slice.promptRuns },
+      // **Routes, rather than narrows.** A first attempt at T53 restricted this
+      // to `promptDraft` on the grounds that the composer is the only thing
+      // that drafts — which was wrong and the kill-switch tests said so: this
+      // one callback also carries `killAgentId`, which is still the page's.
+      // So the conversation's own key comes here and everything else keeps
+      // landing on the component exactly as before.
+      onDraft: (patch: object) => {
+        const { promptDraft, ...rest } = patch as { promptDraft?: string };
+        if (typeof promptDraft === "string") {
+          this.setDraft(promptDraft);
+        }
+        if (Object.keys(rest).length > 0) {
+          page.assignDrafts(rest);
+        }
+      },
+      sendPrompt: () => this.sendPrompt(),
+      cancelPrompt: () => cancelPrompt(),
+      addAttachments: (files: Parameters<ConversationController["addAttachments"]>[0]) =>
+        this.addAttachments(files),
+      removeAttachment: (held: GovernanceAttachment) => this.removeAttachment(held),
+      openConversation: (agentId: string) => this.openConversation(agentId),
+      showConversation: (agentId: string) => this.showConversation(agentId),
     };
   }
 
@@ -138,6 +238,7 @@ export class ConversationController implements ReactiveController {
   seedForTests(state: Partial<ConversationSlice>): void {
     if (state.conversationAgentId !== undefined) {
       this.agentId = state.conversationAgentId;
+      this.runAgentId = state.conversationAgentId;
     }
     if (state.transcript !== undefined) {
       this.transcript = state.transcript;
@@ -171,6 +272,20 @@ export class ConversationController implements ReactiveController {
 
   /** Clears the composer when a session ends. See `AccountsController.forget`. */
   forget(): void {
+    // Late requests belong to the ended login, even if another account has signed in.
+    this.sessionVersion++;
+    this.runsVersion++;
+    this.conversationVersion++;
+    this.runs = [];
+    this.runsError = null;
+    this.runNotice = null;
+    this.cancelling.clear();
+    this.transcriptRefreshAgents.clear();
+    this.completionError = null;
+    this.retiredRunIds.clear();
+    this.pending = false;
+    this.uploading = false;
+    this.runAgentId = "";
     this.agentId = "";
     this.transcript = null;
     this.draft = "";
@@ -191,13 +306,20 @@ export class ConversationController implements ReactiveController {
    * call `showConversation`.
    */
   async openConversation(agentId: string): Promise<void> {
+    const targetAgentId = canonicalAgentQuery(agentId) ?? agentId;
+    if (this.pending) {
+      this.error = t("governance.conversation.switchBlocked", { agent: this.runAgentId });
+      this.changed();
+      return;
+    }
     if (this.agentId === agentId) {
+      this.conversationVersion++;
       this.agentId = "";
       this.transcript = null;
       this.changed();
       return;
     }
-    await this.showConversation(agentId);
+    await this.showConversation(targetAgentId);
   }
 
   /**
@@ -211,14 +333,96 @@ export class ConversationController implements ReactiveController {
    * the one with a label that changes.
    */
   async showConversation(agentId: string): Promise<void> {
-    this.agentId = agentId;
+    const targetAgentId = canonicalAgentQuery(agentId) ?? agentId;
+    if (this.pending && this.runAgentId !== targetAgentId) {
+      this.error = t("governance.conversation.switchBlocked", { agent: this.runAgentId });
+      this.changed();
+      return;
+    }
+    this.agentId = targetAgentId;
+    const version = ++this.conversationVersion;
+    const session = this.sessionVersion;
     this.transcript = null;
     this.error = null;
     this.changed();
     try {
-      this.transcript = await this.bridge.api().agentTranscript(agentId);
+      const [transcript] = await Promise.all([
+        this.bridge.api().agentTranscript(this.agentId),
+        this.refreshRuns(),
+      ]);
+      if (session !== this.sessionVersion || version !== this.conversationVersion) {
+        return;
+      }
+      this.transcript = transcript;
+      this.transcriptRefreshAgents.delete(this.agentId);
+      this.completionError = null;
     } catch (err) {
+      if (session !== this.sessionVersion || version !== this.conversationVersion) {
+        return;
+      }
       this.error = err instanceof Error ? err.message : String(err);
+    }
+    this.changed();
+  }
+
+  /** One server snapshot feeds both views; failed reads never mean no work remains. */
+  async refreshRuns(): Promise<void> {
+    const version = ++this.runsVersion;
+    const session = this.sessionVersion;
+    if (!canManageAnyAgent(this.bridge.identity())) {
+      this.runs = [];
+      this.runsError = null;
+      this.changed();
+      return;
+    }
+    try {
+      const { runs } = await this.bridge.api().listPromptRuns();
+      if (session !== this.sessionVersion || version !== this.runsVersion) {
+        return;
+      }
+      const completed = this.slice().recoveredRuns.filter(
+        (held) => !runs.some((run) => run.runId === held.runId),
+      );
+      for (const run of completed) {
+        this.transcriptRefreshAgents.add(run.agentId);
+        this.retiredRunIds.add(run.runId);
+      }
+      this.runs = runs;
+      this.runsError = null;
+      this.changed();
+      if (this.retiredRunIds.size > 0 && this.bridge.refreshActivity) {
+        try {
+          await this.bridge.refreshActivity();
+          if (session === this.sessionVersion && version === this.runsVersion) {
+            this.retiredRunIds.clear();
+          }
+        } catch {
+          // Keep the retired ids so an older sessions snapshot cannot resurrect
+          // completed work as a generic running session. A later poll retries.
+        }
+      }
+      if (this.agentId && this.transcriptRefreshAgents.has(this.agentId)) {
+        const agentId = this.agentId;
+        const conversation = this.conversationVersion;
+        const transcript = await this.bridge.api().agentTranscript(agentId);
+        if (session === this.sessionVersion && conversation === this.conversationVersion) {
+          this.transcript = transcript;
+          this.transcriptRefreshAgents.delete(agentId);
+          this.completionError = null;
+        }
+      } else {
+        this.completionError = null;
+      }
+    } catch (err) {
+      if (session !== this.sessionVersion || version !== this.runsVersion) {
+        return;
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      if (this.agentId && this.transcriptRefreshAgents.has(this.agentId)) {
+        this.completionError = t("governance.conversation.replyRefreshFailed", { reason: message });
+      } else {
+        this.runsError = t("governance.conversation.runsUnavailable", { reason: message });
+      }
     }
     this.changed();
   }
@@ -240,6 +444,7 @@ export class ConversationController implements ReactiveController {
       return;
     }
     const agentId = this.agentId;
+    const session = this.sessionVersion;
     if (!agentId) {
       return;
     }
@@ -249,6 +454,9 @@ export class ConversationController implements ReactiveController {
     try {
       for (const file of Array.from(files)) {
         const stored = await this.bridge.api().uploadAttachment(agentId, file);
+        if (session !== this.sessionVersion || agentId !== this.agentId) {
+          return;
+        }
         // Content-addressed, so re-picking the same file is not an error and
         // must not queue it twice, the server stores one copy either way.
         if (!this.attachments.some((held) => held.sha256 === stored.sha256)) {
@@ -256,10 +464,15 @@ export class ConversationController implements ReactiveController {
         }
       }
     } catch (err) {
+      if (session !== this.sessionVersion) {
+        return;
+      }
       this.error = err instanceof Error ? err.message : String(err);
     } finally {
-      this.uploading = false;
-      this.changed();
+      if (session === this.sessionVersion) {
+        this.uploading = false;
+        this.changed();
+      }
     }
   }
 
@@ -297,12 +510,20 @@ export class ConversationController implements ReactiveController {
    * built for. The composer carries its own pending state instead.
    */
   async sendPrompt(): Promise<void> {
+    const session = this.sessionVersion;
     const agentId = this.agentId;
     const message = this.draft.trim();
-    if (!agentId || !message || this.pending || this.uploading) {
+    if (
+      !agentId ||
+      !message ||
+      this.pending ||
+      this.slice().recoveredRuns.length ||
+      this.uploading
+    ) {
       return;
     }
     this.pending = true;
+    this.runAgentId = agentId;
     // Held for the panel to render while the run is in flight; the transcript
     // does not learn about it until the run ends.
     this.sent = message;
@@ -318,10 +539,17 @@ export class ConversationController implements ReactiveController {
         message,
         {
           onStart: (info) => {
+            if (session !== this.sessionVersion) {
+              return;
+            }
             this.runId = info.runId;
+            void this.refreshRuns();
             this.changed();
           },
           onProgress: (replySoFar) => {
+            if (session !== this.sessionVersion) {
+              return;
+            }
             this.stream = replySoFar;
             this.changed();
           },
@@ -329,6 +557,9 @@ export class ConversationController implements ReactiveController {
         undefined,
         this.attachments.map((held) => held.sha256),
       );
+      if (session !== this.sessionVersion) {
+        return;
+      }
       this.draft = "";
       // Cleared only on a completed send. A prompt that threw leaves them
       // queued, because the files are already uploaded and making the operator
@@ -344,24 +575,33 @@ export class ConversationController implements ReactiveController {
             : (outcome.error ?? t("governance.conversation.failed"));
       }
     } catch (err) {
+      if (session !== this.sessionVersion) {
+        return;
+      }
       // A refused prompt (409 for a locked-down agent) arrives here as a thrown
       // API error; it is a result the operator needs to read, not a page fault.
       this.error = err instanceof Error ? err.message : String(err);
     } finally {
-      this.pending = false;
-      this.stream = "";
-      this.runId = "";
-      // Cleared here rather than beside `pending`, so the turn stays on screen
-      // for the whole run and disappears exactly when the transcript below is
-      // re-read and contains it.
-      this.sent = "";
-      try {
-        this.transcript = await this.bridge.api().agentTranscript(agentId);
-      } catch {
-        // The prompt already succeeded or failed on its own terms; a transcript
-        // refresh that fails must not overwrite the message explaining that.
+      if (session === this.sessionVersion) {
+        this.pending = false;
+        this.stream = "";
+        this.runId = "";
+        // Cleared here rather than beside `pending`, so the turn stays on screen
+        // for the whole run and disappears exactly when the transcript below is
+        // re-read and contains it.
+        this.sent = "";
+        try {
+          const transcript = await this.bridge.api().agentTranscript(agentId);
+          if (session === this.sessionVersion && agentId === this.agentId) {
+            this.transcript = transcript;
+          }
+        } catch {
+          // The prompt already succeeded or failed on its own terms; a transcript
+          // refresh that fails must not overwrite the message explaining that.
+        }
+        this.changed();
+        await this.refreshRuns();
       }
-      this.changed();
     }
   }
 
@@ -378,16 +618,47 @@ export class ConversationController implements ReactiveController {
    * cancels the run, but doing it this way means the cancellation is recorded
    * against the account that asked for it.
    */
-  async cancelPrompt(): Promise<void> {
-    const runId = this.runId;
-    if (!runId) {
+  async cancelPrompt(runId = this.runId): Promise<void> {
+    if (!runId || this.cancelling.has(runId)) {
       return;
     }
+    const session = this.sessionVersion;
+    this.cancelling.add(runId);
+    this.runsVersion++;
+    this.runsError = null;
+    this.runNotice = null;
+    this.changed();
     try {
-      await this.bridge.api().cancelPrompt(runId);
+      const outcome = await this.bridge.api().cancelPrompt(runId);
+      if (session !== this.sessionVersion) {
+        return;
+      }
+      this.runNotice = t(
+        outcome.cancelled
+          ? "governance.conversation.cancelRequested"
+          : "governance.conversation.noLongerRunning",
+      );
     } catch (err) {
-      this.error = err instanceof Error ? err.message : String(err);
-      this.changed();
+      if (session !== this.sessionVersion) {
+        return;
+      }
+      if (err instanceof GovernanceApiError && err.status === 404) {
+        this.runNotice = t("governance.conversation.noLongerRunning");
+      } else {
+        this.runsError = err instanceof Error ? err.message : String(err);
+      }
+    } finally {
+      if (session === this.sessionVersion) {
+        const failure = this.runsError;
+        await this.refreshRuns();
+        if (session === this.sessionVersion) {
+          // Another tab may have won the race. Keep a real refusal visible while
+          // the refreshed list supplies the current state to both controls.
+          this.runsError = failure ?? this.runsError;
+          this.cancelling.delete(runId);
+          this.changed();
+        }
+      }
     }
   }
 }

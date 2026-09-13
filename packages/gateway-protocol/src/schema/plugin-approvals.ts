@@ -50,6 +50,18 @@ export const PluginApprovalRequestParamsSchema = closedObject({
   turnSourceThreadId: Type.Optional(Type.Union([Type.String(), Type.Number()])),
   timeoutMs: Type.Optional(Type.Integer({ minimum: 1, maximum: MAX_PLUGIN_APPROVAL_TIMEOUT_MS })),
   twoPhase: Type.Optional(Type.Boolean()),
+  reportsOutcome: Type.Optional(Type.Boolean()),
+});
+
+/** Original requester reports the result of its post-decision callback. */
+export const PluginApprovalOutcomeParamsSchema = closedObject({
+  id: Type.String({ minLength: 1, maxLength: 128 }),
+  outcome: Type.Optional(
+    closedObject({
+      message: Type.String({ minLength: 1, maxLength: 512 }),
+      severity: Type.String({ enum: ["info", "warning"] }),
+    }),
+  ),
 });
 
 /** Reviewer decision payload resolving one pending plugin approval request. */

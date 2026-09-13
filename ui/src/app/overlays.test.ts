@@ -51,6 +51,31 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+it("keeps an approval follow-up visible after its card resolves without depending on the active chat", async () => {
+  const request = vi.fn<RequestFn>(() => Promise.resolve([]));
+  const harness = createGatewayHarness(client(request));
+  const overlays = createApplicationOverlays(harness.gateway);
+  const outcome = {
+    message: "Allowed once; the permission request queue is full.",
+    severity: "warning",
+  };
+  harness.emitEvent({
+    type: "event",
+    event: "plugin.approval.resolved",
+    payload: { id: "plugin:approval", decision: "allow-always", ts: Date.now() },
+  });
+  expect(overlays.snapshot.approvalQueue).toHaveLength(0);
+  harness.emitEvent({
+    type: "event",
+    event: "plugin.approval.resolved",
+    payload: { id: "plugin:approval", decision: "allow-always", ts: Date.now(), outcome },
+  });
+  expect(overlays.snapshot.approvalNotices).toEqual([{ id: "plugin:approval", ...outcome }]);
+  overlays.dismissApprovalNotice("plugin:approval");
+  expect(overlays.snapshot.approvalNotices).toHaveLength(0);
+  overlays.dispose();
+});
+
 describe("device-auth upgrade migration", () => {
   beforeEach(() => {
     peekStoredDeviceIdentityIdMock.mockReturnValue("browser-1");

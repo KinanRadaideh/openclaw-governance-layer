@@ -14,6 +14,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { clearAgentRunner, registerAgentRunner } from "../governance/agent-runner.js";
 import { addRule, savePolicy } from "../governance/policy-store.js";
 import { defaultPolicyDocument } from "../governance/policy-types.js";
+import {
+  beginPromptRun,
+  finishPromptRun,
+  resetPromptRunsForTests,
+} from "../governance/prompt-runs.js";
 import type { GovernanceRole } from "../governance/roles.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
 import { seedGroupWithAgents } from "../governance/test-group.js";
@@ -44,6 +49,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  resetPromptRunsForTests();
   delete process.env.OPENCLAW_GOVERNANCE_DIR;
   await rm(dir, { recursive: true, force: true });
 });
@@ -117,6 +123,34 @@ async function call(
 }
 
 describe("tier floors", () => {
+  it("recovers and cancels an owned run while reporting stopping until it unwinds", async () => {
+    const actor = session("user", ["agent-a"]);
+    actor.username = "UsEr";
+    const controller = beginPromptRun({ runId: "recovered", agentId: "agent-a", username: "user" });
+    beginPromptRun({ runId: "someone-else", agentId: "agent-a", username: "other" });
+    beginPromptRun({ runId: "other-group", agentId: "outside-org", username: "elsewhere" });
+    expect(await call("GET", "agent/runs", actor)).toMatchObject({
+      status: 200,
+      body: { runs: [{ runId: "recovered", username: "user" }] },
+    });
+    expect((await call("POST", "agent/cancel", actor, { runId: "someone-else" })).status).toBe(403);
+    expect(
+      (await call("POST", "agent/cancel", session("administrator"), { runId: "other-group" }))
+        .status,
+    ).toBe(404);
+    expect(await call("POST", "agent/cancel", actor, { runId: "recovered" })).toMatchObject({
+      status: 200,
+      body: { cancelled: true },
+    });
+    expect(controller.signal.aborted).toBe(true);
+    expect(await call("GET", "agent/runs", actor)).toMatchObject({
+      status: 200,
+      body: { runs: [{ runId: "recovered", ending: "cancelled" }] },
+    });
+    finishPromptRun("recovered");
+    expect(await call("GET", "agent/runs", actor)).toEqual({ status: 200, body: { runs: [] } });
+  });
+
   it("refuses every governed route when not signed in", async () => {
     for (const [method, route] of [
       ["GET", "policy"],

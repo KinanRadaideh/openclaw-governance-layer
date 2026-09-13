@@ -4,6 +4,9 @@ import { normalizeOptionalString } from "@openclaw/normalization-core/string-coe
 import {
   validatePluginApprovalRequestParams,
   validatePluginApprovalResolveParams,
+  validatePluginApprovalOutcomeParams,
+  ErrorCodes,
+  errorShape,
 } from "../../../packages/gateway-protocol/src/index.js";
 import type { ExecApprovalForwarder } from "../../infra/exec-approval-forwarder.js";
 import { resolveCanonicalPluginApprovalRequestAllowedDecisions } from "../../infra/plugin-approval-canonical-decisions.js";
@@ -13,11 +16,12 @@ import type {
   PluginApprovalResolved,
 } from "../../infra/plugin-approvals.js";
 import { resolvePluginApprovalTimeoutMs } from "../../infra/plugin-approvals.js";
-import type { ExecApprovalManager } from "../exec-approval-manager.js";
+import type { ExecApprovalManager, ExecApprovalRecord } from "../exec-approval-manager.js";
 import { runApprovalRequestDeliveries } from "./approval-request-delivery.js";
 import {
   bindApprovalRequesterMetadata,
   bindApprovalReviewerDeviceIds,
+  broadcastApprovalResolvedEvent,
   buildRequestedApprovalEvent,
   handleApprovalResolve,
   handleApprovalWaitDecision,
@@ -45,7 +49,83 @@ export function createPluginApprovalHandlers(
   manager: ExecApprovalManager<PluginApprovalRequestPayload>,
   opts?: { forwarder?: ExecApprovalForwarder; iosPushDelivery?: PluginApprovalIosPushDelivery },
 ): GatewayRequestHandlers {
+  // Follow-up lifetime belongs to the existing approval binding. Weak keys and
+  // a bounded handoff keep this observational state out of durable authority.
+  const outcomes = new WeakMap<
+    ExecApprovalRecord<PluginApprovalRequestPayload>,
+    {
+      finish: () => void;
+      reported?: string;
+    }
+  >();
   return {
+    "plugin.approval.reportOutcome": async ({ params, respond, client, context }) => {
+      if (
+        !assertValidParams(
+          params,
+          validatePluginApprovalOutcomeParams,
+          "plugin.approval.reportOutcome",
+          respond,
+        )
+      ) {
+        return;
+      }
+      const { id, outcome } = params as {
+        id: string;
+        outcome?: NonNullable<PluginApprovalResolved["outcome"]>;
+      };
+      const record = manager.getSnapshot(id);
+      // Reviewing an approval is not authority to report its side effects.
+      // Bind reports to the original requester device (or exact connection).
+      const ownsRequest = record?.requestedByDeviceId
+        ? record.requestedByDeviceId === client?.connect.device?.id &&
+          record.requestedByClientId === client?.connect.client.id
+        : Boolean(record?.requestedByConnId && record.requestedByConnId === client?.connId);
+      const state = record ? outcomes.get(record) : undefined;
+      if (
+        !record ||
+        !ownsRequest ||
+        record.resolvedAtMs === undefined ||
+        !state ||
+        !record.decision
+      ) {
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, "approval outcome unavailable for this requester"),
+        );
+        return;
+      }
+      const serialized = JSON.stringify(outcome ?? null);
+      if (state.reported !== undefined && state.reported !== serialized) {
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, "approval outcome already reported"),
+        );
+        return;
+      }
+      if (state.reported === undefined) {
+        state.reported = serialized;
+        if (outcome) {
+          broadcastApprovalResolvedEvent({
+            approvalKind: "plugin",
+            context,
+            record,
+            event: {
+              id,
+              decision: record.decision,
+              resolvedBy: record.resolvedBy ?? null,
+              ts: Date.now(),
+              request: record.request,
+              outcome,
+            },
+          });
+        }
+        state.finish();
+      }
+      respond(true, { ok: true }, undefined);
+    },
     "plugin.approval.list": async ({ respond, client }) => {
       respond(true, listVisiblePendingApprovalRequests({ manager, client }), undefined);
     },
@@ -78,6 +158,7 @@ export function createPluginApprovalHandlers(
         turnSourceThreadId?: string | number | null;
         timeoutMs?: number;
         twoPhase?: boolean;
+        reportsOutcome?: boolean;
       };
       const twoPhase = p.twoPhase === true;
       const timeoutMs = resolvePluginApprovalTimeoutMs(p.timeoutMs);
@@ -93,6 +174,7 @@ export function createPluginApprovalHandlers(
         severity: (p.severity as PluginApprovalRequestPayload["severity"]) ?? null,
         toolName: p.toolName ?? null,
         toolCallId: p.toolCallId ?? null,
+        ...(p.reportsOutcome ? { reportsOutcome: true } : {}),
         ...(Array.isArray(p.allowedDecisions)
           ? {
               allowedDecisions: resolveCanonicalPluginApprovalRequestAllowedDecisions({
@@ -128,6 +210,52 @@ export function createPluginApprovalHandlers(
       });
       if (!decisionPromise) {
         return;
+      }
+
+      if (p.reportsOutcome) {
+        const release = manager.retainForHandoff(record.id);
+        // Start the follow-up window when the human answers, not while they
+        // are reading. It bounds a crashed callback without expiring authority early.
+        void decisionPromise.then(
+          (decision) => {
+            if (decision !== "allow-once" && decision !== "allow-always" && decision !== "deny") {
+              release?.();
+              return;
+            }
+            const timer = setTimeout(() => {
+              const state = outcomes.get(record);
+              if (state?.reported === undefined) {
+                broadcastApprovalResolvedEvent({
+                  approvalKind: "plugin",
+                  context,
+                  record,
+                  event: {
+                    id: record.id,
+                    decision,
+                    resolvedBy: record.resolvedBy ?? null,
+                    ts: Date.now(),
+                    request: record.request,
+                    outcome: {
+                      severity: "warning",
+                      message:
+                        "Your approval decision was recorded, but its follow-up status is unavailable. Check the requesting plugin before relying on a permanent change.",
+                    },
+                  },
+                });
+              }
+              outcomes.delete(record);
+              release?.();
+            }, 60_000);
+            timer.unref?.();
+            outcomes.set(record, {
+              finish: () => {
+                clearTimeout(timer);
+                release?.();
+              },
+            });
+          },
+          () => release?.(),
+        );
       }
 
       const requestEvent = buildRequestedApprovalEvent(record);

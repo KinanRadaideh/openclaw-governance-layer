@@ -18,6 +18,8 @@ import type { OpenClawModalDialog } from "./modal-dialog.ts";
 import "./modal-dialog.ts";
 
 type ExecApprovalProps = {
+  notices?: readonly { id: string; message: string; severity: "info" | "warning" }[];
+  onDismissNotice?: (id: string) => void;
   queue: readonly ExecApprovalRequest[];
   busy: boolean;
   errors: ReadonlyMap<string, string>;
@@ -149,8 +151,29 @@ class ExecApproval extends OpenClawLightDomContentsElement {
     const props = this.props;
     const queue = this.displayedQueue();
     const active = this.activeApproval(queue);
-    if (!props || !active) {
+    if (!props) {
       return nothing;
+    }
+    const notice = props.notices?.[0];
+    if (!active) {
+      return notice
+        ? html`
+            <openclaw-modal-dialog
+              label=${t("execApproval.followUpTitle")}
+              @modal-cancel=${() => props.onDismissNotice?.(notice.id)}
+            >
+              <div
+                class=${`callout ${notice.severity === "warning" ? "warn" : "info"}`}
+                role=${notice.severity === "warning" ? "alert" : "status"}
+              >
+                ${notice.message}
+              </div>
+              <button class="btn" type="button" @click=${() => props.onDismissNotice?.(notice.id)}>
+                ${t("common.dismiss")}
+              </button>
+            </openclaw-modal-dialog>
+          `
+        : nothing;
     }
     const decisions = resolveApprovalDecisions(active);
     const handleCancel = (event: Event) => {

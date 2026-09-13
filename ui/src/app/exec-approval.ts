@@ -41,6 +41,9 @@ type ExecApprovalResolved = {
   ts?: number | null;
 };
 
+/** A plugin's post-decision follow-up, kept after its approval card closes (T60). */
+export type ApprovalFollowUpNotice = { id: string; message: string; severity: "info" | "warning" };
+
 export type ExecApprovalPromptState = {
   client: {
     request(method: string, params?: unknown): Promise<unknown>;
@@ -53,6 +56,7 @@ export type ExecApprovalPromptState = {
   execApprovalExpiryTimers?: Map<string, ReturnType<typeof globalThis.setTimeout>>;
   execApprovalCountdownTimer?: ReturnType<typeof globalThis.setTimeout>;
   execApprovalChanged?: () => void;
+  execApprovalNotices?: ApprovalFollowUpNotice[];
 };
 
 const APPROVAL_ALREADY_RESOLVED = "APPROVAL_ALREADY_RESOLVED";
@@ -522,4 +526,90 @@ export function clearResolvedExecApprovalPrompt(state: ExecApprovalPromptState, 
   for (const refresh of state.execApprovalRefreshes ?? []) {
     refresh.removedIds.add(id);
   }
+}
+
+const RESOLVED_APPROVAL_EVENTS = new Set([
+  "exec.approval.resolved",
+  "plugin.approval.resolved",
+  "openclaw.approval.resolved",
+]);
+const MAX_APPROVAL_FOLLOW_UPS = 20;
+
+/**
+ * Applies one gateway approval event to the prompt state; true when it changed.
+ *
+ * Moved here from `overlays.ts` on 2026-09-11 (T60), when the resolved branch
+ * gained a follow-up notice: interpreting approval events is this module's job
+ * rather than the overlay controller's, and the move is what kept that file
+ * inside its 700-line limit. Behaviour is otherwise what that branch did.
+ */
+export function applyExecApprovalEvent(
+  state: ExecApprovalPromptState,
+  event: { event: string; payload?: unknown },
+): boolean {
+  const requested = parseApprovalRequestedEvent(event.event, event.payload);
+  if (requested) {
+    enqueueExecApprovalPrompt(state, requested);
+    return true;
+  }
+  const resolved = RESOLVED_APPROVAL_EVENTS.has(event.event)
+    ? parseExecApprovalResolved(event.payload)
+    : null;
+  if (!resolved) {
+    return false;
+  }
+  recordApprovalFollowUp(state, event, resolved.id);
+  clearResolvedExecApprovalPrompt(state, resolved.id);
+  return true;
+}
+
+/**
+ * Keeps a plugin's post-decision follow-up after its card has closed (T60).
+ *
+ * The approval resolves before the plugin's `onResolution` runs, so a warning
+ * such as "the permission request was not saved" can only arrive afterwards,
+ * as a second `plugin.approval.resolved` carrying `outcome`. It is kept here
+ * rather than beside the chat, so it reaches a reviewer on whatever page they are.
+ */
+function recordApprovalFollowUp(
+  state: ExecApprovalPromptState,
+  event: { event: string; payload?: unknown },
+  id: string,
+): void {
+  const outcome = isRecord(event.payload) ? event.payload.outcome : undefined;
+  if (event.event !== "plugin.approval.resolved" || !isRecord(outcome)) {
+    return;
+  }
+  const message = typeof outcome.message === "string" ? outcome.message.trim().slice(0, 512) : "";
+  // Mapped rather than compared, and annotated: `unknown` does not narrow to the
+  // union through inequality checks, and a conditional's literals widen back to
+  // `string` inside the object below. A notice must never carry a made-up severity.
+  const severity: ApprovalFollowUpNotice["severity"] | null =
+    outcome.severity === "warning" ? "warning" : outcome.severity === "info" ? "info" : null;
+  if (!message || !severity) {
+    return;
+  }
+  state.execApprovalNotices = [
+    ...(state.execApprovalNotices ?? []).filter((notice) => notice.id !== id),
+    { id, message, severity },
+  ].slice(-MAX_APPROVAL_FOLLOW_UPS);
+}
+
+export function dismissApprovalFollowUp(state: ExecApprovalPromptState, id: string): void {
+  state.execApprovalNotices = (state.execApprovalNotices ?? []).filter(
+    (notice) => notice.id !== id,
+  );
+}
+
+/**
+ * Clears what a lost client or a lost review scope must stop showing.
+ *
+ * The overlay controller wrote the same three resets out by hand in two places;
+ * follow-up notices would have made it four lines in two places, so it is one.
+ */
+export function resetExecApprovalPromptState(state: ExecApprovalPromptState): void {
+  state.execApprovalQueue = [];
+  state.execApprovalBusy = false;
+  state.execApprovalErrors.clear();
+  state.execApprovalNotices = [];
 }

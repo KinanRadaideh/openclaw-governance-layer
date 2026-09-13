@@ -10,6 +10,7 @@ export const PluginLifecycleProtocolSchemas = {
   HooksStatusParams: hooks.HooksStatusParamsSchema,
   PluginApprovalRequestParams: pluginApprovals.PluginApprovalRequestParamsSchema,
   PluginApprovalResolveParams: pluginApprovals.PluginApprovalResolveParamsSchema,
+  PluginApprovalOutcomeParams: pluginApprovals.PluginApprovalOutcomeParamsSchema,
   PluginCatalogClawHubInstall: plugins.PluginCatalogClawHubInstallSchema,
   PluginCatalogEntry: plugins.PluginCatalogEntrySchema,
   PluginCatalogInstallAction: plugins.PluginCatalogInstallActionSchema,

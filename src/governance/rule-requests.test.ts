@@ -2,9 +2,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { HITL_ACTOR } from "./admin-audit.js";
+import { ruleRequestsFilePath } from "./paths.js";
 import type { ResourceKind } from "./policy-types.js";
 import {
   MAX_PENDING_REQUESTS_PER_USER,
+  RuleRequestCapacityError,
   attachCreatedRule,
   decideRuleRequest,
   findPendingRuleRequest,
@@ -13,7 +16,9 @@ import {
   submitRuleRequest,
 } from "./rule-requests.js";
 import type { SubmitRuleRequestInput } from "./rule-requests.js";
+import { writeGovernanceJson } from "./state-file.js";
 import { seedGroupWithAgents } from "./test-group.js";
+import { createUser, deleteUser } from "./user-store.js";
 
 let dir: string;
 
@@ -55,6 +60,107 @@ function input(overrides: Partial<RuleRequestInput> = {}): RuleRequestInput {
 }
 
 describe("rule requests", () => {
+  it("sizes the approval queue by all organisation accounts and preserves requests after a shrink", async () => {
+    const actor = { name: "test", role: "root" as const };
+    await createUser(
+      { username: "root", password: "test-password-123", role: "root", groupId: TEST_GROUP },
+      actor,
+    );
+    const admin = await createUser(
+      {
+        username: "admin",
+        password: "test-password-123",
+        role: "administrator",
+        groupId: TEST_GROUP,
+      },
+      actor,
+    );
+    await createUser(
+      {
+        username: "user",
+        password: "test-password-123",
+        role: "user",
+        groupId: TEST_GROUP,
+        managedBy: admin.id,
+      },
+      actor,
+    );
+    const viewer = await createUser(
+      {
+        username: "viewer",
+        password: "test-password-123",
+        role: "viewer",
+        groupId: TEST_GROUP,
+        managedBy: admin.id,
+      },
+      actor,
+    );
+    const otherGroup = await seedGroupWithAgents([]);
+    await createUser(
+      {
+        username: "other-admin",
+        password: "test-password-123",
+        role: "administrator",
+        groupId: otherGroup,
+      },
+      actor,
+    );
+    const proposal = input({ requestedBy: HITL_ACTOR, agentId: "scout" });
+    const first = await submitRuleRequest(TEST_GROUP, proposal);
+    // Seed a near-full real store; admission and retention still run through
+    // the production owner without hundreds of unrelated durable audit writes.
+    const requests = Array.from({ length: 119 }, (_, index) => ({
+      ...first,
+      id: `request-${index}`,
+      pattern: `^command-${index}$`,
+    }));
+    await writeGovernanceJson(ruleRequestsFilePath(TEST_GROUP), { version: 1, requests });
+    await submitRuleRequest(TEST_GROUP, proposal);
+    await expect(
+      submitRuleRequest(TEST_GROUP, { ...proposal, pattern: "^overflow$" }),
+    ).rejects.toMatchObject({ limit: 120, approvalGenerated: true });
+    await deleteUser(viewer.id, actor);
+    await expect(
+      submitRuleRequest(TEST_GROUP, { ...proposal, pattern: "^overflow$" }),
+    ).rejects.toMatchObject({ limit: 100 });
+    expect(await listRuleRequests(TEST_GROUP)).toHaveLength(120);
+    // A pending equivalent remains usable even while over the new limit.
+    await expect(submitRuleRequest(TEST_GROUP, proposal)).resolves.toMatchObject({
+      pattern: proposal.pattern,
+    });
+    // Ordinary account requests have their own existing allowance.
+    await expect(submitRuleRequest(TEST_GROUP, input())).resolves.toBeDefined();
+    await expect(submitRuleRequest(otherGroup, proposal)).resolves.toBeDefined();
+  });
+
+  it("atomically deduplicates approval proposals and admits only one last available slot", async () => {
+    const proposal = input({ requestedBy: HITL_ACTOR, agentId: "scout" });
+    const first = await submitRuleRequest(TEST_GROUP, proposal);
+    const requests = Array.from({ length: 39 }, (_, index) => ({
+      ...first,
+      id: `request-${index}`,
+      pattern: `^command-${index}$`,
+    }));
+    await writeGovernanceJson(ruleRequestsFilePath(TEST_GROUP), { version: 1, requests });
+    const repeated = await Promise.all([
+      submitRuleRequest(TEST_GROUP, proposal),
+      submitRuleRequest(TEST_GROUP, proposal),
+    ]);
+    expect(repeated[0]?.id).toBe(repeated[1]?.id);
+    expect(await listRuleRequests(TEST_GROUP)).toHaveLength(40);
+    await expect(
+      submitRuleRequest(TEST_GROUP, { ...proposal, pattern: "^overflow$" }),
+    ).rejects.toBeInstanceOf(RuleRequestCapacityError);
+    await decideRuleRequest(TEST_GROUP, {
+      id: repeated[0]!.id,
+      approve: false,
+      decidedBy: "admin",
+    });
+    await expect(
+      submitRuleRequest(TEST_GROUP, { ...proposal, pattern: "^now-fits$" }),
+    ).resolves.toBeDefined();
+  });
+
   it("records a pending request", async () => {
     const request = await submitRuleRequest(TEST_GROUP, input());
     expect(request.status).toBe("pending");

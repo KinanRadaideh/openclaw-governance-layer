@@ -458,6 +458,8 @@ export const enGovernance: TranslationMap = {
       timedOut: "timed out",
       allow: "Would allow",
       deny: "Keep denied",
+      // T60's dashboard half: the server's own sentence says why and what next.
+      proposalNotSaved: "Your answer was recorded. {reason}",
     },
     agents: {
       title: "Agents in your organisation",
@@ -524,6 +526,21 @@ export const enGovernance: TranslationMap = {
       inheritedLocked: "an active stop",
     },
     conversation: {
+      taskForAgent: "Task for {agent}",
+      taskDetails: "Started by {username} at {time}",
+      cancelTask: "Cancel task for {agent} started at {time}",
+      runningTask: "Running",
+      stopping: "Stopping…",
+      savingReply: "Saving reply…",
+      cancelRequested: "Cancellation requested. The task stays listed until it finishes stopping.",
+      noLongerRunning: "This task is no longer running. The list has been refreshed.",
+      runsUnavailable:
+        "Running tasks could not be refreshed. The last known state is shown; try refreshing the page. {reason}",
+      replyRefreshFailed:
+        "The task finished, but its saved reply could not be refreshed yet. This page will try again. {reason}",
+      switchBlocked:
+        "A task for {agent} is still running in this tab. Cancel it or wait for it to finish before opening another conversation.",
+      taskInProgress: "Task in progress",
       title: "Your agents",
       open: "Talk",
       close: "Close",

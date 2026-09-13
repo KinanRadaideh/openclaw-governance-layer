@@ -7554,3 +7554,192 @@ against the fixed code. The pretend page the test builds is not shaped enough
 like the real one for the difference to show. Keeping it would have meant
 shipping something that looks like protection and is not — and that, by this
 project's own count, is the single most common way its tests have let it down.
+
+## 5.104 The last eight sections, and the one that was usually not there
+
+The governance page has fourteen sections. §5.103 told the story of the first
+five being checked by hand, signed in as each kind of account in turn. Between
+8 and 9 September the other nine were done the same way, and sixteen more
+problems came out of it. Every one is fixed.
+
+### The section that was only there on a bad day
+
+One section, _Awaiting your decision_, only appears when an agent asked a person
+for permission and **nobody answered in time**. On a healthy system that almost
+never happens, so every earlier check looked at a page that section was simply
+not on. It had been sitting there, untested, the whole time.
+
+When it was finally made to appear, it had a broken promise in it. Its hint said
+that answering "yes" would lead to a rule so that the next attempt would succeed.
+Nothing did. The answer was written down and the next identical attempt timed out
+into the same list. It now files a request for that rule, which an administrator
+approves or not.
+
+**The lesson is about testing, not about that section.** A screen that hides
+itself when it has nothing to show is making a promise about a situation you have
+to create before you can check it. Looking at the page will never find it.
+
+### Every "no" on the page was being said somewhere nobody was looking
+
+This one affected all fourteen sections at once. When the server refuses
+something — "this agent isn't registered yet", "you can't delete that account
+while other accounts answer to it" — it explains itself well. But the page showed
+that explanation in **one box at the very top**, and the page is long. Press a
+button near the bottom and the refusal appeared far above, out of sight. As far
+as the person could tell, the button simply did nothing.
+
+It now scrolls the explanation into view. **The refusals were the best-written
+part of the product, and nobody could see them.**
+
+### A permission split undone by its own error message
+
+Administrators can take away a person's right to edit rules while leaving them
+able to use and stop their agent. That split exists on purpose. But when such a
+person tried to edit a rule, the refusal said _"you do not manage this agent"_ —
+about an agent they could stop one click later. The message erased the very
+distinction it was enforcing. It now says what was actually withheld.
+
+### The smaller ones
+
+- Someone allowed to read the audit trail could be told **"no entries yet"**
+  about a trail that was full, because the page picked its first fifty entries
+  **before** removing the ones that person may not see.
+- A filtered count read as if it were the size of the whole trail — introduced,
+  embarrassingly, by the fix for the item above.
+- The emergency stop offered its red button for an agent the page itself knew
+  had never been registered, where pressing it could only ever be refused.
+- The screen told administrators and the owner to "ask an administrator" — the
+  very people who decide those requests.
+
+**What they share:** in every case the server was right and the screen said
+something else. None of these let anybody do anything they should not. All of
+them taught people that the product could not be believed, which matters for a
+product whose whole job is to be believed.
+
+## 5.105 Checking the notes against the machine
+
+A project like this keeps a lot of notes: what is done, what is left, how many
+problems have been found, why a decision went the way it did. On 9 September
+those notes were themselves checked the way the code is checked — by running the
+thing a note describes instead of trusting the note. Four problems came out, and
+none of them was in the product.
+
+- **A reason that was wrong by a factor of twenty.** The page was running out of
+  room for new text, and the notes explained why: every sentence was supposedly
+  copied into twenty-two languages and loaded up front. It was loaded **once**;
+  the other languages were already fetched only when chosen. The wrong reason made
+  the problem look unfixable. The real one made it an afternoon's work (§5.106).
+- **A to-do list that disagreed with itself.** Two items were shown as open in one
+  table and as finished forty lines further down the same file, and two open tasks
+  had each been given two different numbers — so anyone counting what was left
+  counted five things where there were three.
+- **A check marked "passing" that was failing.** For the third time, the table
+  summarising the project's checks said one of them was green when running it gave
+  red. All three times it was the same table.
+- **A whole area nobody had looked at.** Widening one test run turned up
+  twenty-seven failing tests in parts of the product this project never touched.
+  They were failing before this work began, and no check anybody runs had ever
+  included them. Whether they matter is still an open question, recorded honestly
+  rather than hidden.
+
+**The lesson:** a number written into a document does not re-run. The note is a
+photograph of the moment it was written, and the machine keeps moving.
+
+## 5.106 Carrying the words with the page
+
+Every time anyone opened the dashboard — to chat, to change a setting, to do
+anything — their browser downloaded all the text for the governance page too,
+about nine kilobytes of it, whether or not they ever went there. And there is a
+fixed limit on how much the dashboard may download before it first appears. By
+9 September there was room left for **less than one more sentence**, for the whole
+product.
+
+That mattered because the previous several days of work had been mostly about
+**words**: making refusals clear, making hints true. Clearer text was running into
+a wall.
+
+The fix: the governance page's text now travels **with the governance page**, and
+is only downloaded when someone opens it. The text itself did not change — all
+4,956 phrases in the product were checked one by one, before and after, and none
+was lost or altered, including every translation. The room went from less than one
+sentence to roughly a hundred and twenty.
+
+**Why a wrong idea had to be corrected first:** as long as the notes said the text
+was copied twenty-two times, the problem looked like something to live with. Once
+it was measured, it was plainly worth fixing.
+
+## 5.107 The button that promised "always"
+
+When an agent asks permission to do something no rule covers, the person
+answering sees three buttons: allow once, always allow, and deny. For a while now,
+**"Always allow" has not meant always.** It allows the action this once and sends
+a request to an administrator, who decides whether it becomes permanent. That is
+deliberate: the person answering might be anyone watching a chat, and permanent
+permission should be granted by someone signed in and accountable.
+
+But the button did not say so. And there was a second problem underneath: all
+those requests shared **one small queue of twenty** for the whole organisation.
+Once it filled, pressing "Always allow" still let the action through, but the
+request was quietly **not filed** — and the only trace was a line in the audit
+trail that no screen showed.
+
+Kinan decided three things, and all three are built:
+
+- **The card now explains the button** before anyone presses it: it allows this
+  action once, and an administrator must approve making it permanent.
+- **If the request cannot be saved, the person is told**, straight after pressing
+  — "allowed this time, but the request wasn't saved, because the queue is full".
+  A request that _was_ saved produces no message at all, because the card already
+  said what would happen.
+- **The queue is bigger, and grows with the organisation**: forty requests, plus
+  twenty for every account.
+
+**One honest limit.** If the question was answered from Discord or Telegram rather
+than from the dashboard, the explanation reaches the chat but the "not saved"
+warning does not — those chat connections deliberately act only on the first
+message about an answer. The action is still allowed once, the audit trail still
+records it, and the warning appears for anyone watching the dashboard.
+
+## 5.108 The Cancel button that vanished on reload, and the replies that went missing
+
+### What was fixed
+
+If you asked an agent to do something from the dashboard and then refreshed the
+page or closed the tab, the agent kept working — but your **Cancel** button was
+gone. The only control left was the emergency stop, which locks the agent down
+completely. That is like having only a fire alarm to turn off the kettle.
+
+Now, when you come back to that agent, **your task is shown again with its Cancel
+button**, and the list of running work shows the same task with the same button.
+Press Cancel in either place and both change to "Stopping" together. A task also
+stays visible while its reply is being saved, so "it disappeared from the list"
+reliably means "it finished".
+
+### How it was built, which is the part worth telling
+
+Most of this — and of §5.107 — was written by **another AI agent** that ran out of
+time partway through, three times, and left the work unfinished and untested. The
+choice was to throw it away and start again, or to check it and finish it.
+
+It was checked properly: read in full, and then **every check the project has was
+run against it**, rather than trusting the summary it left. That turned up a list
+of loose ends — it did not compile, several files had grown past the project's size
+limit, and three of its own tests expected the wrong thing — all of which were
+fixed.
+
+**And it turned up one real bug that no amount of reading would have found.** A
+person may only have two tasks running at once. The new code, in keeping a task
+visible until its reply was saved, **also kept its place in that limit** until the
+save finished. Saving means waiting in line for the conversation file. So if
+someone sent several messages quickly, the later ones found both places still
+taken and were turned away — **after** their message had already been written into
+the conversation. The person saw their messages, and no replies.
+
+Only the wider set of tests caught it, and only some of the time — which is exactly
+how a timing problem looks. The fix separates the two ideas: a task that is only
+saving its reply **stays on the list but gives up its place in line**, because the
+limit is about how many agents are working at once, not about paperwork.
+
+**The lesson:** when you take over somebody else's half-finished work, check it as
+if nobody had checked it — because nobody had. Run everything, not only the tests
+that came with it.

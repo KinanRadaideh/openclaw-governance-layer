@@ -23,6 +23,8 @@ export type PluginApprovalRequestPayload = {
   toolName?: string | null;
   toolCallId?: string | null;
   allowedDecisions?: readonly ExecApprovalDecision[] | null;
+  /** The requester will report its bounded post-decision follow-up result. */
+  reportsOutcome?: boolean;
   actions?: readonly PluginApprovalActionView[] | null;
   agentId?: string | null;
   sessionKey?: string | null;
@@ -47,6 +49,7 @@ export type PluginApprovalResolved = {
   resolvedBy?: string | null;
   ts: number;
   request?: PluginApprovalRequestPayload;
+  outcome?: { message: string; severity: "info" | "warning" };
 };
 
 export const DEFAULT_PLUGIN_APPROVAL_TIMEOUT_MS = 120_000;

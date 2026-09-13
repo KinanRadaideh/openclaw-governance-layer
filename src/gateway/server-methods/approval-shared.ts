@@ -55,6 +55,7 @@ type ResolvedApprovalEvent<TPayload> = {
   resolvedBy: string | null;
   ts: number;
   request: TPayload;
+  outcome?: { message: string; severity: "info" | "warning" };
 };
 
 type PendingApprovalListEntry<TPayload> = {

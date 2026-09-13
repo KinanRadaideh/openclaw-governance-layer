@@ -467,6 +467,8 @@ export function renderApplicationShell(host: ShellViewHost) {
         ? html`<openclaw-exec-approval
             .props=${{
               queue: overlaySnapshot.approvalQueue,
+              notices: overlaySnapshot.approvalNotices,
+              onDismissNotice: context.overlays.dismissApprovalNotice,
               busy: overlaySnapshot.approvalBusy,
               errors: overlaySnapshot.approvalErrors,
               nowMs: overlaySnapshot.approvalNowMs,

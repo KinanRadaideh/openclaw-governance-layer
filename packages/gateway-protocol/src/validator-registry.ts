@@ -374,6 +374,7 @@ export const validateQuestionGetParams = compile(S.QuestionGetParamsSchema);
 export const validateQuestionListParams = compile(S.QuestionListParamsSchema);
 export const validatePluginApprovalRequestParams = compile(S.PluginApprovalRequestParamsSchema);
 export const validatePluginApprovalResolveParams = compile(S.PluginApprovalResolveParamsSchema);
+export const validatePluginApprovalOutcomeParams = compile(S.PluginApprovalOutcomeParamsSchema);
 export const validatePluginsListParams = compile(S.PluginsListParamsSchema);
 export const validatePluginsRefreshParams = compile(S.PluginsRefreshParamsSchema);
 export const validatePluginsSearchParams = compile(S.PluginsSearchParamsSchema);

@@ -47,8 +47,8 @@ import {
   setAccountPassword,
   type PanelEffects,
 } from "./panels/account-panels.ts";
+import { renderActiveSessionsSection } from "./panels/active-sessions-panel.ts";
 import {
-  renderActiveSessionsSection,
   renderAgentsSection,
   renderKillNotice,
   renderKillSwitchSection,
@@ -245,7 +245,13 @@ class GovernancePage extends OpenClawLightDomElement {
    */
   private readonly accounts = new AccountsController(this);
   /** The conversation composer and its transcript (T53). See `conversation-controller.ts`. */
-  private readonly conversation = new ConversationController(this, { api: () => this.api() });
+  private readonly conversation = new ConversationController(this, {
+    api: () => this.api(),
+    identity: () => this.identity,
+    refreshActivity: async () => {
+      this.activeSessions = await this.api().activeSessions();
+    },
+  });
 
   /**
    * Test-only forwarding of the conversation fields onto their controller.
@@ -445,28 +451,12 @@ class GovernancePage extends OpenClawLightDomElement {
       pendingDecisions: this.pendingDecisions,
       pendingDecisionsShed: this.pendingDecisionsShed,
       conversationAgentDraft: this.conversationAgentDraft,
-      ...this.conversation.slice(),
-      // **Routes, rather than narrows.** A first attempt at T53 restricted this
-      // to `promptDraft` on the grounds that the composer is the only thing
-      // that drafts — which was wrong and the kill-switch tests said so: this
-      // one callback also carries `killAgentId`, which is still the page's.
-      // So the conversation's own key goes to its controller and everything
-      // else keeps landing on the component exactly as before.
-      onDraft: (patch) => {
-        const { promptDraft, ...rest } = patch as { promptDraft?: string };
-        if (typeof promptDraft === "string") {
-          this.conversation.setDraft(promptDraft);
-        }
-        if (Object.keys(rest).length > 0) {
-          Object.assign(this, rest);
-        }
-      },
-      sendPrompt: () => this.conversation.sendPrompt(),
-      cancelPrompt: () => this.conversation.cancelPrompt(),
-      addAttachments: (files) => this.conversation.addAttachments(files),
-      removeAttachment: (held) => this.conversation.removeAttachment(held),
-      openConversation: (agentId) => this.conversation.openConversation(agentId),
-      showConversation: (agentId) => this.conversation.showConversation(agentId),
+      // The conversation's slice, both run-control bundles and its callbacks,
+      // assembled by its controller (T53's seam, used again for T63).
+      ...this.conversation.panelProps({
+        refresh: () => this.refreshData(),
+        assignDrafts: (rest) => Object.assign(this, rest),
+      }),
     };
   }
 
@@ -725,6 +715,7 @@ class GovernancePage extends OpenClawLightDomElement {
     // page whose job is oversight, silently showing old data is the failure.
     this.partialFailure = failed > 0;
     this.lastRefreshedAt = Date.now();
+    await this.conversation.refreshRuns();
   }
 
   /**

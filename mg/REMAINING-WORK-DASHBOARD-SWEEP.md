@@ -15,7 +15,11 @@ the authority, and correct whichever of these is stale.
 
 ## Where this pass got to
 
-> **Updated 2026-09-09 (iii).** **T64 is done** — Kinan chose to split the page,
+> **Next: the documentation phase.** Start at `docs-notes/WRITING-GUIDE.md`.
+>
+> **Updated 2026-09-11.** **T60 and T63 are built**, finishing a draft another agent left mid-way; see the section of that name at the foot of this file. **No dashboard decision is waiting any more** — C1 to C7 are all closed.
+>
+> **Earlier, 2026-09-09 (iii).** **T64 is done** — Kinan chose to split the page,
 > and 9,019 bytes came off every first page load; the red section below is
 > cleared. Earlier the same day: A3, A4 and A5 done; C3 and C5 decided; C2 found
 > already decided. **Four findings, 342–345.** 342 is what made T64 worth doing;
@@ -139,14 +143,14 @@ Nothing here needs a decision from anybody. Ordered by what it costs if left.
 Not because they are hard, but because they need your machine, your judgement,
 or your voice.
 
-|        | Task                                                                                                                                                                                                                                                                         | Note                                                                                                                                                                                                               |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **B1** | **T3 — deploy to a Linux host and re-run the suite there.** The one design requirement not fully met                                                                                                                                                                         | The last Linux measurement is 2,548/133 and predates T44 and every sweep since. **Do the VPS rebuild first** (§6 "Do this before anything else") — until it runs, the server still serves the removed command line |
-| **B2** | **T18 — write Chapters 3, 4 and the conclusion**                                                                                                                                                                                                                             | The report itself                                                                                                                                                                                                  |
-| **B3** | **T17 — the 21 figures.** The audit half is done: all 21 compared against the code, two defects fixed. What is left is whether you redraw them or have them drafted for approval, and **nobody has compiled them** — that needs a LaTeX toolchain this machine does not have | Ask if you want the drafts                                                                                                                                                                                         |
-| **B4** | **T13 — read the prompt-injection answer until you can give it without notes**                                                                                                                                                                                               | Viva preparation, not engineering                                                                                                                                                                                  |
-| **B5** | **T47 — run the by-hand test plan.** Written (`docs-notes/T47-TEST-PLAN.md`, 142 checks). **Running it needs three people on three machines**: half of what it tests is that one account cannot see another's, and a shared browser session silently defeats that            | This produces the evidence Chapter 4 needs. **This sweep is not a substitute** — it drove one browser and one server                                                                                               |
-| **B6** | **Commit.** The tree carries two days of work uncommitted, including the whole command-line removal and this sweep                                                                                                                                                           | `git status` first; three files were still untracked as of §6                                                                                                                                                      |
+|        | Task                                                                                                                                                                                                                                                                                                                                     | Note                                                                                                                                                                                                               |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **B1** | **T3 — deploy to a Linux host and re-run the suite there.** The one design requirement not fully met                                                                                                                                                                                                                                     | The last Linux measurement is 2,548/133 and predates T44 and every sweep since. **Do the VPS rebuild first** (§6 "Do this before anything else") — until it runs, the server still serves the removed command line |
+| **B2** | **T18 — write Chapters 3, 4 and the conclusion**                                                                                                                                                                                                                                                                                         | The report itself                                                                                                                                                                                                  |
+| **B3** | **T17 — the 21 figures.** The audit half is done: all 21 compared against the code, two defects fixed. What is left is whether you redraw them or have them drafted for approval, and **nobody has compiled them** — that needs a LaTeX toolchain this machine does not have                                                             | Ask if you want the drafts                                                                                                                                                                                         |
+| **B4** | **T13 — read the prompt-injection answer until you can give it without notes**                                                                                                                                                                                                                                                           | Viva preparation, not engineering                                                                                                                                                                                  |
+| **B5** | **T47 — run the by-hand test plan.** Written (`docs-notes/T47-TEST-PLAN.md`, 142 checks). **Running it needs three people on three machines**: half of what it tests is that one account cannot see another's, and a shared browser session silently defeats that                                                                        | This produces the evidence Chapter 4 needs. **This sweep is not a substitute** — it drove one browser and one server                                                                                               |
+| **B6** | **Commit the T60/T63 work.** every file `git status` lists apart from `.codex/`, uncommitted since 2026-09-11: both features, the protocol change with its regenerated Swift and Kotlin models, and the handoff documents brought level for the documentation phase. **Until it is committed and pushed it exists only on this machine** | `git status` first; `.codex/` belongs to another agent and is not part of it                                                                                                                                       |
 
 ---
 
@@ -162,6 +166,7 @@ claim was uneven. These are the gaps that remain **in the method**, not defects.
 | **Q3** | **A small window.** Every measurement was taken at 1500×1000. The page has fourteen sections, a jump-nav and long rows; nothing has been looked at narrow, and finding 313 was a box 155px wide at every size                                                                                                                                                                                                                                   | The layout test project exists and runs (22 files, 198 tests). It has never been pointed at a small viewport                                                                                       |
 | **Q4** | **The page under load.** The ledger was driven at 114 entries and the rule queue at two. Nothing has been seen at a thousand entries, fifty agents or twenty accounts, which is where a fourteen-section page stops being scrollable                                                                                                                                                                                                            | Finding 329 and 340 are both "the list is longer than the screen" defects, found at 81 entries                                                                                                     |
 | **Q5** | **The error banner's siblings.** Finding 339 was fixed for `this.error`. The page also renders `partialFailure`, `killNotice` and the per-section notices, none of which scroll                                                                                                                                                                                                                                                                 | The same defect can exist once per notice channel, and 339 proves nobody notices                                                                                                                   |
+| **Q6** | **Drive T60 and T63 by hand, before the wider sweep** — the order Kinan set. Recover a long task after a reload and cancel it from each view; press "Always allow" and confirm no dialog follows a request that saved; answer "Would allow" and find the request. Rows 6b.1–6b.5 of `docs-notes/T47-TEST-PLAN.md` are the script                                                                                                                | Every step is tested and none has been pressed by a person: the machine they were built on could not run a model long enough to escalate or to recover a task                                      |
 
 ## The open findings, as numbered tasks
 
@@ -198,8 +203,8 @@ recommendation it says so.
 | ~~**C3**~~ | ~~Finding 332's server half — the refusal text~~ **DECIDED 2026-09-09: (a), leave it.** The reasoning that made (a) the recommendation is unchanged and the two things that could have moved it have not: the page-side fix has landed (332, 341), so an operator now meets the warning _before_ the press rather than the server's message after it, and (b) would edit a message whose sameness is a deliberate security property — `requireAgentInGroup` gives "not yours" and "not in your organisation" one text precisely so it is not an existence oracle for another organisation's agent ids. **Reopen it if a Root ever meets that message with no page-side warning in front of it**, which is the only case (a) leaves unserved                                                                                                 | Closed by decision. The security-reasoned boundary is not edited for a message                                                                                                                                       |
 | **C4**     | **T46 — how far the setup wizard rewording goes**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Banner and completion text only, or new prompts too. Touches upstream files, so it grows the fork diff §3.5.2b measures                                                                                              |
 | ~~**C5**~~ | ~~T50 — what enforces the full lint gate~~ **DECIDED 2026-09-09: (c), it stays manual — and the hook now says so.** The other two are closed by facts rather than preference. Running it in the hook costs ~18 minutes a commit, which is a hook people `--no-verify` past. **Moving it to CI has nowhere to go**: Actions are switched off on this repository (T21) because the fork inherited 82 upstream workflows, fifteen of them scheduled, which spent the whole free allowance in a day — and deleting them is ruled out because §3.5.2b measures the fork diff. So (c), with its condition met: `git-hooks/pre-commit` now prints, on every successful lint, that this is **not** the full gate and names `node scripts/run-lint.mjs`. Finding 323 is why it is printed at the moment of passing rather than written in a document | Closed by decision. **Revisit if Actions are ever re-enabled**, which would make CI the right answer                                                                                                                 |
-| **C6**     | **T60 — what "Always allow" promises, and what a full proposal queue should do.** The button promises a permanence it no longer delivers, and all escalation proposals share one 20-slot budget per organisation; past it a press grants the call and files nothing. Measured: 25 presses, 20 proposals                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Open since 2026-09-07. **This is the same task as T66** in the table above — one item, two numbers (finding 343). Quote **T60**; T66 is withdrawn                                                                    |
-| **C7**     | **T63 — a control the server is waiting to serve** (finding 316)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Open since 2026-09-08 (iii). **This is the same task as T65** in the table above — one item, two numbers (finding 343). Quote **T63**; T65 is withdrawn                                                              |
+| ~~**C6**~~ | ~~T60 — what "Always allow" promises, and what a full proposal queue should do~~ **DECIDED BY KINAN AND BUILT 2026-09-11.** The card explains that the button allows the action once and asks an Administrator; a request that cannot be saved produces an explicit warning after the press; approval-generated requests get **40 + 20 per organisation account**. See §"T60 and T63 built" at the foot of this file                                                                                                                                                                                                                                                                                                                                                                                                                        | Done. It keeps the safe half the row insisted on — a full queue never widens the policy, it only fails to propose — and now it says so                                                                               |
+| ~~**C7**~~ | ~~T63 — a control the server is waiting to serve~~ **DECIDED BY KINAN AND BUILT 2026-09-11: both (a) and (b), (a) first.** A reopened conversation recovers its own running task with Cancel; _Active agent sessions_ lists the same runs with the same Cancel, from one controller and one cancel path                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Done. See §"T60 and T63 built"                                                                                                                                                                                       |
 | **C8**     | **T49 — what the multi-tenancy machinery is for**, now that an installation holds one organisation. Answer the Codex switch's scope in the same breath: `setCodexBackendEnabled` takes a `groupId` and writes an **installation-wide** key                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Keep it and say in the report that it is verified by test rather than by deployment, or state the cap as the boundary                                                                                                |
 | **C9**     | **T48 — is Chapter 3 ready to be written?** Not "is there enough material" (there are ~9,300 lines) but "has the design stopped moving?"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | This sweep is evidence either way: nine findings in one pass, and seven were text and reachability rather than architecture. **The design looks settled; the surface does not**                                      |
 | **C10**    | **T58 / T59** — whether `edit` is ours, and making per-agent models work                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Both were on the list before this sweep and neither is affected by it                                                                                                                                                |
@@ -558,3 +563,153 @@ files would be invisible to every gate in §4.
 **Recorded, not fixed.** Twenty-seven failures across upstream UI surfaces this
 fork does not touch is a separate piece of work with its own investigation, and
 taking it inside a locale-loading change would bury both. It is **A10** below.
+
+---
+
+## T60 and T63 built (2026-09-11): a draft picked up, finished, and checked
+
+**Kinan's decisions, taken with another agent on 2026-09-10.**
+
+- **T60.** A clear explanation beside the approval controls; option **A** — keep a
+  limit and say so explicitly when it is hit (_"Allowed this time, but the
+  permission request wasn't saved…"_); and raise the capacity to **40 requests, plus
+  20 for every account in the organisation** (no less than 10 per account if 20
+  proved too much — it did not). Plus that agent's own additions: requests already
+  queued survive if accounts are deleted and the limit shrinks, and _"make similarly
+  good decisions on anything similar"_.
+- **T63.** **Both** (a) restore Cancel in the reopened conversation **and** (b) list
+  running prompts with Cancel in _Active agent sessions_. **Where they conflict, (a)
+  wins.**
+
+**What happened next.** That agent (Codex) implemented most of both, ran out of
+usage three times mid-work, and left **38 modified files and 2 new ones,
+uncommitted, never tested, never typechecked**. Asked whether to continue it or
+start over, **it was continued** — after reading every line of it, running its own
+tests, and checking the parts that touch upstream.
+
+### Why continue rather than restart
+
+The design matched the decisions point by point, and the one expensive part of it
+is not avoidable. "Always allow" is pressed on **upstream's generic approval card**,
+and the rule request is filed by the plugin's `onResolution` callback **after** the
+card has closed, in the agent's process. A warning about that request can only
+reach the person who pressed the button through the gateway — so a restart would
+have rebuilt the same report-back channel, and thrown away lifecycle work that was
+already correct and tested.
+
+### What the draft built
+
+| Area                                                                            | What it does                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Queue capacity** (`rule-requests.ts`)                                         | Approval-generated requests are limited to `40 + 20 × accounts` in the organisation, all tiers counted. De-duplication moved **inside the file lock**, so two simultaneous presses cannot take two slots. A shrink never deletes queued requests; it only refuses new ones. A typed `RuleRequestCapacityError` carries a sentence an operator can act on |
+| **The explanation** (`policy-engine.ts`)                                        | The escalation's description now ends: _"Always allow" allows this action once and requests permission for future attempts. An Administrator must approve the request before permission becomes permanent._ Truncated so it always fits the 512-character card, with the full action in `detail`                                                         |
+| **Reporting the outcome** (gateway protocol, agent tools, `plugin-approval.ts`) | A new gateway method, `plugin.approval.reportOutcome`: the agent reports what its callback did; only the original requester may report, once, within 60 seconds of the decision, bounded to 512 characters; the gateway re-broadcasts it to approval viewers                                                                                             |
+| **Showing it** (`overlays.ts`, the `exec-approval.ts` component)                | The Control UI keeps the follow-up after the card closes, on any page, as a dismissible dialog                                                                                                                                                                                                                                                           |
+| **Run lifecycle** (`prompt-runs.ts`, `agent-conversation.ts`)                   | A run stays registered until its reply and ledger entry are **saved**, not merely until the model returns, and reports `ending` (a stop was requested) and `finishing` (saving the reply). A throwing start callback can no longer leak a run slot                                                                                                       |
+| **Ownership** (`governance-dashboard-agent-control.ts`)                         | `GET agent/runs` says which runs belong to the signed-in account, decided on the server beside authentication                                                                                                                                                                                                                                            |
+| **Recovery** (`conversation-controller.ts`, new `prompt-run-controls.ts`)       | One controller feeds both views from one server snapshot. Stale responses after sign-out, a newer snapshot overtaken by an older one, and a completed run resurrected by an older session list are all guarded                                                                                                                                           |
+
+### What was wrong with it
+
+Found by running every check rather than reading the summary it left:
+
+1. **It did not typecheck.** One core error — the approval callback did not return
+   on every path — three in the UI (an untyped severity, a prop the page type did
+   not declare, a possibly-undefined argument), and two more in the **test**
+   typecheck: a new test used `Promise.withResolvers`, which that tsconfig's
+   library does not include. That last pair shows only in the sixth command in
+   `mg/HANDOFF.md` §4 — the same command finding 344 found red.
+2. **21 lint errors**, three of them **files pushed past the 700-line limit**:
+   `overlays.ts`, `agent-panels.ts` and `governance-page.ts`. Fixing those later
+   pushed `api.ts` past it too.
+3. **15 files unformatted.**
+4. **3 failing tests** — the ones it had itself flagged as having wrong expectations.
+5. **The native apps' protocol models were stale.** The new method changes the
+   generated Swift and Kotlin models, which `pnpm protocol:check` compares against.
+6. **The dashboard's own "Would allow" discarded the outcome.** The server returned
+   it and the panel threw it away, so the same full queue was still silent there.
+7. **The warning dialog would have rendered unstyled** outside the Usage page: it
+   used `callout warning`, a class defined only in `usage.css`, while the shared
+   stylesheet's class is `warn`.
+8. **It lost agent replies under concurrency** — a real regression, and the one no
+   reading of the diff showed. Keeping a run registered until its reply was saved
+   also kept its **concurrency slot** through the transcript's file lock, so four
+   prompts from one account at once overlapped past the per-account cap of two, and
+   the later ones were refused _after_ their message had been recorded: four user
+   turns, two or three replies. `qa-round12`'s "without losing a turn" test caught
+   it intermittently — two of three isolated runs failed. **Fixed at the owner**,
+   `prompt-runs.ts`: a run that is only saving its reply keeps its row but no longer
+   holds a slot under either cap, because the caps bound concurrent _executions_.
+   `qa-round12` then passed five consecutive runs under load, and two deterministic
+   tests in `prompt-runs.test.ts` pin the rule.
+9. **One of its own new tests failed under load.** "Keeps a finished run
+   discoverable until its final transcript is saved" polled with `vi.waitFor`'s
+   one-second default, and the slow part — a ledger write, the user turn, taking
+   the file lock — sat inside that second. It failed once in the full suite and
+   passed 5/5 on its own. **Anchored on the event rather than the clock**: it now
+   waits for the runner to hold the lock first, so the poll covers only the hop to
+   `settlePromptRun`. No timeout raised, no assertion weakened.
+
+**And the parts checked and found sound**, because they touch upstream and a silent
+regression there would outlive this project: `detail` is already accepted by the
+strict request schema; the channel runtime that forwards approvals to Telegram and
+Discord settles by id, so the second resolved event is a no-op and nobody gets a
+duplicate message; the embedded (no-gateway) approval path is untouched; the helper
+the draft deleted had no other callers; and the protocol drift is **exactly** the
+new schema and nothing else.
+
+### Decisions taken while finishing, and the precedent for each
+
+| Decision                                                                                   | Why                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Warnings only after a press.** A request that saved reports nothing                      | The card already said, before the press, what the button does. A dialog after every approval would put a second modal on the most common path; what the card could not know in advance is that the save failed                                                                                                                                                                                                         |
+| **"Would allow" shows the failure in the page's banner**                                   | Finding 339 made that banner scroll into view. Two runs, so the answered row has refreshed away before the warning appears                                                                                                                                                                                                                                                                                             |
+| **Cancel is disabled while stopping or saving**                                            | The server refuses both. A button whose only outcome is a refusal is what finding 341 removed from the kill switch                                                                                                                                                                                                                                                                                                     |
+| **Cancel stays enabled on stale data**                                                     | The server is the authority, and "no longer running" is handled. Disabling it would take away the only non-emergency exit exactly when a connection is flaky                                                                                                                                                                                                                                                           |
+| **Switching conversations is refused, with a sentence, while this tab has a task running** | Otherwise the second agent's composer would accept a message the controller then silently ignores — the worst bug class in this repository. A refusal that says why is a visible outcome                                                                                                                                                                                                                               |
+| **Each over-limit file split along a seam this project already uses**                      | `overlays.ts`: approval-event handling moved into `app/exec-approval.ts`, which owns the approval queue. `agent-panels.ts`: _Active agent sessions_ moved into `active-sessions-panel.ts` (T16, by section). `governance-page.ts`: the conversation's props moved into its controller (T53's seam). `api.ts`: the agent-control shapes moved into `api.agent-control.ts`, beside `api.accounts.ts` and `api.agents.ts` |
+| **20 per account, not the fallback of 10**                                                 | Rule requests are small JSON records and the file already bounds retained history (`pruneDecided`). Nothing measured argued for less                                                                                                                                                                                                                                                                                   |
+
+### Size of the change
+
+```
+production   33 files   +1,282   −433   (includes 172 lines moved into active-sessions-panel.ts
+                                          and 48 moved into api.agent-control.ts)
+tests        11 files     +797     −6
+generated     2 files      +24     −1   (Swift and Kotlin protocol models)
+```
+
+The production growth is two features rather than a repair: a new gateway method
+with its server handler and its UI surface (T60), and a recovery state machine
+shared by two views (T63). Both are what the decisions asked for.
+
+### What was checked, and what could not be
+
+**Checked here:** all three typechecks 0 (core, UI and tests); the two new cap tests watched failing with the rule reverted and passing with it restored; plain `oxlint` 0 across all 43 touched files; `oxfmt` clean; the
+Swift protocol check 0; Kotlin regeneration stable; the method-registry check 0;
+and the i18n contributor gate 0 with **4,970** keys (4,956 plus the 14 new
+strings). The governance suite plus every upstream test beside the touched files: **1,582
+passed, 0 failed** across 116 files (21 skipped), after the two repairs above.
+
+**The build, with one caveat worth reading.** `node scripts/build-all.mjs` exited 1.
+Every phase passed — including the Control UI's startup budget, 316,818 B against
+a 324,608 B ceiling — except the last, `write-cli-startup-metadata`, which timed
+out rendering `openclaw browser --help` against its 120-second budget. That build
+ran for 44 minutes beside a full test suite and three typechecks. Measured
+afterwards, the render is pure CPU — **34.9 s of wall time for 38.0 s of CPU**, no
+child processes, correct output — and the step run on its own on an idle machine
+**passed in 93 seconds** and wrote the metadata file. So the failure was load, not
+code. It was not compared against a rebuild of HEAD, and the Linux rebuild T3
+requires will run the same step.
+
+**Not established, said plainly: no live approval card was pressed.** The path from
+a real agent's escalation, through a human pressing "Always allow" in a browser, to
+the follow-up dialog is covered by tests at every hop — the policy callback, the
+gateway handler, the overlay state and the component — but not driven end to end,
+because no model run can be carried to an escalation on this machine (the
+configured Gemini key is exhausted, as recorded in `mg/HANDOFF.md` §6). **The VPS,
+or the T47 by-hand plan, is where that gets proven.** The same holds for T63's
+recovery of a genuinely long-running task.
+
+**Next, in the order Kinan set:** a focused QA pass on these two features through
+the dashboard, then the broader dashboard QA sweep.

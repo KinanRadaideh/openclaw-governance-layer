@@ -105,12 +105,24 @@ channel click past the tier that exists to be unclickable.
 >   than an invented account, so the queue announces that attribution is missing
 >   instead of answering the question wrongly.
 >
-> **Two limits worth stating on this surface.** Proposals filed this way share a
-> single pending-request budget for the whole organisation, because they all
-> carry that one labelled origin; past it, a press grants the call and files
-> nothing, and the only record is a ledger entry (finding 281, open as a
-> decision — T60). And the button still reads **"Always allow"**, which now
-> promises more than it does.
+> **Two limits worth stating on this surface, both revisited by T60 on
+> 2026-09-11.** Proposals filed this way still share **one budget for the whole
+> organisation**, because they all carry that one labelled origin — but it is now
+> **40 plus 20 for every account** rather than a flat 20. And the button still
+> reads **"Always allow"**, but the card now says what it does: _"Always allow"
+> allows this action once and requests permission for future attempts. An
+> Administrator must approve the request before permission becomes permanent._
+>
+> **What reaches a chat surface, and what does not.** That explanation is part of
+> the escalation's description, so it travels with the approval into Discord or
+> Telegram. **The warning that a request could not be saved does not.** It is
+> reported after the decision, as a follow-up the Control UI shows; the channel
+> runtime that forwards approvals settles each one on its first resolved event
+> and ignores the second, so an operator who presses "Always allow" into a full
+> queue from a chat is told nothing there. The action is still allowed once, the
+> ledger still records the failed proposal, and anyone watching the dashboard
+> sees the warning. **State it as a limit of chat deployments** rather than
+> promising a notice the platform will not show.
 >
 > Nothing is lost operationally either way. `allow-once` still unblocks the
 > agent with no delay, and an escalation that goes unanswered still lands on the

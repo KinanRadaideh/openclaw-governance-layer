@@ -16372,6 +16372,7 @@ public struct PluginApprovalRequestParams: Codable, Sendable {
     public let turnsourcethreadid: AnyCodable?
     public let timeoutms: Int?
     public let twophase: Bool?
+    public let reportsoutcome: Bool?
 
     public init(
         pluginid: String? = nil,
@@ -16390,7 +16391,8 @@ public struct PluginApprovalRequestParams: Codable, Sendable {
         turnsourceaccountid: String? = nil,
         turnsourcethreadid: AnyCodable? = nil,
         timeoutms: Int? = nil,
-        twophase: Bool? = nil)
+        twophase: Bool? = nil,
+        reportsoutcome: Bool? = nil)
     {
         self.pluginid = pluginid
         self.title = title
@@ -16409,6 +16411,7 @@ public struct PluginApprovalRequestParams: Codable, Sendable {
         self.turnsourcethreadid = turnsourcethreadid
         self.timeoutms = timeoutms
         self.twophase = twophase
+        self.reportsoutcome = reportsoutcome
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -16429,6 +16432,7 @@ public struct PluginApprovalRequestParams: Codable, Sendable {
         case turnsourcethreadid = "turnSourceThreadId"
         case timeoutms = "timeoutMs"
         case twophase = "twoPhase"
+        case reportsoutcome = "reportsOutcome"
     }
 }
 
@@ -16447,6 +16451,24 @@ public struct PluginApprovalResolveParams: Codable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case id
         case decision
+    }
+}
+
+public struct PluginApprovalOutcomeParams: Codable, Sendable {
+    public let id: String
+    public let outcome: [String: AnyCodable]?
+
+    public init(
+        id: String,
+        outcome: [String: AnyCodable]? = nil)
+    {
+        self.id = id
+        self.outcome = outcome
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case outcome
     }
 }
 

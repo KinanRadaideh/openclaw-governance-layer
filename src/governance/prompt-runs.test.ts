@@ -9,16 +9,19 @@
 // These tests drive the registry directly. The prompting path's use of it is
 // covered in `agent-conversation.test.ts`; here the properties are the bounds
 // themselves and who is allowed past them.
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   beginPromptRun,
   cancelPromptRun,
   finishPromptRun,
   listPromptRuns,
+  listRunningPromptsForSessions,
   MAX_CONCURRENT_PROMPTS,
   MAX_CONCURRENT_PROMPTS_PER_ACCOUNT,
   PromptCapacityError,
+  PROMPT_TIMEOUT_MS,
   resetPromptRunsForTests,
+  settlePromptRun,
 } from "./prompt-runs.js";
 
 beforeEach(() => {
@@ -27,6 +30,7 @@ beforeEach(() => {
 
 afterEach(() => {
   resetPromptRunsForTests();
+  vi.useRealTimers();
 });
 
 let counter = 0;
@@ -236,6 +240,37 @@ describe("a disconnected client stops its own run", () => {
 });
 
 describe("what an account may see", () => {
+  it("freezes a completed execution while its result is being saved", () => {
+    vi.useFakeTimers();
+    const { runId, controller } = start("malek");
+    expect(settlePromptRun(runId)).toBeUndefined();
+    vi.advanceTimersByTime(PROMPT_TIMEOUT_MS);
+    expect(controller.signal.aborted).toBe(false);
+    expect(listRunningPromptsForSessions()[0]).toMatchObject({ runId, finishing: true });
+    expect(finishPromptRun(runId)).toBeUndefined();
+  });
+
+  it.each(["cancelled", "timeout"] as const)(
+    "keeps a %s run visible as stopping until it actually finishes",
+    (ending) => {
+      vi.useFakeTimers();
+      const { runId } = start("malek");
+      const scope = { username: "malek", includeOthers: false, groupAgentIds: ["agent-a"] };
+      expect(listPromptRuns(scope)[0]).not.toHaveProperty("ending");
+      if (ending === "cancelled") {
+        cancelPromptRun({ ...scope, runId, mayCancelOthers: false });
+      } else {
+        vi.advanceTimersByTime(PROMPT_TIMEOUT_MS);
+      }
+      // A reopened conversation and central oversight read the same lifecycle fact.
+      expect(listPromptRuns(scope)).toEqual(listRunningPromptsForSessions());
+      expect(listPromptRuns(scope)[0]).toMatchObject({ runId, ending });
+      expect(finishPromptRun(runId)).toBe(ending);
+      expect(listPromptRuns(scope)).toEqual([]);
+      expect(listRunningPromptsForSessions()).toEqual([]);
+    },
+  );
+
   it("shows an account only its own runs", () => {
     start("malek");
     start("kinan");
@@ -321,5 +356,32 @@ describe("the organisation boundary (finding 235)", () => {
 
     expect(outcome.cancelled).toBe(true);
     expect(controller.signal.aborted).toBe(true);
+  });
+});
+
+describe("the caps count executions, not saves (2026-09-11)", () => {
+  // T63 keeps a run listed while its reply is saved. Counting that run against
+  // a cap held its slot through the transcript's file lock, and concurrent
+  // prompts from one account were refused after their message was recorded —
+  // `qa-round12`'s "without losing a turn" test, failing intermittently.
+  it("frees the account's slot once a run is only saving its reply", () => {
+    const first = start("malek");
+    start("malek");
+    expect(() => start("malek")).toThrow(PromptCapacityError);
+    settlePromptRun(first.runId);
+    expect(() => start("malek")).not.toThrow();
+    // The row is still there, which is what recovery reads.
+    expect(
+      listRunningPromptsForSessions().some((run) => run.runId === first.runId && run.finishing),
+    ).toBe(true);
+  });
+
+  it("frees an installation slot the same way", () => {
+    const started = Array.from({ length: MAX_CONCURRENT_PROMPTS }, (_, index) =>
+      start(`account-${index}`),
+    );
+    expect(() => start("one-more")).toThrow(PromptCapacityError);
+    settlePromptRun(started[0]!.runId);
+    expect(() => start("one-more")).not.toThrow();
   });
 });

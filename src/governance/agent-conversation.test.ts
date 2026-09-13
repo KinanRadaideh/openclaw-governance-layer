@@ -7,7 +7,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parseAgentSessionKey } from "../sessions/session-key-utils.js";
 import {
   EmptyPromptError,
@@ -18,7 +18,10 @@ import {
 } from "./agent-conversation.js";
 import { clearAgentRunner, registerAgentRunner, type AgentRunRequest } from "./agent-runner.js";
 import { tailLedger } from "./audit-ledger.js";
+import { withFileLock } from "./file-lock.js";
 import { lockDownAgent, releaseAgentLockdown } from "./kill-switch.js";
+import { conversationsFilePath } from "./paths.js";
+import { cancelPromptRun, listPromptRuns } from "./prompt-runs.js";
 import { seedGroupWithAgents } from "./test-group.js";
 
 let dir: string;
@@ -262,7 +265,77 @@ describe("transcripts", () => {
   });
 });
 
+/** `Promise.withResolvers` without the es2024 lib this test tsconfig does not include. */
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 describe("streaming, cancellation and capacity (A1 follow-up, and Q-90)", () => {
+  it("keeps a finished run discoverable until its final transcript is saved", async () => {
+    const locked = deferred<void>();
+    const release = deferred<void>();
+    let lockWork: Promise<void> | undefined;
+    clearAgentRunner();
+    registerAgentRunner(async () => {
+      lockWork = withFileLock(conversationsFilePath(TEST_GROUP), async () => {
+        locked.resolve();
+        await release.promise;
+      });
+      await locked.promise;
+      return { ok: true, reply: "the saved answer" };
+    });
+    const run = promptAgent(TEST_GROUP, {
+      agentId: "agent-a",
+      username: "malek",
+      message: "hello",
+    });
+    const scope = { username: "malek", includeOthers: false, groupAgentIds: ["agent-a"] };
+    try {
+      // Anchored on the runner holding the lock, not on the clock. Everything slow
+      // — the ledger write, the user turn, taking the lock — happens before this, so
+      // the poll below only covers the hop to `settlePromptRun`. Polling on the clock
+      // alone failed under full-suite load on 2026-09-11 and passed 5/5 on its own.
+      await locked.promise;
+      await vi.waitFor(() => expect(listPromptRuns(scope)[0]?.finishing).toBe(true));
+      expect(
+        (await readConversation(TEST_GROUP, "agent-a", "malek")).map((turn) => turn.role),
+      ).toEqual(["user"]);
+      const summary = listPromptRuns(scope)[0]!;
+      expect(cancelPromptRun({ ...scope, runId: summary.runId, mayCancelOthers: false })).toEqual({
+        cancelled: false,
+        reason: "not-found",
+      });
+    } finally {
+      release.resolve();
+      await lockWork;
+      await run;
+    }
+    expect(listPromptRuns(scope)).toEqual([]);
+    expect((await readConversation(TEST_GROUP, "agent-a", "malek")).at(-1)?.body).toBe(
+      "the saved answer",
+    );
+  });
+
+  it("releases its registry slot when the start callback fails", async () => {
+    await expect(
+      promptAgent(TEST_GROUP, {
+        agentId: "agent-a",
+        username: "malek",
+        message: "hello",
+        onStart: () => {
+          throw new Error("connection failed");
+        },
+      }),
+    ).rejects.toThrow("connection failed");
+    expect(
+      listPromptRuns({ username: "malek", includeOthers: false, groupAgentIds: ["agent-a"] }),
+    ).toEqual([]);
+  });
+
   it("reports the reply as it arrives, and the final reply matches", async () => {
     clearAgentRunner();
     registerAgentRunner(async (request) => {
@@ -309,7 +382,6 @@ describe("streaming, cancellation and capacity (A1 follow-up, and Q-90)", () => 
     let idDuringRun = "";
     clearAgentRunner();
     registerAgentRunner(async () => {
-      const { listPromptRuns } = await import("./prompt-runs.js");
       idDuringRun =
         listPromptRuns({ username: "malek", includeOthers: false, groupAgentIds: ["agent-a"] })[0]
           ?.runId ?? "";
@@ -331,7 +403,6 @@ describe("streaming, cancellation and capacity (A1 follow-up, and Q-90)", () => 
   it("reports a cancelled run as cancelled, not as a failure", async () => {
     clearAgentRunner();
     registerAgentRunner(async (request) => {
-      const { cancelPromptRun } = await import("./prompt-runs.js");
       cancelPromptRun({
         runId: request.runId,
         username: "malek",
@@ -353,7 +424,6 @@ describe("streaming, cancellation and capacity (A1 follow-up, and Q-90)", () => 
   it("records a cancelled run distinctly in the ledger", async () => {
     clearAgentRunner();
     registerAgentRunner(async (request) => {
-      const { cancelPromptRun } = await import("./prompt-runs.js");
       cancelPromptRun({
         runId: request.runId,
         username: "malek",
@@ -378,7 +448,6 @@ describe("streaming, cancellation and capacity (A1 follow-up, and Q-90)", () => 
     clearAgentRunner();
     registerAgentRunner(async (request) => {
       sawSignal = request.signal !== undefined;
-      const { cancelPromptRun } = await import("./prompt-runs.js");
       cancelPromptRun({
         runId: request.runId,
         username: "malek",

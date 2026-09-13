@@ -14,7 +14,7 @@ Each entry carries a recommendation. **They are advice, not decisions**. The
 brief was to give you all three for every candidate so the choice is yours while
 writing.
 
-**Summary of the recommendations: keep 10, cut 7, merge 3.** Twenty figures is a
+**Summary of the recommendations: keep 10, cut 7, merge 3.** _(Written for F1–F20. F22 was added 2026-09-01 as a keep, and **F23 and F24 were added 2026-09-11 for T60 and T63, both keeps** — so the drawable total is now 23, F18 being a cross-reference.)_ Twenty figures is a
 lot for two chapters, and several candidates were notes-to-self rather than
 arguments. The ten recommended keeps are the ones where a reader genuinely
 understands something faster from the picture than from the paragraph.
@@ -2008,4 +2008,126 @@ first. The exception carves a hole in the grant because forbid beats allow
 independently of order.}
 \label{fig:foldergrant}
 \end{figure}
+```
+
+---
+
+## F23: "Always allow", an approval that finishes after its card has closed (added 2026-09-11)
+
+**Source:** §3.5.81 · **Proposed number:** Figure 3.11
+
+**Recommendation: KEEP.** The order of events is the thing a reader gets wrong,
+and it is the whole design. The operator presses the button **before** the rule
+request exists; the request is filed afterwards, in the agent's process, by the
+policy's own callback. So a warning that the request could not be saved has
+nowhere to go unless something carries it back through the Gateway — which is why
+T60 needed a new Gateway method at all, and why a chat surface, which acts only on
+the first resolved event, never shows that warning.
+
+### Prose form
+
+The agent's governed call reaches a path no rule covers, so the policy asks for
+approval, and the request's description already explains that "Always allow"
+allows this action once and asks an Administrator to make it permanent. The
+Gateway shows the card. The operator presses **Always allow**; the decision
+returns to the agent's process, the action runs once, and only then does the
+policy's callback try to file the rule request. If it saves, nothing more
+happens. If the organisation's queue — 40 requests plus 20 per account — is full,
+the callback reports that outcome to the Gateway, which re-broadcasts it to the
+operators who review approvals, and the Control UI shows a follow-up dialog
+saying the request was not saved.
+
+### Mermaid form
+
+```mermaid
+sequenceDiagram
+  participant Op as Operator (Control UI)
+  participant GW as Gateway
+  participant AG as Agent process (policy callback)
+  participant Q as Rule requests
+  AG->>GW: approval request (description explains "Always allow")
+  GW->>Op: approval card
+  Op->>GW: Always allow
+  GW->>AG: decision: allow-always
+  Note over AG: the action runs once
+  AG->>Q: file a rule request
+  alt saved
+    Q-->>AG: pending
+    AG->>GW: report outcome (nothing to say)
+  else queue full (40 + 20 per account)
+    Q-->>AG: capacity refused
+    AG->>GW: report outcome (warning)
+    GW->>Op: follow-up: "not saved"
+  end
+```
+
+### TikZ form
+
+```latex
+\begin{tikzpicture}[font=\small, >=stealth]
+  \foreach \x/\name in {0/Operator, 3.6/Gateway, 7.2/Agent process, 10.8/Rule requests} {
+    \node[draw, rounded corners, minimum width=2.6cm, minimum height=0.7cm] at (\x,0) {\name};
+    \draw[dashed, gray] (\x,-0.4) -- (\x,-7.6);
+  }
+  \draw[->] (7.2,-1.0) -- node[above]{request, with explanation} (3.6,-1.0);
+  \draw[->] (3.6,-1.7) -- node[above]{card} (0,-1.7);
+  \draw[->] (0,-2.4) -- node[above]{Always allow} (3.6,-2.4);
+  \draw[->] (3.6,-3.1) -- node[above]{allow-always} (7.2,-3.1);
+  \node[fill=gray!15, rounded corners] at (7.2,-3.8) {runs once};
+  \draw[->] (7.2,-4.5) -- node[above]{file request} (10.8,-4.5);
+  \draw[->, dashed] (10.8,-5.2) -- node[above]{queue full} (7.2,-5.2);
+  \draw[->] (7.2,-5.9) -- node[above]{report outcome} (3.6,-5.9);
+  \draw[->] (3.6,-6.6) -- node[above]{``not saved''} (0,-6.6);
+\end{tikzpicture}
+```
+
+## F24: A task's row and its slot (added 2026-09-11)
+
+**Source:** §3.5.82 · **Proposed number:** Figure 3.12
+
+**Recommendation: KEEP, and keep it small.** It draws the invariant a defect came
+from. T63 keeps a task **listed** until its reply is saved, so that "it vanished"
+can mean "it finished"; the first version also kept its **slot** under the
+per-account cap of two for that long, and concurrent prompts lost their replies.
+The figure makes the fix legible in one glance: the row and the slot are released
+at different moments, and only the slot bounds concurrency.
+
+### Prose form
+
+A prompt that is accepted takes a slot and appears in both the conversation and
+_Active agent sessions_, with Cancel enabled. Cancelling it, or the five-minute
+timeout, moves it to **Stopping**: still listed, still holding its slot, Cancel
+disabled. When the model returns — or a stopped run finishes unwinding — it moves
+to **Saving reply**: still listed so recovery can see it, but its slot is released,
+because it is no longer executing. Once the reply and its ledger entry are saved,
+it leaves the list.
+
+### Mermaid form
+
+```mermaid
+stateDiagram-v2
+  [*] --> Running: prompt accepted (takes a slot)
+  Running --> Stopping: Cancel, or 5-minute timeout
+  Running --> Saving: model returned
+  Stopping --> Saving: run unwinds
+  Saving --> [*]: reply and ledger entry saved
+  note right of Running: listed, holds a slot, Cancel enabled
+  note right of Stopping: listed, holds a slot, Cancel disabled
+  note right of Saving: listed, slot released, Cancel disabled
+```
+
+### TikZ form
+
+```latex
+\begin{tikzpicture}[font=\small, >=stealth, node distance=3.2cm,
+    state/.style={draw, rounded corners, align=center, minimum width=2.8cm, minimum height=1.1cm}]
+  \node[state] (run) {Running\\footnotesize listed $\cdot$ slot $\cdot$ Cancel};
+  \node[state, right=of run] (stop) {Stopping\\footnotesize listed $\cdot$ slot};
+  \node[state, below=1.6cm of stop] (save) {Saving reply\\footnotesize listed $\cdot$ \textbf{no slot}};
+  \node[below=1.2cm of save] (gone) {gone};
+  \draw[->] (run) -- node[above]{Cancel / timeout} (stop);
+  \draw[->] (stop) -- node[right]{unwinds} (save);
+  \draw[->] (run) |- node[pos=0.25, left]{model returned} (save);
+  \draw[->] (save) -- node[right]{saved} (gone);
+\end{tikzpicture}
 ```

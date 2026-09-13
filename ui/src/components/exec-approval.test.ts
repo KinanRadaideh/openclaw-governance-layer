@@ -32,6 +32,8 @@ async function renderApproval(
     nowMs: number;
     inlineApprovalId: string | null;
     onDecision: ReturnType<typeof vi.fn>;
+    notices: readonly { id: string; message: string; severity: "info" | "warning" }[];
+    onDismissNotice: ReturnType<typeof vi.fn>;
   }> = {},
 ) {
   const queue = Array.isArray(requestOrQueue) ? requestOrQueue : [requestOrQueue];
@@ -45,6 +47,8 @@ async function renderApproval(
         nowMs: overrides.nowMs ?? Date.now(),
         inlineApprovalId: overrides.inlineApprovalId ?? null,
         onDecision,
+        notices: overrides.notices,
+        onDismissNotice: overrides.onDismissNotice,
       }}
     ></openclaw-exec-approval>`,
     container,
@@ -75,6 +79,19 @@ describe("openclaw-exec-approval", () => {
     await i18n.setLocale("en");
     restoreDialogPolyfill();
     vi.restoreAllMocks();
+  });
+
+  it("shows and dismisses an outcome after the approval queue has closed", async () => {
+    const onDismissNotice = vi.fn();
+    const message = "Allowed this action once. The permission request queue is full.";
+    await renderApproval([], {
+      notices: [{ id: "plugin:one", message, severity: "warning" }],
+      onDismissNotice,
+    });
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(message);
+    const button = container.querySelector<HTMLButtonElement>("button.btn");
+    button?.click();
+    expect(onDismissNotice).toHaveBeenCalledWith("plugin:one");
   });
 
   it("uses neutral unavailable copy for exec allow-always decisions", async () => {

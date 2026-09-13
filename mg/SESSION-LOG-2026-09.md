@@ -5100,3 +5100,83 @@ separates a regression test from a comment**, and this one was watched passing.
 Rewritten to filter on _Policy changes_, which matches all twenty, so the
 wording is the only difference between the two versions — and it then failed
 against the revert, as it should have from the start.
+
+## 2026-09-09 (ii): three surfaces disagreeing, and three claims nobody checked
+
+**The three items the sweep backlog listed as needing nobody's permission, and
+they turned out to share one shape: two parts of the product answering the same
+question differently.** A3: the membership check beside `canManageAgent` compared
+agent ids raw, so `SCOUT` was manageable and unknown at the same moment on the
+kill switch and the policy lookup. A4: the deployment report and the host's own
+security audit both answered "is the Gateway authenticated", and printed two
+failures for one missing credential. A5: System resources dropped the load average
+silently on Windows while the Deployment report, one section down, said "not
+determined here" — it now says the same, reusing that string for zero bytes.
+
+**Four decisions**, each on precedent: C3 leave the server's refusal text (its
+sameness is an anti-oracle property); C5/T50 the full lint gate stays manual
+because there is no CI (T21), and the pre-commit hook now says so on every pass;
+C2 turned out to have been decided the day before; C1/T64 re-framed with numbers.
+
+**And three findings about the record** — 342, the reason written down for the
+startup budget was wrong twenty-fold; 343, backlog rows stale against other rows
+and two tasks with two numbers each; 344, the test typecheck was red at HEAD while
+the handoff's state table called it clean, the third such cell in that one table.
+Written up in `mg/REMAINING-WORK-DASHBOARD-SWEEP.md` §"2026-09-09 (ii)".
+
+## 2026-09-09 (iii): T64, the page carries its own text
+
+**Kinan chose to split the page, and it was built the same evening.** `en-core.ts`
+is what startup loads; `en-governance.ts` travels in the governance page's own
+lazy chunk and registers itself as that chunk evaluates; `en.ts` still merges both
+for the translation pipeline. **9,019 bytes off every first page load** — headroom
+from 67 B to 8,062 B — with all 4,956 keys compared before and after and none lost,
+and finding 321's ceiling raise handed back.
+
+**Finding 345 came from checking it for regressions**: widening the run to all of
+`ui/src` showed 27 failing tests across 16 files, every one reproducing at HEAD and
+none in this fork's code — a whole area no command in the handoff's verification
+list had ever run. Recorded as A10 rather than fixed.
+
+## 2026-09-11: T60 and T63, finished from another agent's draft
+
+**Kinan decided both on 2026-09-10 with another agent, Codex**, which implemented
+most of them and ran out of usage three times mid-work, leaving 38 modified files
+and 2 new ones uncommitted and untested. **Asked whether to continue or restart,
+the draft was continued**: the design matched the decisions, and its costly part is
+forced by where the button lives — "Always allow" is pressed on upstream's approval
+card, and the rule request is filed after that card closes, so a warning about it
+can only come back through the Gateway.
+
+### What the draft needed
+
+Reading it in full and running every check turned up a core and three UI type
+errors, two more in the test typecheck, 21 lint errors (three files past the
+700-line limit), fifteen unformatted files, three tests with wrong expectations,
+stale Swift and Kotlin protocol models, a dashboard panel discarding the outcome it
+was built to show, and a dialog using a CSS class only the Usage page loads. Each
+over-limit file was split along a seam the project already uses.
+
+### The one that no reading found
+
+**Concurrent prompts from one account lost agent replies.** The draft kept a run
+registered until its reply was saved — right, so that recovery can tell "finished"
+from "vanished" — but that also held the run's concurrency slot through the
+transcript's file lock. With a per-account cap of two, a burst of four overlapped,
+and the later prompts were refused after their messages were recorded. Only the
+wider governance suite caught it, and only intermittently (`qa-round12`, two of
+three isolated runs). Fixed at the owner: a run that is only saving its reply keeps
+its row but not its slot. The new tests were watched failing with the rule reverted.
+
+### Verified, and one caveat
+
+All three typechecks, `oxlint`, formatting, the protocol checks and the i18n gate
+clean; the governance suite plus the upstream tests beside every touched file,
+**1,582 passed, 0 failed**. `build-all` exited 1 on its last step only — a CLI help
+render timing out while a test suite and three typechecks ran beside it — and that
+step passed alone in 93 seconds. **No live approval card was pressed**; the machine
+could not run a model. The full record is `mg/REMAINING-WORK-DASHBOARD-SWEEP.md`
+§"T60 and T63 built".
+
+**Then the handoff documents were brought level for the documentation phase**,
+which starts at `docs-notes/WRITING-GUIDE.md`.

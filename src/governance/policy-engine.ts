@@ -1,3 +1,9 @@
+import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import {
+  PLUGIN_APPROVAL_DESCRIPTION_MAX_LENGTH,
+  truncatePluginApprovalDetail,
+} from "../infra/plugin-approvals.js";
+import type { PluginApprovalResolutionOutcome } from "../plugins/hook-before-tool-call-result.js";
 // The decision function itself: given a tool call the agent is about to make,
 // decide allow / deny / ask-a-human, and record the decision either way.
 //
@@ -34,7 +40,7 @@ import {
   resolveAskMode,
 } from "./policy-types.js";
 import { type GovernedToolSpec, resolveGovernedTool } from "./resource-extraction.js";
-import { findPendingRuleRequestFor, submitRuleRequest } from "./rule-requests.js";
+import { RuleRequestCapacityError, submitRuleRequest } from "./rule-requests.js";
 import { findLockedAncestor, lineageUnknown } from "./session-lineage.js";
 import { findUsersForAgent } from "./user-store.js";
 
@@ -82,10 +88,11 @@ export type GovernancePolicyDecision =
       requireApproval: {
         title: string;
         description: string;
+        detail?: string;
         severity: "warning";
         allowedDecisions: Array<"allow-once" | "allow-always" | "deny">;
         timeoutMs?: number;
-        onResolution: (decision: string) => Promise<void>;
+        onResolution: (decision: string) => Promise<void | PluginApprovalResolutionOutcome>;
       };
       /** See the `params`-only variant below. Carried here so an approved call is bound too. */
       params?: Record<string, unknown>;
@@ -407,6 +414,11 @@ async function resolveGovernedParamBinding(
 // judgement it records leads somewhere, which is what the panel's own hint has
 // always said it did. Same proposal, same de-duplication, same "one party
 // asked, another granted" — never a grant taken here.
+export type EscalationProposalOutcome =
+  | { status: "pending"; requestId: string }
+  | { status: "queue-full"; limit: number; warning: string }
+  | { status: "failed"; warning: string };
+
 export async function proposeRuleFromEscalation(
   groupId: string,
   input: {
@@ -416,7 +428,7 @@ export async function proposeRuleFromEscalation(
     toolName: string;
     access?: "read" | "write";
   },
-): Promise<void> {
+): Promise<EscalationProposalOutcome> {
   const pattern = escapeRegExp(input.resource);
   const agentId = input.agentId?.trim();
   if (!agentId) {
@@ -430,25 +442,14 @@ export async function proposeRuleFromEscalation(
     // hundred lines above this. That argument depends on a guard in another
     // function, and "scoped to the agent" is a claim worth being true by
     // construction rather than by inheritance.
-    return;
+    return {
+      status: "failed",
+      warning:
+        "The permission request could not be saved because no agent was identified. Ask an Administrator to review the agent registration.",
+    };
   }
   try {
-    // One proposal per distinct grant. A retrying agent re-raises the same
-    // prompt, and an operator answering it twice should not fill an
-    // Administrator's queue with copies of one question.
-    const existing = await findPendingRuleRequestFor(groupId, {
-      resourceKind: input.resourceKind,
-      pattern,
-      agentId,
-      // Part of what makes two proposals the same proposal. A read of a file
-      // and a write of that file are different grants, so folding them
-      // together here would grant only whichever was asked for first.
-      ...(input.access ? { access: input.access } : {}),
-    });
-    if (existing) {
-      return;
-    }
-    await submitRuleRequest(groupId, {
+    const request = await submitRuleRequest(groupId, {
       resourceKind: input.resourceKind,
       pattern,
       agentId,
@@ -456,12 +457,13 @@ export async function proposeRuleFromEscalation(
       ...(input.access ? { access: input.access } : {}),
       requestedBy: HITL_ACTOR,
       reason:
-        `Approved once at an escalation: agent "${agentId}" ran ` +
+        `Requested after an escalation: agent "${agentId}" requested ` +
         `"${input.toolName}" against ${input.resourceKind} "${input.resource}"` +
         `${input.access ? ` (${input.access})` : ""}. ` +
         "Approving makes that permanent; rejecting leaves it needing approval each time.",
     });
-  } catch {
+    return { status: "pending", requestId: request.id };
+  } catch (error) {
     // Recorded rather than swallowed: an operator who pressed "allow always"
     // and then finds nothing in the review queue is owed an explanation, and
     // the chain is where this layer keeps them — `src/governance/` has no
@@ -483,6 +485,17 @@ export async function proposeRuleFromEscalation(
     } catch {
       // Nothing left that can be trusted to record it. The grant stands.
     }
+    return error instanceof RuleRequestCapacityError
+      ? {
+          status: "queue-full",
+          limit: error.limit,
+          warning: `The permission request was not saved. ${error.message}`,
+        }
+      : {
+          status: "failed",
+          warning:
+            "The permission request could not be saved. Ask an Administrator to check Rule requests and the server's storage, then try again.",
+        };
   }
 }
 
@@ -1018,12 +1031,14 @@ export async function evaluateGovernancePolicy(
       };
     }
 
+    const explanation =
+      '"Always allow" allows this action once and requests permission for future attempts. An Administrator must approve the request before permission becomes permanent.';
+    const actionDescription = `Agent "${agentId ?? "unknown"}" wants to run "${event.toolName}" against ${spec.resourceKind} "${resource}", which no policy rule currently covers.`;
     return {
       requireApproval: {
         title: `Governance: unlisted ${spec.resourceKind}`,
-        description:
-          `Agent "${agentId ?? "unknown"}" wants to run "${event.toolName}" against ` +
-          `${spec.resourceKind} "${resource}", which no policy rule currently covers.`,
+        description: `${truncateUtf16Safe(actionDescription, PLUGIN_APPROVAL_DESCRIPTION_MAX_LENGTH - explanation.length - 1)} ${explanation}`,
+        detail: truncatePluginApprovalDetail(actionDescription),
         severity: "warning",
         // Bound the wait. OpenClaw's approval machinery already fails closed
         // on timeout; supplying the window makes the bound ours to configure
@@ -1080,7 +1095,7 @@ export async function evaluateGovernancePolicy(
               ruleId: "hitl-timeout",
               decision: "deny",
             });
-            return;
+            return undefined;
           }
           // **`allow-always` grants this call and proposes the rule.** The
           // grant is the host's, already made by the time this runs; what
@@ -1088,15 +1103,16 @@ export async function evaluateGovernancePolicy(
           // the operator approved the action, so a queue that is full or a
           // write that fails must not retract a grant they were given. The
           // failure is recorded instead of being swallowed.
-          if (resolutionDecision === "allow-always") {
-            await proposeRuleFromEscalation(groupId, {
-              agentId,
-              resourceKind: spec.resourceKind,
-              resource,
-              toolName: event.toolName,
-              ...(spec.access ? { access: spec.access } : {}),
-            });
-          }
+          const proposal =
+            resolutionDecision === "allow-always"
+              ? await proposeRuleFromEscalation(groupId, {
+                  agentId,
+                  resourceKind: spec.resourceKind,
+                  resource,
+                  toolName: event.toolName,
+                  ...(spec.access ? { access: spec.access } : {}),
+                })
+              : undefined;
           const finalDecision: LedgerDecision = resolutionDecision === "deny" ? "deny" : "allow";
           await appendLedgerEntry(groupId, {
             agentId,
@@ -1111,6 +1127,14 @@ export async function evaluateGovernancePolicy(
                 ? "allow"
                 : finalDecision,
           });
+          // **Warnings only** (T60, 2026-09-11). The card said before the press
+          // that "Always allow" allows this once and asks an Administrator, so
+          // repeating that as a dialog after every approval would put a second
+          // modal on the most common path. What the card could not know in
+          // advance is that the request failed to save — that is the message.
+          return proposal && proposal.status !== "pending"
+            ? { severity: "warning", message: `Allowed this action once. ${proposal.warning}` }
+            : undefined;
         },
       },
       // If the human approves, the tool is handed the path the escalation

@@ -36,10 +36,12 @@ import {
 } from "./admin-audit.js";
 import { tailLedger } from "./audit-ledger.js";
 import { resetLedgerKeyCacheForTests } from "./ledger-key.js";
+import { ruleRequestsFilePath } from "./paths.js";
 import { evaluateGovernancePolicy } from "./policy-engine.js";
 import { loadPolicy, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
 import { listRuleRequests } from "./rule-requests.js";
+import { writeGovernanceJson } from "./state-file.js";
 import { seedGroupWithAgents } from "./test-group.js";
 
 const AGENT = "jack";
@@ -85,6 +87,43 @@ describe("answering an escalation with allow always", () => {
     // anything permanent has to stay available.
     expect(approval.allowedDecisions).toContain("allow-once");
     expect(approval.allowedDecisions).toContain("deny");
+    expect(approval.description).toContain("allows this action once");
+    expect(approval.description).toContain("An Administrator must approve");
+  });
+
+  it("reports a full queue visibly without retracting the one-time approval", async () => {
+    const first = await escalate();
+    // A saved request reports nothing: the card already said what the button does.
+    expect(await first.onResolution("allow-always")).toBeUndefined();
+    const [template] = await listRuleRequests(group);
+    const requests = Array.from({ length: 40 }, (_, index) => ({
+      ...template!,
+      id: `request-${index}`,
+      pattern: `^other-${index}$`,
+    }));
+    await writeGovernanceJson(ruleRequestsFilePath(group), { version: 1, requests });
+    const approval = await escalate();
+    const outcome = await approval.onResolution("allow-always");
+    expect(outcome).toMatchObject({ severity: "warning" });
+    expect(outcome?.message).toContain("Allowed this action once");
+    expect(outcome?.message).toContain("40 pending requests");
+    expect(outcome?.message).toContain("Administrator");
+    expect(await listRuleRequests(group)).toHaveLength(40);
+    expect((await tailLedger(group, 20)).at(-1)?.decision).toBe("allow");
+  });
+
+  it("keeps the explanation within the approval transport limit and full action in reviewer detail", async () => {
+    const command = "echo " + "x".repeat(1000);
+    const decision = await evaluateGovernancePolicy(
+      { toolName: "exec", params: { command } },
+      { agentId: AGENT, sessionKey: `agent:${AGENT}:main` },
+    );
+    if (!decision || !("requireApproval" in decision)) {
+      throw new Error("expected approval");
+    }
+    expect(decision.requireApproval.description.length).toBeLessThanOrEqual(512);
+    expect(decision.requireApproval.description).toContain("An Administrator must approve");
+    expect(decision.requireApproval.detail).toContain(command);
   });
 
   it("files one proposal and writes no rule", async () => {

@@ -263,10 +263,78 @@ describe("createPluginApprovalHandlers", () => {
     const handlers = createPluginApprovalHandlers(manager);
     expect(Object.keys(handlers).toSorted()).toEqual([
       "plugin.approval.list",
+      "plugin.approval.reportOutcome",
       "plugin.approval.request",
       "plugin.approval.resolve",
       "plugin.approval.waitDecision",
     ]);
+  });
+
+  it("delivers a post-decision outcome only from the original requester, once, to the approval audience", async () => {
+    const handlers = createPluginApprovalHandlers(manager);
+    const opts = createMockOptions(
+      "plugin.approval.request",
+      { title: "Review", description: "Action", twoPhase: true, reportsOutcome: true },
+      { client: createClient({ deviceId: "requester" }) },
+    );
+    const pending = handlers["plugin.approval.request"]!(opts);
+    const id = await waitForAcceptedApproval(opts.respond as ReturnType<typeof vi.fn>);
+    manager.resolve(id, "allow-always");
+    await pending;
+    const outcome = {
+      severity: "warning",
+      message: "Allowed once; the permission request queue is full.",
+    };
+    const report = handlers["plugin.approval.reportOutcome"]!;
+    const reviewer = createMockOptions(
+      "plugin.approval.reportOutcome",
+      { id, outcome },
+      { client: createClient({ deviceId: "reviewer", scopes: ["operator.admin"] }) },
+    );
+    await report(reviewer);
+    expect(reviewer.respond).toHaveBeenCalledWith(false, undefined, expect.anything());
+    const recipientIds = new Set(["reviewer-tab"]);
+    const context = {
+      ...createApprovalContext(),
+      getApprovalClientConnIds: vi.fn(() => recipientIds),
+      broadcastToConnIds: vi.fn(),
+    };
+    const owned = createMockOptions(
+      "plugin.approval.reportOutcome",
+      { id, outcome },
+      {
+        client: createClient({ deviceId: "requester", connId: "fresh-requester-connection" }),
+        context,
+      },
+    );
+    await report(owned);
+    expect(owned.respond).toHaveBeenCalledWith(true, { ok: true }, undefined);
+    expect(context.broadcastToConnIds).toHaveBeenCalledWith(
+      "plugin.approval.resolved",
+      expect.objectContaining({ id, outcome, decision: "allow-always" }),
+      recipientIds,
+      { dropIfSlow: true },
+    );
+    await report(owned);
+    expect(context.broadcastToConnIds).toHaveBeenCalledTimes(1);
+    const conflicting = createMockOptions(
+      "plugin.approval.reportOutcome",
+      { id, outcome: { ...outcome, message: "changed" } },
+      { client: owned.client },
+    );
+    await report(conflicting);
+    expect(conflicting.respond).toHaveBeenCalledWith(false, undefined, expect.anything());
+    expect(manager.getSnapshot(id)?.decision).toBe("allow-always");
+  });
+
+  it("rejects oversized follow-up messages", async () => {
+    const handlers = createPluginApprovalHandlers(manager);
+    const opts = createMockOptions("plugin.approval.reportOutcome", {
+      id: "plugin:test",
+      outcome: { message: "x".repeat(513), severity: "warning" },
+    });
+    await handlers["plugin.approval.reportOutcome"]!(opts);
+    expect(opts.respond).toHaveBeenCalledWith(false, undefined, expect.anything());
   });
 
   describe("invalid params", () => {
