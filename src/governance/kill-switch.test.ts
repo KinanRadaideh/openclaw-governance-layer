@@ -16,6 +16,12 @@ import { lockDownAgent, releaseAgentLockdown } from "./kill-switch.js";
 import { evaluateGovernancePolicy } from "./policy-engine.js";
 import { addRule, loadPolicy, savePolicy } from "./policy-store.js";
 import { defaultPolicyDocument } from "./policy-types.js";
+import {
+  beginPromptRun,
+  finishPromptRun,
+  listPromptRuns,
+  resetPromptRunsForTests,
+} from "./prompt-runs.js";
 import { seedGroupWithAgents } from "./test-group.js";
 
 /**
@@ -47,6 +53,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   clearAgentTerminator();
+  resetPromptRunsForTests();
   delete process.env.OPENCLAW_GOVERNANCE_DIR;
   await rm(dir, { recursive: true, force: true });
 });
@@ -129,6 +136,56 @@ describe("in-flight termination", () => {
     expect(aborted).toEqual(["agent-a"]);
     expect(result.termination.supported).toBe(true);
     expect(result.termination.abortedRunIds).toEqual(["run-1", "run-2"]);
+  });
+
+  describe("a dashboard prompt, which the Gateway's run registry never holds (finding 364)", () => {
+    // What the Gateway's terminator does for a dashboard prompt: reaches nothing.
+    const gatewayReachesNothing = () =>
+      registerAgentTerminator(
+        () => ({ abortedRunIds: [] }),
+        () => [],
+      );
+
+    it("is stopped too, and only for the agent named", async () => {
+      gatewayReachesNothing();
+      const stopped = beginPromptRun({ runId: "prompt-a", agentId: "agent-a", username: "kinan" });
+      const other = beginPromptRun({ runId: "prompt-b", agentId: "agent-b", username: "kinan" });
+
+      const result = await lockDownAgent(TEST_GROUP, "Agent-A", TEST_ACTOR);
+
+      expect(stopped.signal.aborted).toBe(true);
+      expect(other.signal.aborted).toBe(false);
+      expect(result.termination.abortedRunIds).toEqual(["prompt-a"]);
+      expect(
+        listPromptRuns({ username: "kinan", includeOthers: true, groupAgentIds: ["agent-a"] }),
+      ).toEqual([expect.objectContaining({ runId: "prompt-a", ending: "kill-switch" })]);
+    });
+
+    it("confirms the stop once the prompt has unwound", async () => {
+      gatewayReachesNothing();
+      const controller = beginPromptRun({
+        runId: "prompt-a",
+        agentId: "agent-a",
+        username: "kinan",
+      });
+      controller.signal.addEventListener("abort", () => {
+        setTimeout(() => finishPromptRun("prompt-a"), 50);
+      });
+
+      const result = await lockDownAgent(TEST_GROUP, "agent-a", TEST_ACTOR);
+
+      expect(result.termination.stoppedConfirmed).toBe(true);
+    });
+
+    it("reports a prompt that has not unwound as still running, not as stopped", async () => {
+      gatewayReachesNothing();
+      beginPromptRun({ runId: "prompt-a", agentId: "agent-a", username: "kinan" });
+
+      const result = await lockDownAgent(TEST_GROUP, "agent-a", TEST_ACTOR);
+
+      expect(result.termination.stoppedConfirmed).toBe(false);
+      expect(result.termination.stillRunningRunIds).toEqual(["prompt-a"]);
+    });
   });
 
   it("reports honestly when no terminator is registered", async () => {

@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ADMIN_ACTIONS } from "../governance/admin-audit.js";
 import { governanceSessionKey } from "../governance/agent-conversation.js";
 import { tailLedger } from "../governance/audit-ledger.js";
+import { lockDownAgent } from "../governance/kill-switch.js";
 import { savePolicy } from "../governance/policy-store.js";
 import { defaultPolicyDocument } from "../governance/policy-types.js";
 import type { GovernanceRole } from "../governance/roles.js";
@@ -460,6 +461,20 @@ describe("the governance approval routes", () => {
 
     expect((await call("POST", "approvals/decide", lina(), { id, decision: "deny" })).status).toBe(
       404,
+    );
+  });
+
+  it("refuses to allow an escalation once its agent is locked down, and still takes a deny (finding 364)", async () => {
+    release = installGovernanceApprovalRoute(createRuntime());
+    const { payload } = await escalate();
+    const id = payload.id as string;
+    await lockDownAgent(groupId, "agent-a", { name: "ada", role: "administrator" });
+
+    const refused = await call("POST", "approvals/decide", lina(), { id, decision: "allow-once" });
+    expect(refused.status).toBe(409);
+    expect(manager.getSnapshot(id)?.resolvedAtMs).toBeUndefined();
+    expect((await call("POST", "approvals/decide", lina(), { id, decision: "deny" })).status).toBe(
+      200,
     );
   });
 

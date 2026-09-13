@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parseAgentSessionKey } from "../sessions/session-key-utils.js";
+import { ADMIN_ACTIONS } from "./admin-audit.js";
 import {
   EmptyPromptError,
   governanceSessionKey,
@@ -398,6 +399,30 @@ describe("streaming, cancellation and capacity (A1 follow-up, and Q-90)", () => 
     });
     expect(announced).toBe(outcome.runId);
     expect(idDuringRun).toBe(outcome.runId);
+  });
+
+  it("reports a run the kill switch stopped as that, in the reply and the ledger (finding 364)", async () => {
+    clearAgentRunner();
+    let abortedDuringRun: boolean | undefined;
+    registerAgentRunner(async (request) => {
+      await lockDownAgent(TEST_GROUP, "agent-a", "root");
+      abortedDuringRun = request.signal?.aborted;
+      return { ok: false, reply: "", error: "This operation was aborted" };
+    });
+
+    const outcome = await promptAgent(TEST_GROUP, {
+      agentId: "agent-a",
+      username: "malek",
+      message: "keep going",
+    });
+
+    expect(abortedDuringRun).toBe(true);
+    expect(outcome).toMatchObject({ ok: false, ending: "kill-switch" });
+    expect(outcome.error).toContain("kill switch");
+    const results = (await tailLedger(TEST_GROUP, 200)).filter(
+      (entry) => entry.toolName === ADMIN_ACTIONS.agentPromptResult,
+    );
+    expect(JSON.stringify(results.at(-1))).toContain("stopped by the kill switch");
   });
 
   it("reports a cancelled run as cancelled, not as a failure", async () => {

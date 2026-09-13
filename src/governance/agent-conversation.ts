@@ -429,7 +429,7 @@ export async function promptAgent(
     }[];
     /**
      * Called once if the run is stopped before it finishes: a Cancel from any
-     * tab or account, or the timeout. The reply still arrives when the run has
+     * tab or account, the timeout, or the kill switch. The reply still arrives when the run has
      * unwound; this is what lets a page say "Stopping" in the meantime.
      */
     onStopping?: (ending: PromptRunEnding) => void;
@@ -621,7 +621,9 @@ export async function promptAgent(
         error:
           ending === "cancelled"
             ? "The prompt was cancelled."
-            : `The prompt ran longer than ${Math.round(PROMPT_TIMEOUT_MS / 60_000)} minutes and was stopped.`,
+            : ending === "kill-switch"
+              ? "The agent was stopped by the emergency kill switch."
+              : `The prompt ran longer than ${Math.round(PROMPT_TIMEOUT_MS / 60_000)} minutes and was stopped.`,
       };
     }
 
@@ -647,7 +649,7 @@ export async function promptAgent(
       target: outcome.ok
         ? `reply delivered (${reply.length} chars)`
         : ending
-          ? `run ${ending} after ${reply.length} chars`
+          ? `run ${ending === "kill-switch" ? "stopped by the kill switch" : ending} after ${reply.length} chars`
           : `run failed: ${outcome.error ?? "unknown"}`,
     });
 

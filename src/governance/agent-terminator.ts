@@ -16,6 +16,7 @@
 // unit test, a Gateway that has not finished starting, lockdown still applies
 // and the result says plainly that no in-flight run could be reached, rather
 // than pretending the agent was stopped.
+import { endPromptRunsForAgent, promptRunsStillExecuting } from "./prompt-runs.js";
 
 export type AgentTerminationResult = {
   /** Ids of runs that were actually signalled to abort. */
@@ -118,12 +119,18 @@ export async function terminateAgentRuns(agentId: string): Promise<TerminationOu
   const probe = registeredProbe;
   const startedAt = process.hrtime.bigint();
   const elapsed = () => Number(process.hrtime.bigint() - startedAt) / 1e6;
+  // **Governance's own prompt runs first, and without the Gateway** (finding 364). A
+  // dashboard prompt never enters the Gateway's run registry (finding 319), so the
+  // registered terminator could not reach one: the kill switch locked the agent,
+  // reported that nothing was in flight, and left the prompt running with any
+  // escalation it had raised still open to "Allow once".
+  const promptRunIds = endPromptRunsForAgent(agentId);
 
   if (!terminator) {
     const dispatchMs = elapsed();
     return {
       supported: false,
-      abortedRunIds: [],
+      abortedRunIds: promptRunIds,
       elapsedMs: dispatchMs,
       dispatchMs,
       stoppedConfirmed: false,
@@ -132,12 +139,15 @@ export async function terminateAgentRuns(agentId: string): Promise<TerminationOu
   let abortedRunIds: string[];
   try {
     const result = await terminator(agentId);
-    abortedRunIds = [...result.abortedRunIds];
+    abortedRunIds = [
+      ...promptRunIds,
+      ...result.abortedRunIds.filter((runId) => !promptRunIds.includes(runId)),
+    ];
   } catch (err) {
     const dispatchMs = elapsed();
     return {
       supported: true,
-      abortedRunIds: [],
+      abortedRunIds: promptRunIds,
       elapsedMs: dispatchMs,
       dispatchMs,
       stoppedConfirmed: false,
@@ -157,7 +167,13 @@ export async function terminateAgentRuns(agentId: string): Promise<TerminationOu
       stoppedConfirmed: true,
     };
   }
-  if (!probe) {
+  // A prompt run is watched in its own table; a Gateway run only through the probe.
+  const gatewayRunIds = abortedRunIds.filter((runId) => !promptRunIds.includes(runId));
+  const watch = (runIds: readonly string[]): readonly string[] => [
+    ...promptRunsStillExecuting(runIds.filter((runId) => promptRunIds.includes(runId))),
+    ...(probe ? probe(runIds.filter((runId) => !promptRunIds.includes(runId))) : []),
+  ];
+  if (!probe && gatewayRunIds.length > 0) {
     // No way to watch. Reporting `false` is the honest answer: the abort was
     // sent and nobody observed the result.
     return {
@@ -192,12 +208,12 @@ export async function terminateAgentRuns(agentId: string): Promise<TerminationOu
   const deadline = Date.now() + CONFIRM_STOPPED_TIMEOUT_MS;
   let stillRunning: readonly string[];
   try {
-    stillRunning = probe(abortedRunIds);
+    stillRunning = watch(abortedRunIds);
     while (stillRunning.length > 0 && Date.now() < deadline) {
       await new Promise((resolve) => {
         setTimeout(resolve, CONFIRM_POLL_INTERVAL_MS);
       });
-      stillRunning = probe(abortedRunIds);
+      stillRunning = watch(abortedRunIds);
     }
   } catch (err) {
     return {

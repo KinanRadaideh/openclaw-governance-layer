@@ -46,7 +46,7 @@ export type GovernancePromptOutcome = {
    * "the run failed". Rendering both as a failure is how an operator learns to
    * ignore failures.
    */
-  ending?: "cancelled" | "timeout";
+  ending?: "cancelled" | "timeout" | "kill-switch";
 };
 
 /** One prompt currently in flight, as the server reports it. */
@@ -56,7 +56,7 @@ export type GovernancePromptRun = {
   username: string;
   startedAt: number;
   /** A stop was requested; the run keeps its slot until it actually unwinds (T63). */
-  ending?: "cancelled" | "timeout";
+  ending?: "cancelled" | "timeout" | "kill-switch";
   /** Execution ended and its reply is being saved, so it can no longer be cancelled. */
   finishing?: true;
   /** Decided by the authenticated route, so the browser never re-folds account names. */

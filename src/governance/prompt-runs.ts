@@ -35,6 +35,7 @@
 // longer exist, and a control surface that reports a stoppable run which
 // cannot be stopped is the failure mode this project spent a whole round on
 // (§3.5.10, the kill switch reporting two numbers rather than one).
+import { normalizeAgentId } from "../routing/session-key.js";
 
 /**
  * How long a single prompt may run before it is abandoned.
@@ -69,7 +70,7 @@ export const MAX_CONCURRENT_PROMPTS = 6;
 export const MAX_CONCURRENT_PROMPTS_PER_ACCOUNT = 2;
 
 /** Why a run ended other than by finishing. */
-export type PromptRunEnding = "cancelled" | "timeout";
+export type PromptRunEnding = "cancelled" | "timeout" | "kill-switch";
 
 type PromptRun = {
   runId: string;
@@ -272,6 +273,32 @@ export function cancelPromptRun(input: {
     return { cancelled: false, reason: "not-found" };
   }
   return { cancelled: true, agentId: run.agentId };
+}
+
+/**
+ * Stops every prompt running for an agent, for the kill switch (finding 364).
+ *
+ * Installation-wide by agent id, like the lockdown it accompanies, and folded on
+ * both sides for finding 202's reason. Returns the runs asked to stop; a run
+ * already ending keeps the ending it had.
+ */
+export function endPromptRunsForAgent(rawAgentId: string): string[] {
+  const agentId = normalizeAgentId(rawAgentId);
+  const ended: string[] = [];
+  for (const run of runs.values()) {
+    if (normalizeAgentId(run.agentId) === agentId && endPromptRun(run.runId, "kill-switch")) {
+      ended.push(run.runId);
+    }
+  }
+  return ended;
+}
+
+/** Which of the given runs are still executing: registered and not yet settled. */
+export function promptRunsStillExecuting(runIds: readonly string[]): string[] {
+  return runIds.filter((runId) => {
+    const run = runs.get(runId);
+    return run !== undefined && !run.finishing;
+  });
 }
 
 export type PromptRunSummary = {

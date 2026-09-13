@@ -9,6 +9,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { ADMIN_ACTIONS, recordAdminAction } from "../governance/admin-audit.js";
 import { findAgent } from "../governance/agent-registry.js";
 import { canManageAgent, type GovernanceActor } from "../governance/permissions.js";
+import { readAgentPolicyHoldings } from "../governance/policy-store.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
 import type { ExecApprovalDecision } from "../infra/exec-approvals.js";
 import {
@@ -124,6 +125,17 @@ export async function handleGovernanceApprovalRoutes(
     }
     if (!target.allowedDecisions.includes(decision)) {
       sendInvalidRequest(res, `${decision} is not offered for this approval`);
+      return true;
+    }
+    // Asked before the lock, answered after it: the kill switch ends the prompt that is
+    // waiting (finding 364), and this refuses an allow that races that ending.
+    if (decision !== "deny" && (await readAgentPolicyHoldings(groupId, target.agentId)).locked) {
+      sendJson(res, 409, {
+        error: {
+          message: `Agent "${target.agentId}" is locked down by the kill switch, so this approval can only be denied.`,
+          type: "conflict",
+        },
+      });
       return true;
     }
     let answer: Awaited<ReturnType<typeof answerGovernanceApproval>>;
