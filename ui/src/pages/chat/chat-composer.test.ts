@@ -182,14 +182,14 @@ describe("renderChatComposer controls", () => {
 
     expect(container.querySelector(".agent-chat__input--offline")).not.toBeNull();
     expect(container.querySelector(".agent-chat__offline-hint")?.textContent?.trim()).toBe(
-      "Offline — 3 queued; messages send when the connection returns.",
+      "Offline, 3 queued; messages send when the connection returns.",
     );
     expect(container.querySelector<HTMLTextAreaElement>("textarea")?.disabled).toBe(false);
     expect(button(container, t("chat.runControls.sendMessage")).disabled).toBe(false);
 
     const empty = renderComposer({ offline: true, queuedOutboxCount: 0 });
     expect(empty.container.querySelector(".agent-chat__offline-hint")?.textContent?.trim()).toBe(
-      "Offline — messages will be queued and sent when the connection returns.",
+      "Offline. Messages will be queued and sent when the connection returns.",
     );
 
     const online = renderComposer({ queuedOutboxCount: 3 });

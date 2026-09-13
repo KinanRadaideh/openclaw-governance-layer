@@ -384,7 +384,7 @@ export class ShellChromeOwner {
       host.commandPalette?.isOpen ||
       overlaySnapshot?.devicePairSetupOpen ||
       (overlaySnapshot?.approvalQueue.length ?? 0) > 0 ||
-      // The shared modal keeps its native <dialog> two shadow roots down, out of
+      // The shared modal keeps its native dialog element two shadow roots down, out of
       // reach of a document query, so it reflects `open` onto its host instead.
       document.querySelector("dialog[open], openclaw-modal-dialog[open]")
     ) {

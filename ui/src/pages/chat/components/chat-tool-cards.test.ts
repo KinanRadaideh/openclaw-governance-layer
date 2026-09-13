@@ -889,7 +889,7 @@ describe("tool-cards", () => {
     expect(container.querySelector(".chat-tool-card__status-badge")).toBeNull();
     expect(container.querySelector(".chat-tool-card__block-label")?.textContent).toBe("Tool error");
     expect(container.querySelector(".chat-tool-card__block-content")?.textContent).toBe(
-      "No output — tool failed.",
+      "No output. Tool failed.",
     );
   });
 

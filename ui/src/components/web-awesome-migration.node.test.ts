@@ -26,7 +26,7 @@ async function matchingFiles(pattern: RegExp): Promise<string[]> {
   const matches: string[] = [];
   for (const filePath of await productionTypeScriptFiles()) {
     if (pattern.test(await readFile(filePath, "utf8"))) {
-      matches.push(path.relative(sourceRoot, filePath));
+      matches.push(path.relative(sourceRoot, filePath).split(path.sep).join("/"));
     }
   }
   return matches.toSorted();

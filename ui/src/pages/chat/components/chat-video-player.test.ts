@@ -66,7 +66,7 @@ describe("ChatVideoPlayer", () => {
     );
 
     expect(player.querySelector(".chat-assistant-video-fallback")?.textContent).toContain(
-      "Can't play this format — download instead.",
+      "Can't play this format. Download instead.",
     );
   });
 

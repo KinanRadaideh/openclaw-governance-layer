@@ -189,7 +189,7 @@
 .governance-codex-learn-more > summary,
 .governance-folder-grant-learn-more > summary {
   cursor: pointer;
-  color: var(--text-strong, var(--fg));
+  color: var(--text-strong);
   font-weight: 500;
   line-height: 1.4;
 }
@@ -358,12 +358,12 @@
 
 .governance-nav__link:hover {
   background: var(--bg-hover);
-  color: var(--fg);
+  color: var(--text);
 }
 
 .governance-nav__link[aria-current="true"] {
   background: var(--bg-hover);
-  color: var(--fg);
+  color: var(--text);
   font-weight: 600;
 }
 

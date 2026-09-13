@@ -144,7 +144,7 @@ describe("ChatAudioPlayer", () => {
     await first.updateComplete;
     expect((first as unknown as { playing: boolean }).playing).toBe(false);
     expect(first.querySelector(".chat-assistant-attachment-card__reason")?.textContent).toContain(
-      "Can't play this format — download instead.",
+      "Can't play this format. Download instead.",
     );
     expect(
       first
@@ -211,7 +211,7 @@ describe("ChatAudioPlayer", () => {
     await player.updateComplete;
 
     expect(player.querySelector(".chat-assistant-attachment-card__reason")?.textContent).toContain(
-      "Can't play this format — download instead.",
+      "Can't play this format. Download instead.",
     );
     expect(
       player
@@ -252,7 +252,7 @@ describe("ChatAudioPlayer", () => {
     await vi.waitFor(() =>
       expect(
         player.querySelector(".chat-assistant-attachment-card__reason")?.textContent,
-      ).toContain("Can't play this format — download instead."),
+      ).toContain("Can't play this format. Download instead."),
     );
     expect(fetchMock).toHaveBeenCalledTimes(3);
     resolveFirstRefresh?.(new Response(null, { status: 200 }));
@@ -601,7 +601,7 @@ describe("ChatAudioPlayer", () => {
     await vi.waitFor(() =>
       expect(player.querySelector("audio")?.getAttribute("src")).toContain("playback=1"),
     );
-    expect(player.textContent).not.toContain("Can't play this format — download instead.");
+    expect(player.textContent).not.toContain("Can't play this format. Download instead.");
   });
 
   it("does not auto-resume a refreshed source after disconnecting before metadata", async () => {

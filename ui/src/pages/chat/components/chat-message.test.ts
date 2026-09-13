@@ -3602,7 +3602,7 @@ describe("grouped chat rendering", () => {
     await videoPlayer.updateComplete;
     expect(card.hasAttribute("data-unplayable")).toBe(true);
     expect(card.querySelector(".chat-assistant-video-fallback")?.textContent).toContain(
-      "Can't play this format — download instead.",
+      "Can't play this format. Download instead.",
     );
     expect(card.querySelector<HTMLAnchorElement>(".chat-assistant-video-fallback a")?.href).toBe(
       "https://example.com/clip.mp4",

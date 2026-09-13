@@ -746,7 +746,7 @@ suite.define(() => {
       });
       await gateway.emitGatewayEvent("board.changed", { sessionKey });
       await cardDashboard
-        .getByText("No dashboard yet — the working agent can pin widgets.")
+        .getByText("No dashboard yet. The working agent can pin widgets.")
         .waitFor();
     } finally {
       const video = page.video();

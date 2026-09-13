@@ -867,7 +867,7 @@ describe("renderModelSetup", () => {
         actionsDisabled: true,
       }),
     );
-    expect(text(container)).toContain("Checking — asking openai/gpt-5 for a quick reply…");
+    expect(text(container)).toContain("Checking, asking openai/gpt-5 for a quick reply…");
     expect(
       container.querySelector<HTMLButtonElement>(".model-setup__current button")?.disabled,
     ).toBe(true);
@@ -929,7 +929,7 @@ describe("renderModelSetup", () => {
         actionsDisabled: true,
       }),
     );
-    expect(text(testing)).toContain("Testing — asking OpenAI for a quick reply…");
+    expect(text(testing)).toContain("Testing, asking OpenAI for a quick reply…");
     expect(testing.querySelector<HTMLButtonElement>(".model-setup__manual button")?.disabled).toBe(
       true,
     );

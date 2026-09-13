@@ -300,7 +300,7 @@ describe("Workboard card dashboard", () => {
     element.querySelector<HTMLButtonElement>(".workboard-card-dashboard__toggle")?.click();
     await element.updateComplete;
     expect(element.querySelector(".workboard-card-dashboard__body")?.textContent).toContain(
-      "the working agent can pin widgets",
+      "The working agent can pin widgets",
     );
   });
 

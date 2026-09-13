@@ -316,7 +316,7 @@ describe("ChannelsPage lifecycle", () => {
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(page.nostrProfileFormState?.saving).toBe(false);
     expect(page.nostrProfileFormState?.error).toBe(
-      "Request timed out after 30 seconds; the server may still have applied the change — check the profile before retrying.",
+      "Request timed out after 30 seconds; the server may still have applied the change. Check the profile before retrying.",
     );
     source.runtimeConfig.dispose();
     source.channels.dispose();
@@ -340,7 +340,7 @@ describe("ChannelsPage lifecycle", () => {
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(page.nostrProfileFormState?.importing).toBe(false);
     expect(page.nostrProfileFormState?.error).toBe(
-      "Request timed out after 30 seconds; the server may still have applied the change — check the profile before retrying.",
+      "Request timed out after 30 seconds; the server may still have applied the change. Check the profile before retrying.",
     );
     source.runtimeConfig.dispose();
     source.channels.dispose();
