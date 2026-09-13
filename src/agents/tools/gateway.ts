@@ -213,6 +213,7 @@ const APPROVAL_RUNTIME_METHODS = new Set<string>([
   "plugin.approval.request",
   "plugin.approval.waitDecision",
   "plugin.approval.reportOutcome",
+  "plugin.approval.withdraw",
 ]);
 
 const AGENT_RUNTIME_IDENTITY_METHODS = new Set<string>([

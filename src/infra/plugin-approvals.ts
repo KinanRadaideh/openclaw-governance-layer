@@ -50,6 +50,8 @@ export type PluginApprovalResolved = {
   ts: number;
   request?: PluginApprovalRequestPayload;
   outcome?: { message: string; severity: "info" | "warning" };
+  /** Closed because its run stopped before anyone answered; `decision` is the fail-closed deny. */
+  cancelled?: true;
 };
 
 export const DEFAULT_PLUGIN_APPROVAL_TIMEOUT_MS = 120_000;
@@ -154,6 +156,9 @@ export function buildPluginApprovalRequestMessage(
 
 /** Build the plugin approval resolution message. */
 export function buildPluginApprovalResolvedMessage(resolved: PluginApprovalResolved): string {
+  if (resolved.cancelled) {
+    return `🚫 Plugin approval cancelled: the run that asked for it stopped. ID: ${resolved.id}`;
+  }
   const base = `✅ Plugin approval ${approvalDecisionLabel(resolved.decision)}.`;
   const by = resolved.resolvedBy ? ` Resolved by ${resolved.resolvedBy}.` : "";
   return `${base}${by} ID: ${resolved.id}`;

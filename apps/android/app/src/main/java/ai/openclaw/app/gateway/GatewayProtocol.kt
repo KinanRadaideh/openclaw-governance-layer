@@ -205,6 +205,7 @@ enum class GatewayMethod(
   PluginApprovalWaitDecision("plugin.approval.waitDecision"),
   PluginApprovalResolve("plugin.approval.resolve"),
   PluginApprovalReportOutcome("plugin.approval.reportOutcome"),
+  PluginApprovalWithdraw("plugin.approval.withdraw"),
   PluginsUiDescriptors("plugins.uiDescriptors"),
   PluginsSessionAction("plugins.sessionAction"),
   OpenclawChat("openclaw.chat"),

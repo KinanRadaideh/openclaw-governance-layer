@@ -571,17 +571,21 @@ describe("gateway tool defaults", () => {
     expect(call.deviceIdentity).toEqual(mocks.deviceIdentity);
   });
 
-  it("marks local plugin approval wait calls with runtime and device identity", async () => {
-    mocks.callGateway.mockResolvedValueOnce({ decision: "allow-once" });
+  // The Gateway binds withdrawal to the requester device, so it needs the same identity as the wait.
+  it.each(["plugin.approval.waitDecision", "plugin.approval.withdraw"])(
+    "marks local %s calls with runtime and device identity",
+    async (method) => {
+      mocks.callGateway.mockResolvedValueOnce({ decision: "allow-once" });
 
-    await callGatewayTool("plugin.approval.waitDecision", {}, { id: "approval-id" });
+      await callGatewayTool(method, {}, { id: "approval-id" });
 
-    const call = capturedGatewayCall();
-    expect(call.method).toBe("plugin.approval.waitDecision");
-    expect(call.scopes).toEqual(["operator.approvals"]);
-    expect(call.approvalRuntimeToken).toEqual(expect.any(String));
-    expect(call.deviceIdentity).toEqual(mocks.deviceIdentity);
-  });
+      const call = capturedGatewayCall();
+      expect(call.method).toBe(method);
+      expect(call.scopes).toEqual(["operator.approvals"]);
+      expect(call.approvalRuntimeToken).toEqual(expect.any(String));
+      expect(call.deviceIdentity).toEqual(mocks.deviceIdentity);
+    },
+  );
 
   it("attaches trusted turn-source metadata to node invokes", async () => {
     mocks.callGateway.mockResolvedValueOnce({ ok: true });

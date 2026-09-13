@@ -56,6 +56,8 @@ type ResolvedApprovalEvent<TPayload> = {
   ts: number;
   request: TPayload;
   outcome?: { message: string; severity: "info" | "warning" };
+  /** Closed because its run stopped before anyone answered; `decision` is the fail-closed deny. */
+  cancelled?: true;
 };
 
 type PendingApprovalListEntry<TPayload> = {

@@ -64,7 +64,9 @@ export function buildChannelApprovalResolvedText(params: {
   const payload = buildApprovalResolvedReplyPayload({
     approvalId: params.request.id,
     approvalSlug: params.request.id.slice(0, 8),
-    text: `✅ Exec approval ${params.resolved.decision}.${resolvedByText} ID: ${params.request.id}`,
+    text: params.resolved.cancelled
+      ? `🚫 Exec approval cancelled: the run that asked for it stopped. ID: ${params.request.id}`
+      : `✅ Exec approval ${params.resolved.decision}.${resolvedByText} ID: ${params.request.id}`,
   });
   return payload.text ?? "";
 }

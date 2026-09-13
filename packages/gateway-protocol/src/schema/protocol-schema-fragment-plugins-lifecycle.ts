@@ -11,6 +11,7 @@ export const PluginLifecycleProtocolSchemas = {
   PluginApprovalRequestParams: pluginApprovals.PluginApprovalRequestParamsSchema,
   PluginApprovalResolveParams: pluginApprovals.PluginApprovalResolveParamsSchema,
   PluginApprovalOutcomeParams: pluginApprovals.PluginApprovalOutcomeParamsSchema,
+  PluginApprovalWithdrawParams: pluginApprovals.PluginApprovalWithdrawParamsSchema,
   PluginCatalogClawHubInstall: plugins.PluginCatalogClawHubInstallSchema,
   PluginCatalogEntry: plugins.PluginCatalogEntrySchema,
   PluginCatalogInstallAction: plugins.PluginCatalogInstallActionSchema,

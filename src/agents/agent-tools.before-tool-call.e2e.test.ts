@@ -2824,12 +2824,21 @@ describe("before_tool_call requireApproval handling", () => {
     ]);
   });
 
-  it("unblocks immediately when abort signal fires during waitDecision", async () => {
+  it("unblocks immediately and withdraws the approval when abort signal fires during waitDecision", async () => {
     const result = await runAbortDuringApprovalWait();
 
     expect(result.blocked).toBe(true);
     expect(result).toHaveProperty("reason", "Approval cancelled (run aborted)");
-    expect(mockCallGateway).toHaveBeenCalledTimes(2);
+    expect(mockCallGateway.mock.calls.map(([method]) => method)).toEqual([
+      "plugin.approval.request",
+      "plugin.approval.waitDecision",
+      "plugin.approval.withdraw",
+    ]);
+    expect(mockCallGateway).toHaveBeenLastCalledWith(
+      "plugin.approval.withdraw",
+      {},
+      { id: "server-id-abort" },
+    );
   });
 
   it("classifies non-Error abort reasons as run abort cancellation", async () => {

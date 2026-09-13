@@ -318,6 +318,18 @@ describe("plugin-sdk/approval-renderers", () => {
         },
       },
     },
+    {
+      name: "says a plugin approval was cancelled rather than denied when its run stopped",
+      payload: buildPluginApprovalResolvedReplyPayload({
+        resolved: { id: "plugin-approval-456", decision: "deny", ts: 3_000, cancelled: true },
+      }),
+      textExpected: (text: string) =>
+        expect(text).toBe(
+          "🚫 Plugin approval cancelled: the run that asked for it stopped. ID: plugin-approval-456",
+        ),
+      presentationExpected: undefined,
+      channelDataExpected: undefined,
+    },
   ])("$name", ({ payload, textExpected, presentationExpected, channelDataExpected }) => {
     if (payload.text === undefined) {
       throw new Error("expected rendered approval text");

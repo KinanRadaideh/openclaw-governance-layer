@@ -403,6 +403,32 @@ describe("exec approval forwarder", () => {
     expect(deliver).toHaveBeenCalledTimes(2);
   });
 
+  it("tells the session an approval was cancelled, not denied, when its run stopped", async () => {
+    const { deliver, forwarder } = createForwarder({
+      cfg: makeSessionCfg(),
+      resolveSessionTarget: () => ({ channel: "slack", to: "U1" }),
+    });
+
+    await expect(forwarder.handleRequested(baseRequest)).resolves.toBe(true);
+    await forwarder.handleResolved({
+      id: baseRequest.id,
+      decision: "deny",
+      ts: 2000,
+      cancelled: true,
+    });
+
+    await vi.waitFor(() => expect(deliver).toHaveBeenCalledTimes(2));
+    expect(deliver).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        payloads: expect.arrayContaining([
+          expect.objectContaining({
+            text: `🚫 Exec approval cancelled: the run that asked for it stopped. ID: ${baseRequest.id}`,
+          }),
+        ]),
+      }),
+    );
+  });
+
   it("keeps pending delivery ahead of a resolution received during route lookup", async () => {
     const target = createDeferred<{ channel: "slack"; to: string }>();
     const pendingDelivery = createDeferred();

@@ -218,6 +218,8 @@ export type ExecApprovalResolved = {
   resolvedBy?: string | null;
   ts: number;
   request?: ExecApprovalRequest["request"];
+  /** Closed because its run stopped before anyone answered; `decision` is the fail-closed deny. */
+  cancelled?: true;
 };
 
 export type ExecApprovalsDefaults = {

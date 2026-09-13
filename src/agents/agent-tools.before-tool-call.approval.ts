@@ -123,6 +123,17 @@ function notifyPluginApprovalResolution(
   })();
 }
 
+/** Closes the reviewer card for a wait the aborted run abandoned; a late answer would change nothing. */
+function withdrawPluginApproval(approvalId: string): void {
+  void (async () => {
+    try {
+      await callGatewayTool("plugin.approval.withdraw", {}, { id: approvalId });
+    } catch (err) {
+      log.warn(`plugin approval withdrawal failed: ${String(err)}`);
+    }
+  })();
+}
+
 function resolvePermittedPluginApprovalResolution(
   decision: unknown,
   allowedDecisions: readonly string[],
@@ -217,6 +228,7 @@ async function requestPluginToolApproval(params: {
   const gatewayTimeoutMs = resolvePluginToolApprovalGatewayTimeoutMs(timeoutMs);
   const allowedDecisions = resolveCanonicalPluginApprovalRequestAllowedDecisions(approval);
   let gatewayApprovalPhase: "none" | "request" | "wait" = "none";
+  let approvalId: string | undefined;
   try {
     const embeddedApprovalBroker = isEmbeddedMode() ? getEmbeddedPluginApprovalBroker() : null;
     if (embeddedApprovalBroker) {
@@ -366,6 +378,7 @@ async function requestPluginToolApproval(params: {
       // Wait for the decision, but abort early if the agent run is cancelled
       // so the user isn't blocked for the full approval timeout.
       gatewayApprovalPhase = "wait";
+      approvalId = id;
       const waitPromise: Promise<{
         id?: string;
         decision?: unknown;
@@ -449,6 +462,9 @@ async function requestPluginToolApproval(params: {
           (err.name === "AbortError" || ("cause" in err && err.cause === signal.reason))));
     if (abortCancelled) {
       log.warn(`plugin approval wait cancelled by run abort: ${String(err)}`);
+      if (approvalId) {
+        withdrawPluginApproval(approvalId);
+      }
       return {
         blocked: true,
         kind: "failure",

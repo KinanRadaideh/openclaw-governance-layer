@@ -671,6 +671,7 @@ methods. Treat this as feature discovery, not a full enumeration of
     - `exec.approvals.get` and `exec.approvals.set` manage gateway exec approval policy snapshots.
     - `exec.approvals.node.get` and `exec.approvals.node.set` manage node-local exec approval policy via node relay commands.
     - `plugin.approval.request`, `plugin.approval.list`, `plugin.approval.waitDecision`, and `plugin.approval.resolve` cover plugin-defined approval flows.
+    - `plugin.approval.reportOutcome` and `plugin.approval.withdraw` are callable only by the connection or device that requested the approval. `reportOutcome` reports what the requester did after the decision. `withdraw` closes a request that is still pending because the requester's run stopped: it resolves as `cancelled`, and `plugin.approval.resolved` carries `cancelled: true`, so reviewer surfaces close the prompt instead of offering an answer that would change nothing.
 
   </Accordion>
 

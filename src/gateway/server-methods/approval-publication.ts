@@ -73,6 +73,8 @@ export async function publishAppliedApprovalResolution(params: {
     resolvedBy,
     ts,
     request: params.liveRecord.request,
+    // A cancelled record stores a fail-closed deny; renderers must not report it as answered.
+    ...(params.record.status === "cancelled" ? { cancelled: true as const } : {}),
   };
   await runSideEffect({
     context: params.context,

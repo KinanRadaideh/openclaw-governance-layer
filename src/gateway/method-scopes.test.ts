@@ -762,6 +762,7 @@ describe("operator scope authorization", () => {
     "plugin.approval.request",
     "plugin.approval.waitDecision",
     "plugin.approval.resolve",
+    "plugin.approval.withdraw",
   ])("requires approvals scope for %s", (method) => {
     expect(authorizeOperatorScopesForMethod(method, ["operator.write"])).toEqual({
       allowed: false,
@@ -798,6 +799,7 @@ describe("plugin approval method registration", () => {
     expect(methods).toContain("plugin.approval.request");
     expect(methods).toContain("plugin.approval.waitDecision");
     expect(methods).toContain("plugin.approval.resolve");
+    expect(methods).toContain("plugin.approval.withdraw");
   });
 
   it("classifies plugin approval methods", () => {
@@ -805,6 +807,7 @@ describe("plugin approval method registration", () => {
     expect(isGatewayMethodClassified("plugin.approval.request")).toBe(true);
     expect(isGatewayMethodClassified("plugin.approval.waitDecision")).toBe(true);
     expect(isGatewayMethodClassified("plugin.approval.resolve")).toBe(true);
+    expect(isGatewayMethodClassified("plugin.approval.withdraw")).toBe(true);
   });
 });
 

@@ -16472,6 +16472,20 @@ public struct PluginApprovalOutcomeParams: Codable, Sendable {
     }
 }
 
+public struct PluginApprovalWithdrawParams: Codable, Sendable {
+    public let id: String
+
+    public init(
+        id: String)
+    {
+        self.id = id
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+    }
+}
+
 public struct PluginCatalogClawHubInstall: Codable, Sendable {
     public let source: String
     public let packagename: String

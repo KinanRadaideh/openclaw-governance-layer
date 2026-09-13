@@ -291,6 +291,9 @@ function buildExecApprovalRequestMessage(request: ExecApprovalRequest, nowMs: nu
 const decisionLabel = approvalDecisionLabel;
 
 function buildResolvedMessage(resolved: ExecApprovalResolved) {
+  if (resolved.cancelled) {
+    return `🚫 Exec approval cancelled: the run that asked for it stopped. ID: ${resolved.id}`;
+  }
   const base = `✅ Exec approval ${decisionLabel(resolved.decision)}.`;
   const by = resolved.resolvedBy ? ` Resolved by ${resolved.resolvedBy}.` : "";
   return `${base}${by} ID: ${resolved.id}`;

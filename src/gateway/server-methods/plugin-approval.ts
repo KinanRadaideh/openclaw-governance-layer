@@ -5,6 +5,7 @@ import {
   validatePluginApprovalRequestParams,
   validatePluginApprovalResolveParams,
   validatePluginApprovalOutcomeParams,
+  validatePluginApprovalWithdrawParams,
   ErrorCodes,
   errorShape,
 } from "../../../packages/gateway-protocol/src/index.js";
@@ -17,6 +18,7 @@ import type {
 } from "../../infra/plugin-approvals.js";
 import { resolvePluginApprovalTimeoutMs } from "../../infra/plugin-approvals.js";
 import type { ExecApprovalManager, ExecApprovalRecord } from "../exec-approval-manager.js";
+import { publishAppliedApprovalResolution } from "./approval-publication.js";
 import { runApprovalRequestDeliveries } from "./approval-request-delivery.js";
 import {
   bindApprovalRequesterMetadata,
@@ -29,9 +31,22 @@ import {
   listVisiblePendingApprovalRequests,
   registerPendingApprovalRecord,
   resolveApprovalDecisionParams,
+  respondApprovalStorageUnavailable,
 } from "./approval-shared.js";
-import type { GatewayRequestHandlers } from "./types.js";
+import type { GatewayClient, GatewayRequestHandlers } from "./types.js";
 import { assertValidParams } from "./validation.js";
+
+// Reviewing an approval is not authority over what its requester does with it.
+// Reports and withdrawals bind to the original requester device (or exact connection).
+function isApprovalRequester(
+  record: ExecApprovalRecord<PluginApprovalRequestPayload>,
+  client: GatewayClient | null | undefined,
+): boolean {
+  return record.requestedByDeviceId
+    ? record.requestedByDeviceId === client?.connect.device?.id &&
+        record.requestedByClientId === client?.connect.client.id
+    : Boolean(record.requestedByConnId && record.requestedByConnId === client?.connId);
+}
 
 type PluginApprovalIosPushDelivery = {
   handleRequested?: (
@@ -75,16 +90,10 @@ export function createPluginApprovalHandlers(
         outcome?: NonNullable<PluginApprovalResolved["outcome"]>;
       };
       const record = manager.getSnapshot(id);
-      // Reviewing an approval is not authority to report its side effects.
-      // Bind reports to the original requester device (or exact connection).
-      const ownsRequest = record?.requestedByDeviceId
-        ? record.requestedByDeviceId === client?.connect.device?.id &&
-          record.requestedByClientId === client?.connect.client.id
-        : Boolean(record?.requestedByConnId && record.requestedByConnId === client?.connId);
       const state = record ? outcomes.get(record) : undefined;
       if (
         !record ||
-        !ownsRequest ||
+        !isApprovalRequester(record, client) ||
         record.resolvedAtMs === undefined ||
         !state ||
         !record.decision
@@ -125,6 +134,57 @@ export function createPluginApprovalHandlers(
         state.finish();
       }
       respond(true, { ok: true }, undefined);
+    },
+    "plugin.approval.withdraw": async ({ params, respond, client, context }) => {
+      if (
+        !assertValidParams(
+          params,
+          validatePluginApprovalWithdrawParams,
+          "plugin.approval.withdraw",
+          respond,
+        )
+      ) {
+        return;
+      }
+      const { id } = params as { id: string };
+      const record = manager.getSnapshot(id);
+      if (!record || !isApprovalRequester(record, client)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            "approval withdrawal unavailable for this requester",
+          ),
+        );
+        return;
+      }
+      let result: ReturnType<typeof manager.forceDenyDetailed>;
+      try {
+        // Without this the card stays pressable until expiry while no waiter remains,
+        // so a reviewer's answer changes nothing and a channel is told it was answered.
+        result = manager.forceDenyDetailed(
+          id,
+          "run-aborted",
+          { kind: "runtime", id: null },
+          "cancelled",
+        );
+      } catch (err) {
+        respondApprovalStorageUnavailable({ context, respond, operation: "resolve", error: err });
+        return;
+      }
+      // First answer wins: a reviewer who answered before the run stopped keeps that answer.
+      const withdrawn = result.outcome === "denied" && result.liveRecord !== undefined;
+      if (result.outcome === "denied" && result.liveRecord) {
+        await publishAppliedApprovalResolution({
+          record: result.record,
+          liveRecord: result.liveRecord,
+          context,
+          forwarder: opts?.forwarder,
+          pluginIosPushDelivery: opts?.iosPushDelivery,
+        });
+      }
+      respond(true, { withdrawn }, undefined);
     },
     "plugin.approval.list": async ({ respond, client }) => {
       respond(true, listVisiblePendingApprovalRequests({ manager, client }), undefined);

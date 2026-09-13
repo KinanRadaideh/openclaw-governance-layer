@@ -64,6 +64,11 @@ export const PluginApprovalOutcomeParamsSchema = closedObject({
   ),
 });
 
+/** Original requester withdraws a pending request it no longer waits on (its run stopped). */
+export const PluginApprovalWithdrawParamsSchema = closedObject({
+  id: Type.String({ minLength: 1, maxLength: 128 }),
+});
+
 /** Reviewer decision payload resolving one pending plugin approval request. */
 export const PluginApprovalResolveParamsSchema = closedObject({
   id: NonEmptyString,
