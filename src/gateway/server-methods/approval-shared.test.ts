@@ -9,13 +9,15 @@ import { GATEWAY_CLIENT_IDS } from "../../../packages/gateway-protocol/src/clien
 import { closeOpenClawStateDatabaseForTest } from "../../state/openclaw-state-db.js";
 import { ExecApprovalManager } from "../exec-approval-manager.js";
 import {
-  bindApprovalReviewerDeviceIds,
   handleApprovalResolve,
   handleApprovalWaitDecision,
   handlePendingApprovalRequest,
-  isApprovalRecordVisibleToClient,
   registerPendingApprovalRecord,
 } from "./approval-shared.js";
+import {
+  bindApprovalReviewerDeviceIds,
+  isApprovalRecordVisibleToClient,
+} from "./approval-visibility.js";
 import type { GatewayClient, GatewayRequestContext } from "./types.js";
 
 const hasApprovalTurnSourceRouteMock = vi.hoisted(() => vi.fn(() => true));
@@ -182,6 +184,7 @@ describe("handlePendingApprovalRequest", () => {
     expect(
       isApprovalRecordVisibleToClient({
         record,
+        approvalKind: "exec",
         client: createApprovalClient(client),
       }),
     ).toBe(expected);
@@ -208,6 +211,7 @@ describe("handlePendingApprovalRequest", () => {
     expect(
       isApprovalRecordVisibleToClient({
         record,
+        approvalKind: "exec",
         client: createApprovalClient({
           connId: "conn-mobile",
           clientId: GATEWAY_CLIENT_IDS.IOS_APP,
@@ -235,6 +239,7 @@ describe("handlePendingApprovalRequest", () => {
     expect(
       isApprovalRecordVisibleToClient({
         record,
+        approvalKind: "exec",
         client: createApprovalClient({
           connId: "conn-mobile",
           clientId: GATEWAY_CLIENT_IDS.IOS_APP,
@@ -259,6 +264,7 @@ describe("handlePendingApprovalRequest", () => {
     expect(
       isApprovalRecordVisibleToClient({
         record,
+        approvalKind: "exec",
         client: createApprovalClient({
           connId: "conn-other",
           clientId: GATEWAY_CLIENT_IDS.IOS_APP,

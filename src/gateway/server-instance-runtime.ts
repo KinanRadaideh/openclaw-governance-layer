@@ -151,12 +151,20 @@ export function createGatewayInstanceRuntime(
 
   return {
     approvalEvents: {
-      publishRequested: (kind, request) =>
-        publish(
+      publishRequested: (kind, request) => {
+        const approval = request as GatewayApprovalRequest;
+        const claimed = [...approvalSubscribers].some(
+          (subscriber) =>
+            subscriber.eventKinds.has(kind) && subscriber.claimsAudience?.(approval) === true,
+        );
+        return publish(
           kind,
-          (subscriber) => subscriber.onRequested(request as GatewayApprovalRequest),
-          (subscriber) => subscriber.shouldHandle(request as GatewayApprovalRequest),
-        ),
+          (subscriber) => subscriber.onRequested(approval),
+          (subscriber) =>
+            (!claimed || subscriber.claimsAudience?.(approval) === true) &&
+            subscriber.shouldHandle(approval),
+        );
+      },
       publishResolved: (kind, resolved) => {
         publish(kind, (subscriber) => subscriber.onResolved(resolved as GatewayApprovalResolved));
       },

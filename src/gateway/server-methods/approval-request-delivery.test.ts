@@ -50,7 +50,7 @@ describe("runApprovalRequestDeliveries", () => {
     const manager = new ExecApprovalManager();
     const record = manager.create({ command: "echo ok" }, 60_000, "approval-no-delivery");
 
-    expect(runApprovalRequestDeliveries({ context: {}, record })).toBe(false);
+    expect(runApprovalRequestDeliveries({ context: {}, record, approvalKind: "exec" })).toBe(false);
   });
 
   it.each(approvalDeliveryCallers)(
@@ -63,6 +63,7 @@ describe("runApprovalRequestDeliveries", () => {
       const delivery = runApprovalRequestDeliveries({
         context: {},
         record,
+        approvalKind,
         forward: [
           async () => {
             started.push("forward");
@@ -94,6 +95,7 @@ describe("runApprovalRequestDeliveries", () => {
       const delivery = runApprovalRequestDeliveries({
         context: {},
         record,
+        approvalKind,
         forward: [
           async () => {
             started.push("forward");
@@ -128,6 +130,7 @@ describe("runApprovalRequestDeliveries", () => {
     const delivery = runApprovalRequestDeliveries({
       context: { logGateway: { error } },
       record,
+      approvalKind: "exec",
       forward: [
         async () => {
           if (forwardRejects) {
@@ -170,6 +173,7 @@ describe("runApprovalRequestDeliveries", () => {
     const delivery = runApprovalRequestDeliveries({
       context: { logGateway: { error } },
       record,
+      approvalKind: "exec",
       forward: [async () => true, "forward failed"],
       iosPush: [async () => await pendingPush, "push failed"],
     });
@@ -206,6 +210,7 @@ describe("runApprovalRequestDeliveries", () => {
       const delivery = runApprovalRequestDeliveries({
         context: { logGateway: { error } },
         record,
+        approvalKind: "exec",
         forward: [
           async () => {
             started.push("forward");

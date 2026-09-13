@@ -10,7 +10,7 @@ import type {
   ExecApprovalManager,
   ExecApprovalRecord,
 } from "../exec-approval-manager.js";
-import { ADMIN_SCOPE, APPROVALS_SCOPE } from "../method-scopes.js";
+import { isApprovalRecordVisibleToClient } from "./approval-visibility.js";
 import { buildWaitResponse, type WaitReasonResolver } from "./approval-wait-response.js";
 import type { GatewayClient, GatewayRequestContext, RespondFn } from "./types.js";
 import { assertValidParams } from "./validation.js";
@@ -125,66 +125,6 @@ function resolvePendingApprovalLookupError(params: {
   };
 }
 
-function normalizeApprovalIdentity(value: string | null | undefined): string | null {
-  return normalizeOptionalString(value) ?? null;
-}
-
-function normalizeApprovalIdentities(values: readonly string[] | null | undefined): string[] {
-  const normalized = new Set<string>();
-  for (const value of values ?? []) {
-    const identity = normalizeApprovalIdentity(value);
-    if (identity) {
-      normalized.add(identity);
-    }
-  }
-  return [...normalized];
-}
-
-/** Checks whether a client can observe or resolve an approval record. */
-export function isApprovalRecordVisibleToClient<TPayload>(params: {
-  record: ExecApprovalRecord<TPayload>;
-  client: GatewayClient | null;
-}): boolean {
-  const scopes = Array.isArray(params.client?.connect?.scopes) ? params.client.connect.scopes : [];
-  if (scopes.includes(ADMIN_SCOPE)) {
-    return true;
-  }
-
-  const requestedByDeviceId = normalizeApprovalIdentity(params.record.requestedByDeviceId);
-  const requestedByClientId = normalizeApprovalIdentity(params.record.requestedByClientId);
-  const hasApprovalsScope = scopes.includes(APPROVALS_SCOPE);
-  if (hasApprovalsScope && params.client?.internal?.approvalRuntime === true) {
-    return true;
-  }
-
-  const approvalReviewerDeviceIds = normalizeApprovalIdentities(
-    params.record.approvalReviewerDeviceIds,
-  );
-  const clientDeviceId = normalizeApprovalIdentity(params.client?.connect?.device?.id);
-  if (hasApprovalsScope && clientDeviceId && approvalReviewerDeviceIds.includes(clientDeviceId)) {
-    return true;
-  }
-
-  // Shipped legacy adapters retain exact requester connection/device authority.
-  // Unified durable methods apply their separate record authorization after lookup.
-  if (requestedByDeviceId) {
-    return requestedByDeviceId === clientDeviceId;
-  }
-
-  const requestedByConnId = normalizeApprovalIdentity(params.record.requestedByConnId);
-  if (requestedByConnId) {
-    return requestedByConnId === normalizeApprovalIdentity(params.client?.connId);
-  }
-
-  if (requestedByClientId || approvalReviewerDeviceIds.length > 0) {
-    return false;
-  }
-
-  // Unbound approvals predate requester metadata and remain visible so pending
-  // work can still be resolved after upgrades or gateway restarts.
-  return true;
-}
-
 /** Returns only pending approval requests the connected client is allowed to see. */
 export function listVisiblePendingApprovalRequests<TPayload>(params: {
   manager: ExecApprovalManager<TPayload>;
@@ -196,6 +136,7 @@ export function listVisiblePendingApprovalRequests<TPayload>(params: {
       isApprovalRecordVisibleToClient({
         record,
         client: params.client ?? null,
+        approvalKind: params.manager.approvalKind,
       }),
     )
     .map((record) => ({
@@ -204,27 +145,6 @@ export function listVisiblePendingApprovalRequests<TPayload>(params: {
       createdAtMs: record.createdAtMs,
       expiresAtMs: record.expiresAtMs,
     }));
-}
-
-/** Binds the current gateway client identity onto a newly-created approval record. */
-export function bindApprovalRequesterMetadata<TPayload>(params: {
-  record: ExecApprovalRecord<TPayload>;
-  client?: GatewayClient | null;
-}): void {
-  params.record.requestedByConnId = params.client?.connId ?? null;
-  params.record.requestedByDeviceId = params.client?.connect?.device?.id ?? null;
-  params.record.requestedByClientId = params.client?.connect?.client?.id ?? null;
-  params.record.requestedByDeviceTokenAuth = params.client?.isDeviceTokenAuth === true;
-}
-
-export function bindApprovalReviewerDeviceIds<TPayload>(params: {
-  record: ExecApprovalRecord<TPayload>;
-  deviceIds?: readonly string[] | null;
-}): void {
-  const deviceIds = normalizeApprovalIdentities(params.deviceIds);
-  if (deviceIds.length > 0) {
-    params.record.approvalReviewerDeviceIds = deviceIds;
-  }
 }
 
 export function respondApprovalStorageUnavailable(params: {
@@ -308,6 +228,7 @@ function resolveApprovalRequestRecipientConnIds<TPayload>(params: {
         isApprovalRecordVisibleToClient({
           record: params.record,
           client,
+          approvalKind: params.approvalKind,
         }),
     }) ?? null
   );
@@ -372,6 +293,7 @@ function resolveApprovalRecordForState<TPayload>(
       isApprovalRecordVisibleToClient({
         record,
         client: params.client ?? null,
+        approvalKind: params.manager.approvalKind,
       }),
   });
   if (resolvedId.kind !== "exact" && resolvedId.kind !== "prefix") {
@@ -420,6 +342,7 @@ export async function handleApprovalWaitDecision<TPayload>(params: {
     !isApprovalRecordVisibleToClient({
       record: snapshot,
       client: params.client ?? null,
+      approvalKind: params.manager.approvalKind,
     })
   ) {
     params.respond(

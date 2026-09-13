@@ -18,11 +18,10 @@ import type {
 } from "../../infra/plugin-approvals.js";
 import { resolvePluginApprovalTimeoutMs } from "../../infra/plugin-approvals.js";
 import type { ExecApprovalManager, ExecApprovalRecord } from "../exec-approval-manager.js";
+import { isGovernanceOwnedApprovalRequest } from "../governance-approval-scope.js";
 import { publishAppliedApprovalResolution } from "./approval-publication.js";
 import { runApprovalRequestDeliveries } from "./approval-request-delivery.js";
 import {
-  bindApprovalRequesterMetadata,
-  bindApprovalReviewerDeviceIds,
   broadcastApprovalResolvedEvent,
   buildRequestedApprovalEvent,
   handleApprovalResolve,
@@ -33,20 +32,13 @@ import {
   resolveApprovalDecisionParams,
   respondApprovalStorageUnavailable,
 } from "./approval-shared.js";
-import type { GatewayClient, GatewayRequestHandlers } from "./types.js";
+import {
+  bindApprovalRequesterMetadata,
+  bindApprovalReviewerDeviceIds,
+  isApprovalRequester,
+} from "./approval-visibility.js";
+import type { GatewayRequestHandlers } from "./types.js";
 import { assertValidParams } from "./validation.js";
-
-// Reviewing an approval is not authority over what its requester does with it.
-// Reports and withdrawals bind to the original requester device (or exact connection).
-function isApprovalRequester(
-  record: ExecApprovalRecord<PluginApprovalRequestPayload>,
-  client: GatewayClient | null | undefined,
-): boolean {
-  return record.requestedByDeviceId
-    ? record.requestedByDeviceId === client?.connect.device?.id &&
-        record.requestedByClientId === client?.connect.client.id
-    : Boolean(record.requestedByConnId && record.requestedByConnId === client?.connId);
-}
 
 type PluginApprovalIosPushDelivery = {
   handleRequested?: (
@@ -117,19 +109,20 @@ export function createPluginApprovalHandlers(
       if (state.reported === undefined) {
         state.reported = serialized;
         if (outcome) {
-          broadcastApprovalResolvedEvent({
-            approvalKind: "plugin",
-            context,
-            record,
-            event: {
-              id,
-              decision: record.decision,
-              resolvedBy: record.resolvedBy ?? null,
-              ts: Date.now(),
-              request: record.request,
-              outcome,
-            },
-          });
+          const event = {
+            id,
+            decision: record.decision,
+            resolvedBy: record.resolvedBy ?? null,
+            ts: Date.now(),
+            request: record.request,
+            outcome,
+          };
+          broadcastApprovalResolvedEvent({ approvalKind: "plugin", context, record, event });
+          // A governance-owned approval has no Gateway client in its audience (T68);
+          // its route hears the follow-up on the in-process bus instead.
+          if (isGovernanceOwnedApprovalRequest(record.request)) {
+            context.approvalEvents?.publishResolved("plugin", event);
+          }
         }
         state.finish();
       }
@@ -333,10 +326,14 @@ export function createPluginApprovalHandlers(
         requestEvent,
         twoPhase,
         approvalKind: "plugin",
+        // Forwarding a governance-owned escalation to a chat channel or a phone would
+        // put it in front of people outside the accounts that manage its agent (T68).
         deliverRequest: () =>
+          !isGovernanceOwnedApprovalRequest(request) &&
           runApprovalRequestDeliveries({
             context,
             record,
+            approvalKind: "plugin",
             forward: forwardRequest
               ? [() => forwardRequest(requestEvent), "plugin approvals: forward request failed"]
               : undefined,

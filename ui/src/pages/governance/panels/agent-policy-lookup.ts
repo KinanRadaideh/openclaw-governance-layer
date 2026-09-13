@@ -35,6 +35,12 @@ import {
 } from "../../../components/settings-ui.ts";
 import { t } from "../../../i18n/index.ts";
 import { includesAgentId } from "../agent-directory.ts";
+import {
+  GovernanceApiError,
+  type GovernanceAgentAccess,
+  type GovernanceAgentPolicyView,
+  type GovernanceApi,
+} from "../api.ts";
 import type { PolicyPanelProps } from "./policy-panels.ts";
 
 /**
@@ -280,4 +286,49 @@ export function renderAgentPolicySection(props: PolicyPanelProps): TemplateResul
     },
     rows,
   );
+}
+
+/** What the lookup shows: one agent's rules and who can reach it, or why they did not load. */
+export type AgentPolicyLookupState = {
+  agentPolicyView: GovernanceAgentPolicyView | null;
+  agentAccess: GovernanceAgentAccess | null;
+  agentPolicyError: string | null;
+};
+
+export const EMPTY_AGENT_POLICY_LOOKUP: AgentPolicyLookupState = {
+  agentPolicyView: null,
+  agentAccess: null,
+  agentPolicyError: null,
+};
+
+/**
+ * Reads one agent's lookup.
+ *
+ * Moved here from the page when T68 took the page past its line limit: these rules
+ * are the lookup's own, so they sit beside the panel that shows what they return.
+ */
+export async function readAgentPolicyLookup(
+  api: GovernanceApi,
+  agentId: string,
+): Promise<AgentPolicyLookupState> {
+  if (!agentId) {
+    return EMPTY_AGENT_POLICY_LOOKUP;
+  }
+  let agentPolicyView: GovernanceAgentPolicyView;
+  try {
+    agentPolicyView = await api.policyForAgent(agentId);
+  } catch (err) {
+    // Reported rather than left blank. A 403 here means "not your agent", which is a
+    // different fact from "this agent has no rules", and an empty panel would say the second.
+    return {
+      ...EMPTY_AGENT_POLICY_LOOKUP,
+      agentPolicyError:
+        err instanceof GovernanceApiError ? err.message : t("governance.agentPolicy.failed"),
+    };
+  }
+  // Loaded after the policy and allowed to fail on its own. The roster is additional
+  // context, not the reason the panel was opened, so losing it must not blank out the
+  // rules the operator came to read.
+  const agentAccess = await api.agentAccess(agentId).catch(() => null);
+  return { agentPolicyView, agentAccess, agentPolicyError: null };
 }

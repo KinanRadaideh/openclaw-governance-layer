@@ -10,7 +10,7 @@ import { getPluginRuntimeGatewayRequestScope } from "../../plugins/runtime/gatew
 import { ExecApprovalManager } from "../exec-approval-manager.js";
 import type { AuthorizedGatewayHttpRequest } from "../http-utils.js";
 import { authorizeOperatorScopesForMethod, CLI_DEFAULT_OPERATOR_SCOPES } from "../method-scopes.js";
-import { isApprovalRecordVisibleToClient } from "../server-methods/approval-shared.js";
+import { isApprovalRecordVisibleToClient } from "../server-methods/approval-visibility.js";
 import type { GatewayRequestContext } from "../server-methods/types.js";
 import { makeMockHttpResponse } from "../test-http-response.js";
 import { createTestRegistry } from "./__tests__/test-utils.js";
@@ -338,6 +338,7 @@ describe("plugin HTTP route runtime scopes", () => {
             observedApprovalRuntime = runtimeClient?.internal?.approvalRuntime;
             observedVisibility = isApprovalRecordVisibleToClient({
               record,
+              approvalKind: "exec",
               client: runtimeClient ?? null,
             });
             return true;

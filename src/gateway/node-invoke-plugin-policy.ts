@@ -12,14 +12,15 @@ import type {
   OpenClawPluginNodeInvokePolicyResult,
   OpenClawPluginNodeInvokeTransportResult,
 } from "../plugins/types.js";
+import { isGovernanceOwnedApprovalRequest } from "./governance-approval-scope.js";
 import { isNodeCommandAllowed, resolveNodeCommandAllowlist } from "./node-command-policy.js";
 import type { NodeSession } from "./node-registry.js";
 import { runApprovalRequestDeliveries } from "./server-methods/approval-request-delivery.js";
 import {
-  bindApprovalRequesterMetadata,
   buildRequestedApprovalEvent,
   handlePendingApprovalRequest,
 } from "./server-methods/approval-shared.js";
+import { bindApprovalRequesterMetadata } from "./server-methods/approval-visibility.js";
 import type { GatewayClient, GatewayRequestContext, RespondFn } from "./server-methods/types.js";
 
 // Plugin node.invoke policies are the last gateway-side guard before a
@@ -137,10 +138,14 @@ function createApprovalRuntime(params: {
         requestEvent,
         twoPhase: false,
         approvalKind: "plugin",
+        // Same audience rule as plugin.approval.request (T68): a governance-owned
+        // escalation is not forwarded to a chat channel or a phone.
         deliverRequest: () =>
+          !isGovernanceOwnedApprovalRequest(request) &&
           runApprovalRequestDeliveries({
             context: params.context,
             record,
+            approvalKind: "plugin",
             forward: forwardRequest
               ? [
                   () => forwardRequest(requestEvent),

@@ -195,6 +195,43 @@ describe("createGatewayInstanceRuntime", () => {
     expect(getGatewayRecoveryRuntime()).toBeUndefined();
   });
 
+  // T68: the governance route claims a dashboard escalation, so a channel runtime that
+  // forwards every approval cannot put it in front of people outside its audience.
+  it("delivers a claimed request only to its claimants, and an unclaimed one to everyone", () => {
+    const registry = createRegistry({});
+    const runtime = createGatewayInstanceRuntime({
+      getContext: createContext,
+      getMethodRegistry: () => registry,
+      isDispatchAvailable: () => true,
+    });
+    const channel = vi.fn();
+    const owner = vi.fn();
+    runtime.nativeApprovals.subscribe({
+      eventKinds: new Set(["plugin"]),
+      shouldHandle: () => true,
+      onRequested: channel,
+      onResolved: vi.fn(),
+    });
+    runtime.nativeApprovals.subscribe({
+      eventKinds: new Set(["plugin"]),
+      shouldHandle: () => true,
+      claimsAudience: (request) => request.id === "claimed",
+      onRequested: owner,
+      onResolved: vi.fn(),
+    });
+    const request = (id: string) =>
+      ({ id, request: {}, createdAtMs: 1, expiresAtMs: 2 }) as ExecApprovalRequest;
+
+    expect(runtime.approvalEvents.publishRequested("plugin", request("claimed"))).toBe(1);
+    expect(owner).toHaveBeenCalledOnce();
+    expect(channel).not.toHaveBeenCalled();
+
+    expect(runtime.approvalEvents.publishRequested("plugin", request("open"))).toBe(2);
+    expect(channel).toHaveBeenCalledOnce();
+    expect(owner).toHaveBeenCalledTimes(2);
+    runtime.close();
+  });
+
   it("rejects methods outside each closed internal principal", async () => {
     const runtime = createGatewayInstanceRuntime({
       getContext: createContext,

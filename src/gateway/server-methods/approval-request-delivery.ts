@@ -2,7 +2,8 @@
 // approval record's visibility boundary for iOS targets.
 import { GATEWAY_CLIENT_IDS } from "../../../packages/gateway-protocol/src/client-info.js";
 import type { ExecApprovalRecord } from "../exec-approval-manager.js";
-import { isApprovalRecordVisibleToClient } from "./approval-shared.js";
+import type { OperatorApprovalKind } from "../operator-approval-store.js";
+import { isApprovalRecordVisibleToClient } from "./approval-visibility.js";
 import type { GatewayClient } from "./types.js";
 
 type ApprovalRequestDeliveryTarget = {
@@ -41,12 +42,14 @@ function resolveFirstSuccessfulApprovalDelivery(
 export function runApprovalRequestDeliveries<TPayload>(params: {
   context: ApprovalDeliveryLogContext;
   record: ExecApprovalRecord<TPayload>;
+  approvalKind: OperatorApprovalKind;
   forward?: ApprovalRequestDelivery;
   iosPush?: ApprovalRequestDelivery;
 }): boolean | Promise<boolean> {
   const isTargetVisible = (target: ApprovalRequestDeliveryTarget) =>
     isApprovalRecordVisibleToClient({
       record: params.record,
+      approvalKind: params.approvalKind,
       client: {
         connect: {
           client: { id: GATEWAY_CLIENT_IDS.IOS_APP },

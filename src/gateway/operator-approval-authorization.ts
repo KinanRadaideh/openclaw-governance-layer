@@ -33,14 +33,17 @@ export function canReviewOperatorApproval(client: GatewayClient | null): boolean
   return Boolean(normalizeOptionalString(client?.connect?.device?.id));
 }
 
-/** Whether a client may submit an approval verdict. */
-export function canResolveOperatorApproval(client: GatewayClient | null): boolean {
+/** Whether a client is the Gateway's own approval runtime (an agent's requester or an in-process principal). */
+export function isTrustedApprovalRuntimeClient(client: GatewayClient | null | undefined): boolean {
   // approvalRuntime is server-authenticated connection metadata. Public request
   // fields cannot mint this device-less resolver authority.
   const scopes = Array.isArray(client?.connect?.scopes) ? client.connect.scopes : [];
-  const isTrustedApprovalRuntime =
-    client?.internal?.approvalRuntime === true && scopes.includes(APPROVALS_SCOPE);
-  return isTrustedApprovalRuntime || canReviewOperatorApproval(client);
+  return client?.internal?.approvalRuntime === true && scopes.includes(APPROVALS_SCOPE);
+}
+
+/** Whether a client may submit an approval verdict. */
+export function canResolveOperatorApproval(client: GatewayClient | null): boolean {
+  return isTrustedApprovalRuntimeClient(client) || canReviewOperatorApproval(client);
 }
 
 /** Whether a broadly authorized client may access one bound approval record. */

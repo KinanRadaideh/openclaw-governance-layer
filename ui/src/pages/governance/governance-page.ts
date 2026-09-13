@@ -35,6 +35,7 @@ import {
   type GovernanceSystemStatus,
   type GovernanceUserRecord,
 } from "./api.ts";
+import { ApprovalController } from "./approval-controller.ts";
 import { ConversationController, type ConversationSlice } from "./conversation-controller.ts";
 import { canAdminister, canManageAnyAgent, isSessionLost, panelCapabilities } from "./identity.ts";
 import { keptKillNotice, revealKillNotice, type KillNotice } from "./kill-notice.ts";
@@ -56,13 +57,18 @@ import {
   type AgentsSectionProps,
   type PendingDecisionsProps,
 } from "./panels/agent-panels.ts";
-import { renderAgentPolicySection } from "./panels/agent-policy-lookup.ts";
+import {
+  EMPTY_AGENT_POLICY_LOOKUP,
+  readAgentPolicyLookup,
+  renderAgentPolicySection,
+} from "./panels/agent-policy-lookup.ts";
 import type { AgentRegistryPageProps } from "./panels/agent-registry-panels.ts";
 import {
   AgentRegistryController,
   agentOwners,
   renderAgentRegistrySection,
 } from "./panels/agent-registry-panels.ts";
+import { renderWaitingApprovals } from "./panels/approval-panel.ts";
 import { renderOrganisationSection } from "./panels/organisation-panel.ts";
 import {
   renderDeploymentSection,
@@ -251,6 +257,12 @@ class GovernancePage extends OpenClawLightDomElement {
     refreshActivity: async () => {
       this.activeSessions = await this.api().activeSessions();
     },
+  });
+  /** Escalations from dashboard prompts waiting for this account (T68). See `approval-controller.ts`. */
+  private readonly approvals = new ApprovalController(this, {
+    api: () => this.api(),
+    identity: () => this.identity,
+    onSessionLost: () => this.markSessionExpired(),
   });
 
   /**
@@ -774,6 +786,7 @@ class GovernancePage extends OpenClawLightDomElement {
     this.deployment = null;
     this.verification = null;
     this.conversation.forget();
+    this.approvals.forget();
     // ---------------------------------------------------------------------
     // **Everything else this component holds, and the two things it keeps**
     // (finding 280).
@@ -1009,29 +1022,9 @@ class GovernancePage extends OpenClawLightDomElement {
   }
 
   private async loadAgentPolicy(agentId: string): Promise<void> {
-    this.agentPolicyError = null;
-    this.agentPolicyView = null;
-    this.agentAccess = null;
-    if (!agentId) {
-      return;
-    }
-    try {
-      this.agentPolicyView = await this.api().policyForAgent(agentId);
-      // Loaded after the policy and allowed to fail on its own. The roster is
-      // additional context, not the reason the panel was opened, so losing it
-      // must not blank out the rules the operator came to read.
-      try {
-        this.agentAccess = await this.api().agentAccess(agentId);
-      } catch {
-        this.agentAccess = null;
-      }
-    } catch (err) {
-      // Reported rather than left blank. A 403 here means "not your agent",
-      // which is a different fact from "this agent has no rules", and an empty
-      // panel would say the second.
-      this.agentPolicyError =
-        err instanceof GovernanceApiError ? err.message : t("governance.agentPolicy.failed");
-    }
+    // Cleared first, so a previous agent's answer is never shown under this one's id.
+    Object.assign(this, EMPTY_AGENT_POLICY_LOOKUP);
+    Object.assign(this, await readAgentPolicyLookup(this.api(), agentId));
   }
 
   private async loadRuleTargets(ruleId: string): Promise<void> {
@@ -1125,6 +1118,7 @@ class GovernancePage extends OpenClawLightDomElement {
         ${renderRuleWarnings(this.ruleWarnings, () => {
           this.ruleWarnings = null;
         })}
+        ${renderWaitingApprovals(this.approvals.slice())}
         <div class="governance-page governance-page__layout">
           ${renderSectionNav({
             sections: this.sectionNav.sections,

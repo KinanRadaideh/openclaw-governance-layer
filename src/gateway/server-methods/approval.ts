@@ -25,9 +25,14 @@ import type { OpenClawStateDatabaseOptions } from "../../state/openclaw-state-db
 import { normalizeControlUiBasePath } from "../control-ui-shared.js";
 import type { ExecApprovalManager, ExecApprovalRecord } from "../exec-approval-manager.js";
 import {
+  isGovernanceOwnedApprovalRecord,
+  isGovernanceOwnedApprovalRequest,
+} from "../governance-approval-scope.js";
+import {
   canAccessOperatorApproval,
   canResolveOperatorApproval,
   canReviewOperatorApproval,
+  isTrustedApprovalRuntimeClient,
 } from "../operator-approval-authorization.js";
 import {
   getOperatorApprovalDetailed,
@@ -154,9 +159,21 @@ function loadVisibleApproval(params: {
   if (!authorized) {
     return null;
   }
+  // Governance answers a dashboard prompt's escalation (T68); a Gateway scope, admin
+  // included, is not one of its tiers. Only the approval runtime may resolve one here.
+  const governanceReader =
+    params.allowApprovalRuntime === true && isTrustedApprovalRuntimeClient(params.client);
+  const pluginLiveRecord = params.pluginApprovalManager.getLiveSnapshot(params.id);
+  if (
+    !governanceReader &&
+    pluginLiveRecord &&
+    isGovernanceOwnedApprovalRequest(pluginLiveRecord.request)
+  ) {
+    return null;
+  }
   const liveRecord =
     params.execApprovalManager.getLiveSnapshot(params.id) ??
-    params.pluginApprovalManager.getLiveSnapshot(params.id) ??
+    pluginLiveRecord ??
     params.systemAgentApprovalManager?.getLiveSnapshot(params.id);
   if (
     liveRecord &&
@@ -188,7 +205,8 @@ function loadVisibleApproval(params: {
         client: params.client,
         allowApprovalRuntime: params.allowApprovalRuntime,
         binding: { reviewerDeviceIds: lookup.record.reviewerDeviceIds },
-      })
+      }) ||
+      (!governanceReader && isGovernanceOwnedApprovalRecord(lookup.record))
     ) {
       return null;
     }
@@ -309,6 +327,10 @@ export function createApprovalHandlers(
         context.getRuntimeConfig()?.gateway?.controlUi?.basePath,
       );
       const items = history.records.flatMap((record) => {
+        // A dashboard prompt's escalation belongs to the governance ledger's history (T68).
+        if (isGovernanceOwnedApprovalRecord(record)) {
+          return [];
+        }
         const snapshot = buildApprovalSnapshot(record, controlUiBasePath);
         return snapshot && snapshot.status !== "pending" ? [snapshot] : [];
       });

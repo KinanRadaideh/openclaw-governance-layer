@@ -112,6 +112,14 @@ export const ADMIN_ACTIONS = {
    */
   agentPromptCancel: "governance.agent.prompt-cancel",
   /**
+   * A governance account answered an escalation raised from a dashboard prompt (T68).
+   *
+   * The Gateway's own record of the answer names a principal, not a person; this
+   * entry is what says which account decided, under which tier. The action it
+   * permitted or refused is recorded separately by the gate.
+   */
+  agentApprovalAnswer: "governance.agent.approval-answer",
+  /**
    * Authentication events on the dashboard's named-account gate.
    *
    * Four rather than one because they answer different questions and carry

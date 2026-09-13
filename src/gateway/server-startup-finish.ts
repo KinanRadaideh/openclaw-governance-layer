@@ -313,6 +313,10 @@ export async function finishGatewayStartup(params: {
   });
   gatewayInstanceRuntimeRef.current = gatewayInstanceRuntimeLocal;
   gatewayRequestContext.approvalEvents = gatewayInstanceRuntimeLocal.approvalEvents;
+  // Escalations from a dashboard prompt are delivered to and answered through
+  // governance (T68). Replaced, not stacked, when a later generation installs its own.
+  const { installGovernanceApprovalRoute } = await import("./governance-approvals.js");
+  installGovernanceApprovalRoute(gatewayInstanceRuntimeLocal.nativeApprovals);
   gatewayRequestContext.recoveryRuntime = gatewayInstanceRuntimeLocal.recovery;
   const fallbackGatewayContextCleanup: unknown = setFallbackGatewayContextResolver(
     () => gatewayRequestContext,

@@ -31,6 +31,7 @@ import { loadPolicy, setAgentHitlTimeout } from "../governance/policy-store.js";
 import { MAX_HITL_TIMEOUT_SECONDS, MIN_HITL_TIMEOUT_SECONDS } from "../governance/policy-types.js";
 import type { GovernanceRole } from "../governance/roles.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
+import { handleGovernanceApprovalRoutes } from "./governance-dashboard-approvals.js";
 import { requireAgentInGroup, requireGroup } from "./governance-dashboard-group.js";
 import {
   MAX_JSON_BODY_BYTES,
@@ -154,6 +155,12 @@ export async function handleGovernanceAgentControlRoutes(
   ctx: AgentControlRouteContext,
 ): Promise<boolean> {
   const { requireRole, readJsonObjectBodyOrError, toActor, auditActor } = ctx;
+
+  // Answering an escalation raised from a dashboard prompt (T68) is acting on an agent
+  // you manage, so its routes sit under this module rule, in a module of their own.
+  if (await handleGovernanceApprovalRoutes(req, res, route, session, ctx)) {
+    return true;
+  }
 
   // ---------------------------------------------------------------------
   // Talking to an agent (backlog item A1).

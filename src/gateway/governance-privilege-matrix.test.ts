@@ -122,6 +122,14 @@ const ROUTES: RouteCase[] = [
   { method: "GET", route: "rule-requests", floor: "viewer" },
   { method: "POST", route: "ledger/verify", floor: "viewer" },
   { method: "GET", route: "pending-decisions", floor: "user" },
+  // T68: escalations from dashboard prompts, answered by the accounts that manage the agent.
+  { method: "GET", route: "approvals", floor: "user" },
+  {
+    method: "POST",
+    route: "approvals/decide",
+    floor: "user",
+    body: { id: "plugin:nope", decision: "deny" },
+  },
   {
     method: "POST",
     route: "pending-decisions/decide",

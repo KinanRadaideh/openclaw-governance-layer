@@ -413,3 +413,35 @@ openclaw-governance-page .settings-empty.governance-rule-notice[role="alert"] {
   border-left-color: var(--warn, #fbbf24);
   background: color-mix(in srgb, var(--warn, #fbbf24) 10%, transparent);
 }
+
+/* Escalations from dashboard prompts waiting for this account's answer (T68). */
+.governance-approvals {
+  display: grid;
+  gap: var(--space-3, 0.75rem);
+  margin-bottom: var(--space-4, 1rem);
+}
+
+.governance-approvals__heading {
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+.governance-approvals__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--control-ui-text-sm);
+}
+
+.governance-approvals__notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3, 0.75rem);
+  padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.governance-approvals__notice--warning {
+  border-color: var(--warn);
+}

@@ -10,6 +10,12 @@ export type GatewayApprovalResolved = ExecApprovalResolved | PluginApprovalResol
 export type GatewayApprovalEventSubscriber = {
   eventKinds: ReadonlySet<GatewayApprovalEventKind>;
   shouldHandle: (request: GatewayApprovalRequest) => boolean;
+  /**
+   * Claims a request's audience for this subscriber alone. While any subscriber
+   * claims a request, only claimants receive it, so an in-process owner that decides
+   * who may answer is not bypassed by a channel runtime that forwards everything.
+   */
+  claimsAudience?: (request: GatewayApprovalRequest) => boolean;
   onRequested: (request: GatewayApprovalRequest) => void;
   onResolved: (resolved: GatewayApprovalResolved) => void;
 };

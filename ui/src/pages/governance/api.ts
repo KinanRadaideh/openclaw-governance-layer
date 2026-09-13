@@ -106,35 +106,6 @@ export type GovernancePolicyDocument = {
   disabledCoreRules?: string[];
 };
 
-export type GovernancePendingDecision = {
-  id: string;
-  agentId: string;
-  sessionKey?: string;
-  toolName: string;
-  resourceKind: string;
-  resource: string;
-  timedOutAt: string;
-  /** When a repeat of this question last ended; absent until it repeats. */
-  lastTimedOutAt?: string;
-  waitedMs: number;
-  /** Absent on rows recorded before it was, which were all timeouts. */
-  endedBy?: "timeout" | "cancelled";
-  status: "pending" | "allowed" | "denied";
-  decidedBy?: string;
-  decidedAt?: string;
-};
-
-/**
- * What answering a timed-out escalation returns (T60). `proposal` is present
- * when "Would allow" tried to file a rule request, and says whether it saved.
- */
-export type GovernancePendingDecisionOutcome = GovernancePendingDecision & {
-  proposal?:
-    | { status: "pending"; requestId: string }
-    | { status: "queue-full"; limit: number; warning: string }
-    | { status: "failed"; warning: string };
-};
-
 export type GovernanceRuleConflict = {
   kind:
     | "already-permanent"
@@ -331,6 +302,16 @@ import type {
   GovernanceAgentPolicyHoldings,
   GovernanceDeprovisionResult,
 } from "./api.agents.ts";
+
+// Escalations waiting for a person: live ones from dashboard prompts (T68), and the
+// timed-out ones answered later.
+export type * from "./api.escalations.ts";
+import type {
+  GovernanceApprovalDecision,
+  GovernanceApprovalsView,
+  GovernancePendingDecision,
+  GovernancePendingDecisionOutcome,
+} from "./api.escalations.ts";
 
 // The agent-control shapes, moved out on the same rule (T60, T63).
 export type * from "./api.agent-control.ts";
@@ -643,6 +624,18 @@ export class GovernanceApi {
     return this.request<{ decisions: GovernancePendingDecision[]; shedUndecided: number }>(
       "pending-decisions",
     );
+  }
+
+  /** Escalations from dashboard prompts this account may answer, and what followed recent answers (T68). */
+  listApprovals(): Promise<GovernanceApprovalsView> {
+    return this.request<GovernanceApprovalsView>("approvals");
+  }
+
+  decideApproval(id: string, decision: GovernanceApprovalDecision): Promise<{ answered: true }> {
+    return this.request<{ answered: true }>("approvals/decide", {
+      method: "POST",
+      body: { id, decision },
+    });
   }
 
   decidePendingDecision(id: string, allow: boolean): Promise<GovernancePendingDecisionOutcome> {

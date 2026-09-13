@@ -98,6 +98,7 @@ const MUTATING_ROUTES: Array<[string, GovernanceRole]> = [
   ["rule-requests", "user"],
   ["rule-requests/decide", "administrator"],
   ["pending-decisions/decide", "user"],
+  ["approvals/decide", "user"],
   ["users", "root"],
   ["users/role", "root"],
   ["users/agents", "administrator"],

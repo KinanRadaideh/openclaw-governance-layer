@@ -35,8 +35,6 @@ import { runApprovalRequestDeliveries } from "./approval-request-delivery.js";
 import {
   handleApprovalWaitDecision,
   handlePendingApprovalRequest,
-  bindApprovalRequesterMetadata,
-  bindApprovalReviewerDeviceIds,
   buildRequestedApprovalEvent,
   handleApprovalResolve,
   listVisiblePendingApprovalRequests,
@@ -45,6 +43,10 @@ import {
   respondPendingApprovalLookupError,
   resolvePendingApprovalRecord,
 } from "./approval-shared.js";
+import {
+  bindApprovalRequesterMetadata,
+  bindApprovalReviewerDeviceIds,
+} from "./approval-visibility.js";
 import type { GatewayRequestHandlers } from "./types.js";
 import { assertValidParams } from "./validation.js";
 
@@ -401,6 +403,7 @@ export function createExecApprovalHandlers(
           runApprovalRequestDeliveries({
             context,
             record,
+            approvalKind: "exec",
             forward: forwardRequest
               ? [() => forwardRequest(requestEvent), "exec approvals: forward request failed"]
               : undefined,

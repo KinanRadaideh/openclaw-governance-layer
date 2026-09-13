@@ -445,6 +445,17 @@ export const enGovernance: TranslationMap = {
       deletedIncomplete:
         "Organisation deleted: {accounts} account(s) and {agents} agent(s) removed, but some steps after it did not finish, and only you can act on them: {steps}",
     },
+    /**
+     * Escalations from dashboard prompts, waiting for this account (T68).
+     *
+     * Shown only to accounts that manage the agent: the Gateway shows these to no
+     * Control UI, and the answer is recorded under the account that gave it.
+     */
+    approvals: {
+      title: "Waiting for your answer",
+      hint: "An agent you manage asked before doing something no rule covers. Only accounts that manage this agent see this question, and your answer is recorded under your name.",
+      dismiss: "Dismiss",
+    },
     pending: {
       title: "Awaiting your decision",
       shedTitle: "This list is incomplete",
