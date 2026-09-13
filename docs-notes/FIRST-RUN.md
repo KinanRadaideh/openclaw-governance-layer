@@ -308,7 +308,7 @@ The refusal is there, with the agent, the decision, and the rule that made it.
 
 ---
 
-## 9. Two honest caveats before you rely on it
+## 9. Three honest caveats before you rely on it
 
 **Signup is ungated by design, and the tunnel is the control.** Creating the
 first Root is open because the port is unreachable from the network. This is a
@@ -320,3 +320,12 @@ machinery, per-organisation storage, isolation at every route, and a decision
 taken 2026-08-30 caps an installation at a single organisation, because
 installation-wide controls need an unambiguous owner. Several organisations means
 several servers, which is what it always meant.
+
+**An escalation from a dashboard prompt answers to a governance role; a chat run's
+does not.** When an agent you prompted from the governance page asks before acting, the
+question appears on the governance page, and only for the accounts that manage that
+agent: its assigned Users, the organisation's Administrators, and Root. The Control UI's
+pop-up card does not show it, and the answer is recorded under the account that gave
+it (T68, decided and built 2026-09-13). Approvals from chat runs still appear to anyone
+whose browser holds the Gateway credential, whatever their tier, so treat that
+credential as operator access. See `mg/HANDOFF.md` §7 caveat 27.

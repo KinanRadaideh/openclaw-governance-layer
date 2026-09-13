@@ -5235,3 +5235,93 @@ flagged. `build-all` passes every phase except `write-cli-startup-metadata`, whi
 times out on this machine even when idle. 68 mutations across six runs were all
 caught. The full record is
 `mg/REMAINING-WORK-DASHBOARD-SWEEP.md` §"The dashboard QA pass".
+
+### How the session ended
+
+- **An independent review** of the fixes raised five points: three were fixed, one
+  became decision T68, and one is a recorded limitation.
+- **Every fix was re-driven on a rebuilt Gateway.** That is where 355's warning was
+  found rendering off-screen, 362 was found, and 363 turned up while 348 was being
+  proved.
+- **Two slips, both caught:** a wrapper reported the build green while `build-all`
+  had exited 1, and a source scan pinned to a replaced literal failed only in the
+  whole governance suite.
+- **Committed and pushed** to `personal/governance-layer` at `0c15e73a778`: T60/T63
+  as built, the fixes, the docs. Two decisions are left, T68 and T69, and the VPS
+  still needs rebuilding.
+
+## 2026-09-13 (later): finding 363 fixed, and a check nobody was running
+
+**Kinan decided T69: a requester may withdraw an approval it no longer needs.** It is
+built as `plugin.approval.withdraw`. Only the requester may call it; the approval hook
+calls it when its run is aborted; the Gateway closes the record as `cancelled` through
+the store's existing path and publishes it the way every other ending is published. The
+card closes, a late press is refused, a first answer stands, and chat channels read
+"cancelled" instead of "denied". Upstream's run-abort cancellation keys on a run id that
+plugin approvals never carry, and governance runs abort through their own controller, so
+the requester's abort is where the repair belongs.
+
+**Two things turned up while verifying it.** The since-version guard had been failing
+since T60, because T60 registered `reportOutcome` for the next release train and no
+command anyone runs included that script; both methods are corrected. And the new tests
+pushed `plugin-approval.test.ts` past its line limit; it was split rather than
+suppressed, with the count of tests checked before and after.
+
+**Verified:** all three typechecks 0; type-aware lint with a positive control, and plain
+`oxlint`, 0; the protocol checks 0; import cycles 0; the SDK checks pass; the governance
+suite 2,930 passed, 21 skipped, 0 failed; host suites 263; 11 mutations caught. **Not
+driven live**, and not committed when written. The full record is
+`mg/REMAINING-WORK-DASHBOARD-SWEEP.md` §"Finding 363".
+
+## 2026-09-13 (later still): T68 built, and a card that outlived its right
+
+**Kinan chose (b): a dashboard escalation is seen and answered only by the governance
+accounts that manage its agent.** The question was where a governance identity could
+enter an approval path that had never carried one. The Gateway's approval authority
+already ran through two functions, and both now refuse a governance-owned approval to
+everyone but the approval runtime. The in-process approval bus already existed, so
+governance subscribes there and claims the audience. An answer dispatched as the
+Gateway's own approval principal takes the ordinary resolve path, so governance only had
+to decide who may answer.
+
+**Composition found one defect before it shipped.** The page's card controller skipped
+its read for an account that manages no agent, and in skipping it kept the cards it
+already held. Demote a User while a card is up, and the Viewer is offered "Allow once".
+The server refused the press, so authority held, but the screen was wrong. It now clears.
+
+**A suite that looked red was environmental, and was bisected rather than assumed.**
+Five files in the approval test set fail only in clean-up, because Windows will not delete
+an open SQLite file. Removing T68's only startup change left the e2e hang unchanged.
+
+**Verified:** typechecks, lint, protocol, cycles, SDK and doc checks all 0; governance
+suite 2,998 passed, 0 failed; approval set 672 tests pass; 23 mutations, 22 caught, the
+survivor deliberately redundant. **Not driven live.** The full record is
+`mg/REMAINING-WORK-DASHBOARD-SWEEP.md` §"T68".
+
+## 2026-09-13 (latest): the week's QA check — an emergency stop with a blind spot
+
+**Kinan asked for a QA check over the last week's work.** Its most valuable axis was
+composition: pair each new feature with the controls that already existed and ask whether
+the pair still holds. T68 paired with the kill switch did not. **Finding 364:** the kill
+switch stopped runs through the Gateway's registry, and a dashboard prompt was never in it.
+Finding 319 had met that fact already and repaired only the panel that displayed it. So the
+emergency stop reported nothing running while a prompt ran, and "Allow once" on its waiting
+escalation still went through. A probe proved both halves against the real terminator
+before anything changed; the fix ends governance's own prompt runs inside termination and
+refuses an allow for a locked agent. 7 mutations, all caught.
+
+**The claims axis corrected the project's own record.** Finding 345 had filed 27 failing UI
+tests as none of them this fork's. Tracing each to the commit that changed what it tests
+showed 19 were: tests never told about the governance route or T52's copy, an undefined CSS
+token, and comments a source scan reads. 22 are fixed (A10). The attribution had been
+repeated in five documents, and none of them had run `git log -S`.
+
+**The gates, finally together:** the full lint gate exited 0 for the first time since
+2026-09-07, `build-all` exited 0, and Q4 put 50 agents, 21 accounts and 1,000 ledger
+entries through every tier's refresh at 20 to 30 ms of reads and a 33 to 64 ms render.
+
+**One process lesson, from committing it.** The pre-commit hook re-adds staged files from
+the working tree, so staging a filtered copy of a file did nothing, and the first T68 commit
+carried 364's and A10's hunks. It was caught by reading each commit back before pushing,
+and the commits were rebuilt with the final tree checked identical. Full record: the sweep
+register's §"The week's QA check".

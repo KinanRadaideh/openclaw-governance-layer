@@ -1,6 +1,6 @@
 # Handoff: read this first
 
-**Written 2026-08-19. Current as of 2026-09-11.** The single entry point
+**Written 2026-08-19. Current as of 2026-09-13.** The single entry point
 for whoever picks this project up next, whether a teammate, a supervisor, or the
 same person after a break. Everything else in `mg/` is detail beneath this.
 
@@ -12,41 +12,45 @@ same person after a break. Everything else in `mg/` is detail beneath this.
 >
 > **If you are about to write the report, start at `docs-notes/WRITING-GUIDE.md`.**
 > The engineering reached a stopping point on 2026-09-11 and the project is moving
-> into its documentation phase. That guide maps every section of the report to the
+> into its documentation phase. A QA pass on 2026-09-12 and 13 then drove the
+> finished features through a browser; it is committed and pushed, and it left two
+> decisions, both taken and built the same day: T69 (finding 363) and T68. The writing guide maps every section of the report to the
 > material that feeds it, lists every number with the command that re-derives it,
 > and names the claims that must not be made.
 >
 > **Otherwise read §1 for the state, §6 for what is left, §7 for the caveats.** If
-> you have five minutes, read §1's **2026-09-11** entry. If you have fifteen, add
-> §7's caveats **19, 22, 25 and 26**.
+> you have five minutes, read §1's **2026-09-13** entry. If you have fifteen, add §7's caveats **19, 22, 25, 26 and 27–29**.
 >
 > ### What changed most recently
 >
-> 0. **T60 and T63 are built — and were uncommitted when this was written**
->    (2026-09-11). "Always allow" now says what it does and warns when its rule
->    request cannot be saved; a task whose tab was reloaded comes back, with its
->    Cancel, in the conversation and in _Active agent sessions_. **Both were
->    finished from a draft another agent (Codex) left untested**, and finishing it
->    found a defect its own tests could not see: concurrent prompts from one account
->    lost their agent replies. **Check `git status` first** — commit and push before
->    the VPS or the report depends on any of it (§8).
->
->    **Also since 2026-09-08:** the dashboard sweep **finished all fourteen
->    sections** from all four tiers; **T64** moved the governance page's text off the
->    startup path, freeing 9,019 bytes; and findings **342–345** were all about the
->    record rather than the product — a reason written down twenty-fold wrong, backlog
->    rows disagreeing with other rows, a check recorded as passing that was failing,
->    and 27 failing UI tests in an area nobody runs. **Then, on 2026-09-12 and 13, a
->    QA pass through the dashboard found eighteen more, 346–363, seventeen fixed** (§1). **363 found, 361 fixed, 2 open** (169 and 363). **Ten backlog items open, none of them a
->    dashboard decision.**
+> 0. **A QA pass through the dashboard, 2026-09-12 and 13 — committed and pushed.**
+>    It found **eighteen defects, 346–363, all now fixed.** The ones to know: the
+>    browser's service worker served one account's stored governance answers to the
+>    next (346, security); escalations from a dashboard prompt had never reached a
+>    person (347); and a closed tab cancelled the very task T63 exists to recover (350 —
+>    Kinan decided tasks survive the tab). Every fix of 346–362 was re-driven on a
+>    rebuilt Gateway and mutation-checked; the pass is on `personal/governance-layer`
+>    at `0c15e73a778`, in three commits. **363 was fixed later on 2026-09-13, at Kinan's
+>    decision (T69)**: a cancelled task now withdraws its approval card through a new
+>    Gateway method, `plugin.approval.withdraw` (§1's "2026-09-13 (later)" entry).
+>    **364 found, 363 fixed, 1 open** (169). **Ten backlog items open; no decision about
+>    approvals is waiting** (T68 was built the same day: a dashboard escalation is answered
+>    by the accounts that manage its agent).
 >
 >    **Three things that change what you do first:**
 >
->    - **Commit and push the T60/T63 work** if `git status` still shows it.
->    - **Run the whole of §4 before trusting any cell in this file.** Three green
->      cells here have described red commands (321, 323, 344).
->    - **A red `build-all` can be load rather than code** (§4): re-run its last step
->      alone before calling the build broken.
+>    - **Read caveat 27 before writing about approvals** (T68): a dashboard escalation is
+>      answered on the governance page by the accounts that manage the agent; a chat run's
+>      approval is not.
+>    - **Rebuild the VPS** (§8). It has none of this, including 346's security fix.
+>    - **Run the whole of §4 before trusting any cell in this file**, and read §4's
+>      2026-09-13 notes first: the lint gate's core shard now sits at its time cap, and
+>      `build-all`'s last step times out on the Windows machine even when idle.
+>
+>    **Earlier:** T60 and T63 were built on 2026-09-11 from a draft another agent left
+>    untested; the dashboard sweep finished all fourteen sections on 2026-09-08; T64
+>    freed 9,019 startup bytes; findings 342–345 were about the record rather than the
+>    product.
 >
 > 1. **The governance command line no longer exists.** Removed 2026-09-07 at
 >    Kinan's decision — no design requirement asked for it, and it was the
@@ -447,27 +451,27 @@ of `QA-IN-PLAIN-TERMS.md`.
 
 ## 1. The one-paragraph state of things
 
-### Handoff state, 2026-09-11 (cells re-derived that day)
+### Handoff state, 2026-09-13 (cells re-derived that day)
 
 **Everything below is re-derived from the rows and the source, not carried
 forward.** If you are picking this up, this table is the shortest true summary;
 §1's entries are the narrative beneath it.
 
-|                         |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Surfaces**            | **Two**: the HTTP control plane and the dashboard on it. The command line was removed 2026-09-07 and is archived in `docs-notes/removed-cli-surface/`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| **Suite**               | **The governance suite is green and the wider UI suite is not, and until 2026-09-09 (iii) nobody knew.** Governance + gateway + `ui/src/pages/governance/`: **2,842 passed / 21 skipped across 147 files, exit 0**, re-measured 09-09 (ii). Widening the same run to **all of `ui/src/`** — which no command in §4 does — gives **10,723 passed / 27 failed across 16 files**. **All 27 reproduce at HEAD** and none is this fork's: chat, model-setup, plugins, channels, workboard, navigation, two source scans and the vite config test. Finding **345**, recorded as A10, and T25 is the precedent for not assuming the worst                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| **Typechecks**          | **All three 0, re-measured 2026-09-09 (ii) — and one of them was not.** `tsgo -p test/tsconfig/tsconfig.core.test.json`, the sixth command in §4, **was red at HEAD** and had been since the commit that added finding 340's test: a `ledgerFilter` property passed into a `Partial<PageState>` whose local mirror did not declare it. **This cell read "core, UI and tests — all 0" while it was failing** (finding 344). Fixed in the same pass. **The build is a separate check again** — see finding 321, and run `node scripts/build-all.mjs` before believing this row means the product builds                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| **Lint**                | plain `oxlint` **0**, re-measured 2026-09-09 (ii) — and it caught one error in this pass's own work (`prefer-set-has`), which is the argument for running it rather than reading this cell. _(It read 0 on 09-08 while the answer was 4 — finding 323.)_ The **full** gate, `node scripts/run-lint.mjs`, has not been re-run since 2026-09-07 (iii) and its 0 is that old. They are not the same check, the full one is the one that counts, and **T50 is now decided: nothing will ever run it automatically** — the hook says so itself as of 2026-09-09                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| **Standing probes**     | 21, in `docs-notes/qa-sweep-*/` (counted, not incremented: `ls docs-notes/qa-sweep-*/*.ts`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| **Backlog**             | **Re-derived from the rows 2026-09-11: eleven unstruck in §6, one of which is T1 — so ten open.** T60 and T63 closed that day, built at Kinan's decision, and nothing was added. Before that, 2026-09-09 closed T50, T55 and T64, and added T63 and T64 to the table after finding them open in the sweep backlog only (finding 343): **a stable count is not evidence of a current list**. **Count from the table under §"The numbered backlog" and nowhere else** if the number is needed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| **Findings**            | **363 found, 361 fixed, 2 open**: **169** (unexplained, never reproduced; T67 in the sweep backlog) and **363** (a cancelled task's approval card stays pressable until it expires; a decision). **346–363 were added on 2026-09-12 and 13, 346–362 fixed** by a QA pass through the dashboard: **346** (security), the service worker served stored governance answers to the next account; **347–348**, dashboard escalations never reached a person and were recorded as timeouts; **349**, Escape left Settings; **350–354**, T63's claim made true; **355–361**, what the page said and whether it was true; **362**, a request's reason cut to 500 characters without a mark. See §"2026-09-13 (latest)". **281 and 316 closed 2026-09-11**, when T60 and T63 were built at Kinan's decision. **345** was added 2026-09-09 (iii) while checking T64 for regressions: the whole `ui/src` suite fails 27 tests across 16 files, all pre-existing at HEAD, none of them this fork's, and no command anybody runs had ever looked. Recorded rather than fixed (A10). (ii) added three, all fixed: **342**, the reason recorded for the startup budget was wrong by a factor of twenty — the twenty non-English locales are already lazily imported, so a sentence costs `en` once, and the correction is what made T64 worth doing; **343**, rows stale against _other rows in the same files_ plus two open tasks carrying a second number each; **344**, the test typecheck was red at HEAD while the row above said it was 0 — the third time a green cell in this table has described a red command, after 321 (the build) and 323 (the lint gate), and **all three were in this one table**. Before them, 09-09 (i) closed **331** and **333** and added **339-341**; (ix) added **337** and **338**. 258 closed 2026-09-08 (vi) when Mohammad decided T55 |
-| **Design requirements** | Eight of nine fully met; #9 (Linux deployment) is met in practice and unmeasured on the server — that is T3                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+|                         |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Surfaces**            | **Two**: the HTTP control plane and the dashboard on it. The command line was removed 2026-09-07 and is archived in `docs-notes/removed-cli-surface/`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **Suite**               | **Governance suite, re-measured 2026-09-13 after T68: 2,998 passed / 21 skipped / 0 failed across 157 files.** Earlier that day it was 2,928 / 2 failed; the 2 were one source scan (`host-prompt-audit.test.ts`) pinned to text finding 347's fix changed, updated and passing. **The wider `ui/src/` suite, which no command in §4 runs: 8,176 passed / 5 failed across 564 files after A10 (2026-09-13).** Before it, 27 failed in 16 files (finding 345); 22 were fixed, and the 5 left are jsdom's `Blob.stream()`, in files the fork never touched. ui-isolated, on its own config (`test/vitest/vitest.ui-isolated.config.ts`): 403 passed. The browser project: 199 passed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| **Typechecks**          | **All three 0, re-measured 2026-09-13** (core, UI, and the test tsconfig after the last test edits). **The build is a separate check.** **`build-all` exited 0 on 2026-09-13 (latest), every phase**, its last step reusing cached startup metadata rather than regenerating it. Before that it passed every phase, the startup budget included (316,840 B of 324,608 B), except its last, `write-cli-startup-metadata`, which times out on the Windows development machine even when idle; the measurements are in `mg/REMAINING-WORK-DASHBOARD-SWEEP.md` §"What could not be established here"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **Lint**                | Plain `oxlint` **0**, re-measured 2026-09-13. **The full gate exited 0 end to end on 2026-09-13 (latest)**, with the documented cap, about nineteen minutes: its first clean exit since 2026-09-07 (iii). On 2026-09-13 its first run found one type-aware error in the QA pass's own test, which was fixed; its second timed out on the core shard (exit 124, a timeout rather than a verdict: the shard needs about fifteen minutes against a 905-second cap here). The fix was confirmed through `scripts/run-oxlint.mjs` with a positive control the rule flagged. Raise the cap before the next run (§4). **T50: nothing runs the gate automatically**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **Standing probes**     | 21, in `docs-notes/qa-sweep-*/` (counted: `ls docs-notes/qa-sweep-*/*.ts`). **The 2026-09-12/13 pass's Playwright probes were session scratch and are not in the repository**; its method and evidence are in the sweep register                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **Backlog**             | **Re-derived from the rows 2026-09-13 (later): eleven unstruck in §6, one of which is T1, so ten open.** T68 and T69 were added that day, both decisions about approvals left by the QA pass, and **both closed the same day**: Kinan chose to build the withdrawal (T69, finding 363), and to limit a dashboard escalation to the accounts that manage its agent (T68). Before that, 2026-09-11 closed T60 and T63. **Count from the table under §"The eleven unstruck" and nowhere else**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **Findings**            | **364 found, 363 fixed, 1 open**: **169** (unexplained, never reproduced; T67 in the sweep backlog). **364 was found and fixed on 2026-09-13 by the week's QA check**: the kill switch never stopped a dashboard prompt, and an escalation raised before the lock could still be allowed. **363 was fixed later on 2026-09-13** at Kinan's decision (T69): a cancelled task's approval card stayed pressable until it expired, and the approval hook now withdraws it through `plugin.approval.withdraw`. **346–363 were added on 2026-09-12 and 13, 346–362 fixed** by a QA pass through the dashboard: **346** (security), the service worker served stored governance answers to the next account; **347–348**, dashboard escalations never reached a person and were recorded as timeouts; **349**, Escape left Settings; **350–354**, T63's claim made true; **355–361**, what the page said and whether it was true; **362**, a request's reason cut to 500 characters without a mark. See §"2026-09-13 (latest)". **281 and 316 closed 2026-09-11**, when T60 and T63 were built at Kinan's decision. **345** was added 2026-09-09 (iii) while checking T64 for regressions: the whole `ui/src` suite fails 27 tests across 16 files, all pre-existing at HEAD, and no command anybody runs had ever looked. Recorded then as none of them this fork's; **diagnosed on 2026-09-13 (A10), 19 were**, and 22 are fixed. (ii) added three, all fixed: **342**, the reason recorded for the startup budget was wrong by a factor of twenty — the twenty non-English locales are already lazily imported, so a sentence costs `en` once, and the correction is what made T64 worth doing; **343**, rows stale against _other rows in the same files_ plus two open tasks carrying a second number each; **344**, the test typecheck was red at HEAD while the row above said it was 0 — the third time a green cell in this table has described a red command, after 321 (the build) and 323 (the lint gate), and **all three were in this one table**. Before them, 09-09 (i) closed **331** and **333** and added **339-341**; (ix) added **337** and **338**. 258 closed 2026-09-08 (vi) when Mohammad decided T55 |
+| **Design requirements** | Eight of nine fully met; #9 (Linux deployment) is met in practice and unmeasured on the server — that is T3                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 **The three things most likely to trip you up, in order:**
 
 1. **The VPS is a different product from this repository** until it is rebuilt.
-   It still serves the removed command line and lacks this week's fixes. One
+   It still serves the removed command line and lacks every fix since, including finding 346's security fix. One
    command, §6, "Do this before anything else".
 2. **A document telling you to run `openclaw governance …` is out of date.**
    Every operator-facing one was corrected on 2026-09-07; historical narrative
@@ -478,7 +482,122 @@ forward.** If you are picking this up, this table is the shortest true summary;
 
 ---
 
-### 2026-09-13 (latest): the dashboard QA pass — eighteen findings, 346–363, seventeen fixed
+### 2026-09-13 (latest): the week's QA check — finding 364 fixed, A10 answered, two claims corrected
+
+**Kinan asked for a QA check over all work done in the last week**, the 20 commits since
+2026-09-05 plus 363 and T68, and for it to be committed and pushed. Three axes: the
+verification set, composition across features, and the documents' claims.
+
+- **Composition found finding 364, security.** The kill switch never stopped a dashboard
+  prompt, and an escalation raised before the lock could still be allowed. Proved by a
+  probe driving the Gateway's real terminator, fixed, 7 mutations caught. The other pairings
+  (T68 with the service worker, with organisations, with role changes; 364 with T63) were
+  right, or were fixed with T68. Record: the sweep register's §"Finding 364" and §"The
+  week's QA check".
+- **A10 is answered.** Finding 345's "none of the 27 is this fork's" was wrong for 19: tests
+  never updated for the governance route and T52's copy, an undefined CSS token, and two
+  comments a source scan reads. 22 fixed; 5 remain, jsdom's `Blob.stream()`.
+- **Q4 is measured:** 50 agents, 21 accounts and 1,000 ledger entries cost every tier's
+  refresh 20 to 30 ms of server reads, and render in 33 to 64 ms (Root's first mount 434 ms,
+  cold).
+- **The full lint gate exited 0** for the first time since 2026-09-07 (iii), and
+  **`build-all` exited 0**, its last step reusing cached metadata.
+
+**Committed in five commits** on `governance-layer`: 363, T68, 364, A10, and the documents.
+The pre-commit hook re-adds staged files from the working tree, which folded 364's and
+A10's hunks into the first T68 commit; the three unpushed commits were rebuilt so each holds
+only its own finding, and the final tree was checked identical. Pushed to `personal`.
+
+**Not established:** a live run of any of it on a real screen (T47 rows 6c.10 to 6c.13).
+
+### 2026-09-13 (later still): T68 built — a dashboard escalation answered by the accounts that manage its agent
+
+**Kinan chose (b) for T68 (sweep register C11).** An escalation raised from a dashboard
+prompt had reached every Control UI holding the Gateway credential, so a Viewer could
+press "Allow once". Now only the agent's assigned Users, the organisation's
+Administrators and Root see it, on the governance page, and the answer is recorded under
+the account that gave it.
+
+**What was built,** in full in `mg/REMAINING-WORK-DASHBOARD-SWEEP.md` §"T68":
+
+- one test of ownership (`governance-approval-scope.ts`);
+- both Gateway authorization gates refuse such an approval to every connection except the
+  approval runtime and its requester, **admin scope included**, and `approval.history`
+  leaves it out;
+- no forwarding to chat channels or phones;
+- governance subscribes on the in-process approval bus and **claims the audience**
+  (a generic `claimsAudience` on bus subscribers);
+- two governance routes, `GET approvals` and `POST approvals/decide`, authorized with
+  `canManageAgent` inside the organisation, answering as the Gateway's own approval
+  principal and ledgered as `governance.agent.approval-answer`;
+- an inline card band on the page, polled every two seconds.
+
+**Behaviour that changed:** with no dashboard open, a dashboard escalation waits out its
+timeout. **Chat runs are unchanged** (caveat 27).
+
+**Found while finishing it, and fixed:** the card controller stopped polling when an
+account could manage no agent, and so kept the cards it held. A User demoted to Viewer
+kept a pressable card. The server refused the press, but the screen offered it. The
+controller now clears on that change and on a 403 from its read, with a test for each
+(T47 row 6c.12).
+
+**Verified:** typechecks 0 (core, UI, test); type-aware lint over the gateway, infra,
+agent-tools and governance trees 0; protocol checks, import cycles, SDK checks and doc
+audit all 0 or passing; governance suite **2,998 passed, 21 skipped, 0 failed**; the
+approval test set 33 files and 672 tests pass. Five files there fail only in **Windows
+clean-up** of an open SQLite file, **bisected as not T68's**. Mutations: 23, 22 caught,
+the one survivor a deliberately redundant check. **Not driven live**; the full lint gate
+and `build-all` were run afterwards; see §"2026-09-13 (latest)".
+
+**Kinan decided T69 (sweep register C12) and asked for it to be built.** A task
+cancelled while its approval card was up had left the card pressable for up to two
+minutes, and a press was announced to chat channels as an answer.
+
+**What was built.** A new Gateway method, `plugin.approval.withdraw`, which only the
+requester may call (the same device, client or connection binding `reportOutcome`
+uses). The approval hook calls it the moment its run is aborted. The Gateway closes the
+record as `cancelled` for `run-aborted` — a status and reason its store already had, so
+**no schema change** — and publishes it through `publishAppliedApprovalResolution`, the
+path every other ending takes. The card closes; a late press is refused as already
+resolved; a reviewer who answered first keeps the answer. Resolved events now carry
+`cancelled: true`, and the three chat renderers say _"cancelled: the run that asked for
+it stopped"_ instead of _"denied"_, which also corrects how upstream's own exec run-abort
+cancellation was announced. The Swift and Kotlin models were regenerated.
+
+**Why the requester and not the Gateway.** Upstream already cancels exec approvals when a
+chat run is aborted, matched by `runId`. Governance prompt runs abort through their own
+controller, and plugin approvals carry no run id, so that path could never see them. The
+waiter's abort is the one place Cancel, the kill switch, the prompt's time limit and a
+chat abort all pass through.
+
+**Found beside it:** T60's `plugin.approval.reportOutcome` was registered for release
+train `2026.9` against the current `2026.8`, so `scripts/check-protocol-since.mjs` had
+failed at HEAD since 2026-09-11 without anyone running it. Both methods now say `2026.8`,
+and §4 names the script.
+
+**Verified, each command's own exit code read:**
+
+- **Typechecks:** core, UI and test, all 0.
+- **Lint:** the type-aware wrapper over every changed file, with a positive control the
+  rule flagged; plain `oxlint` over `src ui/src`, 0. The first run found the new tests
+  had taken `plugin-approval.test.ts` 70 lines over the test file limit; it was split
+  (requester tests and shared fixtures into their own files), not suppressed, and every
+  test is still there: 33 before and after.
+- **Protocol:** the Swift model check, the registry, the since-version guard and event
+  coverage, all 0.
+- **Import cycles** 0; the plugin-SDK API baseline and surface checks pass.
+- **Suites:** the governance suite **2,930 passed, 21 skipped, 0 failed, 155 files**; the
+  host-hook suites 263; the focused tests around every touched file. The hook's e2e file
+  passes its approval tests; its six failures are pre-existing Windows path assertions,
+  and it has to be run without the e2e config's `dist`-building setup (§4).
+- **Mutations:** 11, all caught, each file restored and hash-checked.
+
+**Not established:** the card closing on a real screen. The QA Gateway's accounts and
+probes were session scratch and are gone, and a person cannot drive it by hand because
+the card is a modal on every connected Control UI. `build-all` and the full lint gate
+were not re-run. **Uncommitted** when written.
+
+### 2026-09-13: the dashboard QA pass — eighteen findings, 346–363, seventeen fixed
 
 **Kinan asked for a QA pass on T60 and T63 through the dashboard, then on the whole
 dashboard, driven the way an operator would.** That meant every tier, including a
@@ -559,6 +678,24 @@ register's "Two decisions this pass leaves open".
   `write-cli-startup-metadata`. That step times out on this machine even with nothing
   else running; the measurements are in the sweep register.
 - **Mutation testing:** 68 mutations across six runs, all caught.
+
+**How the rest of the session went, because three of its results changed what is
+written above.** An independent review of the fixes raised five points. Three were
+fixed: a recovered connection no longer erases the sign that a press may not have
+landed, a repeated pending question is dated by its latest ending, and the service
+worker purges only once it controls the tabs. One became decision T68; one is a
+recorded limitation (a kill-switch stop never shows _Stopping_). **Every fix was then
+re-driven on a rebuilt Gateway.** That is where 355's warning was found rendering
+5,475 px off-screen (fixed), where 362 was found, and where 363 turned up while 348
+was being proved. Two things went wrong and were caught: a background wrapper
+reported success while `build-all` itself had exited 1, and the whole governance
+suite caught a source scan that the narrower runs had missed.
+
+**Committed and pushed 2026-09-13** to `personal/governance-layer` at `0c15e73a778`,
+in three commits: T60/T63 as built (`778b769bef2`), the QA fixes (`746bfeb7bed`) and
+the docs (`0c15e73a778`). **If you are picking this up:** answer T68 (T69 was answered and built later that day), rebuild
+the VPS, run T47 including rows 6c.1–6c.9, and read caveats 27–29 before writing
+anything about approvals.
 
 The full record — every finding, its mechanism, its tests and its mutation check —
 is `mg/REMAINING-WORK-DASHBOARD-SWEEP.md` §"The dashboard QA pass".
@@ -3258,6 +3395,14 @@ The work now exists in three places rather than one.
 
 ## 2. Read these, in this order
 
+> **Picking up after 2026-09-13, in this order:** this file's §1 (the state table
+> and the 2026-09-13 entry), then §6 and §8 (what is left, and what to do first),
+> then §7's caveats 27–29. Then `mg/REMAINING-WORK-DASHBOARD-SWEEP.md` from its top
+> box through §"C", and its §"The dashboard QA pass". Then
+> `docs-notes/WRITING-GUIDE.md` if you are writing the report, or §4 of this file
+> before you run anything. **New to the project entirely:** `docs-notes/FIRST-RUN.md`
+> first, then the table below.
+
 | File                                   | What it gives you                                                                                                                                                                                                 |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `docs-notes/FIRST-RUN.md`              | **Read this first if you have never seen the project.** What the layer is, how to tell the fork from stock OpenClaw in one command, and the shortest path from a clean machine to a governed agent (T45)          |
@@ -3265,11 +3410,11 @@ The work now exists in three places rather than one.
 | `mg/HANDOFF.md`                        | This file. State, next actions, how to verify                                                                                                                                                                     |
 | `docs-notes/WRITING-GUIDE.md`          | **Start here if you are writing the report (2026-09-11).** Chapter by chapter, which material feeds which section; every number with the command that re-derives it; the claims not to make                       |
 | `mg/PROJECT-SUMMARY.md`                | What the project _is_. Problem, design, where every file lives                                                                                                                                                    |
-| `mg/REMAINING-WORK.md`                 | **Two backlogs.** §"The numbered backlog" (T1–T64) is the project; §"The M-series" (M1–M6, **complete**) is the multi-tenancy feature added on top. Everything below them is history                              |
+| `mg/REMAINING-WORK.md`                 | **Two backlogs.** §"The numbered backlog" (T1–T69) is the project; §"The M-series" (M1–M6, **complete**) is the multi-tenancy feature added on top. Everything below them is history                              |
 | `mg/SESSION-LOG-2026-08.md`            | Narrative of how the work was done and why decisions went the way they did                                                                                                                                        |
-| `mg/SESSION-LOG-2026-09.md`            | The September narrative, through 2026-09-11                                                                                                                                                                       |
-| `mg/REMAINING-WORK-DASHBOARD-SWEEP.md` | What is left, sorted by who has to move first, and the full records of T60, T63 and T64                                                                                                                           |
-| `GOVERNANCE.md`                        | Operator overview + the engineering defect table, findings 1–134 in full. **135–345 are not in it**. They live in `REMAINING-WORK.md`, and the index at the end of `GOVERNANCE.md` says which section holds which |
+| `mg/SESSION-LOG-2026-09.md`            | The September narrative, through 2026-09-13                                                                                                                                                                       |
+| `mg/REMAINING-WORK-DASHBOARD-SWEEP.md` | What is left, sorted by who has to move first; the full records of T60, T63 and T64; and the 2026-09-12/13 QA pass: findings 346–363, their live re-verification, and the observed coverage matrix                |
+| `GOVERNANCE.md`                        | Operator overview + the engineering defect table, findings 1–134 in full. **135–363 are not in it**. They live in `REMAINING-WORK.md`, and the index at the end of `GOVERNANCE.md` says which section holds which |
 | `docs-notes/CHAPTER3-MATERIAL.md`      | **Report source material**, keyed to section numbers. Start here for Ch. 3–4                                                                                                                                      |
 | `docs-notes/QA-IN-PLAIN-TERMS.md`      | The same findings in ordinary language. Good for the defence, and for §4                                                                                                                                          |
 
@@ -3282,8 +3427,7 @@ one.)_
 Operator-facing docs (`WRITING-PERMISSIONS.md`, `PERMISSION-SPEC.md`,
 `ROLE-MODEL.md`, `BASELINE-RULES.md`, `CHAT-DEPLOYMENTS.md`, `FIGURES.md`,
 `LINUX-INSTALL.md`, `FIRST-RUN.md`) are current as of **2026-09-07 (iii)** —
-and `ROLE-MODEL.md`, `CHAT-DEPLOYMENTS.md` and `T47-TEST-PLAN.md` as of
-**2026-09-11**, for T60 and T63 — when
+and `ROLE-MODEL.md`, `CHAT-DEPLOYMENTS.md` and `T47-TEST-PLAN.md` as of **2026-09-11**, for T60 and T63 — and `T47-TEST-PLAN.md` (rows 6c.1–6c.9), `ROLE-MODEL.md` and `FIRST-RUN.md` as of **2026-09-13**, for the QA pass — when
 every command-line instruction in them was replaced with the dashboard
 equivalent, and are listed in `PROJECT-SUMMARY.md` §2. **`CLI-REFERENCE.md` is no
 longer among them**: it documented the surface removed that day and moved to
@@ -3498,6 +3642,49 @@ that is done.
 
 ## 4. How to verify nothing is broken
 
+> **Two additions, 2026-09-13 (later), from fixing finding 363.**
+>
+> - **The pnpm-free protocol checks were missing one: `node scripts/check-protocol-since.mjs`.**
+>   It checks every new core Gateway method's release train against the current one.
+>   T60 registered `plugin.approval.reportOutcome` as `2026.9` while the train is
+>   `2026.8`, and it failed at HEAD for two days because nothing listed it. Run it with
+>   the Swift, Kotlin and registry checks below.
+> - **An `*.e2e.test.ts` file runs a full private-QA build before its first test.**
+>   `test/vitest/vitest.e2e.config.ts` has a global setup that builds `dist` with
+>   `OPENCLAW_BUILD_PRIVATE_QA=1` under a 300-second cap. It timed out here, and the run
+>   then reported _"No test files found"_ for a file that exists. A file that mocks the
+>   Gateway needs no build: run it through a copy of the config with `globalSetup: []`.
+>   Six tests in `agent-tools.before-tool-call.e2e.test.ts` fail on Windows either way,
+>   on POSIX path separators (`C:\tmp` against `\tmp`), and none of them is an approval test.
+>
+> **Six additions, 2026-09-13**, each learned the hard way in the QA pass.
+>
+> - **The full lint gate's core shard now needs about fifteen minutes here, against a
+>   905-second cap.** One run finished just under it and the next timed out (exit
+>   124). Raise the cap:
+>   `OPENCLAW_OXLINT_SHARD_TIMEOUT_MS=2700000 node scripts/run-lint.mjs`. Its
+>   `plugin-sdk boundary dts` pre-step can also time out at 300 s when the machine is
+>   busy; that too is a timeout, not a verdict.
+> - **A plain `oxlint --tsconfig …` call on one file does not run the type-aware
+>   rules**, and passes code the gate rejects. To check files quickly, go through the
+>   wrapper, `node scripts/run-oxlint.mjs --tsconfig config/tsconfig/oxlint.core.json <files>`,
+>   and include a positive control that must fail.
+> - **The isolated UI tests have their own config:**
+>   `node node_modules/vitest/vitest.mjs run --config test/vitest/vitest.ui-isolated.config.ts`.
+>   `--project ui-isolated` against `ui/vitest.config.ts` finds nothing.
+> - **Source scans pin spellings.** `host-prompt-audit.test.ts` reads
+>   `agent-command.ts` as text; replacing a literal with a constant broke it, and only
+>   the whole governance suite noticed. Run the whole suite after touching a shared name.
+> - **`write-cli-startup-metadata` times out on the Windows machine even when idle**:
+>   180 s with its own environment, 142 s with Windows' system variables added, 50 s
+>   from a warm shell. Record it rather than chase it; no governance file sits behind
+>   it, and T3's Linux build is the one that counts.
+> - **Driving the live QA Gateway:** a cold start after a rebuild took nine minutes;
+>   page loads stall about thirty seconds during an embedded run; a task survives its
+>   tab, so wait for `agent/runs` to be empty between probes; the approval card is
+>   modal, so cancel through the API; and a probe that exits 0 may have caught its own
+>   error, so read its `SCRIPT ERROR` line.
+>
 > **Three additions, 2026-09-11.**
 >
 > - **Audit the documents as well as the code:**
@@ -4544,7 +4731,20 @@ handoff". It landed both the work and the paragraph calling that work unlanded.
 Committing is still yours; the list of what to commit is not a thing this file
 can hold accurately, which is why the two commands in §3 replace it.)_
 
-### The eleven open
+### The eleven unstruck
+
+> **Re-derived 2026-09-13 (later still) from the rows: eleven unstruck, of which one is
+> T1, so ten open.** T68 closed: Kinan chose (b), and a dashboard escalation is answered
+> by the accounts that manage its agent. No decision about approvals is open.
+
+> **Re-derived 2026-09-13 (later) from the rows: twelve unstruck, of which one is T1,
+> so eleven open.** T69 closed: Kinan chose to build the withdrawal, and finding 363
+> is fixed. T68 was then the one decision about approvals still open.
+
+> **Re-derived 2026-09-13 from the rows: thirteen unstruck, of which one is T1, so
+> twelve open.** T68 and T69 were added: the two decisions about approvals the QA
+> pass left (sweep register C11 and C12). Nothing closed; the pass's findings were
+> fixed rather than backlogged, except 363, which is T69.
 
 > **Re-derived 2026-09-11 from the rows: eleven unstruck, of which one is T1, so
 > ten open.** T60 and T63 closed — both built at Kinan's decision — and nothing was
@@ -4612,6 +4812,8 @@ the deploy.
 | ~~**T62**~~ | ~~You~~                                 | **DONE 2026-09-07 (iii), option (b).** `scripts/verify-ledger.mjs` restores the second, independent reader of the audit chain without restoring a command surface: no registry entry, no `--help` presence, no tiers, no session, no write path. Imports nothing from `src/`, so it runs with the build broken and the Gateway down, and against files copied off the machine. Re-implements the hashing so a defect in `audit-ledger.ts` cannot agree with itself, and is pinned against the product on intact and tampered chains                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | ~~**T63**~~ | ~~You, then Claude~~                    | **DECIDED BY KINAN AND BUILT 2026-09-11: both options, the conversation first.** Reopening an agent's conversation recovers this account's running task with its Cancel; _Active agent sessions_ lists the same runs with the same Cancel, from one controller and one cancel path. A run now stays listed — as _Stopping_ or _Saving reply_ — until its reply is actually saved. Same record as T60                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | ~~**T64**~~ | ~~You, then Claude~~                    | **DECIDED BY KINAN AND BUILT 2026-09-09 (iii): option (a), split the page.** The English catalog is now three modules — `en-core.ts`, which `translate.ts` imports and every session pays for at startup; `en-governance.ts`, which travels in the governance page's own lazy chunk and is registered as that chunk evaluates; and `en.ts`, still the whole catalog, which the translation pipeline imports. **9,019 bytes off every first page load**, and headroom from **67 B to 8,062 B** — from less than one operator-facing sentence to about a hundred and twenty. Verified key-for-key against the committed catalog: **4,956 keys before and after, none missing, none added, no text changed**, and the contributor i18n gate passes. Finding **321's ceiling raise was handed back** (318 → 317 KiB) because the reason for it no longer exists. **One follow-up**: the budget _baseline_ still needs ratcheting and that needs Linux bytes, which T3's VPS rebuild produces — A9 in `mg/REMAINING-WORK-DASHBOARD-SWEEP.md`                                             |
+| ~~**T68**~~ | ~~You~~                                 | **DECIDED BY KINAN AND BUILT 2026-09-13: option (b).** A dashboard prompt's escalation is answered on the governance page, only by the accounts that manage the agent, and recorded under that account; no other Gateway connection sees it, only the agent run that asked. See the sweep register's §"T68". _Original row:_ **Decide who may answer an escalation raised from a dashboard prompt** (2026-09-13). Since finding 347's fix, any Control UI holding the Gateway credential sees the card and can answer it, whatever its governance tier: the audience every chat run's approvals already have. The alternative, only the accounts that manage the agent, needs a governance identity on the approval path. Found by the independent review of the QA pass; sweep register C11                                                                                                                                                                                                                                                                                        |
+| ~~**T69**~~ | ~~You, then Claude~~                    | **DECIDED BY KINAN AND BUILT 2026-09-13: option (a), build the withdrawal.** The approval hook calls a new `plugin.approval.withdraw` the moment its run is aborted; only the requester may call it; the Gateway closes the record as `cancelled`, the card closes, and a chat channel is told the request was cancelled rather than denied. Finding 363 is fixed. _Original row:_ **Decide whether a requester may withdraw an approval it no longer needs** (finding 363, 2026-09-13). A task cancelled while its card is up leaves the card pressable until it expires, and a press changes nothing. The fix is a `plugin.approval.withdraw` Gateway method with regenerated Swift and Kotlin models, the size of T60's `reportOutcome`. Sweep register C12                                                                                                                                                                                                                                                                                                                      |
 | **T1**      | Deprioritised                           | Listed for completeness. Not being done, and counted as neither open nor closed above                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 **T38, T39, T40, T42 and T43 all closed on 2026-09-01**, along with **eleven
@@ -4727,6 +4929,11 @@ against anything load-bearing — this section existed because two such files sa
 untracked for days while every document described them as shipped.
 
 ### If you are continuing the dashboard sweep, start here
+
+> **Updated 2026-09-13.** Start from the observed coverage matrix and the
+> re-verification table in `mg/REMAINING-WORK-DASHBOARD-SWEEP.md` §"The dashboard QA
+> pass". It also names what was not driven: "Would allow", and deleting the
+> organisation.
 
 ### The fourteen sections, and where each one stands
 
@@ -5159,8 +5366,9 @@ see §6.)_
 | **T18**                     | **Write Chapters 3, 4 and the conclusion.** Material is organised and keyed to section numbers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | the rest |
 | **T13**                     | The prompt-injection defence answer is **drafted** (§4.x.26), read it and make it yours. You have to be able to give it without notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | 30 min   |
 | **T17**                     | **The figures.** 24 headings in `docs-notes/FIGURES.md` (F23 and F24 added 2026-09-11 for T60 and T63), 23 drawable, each in prose, Mermaid and TikZ, none compiled. Redraw them, or ask for drafts                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| **T47**                     | **Run the by-hand test plan** — three people, three machines. Rows 6b.1–6b.5 are new, and they are the only proof T60 and T63 will get from a person                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| **T47**                     | **Run the by-hand test plan** — three people, three machines. Rows 6b.1–6b.5 and 6c.1–6c.9 are the only proof T60, T63 and the QA pass's fixes will get from a person                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | **T46, T48, T49, T58, T59** | Judgements and checks: how far the setup wizard rewording goes (T46); whether Chapter 3's design has stopped moving (T48); how the report describes the multi-tenancy machinery (T49); whether `edit` failing on the VPS is ours (T58); and making per-agent models work (T59)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ~~**T68**~~                 | **Decided and built 2026-09-13**, as was its companion T69: a dashboard escalation is answered by the accounts that manage the agent, and a cancelled task withdraws its approval.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 ### Mine, and nothing blocks them
 
@@ -5284,6 +5492,11 @@ because the Gateway is loopback-only behind a tunnel.
 
 **2026-09-08 to 2026-09-11:** T55 and T61 (09-08); T50 and T64 (09-09); T60 and
 T63 (09-11).
+
+**2026-09-12 and 13:** the QA pass fixed findings 346–362 directly and added T68 and
+T69. **T69 closed later on 2026-09-13** when Kinan chose to build the withdrawal,
+which fixed finding 363, and **T68 closed the same evening**, when Kinan chose to limit a
+dashboard escalation to the accounts that manage its agent.
 
 T9, T10, T11 (2026-08-21); T12, T13, T15, T19, T21, T24 (2026-08-22); T4, T5,
 T22 (2026-08-24). T14 and T16 are partly done and listed above.
@@ -5870,6 +6083,29 @@ audit verify` at the terminal to recompute this independently of the
     a code defect, and neither could be told apart from one without re-running on a
     quiet machine.** Do not run heavy checks in parallel with a result you intend to
     quote.
+27. **Who answers an approval depends on where the run came from** (2026-09-13). An
+    escalation from a **dashboard prompt** is answered on the governance page, only by
+    the accounts that manage the agent, and recorded under that account (T68, built the
+    same day): no Gateway connection sees it, admin scope included. An approval from a
+    **chat run** is still answered by whoever holds the Gateway credential, because the
+    Control UI connects as a Gateway operator, and "Allow once" there is not attributed
+    to a governance account. **Proved by tests, not yet on a live Gateway.** And with no
+    dashboard open, a dashboard escalation now waits out its timeout instead of ending
+    at once for want of a route.
+28. **While a chat run's approval card is up it covers the page** (2026-09-13). With
+    one open, the conversation's Cancel and the emergency stop are one click behind it:
+    press Deny first. A dashboard escalation's card is drawn inline on the governance page
+    instead (T68), so it covers nothing. **A cancelled task's card now closes by itself** — finding 363,
+    fixed that day at Kinan's decision (T69): the agent withdraws its approval the
+    moment its run stops, and a reviewer who answered first keeps the answer. **Proved
+    by tests and not yet driven on a live Gateway**; T47 row 6c.11 drives it by hand,
+    which became possible when T68 took the dashboard's card out of the modal.
+29. **An exit code of 0 is a verdict only when it is the command's own** (2026-09-13).
+    The QA pass met three that were not: a background wrapper reported 0 while
+    `build-all` had exited 1; Playwright probes caught their own errors and exited 0;
+    and a one-file `oxlint` call passed code the type-aware gate rejects. The remedies
+    were the command's own exit line, the probe's `SCRIPT ERROR` observation, and a
+    positive control that must fail.
 
 ## 8. If you only do one thing
 
@@ -5878,11 +6114,11 @@ VPS, ledger entry #25. This slot has now been occupied by three things and all
 three are closed: losing the work (F1, closed 2026-08-21), the unpushed tree
 (closed 2026-08-28), and the live run.
 
-**What occupies it now, as of 2026-09-11: commit and push**, if `git status`
-still shows T60 and T63 uncommitted. Both features, their protocol change and these
-documents would otherwise exist only on this machine — the exposure F1 once was.
+**What occupies it now, as of 2026-09-13: rebuild the VPS.** Commit and push are done:
+T60, T63, the QA pass's fixes and these documents are on `personal/governance-layer`
+at `0c15e73a778`. The VPS has none of it, including finding 346's security fix.
 
-**Then: rebuild the VPS.** It is one command, it is in §6 under
+It is one command, it is in §6 under
 "Do this before anything else", and until it runs the server is a different
 product from this repository — it still serves the **governance command line**
 that was removed on 2026-09-07, and it does not have that day's fixes.

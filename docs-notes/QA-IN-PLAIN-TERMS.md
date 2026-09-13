@@ -7642,10 +7642,12 @@ none of them was in the product.
   summarising the project's checks said one of them was green when running it gave
   red. All three times it was the same table.
 - **A whole area nobody had looked at.** Widening one test run turned up
-  twenty-seven failing tests in parts of the product this project never touched.
-  They were failing before this work began, and no check anybody runs had ever
-  included them. Whether they matter is still an open question, recorded honestly
-  rather than hidden.
+  twenty-seven failing tests, written down as belonging to parts of the product this
+  project never touched. They were failing before this work began, and no check
+  anybody runs had ever included them. **When someone finally looked (2026-09-13),
+  most were this project's after all**: tests nobody updated when the project reworded
+  messages and added its own page. Those are fixed. The five left are a limitation of
+  the testing tool, in code the project never changed.
 
 **The lesson:** a number written into a document does not re-run. The note is a
 photograph of the moment it was written, and the machine keeps moving.
@@ -7805,11 +7807,38 @@ times. When a question is withdrawn rather than left unanswered — because some
 pressed Cancel, say — the record now says **cancelled**, with the real wait,
 instead of "nobody answered in time".
 
-**One thing left open.** If a task is cancelled while its question is on screen,
-the question stays up for up to two minutes, still offering its buttons, although
-the task it was about has stopped. Pressing them changes nothing. Taking a question
-back needs a new kind of message between the program's parts, so it is left for
-Kinan to decide rather than squeezed in.
+**The one thing left open was fixed the same day (finding 363).** If a task was
+cancelled while its question was on screen, the question stayed up for up to two
+minutes, still offering its buttons, although the task it was about had stopped.
+Pressing them changed nothing, and a chat channel could be told the question had
+been answered. Taking a question back needed a new kind of message between the
+program's parts, so it went to Kinan, who decided to add it. Now, the moment a task
+stops, the agent tells the Gateway it no longer needs an answer. The question closes
+on every screen showing it, and a chat channel is told it was cancelled. If someone
+had already answered, that answer stands.
+
+**Who may answer, decided the same day (T68).** Once the question did reach people, it
+reached anyone whose browser could open OpenClaw's control screen, whatever their role in
+the governance layer. A Viewer, who is only supposed to watch, could press "Allow once".
+Kinan decided that only the people who manage that agent should see the question and
+answer it: its assigned Users, the organisation's Administrators, and Root. Now the
+question appears on the governance page rather than as a pop-up, only for those accounts,
+and the answer is recorded under the name of whoever gave it. Questions from agents
+talking in chat apps are unchanged, because nobody signed in to the governance page stands
+behind those.
+
+One slip was caught before it shipped. If someone was demoted to Viewer while a question
+was on their screen, the question stayed there with its buttons. Pressing one was refused,
+so nothing could be approved, but the screen still offered it. Now the question goes away
+as soon as the page learns of the demotion.
+
+**The emergency stop had a blind spot, found the same evening (finding 364).** The kill
+switch is meant to stop an agent at once. It stopped agents working from chat apps, but not
+an agent working on a request typed into the governance page, because the two kinds of work
+are kept in different lists and the stop only looked in one. It even reported that nothing
+had been running. And if that agent had already asked a question, someone could still press
+"Allow once" afterwards, and the action went ahead. Now the stop looks in both lists, the
+question closes, and an "allow" for a stopped agent is refused.
 
 **The lesson:** a record that says "nobody answered" is a claim about people. Check
 that someone was actually asked.

@@ -7075,7 +7075,7 @@ _Table candidate, Table 4.x: Validation of Design Constraints._
 ### 4.x.6 Engineering process: QA findings
 
 > **Superseded as a summary, 2026-09-11.** The "12 defects" below were the first
-> structured pass. The project has since recorded **363 findings, 361 fixed and two open** (re-derived 2026-09-13), across more than forty rounds and sweeps. The
+> structured pass. The project has since recorded **364 findings, 363 fixed and one open** (re-derived 2026-09-13, after 364 was found and fixed), across more than forty rounds and sweeps. The
 > method narrative for Chapter 4 is §3.5.57 onward — above all §3.5.73–§3.5.79,
 > §3.5.82 and §3.5.83 — and
 > `docs-notes/WRITING-GUIDE.md` says how to present it. Re-derive the count from
@@ -9781,9 +9781,11 @@ side.
   the build, and 323, the lint gate), all three in one state table. The test
   typecheck had been red at HEAD for a commit.
 - **345 — a verification scope nobody chose.** Widening one run to the whole
-  Control UI suite showed 27 failing tests across 16 files, all pre-existing and
-  none in this fork's code, in an area no documented command runs. Recorded, not
-  fixed.
+  Control UI suite showed 27 failing tests across 16 files, all pre-existing, in an
+  area no documented command runs. Recorded then as none in this fork's code; when it
+  was diagnosed (A10, 2026-09-13), **19 were**: tests never updated for the fork's own
+  route and copy, a stylesheet token the theme never defined, and two comments a source
+  scan reads. 22 are fixed. **An attribution made without a diff is a guess.**
 
 **The claim for Chapter 4.** A measurement written into a document does not
 re-run. The defensible practice is not better bookkeeping but a rule: **run the
@@ -10030,17 +10032,87 @@ it.
 - **Concurrent changes.** Role changes and deletions took effect within one poll, and
   two Administrators deciding one request stored one decision.
 
-#### An approval the requester cannot take back (363, open)
+#### An approval the requester takes back (363, fixed 2026-09-13)
 
-A task cancelled while its approval card is up leaves the card on screen until it
-expires. The approval protocol lets a client request, wait for, resolve and list
-approvals, and lets the requester report an outcome, but not withdraw a request it no
-longer needs. So the card offers a decision about work that has already stopped. It
-is recorded open rather than fixed because the repair is a protocol change with
-generated client models, the same kind as T60's, and is a design decision. For
-Chapter 5 it is a small instance of a general point: **an interaction protocol
-without cancellation leaves every surface built on it showing questions nobody is
-still asking.**
+A task cancelled while its approval card was up left the card on screen until it
+expired. The approval protocol let a client request, wait for, resolve and list
+approvals, and let the requester report an outcome, but not withdraw a request it no
+longer needed. So the card offered a decision about work that had already stopped,
+and a press on it could be announced to a chat channel as an answer. **Kinan decided
+on 2026-09-13 to add the missing message.** `plugin.approval.withdraw` may be called
+only by the connection or device that asked. The approval hook calls it the moment
+its run is aborted. The Gateway closes the record as `cancelled` for `run-aborted`,
+a state its store already had, and publishes it through the same path that
+announces every other ending. The card closes, and a chat channel is told the
+request was cancelled rather than denied. A reviewer who answered first keeps that
+answer.
+
+**Why the requester, and not the Gateway.** Upstream already closed _exec_ approvals
+this way when a chat run was aborted, matched by run id. Governance runs abort
+through their own controller, and plugin approvals carry no run id, so that path
+never saw them. The requester's own abort is the one place every cause of
+cancellation passes through: Cancel, the kill switch, the prompt's time limit, a
+chat abort. For Chapter 5 the point is general: **an interaction protocol without
+cancellation leaves every surface built on it showing questions nobody is still
+asking**, and the repair is a message from the side that stopped asking.
+
+#### Who may answer: the governance tier, not the Gateway credential (T68, decided and built 2026-09-13)
+
+Finding 347's repair made a dashboard escalation reach a person, and the person it
+reached was anyone whose Control UI held the Gateway credential. That credential is the
+host's: it says a browser may operate the Gateway, not which of the four governance tiers
+the person behind it holds. So a Viewer, defined as read-only oversight, could press
+"Allow once" on an action no rule allowed. **Kinan decided that only the governance
+accounts that manage the agent may see and answer it**, and it is built.
+
+The design question was where a governance identity could enter an approval path that has
+never carried one. Three facts shaped the answer. The Gateway's approval authority is one
+function that every listing, broadcast, wait and resolve goes through, plus a second for
+its durable approval methods, and both could be taught to refuse a governance-owned
+approval to every connection except the Gateway's own approval runtime, admin scope
+included. The Gateway already runs an in-process approval bus for channel runtimes, so
+governance could subscribe there, become the escalation's delivery route, and claim its
+audience so that no channel runtime is handed it. And an answer dispatched as the
+Gateway's own approval principal takes the resolve path every other answer takes, so
+governance had to decide **who** may answer, not **how** an answer is applied. The
+governance control plane authorizes the signed-in account with the rule every other agent
+action uses, `canManageAgent` inside the organisation, dispatches the answer naming that
+account, and records it in the ledger.
+
+Two consequences belong in the report. An escalation with no dashboard open now waits out
+its timeout instead of ending at once, which is the governance design's own reading of an
+unanswered question. And **the boundary is the run's origin**: approvals raised by chat
+runs still reach any Control UI holding the Gateway credential, because no governance
+session stands behind those runs. For Chapter 5 the lesson echoes finding 83: **a
+permission model that stops at the edge of the host's own authorization leaves the most
+consequential button outside it.**
+
+One defect was found while finishing it, by composing the new card with the role changes
+the page already follows. The page stopped asking for cards once the account could manage
+no agent, and so it also stopped removing the cards it held: an account demoted to Viewer
+kept a pressable card. The server refused the press, so authority held, but the screen
+offered a decision the account did not own. The page now clears its cards on that change
+and whenever the server refuses its read. **Enforcement and presentation are separate
+claims, and each needs its own test.**
+
+#### The emergency stop that did not stop a dashboard prompt (finding 364, found and fixed 2026-09-13)
+
+A QA check over the week's work composed T68 with the kill switch, and the composition
+failed where each feature alone had passed. The kill switch terminates runs through the
+Gateway's run registry, and a prompt sent from the governance dashboard never enters it.
+Finding 319 had met that fact already, for the live-sessions panel, and repaired the panel
+by reading governance's own prompt table; the kill switch went on reading only the
+Gateway's. So engaging it on an agent busy with a dashboard prompt locked the agent,
+reported that nothing had been in flight, and left the prompt running. A tool call already
+waiting on an escalation had been judged before the lock, so pressing "Allow once" ran it.
+
+The repair puts the missing table into termination itself. Lockdown ends the agent's
+prompts in governance's own table, reports them beside the Gateway's runs, and confirms the
+stop only once they have unwound. Ending a prompt aborts its approval wait, which withdraws
+the approval (finding 363), and the answer route refuses an allow for a locked agent in case
+an answer races that ending. **For Chapter 5: a fix applied to one consumer of a fact is not
+a fix to the fact.** Finding 319 repaired the panel that reads "which runs are in flight";
+every other reader had to be found, and the one that mattered most was the emergency stop.
 
 **Evidence standard.** Every fix has a regression test, and each test was **watched
 failing** with its fix reverted: 68 mutations across six runs, all caught.

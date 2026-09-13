@@ -353,8 +353,16 @@ deployment match what we promised?", and that is what it now gives.
 | Approve or reject rule requests                             | tier floor: administrator                   |
 | Read the full unmasked audit ledger for every agent         | `requiresSanitizedAudit` false              |
 
-**From the paper** (§1.6): "configure customized privilege policies (including
-command matrices and network allowlisting) for specific agents", "real-time
+> **Answering an escalation (2026-09-13, T68).** An escalation raised from a dashboard
+> prompt is answered on the governance page by the accounts that manage the agent —
+> `canManageAgent`, inside the organisation — and a Viewer never sees it. The answer is
+> recorded in the ledger against the account that gave it. "Always allow" still only
+> files a rule request, which needs the Administrator row above. **Approvals from chat
+> runs are still outside this table**: they are answered in the Control UI, which
+> connects to the Gateway as an operator rather than as a governance account, so any
+> browser holding the Gateway credential can answer them.
+
+**From the paper** (§1.6): "configure customized privilege policies (including command matrices and network allowlisting) for specific agents", "real-time
 control to suspend or terminate active sessions", "conduct advanced auditing by
 reviewing tamper-evident logs", "the Administrator role manages AI agents".
 
