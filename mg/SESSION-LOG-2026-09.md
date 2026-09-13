@@ -5180,3 +5180,58 @@ could not run a model. The full record is `mg/REMAINING-WORK-DASHBOARD-SWEEP.md`
 
 **Then the handoff documents were brought level for the documentation phase**,
 which starts at `docs-notes/WRITING-GUIDE.md`.
+
+## 2026-09-12 and 13: the dashboard QA pass, eighteen findings (346–363)
+
+**Kinan asked for T60 and T63 to be tested through the dashboard, and then for the
+whole dashboard to be driven the way an operator would drive it.** That meant the
+conditions earlier sweeps had not produced: the Gateway stopped mid-session, two
+operators at once, expired sessions, narrow screens, the keyboard alone, and data
+at volume. The pass used an isolated Gateway with disposable accounts at every
+tier, and Playwright scripts that sign in and print paths, counts and markers,
+never response bodies.
+
+### What it found
+
+Eighteen defects; seventeen fixed, one open on a decision (363).
+
+- **346 is security.** The Control UI's service worker kept every governance answer
+  and served it, whenever the Gateway did not answer, to whichever account was
+  signed in. A Viewer received Root's accounts list, and sign-out removed nothing.
+- **347.** An escalation from a dashboard prompt had never reached a person.
+  Upstream's gate for unattended runs refused it, and the policy recorded a
+  two-minute timeout that took five seconds. **348**: every withdrawn escalation
+  was recorded the same way.
+- **349.** Escape on a Settings confirmation left Settings.
+- **350.** Closing the tab cancelled the very task T63 exists to recover. Kinan
+  decided that tasks survive the tab. Three smaller T63 defects and a revoked but
+  still-open conversation followed (351–354).
+- **355–361** are about what the page said, where it said it, and whether it was
+  true.
+- **362**, found re-verifying the fixes on a rebuilt Gateway: a request's reason
+  was cut to 500 characters with no refusal and no mark.
+- **363, open**: a task cancelled while its approval card is up leaves the card
+  pressable until it expires; withdrawing it needs a Gateway protocol method.
+
+### How the first one was found
+
+Not by looking for it. The disconnection run expected the page's out-of-date notice
+within fifteen seconds and got nothing for forty. A probe counting the page's
+requests counted zero, so something between the page and the network was
+answering, and it was the service worker. **An oversight page that answers from a
+store during an outage shows the operator the past as the present**, at the moment
+they most need the present.
+
+### Verified
+
+The governance suite passed 2,928 tests. Its 2 failures were a source scan pinned
+to the literal that 347's fix replaced; the scan was updated and passes. All three
+typechecks, plain `oxlint`, `oxfmt`, the i18n gate, the browser project (199),
+ui-isolated (403) and `verify-ledger` came back clean. The wider `ui/src` suite's 27
+failures are finding 345's pre-existing set, untouched. The full lint gate found one
+error in this pass's own test, which is fixed, then timed out on its core shard;
+the fix was confirmed with the type-aware wrapper and a positive control the rule
+flagged. `build-all` passes every phase except `write-cli-startup-metadata`, which
+times out on this machine even when idle. 68 mutations across six runs were all
+caught. The full record is
+`mg/REMAINING-WORK-DASHBOARD-SWEEP.md` §"The dashboard QA pass".

@@ -12,13 +12,19 @@ of Design Constraints → §3.4 Different Design Approaches → §3.5 Developed 
 Cross-references: `GOVERNANCE.md` (operator-facing overview + QA defect table),
 `UPSTREAM-BUG-REPORT.md` (the OpenClaw bug found during QA).
 
-> **Newest material, 2026-09-11:** §3.5.78–§3.5.82, appended at the end of this
+> **Newest material, 2026-09-13:** §3.5.83, the dashboard driven through a browser
+> under failure (findings 346–363). It covers a service worker holding a second,
+> unguarded copy of the governance read model; escalations from the dashboard that
+> could not reach a person; and T63's claim made true, with a correction to §3.5.82.
+>
+> **Before it, 2026-09-11:** §3.5.78–§3.5.82, appended at the end of this
 > file like every section since §3.5.57. The dashboard driven as every tier
 > (§3.5.78); the project's own records audited against its commands (§3.5.79,
 > findings 342–345); charging operator text to the page that uses it (§3.5.80,
 > T64); an approval that finishes after its card has closed (§3.5.81, T60); and a
-> task that outlives its tab, with the concurrency defect finishing it introduced
-> (§3.5.82, T63). **For §4's methodology, §3.5.79 and §3.5.82 are the two to read.**
+> task meant to outlive its tab, with the concurrency defect finishing it introduced
+> (§3.5.82, T63). **For §4's methodology, §3.5.79, §3.5.82 and §3.5.83 are the ones
+> to read.**
 > The chapter-by-chapter guide to this file is `docs-notes/WRITING-GUIDE.md`.
 >
 > _(This box read "Newest material, 2026-09-02" for nine days and twenty
@@ -7069,9 +7075,9 @@ _Table candidate, Table 4.x: Validation of Design Constraints._
 ### 4.x.6 Engineering process: QA findings
 
 > **Superseded as a summary, 2026-09-11.** The "12 defects" below were the first
-> structured pass. The project has since recorded **345 findings, 344 fixed and
-> one open**, across more than forty rounds and sweeps. The method narrative for
-> Chapter 4 is §3.5.57 onward — above all §3.5.73–§3.5.79 and §3.5.82 — and
+> structured pass. The project has since recorded **363 findings, 361 fixed and two open** (re-derived 2026-09-13), across more than forty rounds and sweeps. The
+> method narrative for Chapter 4 is §3.5.57 onward — above all §3.5.73–§3.5.79,
+> §3.5.82 and §3.5.83 — and
 > `docs-notes/WRITING-GUIDE.md` says how to present it. Re-derive the count from
 > the Findings cell of `mg/HANDOFF.md` §1 before quoting it.
 
@@ -9887,3 +9893,154 @@ against the draft before continuing it, and the regression above was found only 
 running the **wider** suite rather than the tests written with the change.
 
 _Figure candidate:_ **F24** in `docs-notes/FIGURES.md`.
+
+> **Correction, 2026-09-12.** The first half of this section's title was not true
+> when it was written. Closing or reloading the tab still cancelled the run (Q-90,
+> §3.5.17), so the task T63 recovers was gone before it could be reopened. Found in
+> the first live run and fixed after Kinan's decision; see §3.5.83, finding 350.
+
+### 3.5.83 The dashboard driven under failure, and what each layer owed (findings 346–363)
+
+**Scope.** On 2026-09-12 and 13 the dashboard was driven through a browser against
+an isolated Gateway, with disposable accounts at every tier, including a User
+assigned nothing. It was driven under conditions that reading the code cannot
+produce: the Gateway stopped and restarted, sessions expiring, two operators
+changing the same thing, narrow screens, the keyboard alone, and data at volume.
+Eighteen defects were found; seventeen were fixed, and one waits on a design decision. The full record is
+`mg/REMAINING-WORK-DASHBOARD-SWEEP.md` §"The dashboard QA pass".
+
+#### A cache is a data store with no access control (346)
+
+The Control UI's service worker is upstream's, written so a chat client starts
+quickly. Its exclusion list encoded an intent, _"API, RPC, and plugin routes should
+never be cached"_, as three path prefixes, and the governance API sits under a
+fourth. The result was **a second copy of the governance layer's read model,
+outside every check the layer makes**. It was keyed by URL rather than by account,
+survived sign-out, and could be read by any later user of the browser profile. It
+was also served whenever the Gateway did not answer. The tier model (§1.6) was
+intact on the server and irrelevant to the copy.
+
+Two design points generalise.
+
+- **An allowlist, not a denylist.** The worker now stores only content-hashed build
+  assets, which are public and immutable by construction. A future route cannot
+  fall into the store just by being added under a new prefix.
+- **A fallback to stale data is itself a governance decision.** On an oversight
+  surface, "the last answer we had", presented as current, is worse than an error,
+  because the operator acts on it. It appears when the system is under strain, the
+  moment §3.5.17 argues availability matters most. The fallback was removed rather
+  than made account-aware because it bought nothing: navigations were never
+  answered from the store, so the app could not start without the Gateway anyway.
+
+`Cache-Control: no-store` on every governance response protects against the
+browser's ordinary HTTP cache. It would not have stopped the worker, which ignores
+headers.
+
+#### A human in the loop that could not reach a human (347–348)
+
+Requirement 5's escalation means asking a person. **From the dashboard's own
+conversation, it never did.** Upstream's gate for unattended runs (2026-07-29)
+recognised the Control UI's channel and not the governance runner's, so every
+escalation was refused before a request existed. It **failed closed**: the action
+was denied, and no security property was violated. What failed was the **audit**.
+It recorded "nobody answered within 120 seconds" for a question never asked. The
+oversight worklist then offered that question as a decision somebody had missed.
+
+The design lesson is about **where a policy is spelled**. The rule "these channels
+are attended by connected Gateway clients" was a boolean expression copied five
+times across two modules. Two of those copies answer different questions: "may
+this run ask?" and "is this a turn-source route?". Their answers must agree, or the
+request is lost one step later. The rule is now one named list, used at every site.
+It is the shape of findings 209, 210, 213 and 215 — a fact kept in several places
+with one copy maintained — in upstream's code, and fixed there.
+
+The recording half (348) is a truthfulness requirement on the audit. The plugin can
+tell "the window elapsed" from "the question was withdrawn", and the record now
+makes the same distinction, with the measured wait rather than the configured one.
+
+#### Keyboard events and shadow DOM (349)
+
+The shell's guard for "Escape leaves Settings" asked two light-DOM questions: is a
+`<dialog>` open, and is the event's target inside one. The dialog was two shadow
+roots deep, so both answers were "no". The fix uses the two mechanisms the platform
+offers for crossing a shadow root: `composedPath()` for the event, and a reflected
+attribute for the host's state. Reordering the listeners was the alternative, and
+it would have broken the navigation drawer's own Escape. **Component encapsulation
+moves the burden of event ownership onto every global handler**, and a handler
+written before the components existed does not carry it.
+
+#### Reversing a decision on evidence: tasks survive the tab (350–354)
+
+Q-90 (§3.5.17) made a closed connection cancel its run, because a run whose tab had
+gone could not be reached. T63 (§3.5.82) made such runs reachable and **did not
+revisit Q-90's premise**, so the reload T63 was built to survive was itself the
+cancellation. On 2026-09-12 Kinan decided that tasks survive their tab. A run
+without a tab is now bounded by the same three things as any other run: the
+five-minute limit, both concurrency caps, and Cancel, reachable from the reopened
+conversation and from _Active agent sessions_. So Q-90's hazard, a run nobody can
+stop, does not return.
+
+Three smaller defects sat behind that one, and could only be found once the recovery
+could run.
+
+- A tab presented its own just-finished task as a recovered one. A list read raced
+  the end of the run; ended runs are now retired only by a read that began after
+  the end.
+- The canceller's view and the sender's disagreed about "stopping". The server now
+  sends `stopping` on the stream at once.
+- A conversation whose agent was unassigned kept its message box, which was finding
+  305's second half.
+
+**Method note for Chapter 4.** §3.5.82 recorded T63 as "a task that outlives its
+tab", with tests at every hop. **No test exercised the claim as a sequence** — open,
+reload, reopen — and every test of the streaming client replaced the client whole.
+The claim was false for a day and was found in the first live run. It is §3.5.82's
+own lesson one level further out: the wider suite catches what the change's own
+tests miss, and the operator's sequence catches what every suite misses.
+
+#### What the page says, and whether it is true (355–362)
+
+Eight findings are about the dashboard telling the operator something false, or nothing:
+
+- a clash warning ("this rule will never take effect") written into a render
+  snapshot that was then discarded, and, once that was repaired, rendered thousands
+  of pixels above the form that raised it;
+- a request's reason cut to 500 characters with no refusal and no mark;
+- enabled controls whose only outcome is a refusal;
+- a kill-switch result shown off-screen and never retired;
+- an approval truncated without a mark;
+- a raw browser error that stayed on screen after recovery;
+- an error styled as an empty state;
+- an empty-ledger sentence asserting nothing had been recorded, when the reader
+  simply could not see the entries.
+
+Each is small. Together they argue that **on an oversight surface the text is part
+of the control**: an operator who is told nothing, or told something false, acts on
+it.
+
+#### Checked and found right
+
+- **The ledger, verified from outside.** After a hard stop of the Gateway,
+  `scripts/verify-ledger.mjs` checked it: a separate process importing nothing from
+  `src/`. The dashboard's reported chain head, the file on disk and the outside
+  verifier agreed.
+- **Tier visibility** matched the design exactly: Root 14 sections, Administrator 11,
+  User 10, a User assigned nothing 9, Viewer 7.
+- **Sessions** expired and were revoked cleanly.
+- **Concurrent changes.** Role changes and deletions took effect within one poll, and
+  two Administrators deciding one request stored one decision.
+
+#### An approval the requester cannot take back (363, open)
+
+A task cancelled while its approval card is up leaves the card on screen until it
+expires. The approval protocol lets a client request, wait for, resolve and list
+approvals, and lets the requester report an outcome, but not withdraw a request it no
+longer needs. So the card offers a decision about work that has already stopped. It
+is recorded open rather than fixed because the repair is a protocol change with
+generated client models, the same kind as T60's, and is a design decision. For
+Chapter 5 it is a small instance of a general point: **an interaction protocol
+without cancellation leaves every surface built on it showing questions nobody is
+still asking.**
+
+**Evidence standard.** Every fix has a regression test, and each test was **watched
+failing** with its fix reverted: 68 mutations across six runs, all caught.

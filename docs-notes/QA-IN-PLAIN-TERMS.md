@@ -1288,8 +1288,13 @@ least powerful account deciding whether the most powerful one gets to act.
 
 ### Now
 
-The reply appears as it is written. There is a Cancel button. Closing the tab
-stops the task. A task that runs longer than five minutes is stopped for you.
+The reply appears as it is written. There is a Cancel button. A task that runs
+longer than five minutes is stopped for you.
+
+_(Until 2026-09-12 this paragraph also said "Closing the tab stops the task", and
+it did. It no longer does: closing or reloading the page leaves the task running,
+and when you come back it is still listed with its Cancel button. §5.110 explains
+why that changed.)_
 
 Three details worth mentioning:
 
@@ -7743,3 +7748,143 @@ limit is about how many agents are working at once, not about paperwork.
 **The lesson:** when you take over somebody else's half-finished work, check it as
 if nobody had checked it — because nobody had. Run everything, not only the tests
 that came with it.
+
+## 5.109 The browser that remembered too much, and the question nobody was asked
+
+### The page kept a copy of everything, and showed it to the next person
+
+A web page can install a small helper in your browser that makes it start faster
+by keeping copies of files it has already downloaded. OpenClaw's control panel has
+one. It was meant to keep copies of the program's own files: its code and its
+icons.
+
+It was keeping copies of **everything** the governance page asked the server for:
+the list of accounts, the audit trail, the rules, and which agents were running.
+Whenever the server did not answer, it quietly handed over its copy instead.
+
+That went wrong in three ways, all measured:
+
+- **Signing out removed nothing.** The copies stayed in the browser.
+- **The copies were not tied to who you are.** The owner (Root) used the browser.
+  Then a Viewer, the least powerful kind of account, signed in on the same browser
+  while the server was unreachable, and was handed **Root's list of accounts**. The
+  server itself would have refused.
+- **Old answers were shown as if they were current.** A rule was added, and then
+  the server was made unreachable. The page showed the rules without the new one
+  and reported that everything had refreshed fine.
+
+The last one matters most on a page whose job is keeping watch. People look at
+this page when the system is struggling, and it was showing them how things were
+**before** the trouble as if that were now.
+
+**Fixed.** The helper now keeps only the program's own files, which are the same
+for everyone and not secret, and nothing the server says about your organisation.
+It also clears out anything it kept under the old behaviour.
+
+### A question for a person that was never asked
+
+Some things an agent tries are neither clearly allowed nor clearly forbidden. For
+those, the design says: **stop and ask a person.** An approval card appears, and
+someone decides.
+
+If the agent was working on a request typed into the governance page itself, **that
+card never appeared** — not once since those conversations were built. The
+underlying OpenClaw has a safety check for agents that run on a timer with nobody
+watching. That check did not recognise the governance page as a place where a
+person is present, so it refused to ask.
+
+It failed safely: the action was refused, not allowed. But **the record was
+wrong**. The audit trail said the question had waited two minutes and nobody had
+answered. In fact it was refused within five seconds, and nobody was ever asked.
+The page's "Awaiting your decision" list then showed it as something a person had
+missed.
+
+**Fixed.** Both places that make this check now know the governance page has people
+watching it, and they share one list instead of the same rule written out five
+times. When a question is withdrawn rather than left unanswered — because someone
+pressed Cancel, say — the record now says **cancelled**, with the real wait,
+instead of "nobody answered in time".
+
+**One thing left open.** If a task is cancelled while its question is on screen,
+the question stays up for up to two minutes, still offering its buttons, although
+the task it was about has stopped. Pressing them changes nothing. Taking a question
+back needs a new kind of message between the program's parts, so it is left for
+Kinan to decide rather than squeezed in.
+
+**The lesson:** a record that says "nobody answered" is a claim about people. Check
+that someone was actually asked.
+
+## 5.110 Escape, the closed tab, and what the page told you
+
+### Pressing Escape threw you out of Settings
+
+Pressing Escape on an "Are you sure?" box should close the box. On every Settings
+page it closed the box **and left Settings**, dropping you into the chat and losing
+the page you were on. The control panel does use Escape to leave Settings when
+nothing else is open. It could not see that a box was open, because the box is
+built from parts nested inside other parts and the check looked only at the outer
+layer. Fixed: Escape now closes the box and you stay where you were.
+
+### Closing the tab stopped your task, so there was nothing to come back to
+
+§5.108 described a fix: reload the page while an agent is working for you, and your
+task is shown again with its Cancel button. **In practice there was never a task to
+show.** An older rule stopped a task the moment its page closed. It dated from when
+a closed tab left an agent working where nobody could reach it (§5.12). The recovery
+was built on top of that rule without anyone noticing the rule was still there. The
+first live test showed it: reload, reopen, "The prompt was cancelled."
+
+Kinan decided which way it should go: **a task now survives its tab.** Closing or
+reloading the page leaves it running. It is still stopped after five minutes, still
+counts towards the limit on how many can run at once, and still has its Cancel
+button, both in the conversation and in the list of running work.
+
+Once tasks could actually be recovered, three smaller problems showed up:
+
+- When somebody else cancelled your task, **your own screen never said
+  "Stopping"**. Now it does, straight away.
+- The person who cancelled kept seeing "Cancellation requested" after the task had
+  gone. Now that note goes when the task goes.
+- For a few seconds after a task was cancelled, the tab that started it showed the
+  task **as if it were still running**, with a Cancel button that could only fail.
+  Fixed.
+
+One more was found by changing things while someone was using the page. If an
+Administrator took an agent away from you **while you had its conversation open**,
+the message box stayed and every message was refused. Now the conversation is
+replaced by a sentence saying the agent is no longer assigned to you.
+
+### What the page told you, and whether it was true
+
+The rest were about the page saying the wrong thing, or nothing, or saying it where
+you would not see it:
+
+- **Rule warnings never appeared.** When you add a rule, the server checks it and
+  can warn you — for example, that another rule already forbids the same thing, so
+  **yours will never take effect**. The page received that warning and threw it away, and you left believing the rule was working. Once that was fixed, the warning appeared — at the top of a very long page, far above the button you had just pressed. It now brings itself into view.
+- **Buttons that could only say no.** A User was shown Remove buttons on rules only
+  an Administrator may remove, and forms for agents they did not have. Every press
+  could only be refused. The page now shows those only to someone who can use them,
+  and tells everyone else why not.
+- **The emergency stop's result appeared far above the top of the screen.** It did
+  not say which agent it was about, and it still said "Lockdown engaged" after the
+  lockdown was released.
+- **Long approval requests were cut short without saying so.** The full text is now
+  shown under "Full request".
+- **When the server could not be reached, the page said "Failed to fetch"** and
+  kept saying it after the server came back. It now says "Could not reach the
+  Gateway. Check that it is running, then try again.", and once the page loads again it replaces that with a sentence saying the
+  Gateway is back and that your last button press may not have taken effect.
+- **Long explanations were cut short without saying so.** A request for access asks
+  why you need it. Anything past 500 characters was quietly dropped, so the person
+  deciding read half a sentence and had no way to know. The box now stops at 500 and
+  says so, and anything longer sent another way is refused with a message.
+- **Errors looked like "nothing here".** They were drawn in the same small grey
+  style as an empty list. They now look like errors.
+- **"No audit entries yet"** was shown to people who simply were not allowed to see
+  the entries that existed. It now says there are none **to show**, for the agents
+  you can see.
+
+**The lesson:** on a page used for keeping watch, the words are part of the safety
+system. If the page tells you nothing, or tells you something untrue, you will act
+on it.

@@ -17,6 +17,12 @@ the authority, and correct whichever of these is stale.
 
 > **Next: the documentation phase.** Start at `docs-notes/WRITING-GUIDE.md`.
 >
+> **Updated 2026-09-13.** A QA pass drove T60, T63 and the whole dashboard through
+> a browser and found **sixteen defects, 346–361, all fixed**. Among them: the
+> browser served one account's stored governance answers to the next, and
+> escalations from a dashboard prompt had never reached a person. See §"The
+> dashboard QA pass" at the foot of this file.
+>
 > **Updated 2026-09-11.** **T60 and T63 are built**, finishing a draft another agent left mid-way; see the section of that name at the foot of this file. **No dashboard decision is waiting any more** — C1 to C7 are all closed.
 >
 > **Earlier, 2026-09-09 (iii).** **T64 is done** — Kinan chose to split the page,
@@ -712,4 +718,546 @@ or the T47 by-hand plan, is where that gets proven.** The same holds for T63's
 recovery of a genuinely long-running task.
 
 **Next, in the order Kinan set:** a focused QA pass on these two features through
-the dashboard, then the broader dashboard QA sweep.
+the dashboard, then the broader dashboard QA sweep. _(Both done 2026-09-12 and 13;
+see the next section. Two of the claims above did not survive it: "no model run can
+be carried to an escalation" was not the reason no card was pressed — from the
+dashboard no card could appear at all, finding 347 — and T63's recovery of a long
+task was impossible while closing the tab still cancelled it, finding 350.)_
+
+---
+
+## The dashboard QA pass (2026-09-12 and 13): eighteen findings, 346–363
+
+**Asked for by Kinan on 2026-09-12:** test T60 and T63 as built, then drive the
+whole dashboard through a browser — every tier including accounts assigned
+nothing, empty and populated states, refusals — under the hard conditions: two
+operators at once, narrow screens, the keyboard, long text, large lists, a Gateway
+that goes away, expired sessions, conflicting actions, approval queues,
+cancellation after a reload, the emergency stop, and the ledger verified by
+something other than the dashboard.
+
+**Eighteen findings, 346–363. Seventeen fixed; 363 is open, waiting on a decision.** Three lead: the browser kept a
+copy of every governance answer and served it to **the next account** whenever the
+Gateway did not answer (346); an escalation raised from a dashboard prompt **had
+never once reached a person**, and was recorded as a two-minute wait that took five
+seconds (347); and **Escape on any confirmation in Settings threw the operator out
+of Settings** (349). One decision was needed and taken: **a task survives its tab**
+(350).
+
+| #   | Where                                   | What it was                                                                                                                                                                                                                                                                                                                                                                                        | State                                                            |
+| --- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| 346 | Every section (the service worker)      | The Control UI's service worker stored every governance answer — accounts, ledger, policy, sessions, whoami — and answered from that store whenever the Gateway did not. Offline, a **Viewer was served Root's accounts list** on the same browser; a policy read from before a rule was added came back without it and the page called that a successful refresh; **signing out removed nothing** | **Fixed**                                                        |
+| 347 | 4 + 14, a dashboard prompt's escalation | Since the dashboard's agent runner was written (2026-08-21), its escalations were refused by upstream's approval gate as coming from a surface that _"does not support approvals"_. The refusal was recorded as a **timeout with a 120-second wait that took 5.3 seconds**, and filed under _Awaiting your decision_                                                                               | **Fixed**                                                        |
+| 348 | 14, Awaiting your decision; the ledger  | Every escalation that ended without an answer — Cancel pressed, the prompt's own time limit, no route to a reviewer — was recorded as _nobody answered in time_, with the full window as its wait                                                                                                                                                                                                  | **Fixed**                                                        |
+| 349 | Every Settings page                     | **Escape on a confirmation left Settings.** Backing out of _"Remove this permission?"_ navigated to chat and unmounted the page. Upstream's shell, so every confirmation on every Settings page                                                                                                                                                                                                    | **Fixed**                                                        |
+| 350 | 4 + 5, T63                              | **Closing or reloading the tab cancelled the task**, so T63's recovery could never be seen: the reopened conversation read _"The run did not complete: The prompt was cancelled."_ §3.5.82's title and T47 row 3.2.12 both said otherwise                                                                                                                                                          | **Fixed**, decided: tasks survive the tab                        |
+| 351 | 4, Your agents                          | When a task was cancelled from elsewhere, **the tab that sent it showed it as a recovered, running task** with an enabled Cancel — a round trip normally, several seconds under load                                                                                                                                                                                                               | **Fixed**                                                        |
+| 352 | 4, Your agents                          | **_Stopping_ never reached the person whose task someone else cancelled** (T47 row 6b.5): their view said _replying…_, with an enabled Cancel, until the reply arrived                                                                                                                                                                                                                             | **Fixed**                                                        |
+| 353 | 5, Active agent sessions                | The canceller's _"Cancellation requested. The task stays listed until it finishes stopping."_ stayed above _"No agent sessions are running"_                                                                                                                                                                                                                                                       | **Fixed**                                                        |
+| 354 | 4, Your agents                          | An agent unassigned while its conversation was open **kept a working message box that could only be refused** — finding 305's second half. The list had been repaired; the open conversation had not                                                                                                                                                                                               | **Fixed**                                                        |
+| 355 | 8, Policy                               | **No rule-clash warning could ever appear.** _Add rule_ wrote the server's warnings — including that a rule **will never take effect** — into a render snapshot the page discards; the folder grant dropped them outright                                                                                                                                                                          | **Fixed**                                                        |
+| 356 | 7 + 8, for a User                       | Controls whose only outcome is a refusal, finding 341's rule: **six enabled Remove buttons** on a fresh install's all-agent rules, for every User; and the folder-grant, add-rule, timeout and kill-switch forms for a User with no agents                                                                                                                                                         | **Fixed**                                                        |
+| 357 | 7, Emergency kill switch                | The kill switch's result rendered **1,261 px above the visible page**, named no agent, and still read _"Lockdown engaged"_ after Release                                                                                                                                                                                                                                                           | **Fixed**                                                        |
+| 358 | The approval card (T60)                 | A long action was cut to fit the card's 512 characters **with no mark**, and the full text — which the request carries for exactly this — was shown nowhere                                                                                                                                                                                                                                        | **Fixed**                                                        |
+| 359 | Every section                           | A Gateway that could not be reached read _"Failed to fetch"_, the browser's words, and **stayed on screen after it came back**, through successful refreshes, until the next button press                                                                                                                                                                                                          | **Fixed**                                                        |
+| 360 | Every section                           | Errors were styled as empty states — muted, small, centred — so a failure read like _"No entries yet"_; and the out-of-date notice ended _"The rest of the page is current"_, which is false whenever everything failed                                                                                                                                                                            | **Fixed**                                                        |
+| 361 | 9, Audit ledger                         | A User or Viewer with nothing in scope was told _"No audit entries yet"_ about a ledger holding sixty entries: finding 333's shape, in the wording rather than the paging. A filter matching nothing said the same                                                                                                                                                                                 | **Fixed**                                                        |
+| 362 | 10, Rule requests                       | A request's reason was cut to 500 characters with no refusal and no mark: a 2,000-character justification came back 200 and was stored as its first 500, so the Administrator deciding it read a reason that stopped mid-sentence. Found by the long-text condition                                                                                                                                | **Fixed**                                                        |
+| 363 | 4, Your agents; the approval card       | A task cancelled while its approval card is up leaves the card on screen, pressable, until it expires two minutes later. A press cannot touch the task, which is gone, and files nothing, but it resolves the record and is broadcast to chat forwarders                                                                                                                                           | **Open — decision**: withdrawing needs a Gateway protocol method |
+
+### Finding 346: the browser kept the governance answers, and handed them to the next account
+
+**Found without looking for it.** Stopping the Gateway under a signed-in
+Administrator should have produced the page's own out-of-date notice within 15
+seconds. For 40 seconds it produced nothing: every section kept its data and no
+notice appeared. A second probe, counting the page's requests, counted **zero**,
+which is possible only if something between the page and the network answers
+them. Something did: `ui/public/sw.js`.
+
+**What the worker did.** It took over every same-origin GET except paths under
+`/api/`, `/rpc` and `/plugins/` — its comment: _"API, RPC, and plugin routes should
+never be cached"_ — and the governance API lives under `/control-ui/governance/`.
+For those it went to the network first, **stored every successful answer**, and on
+failure answered from the store. The store is keyed by URL, not by account, and
+nothing cleared it at sign-out.
+
+**Measured**, by a probe that prints paths, counts and markers and never a body:
+
+1. After one Root session the store held **12 governance answers**: accounts,
+   agents, deployment, ledger, pending decisions, policy, rule requests, sessions,
+   system, runs, the Codex backend and whoami.
+2. A rule added just after a refresh; the browser taken offline; the next policy
+   read answered **200 without the rule**, and the page's refresh recorded a
+   success with no notice.
+3. Signed out: all 12 still stored.
+4. A Viewer signed in on the same browser. Online, `users` answered 403, correctly.
+   **Offline, the same URL answered 200 with Root's username in it.** Anyone using
+   the profile could also read the store from the browser's developer tools, no
+   outage needed.
+
+**Why it is more than a privacy defect.** This page is an oversight surface. At
+exactly the moment an operator most needs it — the Gateway struggling — it
+presented answers from before the trouble as current: no sessions running, an
+empty decision queue, the kill switch's state. The two unexplained results of the
+disconnection run were this one defect.
+
+**Scope.** The worker registers in every production build
+(`isProd && "serviceWorker" in navigator`), so every real installation. Two
+siblings were confirmed in code: chat attachments at
+`/__openclaw__/assistant-media`, whose five-minute ticket is in the URL, so the
+stored bytes outlived it; and browser-panel screenshots, whose credential is a
+header the store ignores. A measured visit to chat, agents, appearance and
+governance stored 331 responses: 317 hashed build assets and 14 others, 9 of them
+governance answers.
+
+**The fix, and why the fallback could go.** Navigations were already never
+answered from the store, so the app could not open offline anyway; the fallback
+bought no offline capability and only hid live failures. The worker now stores and
+serves **hashed `/assets/` files only**, cache-first as before, and leaves every
+other request to the network. On activation it also removes everything else from
+the **retained older caches** — it keeps two, and lookups search all of them, so
+an upgraded installation would otherwise have served leaked answers for two more
+builds. As defence in depth, every response under `/control-ui/governance/` sends
+`Cache-Control: no-store` (the prompt stream keeps its own `no-cache`). Tests: `ui/src/app/service-worker-cache.test.ts` runs
+the real `sw.js`; `src/gateway/governance-account-lifecycle.test.ts` pins the
+header.
+
+### Findings 347 and 348: an escalation from the dashboard had never reached a person
+
+**Found by driving T60 the way T47 describes it.** A User prompts an agent from
+_Your agents_; the agent attempts a read no rule covers. No card appeared in the
+User's Control UI in 90 seconds. The ledger showed the read escalated and then
+**denied as `hitl-timeout` 5.3 seconds later**, and _Awaiting your decision_ gained
+a row saying it had waited **120,000 ms**. The Gateway's log said why: _"Plugin
+approval unavailable: the Governance initiating surface does not support
+approvals."_
+
+**Mechanism.** Upstream added a gate on 2026-07-29 so that unattended runs — cron,
+heartbeat, the command line — fail fast rather than wait for an approval nobody can
+give. A run counts as attended only if its channel is the Control UI's own
+(`webchat`), the terminal UI, none, or a channel plugin that handles approvals. The
+dashboard's runner, written 2026-08-21, marks its runs `governance`, chosen only
+_"so these runs are separable in the host's own telemetry"_. Every dashboard
+escalation was refused before a request existed. The refusal came back as
+`cancelled`, and the policy engine treated `cancelled` exactly as `timeout`.
+
+**Why nothing caught it.** The unavailable-surface tests cover cron, heartbeat and
+command-line runs, and **no test drove an escalation through the governance
+runner**. Finding 338's rows — the first time section 14 ever rendered — came from
+a script that calls the policy and its resolution callback directly, around the
+host's approval path. And §"T60 and T63 built" put the missing live card down to an
+exhausted model key. With a working key, a card could have appeared from the
+Control UI's chat, **never from the dashboard's own conversation**.
+
+**The trap in the obvious fix.** The special case
+`!channel || channel === "webchat" || channel === "tui"` was spelled five times in
+two modules. Adding `governance` to the surface check alone makes it a
+**turn-source** route — delivery to a channel that does not exist — and the request
+fails one step later as "no approval route", recorded the same false way. Moving
+the runner to `webchat` instead would make T57's host-prompt audit record every
+dashboard prompt twice. So there is now one `GOVERNANCE_MESSAGE_CHANNEL` and one
+`GATEWAY_CLIENT_APPROVAL_CHANNELS` list, used at all five sites, by the runner, and
+by T57's skip. One sibling needed the same answer: `isNativeApprovalChannel`,
+which decides whether an exec approval is awaited inline so the run resumes with
+the real output.
+
+**Who sees the card** is unchanged in kind: Control UI clients holding the
+Gateway's approvals or admin scope, the audience every other run's approvals
+already reach. "Always allow" still only files a request an Administrator decides,
+so nothing becomes permanent without an Administrator. **But the audience is
+every Gateway operator, not the governance tiers.** The Control UI requests
+`operator.admin`, so anyone whose browser holds the Gateway credential sees and
+can answer the card whatever their governance tier, a Viewer included, and an
+"Allow once" is attributed to the approval rather than to a governance account.
+That was already true of every chat run's approvals; this fix extends it to
+dashboard prompts, which before it reached nobody. Found by the independent review
+of this pass, and recorded below as a decision rather than built.
+
+**348 is the recording half, and it predates T60.** An unanswered escalation ends
+one of two ways the plugin can tell apart: the window ran out (`timeout`), or the
+question was withdrawn (`cancelled` — Cancel, the prompt's five-minute limit, no
+route, a transport failure). Both were recorded as the first, with an invented
+wait. The engine now records the **real** wait; the ledger says `hitl-cancelled` for
+a withdrawn question; the row carries `endedBy`; and section 14 says _cancelled_
+under _"These escalations ended before anyone answered"_. The row is still filed on purpose, because "answer it later" is still the right offer.
+
+**Proved live on the rebuilt Gateway**, once a cancellation could be driven: a
+dashboard prompt's read escalated, its card appeared, and the task was cancelled
+through the API. The pending row says `endedBy: cancelled` with **`waitedMs: 4,616`**,
+the real wait; the ledger reads prompt, ask, prompt-cancel by the User, then the read
+closed as **`hitl-cancelled`**. The first attempt could not do it from the screen,
+for a reason recorded below: the card is modal, and a press on the conversation's
+Cancel answered the card instead.
+
+Tests: `src/infra/exec-approval-surface.test.ts`,
+`src/infra/approval-turn-source.test.ts`, `src/utils/message-channel.test.ts`,
+`src/governance/pending-decisions.test.ts`,
+`src/governance/escalation-allow-always.test.ts` (a cancellation end to end) and
+the row in `ui/src/pages/governance/governance-panels.test.ts`.
+
+### Finding 349: Escape on a confirmation left Settings
+
+**Measured:** before Escape the URL was `/settings/governance`; 0 ms after it,
+`/chat/main`; from 100 ms the governance page had unmounted. An operator backing
+out of _"Remove this permission?"_ or _"Stop this agent?"_ lost the page and
+anything typed into it.
+
+**Mechanism.** Settings is a takeover over chat, and the shell's document keydown
+handler leaves it on Escape. It has a guard for "this Escape belongs to something
+else", and the guard could not see the dialog. `document.querySelector("dialog[open]")`
+cannot reach a `<dialog>` two shadow roots deep (`openclaw-modal-dialog` →
+`wa-dialog` → `<dialog>`); `target.closest(…)` from a slotted button walks light DOM
+only; and Web Awesome registers its own Escape handler when the dialog opens,
+after the shell's, so the shell saw an unhandled Escape first.
+
+**Scope.** Every `openclaw-modal-dialog` in Settings: confirmations on the
+governance, channels, nodes, plugins and agent-memory pages, the file preview, the
+lightbox and the gateway-URL confirmation. Only the command palette, device
+pairing and the approval card were exempt.
+
+**Fix.** Both checks are shadow-aware: the target check walks
+`event.composedPath()`, and `openclaw-modal-dialog` reflects `open` so the guard can
+match `openclaw-modal-dialog[open]`. Moving the shell's listener to `window` was
+rejected, because it would pre-empt the navigation drawer's own Escape, which
+end-to-end tests cover. **Upstream's intent is kept and pinned:** Escape on a plain
+Settings page still returns to chat. A sibling check in `chat-pane-lifecycle.ts` is
+equally shadow-blind and needs nothing, because the dialog opens with
+`showModal()` and the page behind it is inert. Tests:
+`ui/src/app/app-host-native-shell.test.ts`, which dispatches real events because
+`composedPath()` is empty outside dispatch, and
+`ui/src/components/modal-dialog.test.ts`.
+
+Earlier in the pass this surfaced as "focus lands on the page body after Escape"
+and "the Remove buttons vanished". Both were the page having been unmounted;
+recorded so nobody chases them.
+
+### Findings 350–354: T63 driven live, and what it took to make its claim true
+
+**350, and the decision.** Q-90 (2026-08-21) made a closed connection cancel its
+run, because a disconnected client then left the agent working where nobody could
+reach it. T63 made the task reachable — listed with Cancel in two places — and
+**kept the cancel-on-close**, so the thing it was built to recover was gone before
+anyone could reopen it. Live: a reload at 9.4 s; the server's next read said
+`ending: "cancelled"`; two seconds later the task was gone, and the reopened
+conversation read _"The run did not complete: The prompt was cancelled."_ The
+ledger held a `prompt-result` of _"run cancelled after 0 chars"_ and **no**
+`prompt-cancel` entry: a cancellation by nobody. **Kinan decided that tasks survive
+the tab.** Closing or reloading no longer stops the run; the five-minute limit, both
+caps and Cancel stay; reopening shows the task with its Cancel. The route writes
+nothing to a closed response, and Node's behaviour for that was checked on the
+version in use: `write` returns false and raises no error.
+
+**351** was found with two tabs. Tab B cancelled tab A's task, which works. Tab A
+then showed that same task — already finishing on the server — as a **recovered**
+task with an enabled Cancel, for up to six seconds. `sendPrompt` cleared its run id,
+published, and only then re-read the run list, so the list from before the end
+presented the tab's own task as "one of mine that I am not sending". Ended run ids
+are now remembered, and forgotten only by a list read **begun after** the end; a
+read begun before it and landing after it has its own test.
+
+**352 and 353** are T47 row 6b.5's two sentences, each of which failed. The sender
+never saw _Stopping_: the server never sent the stream a run's `ending`, and the
+conversation had no stopping state. The canceller's notice outlived the task. The
+stream now carries a `stopping` event the moment a run is asked to stop, the
+sender's label changes and its Cancel disables, and the notice retires when its
+task leaves the list.
+
+**354.** An Administrator unassigned `scout` from a signed-in User at 3.4 s. By
++15 s the User's list had dropped it, correctly; the open conversation kept a
+working message box through +40 s, and sending answered _"You do not manage agent
+scout"_. T47 row 3.1.7 names that outcome as finding 305 returning. The conversation
+now renders only while the account manages the agent, and otherwise a sentence says
+it is no longer assigned, beside Close.
+
+**A coverage gap closed on the way.** Every test that touched a prompt replaced
+`promptAgentStreaming` whole, so nothing showed the client turning the server's
+events into handler calls: a `stopping` event nobody dispatched would have passed
+every test. `ui/src/pages/governance/api.streaming.test.ts` now feeds it a real
+event-stream body.
+
+Tests: `src/gateway/governance-dashboard-api.test.ts` (a closed stream keeps its
+run and receives nothing; Cancel sends `stopping`),
+`src/governance/agent-conversation.test.ts`,
+`ui/src/pages/governance/prompt-run-recovery.test.ts`, the streaming test above and
+`ui/src/pages/governance/dashboard-qa-2026-09-12.test.ts`.
+
+### Findings 355–361: what the page said, where, and whether it was true
+
+**355.** After _Add rule_, `policy-panels.ts` assigned `props.conflictNotice` and
+`props.ruleWarnings` — onto the per-render props object, which the next render
+replaces. The server's answer included _"An identical rule already exists"_ and,
+worse, the warning that a rule is overridden by a deny and **will never take
+effect**. Live: two identical presses, two rules, no notice. The folder grant
+received the same `conflicts` and reported only the patterns it wrote. A search of every governance panel for writes into props found exactly these two, and both now report through a callback onto page state. **Driven live after that repair, the warning rendered, at y = −5,475, with the operator at the Add rule form (y = 500): rendered and unseen.** It now scrolls into view, as finding 357's kill notice does, and carries a class of its own, so 360's alert style no longer paints a caution red.
+
+**356.** Finding 341 established that the page _"does not offer a control whose
+only possible outcome is a refusal"_. At the User tier it did. Remove on an
+all-agent rule is now offered to Administrators only. Pressed live as a User, the
+server's 403 was already correct and on screen: _"Only an Administrator may remove
+a global rule."_ For a User with no agents, the rule, folder-grant, timeout and
+kill-switch forms are replaced by the sentence that says why.
+
+**357.** The kill switch's outcome now names the agent, scrolls into view as
+finding 339 made the error banner do, and retires when that agent is released. A
+lockdown engaged while an older refresh is still in flight is not retired by that
+refresh's stale answer.
+
+**358.** The request already carried the whole action in `detail`, which the
+protocol describes as detail for the reviewer's surface; the Control UI's parser
+dropped it. The card now shows a **Full request** block whenever the description
+does not already contain it, in the card's existing command style, which wraps and
+scrolls.
+
+**359 and 360.** A request that cannot reach the Gateway now reads _"Could not
+reach the Gateway. Check that it is running, then try again."_, and a reply that is
+not JSON reports its status instead of a parser error. **Once every panel reloads, that message, and only that one, is replaced** by
+one saying the Gateway is reachable again and that the last action may not have
+taken effect. Replaced rather than cleared, because the message only ever reports a
+press, and a refresh proves the Gateway is back, not that the press landed: the
+first version of this fix cleared it, and the independent review showed a lockdown
+sent during a restart would then leave nothing on screen at all. A refusal such as _"You do not manage agent
+scout"_ survives a background refresh, because a successful refresh disproves a
+connection failure and not a refusal. Page errors render as an alert — a danger
+edge, readable colour, left-aligned — rather than in the empty-state style, and the
+out-of-date notice no longer claims the rest of the page is current. That claim
+would have become false the moment 346 was fixed: with nothing answered from a
+store, an outage fails every panel at once.
+
+**361.** The ledger's empty state reads _"No audit entries to show"_ with
+_"Entries appear here as governed actions happen on the agents you can see"_, and a
+filter that matches none of the loaded entries says exactly that.
+
+Tests for all seven: `ui/src/pages/governance/dashboard-qa-2026-09-12.test.ts`,
+`ui/src/pages/governance/api.errors.test.ts` and
+`ui/src/components/exec-approval.test.ts`.
+
+### Finding 362: a request's reason was cut to 500 characters, silently
+
+**Found by the long-text condition, on its second attempt**: the first was refused
+only because the test User already had twenty pending requests. Both submission
+branches of `governance-dashboard-rule-requests.ts` stored `reason.slice(0, 500)`,
+so a 2,000-character justification came back 200 and was saved as its first 500.
+The requester was told it had been submitted, the Administrator deciding it read a
+reason that stopped mid-sentence with nothing to say it had been cut, and the
+form's reason field had no limit and no hint. **The project already answers
+over-long input with a refusal** — _"username must be at most 64 characters"_,
+_"displayName must be at most 120 characters"_ — so this does too: past 500
+characters both branches answer 400 with _"reason must be at most 500
+characters"_, the field carries `maxlength="500"`, and its placeholder says so. A
+sweep of the governance routes and modules for any other silent `.slice(0, N)` on
+request input found none. Test: `src/gateway/governance-rule-request-reason.test.ts`,
+both branches, one character over the limit and exactly at it.
+
+### Finding 363: a cancelled task's approval card stays up (open)
+
+Found proving 348 live. Fifteen seconds after the task was cancelled, its card was
+still on screen offering its buttons, with "expires in 02:00". The approval hook's
+abort path tells the governance plugin the question was cancelled and returns
+_"Approval cancelled (run aborted)"_, but nothing withdraws the Gateway's approval
+record: its methods are request, waitDecision, resolve, list and reportOutcome, and
+none lets the requester take a request back. **What a press then does, read in code
+and not pressed:** `plugin.approval.resolve` resolves the record and broadcasts the
+decision to the Control UI and to the chat and push forwarders; the plugin's callback
+has already run with "cancelled" and the waiter is gone, so the task is untouched and
+nothing is filed. It is still a control whose only outcome is nothing, on screen for
+up to two minutes, and a chat channel may be told it was answered. **Upstream-wide**:
+every run aborted while it waits on an approval behaves this way. **Not fixed here,
+deliberately**: the repair is a requester-side withdraw — a new Gateway method, the
+generated Swift and Kotlin models, and what the card and the forwarders say when a
+request is withdrawn — which is the size and kind of change T60's `reportOutcome` was,
+and that was Kinan's decision.
+
+### Two decisions this pass leaves open
+
+**Who may answer an escalation raised from a dashboard prompt?** Since finding
+347's fix: anyone whose Control UI holds the Gateway credential, as for every other
+run. The alternative is the governance accounts that manage the agent, which needs
+the approval path to carry a governance identity the Gateway connection does not
+have today — a design change, not a repair, so it is Kinan's to decide.
+
+**Should a requester be able to withdraw an approval it no longer needs (363)?**
+The proposal: a `plugin.approval.withdraw` method only the requesting connection may
+call, sent from the approval hook's abort path, which resolves the record as
+withdrawn; the Control UI closes the card and forwarders say it was withdrawn rather
+than answered. The alternative is to leave upstream's behaviour and let the card
+expire.
+
+### Checked and found right
+
+- **Cancel across tabs and across tiers.** An Administrator's Cancel of a User's
+  task: the ledger names the Administrator on `prompt-cancel` and the User on
+  `prompt-result`.
+- **The ledger, verified from outside.** `node scripts/verify-ledger.mjs --dir
+<the QA governance directory>`, a separate process importing nothing from `src/`:
+  _INTACT — 133 entries verified_, keyed, checkpoint agreeing. The dashboard's
+  Verify had reported chain head `d833b96f…` at entry 132; line 132 of the file
+  carries that hash, and line 133 names it as `prevHash`. Dashboard, file and
+  outside verifier agree, **after a hard stop of the Gateway**.
+- **Sessions.** An expired session clears to sign-in on the next poll with a
+  sentence saying why; a password change ends a session before any poll.
+- **Two operators at once.** An account deleted while signed in clears within a
+  poll; a Viewer made a User gains _Your agents_ within a poll, without a reload;
+  two Administrators deciding one request 400 ms apart store one decision, and the
+  refused second press writes nothing to the ledger.
+- **Narrow screens** at 375, 768 and 1024 px, as Root and as a User: no horizontal
+  scroll, no clipped control, and the section navigation becomes a full-width strip
+  below 900 px.
+- **The keyboard.** Enter submits sign-in; the page's 45 tab stops each show a
+  focus ring and scroll into view; a confirmation opened from the keyboard puts
+  focus on Cancel.
+- **Tier visibility**, exactly as designed: Root 14 sections, Administrator 11,
+  User 10, a User assigned nothing 9, Viewer 7.
+- **Load.** 14 accounts, 600 sign-ins, 20 pending requests and 6 agents: Root's page
+  rendered in 4.7 s, and the slowest of its 39 governance requests took 127 ms.
+- **A Gateway restart.** The shell reported offline and then reconnected, and the
+  governance session survived.
+
+### Recorded, not fixed
+
+- **Provisioning slows as agents accumulate:** 35, 45, 54, 59, 69 and 77 seconds for
+  agents one to six. `mg/SESSION-LOG-2026-09.md` records "about ten seconds", true of
+  an installation with few agents. The cause is not traced — configuration reload
+  and workspace creation are the candidates — and the page says nothing during the
+  wait.
+- **Forms below long lists.** With realistic data Policy is 4,050 px tall with _Add a
+  rule_ at its foot, and _Submit request_ sits 1,572 px down Rule requests, below
+  every pending request. Usable, not broken.
+- **The governance API answers about 44 seconds after the Gateway logs that it is
+  listening** on this machine, while channels start. A reload in that window finds
+  the dashboard unreachable, and since 359 says so in words.
+- **Low:** the dashboard's `createUser` still declares an `assignedAgents` field the
+  server ignores; every sign-in logs a 401 and a 409 to the console; a refused second
+  decision does not say who decided first; and an upload whose client disconnects
+  after the body arrives is still charged to quota (read in code, not reproduced).
+- **A kill-switch stop never shows _Stopping_.** The emergency stop aborts through
+  the Gateway's run registry, not the prompt-run table, so the sender's view says
+  _replying…_ with an enabled Cancel until the run unwinds, usually within a
+  second, and the outcome is recorded as a failure rather than a stop. Found by the
+  independent review; low.
+- **A previous service worker's write already in flight during an upgrade** can
+  land in its old cache after the purge has listed it. The new worker never serves
+  it, and the entry leaves with that cache two builds later. The purge now waits
+  until the new worker controls every tab, which leaves only writes already under
+  way. Found by the independent review; low.
+- **The approval card covers the page.** While one is showing, nothing behind it can
+  be pressed: not the conversation's Cancel and, by the same mechanism, not the
+  emergency stop. A press where Cancel sits answered the card (Deny) instead. One
+  click on the card clears it, so both stay one click away, but the stop is not the
+  first thing pressed during an escalation.
+- **Page loads stall about thirty seconds during an embedded agent run** on this
+  QA machine. A reload took 30.4 s and a second tab's first load passed 30 s while a
+  task ran, and one API read met a connection reset. Not introduced by this pass: a
+  33-second stall after a reload was recorded on 2026-09-12, before any T63 change.
+  The Gateway logged no stall and its WebSocket calls answered in 52–638 ms, so the
+  cause is not established.
+- **Finding 345's 27 UI failures** are unchanged and still reproduce at HEAD. None is
+  in a file this pass touched.
+
+### What could not be established here
+
+- **The approval end-to-end tests** (`approval-flow`, `approval-page`) skip, because
+  Playwright's full Chromium is not installed where they look. Recorded as skipped,
+  not as passed.
+- **`build-all` exits 1 on this machine at its last step**,
+  `write-cli-startup-metadata`: its `browser --help` render times out at 120 s inside
+  the step, while the same command from a shell finishes in 50 s warm and 199 s
+  cold, with identical output. It failed the same way with nothing else running, so
+  it is not load. The step replaces the environment wholesale and passes none of
+  Windows' system variables, which accounts for part of the gap and not all of it:
+  with exactly the step's environment the render took 180 s; with `SystemRoot`,
+  `TEMP`, `USERPROFILE` and the rest added, 142 s; both past the cap, with identical
+  output. The cause is not isolated. Every other phase passes, the startup budget
+  included, and no file behind the browser CLI changed in this pass.
+- **A real model.** The agent side was a local mock of the OpenAI API: enough to
+  reach tools, escalations, streaming and cancellation, and silent about how any real
+  provider behaves.
+
+### How it was run
+
+An isolated Gateway on its own port, with its own state and governance directories
+and disposable accounts; the Gateway credential off on that copy only and the
+governance sign-in on, as §"Where this pass got to" requires. Every flow was driven
+by Playwright scripts that sign in with those accounts and print paths, counts and
+markers, never response bodies. **Every fix was mutation-checked:** the fix
+reverted, its named tests required to fail, the files restored and compared by
+hash. **68 mutations across six runs, all 68 caught**: 14 of 14, 15 of 15, 12 of 12,
+22 of 22, 4 of 4 and 1 of 1. Two mutations whose target text appeared twice in its
+file could not be applied as written; each was re-anchored and run again rather
+than counted.
+
+### Re-verified on the rebuilt Gateway
+
+Every fix was driven again through the browser after `build-all` and the Control
+UI rebuild, against the same isolated Gateway. Probes print statuses, positions,
+counts and markers; the pre-fix evidence was kept beside them.
+
+| #   | Driven                                                                             | Observed                                                                                                                                                                                          |
+| --- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 346 | Root's session and sign-out; then a Viewer on the same browser, online and offline | Nothing under governance stored, after the session or after sign-out. Offline reads fail as network errors. The Viewer's offline request for Root's accounts list failed instead of answering 200 |
+| 347 | A dashboard prompt whose read no rule covers                                       | An approval card in the User's Control UI, carrying its explanation: allows this once, an Administrator must approve                                                                              |
+| 348 | The task cancelled through the API while its card was up                           | Row `endedBy: cancelled`, `waitedMs` 4,616; ledger prompt-cancel by the User, then the read closed as `hitl-cancelled`                                                                            |
+| 349 | Escape on a Remove confirmation                                                    | Still on `/settings/governance` in every sample from 0 to 16 s; focus back on Remove                                                                                                              |
+| 350 | Reload mid-task, then reopen the agent                                             | The task still running on the server after the reload; _Active agent sessions_ and the reopened conversation both showed it Running, with Cancel                                                  |
+| 351 | A second tab cancels the first tab's task                                          | The tab that sent it never showed it as a recovered, running task, sampled from +2 to +20 s                                                                                                       |
+| 352 | An Administrator cancels the User's task                                           | The User's conversation switched to _Stopping_ with its Cancel disabled, for about 0.8 s, then cleared (recorded by a MutationObserver)                                                           |
+| 353 | An Administrator cancels from _Active agent sessions_                              | Gone within 4 s; the section read _No agent sessions are running_, with no leftover notice; the ledger names the Administrator on the cancel                                                      |
+| 354 | The agent unassigned with its conversation open                                    | Within one poll the message box was replaced by the no-longer-assigned sentence                                                                                                                   |
+| 355 | A duplicate rule added from the form                                               | The warning shown and scrolled to: y 0–132 of 1,000. Before the second repair it drew at −5,475                                                                                                   |
+| 356 | A User with no agents                                                              | Kill switch and _Add a rule_ show the reason; no folder grant, per-agent timeout or Remove                                                                                                        |
+| 357 | Lock down, then Release                                                            | The result at y 0–77, naming the agent; gone after Release                                                                                                                                        |
+| 358 | A 566-character path                                                               | _Full request_ shows the whole path; a short action does not repeat it                                                                                                                            |
+| 359 | Governance requests refused, then allowed                                          | A press read _"Could not reach the Gateway…"_; on recovery it became _"reachable again … may not have taken effect"_ and stayed                                                                   |
+| 360 | The same                                                                           | The out-of-date notice in its new wording; the error in the page's text colour, not the muted empty-state one                                                                                     |
+| 361 | A User with nothing assigned, and a Viewer                                         | _"No audit entries to show … on the agents you can see"_                                                                                                                                          |
+| 362 | A 2,000-character reason                                                           | Before the fix: accepted and stored as 500. After it, one character over: 400, _"reason must be at most 500 characters"_; at 500: stored whole, its ending intact                                 |
+
+**Not driven live this pass:** "Would allow" from _Awaiting your decision_ (T47 row
+6b.4), whose outcome handling T60's tests cover; and the organisation deletion, a
+destructive control covered by finding 334 on 2026-09-08.
+
+### Coverage matrix, as observed
+
+**S** shown · **—** hidden · **ro** read-only. Every cell was seen, not inferred:
+five accounts signed in through the form, each page written down section by section.
+
+| #   | Section                        | Root                                          | Administrator | User | User, no agents      | Viewer              | States driven, and the findings they produced                                                                                            |
+| --- | ------------------------------ | --------------------------------------------- | ------------- | ---- | -------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Identity                       | S                                             | S             | S    | S                    | S                   | The tier sentence for each account                                                                                                       |
+| 2   | Accounts                       | S                                             | —             | —    | —                    | —                   | 6 then 14 accounts; own Root delete disabled with its reason; deleted and re-roled while signed in; 64/65-character usernames            |
+| 3   | Agents in your organisation    | S                                             | S             | —    | —                    | —                   | Six provisioned under load (35–77 s each); the 120-character display-name limit                                                          |
+| 4   | Your agents                    | S                                             | S             | S    | S (reason)           | —                   | Prompt; approval card (347, 358); reload recovery (350); second tab (351); _Stopping_ (352); revoke while open (354); card left up (363) |
+| 14  | Awaiting your decision         | S\*                                           | S\*           | S\*  | —                    | —                   | A cancelled row with its real wait (348)                                                                                                 |
+| 5   | Active agent sessions          | S                                             | S             | S    | S                    | ro                  | Running task with Cancel; an Administrator's cancel (353)                                                                                |
+| 6   | Agent permissions              | S                                             | S             | S    | S (hint)             | ro                  | —                                                                                                                                        |
+| 7   | Emergency kill switch          | S                                             | S             | S    | S (reason, no field) | —                   | Lock down and Release (357); no refusal-only field without agents (356)                                                                  |
+| 8   | Policy                         | S                                             | S             | S    | S (reason, no forms) | ro                  | Duplicate-rule warning (355); Remove only where the route removes (356); a 502-character pattern                                         |
+| 9   | Audit ledger                   | S                                             | S             | S    | S (scoped wording)   | ro (scoped wording) | Empty-state wording (361); Verify against `scripts/verify-ledger.mjs`; 600 sign-ins                                                      |
+| 10  | Rule requests                  | S                                             | S             | S    | S                    | ro (none in scope)  | Two Administrators deciding one request; 20 pending; a 2,000-character reason (362)                                                      |
+| 11  | System resources               | S                                             | S             | S    | S                    | S                   | —                                                                                                                                        |
+| 12  | Organisation                   | S                                             | —             | —    | —                    | —                   | Not pressed (destructive; finding 334)                                                                                                   |
+| 13  | Deployment and network posture | S                                             | —             | —    | —                    | —                   | Rendered under load                                                                                                                      |
+|     | Page notices                   | S                                             | S             | S    | S                    | S                   | Unreachable and reconnected (359); out-of-date wording and alert style (360); kill notice (357); clash notice (355)                      |
+|     | Approval card                  | any Control UI holding the Gateway credential |               |      |                      |                     | Explanation (T60); _Always allow_ with no dialog; _Full request_ (358); left up after a cancel (363); covers the page while up           |
+
+\* Only while a question is waiting. Sections shown: Root 14, Administrator 11, User 10,
+User with no agents 9, Viewer 7.
+
+**The difficult conditions**, each driven rather than reasoned about:
+
+- **Two operators at once**: an account deleted and one re-roled while signed in, two
+  Administrators deciding one request, an agent unassigned with its conversation open
+  (354), a second tab and an Administrator cancelling a task (351, 353).
+- **Narrow screens** at 375, 768 and 1024 px: no horizontal scroll, nothing clipped.
+- **The keyboard alone**: 45 tab stops with visible focus; Escape on a confirmation (349).
+- **Long text**: usernames at and past 64, a display name past 120, a 502-character
+  pattern, a 2,000-character reason (362); nothing clipped for Root, Administrator or
+  Viewer.
+- **Large lists**: 14 accounts, 600 sign-ins, 20 pending requests, six agents.
+- **Disconnection**: requests refused and restored (359, 360), and a hard stop of the
+  Gateway with the ledger verified afterwards.
+- **Expired and revoked sessions**: cleared to sign-in with a sentence saying why.
+- **Approval queues and escalations**: the card from a dashboard prompt (347), its full
+  request (358), a cancelled wait (348), a card left up (363).
+- **Cancellation after reload** (350) and **the emergency stop** (357).
+- **Independent ledger verification**: `scripts/verify-ledger.mjs` agreed with the
+  dashboard and the file.

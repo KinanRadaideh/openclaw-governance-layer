@@ -1033,8 +1033,10 @@ the ledger before anything runs. While running it streams snapshots to the
 dashboard, so the operator sees progress rather than a spinner. It ends in one of
 three ways: a reply, an explicit cancellation, or a timeout, the last two
 existing because a disconnected client previously left the agent working and a
-wedged provider previously held a connection open indefinitely. Whichever way it
-ends, the outcome is recorded.
+wedged provider previously held a connection open indefinitely. Closing the tab
+is not a fourth ending: since 2026-09-12 (finding 350) the run continues, still
+listed with its Cancel, until one of the three occurs. Whichever way it ends, the
+outcome is recorded.
 
 ### Mermaid form
 
