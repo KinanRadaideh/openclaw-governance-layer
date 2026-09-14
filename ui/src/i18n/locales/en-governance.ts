@@ -717,7 +717,7 @@ export const enGovernance: TranslationMap = {
       settingSubmit: "Request change",
       // Finding 366: a request for an agent deleted before anybody decided it.
       agentGone:
-        "The agent this request names is no longer registered. Approving would write a rule or setting onto a released name, for whichever agent is registered under it next, so only Reject is offered.",
+        "The agent this request was made for has been deleted, and the name is either unregistered or now held by a different agent. Approving would write a rule or setting onto that name, so only Reject is offered.",
     },
     kill: {
       title: "Emergency kill switch",

@@ -222,6 +222,37 @@ export async function findAgent(agentId: string): Promise<GovernanceAgent | unde
   return (await readAgentsFile()).agents.find((agent) => agent.id === wanted);
 }
 
+/**
+ * Whether the agent registered under this id now was already registered when a
+ * question about it was asked (QA of 2026-09-14).
+ *
+ * T55 decided that deleting an agent clears what its id carried, because ids are
+ * reused and a new agent must not inherit a stranger's permissions; finding 366
+ * applied that to pending rule requests, but only while the id stayed unregistered.
+ * A question asked about the old agent (a rule request, a dashboard escalation, a
+ * held decision) outlives the deletion, and once a new agent is registered under the
+ * same id it became answerable "yes" for that new agent. A registration newer than
+ * the question means the question was about somebody else.
+ *
+ * `false` when the id is not registered to this organisation. A time that cannot be
+ * read on either side answers `true`, so an unreadable record never blocks a
+ * decision that was answerable before this check existed.
+ */
+export async function registrationPredates(
+  agentId: string,
+  groupId: string,
+  askedAtMs: number,
+): Promise<boolean> {
+  const agent = await findAgent(agentId);
+  if (!agent || agent.groupId !== groupId) {
+    return false;
+  }
+  const registeredAtMs = Date.parse(agent.createdAt);
+  return !Number.isFinite(registeredAtMs) || !Number.isFinite(askedAtMs)
+    ? true
+    : registeredAtMs <= askedAtMs;
+}
+
 /** Every agent registered to one group, oldest first. */
 export async function listAgents(groupId: string | undefined): Promise<GovernanceAgent[]> {
   const file = await readAgentsFile();

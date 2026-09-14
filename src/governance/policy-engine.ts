@@ -857,9 +857,10 @@ export async function evaluateGovernancePolicy(
   //     false the moment somebody wrote a wide rule.
   //   * **Monitor does not suspend them.** Monitor means policy *opinions* are
   //     recorded rather than acted on. These are the restrictions the
-  //     installation declines to merely have an opinion about, and since a
-  //     User can switch their own agent into monitor, the alternative would make
-  //     monitor a one-click lift of every core protection.
+  //     installation declines to merely have an opinion about. When this was
+  //     written a User could switch their own agent into monitor; T4 moved that
+  //     to the Administrator, and the argument still holds at any tier: the
+  //     alternative would make monitor a one-click lift of every core protection.
   // ---------------------------------------------------------------------
   //
   // **Every** deny rule, not only core ones. Restricting this pass to

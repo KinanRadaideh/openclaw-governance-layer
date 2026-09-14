@@ -69,7 +69,7 @@ describe("a pending request whose agent is no longer registered", () => {
   it("says so in its row", () => {
     const row = mount(pendingRequest({ agentRegistered: false }));
 
-    expect(row.text).toContain("The agent this request names is no longer registered");
+    expect(row.text).toContain("The agent this request was made for has been deleted");
   });
 
   it("offers Reject and not Approve", () => {
@@ -82,7 +82,7 @@ describe("a pending request whose agent is no longer registered", () => {
   it("leaves a request for a registered agent approvable, with no notice", () => {
     const row = mount(pendingRequest());
 
-    expect(row.text).not.toContain("no longer registered");
+    expect(row.text).not.toContain("has been deleted");
     expect(row.approve?.disabled).toBe(false);
   });
 });

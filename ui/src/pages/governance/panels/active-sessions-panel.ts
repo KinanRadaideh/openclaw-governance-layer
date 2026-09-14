@@ -140,11 +140,14 @@ export function renderActiveSessionsSection(
                 // marginally better than one that does not exist, which is the
                 // state this feature was found in.
                 //
-                // Authority is the server's to decide and it does
-                // (`canManageAgent`): a User sees this for the agents assigned
-                // to them, an Administrator for every agent, a Viewer not at
-                // all.
-                canStop ? renderPostureToggle(entry.agentId, props) : nothing
+                // **Administrator and above only (QA of 2026-09-14).** Setting one
+                // agent's posture moved to the Administrator floor with T4, and
+                // `policy/agent-mode` refuses a User. This row still gated on
+                // `canStop`, which a User holds for their own agents, so a User was
+                // offered Observe and every press was refused. The Policy section
+                // had already hidden its twin below Administrator; a User asks for
+                // the change from Rule requests instead (A11). A Viewer sees neither.
+                props.canAdminister ? renderPostureToggle(entry.agentId, props) : nothing
               }
               ${renderSettingsStatus({
                 kind: entry.lockedDown ? "warn" : "ok",

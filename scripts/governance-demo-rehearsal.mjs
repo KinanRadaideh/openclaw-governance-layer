@@ -1,7 +1,7 @@
 // A scripted rehearsal of the live demonstration, end to end, against real
 // modules and a real governance directory on disk.
 //
-// ## Why this exists, when there are already 2,679 tests
+// ## Why this exists, when there are already thousands of tests
 //
 // Those tests prove each part in isolation and in combination, and they are the
 // reason this script is short. What they do not do is **walk the sequence an

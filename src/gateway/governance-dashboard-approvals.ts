@@ -7,7 +7,7 @@
 // alone says yes to an Administrator for any agent id (finding 144).
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ADMIN_ACTIONS, recordAdminAction } from "../governance/admin-audit.js";
-import { findAgent } from "../governance/agent-registry.js";
+import { findAgent, registrationPredates } from "../governance/agent-registry.js";
 import { canManageAgent, type GovernanceActor } from "../governance/permissions.js";
 import { readAgentPolicyHoldings } from "../governance/policy-store.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
@@ -35,6 +35,17 @@ async function isInGroup(agentId: string, groupId: string): Promise<boolean> {
   return (await findAgent(agentId))?.groupId === groupId;
 }
 
+/**
+ * Whether an escalation is still about the agent registered under its id (QA of
+ * 2026-09-14). One raised before its agent was deleted and a new agent registered
+ * under the same id is treated exactly as one whose agent is gone: not listed, and
+ * not answerable, so "Allow once" cannot run the deleted agent's action for the new
+ * one. It waits out its timeout, which refuses the action.
+ */
+async function isCurrentAgentApproval(approval: GovernanceApproval, groupId: string) {
+  return registrationPredates(approval.agentId, groupId, approval.createdAtMs);
+}
+
 /** The waiting escalations this account may see and answer. */
 async function approvalsFor(
   actor: GovernanceActor,
@@ -42,7 +53,10 @@ async function approvalsFor(
 ): Promise<GovernanceApproval[]> {
   const visible: GovernanceApproval[] = [];
   for (const approval of await listGovernanceApprovals()) {
-    if ((await isInGroup(approval.agentId, groupId)) && canManageAgent(actor, approval.agentId)) {
+    if (
+      (await isCurrentAgentApproval(approval, groupId)) &&
+      canManageAgent(actor, approval.agentId)
+    ) {
       visible.push(approval);
     }
   }
@@ -112,7 +126,7 @@ export async function handleGovernanceApprovalRoutes(
     }
     // Another organisation's approval reads exactly like one that has gone, so this
     // route cannot be used to learn which approval ids exist elsewhere.
-    if (!target || !(await isInGroup(target.agentId, groupId))) {
+    if (!target || !(await isCurrentAgentApproval(target, groupId))) {
       sendJson(res, 404, { error: { message: NOT_WAITING_MESSAGE, type: "not_found" } });
       return true;
     }

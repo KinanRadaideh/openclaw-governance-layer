@@ -1154,7 +1154,10 @@ export async function authenticate(
   // nobody put them in. The refusal is deliberately after the password check,
   // so it says nothing to an attacker that a wrong password would not.
   //
-  // The operator's way out is `governance groups migrate`, which deletes them.
+  // The operator's way out was `governance groups migrate --delete`, which went with
+  // the command line on 2026-09-07. Nothing calls `deleteUnmigratedAccounts` since,
+  // so such an account stays until the file is edited by hand; only an installation
+  // that held accounts before M3 can have one (recorded by the QA of 2026-09-14).
   if (!user.groupId) {
     return undefined;
   }

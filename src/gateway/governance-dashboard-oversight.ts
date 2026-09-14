@@ -25,17 +25,23 @@
 // verb that suggests otherwise.
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { listActiveSessions } from "../governance/active-sessions.js";
-import { listAgents } from "../governance/agent-registry.js";
+import { listAgents, registrationPredates } from "../governance/agent-registry.js";
 import { tailLedger, verifyLedgerChain } from "../governance/audit-ledger.js";
 import { projectLedgerForActor } from "../governance/ledger-view.js";
-import { readPendingDecisions } from "../governance/pending-decisions.js";
-import { canViewAgent, type GovernanceActor } from "../governance/permissions.js";
+import {
+  decidePendingDecision,
+  listPendingDecisions,
+  readPendingDecisions,
+} from "../governance/pending-decisions.js";
+import { canManageAgent, canViewAgent, type GovernanceActor } from "../governance/permissions.js";
+import { proposeRuleFromEscalation } from "../governance/policy-engine.js";
 import { loadPolicy } from "../governance/policy-store.js";
+import type { ResourceKind } from "../governance/policy-types.js";
 import type { GovernanceRole } from "../governance/roles.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
 import { readSystemStatus } from "../governance/system-status.js";
 import { requireGroup } from "./governance-dashboard-group.js";
-import { sendJson } from "./http-common.js";
+import { sendInvalidRequest, sendJson } from "./http-common.js";
 
 /**
  * Largest page of ledger entries a single read may return.
@@ -49,12 +55,20 @@ import { sendJson } from "./http-common.js";
  */
 const MAX_LEDGER_PAGE = 1000;
 
+function isResourceKind(value: unknown): value is ResourceKind {
+  return value === "command" || value === "path" || value === "network";
+}
+
 export type OversightRouteContext = {
   requireRole: (
     res: ServerResponse,
     session: GovernanceSession | undefined,
     minimum: GovernanceRole,
   ) => session is GovernanceSession;
+  readJsonObjectBodyOrError: (
+    req: IncomingMessage,
+    res: ServerResponse,
+  ) => Promise<Record<string, unknown> | undefined>;
   toActor: (session: GovernanceSession) => GovernanceActor;
 };
 
@@ -69,7 +83,7 @@ export async function handleGovernanceOversightRoutes(
   session: GovernanceSession | undefined,
   ctx: OversightRouteContext,
 ): Promise<boolean> {
-  const { requireRole, toActor } = ctx;
+  const { requireRole, readJsonObjectBodyOrError, toActor } = ctx;
 
   // Viewer and above: read the audit ledger and verify its hash chain.
   // Verification is a read-only recomputation, so it stays at viewer tier
@@ -205,6 +219,116 @@ export async function handleGovernanceOversightRoutes(
       decisions: decisions.filter((entry) => canViewAgent(actor, entry.agentId)),
       shedUndecided,
     });
+    return true;
+  }
+
+  // Answering a held decision (T56): User and above, and authority over the stored entry's
+  // agent. Beside its read since the QA of 2026-09-14, which added the registration check
+  // below and took `governance-dashboard-api.ts` past its 700-line limit.
+  if (route === "pending-decisions/decide" && req.method === "POST") {
+    if (!requireRole(res, session, "user")) {
+      return true;
+    }
+    const groupId = requireGroup(res, session);
+    if (!groupId) {
+      return true;
+    }
+    const body = await readJsonObjectBodyOrError(req, res);
+    if (body === undefined) {
+      return true;
+    }
+    const { id, allow } = body as { id?: unknown; allow?: unknown };
+    if (typeof id !== "string" || !id || typeof allow !== "boolean") {
+      sendInvalidRequest(res, "id and allow are required");
+      return true;
+    }
+    const target = (await listPendingDecisions(groupId)).find((entry) => entry.id === id);
+    if (!target || target.status !== "pending") {
+      sendJson(res, 404, { error: { message: "no such pending decision", type: "not_found" } });
+      return true;
+    }
+    // Authorize against the stored entry's agent, never a client-supplied one.
+    if (!canManageAgent(toActor(session), target.agentId)) {
+      sendJson(res, 403, {
+        error: { message: `You do not manage agent "${target.agentId}"`, type: "forbidden" },
+      });
+      return true;
+    }
+    // **A question about a deleted agent cannot be allowed** (QA of 2026-09-14). The
+    // held-decision stack is keyed by agent id and deleting the agent left its rows, so
+    // "allow" filed a rule proposal for the id: refused for approval while the id stayed
+    // unregistered (366), and approvable once a new agent was registered under the same
+    // name. Refused here when the id is not registered, or was registered after the
+    // question was asked; a denial stays open so the row can be cleared.
+    if (
+      allow &&
+      !(await registrationPredates(
+        target.agentId,
+        groupId,
+        Date.parse(target.timedOutAt) - target.waitedMs,
+      ))
+    ) {
+      sendJson(res, 409, {
+        error: {
+          message:
+            `Agent "${target.agentId}" has been deleted since this was asked, or a different ` +
+            "agent now holds that name, so this can only be denied.",
+          type: "agent_not_registered",
+        },
+      });
+      return true;
+    }
+    const decided = await decidePendingDecision(groupId, {
+      id,
+      allow,
+      decidedBy: session.username,
+      decidedByRole: session.role,
+    });
+    // ------------------------------------------------------------------
+    // **"Would allow" now leads somewhere** (finding 338, 2026-09-08).
+    //
+    // The panel's hint has always read *"allow also tells you to add a rule so
+    // the next attempt succeeds"*, and nothing did: `decidePendingDecision`
+    // marks the row and writes a ledger entry, the row leaves the worklist, and
+    // the operator is left with a judgement that changes nothing. The next
+    // identical attempt times out into this same queue. **The one action that
+    // makes the decision matter was the one the text mentioned and the product
+    // did not offer** — this repository's named category, operator-facing text
+    // contradicting shipped behaviour.
+    //
+    // A **proposal, not a grant**, which is the decision already taken for
+    // `allow-always` at the live escalation and argued at length there:
+    // permitting the action in the moment is one thing, widening the policy
+    // permanently is an administrative act that must be somebody's, signed in
+    // and named. Requirement 5 keeps meaning what it says. So this files the
+    // same rule request, de-duplicated by the same helper, and an Administrator
+    // approves it or does not.
+    //
+    // A saved proposal appears in **Rule requests**, on the same page, in the
+    // refresh this call triggers. One that could not be saved — a full queue,
+    // T60 — comes back in `proposal`, and the panel shows its warning. This
+    // comment used to say no notice channel was needed, which was only true
+    // while the queue had room.
+    //
+    // Best-effort, and deliberately after the decision is recorded. The
+    // judgement is the thing being asked for; a full proposal queue must not
+    // cost the operator their answer.
+    // ------------------------------------------------------------------
+    // `isResourceKind` because a `PendingDecision` records whatever the gate
+    // extracted, which is wider than the three kinds a rule can name. A row that
+    // is not one of them has no rule that could be written for it, so no
+    // proposal is filed — silence here is correct, and the judgement is still
+    // recorded above.
+    const proposal =
+      decided && allow && isResourceKind(decided.resourceKind)
+        ? await proposeRuleFromEscalation(groupId, {
+            agentId: decided.agentId,
+            resourceKind: decided.resourceKind,
+            resource: decided.resource,
+            toolName: decided.toolName,
+          })
+        : undefined;
+    sendJson(res, 200, { ...(decided ?? { ok: true }), ...(proposal ? { proposal } : {}) });
     return true;
   }
 

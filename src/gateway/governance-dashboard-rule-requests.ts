@@ -109,34 +109,51 @@ function isApplicableSettingValue(setting: unknown, value: unknown): boolean {
     : setting === "mode" && (value === "enforce" || value === "monitor");
 }
 
-/** Whether an agent is registered to this organisation now, not when it was named. */
-async function isRegisteredInGroup(agentId: string, groupId: string): Promise<boolean> {
-  return (await findAgent(agentId))?.groupId === groupId;
-}
-
 /**
- * The agents named by pending requests that are no longer registered (finding 366).
+ * The pending requests whose agent is not the one they were filed for (finding 366,
+ * extended by the QA of 2026-09-14).
  *
  * Deleting an agent clears what its id carried (T55) and left its requests pending, so
- * approving one wrote a rule or a posture back onto a released name. Each id is looked
- * up once, however many requests name it.
+ * approving one wrote a rule or a posture back onto a released name. 366 refused that
+ * while the id stayed unregistered; once a new agent was registered under the same id,
+ * the old request became approvable for it. A request is stale when its agent is not
+ * registered to the organisation, or was registered after the request was filed. Each
+ * id's registration is read once, however many requests name it.
  */
-async function unregisteredAgentIds(
+async function staleAgentRequestIds(
   requests: readonly RuleRequestRecord[],
   groupId: string,
 ): Promise<Set<string>> {
-  const named = new Set(
-    requests.flatMap((request) =>
-      request.status === "pending" && request.agentId ? [request.agentId] : [],
-    ),
-  );
-  const gone = new Set<string>();
-  for (const agentId of named) {
-    if (!(await isRegisteredInGroup(agentId, groupId))) {
-      gone.add(agentId);
+  const registrations = new Map<string, Awaited<ReturnType<typeof findAgent>>>();
+  const stale = new Set<string>();
+  for (const request of requests) {
+    if (request.status !== "pending" || !request.agentId) {
+      continue;
+    }
+    if (!registrations.has(request.agentId)) {
+      registrations.set(request.agentId, await findAgent(request.agentId));
+    }
+    if (!isFiledForCurrentAgent(registrations.get(request.agentId), groupId, request.requestedAt)) {
+      stale.add(request.id);
     }
   }
-  return gone;
+  return stale;
+}
+
+/** The same test as `registrationPredates`, against a registration already read. */
+function isFiledForCurrentAgent(
+  agent: Awaited<ReturnType<typeof findAgent>>,
+  groupId: string,
+  requestedAt: string,
+): boolean {
+  if (!agent || agent.groupId !== groupId) {
+    return false;
+  }
+  const registeredAtMs = Date.parse(agent.createdAt);
+  const requestedAtMs = Date.parse(requestedAt);
+  return !Number.isFinite(registeredAtMs) || !Number.isFinite(requestedAtMs)
+    ? true
+    : registeredAtMs <= requestedAtMs;
 }
 
 /**
@@ -206,15 +223,16 @@ export async function handleGovernanceRuleRequestRoutes(
       ? await loadPolicy(groupId)
       : undefined;
     const now = Date.now();
-    // A pending request whose agent is gone says so (finding 366), so the Administrator
-    // learns it before pressing Approve rather than from the refusal.
-    const gone = await unregisteredAgentIds(visible, groupId);
+    // A pending request whose agent is gone, or is a different agent under the same name,
+    // says so (finding 366; the QA of 2026-09-14), so the Administrator learns it before
+    // pressing Approve rather than from the refusal.
+    const stale = await staleAgentRequestIds(visible, groupId);
     sendJson(
       res,
       200,
       visible.map((request) => {
         const previewed = policy ? withApprovalPreview(request, policy.rules, now) : request;
-        if (request.status === "pending" && request.agentId && gone.has(request.agentId)) {
+        if (stale.has(request.id)) {
           // Marked in place: `listRuleRequests` read these from disk for this response
           // alone, so nothing stored or shared is changed.
           Object.assign(previewed, { agentRegistered: false });
@@ -421,13 +439,19 @@ export async function handleGovernanceRuleRequestRoutes(
     // one of those back onto the released name, for whichever agent is registered under
     // it next. Checked against the registry now, and before `decideRuleRequest`, so no
     // "approved" entry is written for a grant that is not made. Rejecting stays open.
-    if (approve && pending.agentId && !(await isRegisteredInGroup(pending.agentId, groupId))) {
+    // **And when a new agent holds the name** (QA of 2026-09-14): 366 checked only that
+    // the id was registered, so re-registering it made the old request approvable.
+    if (
+      approve &&
+      pending.agentId &&
+      !isFiledForCurrentAgent(await findAgent(pending.agentId), groupId, pending.requestedAt)
+    ) {
       sendJson(res, 409, {
         error: {
           message:
-            `Agent "${pending.agentId}" is no longer registered to this organisation, so approving ` +
-            "would write a rule or setting for an agent that does not exist, for whichever agent " +
-            "is registered under that name next. Reject this request instead.",
+            `Agent "${pending.agentId}" has been deleted since this request was made, and the ` +
+            "name is unregistered or now held by a different agent, so approving would write a " +
+            "rule or setting for somebody the request was not about. Reject this request instead.",
           type: "agent_not_registered",
         },
       });
