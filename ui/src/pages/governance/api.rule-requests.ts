@@ -43,6 +43,8 @@ export type GovernanceRuleRequest = {
    * because approving grants exactly this.
    */
   access?: "read" | "write";
+  /** `false` on a pending request whose agent is no longer registered; approval is refused (finding 366). */
+  agentRegistered?: false;
 };
 
 /** What an agent-setting request may ask for: never `off` for a posture (finding 365). */

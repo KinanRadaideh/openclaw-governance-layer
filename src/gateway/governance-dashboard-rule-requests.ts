@@ -20,6 +20,7 @@
 // the patterns being requested for them, and the free-text reasons, which
 // routinely name internal hosts and paths.
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { findAgent } from "../governance/agent-registry.js";
 import { canManageAgent, canViewAgent, type GovernanceActor } from "../governance/permissions.js";
 import {
   addRule,
@@ -108,6 +109,36 @@ function isApplicableSettingValue(setting: unknown, value: unknown): boolean {
     : setting === "mode" && (value === "enforce" || value === "monitor");
 }
 
+/** Whether an agent is registered to this organisation now, not when it was named. */
+async function isRegisteredInGroup(agentId: string, groupId: string): Promise<boolean> {
+  return (await findAgent(agentId))?.groupId === groupId;
+}
+
+/**
+ * The agents named by pending requests that are no longer registered (finding 366).
+ *
+ * Deleting an agent clears what its id carried (T55) and left its requests pending, so
+ * approving one wrote a rule or a posture back onto a released name. Each id is looked
+ * up once, however many requests name it.
+ */
+async function unregisteredAgentIds(
+  requests: readonly RuleRequestRecord[],
+  groupId: string,
+): Promise<Set<string>> {
+  const named = new Set(
+    requests.flatMap((request) =>
+      request.status === "pending" && request.agentId ? [request.agentId] : [],
+    ),
+  );
+  const gone = new Set<string>();
+  for (const agentId of named) {
+    if (!(await isRegisteredInGroup(agentId, groupId))) {
+      gone.add(agentId);
+    }
+  }
+  return gone;
+}
+
 /**
  * The longest reason a request may carry (finding 362).
  *
@@ -175,12 +206,21 @@ export async function handleGovernanceRuleRequestRoutes(
       ? await loadPolicy(groupId)
       : undefined;
     const now = Date.now();
+    // A pending request whose agent is gone says so (finding 366), so the Administrator
+    // learns it before pressing Approve rather than from the refusal.
+    const gone = await unregisteredAgentIds(visible, groupId);
     sendJson(
       res,
       200,
-      visible.map((request) =>
-        policy ? withApprovalPreview(request, policy.rules, now) : request,
-      ),
+      visible.map((request) => {
+        const previewed = policy ? withApprovalPreview(request, policy.rules, now) : request;
+        if (request.status === "pending" && request.agentId && gone.has(request.agentId)) {
+          // Marked in place: `listRuleRequests` read these from disk for this response
+          // alone, so nothing stored or shared is changed.
+          Object.assign(previewed, { agentRegistered: false });
+        }
+        return previewed;
+      }),
     );
     return true;
   }
@@ -373,6 +413,24 @@ export async function handleGovernanceRuleRequestRoutes(
           ? `${PER_AGENT_OFF_REFUSED} Reject this request instead.`
           : "This request asks for a value that cannot be applied. Reject it instead.",
       );
+      return true;
+    }
+    // **Refused before the claim when the agent is gone (finding 366).** Deleting an
+    // agent from the host clears the rules, posture, escalation override, timeout and
+    // lockdown its id carried (T55); approving a request filed for it beforehand wrote
+    // one of those back onto the released name, for whichever agent is registered under
+    // it next. Checked against the registry now, and before `decideRuleRequest`, so no
+    // "approved" entry is written for a grant that is not made. Rejecting stays open.
+    if (approve && pending.agentId && !(await isRegisteredInGroup(pending.agentId, groupId))) {
+      sendJson(res, 409, {
+        error: {
+          message:
+            `Agent "${pending.agentId}" is no longer registered to this organisation, so approving ` +
+            "would write a rule or setting for an agent that does not exist, for whichever agent " +
+            "is registered under that name next. Reject this request instead.",
+          type: "agent_not_registered",
+        },
+      });
       return true;
     }
     // Claim the decision *before* creating the rule. The reverse order let two

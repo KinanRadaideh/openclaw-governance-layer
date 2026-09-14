@@ -762,13 +762,17 @@ export function renderRuleRequestsSection(
             : ""
         }
         · ${t("governance.requests.by")} ${request.requestedBy}, ${request.reason}
-        ${renderRuleRequestPreview(request)}`,
+        ${renderRuleRequestPreview(request)}${request.agentRegistered === false
+          ? html`<div class="governance-request-preview" role="note">
+              ${t("governance.requests.agentGone")}
+            </div>`
+          : nothing}`,
         control: canDecide
           ? html`
               <div class="settings-row__control" style="gap:0.5rem">
                 <button
                   class="btn primary"
-                  ?disabled=${props.busy}
+                  ?disabled=${props.busy || request.agentRegistered === false}
                   @click=${() => props.run(() => props.api().decideRuleRequest(request.id, true))}
                 >
                   ${t("governance.requests.approve")}
