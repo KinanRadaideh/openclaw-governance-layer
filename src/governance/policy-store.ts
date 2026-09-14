@@ -261,6 +261,22 @@ function reassertCoreRules(
   return [...core, ...withoutCore];
 }
 
+/**
+ * The core rules Root has switched off, whole (finding 367).
+ *
+ * `reassertCoreRules` drops them from the rules a load returns, which is right for
+ * evaluation and left the dashboard holding nothing but their ids: no description to
+ * name them by and nothing to switch back on. Built from the declarations, never from
+ * the stored document, and never a self-protecting rule, for the reason that function
+ * gives.
+ */
+export function switchedOffCoreRules(disabledCoreRules: readonly string[]): PolicyRule[] {
+  const disabled = new Set(disabledCoreRules);
+  return coreRules()
+    .map((rule) => materialiseSeedRule(rule))
+    .filter((rule) => disabled.has(rule.id) && !rule.selfProtecting);
+}
+
 function materialiseSeedRule(rule: SeedRule): PolicyRule {
   return {
     ...rule,

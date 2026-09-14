@@ -104,6 +104,8 @@ export type GovernancePolicyDocument = {
   lockedAgents: string[];
   /** Core rule ids Root has switched off. Self-protecting rules never appear. */
   disabledCoreRules?: string[];
+  /** Those rules whole, so the page can name them and switch them back on (finding 367). */
+  switchedOffCoreRules?: GovernancePolicyRule[];
 };
 
 export type GovernanceRuleConflict = {

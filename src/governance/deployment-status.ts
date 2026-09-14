@@ -571,7 +571,7 @@ export async function readDeploymentStatus(
           // on, and Chapter 4 quotes this output as evidence.
           "fail",
           `${disabledCore.length} core rule(s) switched off by Root: ${disabledCore.join(", ")}.`,
-          "Re-enable with `governance policy core-rule <id> true`, or record the deviation deliberately. This report is evidence, and it should say what is actually in force.",
+          "Switch it back on in the Policy section of the governance dashboard, or record the deviation deliberately. This report is evidence, and it should say what is actually in force.",
         ),
   );
 

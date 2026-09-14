@@ -163,5 +163,26 @@ export function renderRootPolicySettings(
         }),
       });
     }),
+    // **A switched-off core rule stays on the page (finding 367).** The rule list drops
+    // it, because the engine no longer enforces it, and nothing else named it: Root
+    // could switch a shipped denial off from here and had no way back but hand-written
+    // HTTP, while the deployment report said to switch it back on here. Every tier sees
+    // that a protection is off; only Root is offered the control, which the route
+    // enforces regardless.
+    ...(policy.switchedOffCoreRules ?? []).map((rule) =>
+      renderSettingsRow({
+        title: rule.description ?? rule.pattern,
+        description: t("governance.policy.coreRuleOffHint"),
+        control: isRoot
+          ? html`<button
+              class="btn"
+              ?disabled=${props.busy}
+              @click=${() => props.run(() => props.api().setCoreRule(rule.id, true))}
+            >
+              ${t("governance.policy.coreRuleEnable")}
+            </button>`
+          : renderSettingsStatus({ kind: "warn", label: t("governance.policy.coreRuleOff") }),
+      }),
+    ),
   ];
 }

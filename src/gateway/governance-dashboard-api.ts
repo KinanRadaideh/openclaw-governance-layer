@@ -42,6 +42,7 @@ import {
   NotACoreRuleError,
   SelfProtectingCoreRuleError,
   setCoreRuleEnabled,
+  switchedOffCoreRules,
 } from "../governance/policy-store.js";
 import type { ResourceKind } from "../governance/policy-types.js";
 import { roleAtLeast, type GovernanceRole } from "../governance/roles.js";
@@ -199,6 +200,11 @@ export async function handleGovernanceApiRequest(
       // administration and therefore Root's. A Viewer was previously handed the
       // installation's user list as a side effect of reading the policy.
       userAsk: canManageAccounts(actor) ? policy.userAsk : {},
+      // **The switched-off core rules, whole (finding 367).** Their ids were already here
+      // for every tier; without the rules behind them the page could neither name one nor
+      // offer to switch it back on, while the deployment report told Root to do exactly
+      // that on this page. The declarations are shipped source, so nothing is disclosed.
+      switchedOffCoreRules: switchedOffCoreRules(policy.disabledCoreRules ?? []),
     });
     return true;
   }
