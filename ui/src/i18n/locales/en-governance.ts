@@ -236,6 +236,8 @@ export const enGovernance: TranslationMap = {
       conflictTitle: "Rule added, but an earlier rule already covers it",
       overriddenTitle: "Rule added, but a deny rule overrides it. It will never take effect",
       warningTitle: "This rule is broader than it looks",
+      extendsTitle: "Rule added. It extends an earlier temporary rule",
+      requestPreviewTitle: "If this is approved",
       denyBadge: "DENY",
       effectLabel: "Allow or forbid",
       effectAllow: "allow",

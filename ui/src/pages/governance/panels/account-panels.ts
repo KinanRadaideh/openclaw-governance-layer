@@ -54,6 +54,7 @@ import type {
   GovernanceRuleRequest,
   GovernanceUserRecord,
 } from "../api.ts";
+import { renderRuleRequestPreview } from "./rule-request-preview.ts";
 
 /**
  * Roles an account can actually be given.
@@ -755,7 +756,8 @@ export function renderRuleRequestsSection(
         ${request.kind === "agent-setting"
           ? t("governance.requests.settingKind")
           : request.resourceKind}
-        · ${t("governance.requests.by")} ${request.requestedBy}, ${request.reason}`,
+        · ${t("governance.requests.by")} ${request.requestedBy}, ${request.reason}
+        ${renderRuleRequestPreview(request)}`,
         control: canDecide
           ? html`
               <div class="settings-row__control" style="gap:0.5rem">

@@ -69,15 +69,15 @@ describe("redundancy", () => {
     expect(conflicts[0]?.kind).toBe("duplicate");
   });
 
-  it("does NOT flag a rule that genuinely extends access", () => {
+  it("does not call a rule that genuinely extends access redundant", () => {
     // Existing grant ends in an hour; the new one runs for ten. That is a real
-    // extension, not a redundancy. Flagging it would be noise.
+    // extension, not a redundancy, and it is reported as the extension it is.
     const conflicts = detectRuleConflicts(
       [existing({ expiresAt: new Date(NOW + HOUR).toISOString() })],
       candidate({ expiresAt: new Date(NOW + 10 * HOUR).toISOString() }),
       NOW,
     );
-    expect(conflicts).toEqual([]);
+    expect(conflicts.map((conflict) => conflict.kind)).toEqual(["extends-time-limited"]);
   });
 
   it("flags anything added under an existing catch-all", () => {
@@ -92,12 +92,18 @@ describe("redundancy", () => {
 
 describe("scope interactions", () => {
   it("flags an agent-scoped rule shadowed by an identical global rule", () => {
+    // The global rule lasts ten hours and the new one twenty, so two things are true
+    // and both are said: for that agent the new rule outlives the global one (Kimi QA 1,
+    // bug 8), and while the global one lasts, scoping narrows nothing.
     const conflicts = detectRuleConflicts(
       [existing({ expiresAt: new Date(NOW + 10 * HOUR).toISOString() })],
       candidate({ agentId: "agent-a", expiresAt: new Date(NOW + 20 * HOUR).toISOString() }),
       NOW,
     );
-    expect(conflicts[0]?.kind).toBe("narrower-than-global");
+    expect(conflicts.map((conflict) => conflict.kind)).toEqual([
+      "extends-time-limited",
+      "narrower-than-global",
+    ]);
   });
 
   it("does not flag a rule for a different agent", () => {
@@ -187,5 +193,57 @@ describe("QA pass: clash warnings must not overstate coverage", () => {
       });
       expect(conflicts.at(0)?.kind, `pattern ${pattern}`).toBe("covered-by-catch-all");
     }
+  });
+});
+
+describe("an extension of a temporary rule is reported (Kimi QA 1, bug 8)", () => {
+  it("says a permanent rule beside an identical temporary one makes it permanent", () => {
+    const conflicts = detectRuleConflicts(
+      [existing({ id: "temporary", expiresAt: new Date(NOW + HOUR).toISOString() })],
+      candidate(),
+      NOW,
+    );
+    expect(conflicts).toEqual([
+      expect.objectContaining({ kind: "extends-time-limited", existingRuleId: "temporary" }),
+    ]);
+    expect(conflicts[0]?.message).toMatch(/now permanent/);
+  });
+
+  it("says a longer temporary rule carries the grant past the earlier end", () => {
+    const conflicts = detectRuleConflicts(
+      [existing({ expiresAt: new Date(NOW + HOUR).toISOString() })],
+      candidate({ expiresAt: new Date(NOW + 10 * HOUR).toISOString() }),
+      NOW,
+    );
+    expect(conflicts[0]?.message).toMatch(/continues past/);
+  });
+
+  it("describes an extended denial as a restriction, not a grant", () => {
+    const conflicts = detectRuleConflicts(
+      [existing({ effect: "deny", expiresAt: new Date(NOW + HOUR).toISOString() })],
+      candidate({ effect: "deny" }),
+      NOW,
+    );
+    expect(conflicts[0]?.kind).toBe("extends-time-limited");
+    expect(conflicts[0]?.message).toMatch(/forbids/);
+    expect(conflicts[0]?.message).toMatch(/restriction is now permanent/);
+  });
+
+  it("does not report an extension of a rule for a different agent", () => {
+    const conflicts = detectRuleConflicts(
+      [existing({ agentId: "agent-a", expiresAt: new Date(NOW + HOUR).toISOString() })],
+      candidate({ agentId: "agent-b" }),
+      NOW,
+    );
+    expect(conflicts).toEqual([]);
+  });
+
+  it("does not report a rule whose temporary twin has already lapsed", () => {
+    const conflicts = detectRuleConflicts(
+      [existing({ expiresAt: new Date(NOW - HOUR).toISOString() })],
+      candidate(),
+      NOW,
+    );
+    expect(conflicts).toEqual([]);
   });
 });

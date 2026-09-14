@@ -44,6 +44,17 @@ export type RuleConflictKind =
   /** The new rule is agent-scoped but an identical global rule already applies. */
   | "narrower-than-global"
   /**
+   * An identical rule is time-limited, and the new one outlives it.
+   *
+   * Not a redundancy: the new rule genuinely changes something, and for a long time
+   * that was the reason it was not reported. It is reported now because of *what* it
+   * changes (the independent review, Kimi QA 1 bug 8; Kinan's decision, 2026-09-13).
+   * Somebody made a grant or a restriction temporary, the operator adding the second
+   * rule may not know the first exists, and without a notice the temporary rule
+   * silently stops being temporary.
+   */
+  | "extends-time-limited"
+  /**
    * A deny rule already refuses what this rule would permit, and denials are
    * evaluated first: so the new rule can never take effect.
    *
@@ -362,6 +373,24 @@ export function detectRuleConflicts(
           `which already covers the new expiry. The new rule is redundant.`,
       });
       continue;
+    }
+
+    // The existing rule is temporary and the new one outlives it: an extension. A
+    // real change, reported as one, so a temporary grant cannot quietly become a
+    // permanent one. Not `continue`d: the scope comparison below still applies.
+    if (Number.isFinite(existingExpiry)) {
+      conflicts.push({
+        kind: "extends-time-limited",
+        existingRuleId: existing.id,
+        existingPattern: existing.pattern,
+        message: candidate.expiresAt
+          ? `An identical rule already ${verb} this ${describeWindow(existing)}. The new ` +
+            `rule lasts until ${candidate.expiresAt}, so the ${noun} now continues past ` +
+            `that. Remove the new rule if the earlier end was intended.`
+          : `An identical rule already ${verb} this ${describeWindow(existing)}. The new ` +
+            `rule has no time limit, so that temporary ${noun} is now permanent. Remove ` +
+            `the new rule if it should stay temporary.`,
+      });
     }
 
     // Identical pattern, global, and the candidate is agent-scoped: the

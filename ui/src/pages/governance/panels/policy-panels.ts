@@ -243,9 +243,13 @@ export function renderConflictNotice(props: PolicyPanelProps): TemplateResult | 
           // The two kinds mean opposite things: an allowance clash says the
           // new rule adds nothing, a denial clash says it does nothing at
           // all. One heading over both would understate the second.
+          // An extension is a third meaning: the new rule does something, and what it
+          // does is outlive a temporary one. Named on its own when it is all there is.
           conflicts.some((conflict) => conflict.kind === "overridden-by-deny")
             ? t("governance.policy.overriddenTitle")
-            : t("governance.policy.conflictTitle")
+            : conflicts.every((conflict) => conflict.kind === "extends-time-limited")
+              ? t("governance.policy.extendsTitle")
+              : t("governance.policy.conflictTitle")
         }</strong
       >
       <ul style="margin:0.5rem 0 0.5rem 1rem">

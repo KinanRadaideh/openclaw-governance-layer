@@ -430,6 +430,14 @@ export async function pruneExpiredPolicyRules(groupId: string): Promise<number> 
  * `resource` field, which was already covered by the hash, not the field list
  * the chain is computed over.
  */
+/** Names the temporary rules a new rule outlives (Kimi QA 1, bug 8), or nothing. */
+function describeExtensions(conflicts: readonly RuleConflict[]): string {
+  const extended = conflicts
+    .filter((conflict) => conflict.kind === "extends-time-limited")
+    .map((conflict) => conflict.existingRuleId);
+  return extended.length > 0 ? `; extends temporary rule ${extended.join(", ")}` : "";
+}
+
 function describeRule(rule: PolicyRule): string {
   const scope = rule.agentId ? `agent ${rule.agentId}` : "all agents";
   const expiry = rule.expiresAt ? `expires ${rule.expiresAt}` : "indefinite";
@@ -563,7 +571,9 @@ export async function addRuleChecked(
   await recordAdminAction(groupId, {
     actor,
     action: ADMIN_ACTIONS.ruleAdd,
-    target: describeRule(full),
+    // An extension is named in the trail as well as on the page: the account that
+    // saw the notice is not necessarily the one who later reviews the ledger.
+    target: describeRule(full) + describeExtensions(detected),
     subjectId: full.id,
     ...(full.agentId ? { agentId: full.agentId } : {}),
   });

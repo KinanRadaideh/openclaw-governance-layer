@@ -113,7 +113,9 @@ export type GovernanceRuleConflict = {
     | "covered-by-catch-all"
     | "narrower-than-global"
     /** A deny rule refuses this already, and denials are evaluated first. */
-    | "overridden-by-deny";
+    | "overridden-by-deny"
+    /** An identical temporary rule exists, and this one outlives it (Kimi QA 1, bug 8). */
+    | "extends-time-limited";
   existingRuleId: string;
   existingPattern: string;
   message: string;
@@ -244,6 +246,12 @@ export type GovernanceRuleRequest = {
   decidedBy?: string;
   decidedAt?: string;
   createdRuleId?: string;
+  /**
+   * For a pending rule request, what approving it would report: the warnings and the
+   * clashes the create path returns, computed by the server against the current policy.
+   */
+  warnings?: GovernanceRuleWarning[];
+  conflicts?: GovernanceRuleConflict[];
   /**
    * Agent the request is for; absent means installation-wide.
    *
