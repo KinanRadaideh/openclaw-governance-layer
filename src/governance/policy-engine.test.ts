@@ -46,8 +46,8 @@ beforeEach(async () => {
     "seeded",
     "manual",
   ]);
-  // The shipped default posture is `monitor` so a fresh install is not bricked;
-  // the policy engine is about enforcement, so it says so explicitly.
+  // The shipped default is `enforce` with baseline rules; saved explicitly so
+  // these tests do not depend on that default staying what it is.
   await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce" });
 });
 

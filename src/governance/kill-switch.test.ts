@@ -45,8 +45,8 @@ beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "governance-kill-"));
   process.env.OPENCLAW_GOVERNANCE_DIR = dir;
   TEST_GROUP = await seedGroupWithAgents(["agent-a", "agent-b"]);
-  // The shipped default posture is `monitor` so a fresh install is not bricked;
-  // the kill switch is about enforcement, so it says so explicitly.
+  // The shipped default is `enforce` with baseline rules; saved explicitly so
+  // these tests do not depend on that default staying what it is.
   await savePolicy(TEST_GROUP, { ...defaultPolicyDocument(), mode: "enforce" });
   clearAgentTerminator();
 });

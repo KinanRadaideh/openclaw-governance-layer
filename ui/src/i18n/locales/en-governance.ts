@@ -363,6 +363,8 @@ export const enGovernance: TranslationMap = {
         "Set a new password for your own Root account? You will be signed out immediately and must sign in again with the new password. Root has no other password recovery. Make sure you have the new one recorded.",
       deleteUser: "Delete this account? This cannot be undone, and there is no password reset.",
       stopAgent: "Stop this agent? Work already running will be interrupted.",
+      killSwitch:
+        "Lock down this agent? Work already running is stopped, and every further action is refused until it is released.",
       changeRole: "Change this account's role?",
       changeRoleAction: "Change role",
     },

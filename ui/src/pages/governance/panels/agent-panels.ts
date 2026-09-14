@@ -524,16 +524,26 @@ export function renderKillSwitchSection(props: KillSwitchProps): TemplateResult 
             // has never seen may still be a real, idle agent.
             unregistered(props, typed)}
             @click=${() =>
-              props.run(async () => {
-                await props.engageKillSwitch(typed);
-                // Through `onDraft`: the field four lines above is bound that
-                // way and this clear was not, so it wrote into a per-render
-                // snapshot and the id stayed in the box after a stop had been
-                // engaged. Harmless to the stop itself, which had already
-                // happened, and misleading on the one control where "did that
-                // work?" is the question being asked.
-                props.onDraft({ killAgentId: "" });
-              })}
+              // Asked first, like Stop in Active agent sessions, which locks the same
+              // agent the same way (Kimi QA 1, bug 12). Lockdown is the most
+              // consequential control on the page, and a mistyped id locks the wrong agent.
+              props.confirmThen(
+                {
+                  message: t("governance.confirm.killSwitch"),
+                  details: typed,
+                  confirmLabel: t("governance.kill.button"),
+                },
+                async () => {
+                  await props.engageKillSwitch(typed);
+                  // Through `onDraft`: the field four lines above is bound that
+                  // way and this clear was not, so it wrote into a per-render
+                  // snapshot and the id stayed in the box after a stop had been
+                  // engaged. Harmless to the stop itself, which had already
+                  // happened, and misleading on the one control where "did that
+                  // work?" is the question being asked.
+                  props.onDraft({ killAgentId: "" });
+                },
+              )}
           >
             ${t("governance.kill.button")}
           </button>
