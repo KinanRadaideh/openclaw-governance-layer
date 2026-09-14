@@ -60,10 +60,10 @@ import {
 } from "../rule-filter.ts";
 import type { PanelEffects } from "./account-panels.ts";
 import { renderRuleTargets } from "./agent-policy-lookup.ts";
-import { renderAgentSettingRequestPointer } from "./agent-setting-request.ts";
 import { type CodexBackendState, renderCodexBackendPanel } from "./codex-backend-panel.ts";
 import { renderFolderGrantPanel, type RuleNotices } from "./folder-grant-panel.ts";
 import { formatDuration } from "./format.ts";
+import { renderAgentAskRow, renderObserveAgentRow } from "./policy-agent-overrides.ts";
 import { renderAgentTimeoutRow } from "./policy-agent-timeout.ts";
 import { renderPolicyReadingNotes } from "./policy-reading-notes.ts";
 import { renderRootPolicySettings } from "./policy-root-settings.ts";
@@ -162,6 +162,8 @@ export type PolicyDrafts = {
     written: { pattern: string; effect: string }[] | null;
   };
   postureAgentId: string;
+  /** Which agent the per-agent escalation control is aimed at (A12). */
+  askAgentId: string;
   /** Which agent the per-agent escalation timeout control is aimed at. */
   agentTimeoutAgentId: string;
   /** The seconds typed into it, kept as text so a half-typed number survives. */
@@ -592,42 +594,9 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
         `,
       }),
     ),
-    canEditPostures
-      ? renderSettingsRow({
-          title: t("governance.policy.observeAgent"),
-          description: t("governance.policy.observeAgentHint"),
-          stacked: true,
-          control: html`
-            <div class="settings-row__control" style="gap:0.5rem">
-              <input
-                class="input"
-                type="text"
-                aria-label=${t("governance.policy.observeAgent")}
-                placeholder=${t("governance.kill.agentIdPlaceholder")}
-                .value=${props.drafts.postureAgentId}
-                @input=${(e: Event) => {
-                  props.onDraft({ postureAgentId: (e.target as HTMLInputElement).value });
-                }}
-              />
-              ${(["monitor", "enforce"] as const).map(
-                (mode) => html`<button
-                  class="btn"
-                  ?disabled=${props.busy || !props.drafts.postureAgentId.trim()}
-                  @click=${() =>
-                    props.run(async () => {
-                      await props.api().setAgentMode(props.drafts.postureAgentId.trim(), mode);
-                      props.onDraft({ postureAgentId: "" });
-                    })}
-                >
-                  ${mode === "monitor"
-                    ? t("governance.policy.modeMonitor")
-                    : t("governance.policy.modeEnforce")}
-                </button>`,
-              )}
-            </div>
-          `,
-        })
-      : renderAgentSettingRequestPointer(props.identity),
+    // Setting one agent's posture or escalation directly, in their own module (A12).
+    renderObserveAgentRow(props, canEditPostures),
+    renderAgentAskRow(props, canEditPostures),
     renderAgentTimeoutRow(props),
     // The three explanatory rows, in their own module: see its header for why
     // the split happened here rather than a suppression comment landing here.

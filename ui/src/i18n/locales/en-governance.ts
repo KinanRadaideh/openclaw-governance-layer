@@ -235,6 +235,10 @@ export const enGovernance: TranslationMap = {
       observeAgent: "Observe one agent",
       observeAgentHint:
         "Monitor records what the policy would have decided without acting on it, for one agent, so rules can be discovered from real behaviour. Core denials and the kill switch still apply.",
+      escalateAgent: "Escalation for one agent",
+      escalateAgentHint:
+        "What happens when this agent tries something no rule covers, overriding the setting above for this agent alone: Ask a human waits for a person to decide, Deny refuses it. Use default on the agent's row clears it.",
+      escalateAgentPick: "Agent to set escalation for",
       agentSettingRequestTitle: "Change one agent's posture or escalation",
       agentSettingRequestHint:
         "An Administrator sets these. To change one for an agent assigned to you, use “Request a change for one agent” under Rule requests.",
@@ -706,7 +710,7 @@ export const enGovernance: TranslationMap = {
       settingRequestHintAsk:
         "Only an Administrator sets an agent's posture, or what happens when it tries something no rule covers. Ask for a change to one of your agents here; approving it applies the change. Governance cannot be switched off for one agent.",
       settingRequestHintRecord:
-        "Records the change as a request, decided in this queue; approving it applies the change. A posture can also be set directly under Policy. Governance cannot be switched off for one agent.",
+        "Records the change as a request, decided in this queue; approving it applies the change. A posture or an escalation can also be set directly under Policy. Governance cannot be switched off for one agent.",
       settingAgentLabel: "Agent to change",
       settingLabel: "Setting to change",
       settingOptionMode: "Posture (enforce or monitor)",

@@ -293,6 +293,8 @@ class GovernancePage extends OpenClawLightDomElement {
   @state() private userAskUsername = "";
   /** Agent the per-agent posture control is about to act on. */
   @state() private postureAgentId = "";
+  /** Agent the per-agent escalation control is about to act on (A12). */
+  @state() private askAgentId = "";
   @state() private agentTimeoutAgentId = "";
   @state() private agentTimeoutSeconds = "";
   /** Agent currently open in the conversation panel, and its state. */
@@ -510,6 +512,7 @@ class GovernancePage extends OpenClawLightDomElement {
         newRuleAgentId: this.newRuleAgentId,
         folderGrant: this.folderGrant,
         postureAgentId: this.postureAgentId,
+        askAgentId: this.askAgentId,
         agentTimeoutAgentId: this.agentTimeoutAgentId,
         agentTimeoutSeconds: this.agentTimeoutSeconds,
         agentPolicyAgentId: this.agentPolicyAgentId,
@@ -865,6 +868,7 @@ class GovernancePage extends OpenClawLightDomElement {
     this.hitlTimeoutDraft = "";
     this.userAskUsername = "";
     this.postureAgentId = "";
+    this.askAgentId = "";
     this.agentTimeoutAgentId = "";
     this.agentTimeoutSeconds = "";
     this.requestDrafts.reset();

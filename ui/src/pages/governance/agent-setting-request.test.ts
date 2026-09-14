@@ -175,7 +175,9 @@ describe("requesting a change for one agent", () => {
   it("tells an Administrator the form records a request, and offers every agent", () => {
     const queue = mountQueue(identity("administrator"), { knownAgentIds: ["mine", "theirs"] });
 
-    expect(readable(queue.container)).toContain("A posture can also be set directly under Policy");
+    expect(readable(queue.container)).toContain(
+      "A posture or an escalation can also be set directly under Policy",
+    );
     expect(optionTexts(queue.container, "Agent to change")).toEqual([
       "Choose an agent…",
       "mine",
