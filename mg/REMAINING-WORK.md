@@ -26,8 +26,8 @@ T18 (the report), T46 (the setup wizard's wording), T47 (the by-hand plan), T48 
 same eleven as `mg/HANDOFF.md` §6. **T50 was a twelfth until this re-derivation**: it
 was decided on 2026-09-09 (sweep register C5) and its row here had not been struck.
 
-**Also open, and Claude's alone: A12**, added 2026-09-14 to the sweep register's A table:
-an Administrator cannot set one agent's escalation from the dashboard. The full task is
+**A12, Claude's alone, is built** (2026-09-14, later): an Administrator sets one agent's
+escalation from the Policy section. The task as Kinan wrote it, and what was built, are
 §"A12" below.
 
 **Numbered elsewhere:** T67 is finding 169, unexplained and never reproduced, kept in
@@ -44,7 +44,7 @@ count the main table only.
 **A second backlog, §"The M-series" (M1–M6)**, holds the multi-tenancy feature,
 complete since 2026-08-27. §"What is actually left" is kept unedited as of 2026-08-19.
 
-### A12: let an Administrator set one agent's escalation (open, added 2026-09-14)
+### A12: let an Administrator set one agent's escalation (added and built 2026-09-14)
 
 **Claude's alone; recorded in the sweep register's A table as A12.** The task, as Kinan
 wrote it:
@@ -91,6 +91,42 @@ Policy section already renders `renderAgentTimeoutRow(props)` right after the po
 rows, which is where a sibling row belongs; and T47 row 2.5's "known gap" note and
 `docs-notes/WRITING-GUIDE.md` §4's claims table both name this gap and should change
 with it.
+
+**Built 2026-09-14, later.** The Policy section has **Escalation for one agent**: a picker
+of the agents the account manages (`manageableAgentIds`, as the A11 form uses) and **Ask a
+human** / **Deny**, calling `setAgentAsk(agentId, "on-miss" | "off")`; the override row
+that then appears keeps **Use default**. It lives in
+`ui/src/pages/governance/panels/policy-agent-overrides.ts` with **Observe one agent**,
+moved there whole, and both rows take the section's `canEditPostures`, so the two
+per-agent controls have one gate (finding 369 is the reason). A User keeps the pointer to
+the request form. The page carries the choice as `askAgentId` and clears it on sign-out,
+and Rule requests' Administrator hint now says a posture **or an escalation** can be set
+directly.
+
+- **Decisions.** A picker, not a typed id (finding 327's shape, and the A11 form's
+  precedent); a draft naming an agent no longer offered counts as no choice; no
+  confirmation, since **Observe one agent**, the wider change, asks none.
+- **Noticed, not changed.** `canEditPostures` includes `!props.busy`, so both per-agent
+  rows disappear while any action is in flight. It was already so for **Observe one
+  agent**, and the rows keep one gate rather than two.
+- **Tests.** `ui/src/pages/governance/agent-ask-setter.test.ts`, 7: five through the
+  rendered row with a stub client, two through the mounted page. The hint expectation in
+  `agent-setting-request.test.ts` changed with the text. **7 mutations, 7 caught**, each
+  file restored and hash-checked: the gate ignored, the values swapped, the buttons live
+  with no agent, a stale draft acted on, the page dropping the draft, the section not
+  drawing the row, and the row drawn for a User.
+- **Docs.** `GOVERNANCE.md`'s per-agent paragraph under the role table,
+  `docs-notes/WRITING-PERMISSIONS.md` §4d, T47 rows 2.5.5–2.5.6 (replacing the gap note),
+  `docs-notes/WRITING-GUIDE.md` §3 and §4, design §3.5.88, plain language §5.115, and the
+  sweep register's A12 row.
+- **Verified on the final tree:** governance suite 3,123 passed, 21 skipped, 0 failed, in
+  187 files (the seven over the QA tree's 3,116 are A12's); whole `ui/src` suite 8,211
+  passed with A10's five jsdom failures, each confirmed by its error; ui-isolated 403
+  passed, 1 skipped; browser project 199 passed in 22 files; host suites 263; the four
+  typechecks 0; plain `oxlint` and `oxfmt --check` over the changed files 0; **the full
+  lint gate 0**, with the raised cap, in about twenty minutes.
+- **Not established:** a live run on a real screen (T47 rows 2.5.5 and 2.5.6 are the
+  by-hand check), and `build-all`.
 
 ### The independent review, checked item by item (2026-09-13)
 
@@ -140,7 +176,7 @@ day** (§"A11" below), and building it found **finding 365**: approving a reques
 | Ledger has no external anchor                          | Fixed: keyed entries and a checkpoint, verified from outside by `scripts/verify-ledger.mjs`                                                                                                                                                                                                                                                                   | _Audit ledger_ Verify                                                                       |
 | Node 18 or higher                                      | Complies: the project requires 22 or later, which is higher; one sentence for the report                                                                                                                                                                                                                                                                      | Not a dashboard matter                                                                      |
 
-### A11: a User's agent-setting request, from the dashboard (2026-09-13, built, uncommitted)
+### A11: a User's agent-setting request, from the dashboard (2026-09-13, built)
 
 **Done.** A User files a per-agent posture or escalation request from _Rule requests_; a
 path request can ask for one direction; finding 365 is fixed. Verified: 9 route tests and
@@ -181,7 +217,7 @@ and `build-all` were not run. Full record: `mg/REMAINING-WORK-DASHBOARD-SWEEP.md
 - **Docs so far:** `docs-notes/WRITING-PERMISSIONS.md` §4d and `docs-notes/PERMISSION-SPEC.md`
   §8 and §9a.
 
-### Documents 7–9 and the QA over the last week (2026-09-14, done, uncommitted)
+### Documents 7–9 and the QA over the last week (2026-09-14, done)
 
 **Kinan asked for the next three documents in the update order, then a QA over
 everything worked on in the last week**, recording anything new here as it comes up.
@@ -277,6 +313,100 @@ and a Viewer's ledger stays sanitised (`projectLedgerForActor`).
 rows 6c.10–6c.13 and 6d are the by-hand checks). **Still open from this pass: nothing.**
 The gap noticed while building A11, that no dashboard control sets a per-agent escalation
 value, is recorded as **A12** (§"A12" above, and the sweep register's A table).
+
+### The QA over three days (2026-09-14, later)
+
+**Kinan asked, after the uncommitted work was committed and documents 10–12 rewritten,
+for a QA over all work of the last three days**: the fifteen commits from `778b769bef2`
+(T60 and T63) to `8f9408c0df0`, and documents 10–12. It began, as §4 advises, with the
+verification set rather than the reading: **the governance suite re-run on the committed
+tree, 3,099 passed, 21 skipped, 0 failed across 179 files**, identical to the uncommitted
+tree's figure. Two axes then carried it: **the documents' claims read against the code**
+(rewriting `GOVERNANCE.md` produced two candidates), and **composition of finding 366
+with every other store keyed by an agent id**.
+
+**Finding 369, proved by a rendered test before the fix: a User is offered a control that
+can only be refused.** `active-sessions-panel.ts` drew **Observe** on a live session for
+any account holding `canStop`, which a User holds for their own agents
+(`canManageAnyAgent`), while `policy/agent-mode` has been Administrator-level since T4.
+The test rendered the section as a User and read `['Observe', 'Stop agent']`. Fixed by
+gating on `canAdminister`, as the Policy section's twin already was; the stale row comment
+("a User sees this") corrected. Test: `ui/src/pages/governance/session-posture-toggle.test.ts`.
+
+**Finding 370, proved by three tests through the real `deprovisionAgent` and the real
+routes: a question about a deleted agent could be answered yes for a new agent under the
+same name.**
+
+- **Rule requests.** 366's approval refusal checked only that the id was registered, so
+  once a new agent was registered under it the old request was approvable (`200`).
+- **Dashboard escalations (T68).** `approvals/decide` checked the agent's group, so an
+  escalation raised for the deleted agent became answerable again once the name was
+  reused, and "Allow once" answered `200`. `deprovisionAgent` does not end the agent's
+  prompt runs, so the run and its card survive until the prompt times out.
+- **Held decisions.** Deletion left the row pending, the list filters only by
+  `canViewAgent`, and `pending-decisions/decide` checked neither registration nor time:
+  "allow" answered `200` and filed a rule proposal, `^/srv/payroll/salaries\.csv$`, for
+  the new agent, unmarked in the queue.
+
+Fixed with one predicate, `registrationPredates` in `agent-registry.ts`: the registration
+under the id must be older than the question (a request's `requestedAt`, an escalation's
+`createdAtMs`, a held decision's `timedOutAt` less `waitedMs`). Registration time is
+written only by `registerAgent`, so renames and re-owning do not disturb it; an unreadable
+time answers "predates". A stale request is marked `agentRegistered: false` and refused
+at approval with 409; a stale escalation is not listed and answers 404, as one whose agent
+is gone; a stale held decision refuses "allow" with 409 and still takes "deny". The
+held-decision answer route moved beside its read in `governance-dashboard-oversight.ts`,
+because the check took `governance-dashboard-api.ts` past its 700-line limit. Tests:
+`src/gateway/governance-approval-reregistered-agent.test.ts` and
+`src/gateway/governance-reregistered-agent-questions.test.ts`, each with a control that
+the check does not refuse a question asked about the agent registered now.
+
+**Finding 371 (open, low): accounts from before organisations cannot be removed.**
+`authenticate` refuses an account with no group, and its comment named `governance groups
+migrate`, removed on 2026-09-07; `deleteUnmigratedAccounts` has no caller, while
+`GOVERNANCE.md` §3 and `CHAPTER3-MATERIAL.md` said the Accounts panel removes them. The
+documents and the comment are corrected. No installation in use can hold such an account.
+Left open as decision **C14** in the sweep register.
+
+**A candidate recorded as a decision, not a finding: what "delete from host" leaves
+behind.** `deprovisionAgent` calls only `deleteAgentConfigEntry`; OpenClaw's own
+`agents.delete` also keeps a deletion journal and removes the agent's scheduled jobs, host
+exec-approval policy and session store entries, and by default its files. Whether a new
+agent provisioned under the same id inherits any of that is not proven, because the
+provisioning tests mock both host functions. Recorded as **C13**, recommending that the
+inheritance be proved before anything is deleted. The governance conversation store is not
+cleared on deletion either; it returns to its own author if the name is reused, and is
+recorded rather than changed.
+
+**Claims corrected on the way:** `docs-notes/WRITING-PERMISSIONS.md` §4 said `monitor`
+blocks nothing (every denial, the kill switch and registration still refuse); the stale
+comments in
+`policy-engine.ts` (a User switching their own agent into monitor) and in
+`scripts/governance-demo-rehearsal.mjs` (a test count) corrected. **Rewriting documents
+13–15 corrected more:** `mg/PROJECT-SUMMARY.md` §6 still said the fork "has never been
+deployed to a VPS" and was "not yet demonstrated", eleven and eight days after each
+stopped being true, and three headings in this file still called committed work
+uncommitted.
+
+**Verified on the tree with 369 and 370 fixed, before A12:**
+
+- **Mutation sweep, 8 of 8 caught**, each file restored and hash-checked: the live-session
+  toggle gated on `canStop` again; the escalation answer route checking registration only;
+  the held-decision refusal removed; the rule-request answer route checking registration
+  only; the time comparison ignored, once in the rule-request check and once in
+  `registrationPredates`; and two over-broad controls, each check made to refuse
+  everything, caught by the tests asserting that the current agent's questions stay
+  answerable.
+- **Governance suite** 3,116 passed, 21 skipped, 0 failed, in 186 files with 2 skipped. The
+  seventeen over 3,099 are the new tests, with the two gateway files counted under each of
+  their three Vitest projects.
+- **Whole `ui/src` suite** 8,204 passed, 5 failed, 137 skipped. The five are A10's, each
+  confirmed by its error (`object.stream is not a function`) rather than by the count.
+- **A bound, measured rather than filed:** `GET rule-requests` as Root, seeded at both
+  caps (1,000 rules, 500 pending requests, 50 agents), answered 200 with all 500 requests
+  in 34–43 ms over five reads. The probe was a scratch file and is not in the repository.
+
+**Verified on the final tree, A12 included:** §"A12" above.
 
 ### How items are marked
 

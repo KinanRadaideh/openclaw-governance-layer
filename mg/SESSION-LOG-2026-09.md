@@ -5419,4 +5419,38 @@ It became **A12**, Claude's alone, beside A10 and A11 in the sweep register. The
 block and state table of `mg/HANDOFF.md`, `mg/PROJECT-SUMMARY.md`,
 `docs-notes/WRITING-GUIDE.md` and both backlog files now quote the day's own runs: 368
 found, 367 fixed, one open; the governance suite 3,099 passed and 0 failed; four
-typechecks and the full lint gate clean. Everything since `11d83e5808b` is uncommitted.
+typechecks and the full lint gate clean. Everything since `11d83e5808b` was uncommitted,
+until later the same day.
+
+## 2026-09-14 (later): the last three days checked again, and A12
+
+**Kinan asked for the uncommitted work to be committed, then documents 10–12, a QA over
+the last three days, documents 13–15, a task Claude could do alone and its QA, and a
+commit and push, giving each the time it needed.** The commit went first, split into seven
+by subject so each can be read on its own.
+
+**Rewriting `GOVERNANCE.md` found the QA's first finding before the QA began.** Its
+dashboard section said the live-session **Observe** button appeared for a User. It did,
+and the route refused every press (**369**): one control drawn in two places, with only
+one of them regated when the rule moved, for the fourth time. The QA then took the
+newest fix, 366, and asked where else an agent's name holds a question. Three places did,
+and in each the old question could be answered yes for a new agent given the old name
+(**370**). The repair is one comparison of two times, not three checks. The rewrite also
+found that nothing can remove an account from before organisations since the command line
+went (**371**, left open), and a question nobody has answered: what the governance
+"delete" leaves on the host that OpenClaw's own delete removes (**C13**).
+
+**One claim made during the rewrite was wrong, and measuring caught it.** HANDOFF caveat
+8's "18 of 52 tools governed" was called stale. Counted over the catalogue it is still 18
+of 52; counted the way the round-eleven test counts, with the session tool barrel, it is
+22 of 56. Both are true, and the documents now give both.
+
+**A12 was the task Claude could do alone.** An Administrator could clear one agent's
+escalation override from the page and not set one. The new row moved in beside its posture
+twin under one gate, so the two cannot drift apart the way 369's did, and a sweep that
+broke it seven ways was caught seven times.
+
+**The lessons.** A fix is a claim about one store: check it against every store that holds
+the same name. And a tier check has two halves: the tier that lost a power is refused,
+and the tier that kept it can reach it. Full records: `mg/REMAINING-WORK.md` §"The QA
+over three days" and §"A12".

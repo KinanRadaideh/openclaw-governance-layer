@@ -649,37 +649,37 @@ visible to whoever reviews the trail, not only to whoever saw the notice.
 Enforced by the route, never by the panel. `docs-notes/ROLE-MODEL.md` is the
 tier model in prose; this is the contract.
 
-| Operation                                                                      | Minimum tier    | Scope requirement                                                                             |
-| ------------------------------------------------------------------------------ | --------------- | --------------------------------------------------------------------------------------------- |
-| Read policy, ledger, sessions, system status, rule requests, registry          | `viewer`        | Filtered to visible agents; `userAsk` withheld below `root`                                   |
-| Look up one agent's effective permissions, and who can reach it                | `viewer`        | Must be able to _view_ that agent                                                             |
-| Verify the ledger                                                              | `viewer`        | The verdict only                                                                              |
-| Create/remove an agent-scoped rule or folder grant                             | `user`          | `canAuthorPolicyForAgent`; Root may withhold authoring per account (T27)                      |
-| Create/remove a global rule or folder grant                                    | `administrator` | -                                                                                             |
-| Submit a rule request or an agent-setting request                              | `user`          | Setting: `canManageAgent`, never a `mode` of `off` (365); rule: `access` only on `path`       |
-| Decide a rule request or an agent-setting request                              | `administrator` | The request's agent must be in the caller's organisation                                      |
-| Prompt an agent, attach a file, read that transcript                           | `user`          | `canManageAgent`, **and the agent must be in the caller's organisation**                      |
-| Cancel a running prompt                                                        | `user`          | The caller's own run; Administrator and above, any run in the organisation                    |
-| Lock/release an agent                                                          | `user`          | `canManageAgent`                                                                              |
-| Answer a dashboard escalation (T68)                                            | `user`          | `canManageAgent` on the agent in the Gateway's record; an allow is refused while locked (364) |
-| Read / answer held decisions                                                   | `user`          | `canViewAgent` to read, `canManageAgent` to answer                                            |
-| Set one agent's approval timeout                                               | `user`          | `canManageAgent`                                                                              |
-| **Set per-agent `ask`** (T4)                                                   | `administrator` | Must manage that agent. A User _requests_ it                                                  |
-| **Set per-agent `mode`** (`enforce`/`monitor`) (T4)                            | `administrator` | Must manage that agent. A User _requests_ it. `off` refused at every tier                     |
-| Set `mode`, `ask`, `hitlTimeoutSeconds`                                        | `administrator` | -                                                                                             |
-| Set per-account `ask`                                                          | `root`          | -                                                                                             |
-| Switch a non-self-protecting `core` rule off or on (T24)                       | `root`          | -                                                                                             |
-| Remove a `core` rule, or disable a self-protecting one                         | **nobody**      | Refused at every tier                                                                         |
-| Create or delete accounts, change roles, reset passwords                       | `root`          | Inside the caller's organisation only                                                         |
-| Withhold or restore a User's policy authoring                                  | `root`          | Inside the caller's organisation only                                                         |
-| Assign an agent to a User or Viewer (M4)                                       | `administrator` | The agent must be owned by the account's own Administrator                                    |
-| Register or provision an agent, owned by yourself (M4, M6)                     | `administrator` | Organisation taken from the session; never from the request                                   |
-| Register or provision an agent owned by another Administrator                  | `root`          | Naming who answers for a workload is people management                                        |
-| Rename, re-own, unregister, delete from the host, or permit Codex for an agent | `administrator` | **Must own that agent.** Root is exempt                                                       |
-| Offer or withdraw the Codex backend installation-wide                          | `root`          | -                                                                                             |
-| Read the deployment and network report                                         | `root`          | -                                                                                             |
-| Delete the organisation                                                        | `root`          | The Root username, typed                                                                      |
-| Create a second Root, or delete or demote the only Root                        | **nobody**      | Refused at every tier                                                                         |
+| Operation                                                                      | Minimum tier    | Scope requirement                                                                                                                                                                     |
+| ------------------------------------------------------------------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Read policy, ledger, sessions, system status, rule requests, registry          | `viewer`        | Filtered to visible agents; `userAsk` withheld below `root`                                                                                                                           |
+| Look up one agent's effective permissions, and who can reach it                | `viewer`        | Must be able to _view_ that agent                                                                                                                                                     |
+| Verify the ledger                                                              | `viewer`        | The verdict only                                                                                                                                                                      |
+| Create/remove an agent-scoped rule or folder grant                             | `user`          | `canAuthorPolicyForAgent`; Root may withhold authoring per account (T27)                                                                                                              |
+| Create/remove a global rule or folder grant                                    | `administrator` | -                                                                                                                                                                                     |
+| Submit a rule request or an agent-setting request                              | `user`          | Setting: `canManageAgent`, never a `mode` of `off` (365); rule: `access` only on `path`                                                                                               |
+| Decide a rule request or an agent-setting request                              | `administrator` | The request's agent must be in the caller's organisation, and registered before the request was filed to approve it (366, 370)                                                        |
+| Prompt an agent, attach a file, read that transcript                           | `user`          | `canManageAgent`, **and the agent must be in the caller's organisation**                                                                                                              |
+| Cancel a running prompt                                                        | `user`          | The caller's own run; Administrator and above, any run in the organisation                                                                                                            |
+| Lock/release an agent                                                          | `user`          | `canManageAgent`                                                                                                                                                                      |
+| Answer a dashboard escalation (T68)                                            | `user`          | `canManageAgent` on the agent in the Gateway's record; an allow is refused while locked (364); one raised before its agent's current registration is not listed and answers 404 (370) |
+| Read / answer held decisions                                                   | `user`          | `canViewAgent` to read, `canManageAgent` to answer; an allow is refused when the agent was deleted or registered again since the question (370)                                       |
+| Set one agent's approval timeout                                               | `user`          | `canManageAgent`                                                                                                                                                                      |
+| **Set per-agent `ask`** (T4)                                                   | `administrator` | Must manage that agent. A User _requests_ it                                                                                                                                          |
+| **Set per-agent `mode`** (`enforce`/`monitor`) (T4)                            | `administrator` | Must manage that agent. A User _requests_ it. `off` refused at every tier                                                                                                             |
+| Set `mode`, `ask`, `hitlTimeoutSeconds`                                        | `administrator` | -                                                                                                                                                                                     |
+| Set per-account `ask`                                                          | `root`          | -                                                                                                                                                                                     |
+| Switch a non-self-protecting `core` rule off or on (T24)                       | `root`          | -                                                                                                                                                                                     |
+| Remove a `core` rule, or disable a self-protecting one                         | **nobody**      | Refused at every tier                                                                                                                                                                 |
+| Create or delete accounts, change roles, reset passwords                       | `root`          | Inside the caller's organisation only                                                                                                                                                 |
+| Withhold or restore a User's policy authoring                                  | `root`          | Inside the caller's organisation only                                                                                                                                                 |
+| Assign an agent to a User or Viewer (M4)                                       | `administrator` | The agent must be owned by the account's own Administrator                                                                                                                            |
+| Register or provision an agent, owned by yourself (M4, M6)                     | `administrator` | Organisation taken from the session; never from the request                                                                                                                           |
+| Register or provision an agent owned by another Administrator                  | `root`          | Naming who answers for a workload is people management                                                                                                                                |
+| Rename, re-own, unregister, delete from the host, or permit Codex for an agent | `administrator` | **Must own that agent.** Root is exempt                                                                                                                                               |
+| Offer or withdraw the Codex backend installation-wide                          | `root`          | -                                                                                                                                                                                     |
+| Read the deployment and network report                                         | `root`          | -                                                                                                                                                                                     |
+| Delete the organisation                                                        | `root`          | The Root username, typed                                                                                                                                                              |
+| Create a second Root, or delete or demote the only Root                        | **nobody**      | Refused at every tier                                                                                                                                                                 |
 
 > **This table was the one that stayed right (finding 218, 2026-09-02).** The
 > two per-agent rows have said `administrator` since T4, and so has
@@ -782,9 +782,14 @@ never from the approving client's payload. Normatively:
    allowed. `setAgentMode` refuses `off` whichever route calls it.
 4. Approving a request that names an agent MUST be refused, **before** the decision is
    recorded, when that agent is not registered to the caller's organisation at the
-   moment of approval (finding 366). Deleting an agent clears what its id carried (T55),
-   so approval must not write it back onto a released name. Rejecting stays allowed, and
-   the queue marks such a pending request `agentRegistered: false`.
+   moment of approval (finding 366), **or was registered after the request was filed**
+   (finding 370). Deleting an agent clears what its id carried (T55), so approval must
+   not write it back onto a released name, nor onto a different agent registered under
+   it since. Rejecting stays allowed, and the queue marks such a pending request
+   `agentRegistered: false`. The same rule binds the other two places a question about
+   an agent waits: a dashboard escalation raised before its agent's current
+   registration is not listed and cannot be answered, and a held decision asked before
+   it cannot be allowed (a denial still clears it).
 
 Both kinds are filed from the dashboard, under _Rule requests_: **Request a rule**, and
 **Request a change for one agent** (A11). While a rule request is pending, the queue

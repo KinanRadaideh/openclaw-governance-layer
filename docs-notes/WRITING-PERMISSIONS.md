@@ -277,12 +277,15 @@ them. They are the only moment the system can tell you that a rule does not do
 what you think.
 
 **Test before you trust.** An Administrator can set the posture to `monitor`
-first: decisions are recorded but nothing is blocked, so you can see exactly
-what _would_ have happened. Set it on the **Policy** section, let the agent work,
-then read the **Audit ledger** section. To try it on one agent only, use
-**Observe one agent**, which puts just that agent in `monitor`. Built-in
-restrictions and the emergency stop still apply in `monitor`. When the ledger
-shows what you expect, switch back to `enforce`.
+first: decisions are recorded and an action no rule allows is let through, so
+you can see exactly what _would_ have happened. Set it on the **Policy** section,
+let the agent work, then read the **Audit ledger** section. To try it on one
+agent only, use **Observe one agent**, which puts just that agent in `monitor`.
+**`monitor` relaxes only the missing allowance.** Every rule that forbids
+something still refuses it, built-in or written by an operator, and so do the
+emergency stop and the refusal of an unregistered agent (checked against
+`policy-engine.ts` on 2026-09-14). When the ledger shows what you expect, switch
+back to `enforce`.
 
 Monitor stops rules being acted on at all, so it is an Administrator's setting.
 A User who wants it for their agent asks an Administrator.
@@ -433,8 +436,11 @@ used, and an Administrator approves it like any other.
 
 Two settings belong to one agent rather than to a rule: its **posture** (enforce or
 monitor) and what happens when it tries something no rule covers (**ask a human** or
-**deny**). Only an Administrator sets them. A User sees them in the **Policy**
-section with no control to change them and a note pointing here.
+**deny**). Only an Administrator sets them, directly in the **Policy** section: **Observe
+one agent** for the posture, and **Escalation for one agent**, which picks one of the
+agents you manage and sets **Ask a human** or **Deny**. **Use default** on the agent's
+override row returns either to the installation's setting. A User sees the settings in the
+**Policy** section with no control to change them and a note pointing here.
 
 To ask, use **Request a change for one agent**, also under **Rule requests**: pick
 one of your agents, the setting, the value, and a reason. It joins the same queue,

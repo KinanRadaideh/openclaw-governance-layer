@@ -6,9 +6,12 @@ at. Written for someone joining the work or picking it up after a break.
 
 > **Three things to know before anything else (2026-09-14).** **The project is in its
 > documentation phase**, and `docs-notes/WRITING-GUIDE.md` is where writing starts;
-> nine of the eighteen documents in the agreed update order have been rewritten against
-> the code. **Two days of work, 2026-09-13 after the push and 2026-09-14, are
-> uncommitted** — check `git status` before assuming a clean tree. And the
+> fifteen of the eighteen documents in the agreed update order have been rewritten
+> against the code, and the last three are `docs-notes/FIRST-RUN.md`, `mg/HANDOFF.md`
+> and `mg/SESSION-LOG-2026-09.md`. **Whether the tree is committed and pushed is not
+> stated here**: `git status --porcelain` and
+> `git log --oneline personal/governance-layer..HEAD` answer it, and a sentence here
+> would not stay true (finding 227). And the
 > **VPS still runs an older build** until it is rebuilt (`HANDOFF.md` §6, "Do this
 > before anything else"). The governance command line was removed on 2026-09-07:
 > two surfaces remain, the HTTP control plane and the dashboard on it.
@@ -105,8 +108,11 @@ configuration. It adds:
    and which the dashboard writes on every administrative action. Corrected
    2026-09-07 (iv) with item 5.)_
 9. **A split core tier** (T24): Root may switch off the five shipped denials
-   that are ordinary security opinions, and nobody may touch the three that
-   protect the layer from the agent it governs.
+   that are ordinary security opinions, and switch them back on from the same
+   Policy section (finding 367), and nobody may touch the five that protect the
+   layer from the agent it governs. _(Ten core rules in all, counted from
+   `baseline-policy.ts` on 2026-09-14; this item read "the three" from when there
+   were eight.)_
 10. **Both directions of the policy** (T26): what one agent is allowed to do, and
     which agents a given rule binds. The document is stored flat, which is right
     for evaluation and answers neither question, so an operator could not see
@@ -116,9 +122,12 @@ configuration. It adds:
     two questions that were briefly one function, which meant taking away
     somebody's ability to write rules also took away their ability to stop their
     own agent.
-12. **Groups** (M3): the layer holds several organisations at once. A group is
-    the unit a Root owns, its Root, Administrators, Users and Viewers, and
-    accounts in different groups never see each other. Creating a Root creates a
+12. **Groups** (M3): the layer is built to hold several organisations, and **a
+    shipped installation holds one** (since 2026-08-30; `bootstrap-root` answers
+    409 once it exists), so the isolation between them is verified by test rather
+    than by deployment (T49). A group is the unit a Root owns, its Root,
+    Administrators, Users and Viewers, and accounts in different groups never see
+    each other. Creating a Root creates a
     group. Every User and Viewer has one Administrator answerable for it; Root
     cannot be that Administrator, which keeps one statable rule instead of two.
 13. **An agent registry** (M4): a record per agent. Id, display name, group,
@@ -178,8 +187,8 @@ configuration. It adds:
     **different act**: deleting the _organisation_, which removes every account
     including Root and every agent it holds, from OpenClaw as well as from
     governance, so it never produces the state the guard protects against.
-    Confirmed by typing the Root username, compared on the server so all three
-    surfaces ask for the same word. Agents go first, while Root still exists to
+    Confirmed by typing the Root username, compared on the server so no client
+    decides what counts as consent. Agents go first, while Root still exists to
     retry a host refusal. **The audit ledger is kept**, an operator who could
     erase the trail by deleting the organisation it covers would have a
     one-click way to destroy requirement #6, and the installation can be set up
@@ -255,7 +264,7 @@ C:\Users\kinan\openclaw\          (the fork; branch: governance-layer)
 | `src/governance/ids.ts`                                                             | One definition for all five identifier kinds (finding 199). Five modules had hand-written `Date.now()` plus a `Math.random` suffix, and one had been upgraded to `randomBytes` without the others                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `src/governance/account-name.ts`                                                    | **"Which account is this?", once.** Read it before touching anything that compares an identifier, findings 40, 114 and 198, and then 200 and 202, when the rule it states turned out never to have been applied to **agent** ids at all, and then 210, 213 and 215, when the _comparisons_ on that axis turned out not to have been folded either                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `src/governance/permissions.ts`                                                     | **What "manage" means at each tier**, and, since finding 213, the boundary that owns "is this agent inside your scope?", folding **both sides** of the comparison. Filters before folding, because `normalizeAgentId` is a coercion that answers `main` for anything with no canonical form (finding 129's trap arriving at a permission check). `ui/.../identity.ts` is its browser twin and imports the same canonicaliser rather than reimplementing it (finding 215)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `src/governance/session-tokens.ts`                                                  | Dashboard and CLI sessions: an opaque bearer token stored as a one-way fingerprint, mapped to a **mirror** of the account's role, agent scope, policy-authoring flag and group. The mirror exists so an authorization check costs no file read, and it carries an obligation, **written in both places, wherever either is written**. `issueSession` had never copied `canAuthorPolicy`, so a withheld restriction was lifted by signing out and back in (finding 209); `updateSessionsAssignedAgents` now folds agent ids at the mirror's own choke point rather than trusting its callers (finding 210)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `src/governance/session-tokens.ts`                                                  | Dashboard sessions (the command line's went with it on 2026-09-07): an opaque bearer token stored as a one-way fingerprint, mapped to a **mirror** of the account's role, agent scope, policy-authoring flag and group. The mirror exists so an authorization check costs no file read, and it carries an obligation, **written in both places, wherever either is written**. `issueSession` had never copied `canAuthorPolicy`, so a withheld restriction was lifted by signing out and back in (finding 209); `updateSessionsAssignedAgents` now folds agent ids at the mirror's own choke point rather than trusting its callers (finding 210)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 **Re-measure the counts above rather than quoting them**. All three moved on
 2026-09-02:
@@ -268,7 +277,7 @@ ls src/governance/*.ts | grep -v '\.test\.ts' | wc -l
 
 | File                                   | Purpose                                                                                                                                                                                                                                                                                                                  |
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `GOVERNANCE.md`                        | Operator overview, the engineering defect table for findings 1–134 in full, and an index at the end saying which document holds each finding from 135 to 345                                                                                                                                                             |
+| `GOVERNANCE.md`                        | Operator overview, the engineering defect table for findings 1–134 in full, and an index at the end saying which document holds each finding from 135 to 371 (346–371 also summarised there in a paragraph each)                                                                                                         |
 | `docs-notes/CHAPTER3-MATERIAL.md`      | **Source material for Chapters 3–4**, organised by section number. Not prose. Decisions, rationale, diagrams, and code snippets ready to be written up.                                                                                                                                                                  |
 | `docs-notes/WRITING-GUIDE.md`          | **Start here to write the report (2026-09-11).** Which chapter draws on which material, every number with the command that re-derives it, and the claims not to make                                                                                                                                                     |
 | `docs-notes/ROLE-MODEL.md`             | What each of the four roles can do, and why                                                                                                                                                                                                                                                                              |
@@ -304,7 +313,6 @@ of the filesystem rather than a rule every reader must remember:
     users.json               accounts; scrypt hashes carrying their own cost parameters
     agents.json              the agent registry (M4): id, display name, group, owning Administrator
     sessions.json            active dashboard logins, stored as one-way fingerprints
-    cli-session.json         the command line's own signed-in session (T5)
     ledger.key               HMAC key for every chain; overridable by environment
     ledger-checkpoint.json   one chain head per group, for truncation detection
     groups/<groupId>/
@@ -348,16 +356,25 @@ governance check was inserted there, and deliberately **before** an existing
 shortcut that skips policy work when no plugins are installed. Putting it after
 that shortcut would have meant a default installation was never governed at all.
 
-For each tool call the gate:
+For each tool call the gate, in this order (`policy-engine.ts`, read against the
+code on 2026-09-14):
 
-1. Checks whether the agent is locked down, if so, refuses immediately.
-2. Works out what resource is being touched (a command string, a file path, a
-   hostname).
-3. Looks for an allow rule that matches.
-4. Records the verdict in the audit log, **always**, including for tools it
-   does not know how to judge, which are marked `ungoverned` so gaps in coverage
-   are visible rather than silent.
-5. Allows, blocks, or escalates to a human depending on the posture.
+1. Finds which organisation the agent belongs to, from the agent registry. An
+   agent with no record is refused, and the refusal is recorded.
+2. Stops here if the installation's posture is `off`; nothing is checked or
+   recorded.
+3. Checks whether the agent, or an agent that started it, is locked down; if so,
+   refuses immediately.
+4. On the native Codex backend, refuses an agent not permitted to run there.
+5. Works out what resource is being touched (a command string, a file path, a
+   hostname). A tool it does not know how to judge is recorded `ungoverned` and
+   allowed, so gaps in coverage are visible rather than silent.
+6. Looks for a **deny** rule that matches, and refuses if one does, whatever else
+   is allowed and even in `monitor`.
+7. Looks for an allow rule that matches.
+8. Records the verdict in the audit log, **always**, then allows, blocks, or
+   escalates to a human when no rule allows it, depending on the escalation
+   setting; in `monitor` a missing allowance is recorded and not acted on.
 
 **Two ways in, and the second one used to be optional.** OpenClaw can also run an
 agent inside a _separate helper process_ (the Codex native harness), which
@@ -407,8 +424,12 @@ it: enforce by default, and ship rules so an agent is usable on day one. `monito
 survives as an opt-in, per-agent posture for discovering what rules an agent
 needs. The history is in `docs-notes/QA-IN-PLAIN-TERMS.md` §3.
 
-The kill switch is **not** suspended by monitor mode. An emergency stop is an
-operator decision, not a policy decision.
+**"Acts on it? no" is narrower than it looks.** Monitor relaxes one thing, what
+happens when no rule allows an action: the verdict is recorded and the action goes
+ahead. Every **deny** rule still refuses, at every tier; the kill switch still stops
+the agent, because an emergency stop is an operator decision, not a policy
+decision; and an agent nobody registered is still refused (read against
+`policy-engine.ts` on 2026-09-14).
 
 ### The audit log
 
@@ -470,13 +491,14 @@ Keeping the first two explicit is what stops "high enough tier" from silently
 implying "any agent"; the third exists because the first two cannot answer it,
 an Administrator's scope is unlimited _within their own group_, so
 `canManageAgent` returns true for any id in the world and a separate
-`requireAgentInGroup` / `requireManagedAgent` is what makes it tenancy-safe
-(findings 144 and 174).
+`requireAgentInGroup` is what makes it tenancy-safe (findings 144 and 174).
 
-**All three are asked on both surfaces, and keeping that true has been a
-recurring cost.** The 2026-08-31 parity audit found four commands making fewer
-checks than their routes; a fifth, `agent transcript`, was found on 2026-09-02
-(finding 216), on the command directly below one of the four, in the same file.
+**All three are asked by every route, and while there were two surfaces keeping
+that true on both was a recurring cost.** The 2026-08-31 parity audit found four
+commands making fewer checks than their routes; a fifth, `agent transcript`, was
+found on 2026-09-02 (finding 216), on the command directly below one of the four,
+in the same file. The command line, and with it the second copy of every check,
+was removed on 2026-09-07.
 
 **And the second question has to fold before it compares.** Agent ids are
 canonical (lowercased) everywhere they are _stored_; the three places that
@@ -512,8 +534,11 @@ Chapter 3 will need them.
 3. **The User role was expanded.** The paper's User tier could do little more
    than propose changes. Following a design decision recorded in
    `docs-notes/ROLE-MODEL.md` §3.7, a User now genuinely manages their assigned
-   agent: writes agent-scoped rules, sets its escalation behaviour, reads its
-   unmasked logs, and can stop it.
+   agent: writes agent-scoped rules, reads its unmasked logs, prompts it, answers
+   its escalations, and can stop it. Its posture and escalation setting moved to
+   the Administrator with T4, because either can widen what the agent may do, and
+   a User asks for those instead (A11). _(This item said a User "sets its
+   escalation behaviour" until 2026-09-14.)_
 4. **Default posture went to monitor, and then back to enforce.** `enforce` with
    zero rules bricked the agent and broke 19 of OpenClaw's own tests, so the
    shipped default briefly became `monitor`. That traded the bricking problem
@@ -528,7 +553,7 @@ Chapter 3 will need them.
 
 ## 5. Quality assurance history
 
-Thirty-eight rounds and sweeps plus the M-series build. **Re-derived 2026-09-14: 368 defects found, 367 fixed, one open — 169, an unexplained observation.** 365 came from building A11 (an approved request for an `off` posture, recorded in the ledger and never applied), and 366–368 from checking the week a second time on 2026-09-14: a request approved for a deleted agent wrote back what the deletion cleared, a core rule switched off from the dashboard could not be switched back on, and the lockout did not say how long (`GOVERNANCE.md` rows 365–368). _(On 2026-09-13 this read 364 found and 363 fixed.)_ 364 came from the week's QA check that evening: the kill switch did not stop a dashboard prompt. 346–363 came from a QA pass that drove the dashboard through a browser on 2026-09-12 and 13; 346–362 were fixed in that pass, and 363 later that day, when Kinan decided a requester may withdraw an approval (T69); the record is `mg/REMAINING-WORK-DASHBOARD-SWEEP.md` §"The dashboard QA pass". _(On 2026-09-11 this read 345 found, 344 fixed, one open.)_ 281 and 316 closed when T60 and T63 were built. _(On 2026-09-08 (vi) this read 325 found, 322 fixed, three open.)_ 258 closed on 2026-09-08 when Mohammad decided T55.** The twelve newest (305–316) came from driving **Your agents** from all four tiers; **305** is the one to read, because it is not about that section: the dashboard never re-read who the signed-in account is, so an assignment or an authoring permission Root changed never reached the screen of the account it was changed for — which made finding **301**, one day old, half-delivered. _(This cell read **"277 found, 275 fixed, two open"** while `HANDOFF.md` read **284 / 281 / 3** on the same day, both dated 2026-09-07 — two registers disagreeing about the project's headline number after a commit whose message was "every register and handoff document brought level for handoff". Finding 259 and 227's shape again. Its internal arithmetic did not close either: 275 fixed plus one withdrawn (157) plus two open is 278, not 277. **Re-derive from the register rather than repeating this cell**, which is the whole reason the habit exists; T56 has since closed 260's visibility half.)_ The register in `GOVERNANCE.md` is the authoritative list and the narrative for 241–261 is in `mg/SESSION-LOG-2026-09.md`; **the six newest came from three sweeps on three new axes** — time, cross-process contention, and what each cap sheds — — what happens to state after the thing it describes is gone — which found that a deleted account's username is released while its transcript, its escalation override and its login lockout are keyed by that very username, so the next holder of the name inherited all three (**256**, fixed); that the previous sweep's audit-actor fixture had the wrong shape and wrote every entry as `actor=unknown` (**257**, an evidence defect rather than a product one); that a reused agent id inherits the previous agent's rules, posture and lockdown (**258**, left open as T55 because it changes deletion semantics); that this project's own backlog count was wrong in both directions (**259**); that an operator using the dashboard on 2026-09-06 found five more, every one of them a capability the code had and the screen did not offer (**264–268**), of which **268** is the one to read: verifying the audit chain reported "Intact, entries verified" and nothing else, so a tamper-evidence feature's verdict could only be taken on trust, and it now returns the chain head, the independent checkpoint that agrees with it, and the terminal command that recomputes the same thing; that the pending-decision stack shed the globally-oldest row, so one agent's flood evicted every other agent's unanswered question (**260**, aiming fixed in finding 225's shape, visibility open as T56); and that the dashboard's hand-copy of the password minimum was asserted by nothing (**261**, fixed). **Cross-process contention was measured for the first time and the file lock held**, 10/10 across four real child processes, and 5/10 with the lock neutered, so that green is a measurement rather than an assumption; **do not repeat this number, re-derive it from the register**, which is the habit finding 227 exists to teach. The fifteen most recent came from the dashboard being measured in a real browser rather than read (241–252), one path having two legitimate names that rules only ever compared one of (253, 254 — the second is a core denial Root cannot switch off that matched nothing when the governance store was relocated inside an agent's workspace), and a three-surface parity sweep (255). The paragraph below is the state as it stood on 2026-09-03 and is kept for the reasoning rather than the figure, beginning with a **tenth sweep on 2026-09-03** that changed what counts as evidence rather than what is sampled: fifteen deliberate breakages of six security-critical features, all fifteen caught by the suite, plus **225** (the login throttle switched off for every account by five thousand junk requests), **226** (a failed sign-in at the terminal recorded nowhere) **227** (four live copies of a warning that the tree was dirty, a day after it was committed) **228** (this file’s companion register in `GOVERNANCE.md` never receiving the ninth sweep’s findings at all) and, from an **eleventh sweep** on a fourth axis, the failure branch rather than the module, **229** (deleting an organisation reported a completed, irreversible deletion as a failure whenever any of five unguarded steps after the point of no return threw), the most recent being the seventh and eighth 20% segments (209–219), **220** (the harness baseline documented as half its size in four places, after the 2026-09-02 correction fixed two others), **221** (the lint gate failing on two shards with 38 errors the documented lint command could not see), and a **ninth sweep on a new axis**, capabilities across surfaces rather than modules, once the module pool was exhausted, which found **222** (Root's per-account escalation override missing from the command line), **223** (the register of dashboard-only exceptions listing one of three) and **224** (a performance test that passed against the very defect it was written to catch). Older milestones, kept because the count's history is itself evidence: **150 defects found, 149 fixed, one recorded rather than fixed by decision**, **150** (2026-08-30) is the dashboard telling operators a forbid rule does not stop a search, hours after T7's prevention half made that false on the default runtime; the test written to catch exactly that moment kept passing, because the change narrowed the claim instead of retiring it, **149** (2026-08-30) closed an attribution gap the documentation audit surfaced: the command-line kill switch recorded actor `cli` while the signed-in account sat unused two lines above, so the most consequential administrative action was the one the trail could not attribute, **147** (2026-08-29) closed the last requirement-8 leak: every component-prefixed credential flag (`--db-password=`, `--admin-password=`, `--gateway-token=`) reached the ledger in plaintext, because the CLI-flag patterns anchor the key to `--` and one component of prefix made the whole list unreachable, two earlier write-ups had recorded this as a single missing key, having probed exactly one spelling. **148** is two Windows-only test failures that sit outside the five documented verification commands while the handoff claimed "no known-failing test anywhere"; not product defects, and recorded rather than fixed.
+Thirty-eight rounds and sweeps plus the M-series build. **Re-derived 2026-09-14, later: 371 defects found, 369 fixed, two open** — 169, an unexplained observation, and 371, accounts from before organisations that nothing can remove, left to Kinan as decision C14. 369–371 came from checking the last three days a third time: a User was offered a posture button the server always refused (369); a question about a deleted agent, a rule request, a waiting escalation or a held decision, could be answered yes for a new agent registered under the same name (370); and 371. A fourth candidate, what deleting an agent leaves on the host, is recorded as decision C13 rather than numbered, because its consequence is not yet proven (`GOVERNANCE.md` rows 369–371). _(Earlier on 2026-09-14 this read:)_ **368 defects found, 367 fixed, one open — 169, an unexplained observation.** 365 came from building A11 (an approved request for an `off` posture, recorded in the ledger and never applied), and 366–368 from checking the week a second time on 2026-09-14: a request approved for a deleted agent wrote back what the deletion cleared, a core rule switched off from the dashboard could not be switched back on, and the lockout did not say how long (`GOVERNANCE.md` rows 365–368). _(On 2026-09-13 this read 364 found and 363 fixed.)_ 364 came from the week's QA check that evening: the kill switch did not stop a dashboard prompt. 346–363 came from a QA pass that drove the dashboard through a browser on 2026-09-12 and 13; 346–362 were fixed in that pass, and 363 later that day, when Kinan decided a requester may withdraw an approval (T69); the record is `mg/REMAINING-WORK-DASHBOARD-SWEEP.md` §"The dashboard QA pass". _(On 2026-09-11 this read 345 found, 344 fixed, one open.)_ 281 and 316 closed when T60 and T63 were built. _(On 2026-09-08 (vi) this read 325 found, 322 fixed, three open.)_ 258 closed on 2026-09-08 when Mohammad decided T55.** The twelve newest (305–316) came from driving **Your agents** from all four tiers; **305** is the one to read, because it is not about that section: the dashboard never re-read who the signed-in account is, so an assignment or an authoring permission Root changed never reached the screen of the account it was changed for — which made finding **301**, one day old, half-delivered. _(This cell read **"277 found, 275 fixed, two open"** while `HANDOFF.md` read **284 / 281 / 3** on the same day, both dated 2026-09-07 — two registers disagreeing about the project's headline number after a commit whose message was "every register and handoff document brought level for handoff". Finding 259 and 227's shape again. Its internal arithmetic did not close either: 275 fixed plus one withdrawn (157) plus two open is 278, not 277. **Re-derive from the register rather than repeating this cell**, which is the whole reason the habit exists; T56 has since closed 260's visibility half.)_ The register in `GOVERNANCE.md` is the authoritative list and the narrative for 241–261 is in `mg/SESSION-LOG-2026-09.md`; **the six newest came from three sweeps on three new axes** — time, cross-process contention, and what each cap sheds — — what happens to state after the thing it describes is gone — which found that a deleted account's username is released while its transcript, its escalation override and its login lockout are keyed by that very username, so the next holder of the name inherited all three (**256**, fixed); that the previous sweep's audit-actor fixture had the wrong shape and wrote every entry as `actor=unknown` (**257**, an evidence defect rather than a product one); that a reused agent id inherits the previous agent's rules, posture and lockdown (**258**, left open as T55 because it changes deletion semantics); that this project's own backlog count was wrong in both directions (**259**); that an operator using the dashboard on 2026-09-06 found five more, every one of them a capability the code had and the screen did not offer (**264–268**), of which **268** is the one to read: verifying the audit chain reported "Intact, entries verified" and nothing else, so a tamper-evidence feature's verdict could only be taken on trust, and it now returns the chain head, the independent checkpoint that agrees with it, and the terminal command that recomputes the same thing; that the pending-decision stack shed the globally-oldest row, so one agent's flood evicted every other agent's unanswered question (**260**, aiming fixed in finding 225's shape, visibility open as T56); and that the dashboard's hand-copy of the password minimum was asserted by nothing (**261**, fixed). **Cross-process contention was measured for the first time and the file lock held**, 10/10 across four real child processes, and 5/10 with the lock neutered, so that green is a measurement rather than an assumption; **do not repeat this number, re-derive it from the register**, which is the habit finding 227 exists to teach. The fifteen most recent came from the dashboard being measured in a real browser rather than read (241–252), one path having two legitimate names that rules only ever compared one of (253, 254 — the second is a core denial Root cannot switch off that matched nothing when the governance store was relocated inside an agent's workspace), and a three-surface parity sweep (255). The paragraph below is the state as it stood on 2026-09-03 and is kept for the reasoning rather than the figure, beginning with a **tenth sweep on 2026-09-03** that changed what counts as evidence rather than what is sampled: fifteen deliberate breakages of six security-critical features, all fifteen caught by the suite, plus **225** (the login throttle switched off for every account by five thousand junk requests), **226** (a failed sign-in at the terminal recorded nowhere) **227** (four live copies of a warning that the tree was dirty, a day after it was committed) **228** (this file’s companion register in `GOVERNANCE.md` never receiving the ninth sweep’s findings at all) and, from an **eleventh sweep** on a fourth axis, the failure branch rather than the module, **229** (deleting an organisation reported a completed, irreversible deletion as a failure whenever any of five unguarded steps after the point of no return threw), the most recent being the seventh and eighth 20% segments (209–219), **220** (the harness baseline documented as half its size in four places, after the 2026-09-02 correction fixed two others), **221** (the lint gate failing on two shards with 38 errors the documented lint command could not see), and a **ninth sweep on a new axis**, capabilities across surfaces rather than modules, once the module pool was exhausted, which found **222** (Root's per-account escalation override missing from the command line), **223** (the register of dashboard-only exceptions listing one of three) and **224** (a performance test that passed against the very defect it was written to catch). Older milestones, kept because the count's history is itself evidence: **150 defects found, 149 fixed, one recorded rather than fixed by decision**, **150** (2026-08-30) is the dashboard telling operators a forbid rule does not stop a search, hours after T7's prevention half made that false on the default runtime; the test written to catch exactly that moment kept passing, because the change narrowed the claim instead of retiring it, **149** (2026-08-30) closed an attribution gap the documentation audit surfaced: the command-line kill switch recorded actor `cli` while the signed-in account sat unused two lines above, so the most consequential administrative action was the one the trail could not attribute, **147** (2026-08-29) closed the last requirement-8 leak: every component-prefixed credential flag (`--db-password=`, `--admin-password=`, `--gateway-token=`) reached the ledger in plaintext, because the CLI-flag patterns anchor the key to `--` and one component of prefix made the whole list unreachable, two earlier write-ups had recorded this as a single missing key, having probed exactly one spelling. **148** is two Windows-only test failures that sit outside the five documented verification commands while the handoff claimed "no known-failing test anywhere"; not product defects, and recorded rather than fixed.
 
 **The history of the count.** Finding 120 (2026-08-26) was found by mutation-testing T6 and closed the same day; the count became 121 when T29's numbering audit found two defects sharing the number 104, **127 on 2026-08-27** when M5's four and M6's two were numbered 122–127, **130** when QA round nineteen audited the M-series as one system (128–130), **131** when QA round twenty read the remaining work against the nine design requirements and found a requirement-8 breach in the search audit, **134** when round twenty-one built the missing "raw LLM intent" field and found three defects in it (132–134), and **136** on 2026-08-28 when round twenty-two audited that documentation pass against the code (135–136): a JSDoc comment orphaned from `entryKind` by the new field, and T16 regressed in the same commit whose documentation asserted it closed.
 
@@ -718,13 +743,13 @@ conclusion.
 >
 > **The state in one line, as of 2026-09-14:** built, verified and
 > **demonstrated** (T2, on the VPS, 2026-09-06); the dashboard driven section by
-> section from all four tiers, and then through a browser under failure; **368 findings, 367 fixed, one open** (169, an unexplained observation); **T60 and T63
+> section from all four tiers, and then through a browser under failure; **371 findings, 369 fixed, two open** (169, an unexplained observation, and 371, accounts from before organisations that nothing can remove, left to Kinan as decision C14); **T60 and T63
 > built on 2026-09-11**, with eighteen defects found around them on 2026-09-12 and 13, all now fixed (363 last, when Kinan decided T69); and what remains is
 > a Linux re-measurement (T3), the by-hand plan (T47), the figures (T17), the report
-> (T18), a read (T13), judgements on T46, T48, T49 and T58/T59, and no open decision about approvals (T68 and T69 were built on 2026-09-13). **The
+> (T18), a read (T13), judgements on T46, T48, T49 and T58/T59, two decisions added on 2026-09-14 (C13, what "delete from host" should remove, and C14), and no open decision about approvals (T68 and T69 were built on 2026-09-13). **The
 > documentation phase starts at `docs-notes/WRITING-GUIDE.md`.**
 >
-> **Later on 2026-09-13, after the push, and not yet committed:** the independent
+> **Later on 2026-09-13, after the push (committed on 2026-09-14):** the independent
 > review (`Kimi_QA_1.md`) was checked item by item and closed, which added a
 > confirmation to the kill switch, fixed bug 8 (a temporary rule silently made
 > permanent), and showed a rule request's warnings and clashes before approval; a
@@ -733,11 +758,22 @@ conclusion.
 > rewritten against the code. `mg/HANDOFF.md` §1, "2026-09-13 (after the push)", has
 > the detail.
 >
-> **On 2026-09-14, also uncommitted:** A11 (a User requests a per-agent posture or
-> escalation change from the dashboard) with finding 365; documents 7–9 of the update
-> order rewritten, so nine of eighteen are done; the week checked a second time, which
-> found and fixed 366–368; and **A12** added, the one open item Claude can do alone.
+> **On 2026-09-14, committed the same day in seven commits (`aa578723625` to
+> `8f9408c0df0`, the two paragraphs' work together):** A11 (a User requests a per-agent
+> posture or escalation change from the dashboard) with finding 365; documents 7–9 of the
+> update order rewritten, so nine of eighteen were done; the week checked a second time,
+> which found and fixed 366–368; and **A12** added, the one open item Claude can do alone
+> (built later the same day).
 > `mg/HANDOFF.md` §1, "2026-09-14", has the detail.
+>
+> **Later on 2026-09-14:** documents 10–15 rewritten against the code, and the last three
+> days checked a third time. That found and fixed **369** (a User was offered an
+> **Observe** control the server refuses them) and **370** (a question about a deleted
+> agent, in the rule-request queue, the dashboard's escalations or the held decisions,
+> could be answered yes for a new agent registered under the same name), recorded **371**
+> as open and a fourth candidate as decision **C13**. Then **A12** was built: an
+> Administrator sets one agent's escalation from the Policy section, beside _Observe one
+> agent_. `mg/REMAINING-WORK.md` §"The QA over three days" and §"A12" have the detail.
 >
 > **The state in one line, as it stood on 2026-09-02** (kept as history): built and verified, never
 > demonstrated; **the engineering on the backlog is finished** (T38–T40, T42 and
@@ -765,7 +801,13 @@ conclusion.
 > earlier round had already found and fixed on one surface only. "The backlog is
 > finished" is a statement about the backlog.
 
-- **2,653 governance tests pass across 138 files on Windows** (2026-09-01, after
+- **3,123 governance tests pass, 21 skipped, 0 failed, across 187 files on Windows**
+  (2026-09-14, later, with 369, 370 and A12 in the tree). The whole `ui/src` suite: 8,211
+  passed, with A10's five jsdom failures; ui-isolated 403; the browser project 199;
+  OpenClaw's harness suites 263; the four typechecks and the full lint gate 0. **No Linux
+  figure is current**: the last Ubuntu run, 2,548 / 133, predates T44, and re-running it is
+  T3. The bullet below is dated history.
+- **Historic: 2,653 governance tests passed across 138 files on Windows** (2026-09-01, after
   T44 and the fourth and fifth segment sweeps; 2,548/133 earlier the same day,
   2,372/119 on 2026-08-31). **The last Ubuntu 24.04 measurement is 2,548 / 133**,
   taken before those, so re-run it there before quoting a Linux figure, file
@@ -798,8 +840,11 @@ conclusion.
   and so is every check the six do not name. No document should claim the
   repository is green; the claim that holds is that the six documented commands
   are.
-- **Branch:** `governance-layer`, **clean as of 2026-09-01 before the commit
-  below**, and everything is pushed, `git log --oneline personal/governance-layer..HEAD` is empty. The
+- **Branch:** `governance-layer`, pushed to remote `personal` and never to
+  `origin`. **Whether it is clean and fully pushed is not stated here**:
+  `git status --porcelain` and `git log --oneline personal/governance-layer..HEAD`
+  answer it. _(This line read "clean as of 2026-09-01 … everything is pushed"
+  through two uncommitted days in September.)_ The
   commit count ahead of `main` is deliberately not stated here any more: it has
   been wrong in this line three times, and `git rev-list --count main..HEAD` is
   one command. **Historic detail follows, and its numbers are dated.** ~~**59** commits ahead
@@ -825,10 +870,14 @@ conclusion.
   series and a git-free snapshot, and has been **restore-tested** into an empty
   repository. The work now exists in three independent places rather than one.
 - **Requirement status** is tabulated in `docs-notes/CHAPTER3-MATERIAL.md` §3.1
-  and validated in §4.x.5: **eight of nine fully met**, #9 (Linux) partial
-  because the suite is **green on Ubuntu 24.04 from a clean clone, install and
-  build (2,679 / 143 on Windows, 2026-09-02)** but has never been deployed to a
-  VPS. Requirements #3, #6 and #7 spent one round marked _partially met_ after
+  and validated in §4.x.5: **eight of nine fully met**, #9 (Linux) partial. The
+  fork has run on a VPS since 2026-09-03 and T2 was demonstrated there on
+  2026-09-06; **what keeps the row partial is that the full suite has not been
+  re-run on Linux since**, and its last Linux figure, 2,548 / 133, predates T44 and
+  the command line's removal. That re-run is what remains of T3. _(Until
+  2026-09-14 this bullet said the fork "has never been deployed to a VPS", eleven
+  days after it was: finding 336's direction, a status understated.)_
+  Requirements #3, #6 and #7 spent one round marked _partially met_ after
   the thirteenth review measured them properly, and were returned to met by the
   fixes rather than by rewording.
 - **Requirement conformance was re-checked against the specification text on
@@ -864,9 +913,13 @@ conclusion.
   named places**, each argued in `CHAPTER3-MATERIAL.md` §3.4. The requirements
   themselves are not negotiable and are validated one by one; the _preliminary
   design_ is a sketch the implementation was allowed to improve on.
-- **Built and verified, not yet demonstrated.** No language model has driven a
-  tool call through the gate. See A9. Every claim rests on tests rather than on
-  observation, and the report should say so in those words.
+- **Built, verified and demonstrated.** On 2026-09-06 (T2) Kimi drove agent
+  `jack` on the VPS at `~/.npmrc`, the gate refused the read, and ledger entry
+  **#25** records the denial with the core credential-files rule that produced it.
+  That is one observation; every other claim rests on tests, and the report should
+  say which claim rests on which. _(Until 2026-09-14 this bullet read "Built and
+  verified, not yet demonstrated. No language model has driven a tool call through
+  the gate", eight days after T2.)_
 
 ### Running it
 
@@ -886,8 +939,11 @@ node node_modules/vitest/vitest.mjs run src/governance/ src/gateway/governance-*
 node scripts/run-tsgo.mjs -p tsconfig.core.json
 node scripts/run-tsgo.mjs -p tsconfig.ui.json
 node node_modules/vitest/vitest.mjs run src/agents/harness/native-hook-relay.test.ts src/plugins/contracts/host-hooks.contract.test.ts
-node scripts/run-lint.mjs        # the GATE. NOT `oxlint … src ui/src`. See below
+OPENCLAW_OXLINT_SHARD_TIMEOUT_MS=2700000 node scripts/run-lint.mjs   # the GATE, cap raised (HANDOFF §4). NOT `oxlint … src ui/src`. See below
 node scripts/run-tsgo.mjs -p test/tsconfig/tsconfig.core.test.json
+node scripts/run-tsgo.mjs -p test/tsconfig/tsconfig.test.ui.json
+node node_modules/vitest/vitest.mjs run --config test/vitest/vitest.ui.config.ts   # five known jsdom failures (A10)
+(cd ui && node ../node_modules/vitest/vitest.mjs run --config vitest.config.ts --project browser)
 ```
 
 > **The lint line changed on 2026-09-02 (finding 221) and the story changed
@@ -905,10 +961,13 @@ node scripts/run-tsgo.mjs -p test/tsconfig/tsconfig.core.test.json
 > written to distrust (**finding 237**). Nothing automatic enforces the
 > type-aware rules, `scripts/`, or the CSS check.
 
-**Six commands, and `HANDOFF.md` §4 is where their expected values live.**
-Measured 2026-09-02: 2,679 / 143 (Windows, in two shards, 89/1,219+5 skipped for
+**`HANDOFF.md` §4 is where the expected values live**, and `GOVERNANCE.md` §"Testing"
+lists the same commands. Measured 2026-09-14 (later): 3,123 / 21 skipped / 0 failed across
+187 files · four typechecks 0 · host 263 · the full lint gate 0 · whole `ui/src` 8,211
+with A10's five jsdom failures · browser project 199. (Until 2026-09-14 this read "Six
+commands", measured 2026-09-02: 2,679 / 143 (Windows, in two shards, 89/1,219+5 skipped for
 `src/governance/`, 53/1,455 for the gateway and UI paths; 2,548 / 133 was the
-last both-platforms figure) · both typechecks clean · 263 / 0 host · oxlint-as-documented zero · `core:test` clean.
+last both-platforms figure) · both typechecks clean · 263 / 0 host · oxlint-as-documented zero · `core:test` clean.)
 **Finding 221's 38 errors closed on 2026-09-03**, and the gate itself was found
 broken and unenforced the same day. Findings 233 and 237, above.
 

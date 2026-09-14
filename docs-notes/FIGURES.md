@@ -145,6 +145,28 @@ compiled these. F21's TikZ would not have compiled until 2026-09-05 and survived
 three reviews, and the only check that would close it needs a LaTeX toolchain
 this machine does not have.
 
+### 2026-09-14: re-read against 2026-09-12 to 14, and the central figure drew the gate without its denials
+
+**Every change of the last three days grepped for in the figures**, the direction
+the 2026-09-07 pass recommends, and every figure it touched read against the code.
+
+| Figure            | What was wrong, or is now incomplete                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **F3**            | **The prose and the Mermaid said a matching rule means allow.** A matching _deny_ rule refuses first, at every tier and under `monitor`, before any allowance is consulted (`policy-engine.ts`), so the tier model's central property, that no later grant reopens a denial, was missing from the report's central figure. And the human who answers is not always "on the dashboard": a dashboard prompt's escalation is answered on the governance page by the accounts that manage the agent (T68), a chat run's in the Control UI or the channel. Corrected in all three forms |
+| **F10**           | Three endings of a prompt. Since finding 364 there is a fourth: the kill switch ends the agent's prompt runs, with the ending `kill-switch`                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **F24**           | _Stopping_ was reached by Cancel or the timeout. The kill switch reaches it too (364)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| **F23**           | Its follow-up reached "the operators who review approvals" in the Control UI. Still true of a chat run; since T68 a dashboard prompt's follow-up reaches the accounts that manage the agent, on the governance page                                                                                                                                                                                                                                                                                                                                                                |
+| **F2**            | The prose gave Root "the approval timeout", which an Administrator has set since 2026-09-03, and left out that a User answers its own agents' escalations (T68). The four boxes were right                                                                                                                                                                                                                                                                                                                                                                                         |
+| **F22**           | Nothing wrong. A note added: the shape the grant writes, `(/\|$)`, is no longer warned as unanchored (2026-09-13)                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **Summary table** | Listed F1–F21 only. F22–F24, all keeps, are added, and F22's proposed number no longer collides with F21's                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+
+**Checked and still right:** F13, whose "approval machinery" box holds for both
+origins; and F14, whose two framings were re-measured and are both true, 18 of the
+52 catalogued tools governed and 22 of the 56 names `qa-round11.test.ts` checks. No
+other figure mentions anything changed in the three days. **Still not done:**
+nobody has compiled these. The TikZ edited in this pass keeps to the shared style
+block and the `\\\scriptsize` form.
+
 ---
 
 ## What to add to the LaTeX preamble
@@ -350,15 +372,18 @@ The four tiers are strictly cumulative. A **Viewer** may read the policy and the
 sanitised ledger and verify the chain's integrity; it is oversight only and
 writes nothing. A **User** inherits all of that and gains the capabilities that
 concern _the agents assigned to it_: unmasked ledger resources, prompting those
-agents, asking an Administrator for a rule through the request queue, and,
-the one most often misstated, **stopping and releasing those agents with the
-emergency kill switch**. An **Administrator** inherits both and manages agents
-rather than one agent: creating and registering them, assigning them to accounts,
-editing rules, changing the posture, and deciding rule requests. **Root**
-inherits everything and adds the capabilities that concern the installation
-itself: account management, the approval timeout, switching a shipped core denial
-off, the agent backend, the deployment report, and, since T44, **deleting the
-organisation**, the one act that removes Root's own account. Because each tier is
+agents, answering the escalations their dashboard prompts raise (T68), asking an
+Administrator for a rule or a setting through the request queue, and, the one
+most often misstated, **stopping and releasing those agents with the emergency
+kill switch**. An **Administrator** inherits both and manages agents rather than
+one agent: creating and registering them, assigning them to accounts, editing
+rules, changing the posture, setting the approval timeout, and deciding rule
+requests. **Root** inherits everything and adds the capabilities that concern the
+installation itself: account management, switching a shipped core denial off or
+back on, the agent backend, the deployment report, and, since T44, **deleting the
+organisation**, the one act that removes Root's own account. _(Until 2026-09-14
+this paragraph gave Root the approval timeout, which an Administrator has set since
+2026-09-03.)_ Because each tier is
 a superset of the one below, no capability needs to be listed twice, and the only
 question at any endpoint is which tier it requires.
 
@@ -431,20 +456,28 @@ is mandatory and no policy document applies to an unregistered agent; that
 refusal is recorded against the installation-wide trail, since there is no
 organisation ledger to record it in. Otherwise the engine loads that
 organisation's policy, checks whether the agent is under an active lockdown, then
-extracts the resource the call would touch, then matches that resource against
-every active, unexpired rule. Whatever it concludes is appended to the
-hash-chained ledger before the
-verdict is returned, so the record exists whether or not the call proceeds, and
-each entry also carries what the model said it was doing on the turn that
-produced the call. If a
-rule matches, the verdict is allow and the tool runs. If none matches and
-escalation is switched off, the call is blocked and the agent is told why. If
-none matches and escalation is on, the decision is put to a human on the
-dashboard, whose answer is itself appended to the ledger. An "allow always"
-answer permits that one call and **files a rule request** for an Administrator or
-Root to approve while signed in; it does not write a rule itself, because the
-person answering an approval prompt is identified by whatever surface rendered it
-and may hold no governance account at all.
+extracts the resource the call would touch. It checks **denials first**: a deny
+rule that matches refuses the call whatever any allowance says, at every tier and
+even while the agent is only being watched in `monitor`. Only then does it look
+for an active, unexpired allow rule. Whatever it concludes is appended to the
+hash-chained ledger before the verdict is returned, so the record exists whether
+or not the call proceeds, and each entry also carries what the model said it was
+doing on the turn that produced the call. If an allow rule matches, the verdict
+is allow and the tool runs. If none matches and escalation is switched off, the
+call is blocked and the agent is told why. If none matches and escalation is on,
+the decision is put to a human, whose answer is itself appended to the ledger:
+for a prompt sent from the dashboard, the accounts that manage the agent, on the
+governance page (T68); for a chat run, whoever holds the Gateway credential in the
+Control UI, or the channel's own approval buttons. An "allow always" answer
+permits that one call and **files a rule request** for an Administrator or Root to
+approve while signed in; it does not write a rule itself, because the person
+answering an approval prompt may hold no governance account at all.
+
+_(Corrected 2026-09-14. This paragraph and the Mermaid drew one matching step,
+"if a rule matches, the verdict is allow", which left out that a matching
+**deny** rule refuses before any allowance is read: the property that no later
+grant can reopen a denial. And it put every escalation "on the dashboard", which
+has been true only of a dashboard prompt's since T68.)_
 
 _(Corrected 2026-09-07, finding 282. Both this paragraph and the TikZ caption
 said an "allow always" answer "is additionally persisted as a new rule". That is
@@ -467,7 +500,7 @@ sequenceDiagram
   participant G as Policy engine
   participant R as Agent registry
   participant L as Audit ledger
-  participant H as Human (dashboard)
+  participant H as Human (dashboard: managing accounts; chat: Control UI)
 
   A->>P: tool call
   P->>G: evaluate(toolName, params)
@@ -480,9 +513,12 @@ sequenceDiagram
   R-->>G: groupId
   G->>G: agent locked down?
   G->>G: extract resource
-  G->>G: match active, unexpired rules
+  G->>G: deny rules first, then allow rules (active, unexpired)
   G->>L: append decision (hash-chained, with model intent)
-  alt rule matched
+  alt a deny rule matched
+    G-->>P: block, even in monitor
+    P->>A: blocked, with the rule named
+  else an allow rule matched
     G-->>P: allow
     P->>A: tool executes
   else no rule, ask = off
@@ -515,7 +551,7 @@ sequenceDiagram
 
   \draw[gflow] (5.8,-4.3) -- ++(0.8,0) -- ++(0,-0.5) -- (5.8,-4.8);
   \node[glab, right=32mm of {(5.8,-4.55)}, anchor=west]
-    {locked down? \quad extract resource \quad match rules};
+    {locked down? \quad extract resource \quad deny rules, then allow rules};
 
   \draw[gflow] (5.8,-5.5) -- node[glab,above] {append decision + intent} (11.3,-5.5);
 
@@ -527,10 +563,14 @@ sequenceDiagram
   \draw[gdash] (13.9,-8.8) -- node[glab,above] {allow once / always / deny} (5.8,-8.8);
 \end{tikzpicture}
 \caption{Policy decision sequence. An unregistered agent is refused before any
-policy is read. Of the remaining paths, the first is taken when a rule matches
-and the other two when none does, depending on whether escalation is enabled. An
-``allow always'' answer permits that one call and files a rule request for an
-administrator to approve; it does not write a rule by itself.}
+policy is read. Deny rules are checked before allow rules, so a matching denial
+refuses the call whatever any allowance says, even in monitor posture. Of the
+remaining paths, the first is taken when an allow rule matches and the other two
+when none does, depending on whether escalation is enabled. The human who answers
+is, for a dashboard prompt, an account that manages the agent, and for a chat run,
+whoever holds the Gateway credential. An ``allow always'' answer permits that one
+call and files a rule request for an administrator to approve; it does not write a
+rule by itself.}
 \label{fig:decision}
 \end{figure}
 ```
@@ -1031,12 +1071,14 @@ concurrent slots, which matters because unbounded concurrency is a denial of
 service available to the lowest tier that can act. It then records its intent in
 the ledger before anything runs. While running it streams snapshots to the
 dashboard, so the operator sees progress rather than a spinner. It ends in one of
-three ways: a reply, an explicit cancellation, or a timeout, the last two
-existing because a disconnected client previously left the agent working and a
-wedged provider previously held a connection open indefinitely. Closing the tab
-is not a fourth ending: since 2026-09-12 (finding 350) the run continues, still
-listed with its Cancel, until one of the three occurs. Whichever way it ends, the
-outcome is recorded.
+four ways: a reply, an explicit cancellation, a timeout, or the emergency kill
+switch, the middle two existing because a disconnected client previously left the
+agent working and a wedged provider previously held a connection open
+indefinitely, and the last since finding 364 (2026-09-13), when a lockdown was
+found to leave a dashboard prompt running. Closing the tab is not another ending:
+since 2026-09-12 (finding 350) the run continues, still listed with its Cancel,
+until one of the four occurs. A run that ends while its escalation waits withdraws
+the escalation (T69). Whichever way it ends, the outcome is recorded.
 
 ### Mermaid form
 
@@ -1048,9 +1090,11 @@ flowchart LR
   E -->|reply| R["Reply delivered"]
   E -->|cancel| C["Cancelled"]
   E -->|timeout| T["Timed out"]
+  E -->|kill switch| K["Stopped by lockdown"]
   R --> O["Record the outcome"]
   C --> O
   T --> O
+  K --> O
 ```
 
 ### TikZ form
@@ -1066,6 +1110,7 @@ flowchart LR
   \node[gbox, above right=3mm and 9mm of e] (r) {Reply};
   \node[gbox, right=9mm of e]               (c) {Cancelled};
   \node[gbox, below right=3mm and 9mm of e] (t) {Timed out};
+  \node[gbox, below=3mm of t]               (k) {Kill switch};
   \node[gbox, right=34mm of e] (o) {Record the outcome};
 
   \draw[gflow] (s) -- (i);
@@ -1074,11 +1119,15 @@ flowchart LR
   \draw[gflow] (e) -- (r);
   \draw[gflow] (e) -- (c);
   \draw[gflow] (e) -- (t);
+  \draw[gflow] (e) |- (k);
   \draw[gflow] (r) -| (o);
   \draw[gflow] (c) -- (o);
   \draw[gflow] (t) -| (o);
+  \draw[gflow] (k) -| (o);
 \end{tikzpicture}
-\caption{The prompt lifecycle.}
+\caption{The prompt lifecycle. A run ends in a reply, a cancellation, a timeout, or
+the emergency kill switch (finding 364); closing the browser tab does not end it
+(finding 350), and a run that ends while its escalation waits withdraws it.}
 \label{fig:promptlife}
 \end{figure}
 ```
@@ -1840,11 +1889,17 @@ flowchart LR
 | F19 | The tenant model               | **Keep**              | Fig 3.8         |
 | F20 | Same secret, several spellings | Cut, keep the table   | -               |
 | F21 | Two-layer Codex permission     | **Keep**              | Fig 3.10        |
+| F22 | Grant a folder, except…        | **Keep**              | Fig 3.11        |
+| F23 | "Always allow" after the card  | **Keep**              | Fig 3.12        |
+| F24 | A task's row and its slot      | **Keep**, small       | Fig 3.13        |
 
-**Eleven figures: nine in Chapter 3, two in Chapter 4**, plus one screenshot pair
-for F16 if you want it. That is a normal, defensible number for two chapters of
-this length, and every one of the ten earns its page by explaining something a
-paragraph explains worse.
+**Fourteen figures: twelve in Chapter 3, two in Chapter 4**, plus one screenshot
+pair for F16 if you want it. _(This read "Eleven figures: nine in Chapter 3" until
+2026-09-14: F22 was added on 2026-09-01 and F23 and F24 on 2026-09-11, all three
+as keeps, and the table was never extended. F22's proposed number also collided
+with F21's.)_ If fourteen is more than the chapters can carry, F24 and F10's
+merge into F6 are the first places to save a page; every other keep earns its page
+by explaining something a paragraph explains worse.
 
 ---
 
@@ -1916,7 +1971,7 @@ runtime needs neither.}
 
 ## F22: Grant a folder, except… (added 2026-09-01)
 
-**Source:** §3.5.66 · **Proposed number:** Figure 3.10
+**Source:** §3.5.66 · **Proposed number:** Figure 3.11
 
 **New figure, not a revision.** T32 shipped on 2026-08-31 and this document was
 last touched the same day without gaining a candidate for it, so the newest
@@ -1953,7 +2008,10 @@ Two properties make the result behave the way the operator meant. First,
 **forbid beats allow whatever the order**, so an exception carves a hole in the
 grant rather than racing it. Second, a path pattern binds the folder _and its
 subtree_ by ending in "either a separator or the end of the string", so a grant
-on `work` cannot accidentally cover a sibling called `work-other`.
+on `work` cannot accidentally cover a sibling called `work-other`. That ending,
+`(/|$)`, counts as the pattern's end anchor: until 2026-09-13 a hand-written copy of
+the grant's own shape was warned as unanchored, a false warning on the one pattern
+the product recommends.
 
 Two deliberate asymmetries are worth stating because they surprise people. The
 denials are written **before** the allow, so that a failure part-way through
@@ -2016,7 +2074,7 @@ independently of order.}
 
 ## F23: "Always allow", an approval that finishes after its card has closed (added 2026-09-11)
 
-**Source:** §3.5.81 · **Proposed number:** Figure 3.11
+**Source:** §3.5.81 · **Proposed number:** Figure 3.12
 
 **Recommendation: KEEP.** The order of events is the thing a reader gets wrong,
 and it is the whole design. The operator presses the button **before** the rule
@@ -2038,6 +2096,14 @@ happens. If the organisation's queue — 40 requests plus 20 per account — is 
 the callback reports that outcome to the Gateway, which re-broadcasts it to the
 operators who review approvals, and the Control UI shows a follow-up dialog
 saying the request was not saved.
+
+**Who sees the card and the follow-up depends on where the run came from**
+(T68, 2026-09-13). For a chat run it is as drawn: the Control UI, which connects
+as a Gateway operator. For a prompt sent from the dashboard, the card and its
+follow-up appear on the governance page, to the accounts that manage the agent,
+and to no Gateway connection. The sequence is otherwise the same, which is why
+the figure keeps one lane labelled _Operator_; the caption, if the figure is used,
+should say which of the two it shows.
 
 ### Mermaid form
 
@@ -2085,7 +2151,7 @@ sequenceDiagram
 
 ## F24: A task's row and its slot (added 2026-09-11)
 
-**Source:** §3.5.82 · **Proposed number:** Figure 3.12
+**Source:** §3.5.82 · **Proposed number:** Figure 3.13
 
 **Recommendation: KEEP, and keep it small.** It draws the invariant a defect came
 from. T63 keeps a task **listed** until its reply is saved, so that "it vanished"
@@ -2097,9 +2163,9 @@ at different moments, and only the slot bounds concurrency.
 ### Prose form
 
 A prompt that is accepted takes a slot and appears in both the conversation and
-_Active agent sessions_, with Cancel enabled. Cancelling it, or the five-minute
-timeout, moves it to **Stopping**: still listed, still holding its slot, Cancel
-disabled. When the model returns — or a stopped run finishes unwinding — it moves
+_Active agent sessions_, with Cancel enabled. Cancelling it, the five-minute
+timeout, or the kill switch locking its agent (finding 364) moves it to
+**Stopping**: still listed, still holding its slot, Cancel disabled. When the model returns — or a stopped run finishes unwinding — it moves
 to **Saving reply**: still listed so recovery can see it, but its slot is released,
 because it is no longer executing. Once the reply and its ledger entry are saved,
 it leaves the list.
@@ -2109,7 +2175,7 @@ it leaves the list.
 ```mermaid
 stateDiagram-v2
   [*] --> Running: prompt accepted (takes a slot)
-  Running --> Stopping: Cancel, or 5-minute timeout
+  Running --> Stopping: Cancel, 5-minute timeout, or kill switch
   Running --> Saving: model returned
   Stopping --> Saving: run unwinds
   Saving --> [*]: reply and ledger entry saved

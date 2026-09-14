@@ -4,10 +4,12 @@ A companion to the defect tables in `GOVERNANCE.md`. Those tables are written
 for someone reading the code. This document explains the same findings in
 ordinary language. What broke, why it mattered, and what was done about it.
 
-It focuses on **round six**, the multi-agent audit, because that round found the
-most and taught the most. Rounds one to five are summarised at the end.
+It began with **round six**, the multi-agent audit, because that round found the
+most and taught the most, and every pass since has been added to it, up to
+finding 368 and the independent review closed on 2026-09-13. Rounds one to five
+are summarised in §6.
 
-> **How to navigate this file. Added 2026-08-27.** Sections are in the order
+> **How to navigate this file. Added 2026-08-27, brought up to date 2026-09-14.** Sections are in the order
 > they were **written**, not in numeric order, because each new pass appended to
 > the end. Three consequences, all of them things a reader hits rather than an
 > author notices:
@@ -25,19 +27,26 @@ most and taught the most. Rounds one to five are summarised at the end.
 > `REMAINING-WORK.md`, so they have deliberately not been renumbered. Use the
 > numbers, not the position.
 >
-> **The newest material is §5.86–5.91, at the end of the file** (2026-09-01/02):
-> deleting an organisation, the four randomly-drawn sweeps after it, the pass
-> over everything they left, and a final review that changed **what it sampled**
-> once there was nothing left to draw. _(This line said "§5.42–5.44 (M5)" for
-> four days while forty sections had been added past it, which is this
-> document's own subject arriving in its navigation note.)_
+> **The newest material is §5.109–§5.115, at the end of the file** (2026-09-12
+> to 14): the dashboard driven through a real browser while things went wrong,
+> including the emergency stop that missed a task started from the dashboard
+> (§5.109–§5.110); a User's way to ask for a change, and a record that said
+> "done" when nothing had changed (§5.111); the week checked a second time
+> (§5.112); the independent review closed item by item (§5.113); and the last
+> three days checked again, where a reused agent name let old questions be
+> answered yes for a new agent (§5.114); and the control an Administrator was missing
+> for one agent's escalation, built (§5.115). _(This line said "§5.86–5.91" until
+> 2026-09-14, while twenty-one sections had been added past it, and "§5.42–5.44
+> (M5)" for four days before that: this document's own subject, arriving in its
+> navigation note twice.)_
 >
 > **If you read one section, read §5.87**: the emergency stop that reported
-> success and stopped nothing. **§5.89 second**, because four of its seven
-> problems are the same mistake in four places. **§5.90** closes the pool and the
-> argument. **§5.91 is the one about method**. Reviewing by _capability_ rather
-> than by _file_, and the test that turned out to be unable to fail for the
-> reason it existed.
+> success and stopped nothing. **§5.109 second**: the browser that handed one
+> person's governance data to the next. **§5.89** because four of its seven
+> problems are the same mistake in four places, and **§5.91** because it is the
+> one about method, reviewing by _capability_ rather than by _file_. **§5.112** is
+> the newest lesson: a test plan read against the system found what testing each
+> feature on its own had not.
 
 ---
 
@@ -135,6 +144,14 @@ software just wasn't set up to make it easy.
 > choose. Monitor survives as an **opt-in, per-agent** tool for discovering
 > rules, watch one agent, read what would have been refused, promote the
 > legitimate entries, and it never suspends a core denial.
+>
+> **One sentence below is too strong for the system as it stands**, and it is
+> corrected here rather than rewritten, like the rest of this history: "While in
+> monitor, nothing is blocked." Checked against the code on 2026-09-14, monitor
+> relaxes exactly one thing, what happens when **no rule allows** an action. Every
+> rule that **forbids** something still refuses it, at every tier and not only the
+> shipped ones; an agent stopped with the emergency stop is still stopped; and an
+> agent nobody registered is still refused.
 >
 > The section is kept because the argument it makes about unusable controls
 > being switched off wholesale is still correct, and because the reversal is
@@ -8000,3 +8017,142 @@ Now it says "Try again in 15 minutes."
 **The lesson:** the first and second were found by reading the test plan against the
 system and trying what it promised. A plan that says "switch it back on" is a claim that
 there is a way to.
+
+## 5.113 An outside review, answered point by point
+
+Earlier in the project an independent review read the whole system against the
+original specification and wrote down every problem it saw (`Kimi_QA_1.md`). On the
+evening of 2026-09-13 Kinan asked for that list to be checked one point at a time
+against the system as it now is, for anything still wrong to be fixed and usable from
+the dashboard, and for the list to be removed once it was all answered. Most points had
+been fixed long before; what happened to each one is in a table in
+`mg/REMAINING-WORK.md`. Five things still needed work, and all five were done that day.
+
+### The emergency stop's second button did not ask first
+
+Two buttons lock an agent. **Stop**, beside an agent that is running, asks "are you
+sure?" first. **Lock down**, in the emergency section, locked on one click, and the
+agent it locks is typed into a box, so a typing mistake locked the wrong agent. Lock
+down now asks too, and names the agent it is about to lock.
+
+### A temporary permission could quietly become permanent
+
+A rule can be given a time limit: allow this for one hour. If somebody then added the
+same rule with no limit, the permission simply became permanent, and nothing said so.
+That had been left unreported on purpose, because the second rule genuinely does
+something. Kinan decided it should be reported, because the person adding the second
+rule may not know the first one was meant to run out. The page now says "Rule added. It
+extends an earlier temporary rule", and the permanent record names the temporary rule
+it extended.
+
+### A risky rule was warned about when written, and not when approved
+
+When somebody writes a rule whose pattern matches far more than it seems to, the page
+warns them. A User asks for rules instead of writing them, and it is the
+Administrator's approval that creates the rule. At that moment nobody was warned. Now
+each waiting request shows, under "If this is approved", the warnings and clashes the
+rule would produce, before anybody presses Approve.
+
+### A warning that was wrong about the system's own advice
+
+The form that grants a folder writes a rule shaped like "this folder and everything
+inside it". The same shape typed by hand was warned about as far broader than it
+looks, with an example about running a downloaded script. A warning that is false
+about the shape the product itself recommends teaches people to stop reading warnings.
+It is no longer given for that shape, and genuinely broad patterns are still warned
+about.
+
+### A fix instruction that pointed at something deleted
+
+When one of the shipped protections is switched off, the deployment report fails and
+says how to put it right. It told Root to type a command, on the command line that had
+been removed a week earlier. It now says to switch the protection back on in the Policy
+section, which, as §5.112 found the next day, only became possible once a **Switch on**
+button was added.
+
+**The lesson:** a list of problems from someone outside is worth answering one item at
+a time against the system, not against the memory of having fixed things. Most of the
+points were already closed, and the five that were not were sitting among them.
+
+## 5.114 Three days checked again: a button that could only say no, questions that outlived their agent, and what deleting an agent leaves behind
+
+Once the main project documents were brought up to date on 2026-09-14, Kinan asked for
+everything done over the previous three days to be checked again. Rewriting the main
+engineering document against the system found the first and third of the things below;
+testing how the newest fix fitted with older decisions found the rest.
+
+### A button a User could see and never use (finding 369)
+
+While an agent is running, the page lists it with its controls: **Stop agent**, and
+**Observe**, which switches that one agent to watching instead of blocking. Only an
+Administrator may do that. The Policy section already hid its own Observe control from
+everybody else, but the list of running agents still showed the button to a User on
+their own agent, and pressing it was always refused. Now a User sees Stop agent and no
+Observe. A User who wants an agent watched asks for it under **Rule requests**.
+
+### Questions that outlived the agent they were about (finding 370)
+
+Agent names can be reused. When an agent is deleted, everything attached to its name is
+cleared, so that a new agent given the same name starts with nothing. §5.112 found that
+requests people had made for the old agent could still be approved, and the fix refused
+approval while nobody held the name. This check found three places where that was not
+enough:
+
+- once a new agent was created under the same name, an old request made for the deleted
+  agent could be approved, for the new one;
+- a question still waiting on screen for the deleted agent ("allow this?") came back once
+  the name was reused, and **Allow once** would have let the deleted agent's task do what
+  it had asked, as the new agent;
+- a question in **Awaiting your decision** for the deleted agent could be answered
+  "allow", which files a request for a permanent rule, now for the new agent.
+
+We tried all three before changing anything, and all three went through. Now the system
+compares two times: when the question was asked, and when the agent holding the name now
+was created. If the agent is newer than the question, the question was about somebody
+else, and it cannot be answered yes. It can still be refused, so it can be cleared away.
+
+### An account nobody can remove (finding 371, waiting for a decision)
+
+Before organisations existed, in August, accounts belonged to none. Those accounts cannot
+sign in, and the way to remove them was a terminal command, which went when the command
+line was removed. Nothing removes them now, and two documents said the **Accounts**
+section did. The documents are corrected. No installation in use can have such an
+account, because organisations came before the server was set up, so whether to build a
+way to remove them is Kinan's decision.
+
+### What deleting an agent leaves on the server (a question, not yet a finding)
+
+Deleting an agent from the governance page removes it from OpenClaw's list of agents.
+OpenClaw's own delete does more: it also removes the agent's scheduled jobs, its saved
+approval settings, its session records, and, unless told not to, its files. The
+governance page does none of those. What is not yet known is whether a new agent created
+under the same name would pick any of them up; that needs testing on a real setup.
+Whether governance should delete those things, files included, is a decision for Kinan.
+
+**The lesson:** a fix that closes a door for one kind of record has to be checked against
+every other record that holds the same name. The first fix handled requests; the same name
+was sitting in two more lists, and back in the request list as soon as it was reused.
+
+## 5.115 A setting an Administrator could clear but not set
+
+Each agent can have its own answer to "what happens when it tries something no rule
+covers": refuse it, or ask a person. §5.111 gave a User a way to ask for that to change.
+Building it showed the opposite gap. An Administrator, who is allowed to make the change,
+had no control for it. The Policy section listed every agent that already had its own
+setting, with a button to put it back to the default, but nothing could give an agent one.
+The only ways were to file a request as if they were a User and approve it themselves, or
+to write the web request by hand.
+
+Now the Policy section has **Escalation for one agent**: pick an agent from the list and
+press **Ask a human** or **Deny**. It sits beside **Observe one agent**, the matching
+control for an agent's posture, and one check decides whether both are shown, so they
+cannot drift apart the way the Observe button did in §5.114. A User does not see it and is
+pointed to the request form instead. The agent is picked from a list rather than typed,
+so a typing mistake cannot save the setting under a name no agent has.
+
+To check the tests, we broke the control on purpose in seven ways: showing it to a User,
+sending the wrong value, letting it be pressed before an agent was picked, and four more.
+Each break made a test fail.
+
+**The lesson:** checking that the wrong person cannot do something is half the check. The
+other half is that the right person can actually do it from the page.
