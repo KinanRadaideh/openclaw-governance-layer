@@ -82,6 +82,7 @@ import {
   renderRuleWarnings,
   type PolicyPanelProps,
 } from "./panels/policy-panels.ts";
+import { RuleRequestDraftsController } from "./panels/rule-request-drafts.ts";
 import { renderSectionNav, SectionNavController } from "./panels/section-nav.ts";
 import { renderGovernanceGate, renderIdentityRow } from "./panels/session-panels.ts";
 import { errorAfterRefresh, focusNewRefusal, revealRuleNotices } from "./refusal-focus.ts";
@@ -250,6 +251,8 @@ class GovernancePage extends OpenClawLightDomElement {
    * need to own moved to the panels that do.
    */
   private readonly accounts = new AccountsController(this);
+  /** The rule-request queue's half-typed forms (A11). */
+  private readonly requestDrafts = new RuleRequestDraftsController(this);
   /** The conversation composer and its transcript (T53). See `conversation-controller.ts`. */
   private readonly conversation = new ConversationController(this, {
     api: () => this.api(),
@@ -314,10 +317,6 @@ class GovernancePage extends OpenClawLightDomElement {
   @state() private systemStatus: GovernanceSystemStatus | null = null;
   @state() private deployment: GovernanceDeploymentStatus | null = null;
   @state() private ruleRequests: GovernanceRuleRequest[] = [];
-  @state() private requestKind: GovernancePolicyRule["resourceKind"] = "command";
-  @state() private requestPattern = "";
-  @state() private requestReason = "";
-  @state() private requestAgentId = "";
   @state() private activeSessions: GovernanceActiveSessionsView | null = null;
   /** Clash notice shown after adding a rule that an earlier rule already covers. */
   @state() private conflictNotice: GovernanceRuleConflict[] | null = null;
@@ -868,10 +867,7 @@ class GovernancePage extends OpenClawLightDomElement {
     this.postureAgentId = "";
     this.agentTimeoutAgentId = "";
     this.agentTimeoutSeconds = "";
-    this.requestKind = "command";
-    this.requestPattern = "";
-    this.requestReason = "";
-    this.requestAgentId = "";
+    this.requestDrafts.reset();
     // **`sessionExpired` is cleared here on purpose, not as a side effect.**
     // `markSessionExpired` sets it on the line *after* it calls this, so the
     // expiry path still shows its banner; what this stops is a plain sign-out
@@ -1212,13 +1208,9 @@ class GovernancePage extends OpenClawLightDomElement {
               busy: this.busy,
               canAdminister: canAdminister(this.identity),
               canManageAnyAgent: canManageAnyAgent(this.identity),
-              drafts: {
-                requestKind: this.requestKind,
-                requestPattern: this.requestPattern,
-                requestReason: this.requestReason,
-                requestAgentId: this.requestAgentId,
-              },
-              onDraft: (patch) => Object.assign(this, patch),
+              knownAgentIds: knownAgentIds(this.agentSources()),
+              agentLabel: (agentId) => agentLabel(this.agents, agentId),
+              ...this.requestDrafts.slice(),
             })}
             ${renderSystemSection(this.systemStatus)}
             ${renderOrganisationSection({

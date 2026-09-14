@@ -230,6 +230,9 @@ export const enGovernance: TranslationMap = {
       observeAgent: "Observe one agent",
       observeAgentHint:
         "Monitor records what the policy would have decided without acting on it, for one agent, so rules can be discovered from real behaviour. Core denials and the kill switch still apply.",
+      agentSettingRequestTitle: "Change one agent's posture or escalation",
+      agentSettingRequestHint:
+        "An Administrator sets these. To change one for an agent assigned to you, use “Request a change for one agent” under Rule requests.",
       ttlPlaceholder: "Minutes (blank = never expires)",
       ttlHint: "Leave blank for an indefinite rule that never expires.",
       indefinite: "never expires",
@@ -691,6 +694,22 @@ export const enGovernance: TranslationMap = {
       settingKind: "agent setting",
       scopeGlobal: "EVERY AGENT",
       submitButton: "Submit request",
+      // A11: the form that files an agent-setting request, which the server has
+      // taken since T4 and nothing on the page could send. No `off` posture is
+      // offered, and the hints say so (finding 365).
+      settingRequestTitle: "Request a change for one agent",
+      settingRequestHintAsk:
+        "Only an Administrator sets an agent's posture, or what happens when it tries something no rule covers. Ask for a change to one of your agents here; approving it applies the change. Governance cannot be switched off for one agent.",
+      settingRequestHintRecord:
+        "Records the change as a request, decided in this queue; approving it applies the change. A posture can also be set directly under Policy. Governance cannot be switched off for one agent.",
+      settingAgentLabel: "Agent to change",
+      settingLabel: "Setting to change",
+      settingOptionMode: "Posture (enforce or monitor)",
+      settingOptionAsk: "On an unlisted action (ask a human or deny)",
+      settingValueLabel: "Requested value",
+      settingValuePick: "Choose a value…",
+      settingReasonLabel: "Reason for this change",
+      settingSubmit: "Request change",
     },
     kill: {
       title: "Emergency kill switch",

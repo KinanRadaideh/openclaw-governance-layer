@@ -60,6 +60,7 @@ import {
 } from "../rule-filter.ts";
 import type { PanelEffects } from "./account-panels.ts";
 import { renderRuleTargets } from "./agent-policy-lookup.ts";
+import { renderAgentSettingRequestPointer } from "./agent-setting-request.ts";
 import { type CodexBackendState, renderCodexBackendPanel } from "./codex-backend-panel.ts";
 import { renderFolderGrantPanel, type RuleNotices } from "./folder-grant-panel.ts";
 import { formatDuration } from "./format.ts";
@@ -626,7 +627,7 @@ export function renderPolicySection(props: PolicyPanelProps): TemplateResult {
             </div>
           `,
         })
-      : nothing,
+      : renderAgentSettingRequestPointer(props.identity),
     renderAgentTimeoutRow(props),
     // The three explanatory rows, in their own module: see its header for why
     // the split happened here rather than a suppression comment landing here.

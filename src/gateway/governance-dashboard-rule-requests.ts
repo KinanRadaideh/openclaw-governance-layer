@@ -24,6 +24,7 @@ import { canManageAgent, canViewAgent, type GovernanceActor } from "../governanc
 import {
   addRule,
   loadPolicy,
+  PER_AGENT_OFF_REFUSED,
   setAgentAskMode,
   setAgentMode,
   TooManyRulesError,
@@ -39,7 +40,11 @@ import {
   reopenRuleRequest,
   submitRuleRequest,
 } from "../governance/rule-requests.js";
-import { describeRuleRisks, validateRulePattern } from "../governance/rule-validation.js";
+import {
+  describeRuleRisks,
+  isRuleAccess,
+  validateRulePattern,
+} from "../governance/rule-validation.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
 import { requireGroup } from "./governance-dashboard-group.js";
 import { sendInvalidRequest, sendJson } from "./http-common.js";
@@ -86,6 +91,21 @@ function withApprovalPreview(
 
 function isResourceKind(value: unknown): value is ResourceKind {
   return value === "command" || value === "path" || value === "network";
+}
+
+/**
+ * Whether an agent-setting request asks for a value approving it can apply.
+ *
+ * **No `off` posture (finding 365).** It was accepted here while `policy/agent-mode`
+ * refused it at every tier, so approving one wrote "posture default -> off" to the
+ * ledger and a value the loader discards: a change on paper and none at the gate.
+ * Asked at submission, so the request is refused while the requester can still
+ * read why, and again before approval claims a request stored before this check.
+ */
+function isApplicableSettingValue(setting: unknown, value: unknown): boolean {
+  return setting === "ask"
+    ? value === "off" || value === "on-miss"
+    : setting === "mode" && (value === "enforce" || value === "monitor");
 }
 
 /**
@@ -219,16 +239,14 @@ export async function handleGovernanceRuleRequestRoutes(
         });
         return true;
       }
-      const validValue =
-        settingRaw === "ask"
-          ? value === "off" || value === "on-miss"
-          : value === "enforce" || value === "monitor" || value === "off";
-      if (!validValue) {
+      if (!isApplicableSettingValue(settingRaw, value)) {
         sendInvalidRequest(
           res,
           settingRaw === "ask"
             ? "value must be off or on-miss"
-            : "value must be enforce, monitor, or off",
+            : value === "off"
+              ? PER_AGENT_OFF_REFUSED
+              : "value must be enforce or monitor",
         );
         return true;
       }
@@ -263,6 +281,20 @@ export async function handleGovernanceRuleRequestRoutes(
       sendInvalidRequest(res, "resourceKind must be command, path, or network");
       return true;
     }
+    // **A path request states its direction the way a path rule does (A11).** The
+    // store has carried `access` since finding 279, and only an escalation's "allow
+    // always" could fill it: this route dropped it, so a request filed by hand or from
+    // the form always asked for read and write. Validated as `policy/rules` validates
+    // it, including the refusal on other kinds, because approval grants it verbatim.
+    const access = (body as { access?: unknown }).access;
+    if (access !== undefined && access !== null && !isRuleAccess(access)) {
+      sendInvalidRequest(res, "access must be read or write");
+      return true;
+    }
+    if (access !== undefined && access !== null && resourceKind !== "path") {
+      sendInvalidRequest(res, "access applies to path rules only");
+      return true;
+    }
     const validatedPattern = validateRulePattern(pattern);
     if (!validatedPattern.ok) {
       sendInvalidRequest(res, validatedPattern.error);
@@ -290,6 +322,7 @@ export async function handleGovernanceRuleRequestRoutes(
           ...(typeof requestedAgentId === "string" && requestedAgentId.trim()
             ? { agentId: requestedAgentId.trim() }
             : {}),
+          ...(isRuleAccess(access) ? { access } : {}),
         }),
       );
     } catch (err) {
@@ -322,6 +355,24 @@ export async function handleGovernanceRuleRequestRoutes(
       sendJson(res, 404, {
         error: { message: "no such pending request", type: "not_found" },
       });
+      return true;
+    }
+    // **Refused before the decision is claimed, not after (finding 365).** A request
+    // stored before submission checked its value can ask for an `off` posture, which
+    // `setAgentMode` refuses. Claiming first would write "approved" to the ledger and
+    // then take it back, leaving the trail saying a change was granted that was not.
+    // Rejecting it stays open, so the queue can still be cleared.
+    if (
+      approve &&
+      pending.kind === "agent-setting" &&
+      !isApplicableSettingValue(pending.setting, pending.value)
+    ) {
+      sendInvalidRequest(
+        res,
+        pending.setting === "mode" && pending.value === "off"
+          ? `${PER_AGENT_OFF_REFUSED} Reject this request instead.`
+          : "This request asks for a value that cannot be applied. Reject it instead.",
+      );
       return true;
     }
     // Claim the decision *before* creating the rule. The reverse order let two

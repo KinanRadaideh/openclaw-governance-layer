@@ -54,6 +54,8 @@ import type {
   GovernanceRuleRequest,
   GovernanceUserRecord,
 } from "../api.ts";
+import { renderAgentSettingRequestRow } from "./agent-setting-request.ts";
+import type { RuleRequestDrafts } from "./rule-request-drafts.ts";
 import { renderRuleRequestPreview } from "./rule-request-preview.ts";
 
 /**
@@ -288,13 +290,6 @@ export class AccountsController {
   }
 }
 
-export type RuleRequestDrafts = {
-  requestKind: GovernancePolicyRule["resourceKind"];
-  requestPattern: string;
-  requestReason: string;
-  requestAgentId: string;
-};
-
 /** The page's effect primitives, handed to a panel so it can act without owning state. */
 export type PanelEffects = {
   /**
@@ -348,6 +343,9 @@ export type RuleRequestsPanelProps = PanelEffects & {
   busy: boolean;
   canAdminister: boolean;
   canManageAnyAgent: boolean;
+  /** The agents the setting-request form may offer, narrowed to those this account manages. */
+  knownAgentIds: readonly string[];
+  agentLabel: (agentId: string) => string;
   drafts: RuleRequestDrafts;
   onDraft: (patch: Partial<RuleRequestDrafts>) => void;
 };
@@ -755,7 +753,14 @@ export function renderRuleRequestsSection(
         )}
         ${request.kind === "agent-setting"
           ? t("governance.requests.settingKind")
-          : request.resourceKind}
+          : request.resourceKind}${
+          // The direction a path request asks for (A11). Approving grants exactly
+          // it, and a row reading only "path" looks the same whether it asks for
+          // reading, writing or both — the difference the Administrator is deciding.
+          request.access
+            ? ` (${request.access === "read" ? t("governance.policy.readOnlyBadge") : t("governance.policy.writeOnlyBadge")})`
+            : ""
+        }
         · ${t("governance.requests.by")} ${request.requestedBy}, ${request.reason}
         ${renderRuleRequestPreview(request)}`,
         control: canDecide
@@ -838,6 +843,32 @@ export function renderRuleRequestsSection(
                 <option value="path">path</option>
                 <option value="network">network</option>
               </select>
+              ${
+                // **A path request can ask for one direction (A11)**, as the Add a
+                // rule form can, because approving grants exactly what was asked:
+                // without it every form-filed path request asked for read and write.
+                // Only for paths, since the server refuses a direction on anything else.
+                props.drafts.requestKind === "path"
+                  ? html`<select
+                      class="input"
+                      aria-label=${t("governance.policy.accessLabel")}
+                      title=${t("governance.policy.accessHint")}
+                      .value=${props.drafts.requestAccess}
+                      @change=${(e: Event) => {
+                        props.onDraft({
+                          requestAccess: (e.target as HTMLSelectElement).value as
+                            | ""
+                            | "read"
+                            | "write",
+                        });
+                      }}
+                    >
+                      <option value="">${t("governance.policy.accessBoth")}</option>
+                      <option value="read">${t("governance.policy.accessRead")}</option>
+                      <option value="write">${t("governance.policy.accessWrite")}</option>
+                    </select>`
+                  : nothing
+              }
               <input
                 class="input"
                 type="text"
@@ -887,16 +918,37 @@ export function renderRuleRequestsSection(
                       // absent field is the deliberate "installation-wide"
                       // choice the server understands.
                       ...(agentId ? { agentId } : {}),
+                      // Only a path, and only when narrowed: the server refuses a
+                      // direction on any other kind, and leaving it out asks for both.
+                      ...(props.drafts.requestKind === "path" && props.drafts.requestAccess
+                        ? { access: props.drafts.requestAccess }
+                        : {}),
                     });
                     props.onDraft({ requestPattern: "" });
                     props.onDraft({ requestReason: "" });
                     props.onDraft({ requestAgentId: "" });
+                    props.onDraft({ requestAccess: "" });
                   })}
               >
                 ${t("governance.requests.submitButton")}
               </button>
             </div>
           `,
+        })
+      : nothing,
+    // A User's way to ask for one agent's posture or escalation (A11), beside the
+    // form that asks for a rule, because it is the same queue and the same decision.
+    canPropose
+      ? renderAgentSettingRequestRow({
+          api: props.api,
+          run: props.run,
+          identity: props.identity,
+          busy: props.busy,
+          canAdminister: props.canAdminister,
+          knownAgentIds: props.knownAgentIds,
+          agentLabel: props.agentLabel,
+          drafts: props.drafts,
+          onDraft: props.onDraft,
         })
       : nothing,
   ]);

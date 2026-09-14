@@ -964,12 +964,31 @@ export function describeAgentPolicyHoldings(cleared: AgentPolicyHoldings): strin
   return parts.length > 0 ? parts.join(", ") : "nothing";
 }
 
+/**
+ * Why one agent's posture cannot be `off`, in the words every refusal of it uses.
+ *
+ * A per-agent `off` is not a weaker posture but the absence of the gate for that agent:
+ * no core denials, no kill switch, no ledger entry. It stays one visible,
+ * installation-wide act (`policy/mode`).
+ */
+export const PER_AGENT_OFF_REFUSED =
+  "Governance cannot be switched off for one agent. Switching it off is an installation-wide Administrator action (Policy, Posture).";
+
 export async function setAgentMode(
   groupId: string,
   rawAgentId: string,
-  mode: GovernanceMode | undefined,
+  mode: Exclude<GovernanceMode, "off"> | undefined,
   actor: AuditActorInput,
 ): Promise<void> {
+  // **`off` is refused here, not only on the route that sets it (finding 365).**
+  // `policy/agent-mode` refused it, and approving a User's agent-setting request
+  // reached this function without that route: the document was written with
+  // `off`, the ledger recorded "posture default -> off", and the loader, which keeps
+  // only `enforce` and `monitor`, dropped it on the next read. A posture change the
+  // trail asserts and the gate never saw. Refusing before the write keeps both true.
+  if ((mode as GovernanceMode | undefined) === "off") {
+    throw new Error(PER_AGENT_OFF_REFUSED);
+  }
   // Folded like every other agent key in this document (finding 202).
   const agentId = normalizeAgentId(rawAgentId);
   let previous: GovernanceMode | undefined;

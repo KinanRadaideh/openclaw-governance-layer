@@ -231,38 +231,14 @@ export type GovernanceIdentity = {
   canAuthorPolicy?: boolean;
 };
 
-export type GovernanceRuleRequest = {
-  id: string;
-  /** Absent means a rule request; "agent-setting" is a per-agent settings ask (T4). */
-  kind?: "rule" | "agent-setting";
-  setting?: "ask" | "mode";
-  value?: string;
-  resourceKind: "command" | "path" | "network";
-  pattern: string;
-  reason: string;
-  requestedBy: string;
-  requestedAt: string;
-  status: "pending" | "approved" | "rejected";
-  decidedBy?: string;
-  decidedAt?: string;
-  createdRuleId?: string;
-  /**
-   * For a pending rule request, what approving it would report: the warnings and the
-   * clashes the create path returns, computed by the server against the current policy.
-   */
-  warnings?: GovernanceRuleWarning[];
-  conflicts?: GovernanceRuleConflict[];
-  /**
-   * Agent the request is for; absent means installation-wide.
-   *
-   * Omitting this field from the client type is what silently turned every
-   * dashboard-submitted request into a global grant: the server scopes the
-   * approved rule from `pending.agentId`, so a request that never carried one
-   * was approved as a rule binding every agent. The approver saw only the
-   * pattern and had no way to tell.
-   */
-  agentId?: string;
-};
+// Rule-request shapes live in `api.rule-requests.ts` and are re-exported here, so
+// every module importing them from `./api.ts` keeps working (A11).
+export type * from "./api.rule-requests.ts";
+import type {
+  GovernanceAgentSettingRequestInput,
+  GovernanceRuleRequest,
+  GovernanceRuleRequestInput,
+} from "./api.rule-requests.ts";
 
 export type GovernanceSystemStatus = {
   platform: string;
@@ -1057,13 +1033,19 @@ export class GovernanceApi {
     return this.request<GovernanceRuleRequest[]>("rule-requests");
   }
 
-  submitRuleRequest(input: {
-    resourceKind: GovernancePolicyRule["resourceKind"];
-    pattern: string;
-    reason: string;
-    /** Omit only when deliberately asking for an installation-wide rule. */
-    agentId?: string;
-  }): Promise<GovernanceRuleRequest> {
+  submitRuleRequest(input: GovernanceRuleRequestInput): Promise<GovernanceRuleRequest> {
+    return this.request<GovernanceRuleRequest>("rule-requests", { method: "POST", body: input });
+  }
+
+  /**
+   * Asks for one agent's escalation or posture to change (T4, A11).
+   *
+   * The same queue and route as a rule request, told apart by `setting`. Only an
+   * Administrator sets these directly; a User asks here, for an agent they manage.
+   */
+  submitAgentSettingRequest(
+    input: GovernanceAgentSettingRequestInput,
+  ): Promise<GovernanceRuleRequest> {
     return this.request<GovernanceRuleRequest>("rule-requests", { method: "POST", body: input });
   }
 
