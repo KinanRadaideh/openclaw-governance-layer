@@ -17,7 +17,7 @@
 // pin the behaviour the correction exposed.
 //
 // Each case here began as a probe that the gate answered wrongly. The probes
-// are kept in `docs-notes/qa-round13-probes/` for reproduction.
+// are kept in `old-docs/qa-round13-probes/` for reproduction.
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

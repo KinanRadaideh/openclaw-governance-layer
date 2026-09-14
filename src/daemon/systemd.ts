@@ -958,7 +958,7 @@ function resolveSystemctlProcessEnv(env: GatewayServiceEnv): NodeJS.ProcessEnv {
   // machine scope still wins — only `sudo -i` (HOME=/root), where the unit is
   // genuinely written under root's home, is redirected to root's own manager.
   //
-  // Upstream behaviour, reported in `UPSTREAM-BUG-REPORT.md`.
+  // Upstream behaviour, reported in `old-docs/UPSTREAM-BUG-REPORT.md`.
   const uid = readSystemctlEffectiveUid();
   if (uid === null) {
     return processEnv;

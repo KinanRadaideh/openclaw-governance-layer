@@ -39,7 +39,7 @@ so **set the tunnel up before you need it** — there is no second way in.
 _(There was a command line, `openclaw governance …`, removed on 2026-09-07. Its
 argument was exactly the sentence above: it worked before the tunnel existed.
 That is a real loss and is recorded as one in
-[`removed-cli-surface/`](removed-cli-surface/README.md), along with the source
+[`old-docs/removed-cli-surface/`](old-docs/removed-cli-surface/README.md), along with the source
 and how to restore it. It was removed because no design requirement asked for
 it, and because it was the surface that broke in front of an operator.)_
 
@@ -165,7 +165,7 @@ demonstrably there, because the missing address makes it look for the unit in
 the wrong scope. Setting `XDG_RUNTIME_DIR` alone does not help; set both.
 
 _(This build patches the underlying bug. Finding 232, reported upstream in
-`UPSTREAM-BUG-REPORT.md`. The exports are still correct on any older build and
+`old-docs/UPSTREAM-BUG-REPORT.md`. The exports are still correct on any older build and
 on stock OpenClaw.)_
 
 ### 4.3 Clone and install
@@ -297,14 +297,14 @@ The refusal is there, with the agent, the decision, and the rule that made it.
 
 ## 8. Where to go next
 
-| You want                       | Read                                                          |
-| ------------------------------ | ------------------------------------------------------------- |
-| Every deployment detail        | `docs-notes/LINUX-INSTALL.md`                                 |
-| The removed command line       | `docs-notes/removed-cli-surface/` (archive and restore notes) |
-| What each role may do          | `docs-notes/ROLE-MODEL.md`                                    |
-| How to write policy rules      | `docs-notes/WRITING-PERMISSIONS.md`, `PERMISSION-SPEC.md`     |
-| What is built and what is left | `mg/HANDOFF.md`, §1 state, §6 outstanding, §7 caveats         |
-| What went wrong and was fixed  | `docs-notes/QA-IN-PLAIN-TERMS.md`, plain language             |
+| You want                       | Read                                                        |
+| ------------------------------ | ----------------------------------------------------------- |
+| Every deployment detail        | `docs-notes/LINUX-INSTALL.md`                               |
+| The removed command line       | `old-docs/removed-cli-surface/` (archive and restore notes) |
+| What each role may do          | `docs-notes/ROLE-MODEL.md`                                  |
+| How to write policy rules      | `docs-notes/WRITING-PERMISSIONS.md`, `PERMISSION-SPEC.md`   |
+| What is built and what is left | `mg/HANDOFF.md`, §1 state, §6 outstanding, §7 caveats       |
+| What went wrong and was fixed  | `docs-notes/QA-IN-PLAIN-TERMS.md`, plain language           |
 
 ---
 

@@ -7427,7 +7427,7 @@ measured after the removal, not assumed.
 ### Nothing was thrown away
 
 Every file, every test, the reasoning, and step-by-step instructions for putting
-it all back are kept in `docs-notes/removed-cli-surface/`. Restoring it takes
+it all back are kept in `old-docs/removed-cli-surface/`. Restoring it takes
 about ten minutes. Anyone who thinks this was the wrong call — including a future
 reader — can reverse it.
 
@@ -7917,3 +7917,86 @@ you would not see it:
 **The lesson:** on a page used for keeping watch, the words are part of the safety
 system. If the page tells you nothing, or tells you something untrue, you will act
 on it.
+
+## 5.111 Asking for a change you may not make, and a record that said "done"
+
+### There was nowhere to ask
+
+Each agent has two settings of its own. Its **posture** says whether its rules are
+enforced or only watched ("monitor"). The other says what happens when it tries
+something no rule covers: refuse it, or ask a person. Only an Administrator may change
+either for one agent, because both can loosen what that agent is allowed to do. The
+plan was that a User asks instead, and an Administrator says yes or no.
+
+The server could take that request, and the list of requests could show it and let an
+Administrator decide. But nothing on the page let a User send one. The only way was to
+write the web request by hand. Now the **Rule requests** section has **Request a change
+for one agent**: pick one of your agents, the setting, the new value, and a reason. The
+Policy section tells a User where to find it.
+
+Next to it, **Request a rule** could not say whether you wanted to _read_ some files or
+also _change_ them, so every such request asked for both. That is more trust than
+someone who only wants to read a folder needs. It now has the same "Read or write"
+choice as the form Administrators use, and the list of requests shows which was asked
+for.
+
+### Approving a request that could not work said it had worked
+
+One value is never allowed for a single agent: switching its governance **off**. That
+would take every protection away from that agent, the emergency stop included. The
+control Administrators use refuses it. A User's _request_ for it was accepted, though.
+
+Before changing anything, we tried it. A User asked for "off", an Administrator
+approved, and the system said it had worked. The permanent audit record said the
+agent's posture had changed to "off". But the next time the system read its settings,
+it quietly threw that value away, so the agent went on being governed exactly as
+before.
+
+Nothing unsafe happened. But the record, the one part that has to be trustworthy,
+described a change that never took place. Now a request for "off" is refused when it is
+sent, with a message saying why. A request like that saved before the fix cannot be
+approved, and trying writes nothing to the record; it can still be rejected. The part
+of the system that stores the setting refuses "off" too, however it is reached.
+
+**The lesson:** "it can only fail later" is a guess about later. Try it. Here it did
+not fail: it said yes, and was wrong.
+
+## 5.112 A week checked again: a name handed on, a switch with no way back, and "later"
+
+The next day Kinan asked for the week's work to be checked once more. Three things came
+out of it, all fixed the same day.
+
+### A request for an agent that no longer exists could still be approved
+
+When an agent is deleted, everything attached to its name is cleared too: its rules, its
+posture, whether it was locked. That matters because names can be reused, and a new
+agent must not inherit the old one's permissions. But requests people had made _for_ that
+agent were left waiting in the queue. We tried it: a User asked for two changes for an
+agent, the agent was deleted, and then an Administrator approved both. Both went through,
+and the permissions landed on a name nobody was using, ready for the next agent given
+that name.
+
+Now approving such a request is refused, and nothing is recorded as approved. The
+request says in its own row that the agent is gone, and only **Reject** is offered.
+
+### A protection could be switched off from the page, but not back on
+
+Root is allowed to switch off some of the protections the system ships with. The page
+had a button for that. Once switched off, the protection disappeared from the list, and
+nothing on the page offered to switch it back on. Before the command line was removed
+there was a command for it; afterwards the only way was to write a web request by hand.
+Meanwhile the deployment report told Root to switch it back on "in the Policy section",
+where there was nothing to press.
+
+Now a switched-off protection stays listed, marked as switched off, so everyone can see
+it is not being enforced, and Root has a **Switch on** button beside it.
+
+### "Try again later"
+
+Getting a password wrong five times locks that username out for fifteen minutes. The
+message said only "Try again later". The system knew the exact wait and did not say it.
+Now it says "Try again in 15 minutes."
+
+**The lesson:** the first and second were found by reading the test plan against the
+system and trying what it promised. A plan that says "switch it back on" is a claim that
+there is a way to.

@@ -12,7 +12,7 @@ its old path, byte-identical apart from the two that carried same-day fixes
 restoring is a move back rather than a resurrection. Nothing left the repository.
 
 The sources carry a `.txt` suffix so they are not compiled, linted or collected
-by the test runner. That is the same device `docs-notes/qa-round13-probes/` uses
+by the test runner. That is the same device `old-docs/qa-round13-probes/` uses
 and for the same reason: a file that looks like source but is not built reads as
 work in progress, and a test file sitting outside the suite that still gets
 collected would fail for reasons nobody is fixing. Strip the suffix to restore.
@@ -145,14 +145,14 @@ Ten minutes, and in this order.
 1. **Restore the sources**, stripping the `.txt`:
 
    ```bash
-   cp docs-notes/removed-cli-surface/source/register.governance.ts.txt        src/cli/program/register.governance.ts
-   cp docs-notes/removed-cli-surface/source/register.governance.agents.ts.txt src/cli/program/register.governance.agents.ts
-   cp docs-notes/removed-cli-surface/source/register.governance.backend.ts.txt src/cli/program/register.governance.backend.ts
-   cp docs-notes/removed-cli-surface/source/register.governance.organisation.ts.txt src/cli/program/register.governance.organisation.ts
-   cp docs-notes/removed-cli-surface/source/register.governance.policy.ts.txt src/cli/program/register.governance.policy.ts
-   cp docs-notes/removed-cli-surface/source/register.governance.requests.ts.txt src/cli/program/register.governance.requests.ts
-   cp docs-notes/removed-cli-surface/source/governance-cli-gate.ts.txt        src/cli/program/governance-cli-gate.ts
-   cp docs-notes/removed-cli-surface/source/cli-identity.ts.txt               src/governance/cli-identity.ts
+   cp old-docs/removed-cli-surface/source/register.governance.ts.txt        src/cli/program/register.governance.ts
+   cp old-docs/removed-cli-surface/source/register.governance.agents.ts.txt src/cli/program/register.governance.agents.ts
+   cp old-docs/removed-cli-surface/source/register.governance.backend.ts.txt src/cli/program/register.governance.backend.ts
+   cp old-docs/removed-cli-surface/source/register.governance.organisation.ts.txt src/cli/program/register.governance.organisation.ts
+   cp old-docs/removed-cli-surface/source/register.governance.policy.ts.txt src/cli/program/register.governance.policy.ts
+   cp old-docs/removed-cli-surface/source/register.governance.requests.ts.txt src/cli/program/register.governance.requests.ts
+   cp old-docs/removed-cli-surface/source/governance-cli-gate.ts.txt        src/cli/program/governance-cli-gate.ts
+   cp old-docs/removed-cli-surface/source/cli-identity.ts.txt               src/governance/cli-identity.ts
    ```
 
 2. **Restore the tests** the same way, into `src/governance/`.

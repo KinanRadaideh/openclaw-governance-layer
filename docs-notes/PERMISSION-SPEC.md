@@ -7,53 +7,63 @@ For a teaching introduction see `docs-notes/WRITING-PERMISSIONS.md`. This
 document assumes familiarity with regular expressions and states behaviour
 precisely rather than gently.
 
+**Checked against the code on 2026-09-13**: the types, the evaluation order, the
+registry, the limits and the routes. Where a sentence and the code disagree, the
+code is the definition and the sentence is a defect.
+
 Normative keywords (MUST, MUST NOT, SHOULD, MAY) carry their usual meaning.
 
 ---
 
 ## 1. Policy document
 
-Persisted at `${OPENCLAW_GOVERNANCE_DIR:-~/.openclaw/governance}/policy.json`.
+Persisted per organisation at
+`${OPENCLAW_GOVERNANCE_DIR:-~/.openclaw/governance}/groups/<groupId>/policy.json`
+(§11b). `src/governance/policy-types.ts` is the definition.
 
 ```ts
 type PolicyDocument = {
   version: 1;
-  mode: "enforce" | "monitor" | "off"; // default: "enforce" (monitor is opt-in, per agent)
-  ask: "off" | "on-miss";
-  agentMode: Record<AgentId, "enforce" | "monitor" | "off">;
+  mode: "enforce" | "monitor" | "off"; // default: "enforce"
+  ask: "off" | "on-miss"; // default: "on-miss"
+  agentMode: Record<AgentId, "enforce" | "monitor">; // a stored "off" is dropped on load
   agentAsk: Record<AgentId, "off" | "on-miss">;
+  agentHitlTimeout: Record<AgentId, number>; // seconds, 5 … 86400
   userAsk: Record<Username, "off" | "on-miss">;
-  hitlTimeoutSeconds: number; // 5 … 86400
+  hitlTimeoutSeconds: number; // 5 … 86400, default 300
   rules: PolicyRule[];
   lockedAgents: AgentId[];
+  disabledCoreRules?: RuleId[]; // T24; never a self-protecting rule
 };
 ```
 
-| Field                | Semantics                                                                                                      |
-| -------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `mode`               | `enforce` applies verdicts; `monitor` records them without acting; `off` disables the gate and records nothing |
-| `ask`                | Installation default for an unmatched action                                                                   |
-| `agentMode`          | Per-agent override of `mode`. Absent key ⇒ inherit `mode`                                                      |
-| `agentAsk`           | Per-agent override of `ask`. Absent key ⇒ inherit `ask`                                                        |
-| `userAsk`            | Per-**account** override of `ask`, set by Root. Combined with `agentAsk` by taking the stricter. See §5        |
-| `hitlTimeoutSeconds` | Escalation wait before timeout. Timeout ⇒ deny                                                                 |
-| `lockedAgents`       | Kill-switch set; evaluated before rules                                                                        |
+| Field                | Semantics                                                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `mode`               | `enforce` applies verdicts; `monitor` records them without acting; `off` disables the gate and records nothing      |
+| `ask`                | Installation default for an unmatched action: `off` refuses it, `on-miss` puts it to a human                        |
+| `agentMode`          | Per-agent override of `mode`, to watch one agent in `monitor`. Absent key ⇒ inherit `mode`                          |
+| `agentAsk`           | Per-agent override of `ask`. Absent key ⇒ inherit `ask`                                                             |
+| `agentHitlTimeout`   | Per-agent override of `hitlTimeoutSeconds`. Absent key ⇒ inherit                                                    |
+| `userAsk`            | Per-**account** override of `ask`, set by Root. Combined with the agent axis by taking the stricter (§5)            |
+| `hitlTimeoutSeconds` | Escalation wait before timeout. Timeout ⇒ deny, and the question is kept on the held-decision stack (§5.1)          |
+| `lockedAgents`       | Kill-switch set; evaluated before rules                                                                             |
+| `disabledCoreRules`  | Core rules Root has switched off, by id. Records a decision the reassertion of core rules consults; deletes nothing |
 
-`agentMode` MUST NOT hold `off`. The API and the CLI refuse it at every tier
-including Root, and a stored `off` is **dropped on load** so the agent
-inherits the installation default. A per-agent `off` returns before the
-lockdown check (§5 step 3), so it would remove the kill switch and the core
-denials from that agent, not merely its ordinary rules, and would write
-nothing to the ledger recording that it had. Until QA round 13 (finding 80)
-only the routes refused it, so a hand-edited `policy.json` reintroduced it,
-one field away from `reassertCoreRules`, which exists precisely so that
-hand-editing cannot remove the core tier. Switching the gate off is an
-installation-wide `mode` change, which is Administrator-level and audited.
+`agentMode` MUST NOT hold `off`. The route refuses it at every tier including
+Root, and a stored `off` is **dropped on load** so the agent inherits the
+installation default. A per-agent `off` would return before the lockdown check
+(§5 step 6), so it would remove the kill switch and the core denials from that
+agent, not merely its ordinary rules, and would write nothing to the ledger
+recording that it had. Until QA round 13 (finding 80) only the routes refused it,
+so a hand-edited `policy.json` reintroduced it, one field away from the core
+rules' reassertion, which exists precisely so that hand-editing cannot remove the
+core tier. Switching the gate off is an installation-wide `mode` change, which is
+Administrator-level and audited.
 
-Every per-entry value in `agentMode`, `agentAsk` and `userAsk` is validated on
-load and a value that does not parse is **dropped**, so the agent or account
-inherits the installation default. Validating only the container let an
-unparseable value reach the engine, where it resolved to the more permissive
+Every per-entry value in `agentMode`, `agentAsk`, `agentHitlTimeout` and `userAsk`
+is validated on load and a value that does not parse is **dropped**, so the agent
+or account inherits the installation default. Validating only the container let
+an unparseable value reach the engine, where it resolved to the more permissive
 branch.
 
 A document written by an earlier build is merged over current defaults on read,
@@ -74,6 +84,7 @@ type PolicyRule = {
   createdBy?: string; // authoring account
   expiresAt?: string; // ISO 8601; absent ⇒ indefinite
   agentId?: string; // absent ⇒ global; stored canonical (lowercased)
+  selfProtecting?: boolean; // core rules only; see Tier
 };
 ```
 
@@ -85,11 +96,10 @@ granting exactly what it granted.
 2026-09-01).** It is compared against the id the gate resolves from the session
 key, which the host mints lowercased, so a rule scoped as written bound nothing:
 an `allow` that did not grant and, worse, a `deny` that did not forbid. It is
-now folded through `normalizeAgentId` when a rule is stored **and** when the
-document is read, so a `policy.json` already holding the typed spelling starts
-binding on this build. The same fold now applies to `lockedAgents`, `agentMode`
-and `agentAsk`; the account-keyed `userAsk` beside them had been folded since the
-defect that fold exists for, which is how the gap survived.
+folded through `normalizeAgentId` when a rule is stored **and** when the document
+is read, so a `policy.json` holding the typed spelling binds on this build. The
+same fold applies to `lockedAgents`, `agentMode`, `agentAsk` and
+`agentHitlTimeout`; the account-keyed `userAsk` is folded as an account name.
 
 **Effect.** The language was allow-only, on the reasoning that denial was the
 default and needed no expression. The tier model requires restrictions that
@@ -101,11 +111,17 @@ by an allowance" (§5).
 **Tier.** `core` rules are declared in `src/governance/baseline-policy.ts`,
 reasserted from source on every load, and refused by the create and remove paths
 for every tier **including Root**. A stored rule claiming `tier: "core"` is
-discarded on load, so a hand-edited file cannot mint one. `baseline` rules ship
-with the installation and MAY be removed or narrowed by an Administrator.
-`admin` is everything an operator writes; the create path coerces any
-caller-supplied tier to `admin`, so an operator rule cannot present itself as
-one the installation vouched for.
+discarded on load, so a hand-edited file cannot mint one. Root MAY switch off a
+core rule that is **not** `selfProtecting`, through `disabledCoreRules` (T24): the
+rule stays declared, stays visible, and is one setting away from coming back.
+A `selfProtecting` core rule is one whose removal would let the governed agent
+reach the policy, the accounts, the ledger or the control plane; it MUST NOT be
+disabled at any tier, and both the setter and the load path refuse it. `baseline`
+rules ship with the installation and MAY be removed or narrowed by an
+Administrator. `admin` is everything an operator writes; the create path coerces
+any caller-supplied tier to `admin`, so an operator rule cannot present itself as
+one the installation vouched for. The rules themselves and their reasons are in
+`docs-notes/BASELINE-RULES.md`.
 
 **Access.** Narrows a `path` rule to one direction. The direction of an
 invocation comes from the **tool**, not the rule (§3). A rule with no `access`
@@ -114,8 +130,8 @@ so narrowing can never weaken a restriction in the other direction.
 
 ## 3. Resource derivation
 
-Exactly one string per resource is derived from a tool invocation and matched
-against `pattern`.
+One or more strings are derived from a tool invocation and matched against
+`pattern`. `src/governance/resource-extraction.ts` is the definition.
 
 | `resourceKind` | Tools                                                                                                                                       | Access  | Derived string                                                                                                                                 |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -132,9 +148,10 @@ evaluated and recorded before a verdict is returned (§5).
 
 For `grep`, `find` and `ls` the `path` parameter is optional and the tool
 defaults to the working directory. An omitted path therefore derives `.` rather
-than deriving nothing, "no resource" means `ungoverned`, which passes the gate,
+than deriving nothing: "no resource" means `ungoverned`, which passes the gate,
 so extracting nothing would have made the commonest spelling of each tool the
-one that escaped the policy.
+one that escaped the policy. These three tools recurse below the root they are
+given; what they return is filtered afterwards (§12.8).
 
 ### 3.1 Path canonicalisation
 
@@ -142,20 +159,33 @@ one that escaped the policy.
 (`src/governance/path-normalize.ts`). The pipeline is ordered and total. Every
 path resource passes through all of it:
 
-1. **Expand and absolutise**, `~` and `file://` expanded; relative paths
+1. **Expand and absolutise**: `~` and `file://` expanded; relative paths
    resolved against the workspace root (`HookContext.cwd`); `..` segments
    collapsed by `path.resolve`.
 2. **Dereference**. Symbolic links resolved via async `realpath`. When the
    target does not exist (a `write` creating a new file), the **parent**
    directory is dereferenced and the basename re-attached; when neither
    resolves, the absolutised path from step 1 is used.
-3. **Project**, `formatPathRelativeToCwdOrAbsolute` renders the result
+3. **Project**: `formatPathRelativeToCwdOrAbsolute` renders the result
    workspace-relative when it is inside the workspace root, absolute otherwise.
    Separators are POSIX (`/`) on every platform. Capped at 2048 characters.
 
 The workspace root is itself dereferenced before the comparison in step 3, so a
 workspace reached through a symlinked path does not make every file inside it
 appear to be outside.
+
+**The tool opens what the gate judged (T23).** The gate resolves each path
+parameter once and hands the tool the canonical path it evaluated, rather than
+the string the agent wrote, so a link swapped between the check and the open
+cannot make the rules judge one file while the tool reads another. Extraction runs
+on those bound parameters.
+
+**Both spellings of a workspace path are matched (finding 253).** A file inside
+the workspace has a workspace-relative name and an absolute one, and which one a
+rule had to be written in depended on the session's working directory, which the
+rule's author does not know. Every rule is therefore tested against both forms;
+the ledger records the canonical one. A path outside the workspace has only its
+absolute form.
 
 **Normative consequences.**
 
@@ -175,7 +205,7 @@ appear to be outside.
 
 `terminal` accepts a command on **two** parameters and both are derived.
 `action: "open"` takes `command`, the shell command the new session starts with.
-`action: "input"` takes `data`, "Raw terminal input". Keystrokes typed into a
+`action: "input"` takes `data`, "Raw terminal input": keystrokes typed into a
 session that is already open. Deriving only the first left the second entirely
 ungoverned: an agent could open a terminal and then submit any command at all
 through `data` without the allowlist or a single core denial being consulted.
@@ -197,7 +227,7 @@ observe or tidy an existing session and derive nothing.
 a string comparison, so each alternative spelling of an address is a way around
 it.
 
-1. **Unwrap**, IPv6 literals lose their surrounding brackets, which are URL
+1. **Unwrap**: IPv6 literals lose their surrounding brackets, which are URL
    syntax rather than part of the address.
 2. **Lowercase**, then **strip trailing dots**. A trailing dot marks a
    fully-qualified name and resolves identically.
@@ -215,8 +245,8 @@ URL an agent wrote with a trailing dot.
 ### 3.4 Control surfaces
 
 Eleven tools reach the operating system by a route other than `exec`, and each
-derives **two or more** resources: `<tool>:<action>` for the operation itself,
-plus every literal payload the call carries.
+derives `<tool>:<action>` for the operation itself, plus every literal payload
+the call carries.
 
 | Tool                          | Action parameter | Payload parameters                                           |
 | ----------------------------- | ---------------- | ------------------------------------------------------------ |
@@ -243,11 +273,10 @@ Two properties follow from deriving both:
    rule that refuses `sudo` for `exec` refuses it for `computer` and `process`,
    because the typed payload is a `command` resource like any other. The property
    comes from the representation rather than from remembering to extend every
-   rule. The same move §3.1 makes for paths and §3.3 for hostnames.
+   rule: the same move §3.1 makes for paths and §3.3 for hostnames.
 
 These were ungoverned until QA round 13 (findings 71–73), when the governed
-surface was measured against the host's own catalogue for the first time and
-found to be 7 tools out of 52.
+surface was first measured against the host's own catalogue.
 
 #### Spawning into another identity
 
@@ -267,10 +296,9 @@ session key as `agent:<targetAgentId>:subagent:<uuid>`
 (`mintSpawnSessionKey`, `src/agents/spawn-plan.ts`), and governance recovers the
 principal from that key. A cross-agent child is therefore **a different
 principal**, not a continuation of its parent: the parent's agent-scoped rules
-do not bind it, and it is judged by the target's rules instead. Until QA round
-14 (finding 94) the identity was not in any resource, so agent-scoped
-confinement was escapable by spawning into a less-restricted agent. The
-delegation guarantee in `ROLE-MODEL.md` inverted.
+do not bind it, and it is judged by the target's rules instead. Until QA round 14
+(finding 94) the identity was not in any resource, so agent-scoped confinement
+was escapable by spawning into a less-restricted agent.
 
 **What a spawned child inherits, precisely:**
 
@@ -278,32 +306,35 @@ delegation guarantee in `ROLE-MODEL.md` inverted.
 | ------------------------------------ | ---------------- | ----------------------------------------- |
 | Core denials                         | bind             | bind (the core tier is not scoped)        |
 | Parent's agent-scoped rules          | bind             | **do not bind**. The target's apply       |
-| Lockdown on the parent               | binds            | **does not reach it** (finding 96, open)  |
+| Lockdown on the parent               | binds            | **binds** (T6): the lineage is traced     |
 | Parent locked ⇒ may it spawn at all? | no               | no. Lockdown precedes the registry lookup |
 
-**Known limitation (finding 96).** A lockdown on the parent does not stop a
-cross-agent child that is _already running_. The parent's identity is not in the
-child's session key, so this layer has nothing to trace the lineage with;
-closing it needs the host to report the requester alongside the child
-(`spawnedBy` exists in its own spawn records), which is a `HookContext` change
-rather than a policy-engine one. The exposure is bounded by the paragraph above:
-such a child exists only where an operator explicitly permitted a cross-agent
-spawn. **An operator who grants one should expect to lock both agents.**
+**A lockdown reaches what the locked agent started (T6, closing finding 96).**
+The child's session key says nothing about where it came from, but the host
+records `spawnedBy` on the session entry, and `session-lineage.ts` walks it. While
+any agent is locked, a call whose lineage leads to a locked agent is refused and
+recorded as `kill-switch-lineage`. A lineage that cannot be read while an agent is
+locked is **unproven, not clear**, and is refused as
+`kill-switch-lineage-unknown`. With nothing locked the walk is skipped entirely.
 
 ### 3.5 Registry
 
-Tool names are the host's, verified against its tool definitions
-(`src/agents/sessions/tools/*`, `src/agents/bash-tools.exec-run.ts`,
-`src/agents/tools/*`). `bash` is folded into `exec` by `normalizeToolName`
-before the gate is reached; the registry keeps an entry for it anyway rather
-than depending on an alias table it does not own.
+Tool names are the host's, verified against its tool definitions. `bash` is
+folded into `exec` by `normalizeToolName` before the gate is reached; the
+registry keeps an entry for it anyway rather than depending on an alias table it
+does not own. Lookup is performed via `Object.hasOwn`, so a tool named
+`constructor` or `__proto__` cannot resolve to an inherited member.
 
-The registry MUST agree with the host's own tool list. It has disagreed twice,
-once by naming tools that do not exist, once by omitting three that do, and
-neither was visible from inside the module. `qa-round11.test.ts` now asserts
-that every name in `allToolNames` (`src/agents/sessions/tools/index.ts`) is
-either registered here or listed in `DELIBERATELY_UNGOVERNED` with a written
-reason, so a tool added to the host and forgotten in the gate fails the suite.
+The registry MUST agree with the host's own tool list. It has disagreed twice:
+once by naming tools that do not exist, once by omitting some that do, and neither
+was visible from inside the module. `qa-round11.test.ts` now reads **both** of
+the host's lists, the session tools (`allToolNames`) and the whole catalogue
+(`listCoreToolSections`, feature flags included), and asserts that every name is
+either governed here (21 tools, plus the `bash` alias) or listed in
+`DELIBERATELY_UNGOVERNED` with a written reason (34 today). A tool added to the
+host and forgotten in the gate fails the suite. The test also asserts it compares
+against more than forty names, because round 13 found it passing while it examined
+only the seven session tools (finding 70).
 
 Derivation rules that affect matching:
 
@@ -313,15 +344,13 @@ Derivation rules that affect matching:
   used as the resource. It is not skipped. Abstaining there previously allowed
   `file:///etc/shadow` through ungoverned.
 - **Length.** A derived resource is clamped to 2048 characters before matching.
-- **Tool identity.** Lookup is performed on a null-prototype registry via
-  `Object.hasOwn`, so a tool named `constructor` or `__proto__` cannot resolve
-  to an inherited member.
 
 ## 4. Pattern grammar
 
 `pattern` is an ECMAScript regular expression source string, compiled with
-`new RegExp(pattern)`, no flags. Matching uses `RegExp.prototype.test`, which
-is a **substring** search: a pattern is unanchored unless written so.
+`new RegExp(pattern)`, no flags, and cached (a bounded cache of 1000 compiled
+patterns). Matching uses `RegExp.prototype.test`, which is a **substring**
+search: a pattern is unanchored unless written so.
 
 | Construct            | Meaning                                |
 | -------------------- | -------------------------------------- |
@@ -340,114 +369,162 @@ resources are not case-folded.
 
 ### 4.1 Rejected patterns
 
-Creation fails with HTTP 400 (or a CLI error) when:
+Creation fails with HTTP 400 when:
 
 1. `new RegExp(pattern)` throws.
 2. `pattern.length > 512`.
-3. The pattern nests a quantifier inside a quantified group, `(a+)+`, `(a*)*`,
+3. The pattern nests a quantifier inside a quantified group: `(a+)+`, `(a*)*`,
    `(?:x+)+`, `(a{1,}){2,}`, **`(a?){n}`** and equivalents.
-4. The pattern repeats a group whose alternatives can match the same text,
+4. The pattern repeats a group whose alternatives can match the same text:
    `(a|a)+`, `(a|a?)+`.
 
 **`?` counts as a quantifier for rule 3, and did not until 2026-09-02 (finding
 207).** The check modelled `*`, `+` and `{n,m}` and not `?`, so `^(a?){26}$` was
-accepted and took **44.5 seconds** against a non-matching input. Doubling per
+accepted and took **44.5 seconds** against a non-matching input, doubling per
 increment of `n`, which the rule's author chooses. Two exclusions are deliberate
 and remain: a `?` immediately after `(` opens `(?:`, `(?=`, `(?!` or `(?<` and
 quantifies nothing, and `{n}` on a fixed-length body is fixed-length. So
-`^ls( .*)?$` and `^https?://…$` are still accepted, which matters. See the note
-on over-rejection below.
+`^ls( .*)?$` and `^https?://…$` are still accepted, which matters.
 
 Rule 3 exists because patterns execute on every governed action against
 agent-controlled input, where such constructions exhibit exponential
 backtracking. ECMAScript provides no mechanism to time-limit a running regular
 expression, so rejection at authoring time is the only available mitigation.
 Detection is a conservative syntactic check, not a decision procedure: it does
-not reject every pathological pattern, and it does not reject bounded
-repetition such as `(a+){2}`.
+not reject every pathological pattern, and it does not reject a repeated group
+whose body is fixed-length, such as `(ab)+` or `(a{3})+`. A counted repeat of a
+variable-length body, `(a+){2}`, **is** rejected, since finding 79 below.
 
 > **Closed in QA round 13 (finding 79), and worth keeping as a worked
 > example.** The check used to be weaker than the sentence above suggests,
-> and the consequence was not theoretical. `isQuantified`
-> treats a `{n}` with no comma as a fixed count that "cannot blow up", so the
-> outer quantifier of `^(.*a){20}$` is not recognised and the pattern is
-> accepted. Measured: **142,431 ms** for one `matchesPattern` call against a
-> 31-character non-matching input. Because ECMAScript cannot interrupt a running
-> expression, that was the whole event loop, Gateway, dashboard and every
-> agent, halted by one rule, writable at **User** tier. The rule that matters
-> is the group _body_, not the outer quantifier's form, so `isQuantified` now
-> counts any `{n}` with n > 1. `{1}` and `{0,1}` stay accepted: one repetition
-> is not a repetition. The regression asserts the measured pattern **and** the
-> timing, because a test that only checked the validator would pass against a
-> heuristic that happened to reject this shape while missing its neighbours.
+> and the consequence was not theoretical. `isQuantified` treated a `{n}` with no
+> comma as a fixed count that "cannot blow up", so the outer quantifier of
+> `^(.*a){20}$` was not recognised and the pattern was accepted. Measured:
+> **142,431 ms** for one `matchesPattern` call against a 31-character
+> non-matching input. Because ECMAScript cannot interrupt a running expression,
+> that was the whole event loop, Gateway, dashboard and every agent, halted by
+> one rule, writable at **User** tier. `isQuantified` now counts any `{n}` with
+> n > 1. `{1}` and `{0,1}` stay accepted: one repetition is not a repetition.
+
+### 4.2 Warnings
+
+A rule that is valid but likely to grant or forbid far more than it appears to is
+**accepted with warnings**, returned beside the created rule
+(`describeRuleRisks`, `src/governance/rule-validation.ts`). Warnings are advisory
+by design: each pattern below can be exactly what an operator means.
+
+| Code                     | When                                                                   |
+| ------------------------ | ---------------------------------------------------------------------- |
+| `matches-everything`     | An allowance whose pattern matches every resource of its kind          |
+| `denies-everything`      | A denial whose pattern matches every resource of its kind              |
+| `unanchored`             | The pattern is not anchored with both `^` and `$`                      |
+| `anchored-but-universal` | Anchored, but the body is only wildcards (`^.*$` and its spellings)    |
+| `narrowed-denial`        | A denial carrying `access`, which leaves the other direction permitted |
+
+For `path` rules a trailing folder boundary `(/|$)` is read as the end anchor
+before both anchoring checks, so `^src(/|$)`, the shape a folder grant writes
+(§9a), is not warned as unanchored, and `^.*(/|$)` is still warned as
+`anchored-but-universal`. For other kinds `(/|$)` is not a boundary and the
+pattern is unanchored (2026-09-13).
+
+"Matches every resource" is the fixed set `UNIVERSAL_PATTERNS`, shared with the
+conflict detector (§7) so the two cannot disagree: the spellings of `.*`, of `.+`
+and `.`, and the zero-width `^`, `$` and the empty pattern, each of which matches
+every string under a substring search.
 
 ## 5. Evaluation
 
-For an invocation with agent `A` and derived resources `R₁…Rₙ`:
+`evaluateGovernancePolicy` (`src/governance/policy-engine.ts`) is the
+definition. For an invocation with derived agent `A`:
 
 ```
  1. spec ← governedTool(toolName)
- 2. doc  ← policy document
- 3. effMode ← doc.agentMode[A] ?? doc.mode
- 4. if effMode = "off"           → abstain, record nothing
- 5. if A ∈ doc.lockedAgents      → record deny; BLOCK (monitor does not suspend this)
- 6. if spec undefined            → record "ungoverned"; abstain
- 7. R ← spec.derive(invocation)
- 8. if R = ∅                     → record "ungoverned"; abstain
- 9. denials ← { r ∈ doc.rules :
+    A    ← ctx.agentId ?? agentId(ctx.sessionKey)
+ 2. G    ← the organisation the agent registry places A in
+ 3. if G undefined              → record deny "agent-not-registered" (installation ledger); BLOCK
+ 4. doc  ← policy document of G
+ 5. effMode ← doc.agentMode[A] ?? doc.mode
+ 6. if effMode = "off"          → abstain, record nothing
+ 7. if A ∈ doc.lockedAgents, or a locked agent started this session (§3.4),
+       or the lineage cannot be read while any agent is locked
+                                 → record deny "kill-switch" | "kill-switch-lineage" |
+                                   "kill-switch-lineage-unknown"; BLOCK (monitor does not suspend this)
+ 8. if the call comes through the native Codex harness and A is not permitted on Codex
+                                 → record deny "agent-not-permitted-on-codex"; BLOCK
+ 9. if spec undefined           → record "ungoverned" ("no-extractor"); abstain
+10. B ← canonical parameter binding (§3.1); R ← spec.derive(invocation with B)
+11. if R = ∅                    → record "ungoverned" ("no-resource-extracted"); abstain
+12. denials ← { r ∈ doc.rules :
         r.effect = "deny"
       ∧ r.resourceKind = spec.resourceKind
       ∧ accessMatches(r, spec)
       ∧ ¬expired(r)
       ∧ (r.agentId undefined ∨ r.agentId = A) }
-10. for each Rᵢ: if ∃ r ∈ denials : test(r.pattern, Rᵢ)
-        → record deny; BLOCK (monitor does not suspend this)
-11. askMode ← stricter( doc.agentAsk[A] ?? doc.ask ,
-                        doc.userAsk[u] for each account u assigned agent A )
-12. active ← { r ∈ doc.rules :
+13. for each Rᵢ: if ∃ r ∈ denials : test(r.pattern, any form of Rᵢ)
+        → record deny for every such Rᵢ; BLOCK citing the first (monitor does not suspend this)
+14. U ← the account a dashboard prompt's session key names, when that key is A's;
+        otherwise every account assigned A
+    askMode ← stricter( doc.agentAsk[A] ?? doc.ask , doc.userAsk[u] for each u ∈ U )
+15. active ← { r ∈ doc.rules :
         r.effect ≠ "deny"
       ∧ r.resourceKind = spec.resourceKind
       ∧ accessMatches(r, spec)
       ∧ ¬expired(r)
       ∧ (r.agentId undefined ∨ r.agentId = A) }
-13. for each Rᵢ:
-        matched ← ∃ r ∈ active : test(r.pattern, Rᵢ)
+16. for each Rᵢ:
+        matched ← ∃ r ∈ active : test(r.pattern, any form of Rᵢ)
         record( matched ? "allow" : askMode = "off" ? "deny" : "ask" )
-14. if every Rᵢ matched         → allow
-15. if effMode = "monitor"      → allow (verdict already recorded)
-16. if askMode = "off"          → block, citing the first unmatched Rᵢ
-17. otherwise                   → escalate for human approval
+17. if every Rᵢ matched, or effMode = "monitor"
+                                 → allow; the tool is handed B
+18. if askMode = "off"          → block, citing the first unmatched Rᵢ
+19. otherwise                   → escalate for human approval, waiting
+                                   doc.agentHitlTimeout[A] ?? doc.hitlTimeoutSeconds (§5.1)
 ```
 
 `accessMatches(r, spec)` is true when either the rule or the tool leaves the
 direction unspecified, or when the two agree. `stricter` returns `off` if any
 input is `off`, since `off` denies outright while `on-miss` can end in an
-allowance. The only combination rule that cannot be used to widen access by
-setting the other axis.
+allowance: the only combination rule that cannot be used to widen access by
+setting the other axis. "Any form of Rᵢ" is both spellings of a workspace path
+(§3.1) and the single string of any other resource.
 
-Step 5 strictly precedes step 6. Lockdown applies to _every_ tool, including
+**Step 3 is mandatory registration (M5).** A tool call carries an agent id and no
+organisation; the registry is the only thing that knows which policy applies. An
+agent with no registry record is refused, and recorded into the installation-scope
+ledger because there is no organisation ledger to write it to. This also made a
+call with no attributable agent refused **always**, where finding 81 had refused
+it only while an agent was locked; the old rule id `kill-switch-unattributable`
+was retired with it.
+
+**Step 7 strictly precedes step 9.** Lockdown applies to _every_ tool, including
 those with no extractor. An emergency stop limited to the tools the registry
 happens to enumerate is not an emergency stop.
 
-Steps 9–10 strictly precede steps 12–13, and neither is suspended by `monitor`.
+**Step 8** exists because a denial cannot be fully enforced on the native Codex
+harness (§12.8), so an agent whose denials matter is refused there unless an
+Administrator has permitted it. It blocks in monitor for the same reason as step
+7: it is a question about whether the agent may run here at all, not a policy
+opinion.
+
+Steps 12–13 strictly precede steps 15–16, and neither is suspended by `monitor`.
 
 Properties that follow, and are individually tested:
 
-- **Deny beats allow.** Step 10 precedes step 13, so a denial cannot be reopened
-  by any later grant however broad. This replaces the allow-only invariant that
-  adding a rule can only widen access.
-- **Every deny rule binds, at every tier.** Step 9 filters on `effect`, not on
+- **Deny beats allow.** Step 13 precedes step 16, so a denial cannot be reopened
+  by any later grant however broad.
+- **Every deny rule binds, at every tier.** Step 12 filters on `effect`, not on
   `tier`. Core and non-core denials differ in _mutability_, not in force;
   restricting this pass to the core tier once left denials at other tiers
   falling between the two passes and being dropped entirely.
-- **Monitor suspends opinions, not protections.** Step 15 is reached only after
-  the kill switch (5) and every denial (10) have already blocked. Since a User
-  may switch their own agent into monitor, the alternative would make monitor a
-  one-click lift of every restriction on it.
-- **Complete record.** Every invocation reaching step 5 or later produces at
-  least one ledger entry. `ungoverned` is distinct from `allow`: it denotes an
-  action the policy layer could not evaluate, which is what makes coverage gaps
-  discoverable.
+- **Monitor suspends opinions, not protections.** Step 17 is reached only after
+  the kill switch (7), the Codex check (8) and every denial (13) have already
+  blocked. Monitor for one agent is one Administrator setting away, so the
+  alternative would make it a one-click lift of every restriction on that agent.
+- **Complete record.** Every invocation reaching step 3 or later, apart from the
+  `off` posture, produces at least one ledger entry. `ungoverned` is distinct from
+  `allow`: it denotes an action the policy layer could not evaluate, which is what
+  makes coverage gaps discoverable. A call the host's loop detector refuses before
+  the gate is recorded too, as `loop-detector`.
 - **Intent is recorded, never consulted.** Each entry may carry an `intent`,
   what the model said it was doing on the turn that produced the call (§1.6's
   "raw LLM intent"). It is **not an input to any step above**: no rule matches on
@@ -455,21 +532,57 @@ Properties that follow, and are individually tested:
   evidence attached to a decision, not part of making one, which is the only
   safe way to put model-authored text next to an authorisation, since the model
   is the party the gate exists to constrain.
-- **All resources evaluated.** Step 13 completes for every `Rᵢ` before a
+- **All resources evaluated.** Step 16 completes for every `Rᵢ` before a
   verdict is returned. Returning early would leave later resources of a
   multi-path operation unrecorded.
 - **Recorded verdict is truthful in `monitor`.** The decision written is the
   one the policy reached, not the one acted upon. A dry run whose log disagreed
   with its own reasoning would be useless for predicting enforcement.
-- **Lockdown precedes rules.** Step 5 precedes step 12, so a locked agent is
+- **Lockdown precedes rules.** Step 7 precedes step 15, so a locked agent is
   denied even where a matching rule exists.
-- **Scope narrows authorship, not protection.** Steps 9 and 12 both admit global
+- **Scope narrows authorship, not protection.** Steps 12 and 15 both admit global
   rules and the agent's own. A delegated author cannot weaken a global rule, and
   a denial written for one agent does not silently become installation-wide.
-- **Extraction gaps abstain, decisions fail closed.** Steps 6 and 8 abstain
-  (other OpenClaw controls still apply); step 16 denies.
-- **No escalation past a denial.** Step 10 blocks outright rather than reaching
-  step 17, so "allow once" can never be offered for something a denial refuses.
+- **Extraction gaps abstain, decisions fail closed.** Steps 9 and 11 abstain
+  (other OpenClaw controls still apply); step 18 denies.
+- **No escalation past a denial.** Step 13 blocks outright rather than reaching
+  step 19, so "allow once" can never be offered for something a denial refuses.
+
+### 5.1 Escalation outcomes
+
+An escalation offers `allow-once`, `allow-always` and `deny`, and ends in one of
+five ways. What the policy engine does with each (`onResolution`):
+
+| Outcome        | The call   | Recorded                         | Afterwards                                                                                                                                                                                                             |
+| -------------- | ---------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `allow-once`   | proceeds   | `allow`                          | nothing                                                                                                                                                                                                                |
+| `allow-always` | proceeds   | `allow`                          | an agent-scoped **rule request** is filed, never a rule: the resource escaped and anchored, its access direction kept, under the origin `hitl-approval`. A full queue does not retract the grant; the operator is told |
+| `deny`         | is refused | `deny`                           | nothing                                                                                                                                                                                                                |
+| timeout        | is refused | `deny`, rule id `hitl-timeout`   | kept on the **held-decision stack** with the wait it really had                                                                                                                                                        |
+| cancelled      | is refused | `deny`, rule id `hitl-cancelled` | kept on the held-decision stack                                                                                                                                                                                        |
+
+**A held decision can still be answered.** _Awaiting your decision_ lists them.
+Answering records the operator's judgement; it does **not** resume the blocked
+call, which is gone. An `allow` files the same agent-scoped rule request
+`allow-always` does, so the next attempt can succeed once an Administrator
+approves it (finding 338). Decisions are single-shot. The stack holds at most 200
+undecided entries, shedding from the busiest agent and keeping a count of what it
+shed, and 500 in all.
+
+**Who answers, and the three rules around it.**
+
+- An escalation raised by a **dashboard prompt** is answered on the governance
+  page by the governance accounts that manage the agent, and by no Gateway
+  connection (T68). An escalation raised by a **chat run** is answered in the
+  Control UI.
+- A run that stops while its escalation waits **withdraws** it: the approval is
+  closed as cancelled and its card goes away (finding 363).
+- **The host applies an allow without evaluating policy again.** So an agent that
+  is locked while its escalation waits must not be allowed: the kill switch ends
+  the dashboard prompt that is waiting, which withdraws the escalation, and the
+  governance answer route refuses an allow for a locked agent while still taking a
+  deny (finding 364). A chat run is in the Gateway's own registry, so the kill
+  switch aborts it and its approval is withdrawn or cancelled.
 
 ## 6. Expiry
 
@@ -478,90 +591,98 @@ Properties that follow, and are individually tested:
 
 - An **unparseable** `expiresAt` is treated as expired. A corrupted timestamp
   MUST NOT promote a temporary grant to a permanent one.
-- Expired rules remain readable for 7 days, then are pruned on the next write.
-  Retention is deliberate: a rule that has just lapsed is the explanation for a
-  sudden denial.
-- Pruning is opportunistic: performed during rule creation, so no scheduler is
-  required.
+- Expired rules remain readable for 7 days, then are pruned. Retention is
+  deliberate: a rule that has just lapsed is the explanation for a sudden denial.
+- Pruning is opportunistic, performed when a rule is created, so no scheduler is
+  required. The organisation's rule ceiling (§9) is checked after pruning, so an
+  installation at the ceiling purely through lapsed rules recovers on its own.
 
 ## 7. Conflicts
 
 On creation, the candidate is compared against active rules of the same kind
-whose scope covers it. The **earlier rule prevails**; the candidate is still
-stored (it cannot reduce access) and the conflict is reported.
+whose scope covers it, **inside the policy's write lock** so two authors writing
+at once cannot both miss the clash. The **earlier rule prevails**; the candidate
+is still stored and the conflict is reported (`src/governance/rule-conflicts.ts`).
 
 | Kind                   | Existing rule | Condition                                                                                                                             |
 | ---------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `overridden-by-deny`   | `deny`        | Identical pattern, **or** existing pattern is a catch-all, **or** the candidate matches exactly one literal and the denial matches it |
-| `already-permanent`    | `allow`       | Identical pattern, existing rule indefinite, candidate time-limited                                                                   |
-| `duplicate`            | `allow`       | Identical pattern, existing window ⊇ candidate window                                                                                 |
-| `covered-by-catch-all` | `allow`       | Existing pattern is a catch-all and its window covers the candidate's                                                                 |
-| `narrower-than-global` | `allow`       | Identical pattern, existing global, candidate agent-scoped                                                                            |
+| `already-permanent`    | same effect   | Identical pattern, existing rule indefinite, candidate time-limited                                                                   |
+| `duplicate`            | same effect   | Identical pattern, existing window ⊇ candidate window                                                                                 |
+| `covered-by-catch-all` | same effect   | Existing pattern is a catch-all and its window covers the candidate's                                                                 |
+| `narrower-than-global` | same effect   | Identical pattern, existing global, candidate agent-scoped                                                                            |
+| `extends-time-limited` | same effect   | Identical pattern, existing rule time-limited and still in force, candidate indefinite or outliving it (Kimi QA 1, bug 8)             |
 
-A candidate is compared **only against rules of its own effect**. "An identical
-rule already does this" is true only of a rule pointing the same way: an
-existing allowance never makes a new denial redundant, because the denial wins,
-and reporting it as redundant would be the same inversion this detector has been
-corrected for twice. `overridden-by-deny` is likewise reported for allow
-candidates only. A denial is what does the overriding.
+A candidate is compared **only against rules of its own effect** for the last
+four kinds. "An identical rule already does this" is true only of a rule pointing
+the same way: an existing allowance never makes a new denial redundant, because
+the denial wins, and reporting it as redundant would be the same inversion this
+detector has been corrected for twice. `overridden-by-deny` is reported for allow
+candidates only: a denial is what does the overriding.
 
-The two families mean opposite things and MUST be presented differently. An
-allowance clash says the candidate **adds nothing**; `overridden-by-deny` says
-it **does nothing at all**. It is stored, listed in the policy, and never
-takes effect. Reporting only the first family (the state after the tenth QA
-round, which had stopped the detector describing a denial as a grant by making
-it ignore denials) left an operator with no way to learn why their rule had no
-effect except by reading the ledger.
+The two families mean opposite things and MUST be presented differently. The
+same-effect clashes say the candidate **adds nothing**; `overridden-by-deny` says
+it **does nothing at all**. It is stored, listed in the policy, and never takes
+effect.
 
 "Matches exactly one literal" means the candidate is `^…$` whose body contains
-no unescaped metacharacter, which covers every documented example and every
-rule an approved `allow-always` proposal generates — the escalation escapes and
-anchors the resource it saw, so those patterns are literals by construction. For
-those the overlap question is decided outright rather than guessed at.
+no unescaped metacharacter, which covers every documented example and every rule
+an approved `allow-always` request generates, because the escalation escapes and
+anchors the resource it saw. For those the overlap question is decided outright
+rather than guessed at.
 
 Detection is otherwise exact-match based. General regular-expression subsumption
 is not attempted: `^ls.*$` subsuming `^ls -la$` is **not** reported. A detector
 that guessed would produce false positives and be ignored.
 
+**An extension is reported, and so is its trail (Kimi QA 1, bug 8; Kinan's decision,
+2026-09-13).** An indefinite candidate beside an identical time-limited rule, or a
+time-limited one outliving it, genuinely widens the grant, which is why it was once
+left unreported. It is reported now because the operator adding the second rule may
+not know the first exists, and without a notice a temporary grant silently becomes a
+permanent one. `extends-time-limited` is shown under a heading of its own, and the
+ledger entry for the new rule names the temporary rule it extends, so the extension is
+visible to whoever reviews the trail, not only to whoever saw the notice.
+
 ## 8. Authorization
 
-| Operation                                              | Minimum tier    | Scope requirement                                                          |
-| ------------------------------------------------------ | --------------- | -------------------------------------------------------------------------- |
-| Read policy, ledger, sessions, rule requests           | `viewer`        | Filtered to visible agents                                                 |
-| See who else can reach an agent (M2)                   | `viewer`        | Must be able to _view_ that agent                                          |
-| Create/remove agent-scoped rule                        | `user`          | `canAuthorPolicyForAgent`, Root may withhold it per account (T27)          |
-| Prompt an agent, and read that transcript              | `user`          | Must manage that agent, **and it must be in the caller's own group**       |
-| Lock/release agent                                     | `user`          | Must manage that agent                                                     |
-| Attach a file to a prompt (T14)                        | `user`          | Must manage that agent                                                     |
-| **Set per-agent `ask`** (T4)                           | `administrator` | Must manage that agent. A User _requests_ it                               |
-| **Set per-agent `mode`** (`enforce`/`monitor`) (T4)    | `administrator` | Must manage that agent. A User _requests_ it                               |
-| Create/remove global rule                              | `administrator` | -                                                                          |
-| Set `mode`, `ask`                                      | `administrator` | -                                                                          |
-| Set `hitlTimeoutSeconds`, per-account `ask`            | `root`          | -                                                                          |
-| Create or delete accounts, set a manager (M3)          | `root`          | Inside the caller's own group only                                         |
-| List the group's agents (M4)                           | `viewer`        | Own group, then filtered to visible agents                                 |
-| Register an agent, owned by yourself (M4)              | `administrator` | Group taken from the session; never from the request                       |
-| Rename, re-own or unregister an agent (M4)             | `administrator` | **Must own that agent.** Root is exempt                                    |
-| Register an agent owned by another Administrator (M4)  | `root`          | Naming who answers for a workload is people management                     |
-| Assign an agent to a User or Viewer (M4)               | `administrator` | The agent must be unregistered, or owned by the target's own Administrator |
-| Switch a non-self-protecting `core` rule off (T24)     | `root`          | -                                                                          |
-| Remove a `core` rule, or disable a self-protecting one | **nobody**      | Refused at every tier                                                      |
-| Create a second Root **in the same group**             | **nobody**      | Refused at every tier                                                      |
-| Delete or demote a group's only Root                   | **nobody**      | Refused at every tier                                                      |
+Enforced by the route, never by the panel. `docs-notes/ROLE-MODEL.md` is the
+tier model in prose; this is the contract.
 
-> **Two rows moved on 2026-08-24 and one changed meaning.** T4 raised both
-> per-agent switches from `user` to `administrator`: moving an agent from
-> `ask: "off"` to `ask: "on-miss"` converts a refusal into a request somebody
-> may grant, and posture is wider still. The capability was _relocated, not
-> removed_. A User submits an `agent-setting` request through the rule-request
-> queue.
->
-> And "create a second Root" is now scoped: M3 made a Root the owner of a
-> **group** rather than of the installation, so a second Root elsewhere is a
-> different organisation. Inside one group the original refusal is unchanged.
+| Operation                                                                      | Minimum tier    | Scope requirement                                                                             |
+| ------------------------------------------------------------------------------ | --------------- | --------------------------------------------------------------------------------------------- |
+| Read policy, ledger, sessions, system status, rule requests, registry          | `viewer`        | Filtered to visible agents; `userAsk` withheld below `root`                                   |
+| Look up one agent's effective permissions, and who can reach it                | `viewer`        | Must be able to _view_ that agent                                                             |
+| Verify the ledger                                                              | `viewer`        | The verdict only                                                                              |
+| Create/remove an agent-scoped rule or folder grant                             | `user`          | `canAuthorPolicyForAgent`; Root may withhold authoring per account (T27)                      |
+| Create/remove a global rule or folder grant                                    | `administrator` | -                                                                                             |
+| Submit a rule request or an agent-setting request                              | `user`          | Setting: `canManageAgent`, never a `mode` of `off` (365); rule: `access` only on `path`       |
+| Decide a rule request or an agent-setting request                              | `administrator` | The request's agent must be in the caller's organisation                                      |
+| Prompt an agent, attach a file, read that transcript                           | `user`          | `canManageAgent`, **and the agent must be in the caller's organisation**                      |
+| Cancel a running prompt                                                        | `user`          | The caller's own run; Administrator and above, any run in the organisation                    |
+| Lock/release an agent                                                          | `user`          | `canManageAgent`                                                                              |
+| Answer a dashboard escalation (T68)                                            | `user`          | `canManageAgent` on the agent in the Gateway's record; an allow is refused while locked (364) |
+| Read / answer held decisions                                                   | `user`          | `canViewAgent` to read, `canManageAgent` to answer                                            |
+| Set one agent's approval timeout                                               | `user`          | `canManageAgent`                                                                              |
+| **Set per-agent `ask`** (T4)                                                   | `administrator` | Must manage that agent. A User _requests_ it                                                  |
+| **Set per-agent `mode`** (`enforce`/`monitor`) (T4)                            | `administrator` | Must manage that agent. A User _requests_ it. `off` refused at every tier                     |
+| Set `mode`, `ask`, `hitlTimeoutSeconds`                                        | `administrator` | -                                                                                             |
+| Set per-account `ask`                                                          | `root`          | -                                                                                             |
+| Switch a non-self-protecting `core` rule off or on (T24)                       | `root`          | -                                                                                             |
+| Remove a `core` rule, or disable a self-protecting one                         | **nobody**      | Refused at every tier                                                                         |
+| Create or delete accounts, change roles, reset passwords                       | `root`          | Inside the caller's organisation only                                                         |
+| Withhold or restore a User's policy authoring                                  | `root`          | Inside the caller's organisation only                                                         |
+| Assign an agent to a User or Viewer (M4)                                       | `administrator` | The agent must be owned by the account's own Administrator                                    |
+| Register or provision an agent, owned by yourself (M4, M6)                     | `administrator` | Organisation taken from the session; never from the request                                   |
+| Register or provision an agent owned by another Administrator                  | `root`          | Naming who answers for a workload is people management                                        |
+| Rename, re-own, unregister, delete from the host, or permit Codex for an agent | `administrator` | **Must own that agent.** Root is exempt                                                       |
+| Offer or withdraw the Codex backend installation-wide                          | `root`          | -                                                                                             |
+| Read the deployment and network report                                         | `root`          | -                                                                                             |
+| Delete the organisation                                                        | `root`          | The Root username, typed                                                                      |
+| Create a second Root, or delete or demote the only Root                        | **nobody**      | Refused at every tier                                                                         |
 
 > **This table was the one that stayed right (finding 218, 2026-09-02).** The
-> two per-agent rows above have said `administrator` since T4, and so has
+> two per-agent rows have said `administrator` since T4, and so has
 > `ROLE-MODEL.md`. `permissions.ts` and `GOVERNANCE.md` both went on describing
 > `canAuthorPolicyForAgent` as covering "setting that agent's posture and
 > escalation overrides", three copies of a claim no surface honoured, in the
@@ -571,36 +692,16 @@ that guessed would produce false positives and be ignored.
 > which is the outcome a written spec is for and only useful if somebody reads
 > the two against each other.
 
-> **Every row in this table is enforced on both surfaces, and one was not
-> (finding 216, 2026-09-02).** The `transcript` half of the prompt row asked
-> only "signed in, and in a group" from the command line, no tier floor, no
-> scope check, no tenancy check, while its route asked all four. The scope
-> column above is the contract; a surface that implements less of it is the
-> defect class this project has now found five times (finding 174).
-
-> **A fourth check joined on 2026-08-24 (M4): ownership.** Every row above this
-> note is decided by group, tier and agent scope. The three registry-mutation
-> rows are not: two Administrators with identical tier and identical scope
-> differ on whether they may rename a given agent, because one owns it. Root is
-> exempt from ownership. Otherwise an agent whose owning Administrator has left
-> could never be re-homed, which is a lockout rather than a protection.
->
-> Ownership is also what constrains assignment. The last row's "or
-> unregistered" is a real gap and is stated rather than hidden: an agent that
-> predates the registry has no owner, so the rule cannot bite on it. Closing
-> that needs registration to be mandatory, which needs M6.
->
-> **Closed 2026-08-27 (M5), not M6.** Registration is mandatory: an unregistered
-> agent is refused at the gate and at assignment, so the "or unregistered" gap is
-> gone. The dependency on M6 was a misreading, _registering_ an agent and
-> _provisioning_ one are two acts, and the first had always been available.
-
-Four checks are applied independently: **group**, tier, scope, and, for the
-agent registry only, **ownership**. Group is checked first and is absolute. An account can only ever act on accounts in its
-own group, and a target elsewhere is reported as "not found" rather than
-"forbidden", so the answer carries no information about other groups.
-Administrator and above have unlimited _agent_ scope within their group. Removal authorises against the **stored** rule's scope,
-never a client-supplied value.
+Four checks are applied independently: **organisation**, tier, scope, and, for
+the agent registry only, **ownership**. The organisation is checked first and is
+absolute: an account can only ever act on accounts and agents in its own, and a
+target elsewhere is reported as "not found" rather than "forbidden", so the answer
+carries no information about what exists elsewhere. Administrator and above have
+unlimited _agent_ scope within their organisation. Ownership is the one axis a
+tier does not answer: two Administrators with identical tier and scope differ on
+whether they may rename a given agent, because one owns it, and Root is exempt so
+that an agent whose owner leaves can still be re-homed. Removal authorises against
+the **stored** rule's scope, never a client-supplied value.
 
 Read responses are scoped per collection, not per response: `rules`,
 `lockedAgents`, `agentAsk` and `agentMode` are each filtered to the agents the
@@ -609,30 +710,31 @@ scope says nothing about it, is withheld below `root`. A collection added later
 and not added to that list is an enumeration leak, which is how `agentMode`
 came to disclose every agent id in the installation to a caller scoped to one.
 
-Setting a per-agent `mode` of `off` is refused at **every** tier, for the reason
-given in §1: it would remove the kill switch and the core denials from that
-agent rather than merely relaxing its rules.
-
 ## 9. Constraints
 
-| Constraint                  | Value                                                  |
-| --------------------------- | ------------------------------------------------------ |
-| Pattern length              | ≤ 512 characters                                       |
-| Derived resource (matching) | ≤ 2048 characters                                      |
-| Recorded resource (ledger)  | ≤ 4096 characters, truncation marked                   |
-| Rule TTL                    | ≤ 5,256,000 minutes (~10 years)                        |
-| Expired-rule retention      | 7 days                                                 |
-| HITL timeout                | 5 … 86400 seconds                                      |
-| Pending decisions retained  | 500 (decided pruned first; pending never pruned)       |
-| Rule requests retained      | 500 (same policy)                                      |
-| Ledger segment size         | 8 MiB, then rotated with chain continuity              |
-| Agent id                    | MUST NOT be `__proto__`, `constructor`, or `prototype` |
+| Constraint                  | Value                                                                                            |
+| --------------------------- | ------------------------------------------------------------------------------------------------ |
+| Pattern length              | ≤ 512 characters                                                                                 |
+| Compiled-pattern cache      | 1000 entries                                                                                     |
+| Rules per organisation      | ≤ 1000 (expired rules pruned first); beyond that, HTTP 409 `too_many_rules`                      |
+| Derived resource (matching) | ≤ 2048 characters                                                                                |
+| Recorded resource (ledger)  | ≤ 4096 characters, truncation marked                                                             |
+| Rule TTL                    | ≤ 5,256,000 minutes (~10 years)                                                                  |
+| Expired-rule retention      | 7 days                                                                                           |
+| Escalation timeout          | 5 … 86400 seconds, installation-wide or per agent; default 300                                   |
+| Held decisions              | 200 undecided (shed from the busiest agent, count kept); 500 stored                              |
+| Rule requests               | 20 pending per requesting account; 40 + 20 per account for escalation-filed requests; 500 stored |
+| Concurrent prompts          | 2 per account, 6 per installation; each stopped after 5 minutes                                  |
+| Attachment                  | 8 MiB each, 64 MiB per account                                                                   |
+| Ledger segment size         | 8 MiB, then rotated with chain continuity                                                        |
+| Ledger page                 | ≤ 1000 entries per read (larger requests are clamped)                                            |
+| Agent id                    | MUST NOT be `__proto__`, `constructor`, or `prototype`                                           |
 
 ## 9a. Authoring a rule
 
-The create paths (`POST policy/rules`, `governance policy add-rule`, and the
-dashboard form) accept `resourceKind`, `pattern`, `effect`, `access`,
-`description`, an agent scope, and a TTL. Normatively:
+The create path (`POST policy/rules`, which the dashboard's _Policy_ form calls)
+accepts `resourceKind`, `pattern`, `effect`, `access`, `description`, an agent
+scope, and a TTL in minutes. Normatively:
 
 1. `effect` MUST be `allow` or `deny` when present; absent means `allow`. An
    unrecognised value MUST be **rejected**, never coerced. Coercing a typo to
@@ -645,28 +747,58 @@ dashboard form) accept `resourceKind`, `pattern`, `effect`, `access`,
    everything else is coerced to `admin`, so an authored rule can never present
    itself as one the installation shipped (§2).
 4. Authorization is unchanged by `effect`. A denial narrows rather than widens,
-   so it binds under the same pair as an allowance: `canManageAgent` for an
-   agent-scoped rule, `canManageGlobalPolicy` for a global one (§8).
+   so it binds under the same pair as an allowance: `canAuthorPolicyForAgent` for
+   an agent-scoped rule, `canManageGlobalPolicy` for a global one (§8).
 
-**Warnings are advisory and MUST reflect the rule's direction.** The same
+**Warnings are advisory and MUST reflect the rule's direction** (§4.2). The same
 pattern is a different mistake in each: a catch-all allowance removes a
-protection, a catch-all denial removes a capability. A denial carrying an
-`access` narrowing SHOULD additionally warn that the other direction remains
-permitted, since that follows from §2 and is the language's least intuitive
-consequence.
+protection, a catch-all denial removes a capability.
 
-**Rule requests** (§ the User-proposes/Administrator-grants queue) carry
-allowances only. "May I be restricted?" is not a request that needs an
-approver, so the queue has no `effect` field.
+**Folder grants** (`POST policy/folder-grant`) grant a folder and except paths
+inside it in one act. They compose the ordinary create path rather than writing
+policy themselves, so every rule they produce is an ordinary rule with its own id,
+its own conflict report and its own ledger entry, removable on its own. The
+exceptions are written **before** the grant, so a write that stops half-way leaves
+the agent with less access than intended, never more. They carry the same
+authorization as the rules they write.
+
+**Rule requests** carry allowances only: "may I be restricted?" is not a request
+that needs an approver, so a request has no `effect` field. A request is either a
+`rule` (a pattern, a kind, a scope and, for a path, a direction) or an
+`agent-setting` (the per-agent `ask` or `mode` a User may no longer set, T4).
+Approval creates the rule or applies the setting from the **stored** request,
+never from the approving client's payload. Normatively:
+
+1. A `rule` request's `access` MUST be `read` or `write` when present and MUST be
+   **rejected** on a `resourceKind` other than `path`, as rule 2 above requires of a
+   rule. Absent asks for both directions. Approval grants it verbatim.
+2. An `agent-setting` request's `value` MUST be `off` or `on-miss` for `ask`, and
+   `enforce` or `monitor` for `mode`. **A `mode` of `off` MUST be rejected at
+   submission**: the set path refuses a per-agent `off` at every tier (§8), so no
+   approval could honour it (finding 365).
+3. Approving an `agent-setting` request whose stored value could not be applied (one
+   filed before rule 2) MUST be refused **before** the decision is recorded, so the
+   ledger never says a change was approved that was not made. Rejecting it remains
+   allowed. `setAgentMode` refuses `off` whichever route calls it.
+4. Approving a request that names an agent MUST be refused, **before** the decision is
+   recorded, when that agent is not registered to the caller's organisation at the
+   moment of approval (finding 366). Deleting an agent clears what its id carried (T55),
+   so approval must not write it back onto a released name. Rejecting stays allowed, and
+   the queue marks such a pending request `agentRegistered: false`.
+
+Both kinds are filed from the dashboard, under _Rule requests_: **Request a rule**, and
+**Request a change for one agent** (A11). While a rule request is pending, the queue
+shows the warnings (§4.2) and clashes (§7) approving it would report, computed against
+the policy as it stands, so the Administrator deciding sees them before the rule exists.
 
 ## 9b. Prompting an agent
 
-A prompt sent by an account is an ordinary agent run with three governance
-obligations attached. Normatively:
+A prompt sent by an account is an ordinary agent run with governance obligations
+attached. Normatively:
 
 1. The route MUST refuse when the agent is in `lockedAgents`, **in every
    posture including `off`**, and MUST NOT reach the model. This deviates from
-   §5 step 4, where `off` abstains, and the deviation is deliberate: the prompt
+   §5 step 6, where `off` abstains, and the deviation is deliberate: the prompt
    route is a governance surface that does not exist when governance is absent,
    so there is no host path it can be inconsistent with.
 2. The prompt MUST be recorded with `actor` set to the account **before** the
@@ -674,39 +806,50 @@ obligations attached. Normatively:
    between the two leaves the intent recorded and the outcome absent, which is
    the safe direction.
 3. The run MUST use the session key `agent:<agentId>:governance:<account>`,
-   which MUST parse under the host's `parseAgentSessionKey`. §5 step 3 and the
+   which MUST parse under the host's `parseAgentSessionKey`. §5 step 1 and the
    kill switch both recover the agent id from the session key when `ctx.agentId`
    is absent; a key that did not parse would exempt these runs from lockdown and
    from every agent-scoped rule.
+4. The run is bounded: 2 concurrent prompts per account and 6 per installation,
+   refused rather than queued, and each stopped after 5 minutes.
+5. The run MUST end when the kill switch is engaged on its agent, as well as on
+   Cancel or its timeout, and its ending is recorded as what it was
+   (`cancelled`, `timeout` or `kill-switch`). A prompt runs outside the Gateway's
+   run registry, so the kill switch ends it through governance's own prompt table
+   (finding 364).
 
 The run itself is unmodified: `senderIsOwner` is **false**, per-run model
 override is refused, and every tool call is evaluated by §5 exactly as any other
 run's would be. Prompting therefore grants the _agent_ no capability; it grants
-an authorised account a way to initiate work.
+an authorised account a way to initiate work. A prompt survives its browser tab
+closing (T63) and can be cancelled from any tab of the account that sent it.
 
-Prompt text is redacted (§ requirement #8) and clamped before it reaches either
-the ledger or the transcript store.
+Prompt text is redacted (requirement #8) and clamped before it reaches either
+the ledger or the transcript store. An attachment is recorded by its hash, type,
+size and declared name, never its content.
 
 ## 10. Ledger entry kinds
 
 An entry is either **agent activity** or an **administrative action**, in one
 chain.
 
-|                | Agent entry                    | Administrative entry                                 |
-| -------------- | ------------------------------ | ---------------------------------------------------- |
-| `entryKind`    | absent                         | `"admin"`                                            |
-| `actor`        | absent                         | account name, `cli`, `bootstrap`, or `hitl-approval` |
-| `toolName`     | the tool invoked               | the action, e.g. `governance.policy.rule.add`        |
-| `resourceKind` | `command` / `path` / `network` | `administration`                                     |
-| `agentId`      | the acting agent               | the affected agent, or `-` when installation-wide    |
+|                | Agent entry                    | Administrative entry                                                                                                                                              |
+| -------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `entryKind`    | absent                         | `"admin"`                                                                                                                                                         |
+| `actor`        | absent                         | an account name, or a labelled origin: `bootstrap`, `hitl-approval`, `host-prompt`, `unauthenticated`, `unknown` (and `cli` on entries written before 2026-09-07) |
+| `toolName`     | the tool invoked               | the action, e.g. `governance.policy.rule.add`                                                                                                                     |
+| `resourceKind` | `command` / `path` / `network` | `administration`                                                                                                                                                  |
+| `agentId`      | the acting agent               | the affected agent, or `-` when installation-wide                                                                                                                 |
 
 Administrative entries MUST carry both fields; agent entries MUST carry neither.
-The hashed field list is selected by their presence (see below), so an entry that
-carries exactly one is neither form and fails verification.
+The hashed field list is selected by their presence, so an entry that carries
+exactly one is neither form and fails verification.
 
 `agentId` governs visibility: `projectLedgerForActor` filters by agent scope, so
 an agent-scoped administrative entry is visible to that agent's assigned User,
 while an installation-wide one (`-`) is visible only to Administrator and above.
+Below Administrator, a prompt's text is visible only to the account that sent it
+(finding 84).
 
 ---
 
@@ -718,31 +861,34 @@ while an installation-wide one (`-`) is visible only to Administrator and above.
 {
   "resourceKind": "network",
   "pattern": "^api[.]example[.]com$",
+  "effect": "allow", // optional; "allow" or "deny", absent ⇒ "allow"
   "description": "weather API", // optional
   "ttlMinutes": 120, // optional; omit for indefinite
   "agentId": "agent-a", // optional; omit for global
 }
 ```
 
-Response is the created rule plus a `conflicts` array (possibly empty).
+`access` (`"read"` or `"write"`) is accepted for a `path` rule only. The response
+carries the created rule with a `conflicts` array (§7) and a `warnings` array
+(§4.2), each possibly empty. A pattern that fails §4.1 is HTTP 400; a full
+organisation is HTTP 409 `too_many_rules`.
 
-_(There was a command-line equivalent until 2026-09-07 — `openclaw governance
-policy add-rule --kind network --pattern "^api[.]example[.]com$" --description
-"weather API" --ttl-minutes 120 --agent agent-a`. The governance command line was
-removed; this route and the dashboard that calls it are the only ways to author a
-rule. See `removed-cli-surface/README.md`.)_
+The dashboard's _Policy_ form is the operator's way to call this route. There is
+no command line: the governance command surface was removed on 2026-09-07, and its
+source is archived in `old-docs/removed-cli-surface/`.
 
 ## 11b. Where the data lives (M5)
 
-Since 2026-08-26 the layer holds several organisations at once, and the
-separation is a property of the filesystem rather than of every query.
+The storage holds organisations separately, and the separation is a property of
+the filesystem rather than of every query. An installation holds one organisation
+(a product decision enforced in `user-store.ts`); the layout would hold several.
 
 ```
 <governance home>/
   users.json              installation-wide  (usernames are unique per installation)
   agents.json             installation-wide  (agent ids are unique per installation)
   ledger.key              installation-wide  ← one secret; the integrity claim rests on it
-  ledger-checkpoint.json  installation-wide  ← one file, one head per group
+  ledger-checkpoint.json  installation-wide  ← one file, one head per organisation
   sessions.json           installation-wide  (login sessions belong to accounts)
   groups/<groupId>/
     policy.json
@@ -754,29 +900,25 @@ separation is a property of the filesystem rather than of every query.
 ```
 
 **The rule for placing a new file:** installation-wide when the thing it is keyed
-by is unique installation-wide; otherwise it belongs to a group.
+by is unique installation-wide; otherwise it belongs to an organisation.
 
-**Which group a request acts in has exactly two sources**, and neither is
+**Which organisation a request acts in has exactly two sources**, and neither is
 anything the caller supplies:
 
-- A **session**, HTTP (`requireGroup`) and the CLI (`requireCliActor`, which
-  returns the audit actor and the group together, so permission and scope cannot
-  be held apart).
-- The **agent registry**: for the gate, which has an agent id and no session.
-  An agent with no record is **refused**: registration is mandatory, and that is
-  what removes the fallback document an unregistered agent would otherwise slip
-  through.
+- A **session**, on every HTTP route (`requireGroup`).
+- The **agent registry**, for the gate, which has an agent id and no session.
+  An agent with no record is **refused** (§5 step 3): registration is mandatory,
+  and that is what removes the fallback document an unregistered agent would
+  otherwise slip through.
 
-**Core rules stay global.** They protect the governance directory itself, which
-is shared, so requirement #3's floor is installation-wide and no group's Root can
-move another's.
+**Core rules stay installation-wide.** They protect the governance directory
+itself, which is shared, so requirement #3's floor is the same everywhere.
 
 **The integrity claim is unchanged**, deliberately. The HMAC key is one per
 installation and the checkpoint is one file, so _"recomputing the chain requires
-the secret"_ is still true of the whole installation. Sharing them isolates
-nothing away: no account has ever been able to read either. Accounts act through
-this layer's API, never the filesystem, and both sit behind two immutable core
-denials.
+the secret"_ is still true of the whole installation. No account has ever been
+able to read either: accounts act through this layer's API, never the filesystem,
+and both sit behind self-protecting core denials.
 
 ## 12. Known limitations
 
@@ -784,79 +926,36 @@ denials.
    detected as conflicts. §7 decides the literal case exactly and stays silent
    otherwise.
 2. **Regex authoring is unforgiving.** An unanchored pattern is a substring
-   match; `ls` matches `rm -rf /; ls`. Anchoring is a convention the language
-   does not enforce.
-3. **Governed tool set is a fixed registry, and it covers 18 of the host's 52
-   catalogued tools plus the three session-only search tools.** A tool absent from it is recorded as `ungoverned` and passes
-   the gate; extending coverage requires a code change in
-   `resource-extraction.ts`. Lockdown is not subject to this. It is checked
-   before the registry lookup.
-
-   The registry is asserted against the host's tool list on every test run
-   (§3.5). **QA round 13, finding 70: it used to be asserted against the wrong
-   list, and the guard could not fail.**
-   `qa-round11.test.ts` iterates `allToolNames`
-   (`src/agents/sessions/tools/index.ts`), the barrel for the seven _session_
-   tools, all seven of which were registered in the same round that wrote the
-   test. The host's authoritative surface is `CORE_TOOL_DEFINITIONS` in
-   `src/agents/tool-catalog.ts`. Counted against that, forty-five were
-   ungoverned. All of the following are **now governed as `command`**, with the
-   resource `<tool>:<action>` plus any literal payload, so the core denials
-   already written for `exec` bind them without naming them:
-
-   | Tool                              | What it reaches                                                                                                                                                  |
-   | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-   | `process`                         | `action: write\|send-keys\|paste\|submit` types into a shell `exec` started in the background. A second command channel, exactly like `terminal`'s `data` (§3.2) |
-   | `computer`, `screen`, `mobile_ui` | synthetic keyboard and mouse against a paired desktop                                                                                                            |
-   | `code_execution`                  | runs code                                                                                                                                                        |
-   | `sessions_spawn`, `subagents`     | start further agents, under a different agent id                                                                                                                 |
-   | `automations`                     | schedules work to run later                                                                                                                                      |
-   | `gateway`, `nodes`                | read Gateway configuration; address devices                                                                                                                      |
-
-   The remaining 34 catalogued tools are listed in `DELIBERATELY_UNGOVERNED`
-   with a written reason each, asserted non-empty by a test. The guard still
-   says nothing about tools contributed by plugins, or about tools that reach
-   the filesystem indirectly.
-
-   **Open, and the one with real security content:** `sessions_spawn` is now a
-   governed permission, but the _child_ agent runs under a different agent id,
-   and every scoping rule in this layer is keyed on that id. Whether the
-   parent's agent-scoped rules and lockdown reach the child is unanalysed.
-
-4. **The governance CLI requires no login.** A core denial now covers
-   `governance <subcommand>`, so an _agent_ cannot reach it through a broad
-   allow rule such as `^(node|npm|npx|pnpm) .*$`, which it could until QA
-   round 13 (finding 73), making a policy set to `off` a
-   one-command bypass of the whole RBAC model. That denial is a backstop
-   against the agent and does nothing about a **person** with shell access,
-   which was always A6's point. The proper fix is a login on the CLI, and it
-   remains open.
-
+   match; `ls` matches `rm -rf /; ls`. The create path **warns** about it
+   (§4.2) but does not refuse it, because an unanchored rule can be exactly what
+   an operator means.
+3. **The governed tool set is a fixed registry**: 21 tools (§3). A tool absent
+   from it is recorded as `ungoverned` and passes the gate; extending coverage
+   requires a change in `resource-extraction.ts`. Lockdown is not subject to this:
+   it is checked before the registry lookup. Every tool the host declares is
+   accounted for by a test (§3.5); tools contributed by plugins, and tools that
+   reach the filesystem indirectly, are not.
+4. **There is no command line, and the core denial that guarded one remains.**
+   The governance command surface was removed on 2026-09-07, which also removed
+   the attribution gap it carried (actions recorded as `cli` rather than a named
+   account). The self-protecting core denial on `governance <subcommand>` still
+   ships (QA round 13, finding 73), so an agent cannot use a broad allow rule to
+   reach the surface if it is ever restored from `old-docs/removed-cli-surface/`.
+   A **person** with shell access on the host is outside this layer, as the
+   threat model has always stated: the boundary there is the filesystem's.
 5. **A stored `agentMode: "off"` is dropped on load.** It used to bypass the
    gate entirely for that agent, lockdown included, because evaluation returns
-   before the lockdown check. The HTTP route refused per-agent `off` at every
-   tier, but `loadPolicy` re-asserted `CORE_RULES` without sanitising the
-   posture maps, so a hand-edited `policy.json` reintroduced it one field away
-   from the protection it was meant to defeat. Dropped rather than coerced
-   upward, so the agent follows the installation default. QA round 13,
-   finding 80.
-
-6. **An unattributable call is refused while any agent is locked.**
-   `resolveEffectiveAgentId` reads `ctx.agentId`, then the session key; both are
-   optional on the hook context. When neither is present the lockdown list used
-   to go unconsulted and the call proceeded (QA round 13, finding 81). It now
-   fails closed, recorded under the distinct rule id
-   `kill-switch-unattributable` so an auditor can count the coverage gap
-   separately from genuine kill-switch hits. This deliberately over-blocks: it
-   costs an unattributable call from some _other_, unlocked agent during an
-   incident somebody declared, and an operator who has pressed the emergency
-   stop is asking for that error rather than the opposite one. With no agent
-   locked, nothing changes.
+   before the lockdown check. Dropped rather than coerced upward, so the agent
+   follows the installation default. QA round 13, finding 80.
+6. **An unattributable call is refused, always.** A call from which no agent can
+   be resolved has no organisation, so §5 step 3 refuses it as
+   `agent-not-registered`. Before per-organisation policy (M5) it was refused only
+   while an agent was locked (finding 81), under the retired id
+   `kill-switch-unattributable`.
 7. **Outbound messages are not a resource kind, by design. Settled, not
    open (T8, 2026-08-26).** `command`, `path` and `network` do not describe
    "post this text into a chat channel", so the `message` tool is recorded as
-   `ungoverned` and passes. This was previously listed here as a limitation
-   awaiting a fourth resource kind. It is not awaiting one.
+   `ungoverned` and passes.
 
    The specification names the resources the model governs, §1.3 requirement 3,
    "file system paths, process execution, and network communication", repeated
@@ -876,11 +975,15 @@ denials.
    destination**. Pinned by `qa-round12.test.ts`, destination included, so
    "we do not gate this, we record it" is a tested claim rather than a phrase.
 
-8. **Search tools are governed at their root only.** `grep`, `find` and `ls`
-   recurse, and only the path they are pointed at is derived. A search rooted at
-   the workspace therefore still reads files a denial names. Closing this needs
-   the host to report the files a tool actually opened (`after_tool_call`); the
-   parameters cannot reveal it beforehand.
+8. **Search results are filtered, except on the native Codex harness (T7).**
+   `grep`, `find` and `ls` are judged at their root and then recurse, so a search
+   rooted at the workspace reaches files a denial names. After the tool runs, every
+   returned path a denial covers is written to the ledger and, on the in-process
+   runtime, **removed from the result** before the model sees it
+   (`src/governance/search-audit.ts`). The native Codex harness's hook protocol has
+   no way to substitute a result, so there the reach is recorded and not
+   prevented; that is why an agent is refused on Codex unless an Administrator has
+   permitted it (§5 step 8).
 9. **Ledger truncation at the tail needs an off-host anchor.** Hash chaining
    detects modification and interior deletion; removing the newest entries
    leaves a valid prefix. A separate checkpoint file closes the casual case and
@@ -892,11 +995,11 @@ denials.
    closed all three routes it found.** Each defeated detection without the
    ledger key:
 
-   | Attack                                                    | `verifyLedgerChain()` | Cause                                                                                                                                                                          |
-   | --------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-   | Truncate the tail **and** delete the checkpoint file      | `ok: true`            | the checkpoint comparison is guarded by `if (checkpoint)`, so an absent one is skipped                                                                                         |
-   | Rebuild the whole file from genesis in the pre-key format | `ok: true`            | the downgrade guard (`seenKeyed && !entry.keyed`) catches a _mid-file_ switch; a file that never switches reads as an old chain                                                |
-   | Overwrite `ledger.key` with non-hexadecimal text          | `ok: true`            | `Buffer.from(text, "hex")` truncates at the first invalid character and the length is never checked, giving a **zero-length** HMAC key while entries stay marked `keyed: true` |
+   | Attack                                                    | `verifyLedgerChain()` | Cause                                                                                                                                                                             |
+   | --------------------------------------------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | Truncate the tail **and** delete the checkpoint file      | `ok: true`            | the checkpoint comparison was guarded by `if (checkpoint)`, so an absent one was skipped                                                                                          |
+   | Rebuild the whole file from genesis in the pre-key format | `ok: true`            | the downgrade guard (`seenKeyed && !entry.keyed`) caught a _mid-file_ switch; a file that never switched read as an old chain                                                     |
+   | Overwrite `ledger.key` with non-hexadecimal text          | `ok: true`            | `Buffer.from(text, "hex")` truncates at the first invalid character and the length was never checked, giving a **zero-length** HMAC key while entries stayed marked `keyed: true` |
 
    The third changed the threat model materially: the attacker's task was to
    _damage_ the key file rather than to read it. Fixes: a missing checkpoint is
@@ -909,13 +1012,18 @@ denials.
    **The residual is real and unchanged:** an attacker who destroys _both_ the
    key and the checkpoint leaves nothing on the host to contradict a rewritten
    chain. Closing that means holding one of them off the machine. Deployment
-   rather than code, and still the honest limit of this design.
+   rather than code, and still the honest limit of this design. The deployment
+   report tells Root whether the key is held off-host.
 
 10. **Read APIs are bounded at both ends.** `GET ledger?limit=` used to reject
     only values `≤ 0`, so `?limit=1000000000` walked every rotated archive into
-    memory and serialised it, at Viewer tier, the tier defined as strictly
-    read-only oversight, which made it the cheapest denial of service in the
-    system. Now clamped to `MAX_LEDGER_PAGE` (1000). Clamped rather than
-    rejected: a caller asking for more than the page size means "as much as you
-    have", and refusing a number would break the dashboard for a request with
-    an obvious correct answer. QA round 13, finding 82.
+    memory and serialised it, at Viewer tier, which made it the cheapest denial of
+    service in the system. Now clamped to 1000. Clamped rather than rejected: a
+    caller asking for more than the page size means "as much as you have". QA
+    round 13, finding 82.
+11. **An allowed approval is not re-checked against policy.** The host applies an
+    `allow-once` or `allow-always` as `blocked: false` without evaluating §5 again,
+    so anything that changed while the question waited is caught only where this
+    layer re-checks it. Lockdown is covered (§5.1, finding 364); a rule removed
+    while an escalation waits is not, because the operator answering it is the one
+    deciding.

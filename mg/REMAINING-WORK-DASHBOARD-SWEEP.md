@@ -1,9 +1,10 @@
 # Remaining work after the dashboard sweep
 
-**Written 2026-09-08 (vii), at the end of the pass that drove the remaining
-eight dashboard sections. Updated (viii)**, after section 8 was driven, the last
-three days were re-swept, and the documentation was audited. Everything still outstanding on this project, in one
-list, **sorted by who has to move first** — which is the question this file
+**Written 2026-09-08 (vii), at the end of the pass that drove the remaining eight
+dashboard sections. Its tables and §"Where this pass got to" were re-derived against
+the code on 2026-09-14**; the dated sections at the foot of the file are the record
+of each pass since. Everything still outstanding on this project, in one list,
+**sorted by who has to move first** — which is the question this file
 exists to answer and the one the other backlog files do not answer directly.
 
 `mg/REMAINING-WORK.md` stays the long-form backlog and the place a task's
@@ -15,25 +16,26 @@ the authority, and correct whichever of these is stale.
 
 ## Where this pass got to
 
-> **Next: the documentation phase.** Start at `docs-notes/WRITING-GUIDE.md`.
+> **State on 2026-09-14.** Everything Claude can do alone is done except **A12**, added
+> that day (an Administrator cannot set one agent's escalation from the dashboard), and A8
+> and A9, which wait on a decision (C4) and a Linux build (T3). What remains is §B, Kinan's,
+> and §C, four decisions. **One finding is open from before this file, T67 (finding
+> 169, never reproduced).** The QA over the last week, run on 2026-09-14, records what
+> it finds in `mg/REMAINING-WORK.md` §"Documents 7–9 and the QA over the last week".
 >
-> **Updated 2026-09-13.** A QA pass drove T60, T63 and the whole dashboard through
-> a browser and found **eighteen defects, 346–363, all now fixed**. Among them: the
-> browser served one account's stored governance answers to the next, and escalations
-> from a dashboard prompt had never reached a person. **363 was fixed later the same
-> day**: Kinan decided C12 (T69), and a cancelled task now withdraws its approval card.
-> **C11 (T68) was decided and built the same day**: an escalation from a dashboard
-> prompt is answered only by the accounts that manage its agent. No dashboard decision is
-> waiting. See §"The dashboard QA pass" at the foot of this file.
+> **The documentation phase is under way.** Start writing at
+> `docs-notes/WRITING-GUIDE.md`. Six of the eighteen documents in the update order were
+> rewritten against the code on 2026-09-13; T47's plan, `mg/REMAINING-WORK.md` and this
+> file followed on 2026-09-14.
 >
-> **Updated 2026-09-11.** **T60 and T63 are built**, finishing a draft another agent left mid-way; see the section of that name at the foot of this file. **No dashboard decision is waiting any more** — C1 to C7 are all closed.
->
-> **Earlier, 2026-09-09 (iii).** **T64 is done** — Kinan chose to split the page,
-> and 9,019 bytes came off every first page load; the red section below is
-> cleared. Earlier the same day: A3, A4 and A5 done; C3 and C5 decided; C2 found
-> already decided. **Four findings, 342–345.** 342 is what made T64 worth doing;
-> 345 was found checking T64 for regressions. See §"2026-09-09 (ii)" and
-> §"T64 done" below the tables.
+> **What happened after this file was written**, newest first, each recorded in its
+> own section at the foot of the file: A11 built, and finding 365 (§"A11 built"); the
+> week's QA check, finding 364 and A10's answer (§"The week's QA check"); T68 and T69
+> decided and built (§"T68", §"Finding 363"); the dashboard QA pass, findings 346–363
+> (§"The dashboard QA pass"); T60 and T63 built (§"T60 and T63 built", 2026-09-11);
+> T64 done and findings 342–345 (§"T64 done", §"2026-09-09 (ii)").
+
+### The pass this file was written for (2026-09-08): findings 326–341
 
 **Sixteen findings, 326–341. Sixteen fixed, none open.** Every fix has a test that
 was watched failing against the unfixed code, plus guards that pass either way
@@ -68,9 +70,11 @@ default from here:
 - `docs-notes/qa-sweep-2026-09-08/capture-tier-snapshots.mjs` signs in as each
   of five accounts against the **running gateway** and captures every dashboard
   read route, recording which ones each tier is refused.
-- `ui/src/pages/governance/qa-tier-sweep.browser.test.ts` renders the **real
-  page from those real answers** in real Chromium and prints, per tier, every
-  section, every sentence, and every control with its disabled state.
+- `qa-tier-sweep.browser.test.ts` renders the **real page from those real
+  answers** in real Chromium and prints, per tier, every section, every
+  sentence, and every control with its disabled state. It is archived as
+  `docs-notes/qa-sweep-2026-09-08/qa-tier-sweep.browser.test.ts.txt` (A6); copy
+  it back under `ui/src/pages/governance/` to run it.
 
 **The Gateway credential is switched off on the throwaway QA instance and the
 governance sign-in is not** — Kinan's standing decision, with the three
@@ -85,46 +89,13 @@ replace them with a fixture**.
 
 ---
 
-## ~~🔴 Do this before anything else~~ The startup budget is no longer the constraint
+## The startup budget (cleared 2026-09-09 by T64)
 
-**Cleared 2026-09-09 (iii) by doing T64.** The English catalog is split: the
-governance page's text travels in the page's own lazy chunk instead of being
-loaded by every session at startup.
-
-```
-startup JS gzip, before   325,565 B      67 B of headroom
-startup JS gzip, after    316,546 B    8,062 B of headroom
-```
-
-**9,019 bytes off every first page load**, and the next person to write an
-operator-facing sentence has about a hundred and twenty sentences of room rather
-than less than one. Finding 321's ceiling raise was handed back at the same time,
-because the reason for it no longer exists.
-
-_What stood here, kept because it is the argument that produced the fix:_
-
-> **The startup budget has 67 bytes of headroom, measured rather than carried
-> forward.** That is less than one short sentence for the whole product, and the
-> next person to write an operator-facing string will meet a red build that no
-> typecheck, no lint gate and no test will have warned them about. **T64 is no
-> longer tidying; it is the next thing that blocks a text fix.**
->
-> **And the reason recorded for it was wrong — finding 342.** Every statement of
-> this problem, in this file, in `mg/HANDOFF.md` and in the budget file that
-> enforces it, said each sentence is "multiplied across 22 locales and charged
-> to startup JS". It is not: `ui/src/i18n/lib/registry.ts` dynamic-imports all
-> twenty non-English locales and the build emits each as its own chunk, so
-> **only `en.ts` is in the twelve startup requests**. A sentence cost a
-> twentieth of what was written down.
->
-> **That correction made T64 worth more, not less** — about **170 times** the
-> headroom that remained — which is what turned it from a tidy answer into the
-> thing to do next.
-
-**The one thing left from it is a ratchet, and it needs a Linux build.** The
-budget _baseline_ still sits ~8 KB above actual; lowering it needs CI bytes, per
-the instruction in the budget file itself, and T3's VPS rebuild is what produces
-them. Listed as **A9**.
+T64 split the English catalog so the governance page carries its own text: startup
+JavaScript went from 325,565 B to 316,546 B gzipped, 9,019 B off every first page load,
+and headroom from 67 B to 8,062 B. **The one thing left is a ratchet on the baseline**,
+which needs build bytes from Linux rather than this machine: **A9**. The argument that
+produced the fix, including finding 342's twenty-fold correction, is in §"T64 done".
 
 ---
 
@@ -132,18 +103,20 @@ them. Listed as **A9**.
 
 Nothing here needs a decision from anybody. Ordered by what it costs if left.
 
-|         | Task                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Why it matters                                                                                             | Size                        |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- | --------------------------- |
-| ~~A1~~  | ~~Finding 333: page the ledger after filtering~~ **DONE 2026-09-09.** The fix needed no trade at all: the scan window is now the constant `MAX_LEDGER_PAGE` instead of the caller's `limit`, so the worst-case read is exactly what it already was and finding 82's denial-of-service bound is untouched — the old shape was simply spending the budget in the wrong order. Measured live on the same account that found it: `limit=50` returned **0** entries before and **38** after                                                                                                                                                                                                                                                                                         | Done                                                                                                       | Done                        |
-| **A2**  | ~~Section 8, Policy: drive the authoring forms~~ **DONE 2026-09-08 (viii)**, and it produced **finding 335**. Driven at all four tiers: the authoring matrix (own agent / global / Viewer / unassigned), rule removal scoping, core-rule switching (switchable vs self-protecting, Root-only), pattern validation (invalid regex, ReDoS, empty, bad TTL), the account override and finding 143's unknown-account warning, the folder grant with exceptions, and **T27's distinction measured in both directions** — a withheld User keeps prompting, stopping and the per-agent escalation timeout, and loses only rule editing                                                                                                                                                | The biggest section on the page, and the one the gate actually reads                                       | Done                        |
-| ~~A3~~  | ~~`isKnownAgentId` compares raw strings~~ **DONE 2026-09-09.** Fixed at the owner: `agent-directory.ts` gained `includesAgentId`, which folds both sides through `canonicalAgentQuery` exactly as `canManageAgent` does, and keeps the coercion guard so `###` is not answered as `main`. **It was three call sites, not one** — the kill switch's unknown-id warning, its `unregistered` check (so finding 341's disable missed the same case), and the policy lookup's _"no agent with this id"_ label, which fired on a **correct** projection typed in the wrong case. Pinned in `identity-agent-fold.test.ts`, the file finding 215 created, and watched failing against the raw `.includes()`                                                                            | A false warning on the emergency control. Finding 202's class, on the comparison beside it                 | Done                        |
-| ~~A4~~  | ~~Two deployment rows say the same thing~~ **DONE 2026-09-09.** `deployment.gateway_auth` is now the one row that answers "is the Gateway authenticated", and the audit's `gateway.bind_no_auth` and `gateway.loopback_no_auth` fold into it as evidence — **verbatim, and at the worst of the two severities**, so a fold can never lower a verdict. Both directions: three rows no longer say the Gateway is authenticated on a healthy install either. The rename tripwire the folded ids used to provide is restated in `governance-deployment-input.test.ts` against the **real** audit, so an upstream rename still breaks a test rather than a promise                                                                                                                  | Read as two problems when there is one                                                                     | Done                        |
-| ~~A5~~  | ~~System resources omits load average silently on Windows~~ **DONE 2026-09-09**, and it cost **zero startup bytes**: the row now reads _"8 cores · load not determined here"_, reusing `governance.deployment.status.unknown` — the Deployment report's own phrase for the same situation — rather than spelling a second one. Precedent is finding 303's repair, which reused a sentence across two panels for the same reason                                                                                                                                                                                                                                                                                                                                                | Two panels, two answers to "we cannot measure this here"                                                   | Done                        |
-| **A6**  | ~~Delete the sweep's scratch files~~ **Done in the same pass.** Neither is in `ui/src` any more: the probe is archived as a `.txt` under `docs-notes/qa-sweep-2026-09-08/`, on the same convention `removed-cli-surface/` uses, and the 133 KB of captured JSON is gone. **To run it again**: set `GOV_QA_ACCOUNTS` to `tier:username:password` triples (the script holds no passwords and refuses to run without it), then `node docs-notes/qa-sweep-2026-09-08/capture-tier-snapshots.mjs ui/src/pages/governance/__qa-tier-snapshots.json`, copy the archived `.txt` back into `ui/src/pages/governance/` as a `.browser.test.ts`, and run the browser project                                                                                                              | The tree is clean for the commit in **B6**                                                                 | Done                        |
-| ~~A7~~  | ~~T50: make something run the full lint gate~~ **DECIDED AND BUILT 2026-09-09, answer (c)** — see C5. Two of the three options are closed by facts rather than by taste: the gate takes ~18 minutes, and **there is no CI** (Actions were switched off in T21, and turning them on turns all 82 inherited workflows on with them). So it stays manual — and (c)'s own condition, _stop calling it what the hook runs_, is now met **where an operator meets it**: `git-hooks/pre-commit` prints, on every successful lint, that this is not the full gate and names the command that is                                                                                                                                                                                        | Finding 237. Nothing automatic runs it; the hook runs the narrow invocation finding 221 exists to distrust | Done                        |
-| **A8**  | **T46's build half**, once you have said how far the wording goes (see C4)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | The setup wizard still says "OpenClaw" and never names this project                                        | Small, after the decision   |
-| **A9**  | **Ratchet the startup-budget baseline**, once a Linux build exists. T64 took 9,019 B off startup and `config/control-ui-startup-budget-baseline.json` still records the old figure, so the gain could be silently re-spent up to the ceiling. The build prints the hint; it was **deliberately not taken**, because the note at the top of `scripts/check-control-ui-performance.mjs` says baseline updates must use CI bytes via `--startup-js-bytes` — local zlib emits smaller streams than the Linux builder, and setting it from a local number risks a red build on the VPS. **T3's rebuild produces the number**; run `node scripts/check-control-ui-performance.mjs --update-baseline --startup-js-bytes <linux bytes> --reason "T64: page-scoped locale modules"`     | The ceiling still bounds creep at 317 KiB, so this is a ratchet rather than a hole                         | Small, after T3             |
-| ~~A10~~ | ~~Find out what the 27 failing Control UI tests are (finding 345)~~ **ANSWERED 2026-09-13: 22 fixed, 5 recorded.** Finding 345's "none of them this fork's" was wrong for 19; see §"Finding 345". _Original row:_ `ui/src/` — the whole suite, which no command in `mg/HANDOFF.md` §4 runs — fails **27 tests across 16 files**, all of them pre-existing at HEAD and none of them this fork's. **T25 is the precedent and the reason not to assume the worst**: eighteen host-harness failures were carried as "a baseline" until somebody looked, and the production code was correct every time — the tests were POSIX-only. Several of these are source scans and jsdom media limitations, which is the same smell. The deliverable is an answer, not necessarily 27 fixes | A real regression in any of those sixteen files is currently invisible to every gate                       | Medium; investigation first |
+|         | Task                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Why it matters                                                                                                      | Size                        |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| ~~A1~~  | ~~Finding 333: page the ledger after filtering~~ **DONE 2026-09-09.** The fix needed no trade at all: the scan window is now the constant `MAX_LEDGER_PAGE` instead of the caller's `limit`, so the worst-case read is exactly what it already was and finding 82's denial-of-service bound is untouched — the old shape was simply spending the budget in the wrong order. Measured live on the same account that found it: `limit=50` returned **0** entries before and **38** after                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Done                                                                                                                | Done                        |
+| **A2**  | ~~Section 8, Policy: drive the authoring forms~~ **DONE 2026-09-08 (viii)**, and it produced **finding 335**. Driven at all four tiers: the authoring matrix (own agent / global / Viewer / unassigned), rule removal scoping, core-rule switching (switchable vs self-protecting, Root-only), pattern validation (invalid regex, ReDoS, empty, bad TTL), the account override and finding 143's unknown-account warning, the folder grant with exceptions, and **T27's distinction measured in both directions** — a withheld User keeps prompting, stopping and the per-agent escalation timeout, and loses only rule editing                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | The biggest section on the page, and the one the gate actually reads                                                | Done                        |
+| ~~A3~~  | ~~`isKnownAgentId` compares raw strings~~ **DONE 2026-09-09.** Fixed at the owner: `agent-directory.ts` gained `includesAgentId`, which folds both sides through `canonicalAgentQuery` exactly as `canManageAgent` does, and keeps the coercion guard so `###` is not answered as `main`. **It was three call sites, not one** — the kill switch's unknown-id warning, its `unregistered` check (so finding 341's disable missed the same case), and the policy lookup's _"no agent with this id"_ label, which fired on a **correct** projection typed in the wrong case. Pinned in `identity-agent-fold.test.ts`, the file finding 215 created, and watched failing against the raw `.includes()`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | A false warning on the emergency control. Finding 202's class, on the comparison beside it                          | Done                        |
+| ~~A4~~  | ~~Two deployment rows say the same thing~~ **DONE 2026-09-09.** `deployment.gateway_auth` is now the one row that answers "is the Gateway authenticated", and the audit's `gateway.bind_no_auth` and `gateway.loopback_no_auth` fold into it as evidence — **verbatim, and at the worst of the two severities**, so a fold can never lower a verdict. Both directions: three rows no longer say the Gateway is authenticated on a healthy install either. The rename tripwire the folded ids used to provide is restated in `governance-deployment-input.test.ts` against the **real** audit, so an upstream rename still breaks a test rather than a promise                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Read as two problems when there is one                                                                              | Done                        |
+| ~~A5~~  | ~~System resources omits load average silently on Windows~~ **DONE 2026-09-09**, and it cost **zero startup bytes**: the row now reads _"8 cores · load not determined here"_, reusing `governance.deployment.status.unknown` — the Deployment report's own phrase for the same situation — rather than spelling a second one. Precedent is finding 303's repair, which reused a sentence across two panels for the same reason                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Two panels, two answers to "we cannot measure this here"                                                            | Done                        |
+| **A6**  | ~~Delete the sweep's scratch files~~ **Done in the same pass.** Neither is in `ui/src` any more: the probe is archived as a `.txt` under `docs-notes/qa-sweep-2026-09-08/`, on the same convention `old-docs/removed-cli-surface/` uses, and the 133 KB of captured JSON is gone. **To run it again**: set `GOV_QA_ACCOUNTS` to `tier:username:password` triples (the script holds no passwords and refuses to run without it), then `node docs-notes/qa-sweep-2026-09-08/capture-tier-snapshots.mjs ui/src/pages/governance/__qa-tier-snapshots.json`, copy the archived `.txt` back into `ui/src/pages/governance/` as a `.browser.test.ts`, and run the browser project                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | The tree is clean for the commit in **B6**                                                                          | Done                        |
+| ~~A7~~  | ~~T50: make something run the full lint gate~~ **DECIDED AND BUILT 2026-09-09, answer (c)** — see C5. Two of the three options are closed by facts rather than by taste: the gate takes ~18 minutes, and **there is no CI** (Actions were switched off in T21, and turning them on turns all 82 inherited workflows on with them). So it stays manual — and (c)'s own condition, _stop calling it what the hook runs_, is now met **where an operator meets it**: `git-hooks/pre-commit` prints, on every successful lint, that this is not the full gate and names the command that is                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Finding 237. Nothing automatic runs it; the hook runs the narrow invocation finding 221 exists to distrust          | Done                        |
+| **A8**  | **T46's build half**, once you have said how far the wording goes (see C4)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | The setup wizard still says "OpenClaw" and never names this project                                                 | Small, after the decision   |
+| **A9**  | **Ratchet the startup-budget baseline**, once a Linux build exists. T64 took 9,019 B off startup and `config/control-ui-startup-budget-baseline.json` still records the old figure, so the gain could be silently re-spent up to the ceiling. The build prints the hint; it was **deliberately not taken**, because the note at the top of `scripts/check-control-ui-performance.mjs` says baseline updates must use CI bytes via `--startup-js-bytes` — local zlib emits smaller streams than the Linux builder, and setting it from a local number risks a red build on the VPS. **T3's rebuild produces the number**; run `node scripts/check-control-ui-performance.mjs --update-baseline --startup-js-bytes <linux bytes> --reason "T64: page-scoped locale modules"`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | The ceiling still bounds creep at 317 KiB, so this is a ratchet rather than a hole                                  | Small, after T3             |
+| ~~A10~~ | ~~Find out what the 27 failing Control UI tests are (finding 345)~~ **ANSWERED 2026-09-13: 22 fixed, 5 recorded.** Finding 345's "none of them this fork's" was wrong for 19; see §"Finding 345". _Original row:_ `ui/src/` — the whole suite, which no command in `mg/HANDOFF.md` §4 runs — fails **27 tests across 16 files**, all of them pre-existing at HEAD and none of them this fork's. **T25 is the precedent and the reason not to assume the worst**: eighteen host-harness failures were carried as "a baseline" until somebody looked, and the production code was correct every time — the tests were POSIX-only. Several of these are source scans and jsdom media limitations, which is the same smell. The deliverable is an answer, not necessarily 27 fixes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | A real regression in any of those sixteen files is currently invisible to every gate                                | Medium; investigation first |
+| ~~A11~~ | ~~A User cannot request a per-agent posture or escalation change from the dashboard~~ **BUILT 2026-09-13, and building it found finding 365.** _Rule requests_ has **Request a change for one agent**; **Request a rule** takes a direction for a path, and the queue row shows it; _Policy_ tells a User where to ask. A `mode` of `off` is refused at submission, at approval before the decision is claimed, and in `setAgentMode`. This row's assumption that such a request "can only fail at approval" was wrong: approval succeeded, the ledger recorded the change, and the loader discarded it. See §"A11 built". _Original row:_ Found 2026-09-13 while rewriting `docs-notes/WRITING-PERMISSIONS.md` against the code. Since T4 `policy/agent-mode` and `policy/agent-ask` need Administrator, and every comment on them says a User _requests_ the change instead. The server takes that request (`POST rule-requests` with `setting`, `value`, `agentId` and `reason`) and the queue shows and decides it, but nothing on the page files one: `submitRuleRequest` in `ui/src/pages/governance/api.ts` sends no `setting`. Two smaller things beside it: the **Request a rule** form cannot state a read/write direction, so a form-filed path request always asks for both; and a `mode` request for `off` is accepted at submission and can only fail at approval. Offered as a separate task on 2026-09-13       | The documented fallback for a User's posture change is reachable only by hand-written HTTP                          | Small to medium             |
+| **A12** | **Let an Administrator set one agent's escalation.** Added 2026-09-14; the gap was found on 2026-09-13 while building A11. The dashboard has no control that **sets** a per-agent escalation override (`ask`: `off` denies an unlisted action, `on-miss` asks a human). The route exists at Administrator floor, `POST /control-ui/governance/policy/agent-ask` with `{ agentId, ask: "off" \| "on-miss" \| null }` (`src/gateway/governance-dashboard-api.ts`), and so does `setAgentAsk` in `ui/src/pages/governance/api.ts`, but the only call is `setAgentAsk(agentId, null)`, **Use default**, on an existing override row in `policy-panels.ts`. Per-agent posture has **Observe one agent** for Administrators and escalation has no equivalent, so an Administrator creates an override only by recording a request under _Rule requests_ and approving it, or by hand-written HTTP. **Do:** an Administrator and Root row (hidden below Administrator, as `canEditPostures` gates the posture row) that sets one agent's escalation to **Ask a human** or **Deny**, mirroring Observe one agent, ideally with a picker limited to known agents, in its own module because `policy-panels.ts` is at the 700-line limit (pattern: `panels/policy-agent-timeout.ts`); then update `governance.requests.settingRequestHintRecord`, which says only a posture can be set directly. Full task: `mg/REMAINING-WORK.md` §"A12" | An Administrator's per-agent escalation override is reachable only by a detour through the request queue or by hand | Small                       |
 
 ---
 
@@ -158,7 +131,7 @@ or your voice.
 | **B2**     | **T18 — write Chapters 3, 4 and the conclusion**                                                                                                                                                                                                                                                                                                                                                                                                     | The report itself                                                                                                                                                                                                  |
 | **B3**     | **T17 — the 21 figures.** The audit half is done: all 21 compared against the code, two defects fixed. What is left is whether you redraw them or have them drafted for approval, and **nobody has compiled them** — that needs a LaTeX toolchain this machine does not have                                                                                                                                                                         | Ask if you want the drafts                                                                                                                                                                                         |
 | **B4**     | **T13 — read the prompt-injection answer until you can give it without notes**                                                                                                                                                                                                                                                                                                                                                                       | Viva preparation, not engineering                                                                                                                                                                                  |
-| **B5**     | **T47 — run the by-hand test plan.** Written (`docs-notes/T47-TEST-PLAN.md`, 142 checks). **Running it needs three people on three machines**: half of what it tests is that one account cannot see another's, and a shared browser session silently defeats that                                                                                                                                                                                    | This produces the evidence Chapter 4 needs. **This sweep is not a substitute** — it drove one browser and one server                                                                                               |
+| **B5**     | **T47 — run the by-hand test plan.** Written (`docs-notes/T47-TEST-PLAN.md`, 198 checks, re-counted from the rows 2026-09-14). **Running it needs three people on three machines**: half of what it tests is that one account cannot see another's, and a shared browser session silently defeats that                                                                                                                                               | This produces the evidence Chapter 4 needs. **This sweep is not a substitute** — it drove one browser and one server                                                                                               |
 | ~~**B6**~~ | ~~**Commit the T60/T63 work.**~~ **DONE 2026-09-13**, together with the QA pass: pushed to `personal/governance-layer` at `0c15e73a778`. every file `git status` lists apart from `.codex/`, uncommitted since 2026-09-11: both features, the protocol change with its regenerated Swift and Kotlin models, and the handoff documents brought level for the documentation phase. **Until it is committed and pushed it exists only on this machine** | `git status` first; `.codex/` belongs to another agent and is not part of it                                                                                                                                       |
 
 ---
@@ -196,8 +169,7 @@ Recorded as backlog rows so they are counted rather than remembered. **One remai
 | **T67**     | **169** | **An unexplained observation**, carried since before this sweep and never reproduced. Kept numbered rather than dropped, because the one thing worse than an open finding is a closed one that was never understood                                                                                                                                                                                                                                                                                                                                                                                                                               | Nobody, until it recurs                                                                                      |
 | ~~**T69**~~ | **363** | **DECIDED AND BUILT 2026-09-13 (C12, option a).** A cancelled task's approval card stayed up until it expired; the approval hook now withdraws the approval through `plugin.approval.withdraw`, and the card closes. See §"Finding 363"                                                                                                                                                                                                                                                                                                                                                                                                           |
 
-**T64 is not in this table and is the one that blocks work**: the startup budget.
-See the red section at the top.
+_T64 closed on 2026-09-09 and blocks nothing; A9 is its ratchet._
 
 ## C. These need a decision from you before anyone builds
 
@@ -221,7 +193,7 @@ recommendation it says so.
 
 ---
 
-## What this sweep confirmed was already right
+## What the 2026-09-08 pass confirmed was already right
 
 Recorded because "we checked and it was fine" is evidence too, and because the
 next person should not re-derive it.
@@ -250,14 +222,16 @@ next person should not re-derive it.
 - **The jump-nav, the ledger filters, the rule filter, and the per-agent
   projection** all behave correctly at every tier that can reach them.
 
-## One thing that was _not_ established
+## One thing the 2026-09-08 pass did not establish
 
 **No agent was prompted end to end.** The configured Gemini key is exhausted
 (`429`) and the previously configured model was retired upstream (`404`), so no
 live model run could be carried to a reply. Everything in this sweep is the
 governance layer's own surfaces; the agent-run paths were exercised only through
 refusal and through the registries. **T2 already covers the live half on the
-VPS**, and B1 is where it gets re-measured.
+VPS**, and B1 is where it gets re-measured. _Since then (2026-09-12/13) the QA pass
+drove prompts, escalations, streaming and cancellation against a local mock of the
+model API; T2 is still the only run against a real model._
 
 ---
 
@@ -367,7 +341,7 @@ and copies go stale.
 
 Every claim about a rendered sentence here was read off the page rather than
 inferred, using a scratch probe that mounts the real component and writes out
-what an operator sees. It is archived, on the convention `removed-cli-surface/`
+what an operator sees. It is archived, on the convention `old-docs/removed-cli-surface/`
 and the 09-08 sweep use:
 
 ```
@@ -1555,3 +1529,124 @@ User with no agents 9, Viewer 7.
 - **Cancellation after reload** (350) and **the emergency stop** (357).
 - **Independent ledger verification**: `scripts/verify-ledger.mjs` agreed with the
   dashboard and the file.
+
+## A11 built (2026-09-13, after the push): a User's agent-setting request from the dashboard, and finding 365
+
+**Asked for by Kinan**, from A11's row: a dashboard way for a User, or an Administrator
+recording one, to request a per-agent posture or escalation change for an agent they
+manage; a decision on whether a `mode` of `off` should be refused at submission; and a
+read/write direction for path requests on _Request a rule_.
+
+### Finding 365: an approved request for an `off` posture was recorded and never applied
+
+**Proved before anything changed.** A temporary probe drove the real routes: a User
+submitted `{ agentId, setting: "mode", value: "off", reason }` for their own agent (200,
+pending), and an Administrator approved it (200, `approved`). Then `policy.json` held
+`agentMode: { mine: "off" }`, the ledger held `governance.policy.agent-mode` _"posture
+default -> off"_ after the `rule-request.decide` _"approved"_ entry, and `loadPolicy`
+returned `agentMode: {}`. The probe was removed.
+
+**Why.** `policy/agent-mode` refuses a per-agent `off` at every tier, in the route. Approval
+calls `setAgentMode` from `governance-dashboard-rule-requests.ts` without that route, and
+the store function had no refusal of its own. The loader's normaliser keeps only `enforce`
+and `monitor` in `agentMode`, so the value never reached the gate. **Fail-safe for
+enforcement, false for the ledger** (requirement #8): the trail says a posture changed
+that did not. A11's row had assumed the opposite, that such a request "can only fail at
+approval".
+
+**The fix, at three layers.**
+
+- `POST rule-requests` refuses the value at submission (`isApplicableSettingValue`), with
+  the reason (`PER_AGENT_OFF_REFUSED`).
+- `POST rule-requests/decide` refuses to approve a stored request whose value cannot be
+  applied **before** it claims the decision, so a request filed before the fix leaves no
+  "approved" entry. Rejecting it still works.
+- `setAgentMode` refuses `off` whichever route calls it, and its parameter type now
+  excludes it.
+
+### What was built
+
+- **Server:** `POST rule-requests` accepts `access` on a rule request, validated as
+  `policy/rules` validates it: `read` or `write`, refused on a kind other than `path`.
+  Approval already granted a stored `access` verbatim (finding 279).
+- **Dashboard, _Rule requests_:** **Request a change for one agent**
+  (`ui/src/pages/governance/panels/agent-setting-request.ts`): the agents this account
+  manages (`manageableAgentIds`), posture or escalation, a value checked against the
+  setting it is for, and a reason of up to 500 characters. A User with no agents is told
+  why instead of shown the form. The hint differs by tier: a User is told only an
+  Administrator sets these; an Administrator, that the form records a request and that a
+  posture can also be set directly.
+- **Dashboard, _Request a rule_:** a **Read or write** select for a path, sent only for a
+  path and only when narrowed; each queue row names the direction, `path (read)`.
+- **Dashboard, _Policy_:** a User who manages an agent sees _"Change one agent's posture or
+  escalation"_, pointing at the form.
+- **Kept under the 700-line limit by splitting, not suppressing:** the rule-request types
+  moved to `ui/src/pages/governance/api.rule-requests.ts` (re-exported from `api.ts`), and
+  the queue's nine draft fields left the page for `RuleRequestDraftsController` in
+  `panels/rule-request-drafts.ts`, on the pattern `AccountsController` set.
+
+### Decisions taken, and the precedent for each
+
+- **Refuse `off` at submission: yes.** The set path refuses it at every tier (PERMISSION-SPEC
+  §8), so no approval can honour it, and the probe showed approval pretending to. A control
+  whose only outcome is a refusal is not offered either: the form lists no `off` posture.
+- **Refuse at approval before the claim, not after.** The existing order (claim, then apply,
+  then reopen on failure) is right for a failure nobody can predict, such as a full ruleset.
+  A value known to be inapplicable is predictable, and claiming first writes a decision the
+  ledger cannot take back.
+- **An Administrator may use the form**, as they may use _Request a rule_ (finding 303's
+  one-sentence-per-tier wording applies).
+- **Not built, and recorded:** a request to _clear_ an override and follow the installation
+  default. The route accepts only a value, not `null`; a User asks for the installation's
+  value explicitly.
+
+### Found beside it, and left for a separate task
+
+**No dashboard control sets a per-agent escalation value.** The Policy section can clear
+one ("Use default") and can set a per-agent posture ("Observe one agent"), but nothing calls
+`setAgentAsk` with `off` or `on-miss`. An Administrator can create one only by recording a
+request and approving it. Offered to Kinan as a separate task on 2026-09-13, and
+**recorded as A12** in the A table on 2026-09-14.
+
+### Verified
+
+- **Tests.** `src/gateway/governance-agent-setting-request.test.ts`, 9 at the route, judged
+  on the stored request, `policy.json` as written, and the ledger;
+  `ui/src/pages/governance/agent-setting-request.test.ts`, 12 through the rendered queue
+  section and the mounted page. Beside them: the four route files for rule requests and
+  authoring scope, 69 passed; the four governance UI files including `governance-page.test.ts`
+  and `governance-panels.test.ts`, 104 passed.
+- **18 mutations, 18 caught**, each file restored and hash-checked, then both files re-run
+  clean. **The first run caught 17, and the survivor was a test proving nothing:** "no
+  pointer for an Administrator" passed with the pointer's role check removed, because an
+  Administrator is shown the posture controls in the pointer's place. The role check
+  protects a Viewer with an assigned agent. The test now mounts that Viewer, and the
+  mutation is caught.
+- **Typechecks:** core, UI, `test/tsconfig/tsconfig.core.test.json` and
+  `test/tsconfig/tsconfig.test.ui.json`, all 0. **Plain `oxlint`** and **`oxfmt --check`**
+  over the 12 changed source and test files, 0, after two splits: the first lint run put
+  `api.ts` (706), `governance-page.ts` (715) and `policy-panels.ts` (705) over the limit.
+
+**Not established:** a live run on a real screen against a Gateway. Not run: the full
+governance suite, the type-aware lint gate (`scripts/run-lint.mjs`), and `build-all`.
+_(The first two ran on 2026-09-14 with A11 in the tree, both clean: see below.)_
+
+## The week checked a second time (2026-09-14): findings 366–368
+
+**Asked for by Kinan after documents 7–9 were rewritten.** Two axes the first weekly check
+had not used: composing the post-push work with earlier decisions, and reading the by-hand
+plan as a set of claims. The full record, with the evidence, is `mg/REMAINING-WORK.md`
+§"Documents 7–9 and the QA over the last week"; the registers are `GOVERNANCE.md` rows
+366–368, design §3.5.85 and plain language §5.112.
+
+- **366:** approving a request for an agent deleted in the meantime wrote back what T55's
+  deletion cleared. Approval now refuses before the claim; the queue row says so.
+- **367:** a core rule switched off from the dashboard could not be switched back on from
+  it, while the deployment report said to. The policy read carries the switched-off rules
+  and the Policy section offers Root **Switch on**.
+- **368, low:** the lockout refusal states the wait.
+
+**Verified:** 9 mutations, all caught; governance suite 3,099 passed, 0 failed; whole
+`ui/src` suite 8,202 passed with A10's five jsdom failures; four typechecks 0; the full
+lint gate, plain `oxlint`, host suites (263), browser project (199) and ui-isolated (403)
+clean. **Not established:** `build-all`, and a live run on a real screen.

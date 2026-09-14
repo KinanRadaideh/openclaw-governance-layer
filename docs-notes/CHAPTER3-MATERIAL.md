@@ -10,7 +10,7 @@ of Design Constraints → §3.4 Different Design Approaches → §3.5 Developed 
 → §4.x Results / Validation).
 
 Cross-references: `GOVERNANCE.md` (operator-facing overview + QA defect table),
-`UPSTREAM-BUG-REPORT.md` (the OpenClaw bug found during QA).
+`old-docs/UPSTREAM-BUG-REPORT.md` (the OpenClaw bug found during QA).
 
 > **Newest material, 2026-09-13:** §3.5.83, the dashboard driven through a browser
 > under failure (findings 346–363). It covers a service worker holding a second,
@@ -213,7 +213,7 @@ own parenthesis below records for the sentence before it.)_ The paper specifies
 a Linux VPS. This matters more than it might appear,
 one defect found during QA (defect 6, path separators) was a direct
 Windows-vs-Linux behaviour difference, and the upstream OpenClaw bug found
-(`UPSTREAM-BUG-REPORT.md`) is _also_ a POSIX-vs-Windows filesystem-semantics
+(`old-docs/UPSTREAM-BUG-REPORT.md`) is _also_ a POSIX-vs-Windows filesystem-semantics
 difference. Both are evidence that cross-platform assumptions in this codebase
 do not hold automatically, so Linux validation should be treated as required
 work, not a formality.
@@ -3543,7 +3543,7 @@ Engineering detail in `GOVERNANCE.md` §"T25"; plain language in
 From 2026-08-13 onward every verification step in this project recorded the same
 figure: OpenClaw's own harness suite at **18 failed / 174 passed**, described as
 pre-existing upstream failures present on `main` before any of this work began.
-`UPSTREAM-BUG-REPORT.md` wrote them up as a single defect,
+`old-docs/UPSTREAM-BUG-REPORT.md` wrote them up as a single defect,
 `src/plugins/contracts/host-hooks.contract.test.ts` removing a temporary
 directory while a SQLite handle inside it is still open, which POSIX permits and
 Windows refuses with `EBUSY`.
@@ -5798,7 +5798,7 @@ The last row is the one that matters most and it was measured properly rather
 than assumed: the change was stashed, `native-hook-relay.test.ts` run, the
 change restored, and the same command run again. Both runs report 18 failed and
 174 passed, and the nine distinct failing test names are identical in both. The
-pre-existing upstream failures documented in `UPSTREAM-BUG-REPORT.md`, each
+pre-existing upstream failures documented in `old-docs/UPSTREAM-BUG-REPORT.md`, each
 reported twice because the suite runs under two projects. **No regression.**
 
 Governance suite after the change: **1,404 passing across 64 files**, from 1,393
@@ -6209,7 +6209,7 @@ other two were true for reasons nobody had checked composed.
 Run 2026-08-21, after T9. Adversarial in the same shape as rounds thirteen and
 fourteen: each probe written from the claim being tested before re-reading the
 code that implements it. Four findings, **104-107**, all fixed. Probes kept in
-`docs-notes/qa-round16-probes/`.
+`old-docs/qa-round16-probes/`.
 
 What makes this round worth a section is not its size. Three of the four
 findings are in code the project had already looked at and been satisfied with,
@@ -7094,7 +7094,7 @@ a design lesson.
 ### 4.x.7 Contribution to the upstream project
 
 One genuine defect was found in OpenClaw itself and written up for filing
-(`UPSTREAM-BUG-REPORT.md`): on Windows, nine tests in
+(`old-docs/UPSTREAM-BUG-REPORT.md`): on Windows, nine tests in
 `src/plugins/contracts/host-hooks.contract.test.ts` fail because the fixture
 deletes a temporary directory while a SQLite handle inside it is still open,
 legal on POSIX, refused on Windows. Verified pre-existing by stashing all
@@ -7114,13 +7114,13 @@ report from a false one.
 
 - **Deployment/demo instructions:** `GOVERNANCE.md` ("Running it")
 - **Full QA defect table:** `GOVERNANCE.md`
-- **Upstream bug report:** `UPSTREAM-BUG-REPORT.md`
+- **Upstream bug report:** `old-docs/UPSTREAM-BUG-REPORT.md`
 - **Storage layout:** `~/.openclaw/governance/`-`policy.json`, `users.json`,
   `sessions.json`, `audit-ledger.jsonl` (override with
   `OPENCLAW_GOVERNANCE_DIR`, which is also how tests avoid touching real state)
 - **Suggested appendix listings:** `policy-engine.ts` and `audit-ledger.ts` in
   full, they are the two files that embody the contribution
-- **Round-13 reproduction suites:** `docs-notes/qa-round13-probes/`, six probe
+- **Round-13 reproduction suites:** `old-docs/qa-round13-probes/`, six probe
   files plus a README saying what each covers and how to run it. Strong appendix
   material precisely because the findings in §4.x.20 are uncomfortable: an
   examiner can reproduce every one of them rather than take the table on trust,
@@ -9716,7 +9716,7 @@ route and the dashboard alike, that is not a parity achievement — the dashboar
 is the only client of that API, so parity is no longer a question that can be
 asked.
 
-_(The removed surface is preserved in full at `docs-notes/removed-cli-surface/`:
+_(The removed surface is preserved in full at `old-docs/removed-cli-surface/`:
 every source file, every test, the reasoning, and a restore procedure. It was
 archived before it was deleted, so the decision is reversible by anyone who
 disagrees with it — including a future reader of this section.)_
@@ -10116,3 +10116,107 @@ every other reader had to be found, and the one that mattered most was the emerg
 
 **Evidence standard.** Every fix has a regression test, and each test was **watched
 failing** with its fix reverted: 68 mutations across six runs, all caught.
+
+### 3.5.84 A capability relocated without a way to reach it, and an approval recorded that never applied (A11, finding 365)
+
+T4 moved per-agent `mode` and `ask` from the User tier to the Administrator, on the
+argument that both can widen what an agent may do, and relocated the User's half of the
+capability to the rule-request queue as an `agent-setting` request. The server side was
+complete: submission checked `canManageAgent`, the queue rendered and decided such
+requests, and approval applied the setting from the stored request. **No dashboard
+surface filed one.** The client's `submitRuleRequest` carried no `setting`, and the Policy
+section rightly hid the posture controls below Administrator, so the relocated capability
+was reachable only by hand-written HTTP. That is the shape of findings 264–268, a
+capability without an affordance, and it was found by rewriting the permissions guide
+against the code (sweep task A11).
+
+The build added four things. A form in the queue section, _Request a change for one
+agent_, offers only the agents the account manages and, for a posture, only `enforce` and
+`monitor`. _Request a rule_ gained a read/write selector for path requests, because
+`RuleRequest.access` (finding 279) could until then be filled only by an escalation's
+"allow always", and the route dropped it. Each queue row now names a path request's
+direction, since approval grants it verbatim. And the Policy section points the User tier,
+which sees these settings without controls, at the form.
+
+**Finding 365 was found by testing a prediction rather than by reading.** A11's backlog
+row said a request for a per-agent `off` posture "can only fail at approval", because the
+set path refuses a per-agent `off` at every tier. A probe through the real routes, run
+before any code changed, showed the opposite. Approval does not pass through
+`policy/agent-mode`: it calls `setAgentMode` directly, and the store function had no
+refusal. The request was marked approved, `policy.json` was written with `off`, and the
+ledger recorded _"posture default -> off"_. The loader's normaliser, which admits only
+`enforce` and `monitor` into `agentMode` (itself the repair of an earlier finding),
+discarded the value on the next read, so enforcement never changed. The failure was safe
+with respect to the gate and unsafe with respect to design requirement #8: the
+tamper-evident trail asserted a change the gate never saw.
+
+The repair refuses the value at three layers, each for its own reason. **Submission**
+refuses it, so the requester learns why while the request is still theirs. **Approval**
+refuses a stored request whose value cannot be applied _before_ `decideRuleRequest` claims
+it, because claiming first writes an "approved" ledger entry that a later failure cannot
+withdraw; rejecting stays open, so such a request can still leave the queue. And
+**`setAgentMode`** refuses `off` itself, because finding 364's lesson holds here as well:
+a guard on one caller of a fact is not a guard on the fact.
+
+**For Chapter 5:** a prediction written into a backlog ("this can only fail at approval")
+carries the authority of a measurement and none of its evidence. The cheapest test of it
+was to do it.
+
+**Evidence standard.** 21 new tests, 9 at the route and 12 through the rendered panel and
+page, each **watched failing** with its protection reverted: 18 mutations, all caught. The
+first run caught 17, and the survivor was a test that could not fail: it asserted that an
+Administrator sees no pointer, which holds for a reason unrelated to the check it named,
+because an Administrator is shown the posture controls in the pointer's place.
+
+### 3.5.85 The week checked a second time: a released name, a one-way switch, and "later" (findings 366–368)
+
+A second QA pass over the week's work, on 2026-09-14, used two axes the first had not:
+**composition with an earlier decision**, and **the by-hand test plan read as a set of
+claims**. Each found something the previous check could not.
+
+#### A decision undone through the queue (366)
+
+T55 decided that deleting an agent from the host clears what its id carried, because
+agent ids are reusable and a new agent must not inherit a stranger's permissions. The
+clearing was correct and complete for the policy document. The request queue is a second
+place state about an id lives: a pending request is a permission _waiting_ to be granted,
+and deletion left those untouched. A probe drove the real deletion and the real decide
+route, and both approvals succeeded, writing a path allowance and a monitor posture onto
+an id that no longer existed, for the next agent registered under it. The specification
+(PERMISSION-SPEC §8) already required a decided request's agent to be in the
+organisation; the route checked the organisation of the _request file_, not the
+registration of the _agent_.
+
+The repair checks registration at the moment of approval, before the decision is
+claimed, for the reason finding 365 gave: claiming first writes an approval the ledger
+cannot take back. The queue marks such a request so the Administrator sees it before
+pressing anything, and rejection stays open so the queue can be cleared. **For Chapter 5:
+a decision about what a name carries has to be applied to every store that holds state
+about the name**, including state that is only proposed.
+
+#### A control with one direction (367)
+
+T24 let Root switch off five of the eight core denials, and the rule list removed a
+switched-off rule because the engine no longer enforces it. The policy read carried only
+the switched-off ids, and the page's only call to the setter switched rules off. While the
+command line existed it offered the other direction; its removal on 2026-09-07 left a
+dashboard that could lower the shipped security floor and not raise it again, and a
+deployment report whose remedy pointed at a control that did not exist. Rewriting the
+test plan against the code exposed it, because the plan's next row said "switch it back
+on". The read now carries the switched-off rules whole, built from the declarations and
+never from the stored document, and the page names each to every tier with a Switch on
+control for Root. This is finding 285's shape, a removal auditing what it deleted and not
+what referred to it, one surface further on.
+
+#### What a refusal says (368)
+
+The sign-in lockout's refusal said "try again later" while the server held the exact
+wait. Minor, and in keeping with the project's rule that a refusal should say what to do
+next: the sentence now states the minutes.
+
+**Evidence standard.** Each regression test was written before its fix and seen failing
+against the unfixed code, which is the proof for 367 and 368; 366 was also proved by a
+probe through the real deletion and decide route. 12 new tests, 7 at the routes and 5
+through the rendered panels. Then **9 mutations, all caught**, each protection reverted
+and restored and the file hash-checked. The governance suite afterwards: 3,099 passed, 21
+skipped, 0 failed.

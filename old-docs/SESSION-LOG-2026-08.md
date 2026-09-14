@@ -24,12 +24,12 @@ that found finding 120 and audited the last two "blocked on the host" claims,
 
 **Read these three together:**
 
-| File                        | Purpose                                                        |
-| --------------------------- | -------------------------------------------------------------- |
-| `mg/PROJECT-SUMMARY.md`     | What the project _is_, problem, design, where everything lives |
-| `mg/REMAINING-WORK.md`      | The backlog, item by item, with what is fixed and what is not  |
-| `mg/SESSION-LOG-2026-08.md` | This file, what happened in this session and why               |
-| `mg/HANDOFF.md`             | **Start here if you are picking the project up cold**          |
+| File                              | Purpose                                                        |
+| --------------------------------- | -------------------------------------------------------------- |
+| `mg/PROJECT-SUMMARY.md`           | What the project _is_, problem, design, where everything lives |
+| `mg/REMAINING-WORK.md`            | The backlog, item by item, with what is fixed and what is not  |
+| `old-docs/SESSION-LOG-2026-08.md` | This file, what happened in this session and why               |
+| `mg/HANDOFF.md`                   | **Start here if you are picking the project up cold**          |
 
 ---
 
@@ -273,7 +273,7 @@ project:
 - **F1**: a personal git remote. `origin` is upstream OpenClaw, so the branch
   must not be pushed there. Everything else on this list is safe; this one is
   the difference between "backed up" and "backed up properly".
-- **F4**: file the OpenClaw bug report (`UPSTREAM-BUG-REPORT.md`, written).
+- **F4**: file the OpenClaw bug report (`old-docs/UPSTREAM-BUG-REPORT.md`, written).
 - **A9**: run it with a real AI agent. Deferred to second-to-last by decision.
   Punches above its effort: a project that is 95% built and never run is, to a
   panel, less finished than one that is 80% built and demonstrably running.
@@ -1289,7 +1289,7 @@ it can be shown to be.
 
 Adversarial in the shape of rounds thirteen and fourteen: each probe written
 from the claim under test **before** re-reading the code that implements it.
-Four findings, all fixed. Probes kept in `docs-notes/qa-round16-probes/`.
+Four findings, all fixed. Probes kept in `old-docs/qa-round16-probes/`.
 
 The backlog carried the lock as one sentence, "stale locks are reclaimed after
 15 s with no heartbeat; fine while critical sections are milliseconds". True,
@@ -2168,7 +2168,7 @@ rediscovered.
 
 The project had carried **18 failed / 174 passed** in OpenClaw's own harness
 suite since 2026-08-13, quoted in every verification step, written up in
-`UPSTREAM-BUG-REPORT.md` as one defect: a fixture removing its temp directory
+`old-docs/UPSTREAM-BUG-REPORT.md` as one defect: a fixture removing its temp directory
 while a SQLite handle inside it was still open.
 
 Running them was the first thing this session did, and the output did not match
@@ -2279,7 +2279,7 @@ forward is the criterion, not the count.
   that looked exactly as broken as the thing it claimed to have fixed. The
   underlying sentence was genuinely fixed; the row now says so legibly. Same
   shape as finding 116, _a fix is not audited as hard as the thing it fixes_.
-- **`UPSTREAM-BUG-REPORT.md` now carries its status and its scope**: fixed
+- **`old-docs/UPSTREAM-BUG-REPORT.md` now carries its status and its scope**: fixed
   locally rather than filed, correct about the nine failures it describes, and
   never about the eighteen the project was quoting.
 

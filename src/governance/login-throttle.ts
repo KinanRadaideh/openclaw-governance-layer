@@ -22,7 +22,7 @@
 // The general shape is what to carry forward: **an in-memory throttle protects
 // exactly one process**, so any future surface that runs outside the Gateway
 // inherits the same limitation and owes the same record. The removed surface's
-// source is archived in `docs-notes/removed-cli-surface/`.
+// source is archived in `old-docs/removed-cli-surface/`.
 
 import { canonicalAccountName } from "./account-name.js";
 const MAX_ATTEMPTS = 5;

@@ -111,11 +111,11 @@ Capture as you go. Reconstructing this afterwards means another model turn.
       denial and capture it whole.
 
       _(There were two `jq` recipes here for pulling the denial and the intent
-          out of `audit tail`. That command was removed with the command line on
-          2026-09-07. The ledger itself is unchanged — it is still
-          `audit-ledger.jsonl` under the governance directory — so if you want the
-          raw JSON on the server, read the file directly rather than through a
-          command that no longer exists.)_
+              out of `audit tail`. That command was removed with the command line on
+              2026-09-07. The ledger itself is unchanged — it is still
+              `audit-ledger.jsonl` under the governance directory — so if you want the
+              raw JSON on the server, read the file directly rather than through a
+              command that no longer exists.)_
 
 - [ ] **The dashboard**, through the tunnel, showing the same entries: the
       ledger panel, and the live-session panel while a prompt is in flight.

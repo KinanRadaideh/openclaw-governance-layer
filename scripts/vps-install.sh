@@ -213,7 +213,7 @@ step "Build"
 #     gates green and a purpose-written removal sweep passing.
 #
 # `mg/HANDOFF.md` carries `rm -rf dist dist-runtime && pnpm build` in three
-# places as the correct rebuild, and `removed-cli-surface/README.md` in a
+# places as the correct rebuild, and `old-docs/removed-cli-surface/README.md` in a
 # fourth. **This script did not, while line 18 advertises it as "Idempotent:
 # safe to re-run after a `git pull`"** — which is exactly the re-run that
 # produces the state those four commands exist to prevent. Harmless on a first
@@ -361,7 +361,7 @@ cat <<NEXT
 
   There is no governance command line. It was removed on 2026-09-07: the
   governance layer is administered through the dashboard and the HTTP API it
-  sits on, and nothing else. See docs-notes/removed-cli-surface/README.md.
+  sits on, and nothing else. See old-docs/removed-cli-surface/README.md.
 
   Full runbook: docs-notes/LINUX-INSTALL.md
 NEXT

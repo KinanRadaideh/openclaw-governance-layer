@@ -1,7 +1,7 @@
 # Session log: September 2026
 
 What changed in September 2026, and why. Companion to
-`mg/SESSION-LOG-2026-08.md`, which covers the month before it. `HANDOFF.md` §1
+`old-docs/SESSION-LOG-2026-08.md`, which covers the month before it. `HANDOFF.md` §1
 carries the dated state; this file carries the narrative.
 
 ---
@@ -68,7 +68,7 @@ bus socket exists and returned early for uid 0. Invisible on a desktop, where
 With that value missing the scope resolver falls through to
 `--machine root@ --user`, which cannot see a unit under `/root/.config/`. This
 one is **upstream's code**; the fork carries the patch and
-`UPSTREAM-BUG-REPORT.md` carries the reproduction.
+`old-docs/UPSTREAM-BUG-REPORT.md` carries the reproduction.
 
 A fourth, not numbered because it is documentation rather than code: **§4's
 `loginctl enable-linger` step comes after the two commands that need it.** On a
@@ -2471,7 +2471,7 @@ and nine prose claims across seven files.
 
 - **"the field is populated or absent, never wrong"**, the intent field's safety
   claim, still standing in three live documents after T2 produced the third
-  outcome nobody had allowed for (273). `T2-LIVE-RUN.md` had offered exactly two
+  outcome nobody had allowed for (273). `old-docs/T2-LIVE-RUN.md` had offered exactly two
   possible answers to its own question and the run produced a third — **a runbook
   that enumerates the outcomes it expects will not notice the one it did not
   think of.**
@@ -2682,7 +2682,7 @@ The reasons that did decide it were different ones, and worth separating:
 
 ### Archive before delete
 
-`docs-notes/removed-cli-surface/` holds every source file and every test as
+`old-docs/removed-cli-surface/` holds every source file and every test as
 `.ts.txt` — the same device `qa-round13-probes/` uses, so nothing is compiled,
 linted or collected — plus a README with the reasoning, what was lost, and a
 ten-minute restore procedure. `CLI-REFERENCE.md` moved in with it under a banner
@@ -2854,7 +2854,7 @@ agrees`; one `deny` flipped to `allow` on disk and it reported `BROKEN at entry
 
 Nineteen files carried instructions to run commands that no longer exist. The
 operator-facing ones were rewritten to point at the dashboard: `README.md`,
-`FIRST-RUN.md`, `LINUX-INSTALL.md`, `T2-LIVE-RUN.md`, `ROLE-MODEL.md`,
+`FIRST-RUN.md`, `LINUX-INSTALL.md`, `old-docs/T2-LIVE-RUN.md`, `ROLE-MODEL.md`,
 `WRITING-PERMISSIONS.md`, `PERMISSION-SPEC.md`, `BASELINE-RULES.md`,
 `T47-TEST-PLAN.md`, `GOVERNANCE.md`, and the guidance `vps-install.sh` prints at
 the end of an install.
@@ -2919,7 +2919,7 @@ says which to open and why.
 it; it was the surface that broke in front of an operator; and it accounted for
 **2 of the 158 rows** in the by-hand test plan whose length was the stated worry.
 Two surfaces now: the HTTP control plane and the dashboard on it. Everything is
-archived in `docs-notes/removed-cli-surface/` with a restore procedure. **The one
+archived in `old-docs/removed-cli-surface/` with a restore procedure. **The one
 capability that was load-bearing for a design requirement came back as a script**
 — `scripts/verify-ledger.mjs` — because requirement 8's tamper-evidence needs a
 reader that is not the thing being audited.
@@ -3247,7 +3247,7 @@ next reader distrusts the cell rather than the register.
 
 ### 295: a lesson recorded in the narrative and not applied to the instruction
 
-`removed-cli-surface/README.md` §4b tells whoever restores or removes the
+`old-docs/removed-cli-surface/README.md` §4b tells whoever restores or removes the
 surface to run:
 
 ```bash
@@ -4003,7 +4003,7 @@ on the VPS that broke `exec` outright) and finding **284** (the deleted command
 line survived in `dist/` and still ran on the shipped artefact, with every source
 file gone and every gate green). `mg/HANDOFF.md` carries `rm -rf dist
 dist-runtime && pnpm build` in **three** places as the correct rebuild and
-`removed-cli-surface/README.md` in a fourth.
+`old-docs/removed-cli-surface/README.md` in a fourth.
 
 So the manual procedure has carried 274's repair since the day it was written,
 and the script that does the same job — the one an operator is most likely to
@@ -5325,3 +5325,98 @@ the working tree, so staging a filtered copy of a file did nothing, and the firs
 carried 364's and A10's hunks. It was caught by reading each commit back before pushing,
 and the commits were rebuilt with the final tree checked identical. Full record: the sweep
 register's §"The week's QA check".
+
+## 2026-09-13 (after the push): an outside review closed, and the documents read against the code
+
+**What Kinan asked for.** First, go through the independent review (`Kimi_QA_1.md`),
+make sure everything it raises is fixed and reachable from the dashboard, and remove the
+file. Then order the documents so that each is rewritten only after the ones it depends
+on, moving what is superseded to `old-docs/` and deleting nothing. Then fix bug 8 and
+whatever the unanchored-pattern handling needed. Then rewrite the first documents in that
+order, slowly, one at a time.
+
+**The review had one live item left, and it was an inconsistency rather than a hole.** The
+kill switch's **Lock down** acted on a single click, while **Stop** in the sessions panel,
+which does the same thing to the same agent, asked first. It asks now. Everything else the
+review raised was already fixed, and each item is recorded against where it lives on the
+dashboard.
+
+**Bug 8 had been left unreported on purpose, and the purpose was wrong.** A permanent rule
+added beside an identical temporary one really does widen access, which is why the clash
+detector stayed silent: nothing was redundant. But the person adding the second rule may not
+know the first exists, so a grant somebody made temporary on purpose quietly stopped being
+temporary. Kinan decided it should be said. It is now said in three places: on the page,
+under its own heading; in the ledger, where the new rule's entry names the one it extends;
+and, through the next fix, before anyone approves a request that would do it.
+
+**The unanchored-pattern gap was not in the warning but in who saw it.** Authoring a rule
+warned about a pattern broader than it looks. Approving a User's request for that same rule,
+which is what actually creates it, showed the Administrator nothing. A pending request now
+carries the warnings and clashes approving it would produce, worked out against the policy
+as it stands.
+
+**Reading the documents against the code found more than stale dates.** Rewriting the
+permissions guide turned up a false warning on the exact pattern shape the folder-grant form
+writes, now fixed, and a capability the server has and the dashboard cannot reach: a User's
+request to change an agent's posture, now open as A11. The specification contradicted its
+own worked example about which patterns are refused. The chat guide called a closed hole
+open and described a ledger column the page does not draw. The install guide described a
+flag that does nothing, a live run as not yet done, and a service unit by the wrong name.
+**Six of eighteen documents are now rewritten; none of it is committed.**
+
+**Two lessons from the checking.** A mutation run that "missed" two was wrong twice over and
+right once: one miss was a match string naming an assertion instead of a test title, and the
+other was a test that passed for the wrong reason, because the route skips the preview when
+nothing in the queue is pending, and that test left nothing pending. And a document rewritten
+from memory of the code repeats the code's history; rewritten from the code, it finds the
+code's gaps. Full record: `mg/HANDOFF.md` §1, "2026-09-13 (after the push)".
+
+**A11 was then built, and the probe before it found finding 365.** Kinan asked for the
+dashboard way to file a User's posture or escalation request, and for a decision on whether
+a request for an `off` posture should be refused at submission, since A11's row said it
+"can only fail at approval". Trying it through the real routes first showed it did not
+fail: approval answered 200, the ledger recorded "posture default -> off", and the loader
+threw the value away, so the gate never changed and the trail said it had. It is refused
+now at submission, at approval before the decision is claimed, and in the store. The form
+is under _Rule requests_, a path request can now ask for one direction, and the queue row
+shows which. **The lesson is the one A11's own row taught by being wrong:** "it can only
+fail later" is a prediction, and the cheapest test of it is to do it. Full record:
+`mg/REMAINING-WORK-DASHBOARD-SWEEP.md` §"A11 built".
+
+## 2026-09-14: three documents rewritten, and the week checked a second time
+
+**Kinan asked for the next three documents in the update order, then a QA over the last
+week's work.** The documents came first, and rewriting them turned out to be the most
+productive QA axis of the day again.
+
+**The test plan was the richest.** T47 is a list of promises about what an operator will
+see, which makes it a list of claims to check. A dozen rows had gone stale: two still
+described the removed command line, one said the request queue caps at six, one that the
+approval queue caps at twenty. One row said "switch it back on", and there was no way to:
+a core denial switched off from the dashboard left the page and nothing could restore it
+without hand-written HTTP, while the deployment report told Root to do it on that page
+(**finding 367**). Another promised the lockout would state its wait, and it said only
+"later" (**368**). The two backlog files had stopped saying what was open: one still
+showed T50 open five days after it was decided.
+
+**The week's QA composed the post-push work with what already existed.** Two pairings were
+right when checked: a request's approval preview cannot show a User another agent's rule,
+and an agent put in monitor by an approved request is still stopped by the kill switch,
+because lockdown is checked first. One was not. **Finding 366:** deleting an agent clears
+what its name carried, and the requests filed for it stayed in the queue; approving them
+wrote the permissions back onto the released name. A probe proved it before anything
+changed. All three were fixed with their tests written first and watched failing.
+
+**The lesson, twice over.** A decision about what a name carries has to reach every place
+that holds state about the name, including state that is only proposed. And a document
+rewritten against the code the day before still missed one of these: BASELINE-RULES said
+a switched-off rule "stays visible on the page". Reading a claim is not trying it. Full
+record: `mg/REMAINING-WORK.md` §"Documents 7–9 and the QA over the last week".
+
+**Then the handoff was prepared.** Kinan asked for every handoff document to be brought
+level and for the escalation gap noticed while building A11 to be added to the backlog.
+It became **A12**, Claude's alone, beside A10 and A11 in the sweep register. The Start-here
+block and state table of `mg/HANDOFF.md`, `mg/PROJECT-SUMMARY.md`,
+`docs-notes/WRITING-GUIDE.md` and both backlog files now quote the day's own runs: 368
+found, 367 fixed, one open; the governance suite 3,099 passed and 0 failed; four
+typechecks and the full lint gate clean. Everything since `11d83e5808b` is uncommitted.

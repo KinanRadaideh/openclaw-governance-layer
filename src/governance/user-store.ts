@@ -617,7 +617,7 @@ export class DuplicateOrganisationError extends Error {
  * can add a group by hand, exactly as they could add a Root. The boundary there
  * is the filesystem's. _(This cited `cli-identity.ts`, which made the same
  * argument for the command line. That surface was removed on 2026-09-07 and its
- * source is archived in `docs-notes/removed-cli-surface/`; the point about the
+ * source is archived in `old-docs/removed-cli-surface/`; the point about the
  * filesystem being the real boundary is unchanged and belongs here.)_
  *
  * The deployment shape this assumes is the one §1.6 describes: one VPS runs the

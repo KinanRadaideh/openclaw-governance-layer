@@ -118,12 +118,12 @@ async function main(): Promise<void> {
   );
 
   const archived = REMOVED.filter((file) =>
-    existsSync(path.join("docs-notes/removed-cli-surface/source", `${path.basename(file)}.txt`)),
+    existsSync(path.join("old-docs/removed-cli-surface/source", `${path.basename(file)}.txt`)),
   );
   check(
     "and every one of them is in the archive, so the removal is reversible",
     archived.length === REMOVED.length,
-    `${archived.length} of ${REMOVED.length} archived under docs-notes/removed-cli-surface/source/`,
+    `${archived.length} of ${REMOVED.length} archived under old-docs/removed-cli-surface/source/`,
   );
 
   // ==========================================================================
