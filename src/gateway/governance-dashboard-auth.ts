@@ -136,12 +136,23 @@ export async function handleGovernanceAuthRequest(
     const throttleKey = loginThrottleKey(username);
     const throttle = checkLoginAllowed(throttleKey);
     if (!throttle.allowed) {
+      // **The wait is said, not only sent as a header (finding 368).** `Retry-After` was
+      // the only place it travelled and the page does not read headers, so a locked-out
+      // operator was told "later". The header already discloses it, so saying it costs
+      // nothing an attacker did not have.
+      const waitMinutes =
+        throttle.retryAfterSeconds === undefined
+          ? undefined
+          : Math.max(1, Math.ceil(throttle.retryAfterSeconds / 60));
       if (throttle.retryAfterSeconds !== undefined) {
         res.setHeader("Retry-After", String(throttle.retryAfterSeconds));
       }
       sendJson(res, 429, {
         error: {
-          message: "Too many failed login attempts. Try again later.",
+          message:
+            waitMinutes === undefined
+              ? "Too many failed login attempts. Try again later."
+              : `Too many failed login attempts. Try again in ${waitMinutes} minute${waitMinutes === 1 ? "" : "s"}.`,
           type: "rate_limited",
         },
       });
