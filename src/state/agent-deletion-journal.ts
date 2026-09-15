@@ -46,8 +46,9 @@ export type AgentDeletionJournalCleanupPath = {
   parentPath: string;
   kind: "target" | "symlink";
   sourcePaths: string[];
-  dev: number | null;
-  ino: number | null;
+  /** Exact decimal strings: NTFS file ids routinely exceed `Number.MAX_SAFE_INTEGER`. */
+  dev: string | null;
+  ino: string | null;
   coversDescendants: boolean;
   done: boolean;
   note?: string;
@@ -291,6 +292,10 @@ function parseDatabasePaths(value: string): string[] {
   return parsed;
 }
 
+function isStatIdString(value: unknown): value is string {
+  return typeof value === "string" && /^\d+$/u.test(value);
+}
+
 function parseCleanupPaths(value: string): AgentDeletionJournalCleanupPath[] {
   const parsed: unknown = JSON.parse(value);
   if (
@@ -305,9 +310,9 @@ function parseCleanupPaths(value: string): AgentDeletionJournalCleanupPath[] {
         ((entry as { kind?: unknown }).kind === "target" ||
           (entry as { kind?: unknown }).kind === "symlink") &&
         ((entry as { dev?: unknown }).dev === null ||
-          typeof (entry as { dev?: unknown }).dev === "number") &&
+          isStatIdString((entry as { dev?: unknown }).dev)) &&
         ((entry as { ino?: unknown }).ino === null ||
-          typeof (entry as { ino?: unknown }).ino === "number") &&
+          isStatIdString((entry as { ino?: unknown }).ino)) &&
         typeof (entry as { coversDescendants?: unknown }).coversDescendants === "boolean" &&
         typeof (entry as { done?: unknown }).done === "boolean" &&
         ((entry as { note?: unknown }).note === undefined ||

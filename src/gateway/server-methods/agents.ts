@@ -1,5 +1,6 @@
 // Agents gateway methods expose agent listing, config mutation, workspace file
 // reads/writes, identity merging, and safe deletion for operator clients.
+import type { BigIntStats } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { normalizeOptionalString as resolveOptionalStringParam } from "@openclaw/normalization-core/string-coerce";
@@ -344,12 +345,16 @@ function cleanupPathIdentity(stat: { dev?: number | bigint; ino?: number | bigin
   ) {
     return null;
   }
-  const dev = Number(stat.dev);
-  const ino = Number(stat.ino);
-  if (!Number.isSafeInteger(dev) || !Number.isSafeInteger(ino)) {
+  // Kept as exact decimal strings read from bigint stats: NTFS file ids routinely exceed 2^53,
+  // where a number rounds, so two different folders could compare equal. A number past that
+  // bound has already been rounded, so it still refuses.
+  if (
+    (typeof stat.dev === "number" && !Number.isSafeInteger(stat.dev)) ||
+    (typeof stat.ino === "number" && !Number.isSafeInteger(stat.ino))
+  ) {
     throw new Error("cleanup path identity exceeds the safe integer range");
   }
-  return { dev, ino };
+  return { dev: String(stat.dev), ino: String(stat.ino) };
 }
 
 async function statAgentCleanupPath(cleanupPath: AgentDeleteCleanupPath) {
@@ -371,7 +376,10 @@ async function statAgentCleanupPath(cleanupPath: AgentDeleteCleanupPath) {
   if (stat.isFile && stat.nlink > 1) {
     throw new AgentCleanupIdentityMismatchError("hardlinked cleanup replacement preserved");
   }
-  const identity = cleanupPathIdentity(stat);
+  // fs-safe's stat reports ids as numbers, rounded past 2^53, so the identity is read exactly.
+  const identity = cleanupPathIdentity(
+    await fs.lstat(path.join(parentPath, path.basename(cleanupPath.trashPath)), { bigint: true }),
+  );
   if (cleanupPath.preparedIdentity === null) {
     if (identity !== null) {
       throw new AgentCleanupIdentityMismatchError(
@@ -436,7 +444,7 @@ type AgentDeleteCleanupPath = {
   trashPath: string;
   trashCoversDescendants: boolean;
   kind: "target" | "symlink";
-  preparedIdentity: { dev: number; ino: number } | null;
+  preparedIdentity: { dev: string; ino: string } | null;
   done: boolean;
   note?: string;
   preparationError?: unknown;
@@ -534,9 +542,9 @@ async function prepareAgentDeleteCleanupPaths(
     } catch (error) {
       preparationError = error;
     }
-    let sourceStat: Awaited<ReturnType<typeof fs.lstat>> | undefined;
+    let sourceStat: BigIntStats | undefined;
     try {
-      sourceStat = await fs.lstat(pathname);
+      sourceStat = await fs.lstat(pathname, { bigint: true });
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
         preparationError ??= error;
@@ -545,7 +553,7 @@ async function prepareAgentDeleteCleanupPaths(
     let targetStat = sourceStat;
     if (resolvedPath !== sourcePath) {
       try {
-        targetStat = await fs.lstat(resolvedPath);
+        targetStat = await fs.lstat(resolvedPath, { bigint: true });
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
           preparationError ??= error;

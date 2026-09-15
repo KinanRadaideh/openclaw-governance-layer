@@ -533,6 +533,22 @@ function makeFileStat(params?: {
   } as unknown as import("node:fs").Stats;
 }
 
+// NTFS file ids routinely exceed 2^53 (56294995342267356 measured on a Windows checkout). Exact
+// only when asked for bigint, so a caller reading a rounded number fails as it did on Windows.
+function statWithLargeIds(ino: bigint) {
+  return async (...args: unknown[]) => {
+    const exact = (args[1] as { bigint?: boolean } | undefined)?.bigint === true;
+    return {
+      dev: exact ? 142707960n : 142707960,
+      ino: exact ? ino : Number(ino),
+      isFile: () => false,
+      isDirectory: () => true,
+      isSymbolicLink: () => false,
+      nlink: 1,
+    } as unknown as import("node:fs").Stats;
+  };
+}
+
 type MockIdentity = {
   name?: string;
   theme?: string;
@@ -1588,8 +1604,8 @@ describe("agents.delete", () => {
           parentPath: "/journal",
           kind: "target" as const,
           sourcePaths: ["/journal/agent"],
-          dev: 1,
-          ino: 10,
+          dev: "1",
+          ino: "10",
           coversDescendants: true,
           done: true,
         },
@@ -1610,8 +1626,8 @@ describe("agents.delete", () => {
           parentPath: "/journal",
           kind: "target" as const,
           sourcePaths: ["/journal/sessions"],
-          dev: 1,
-          ino: 30,
+          dev: "1",
+          ino: "30",
           coversDescendants: true,
           done: true,
         },
@@ -1649,6 +1665,67 @@ describe("agents.delete", () => {
     expect(mocks.beginAgentDeletionFinish).toHaveBeenCalledOnce();
   });
 
+  it("deletes folders whose file ids exceed the safe integer range, as NTFS ids do", async () => {
+    const journal = {
+      agentId: "test-agent",
+      operationId: "delete-1",
+      agentDir: "/agents/test-agent",
+      workspaceDir: "/workspace/test-agent",
+      sessionsDir: "/transcripts/test-agent",
+      createdAt: 1,
+      cleanupCompleted: false,
+      deleteFiles: true,
+    };
+    mocks.fsLstat.mockImplementation(statWithLargeIds(56294995342267356n));
+    mocks.readAgentDeletionJournal.mockReturnValue(journal);
+
+    const { respond, promise } = makeCall("agents.delete", { agentId: "test-agent" });
+    await promise;
+
+    expectRespondOk(respond, { failed: [] });
+    // Resolved, because the handler resolves every path; the literals are POSIX.
+    expect(mocks.movePathToTrash).toHaveBeenCalledWith(path.resolve(journal.workspaceDir));
+    expect(mocks.movePathToTrash).toHaveBeenCalledWith(path.resolve(journal.agentDir));
+    expect(mocks.movePathToTrash).toHaveBeenCalledWith(path.resolve(journal.sessionsDir));
+  });
+
+  it("preserves a replacement whose file id differs from the prepared one only past 2^53", async () => {
+    const journal = {
+      agentId: "test-agent",
+      operationId: "delete-1",
+      agentDir: "/agents/test-agent",
+      workspaceDir: "/workspace/test-agent",
+      sessionsDir: "/transcripts/test-agent",
+      createdAt: 1,
+      cleanupCompleted: false,
+      deleteFiles: true,
+    };
+    const workspace = path.resolve(journal.workspaceDir);
+    const prepared = statWithLargeIds(56294995342267356n);
+    // 56294995342267357 and 56294995342267356 are the same JavaScript number, so only an exact
+    // comparison tells the folder read before the move from the one the deletion prepared.
+    const replacement = statWithLargeIds(56294995342267357n);
+    let exactWorkspaceReads = 0;
+    mocks.fsLstat.mockImplementation(async (...args: unknown[]) => {
+      const [pathname, options] = args as [unknown, { bigint?: boolean } | undefined];
+      if (options?.bigint && path.resolve(String(pathname)) === workspace) {
+        exactWorkspaceReads += 1;
+        return exactWorkspaceReads > 1 ? await replacement(...args) : await prepared(...args);
+      }
+      return await prepared(...args);
+    });
+    mocks.readAgentDeletionJournal.mockReturnValue(journal);
+
+    const { respond, promise } = makeCall("agents.delete", { agentId: "test-agent" });
+    await promise;
+
+    expectRespondOk(respond, { failed: [] });
+    // Resolved, because the handler resolves every path: against the POSIX literal the negative
+    // assertion would pass on Windows without proving anything.
+    expect(mocks.movePathToTrash).not.toHaveBeenCalledWith(workspace);
+    expect(mocks.movePathToTrash).toHaveBeenCalledWith(path.resolve(journal.agentDir));
+  });
+
   it("protects a pending ancestor when a done descendant is recreated", async () => {
     const workspaceDir = "/journal/workspace";
     const completedChild = `${workspaceDir}/cleaned`;
@@ -1666,8 +1743,8 @@ describe("agents.delete", () => {
           parentPath: workspaceDir,
           kind: "target" as const,
           sourcePaths: [workspaceDir],
-          dev: 1,
-          ino: 10,
+          dev: "1",
+          ino: "10",
           coversDescendants: true,
           done: true,
         },
@@ -1677,8 +1754,8 @@ describe("agents.delete", () => {
           parentPath: "/journal",
           kind: "target" as const,
           sourcePaths: [workspaceDir],
-          dev: 1,
-          ino: 20,
+          dev: "1",
+          ino: "20",
           coversDescendants: true,
           done: false,
         },
