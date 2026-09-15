@@ -8113,7 +8113,7 @@ compares two times: when the question was asked, and when the agent holding the 
 was created. If the agent is newer than the question, the question was about somebody
 else, and it cannot be answered yes. It can still be refused, so it can be cleared away.
 
-### An account nobody can remove (finding 371, waiting for a decision)
+### An account nobody can remove (finding 371, accepted by Kinan on 15 September)
 
 Before organisations existed, in August, accounts belonged to none. Those accounts cannot
 sign in, and the way to remove them was a terminal command, which went when the command

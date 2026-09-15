@@ -368,7 +368,7 @@ the check does not refuse a question asked about the agent registered now.
 migrate`, removed on 2026-09-07; `deleteUnmigratedAccounts` has no caller, while
 `GOVERNANCE.md` §3 and `CHAPTER3-MATERIAL.md` said the Accounts panel removes them. The
 documents and the comment are corrected. No installation in use can hold such an account.
-Left open as decision **C14** in the sweep register.
+Left open as decision **C14** in the sweep register. _(Accepted by Kinan on 2026-09-15, option (b): closed.)_
 
 **A candidate recorded as a decision, not a finding: what "delete from host" leaves
 behind.** `deprovisionAgent` calls only `deleteAgentConfigEntry`; OpenClaw's own

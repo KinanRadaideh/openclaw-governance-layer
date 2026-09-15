@@ -10386,7 +10386,7 @@ limit, the subject moved whole rather than the count suppressed.
 store that holds state about the identifier, pending questions included, and the check
 must compare the identity the question was about, not merely the name.
 
-#### A capability lost with a removal (371, open)
+#### A capability lost with a removal (371, accepted 2026-09-15)
 
 Accounts written before organisations existed cannot sign in, by design, and the only way
 to remove them was a command-line verb removed on 2026-09-07. Two documents went on

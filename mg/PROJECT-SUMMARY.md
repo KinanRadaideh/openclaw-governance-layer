@@ -745,10 +745,10 @@ conclusion.
 >
 > **The state in one line, as of 2026-09-14:** built, verified and
 > **demonstrated** (T2, on the VPS, 2026-09-06); the dashboard driven section by
-> section from all four tiers, and then through a browser under failure; **374 findings, 372 fixed, two open** (169, an unexplained observation; and 371, accounts from before organisations that nothing can remove, decision C14); **T60 and T63
+> section from all four tiers, and then through a browser under failure; **374 findings, 372 fixed, one open** (169, an unexplained observation; 371, accounts from before organisations that nothing can remove, was accepted on 2026-09-15, decision C14); **T60 and T63
 > built on 2026-09-11**, with eighteen defects found around them on 2026-09-12 and 13, all now fixed (363 last, when Kinan decided T69); and what remains is
 > a Linux re-measurement (T3), the by-hand plan (T47), the figures (T17), the report
-> (T18), a read (T13), judgements on T46 and T58/T59 (T48 and T49 were answered on 2026-09-15: write Chapter 3 now, and one organisation per installation is the boundary), two decisions added on 2026-09-14 (C13, what "delete from host" should remove, decided and built on 2026-09-15, and C14), and no open decision about approvals (T68 and T69 were built on 2026-09-13). **The
+> (T18), a read (T13), judgements on T46 and T58/T59 (T48 and T49 were answered on 2026-09-15: write Chapter 3 now, and one organisation per installation is the boundary), two decisions added on 2026-09-14 (C13, what "delete from host" should remove, decided and built on 2026-09-15, and C14, accepted on 2026-09-15), and no open decision about approvals (T68 and T69 were built on 2026-09-13). **The
 > documentation phase starts at `docs-notes/WRITING-GUIDE.md`.**
 >
 > **Later on 2026-09-13, after the push (committed on 2026-09-14):** the independent
