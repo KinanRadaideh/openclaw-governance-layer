@@ -1,0 +1,182 @@
+// ARCHIVED STANDING PROBE (2026-09-15). Kept as .txt so no test run collects it.
+// To run again: copy to src/governance/c13-deletion-leftovers.probe.test.ts, then
+//   node node_modules/vitest/vitest.mjs run src/governance/c13-deletion-leftovers.probe.test.ts
+// and read the JSON it writes to the OS temp directory. Remove the copy afterwards.
+// Result on 2026-09-15: every leftover survived and the new agent inherited all of them
+// (finding 372; mg/REMAINING-WORK-DASHBOARD-SWEEP.md decision C13).
+// PROBE (decision C13, option b, 2026-09-15): what a new agent inherits from a deleted agent of
+// the same name, when the deletion goes through governance's "delete from host".
+//
+// Drives the production callers on a real, temporary OpenClaw state directory: governance's
+// `provisionAgent` (which calls OpenClaw's real `createAgent`) and `deprovisionAgent` (which calls
+// `deleteAgentConfigEntry`). Nothing on the host side is mocked. It records what survives; it
+// asserts only that each step it depends on succeeded, so it never passes "because" of a defect.
+// Vitest hides console output, so the measurement is written to the OS temp directory as JSON.
+import { existsSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { resolveAgentDir } from "../agents/agent-scope-config.js";
+import { resolveSessionTranscriptsDirForAgent } from "../config/sessions/paths.js";
+import { loadCronJobsStore, resolveCronJobsStorePath, saveCronJobsStore } from "../cron/store.js";
+import { loadExecApprovals, saveExecApprovals } from "../infra/exec-approvals-store.js";
+import { resolveOpenClawAgentSqlitePath } from "../state/openclaw-agent-db.paths.js";
+import { closeOpenClawStateDatabaseForTest } from "../state/openclaw-state-db.js";
+import {
+  createOpenClawTestState,
+  type OpenClawTestState,
+} from "../test-utils/openclaw-test-state.js";
+import { BOOTSTRAP_ACTOR } from "./admin-audit.js";
+import { deprovisionAgent, provisionAgent } from "./agent-provisioning.js";
+import { createUser, newGroupId } from "./user-store.js";
+
+const OUT = path.join(tmpdir(), "c13-deletion-leftovers.json");
+let state: OpenClawTestState;
+
+async function workspaceOf(configPath: string, agentId: string): Promise<string | undefined> {
+  const config = JSON.parse(await readFile(configPath, "utf8")) as {
+    agents?: { entries?: Record<string, { workspace?: string }> };
+  };
+  return config.agents?.entries?.[agentId]?.workspace;
+}
+
+async function scoutJobs(): Promise<string[]> {
+  const store = await loadCronJobsStore(resolveCronJobsStorePath());
+  return store.jobs
+    .filter((job) => (job as { agentId?: string }).agentId === "scout")
+    .map((job) => job.id);
+}
+
+beforeAll(async () => {
+  state = await createOpenClawTestState({
+    layout: "state-only",
+    scenario: "minimal",
+    label: "c13-leftovers",
+  });
+  process.env.OPENCLAW_GOVERNANCE_DIR = state.path("governance");
+});
+
+afterAll(async () => {
+  closeOpenClawStateDatabaseForTest();
+  await state.cleanup();
+});
+
+describe("C13 probe: a deleted agent's leftovers and the next agent of the same name", () => {
+  it("records what survives governance's delete and what the new agent finds", async () => {
+    const groupId = newGroupId();
+    await createUser(
+      { username: "kinan", password: "correct-horse-battery", role: "root", groupId },
+      BOOTSTRAP_ACTOR,
+    );
+    const firstOwner = await createUser(
+      { username: "mohammad", password: "another-good-password", role: "administrator", groupId },
+      { name: "kinan", role: "root" },
+    );
+    const secondOwner = await createUser(
+      { username: "sara", password: "a-third-good-password", role: "administrator", groupId },
+      { name: "kinan", role: "root" },
+    );
+
+    // 1. The first "scout", created the way the dashboard creates it.
+    const first = await provisionAgent(
+      { displayName: "Scout", agentId: "scout", groupId, adminId: firstOwner.id },
+      { name: "mohammad", role: "administrator" },
+    );
+    expect(first.ok).toBe(true);
+    const workspace1 = await workspaceOf(state.configPath, "scout");
+    expect(workspace1).toBeTruthy();
+    const agentDir = resolveAgentDir({} as never, "scout");
+    const sessionsDir = resolveSessionTranscriptsDirForAgent("scout");
+    const agentDatabase = resolveOpenClawAgentSqlitePath({ agentId: "scout" });
+
+    // 2. What a working agent accumulates.
+    await writeFile(path.join(workspace1!, "first-scout-notes.txt"), "salary figures, draft");
+    await mkdir(sessionsDir, { recursive: true });
+    await writeFile(path.join(sessionsDir, "first-scout-session-marker.txt"), "history");
+    await mkdir(agentDir, { recursive: true });
+    await writeFile(path.join(agentDir, "first-scout-settings-marker.txt"), "settings");
+    const cronStorePath = resolveCronJobsStorePath();
+    const cronStore = await loadCronJobsStore(cronStorePath);
+    const now = Date.now();
+    cronStore.jobs.push({
+      id: "first-scout-daily",
+      name: "first scout's daily task",
+      enabled: true,
+      createdAtMs: now,
+      updatedAtMs: now,
+      schedule: { kind: "cron", expr: "0 9 * * *", tz: "UTC" },
+      sessionTarget: "isolated",
+      wakeMode: "next-heartbeat",
+      payload: { kind: "agentTurn", message: "send the payroll summary" },
+      agentId: "scout",
+      state: {},
+    } as never);
+    await saveCronJobsStore(cronStorePath, cronStore);
+    const approvals = loadExecApprovals();
+    saveExecApprovals({
+      ...approvals,
+      version: 1,
+      agents: {
+        ...approvals.agents,
+        scout: { security: "allowlist", ask: "off", allowlist: [{ pattern: "/usr/bin/curl" }] },
+      },
+    });
+    const seeded = {
+      workspaceFile: existsSync(path.join(workspace1!, "first-scout-notes.txt")),
+      sessionMarker: existsSync(path.join(sessionsDir, "first-scout-session-marker.txt")),
+      settingsMarker: existsSync(path.join(agentDir, "first-scout-settings-marker.txt")),
+      scheduledJobs: await scoutJobs(),
+      approvalSettings: Boolean(loadExecApprovals().agents?.scout),
+    };
+    expect(seeded.workspaceFile && seeded.sessionMarker && seeded.settingsMarker).toBe(true);
+    expect(seeded.scheduledJobs).toEqual(["first-scout-daily"]);
+    expect(seeded.approvalSettings).toBe(true);
+
+    // 3. Governance's "delete from host".
+    const deleted = await deprovisionAgent(
+      { agentId: "scout", groupId, deleteFromHost: true },
+      { name: "mohammad", role: "administrator" },
+    );
+    expect(deleted.ok).toBe(true);
+    const afterDelete = {
+      rosterEntry: (await workspaceOf(state.configPath, "scout")) !== undefined,
+      workspaceFile: existsSync(path.join(workspace1!, "first-scout-notes.txt")),
+      sessionMarker: existsSync(path.join(sessionsDir, "first-scout-session-marker.txt")),
+      settingsMarker: existsSync(path.join(agentDir, "first-scout-settings-marker.txt")),
+      scheduledJobs: await scoutJobs(),
+      approvalSettings: Boolean(loadExecApprovals().agents?.scout),
+    };
+
+    // 4. A different Administrator creates a new agent with the same name.
+    const second = await provisionAgent(
+      { displayName: "Scout", agentId: "scout", groupId, adminId: secondOwner.id },
+      { name: "sara", role: "administrator" },
+    );
+    expect(second.ok).toBe(true);
+    const workspace2 = await workspaceOf(state.configPath, "scout");
+    const newAgent = {
+      workspacePath: workspace2,
+      samePathAsDeletedAgent: workspace2 === workspace1,
+      findsDeletedAgentsFile: existsSync(path.join(workspace2 ?? "", "first-scout-notes.txt")),
+      settingsFolderPath: resolveAgentDir({} as never, "scout"),
+      findsSettingsMarker: existsSync(
+        path.join(resolveAgentDir({} as never, "scout"), "first-scout-settings-marker.txt"),
+      ),
+      sessionFolderPath: resolveSessionTranscriptsDirForAgent("scout"),
+      findsSessionMarker: existsSync(
+        path.join(resolveSessionTranscriptsDirForAgent("scout"), "first-scout-session-marker.txt"),
+      ),
+      sessionDatabasePath: resolveOpenClawAgentSqlitePath({ agentId: "scout" }),
+      sameSessionDatabaseAsDeletedAgent:
+        resolveOpenClawAgentSqlitePath({ agentId: "scout" }) === agentDatabase,
+      scheduledJobsForItsName: await scoutJobs(),
+      approvalSettingsForItsName: loadExecApprovals().agents?.scout ?? null,
+    };
+
+    await writeFile(
+      OUT,
+      JSON.stringify({ measuredAt: new Date().toISOString(), seeded, afterDelete, newAgent }, null, 2),
+    );
+  });
+});

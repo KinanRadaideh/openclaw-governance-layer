@@ -5454,3 +5454,64 @@ broke it seven ways was caught seven times.
 the same name. And a tier check has two halves: the tier that lost a power is refused,
 and the tier that kept it can reach it. Full records: `mg/REMAINING-WORK.md` §"The QA
 over three days" and §"A12".
+
+## 2026-09-15: two decisions before Chapter 3
+
+**Kinan wants Chapter 3 written as soon as possible**, and asked for everything left,
+sorted by who can do it, with only the strictly necessary items marked. Two came out of
+that: T48, whether the design has stopped moving, which he answered yes; and T49, how the
+report describes the machinery for several organisations on one server.
+
+**T49 was explained in lay terms first, and the explanation needed a correction.** It said
+the walls between organisations "never separate anything in real use". Kinan then asked
+whether the code could be removed, and checking that question against the code showed the
+sentence was too strong: deleting an organisation keeps its audit log, a new organisation
+can start on the same server, and the organisation label keeps the two apart. The same
+checks refuse unregistered agents, and the one-organisation limit is built from them. So
+the code stays, and Kinan chose (b): one organisation per server is the boundary, with no
+claim about walls between organisations. HANDOFF caveat 11 carried the same overstatement
+and was corrected.
+
+**The lesson.** A question about removing code is a good test of a claim about what the
+code does. "Nobody uses it" was an argument; reading what each check refuses was the
+measurement. Records: `docs-notes/CHAPTER3-MATERIAL.md` §3.5.89 and plain language §5.116.
+
+**Then C13, and a candidate became a finding.** Kinan chose to prove first what governance's
+"delete from host" leaves behind. A probe on a real OpenClaw state directory, with nothing
+on the host side mocked, deleted `scout` through governance and had a different
+Administrator create `scout` again. The new agent opened the old workspace file, the old
+session and agent folders, the old session database, the old scheduled job and the old
+approval allowlist: every one of them, because OpenClaw finds them all by name and
+governance's delete removes only the roster entry. **Finding 372**, medium. Kinan also asked
+whether matching OpenClaw's delete would erase the dead agent's audit entries (it would
+not; the ledger is outside everything that delete touches) and which option is closest to
+Mohammad's T55 decision (matching the delete). Records: design §3.5.90, plain language
+§5.117.
+
+**Then C13 was decided, and the build was paused at one failing test.** Kinan chose to offer
+both deletions as a choice, each explained on screen, and asked for Claude's
+recommendations on the details (design §3.5.91). The code, the routes, the dashboard and the
+tests were written and nearly all pass. The end-to-end test, which runs OpenClaw's real
+delete, found that OpenClaw's own delete with files refuses on Windows: it checks each
+folder's file id against JavaScript's safe integer range, and NTFS ids exceed it. On the
+way, a second trap: inside a Vitest worker on Windows, `os.homedir()` is the real profile
+even when HOME points elsewhere, so the test would have moved files into the real
+`.Trash`; a check caught that before anything moved. Kinan asked for the work to be paused
+and handed off, and `mg/REMAINING-WORK.md` §"C13 decided" is where to resume.
+
+**Then the build was resumed and finished.** A later session checked the paused work before
+continuing it and confirmed the cause on this machine: one folder's NTFS id measured
+56,294,995,342,267,356, past the range a JavaScript number holds exactly. OpenClaw's check
+was right to refuse a rounded id and wrong to read ids as numbers at all; kept as exact
+strings, the delete ran (**finding 373**, upstream code). The same test then met a guard of
+OpenClaw's own: it will not rewrite a configuration file that would lose more than half its
+bytes, which on a nearly empty installation is what deleting its one agent does.
+Governance's first wording of that refusal said to try again, which meets the same guard; it
+now says to use the list-only delete. Building the refusals then showed that none had ever
+reached the screen with its remedy (**finding 374**). Showing that the first fix was not to
+blame for thirty failures OpenClaw's own delete tests already have on Windows took swapping
+the committed files back in and diffing the failing titles.
+
+**The lesson.** Both defects hid behind imitation: upstream's tests mock the file system, and
+governance's tests of its refusals checked the server's reply, never what the page shows. The
+checks that found them ran the real thing.

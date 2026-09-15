@@ -19,7 +19,14 @@ Cross-references: `GOVERNANCE.md` (operator-facing overview + QA defect table),
 > left; and §3.5.87, the last three days checked again (findings 369–371): one
 > agent identifier held state in four stores, and what host deletion leaves
 > behind is recorded as a decision; and §3.5.88, A12, the control an Administrator
-> lacked for one agent's escalation. §3.1's status column was brought up to date
+> lacked for one agent's escalation; and §3.5.89 (2026-09-15), T49 decided: one
+> organisation per installation is the boundary, and why the organisation structure stays;
+> and §3.5.90 (2026-09-15), C13's question answered by a probe: a new agent inherits a
+> deleted agent's leftovers (finding 372), what option (a) would and would not remove, and
+> how the options compare with T55; and §3.5.91 (2026-09-15, built), C13 decided and
+> built: the operator chooses between two ways to delete an agent, with findings 373 and 374
+> found on the way.
+> §3.1's status column was brought up to date
 > against the code on 2026-09-14.
 >
 > **Before them, 2026-09-13:** §3.5.83, the dashboard driven through a browser
@@ -3217,6 +3224,10 @@ that has been stable since the beginning. Recorded as a limitation rather than
 smuggled in.
 
 ### 3.5.32 The M-series: what multi-tenancy asked of a single-tenant design
+
+> **Read §3.5.89 before writing about this.** Kinan decided T49 on 2026-09-15: the report
+> presents one organisation per installation as the boundary, and the multi-organisation
+> design described here as internal structure, not as separation between organisations.
 
 An overview section, because M1–M6 are one feature reported across several
 places and a reader meeting §3.5.30 or §3.5.31 alone will not know what they
@@ -10399,7 +10410,8 @@ OpenClaw has already deleted the agent", assumes the host half happened. Whether
 agent provisioned under the same id inherits any of it is not established, because the
 provisioning tests mock both host functions; proving it needs a real OpenClaw state
 directory. Whether governance's deletion should match the host's, files included, is a
-product decision of the same kind as T55.
+product decision of the same kind as T55. **Proved on 2026-09-15: every leftover is
+inherited (finding 372, §3.5.90).**
 
 #### How it was checked
 
@@ -10454,3 +10466,240 @@ project 199, and the four typechecks and the full lint gate exited 0.
 
 **For Chapter 5:** when a capability moves between tiers, check both halves: that the tier
 which lost it is refused, and that the tier which kept it can reach it from the surface.
+
+### 3.5.89 One organisation per installation is the boundary, and why the organisation structure stays (T49)
+
+**Decided by Kinan on 2026-09-15: option (b).** The report describes the layer as **one
+organisation per installation** and makes no claim about separation between organisations
+that exist at the same time. The code M3–M5 built for several organisations stays, and
+this section records why, because the question will be asked of Chapter 3.
+
+#### The question
+
+M3–M5 (2026-08-24 to 27) built an installation able to hold several organisations, each
+walled off: its own policy, audit chain, account list and agents under
+`groups/<groupId>/`, and routes that ask whether a target belongs to the caller's
+organisation, answering "not found" rather than "forbidden" for another's (§3.5.31,
+§3.5.32, §3.5.47). On 2026-08-30 `createUser` began refusing an account that would start
+a second organisation (`wouldCreateSecondOrganisation`, inside the write lock), and
+`bootstrap-root` answers 409: _"a second organisation needs a second installation"_. The
+reasons recorded that day: an installation-wide control needs one owner, and the Codex
+backend switch is one switch for the whole machine (`setCodexBackendEnabled` takes a
+group id that only routes its ledger entry; `readCodexBackendState()` takes none); and
+signup, open to anyone who reached a fresh installation, became open once.
+
+From then on the separation between two live organisations is exercised only by the test
+suites, which switch the cap off (`setMultiOrganisationAllowedForTests`, called by the
+shared fixture `test-group.ts`). Findings 234 and 235 (2026-09-03) were two gaps in that
+separation that nothing in a real deployment could have noticed, because there is never a
+second organisation to leak into. So the report had to choose: present the separation as
+a capability verified by test (option a), or present the one-organisation cap as the
+boundary (option b). Kinan chose (b).
+
+#### Why the code is not removed as well
+
+Asked directly while deciding: if problems can only arise between two live organisations,
+and the cap makes that impossible, can the code that addresses them be removed? Checked
+against the code on 2026-09-15, not as a block, because almost none of it does only that
+job. **The cap is one organisation at a time, not one for the installation's life**, and
+the organisation label does real work with one:
+
+| Where                                                 | What the label does with one organisation                                                                                                                                                                                                                                                     |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| After an organisation is deleted                      | §3.5.67 deletes its accounts, agents and files but **keeps its audit ledger**, and `bootstrap-root` then mints a fresh Root and group. The installation holds the deleted organisation's retained chain beside the new organisation, kept apart because each is stored under its own group id |
+| Whether something still exists, or still belongs here | `requireAgentInGroup` (6 call sites) passes only an agent whose registry record carries the caller's group, so it also refuses an id with no record: never registered, or deleted. The fixes for findings 366 and 370 rest on the same comparison                                             |
+| The cap itself                                        | `wouldCreateSecondOrganisation` compares group ids; without them the cap needs another definition                                                                                                                                                                                             |
+
+What never runs in a real deployment is the separation between two organisations that
+exist at once, and it is not a separate block of code: it is the same checks and storage
+applied to a second id, plus the test-only switch, a flag, its setter and two branches in
+`user-store.ts`. Measured on 2026-09-15: the group id appears about 700 times in 35 of the
+109 non-test governance source files, with 45 `requireGroup` route checks and 30 group-id
+comparisons, and 88 test files use the shared fixture that switches the cap off.
+
+Removing the unused half would therefore be a **rewrite, not a deletion**: each
+organisation check replaced by a registration check, storage merged while a deleted
+organisation's chain is still kept apart, and the tests rebuilt. That is days of work on
+security-sensitive code, then the full verification again, for no change an operator could
+see and no change in what option (b) lets the report say. The project's last large
+removal is the precedent for the cost: the command line went on 2026-09-07,
+`mg/HANDOFF.md` caveat 22 warns that a green suite proves less after a removal, and
+finding 371 (2026-09-14) was a capability that went with it unnoticed.
+
+#### What the report says, and does not
+
+- **The boundary.** One organisation per installation; a second organisation takes a
+  second installation. This is the intended deployment: one server, with Root,
+  Administrators, Users and Viewers each signing in from their own computer.
+- **The structure.** Every record carries its organisation; the organisation checks double
+  as registration checks; a deleted organisation's retained audit chain stays apart from
+  its successor. Presented as internal structure, not as a security control between
+  tenants.
+- **The Codex switch.** Installation-wide by design, and one of the two reasons for the cap.
+- **Not written:** that separation between organisations is enforced in production, or that
+  an installation is deployed for several organisations.
+- **Chapter 5.** Removing the multi-organisation support, or finishing it (per-organisation
+  settings for the installation-wide switches, which OpenClaw's configuration does not
+  have), is future work.
+
+**A gap this leaves, recorded rather than filled now:** none of the three
+organisation-deletion test files has a test that an organisation created after a deletion
+cannot reach the deleted organisation's retained chain (checked by title, 2026-09-15). The
+separation holds by construction, since every path is built from the group id. It is the
+one piece of organisation separation a real deployment uses, and a test for it is a task
+Claude can do alone.
+
+**For Chapter 5:** "unused" has to be established piece by piece. Code that looks as if it
+serves a feature nobody uses may be doing a second job for one everybody uses.
+
+### 3.5.90 What a reused name inherits from a deleted agent, measured (C13, finding 372)
+
+§3.5.87 recorded as a candidate that governance's _delete from host_ removes less than
+OpenClaw's own delete, and left unproven whether that matters, because the provisioning
+tests mock both host functions. On 2026-09-15 Kinan chose option (b) of decision C13:
+prove it first.
+
+#### The probe
+
+`docs-notes/qa-sweep-2026-09-15/c13-deletion-leftovers.probe.test.ts.txt` drives the
+production callers on a real, temporary OpenClaw state directory: governance's
+`provisionAgent`, which calls OpenClaw's real `createAgent`, and `deprovisionAgent` with
+`deleteFromHost`. Nothing on the host side is mocked, and the probe asserts only that each
+step succeeded, never the behaviour it measures.
+
+1. An Administrator creates `scout`.
+2. It accumulates what a working agent does: a file in its workspace, markers in its
+   session and agent folders, a scheduled job naming it, and a host exec-approval
+   allowlist.
+3. Governance deletes it from the host.
+4. A **different** Administrator creates a new `scout`.
+
+| Leftover                  | After governance's delete | What the new `scout` found                                                |
+| ------------------------- | ------------------------- | ------------------------------------------------------------------------- |
+| Roster entry              | Gone                      | A new one                                                                 |
+| Workspace file            | Survived                  | The same default path, `<state>/workspace-scout`, with the old file in it |
+| Session and agent folders | Survived                  | The same paths, markers in place                                          |
+| Session database          | Survived                  | The same file, `<state>/agents/scout/agent/openclaw-agent.sqlite`         |
+| Scheduled job             | Survived                  | The old job, which names the agent by id                                  |
+| Exec-approval settings    | Survived                  | The old allowlist, keyed by id                                            |
+
+Every default location is derived from the agent id (`resolveAgentWorkspaceDir`,
+`resolveAgentDir`, `resolveOpenClawAgentSqlitePath`), and scheduled jobs and approval
+settings are matched by id. OpenClaw's `agents.delete` removes all of them: it keeps a
+deletion journal, removes the jobs and the approval policy, purges the session entries,
+and by default moves the workspace, agent directory and session transcripts to the trash.
+Governance's delete calls only the roster mutation, `deleteAgentConfigEntry`, followed by
+T55's clearing.
+
+**What bounds it.** The gate still decides every action the new agent takes, under its own
+rules, so nothing inherited widens its permissions. What is exposed is the deleted agent's
+files and history, to whoever holds the name next, and its scheduled work runs under the
+new owner. Graded medium and recorded as **finding 372**, open until C13 is decided.
+
+#### Would option (a) remove the deleted agent's audit ledger entries? No
+
+- **The ledger is outside everything OpenClaw's delete touches.** It is governance's file,
+  `<governance directory>/groups/<groupId>/audit-ledger.jsonl`, and the governance
+  directory defaults to `~/.openclaw/governance`. What `agents.delete` removes is keyed to
+  the agent: its workspace, `agents/<id>/`, its session records and the databases
+  registered to that id. Nothing in it knows the ledger exists.
+- **The project's rule already says so.** T55: "the ledger is never touched", and the
+  deletion writes its own entry naming what went. Organisation deletion keeps the ledger on
+  the same argument (§3.5.67, requirement #6).
+- **What (a) would remove that the ledger does not hold.** The ledger records one entry per
+  action (the tool, the resource, the decision, the rule, and the model's stated intent),
+  not whole conversations and not file contents. Deleting the session records and moving
+  the workspace to the trash removes fuller evidence an investigation might want.
+  Organisation deletion keeps the attachments a ledger entry names for that reason
+  (finding 211), which argues for deciding the files separately.
+- **One guard (a) would need.** Finding 254 showed the governance directory can sit inside
+  an agent's workspace when it is relocated (`OPENCLAW_GOVERNANCE_DIR`). In that layout,
+  moving the workspace to the trash would take the ledger with it, unless the composed
+  deletion refuses. The default layout cannot produce it; a composed deletion should refuse
+  it explicitly.
+
+#### Which option is closest to T55
+
+T55 (Mohammad, 2026-09-08) decided that _delete the agent_ clears everything the id carried,
+because OpenClaw has deleted the agent and anything left "can only bind a stranger who
+inherits the name"; that _remove from governance_ keeps everything; that the ledger is
+never touched; and that the clearing records what went. Its scope was governance's own
+five fields, because those were the ones measured.
+
+- **(a) is the closest.** It applies T55's principle to the host half, so the stranger who
+  inherits the name starts with nothing. It leaves _remove from governance_ untouched,
+  keeps the ledger untouched, and would record what it removed, as T55's clearing does.
+- **(c) is the furthest.** It keeps, for everything outside governance's own fields, the
+  inheritance T55 was decided to end.
+- **(b)** was a measurement, not a position, and it is done.
+
+T55 did not decide files. The nearest precedent for them is organisation deletion
+(§3.5.67): remove everything except the ledger and the evidence a ledger entry names.
+
+**For Chapter 5:** a decision about what a name carries is only as wide as what was measured
+when it was taken. T55 measured governance's fields; the host kept four more stores keyed
+by the same name.
+
+### 3.5.91 Two ways to delete an agent (C13 decided and built, 2026-09-15; findings 372–374)
+
+**Decided by Kinan on 2026-09-15**, after §3.5.90's measurement. Deleting an agent asks the
+operator to choose between **deleting it from OpenClaw's agent list only**, the delete
+governance has always done, and **deleting it the way OpenClaw does**, OpenClaw's own
+`agents.delete`. Each option is explained on screen: what it does, when to choose it, what
+it costs, and what happens to the audit ledger. Kinan left the details to Claude's
+recommendations:
+
+| Question                 | Answer                                                                                                                                                                                                  |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Where the choice appears | _Remove…_ still offers _Remove from governance_; _Delete the agent…_ opens the choice. Neither is pre-selected; the full delete is styled as dangerous                                                  |
+| Files                    | As OpenClaw does: moved to `.Trash` in the Gateway account's home folder, which nothing in the product restores                                                                                         |
+| Governance's own copies  | The full delete also removes the agent's dashboard conversations and unsent attachments; attachments a ledger entry names stay (finding 211's rule)                                                     |
+| Deleting an organisation | Asks once, with the same two choices, for every agent                                                                                                                                                   |
+| After a list-only delete | Creating an agent under a name with leftovers says what it inherited, as T55's "already carried" clause does for rules                                                                                  |
+| Who may choose           | Whoever may delete today: the owning Administrator, or Root                                                                                                                                             |
+| Refusals                 | OpenClaw's own (default agent, reserved agent, one it no longer lists, database open elsewhere, its configuration-file guard) and a busy agent refuse with what to do; nothing is stopped automatically |
+| Finding 254's layout     | A full delete that would move a folder containing the governance directory is refused; list-only stays available                                                                                        |
+
+**The design, and why.** OpenClaw's delete is run, not copied. The Gateway installs
+`agents.delete` into governance through a seam (`registerHostAgentDeleter`), as it installs
+the kill switch's terminator, because the deletion journal, the file-ownership fences, the
+scheduled-job and approval removal and the move to the trash are OpenClaw's code, and
+finding 372 is what a partial copy of that handler became. Every refusal comes before
+governance changes anything, so a refused agent stays registered and governed. The ledger
+is never touched by either delete (T55); each writes one entry saying which ran and what it
+did, in counts, never paths.
+
+**What building it found.** The end-to-end test runs OpenClaw's real `agents.delete` on a
+temporary state directory, and it found three things no mocked test could.
+
+- **Finding 373 (low; upstream code): OpenClaw's own delete with files refused on
+  Windows.** `cleanupPathIdentity` in `src/gateway/server-methods/agents.ts` read each
+  folder's device and file id as JavaScript numbers and refused any past 2^53, because a
+  rounded id could make two folders compare equal. NTFS file ids routinely exceed that
+  (the repository folder on the development machine measured 56,294,995,342,267,356), so
+  the delete refused whenever a folder it moved had a large id. Upstream's tests mock the
+  file system and never met a real id. Fixed in the fork: ids are read from bigint stats
+  and compared and journalled as exact decimal strings, as `sqlite-file-generation.ts`
+  already stores them, and a rounded number is still refused. `fs-safe`'s `stat` rounds,
+  so the identity is read beside it. Two regression tests: folders with NTFS-sized ids are
+  deleted, and a replacement whose id differs from the journal only past 2^53, which the
+  old comparison called the same folder, is kept.
+- **OpenClaw's configuration-file guard refuses the full delete of an agent that is most
+  of the configuration.** `io.write-safety.ts` blocks a rewrite that keeps under half of a
+  file of 512 bytes or more. Governance's list-only delete opts out of the guard and
+  OpenClaw's delete cannot, so on an installation whose `openclaw.json` holds little
+  besides the agent, the full delete is refused before anything changes. Governance names
+  it (`host-config-rejected`) and says to delete from the list only; its first
+  classification would have said to run the delete again, which meets the same guard.
+- **Finding 374 (medium): no refusal's remedy had ever reached the dashboard.** The routes
+  send `remedy` beside `message`; the client built its error from `message` alone, and every
+  panel shows that error. Every provisioning, agent-deletion and organisation-deletion
+  refusal therefore lost its next step. The client now carries the remedy on the message
+  (`ui/src/pages/governance/api.ts`), the one place the error is built.
+
+With the leftovers notice proved end to end after a list-only delete, finding 372 is fixed.
+The record, with every check run, is `mg/REMAINING-WORK.md` §"C13 decided".
+
+**For Chapter 5:** running the host's own operation rather than a copy brings its platform
+limits and its safety guards with it, and only a test that runs it for real, on the platform
+the work is done on, can see either. The mocks in upstream's own suite are what hid finding 373.

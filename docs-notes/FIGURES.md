@@ -95,7 +95,8 @@ The drawing itself was left alone and is still right: two closed worlds and a
 line nothing crosses is exactly what the code enforces per group. What changed is
 the claim about how many such worlds an installation can have. That is the T49
 tension in one picture, and the caption now states it — the isolation is real and
-is **verified by test rather than by deployment**.
+is **verified by test rather than by deployment**. _(T49 was decided on 2026-09-15,
+option (b), and F12 is now recommended for cutting: see its section.)_
 
 **Figures confirmed correct against the code, and why each was checked:**
 
@@ -1211,7 +1212,15 @@ preamble for the brace.)_
 
 **Source:** §3.5.30 (M3) · **Proposed number:** Figure 3.8
 
-**Recommendation: KEEP, with the caption corrected.** Multi-tenancy is a
+> **Recommendation changed to CUT on 2026-09-15 (T49, option b).** The report presents
+> one organisation per installation as the boundary and makes no claim about separation
+> between organisations (`CHAPTER3-MATERIAL.md` §3.5.89). This figure's whole argument is
+> the line between two organisations: a claim the chapter no longer makes, about a
+> deployment nobody can create. What it still shows correctly, that every account
+> belongs to one organisation, is carried by F19 and by the role table. The
+> recommendation below is kept as it was written.
+
+**Recommendation (until 2026-09-15): KEEP, with the caption corrected.** Multi-tenancy is a
 substantial feature added late, and the whole claim rests on what does not cross
 the line between two groups. A figure with a literal dividing line, labelled
 with what cannot cross it, makes the isolation argument in one glance. Prose has
@@ -1731,6 +1740,12 @@ here to draw that F19 does not draw.
 
 **Source:** §3.5.56 · **Proposed number:** Figure 3.9
 
+> **Still KEEP after T49 (2026-09-15), with its framing changed.** The figure draws one
+> organisation's chain of records, not two organisations, so it stays true under option
+> (b). Its prose and caption present the series as making the system multi-tenant; in the
+> report, present it as how every record is labelled with its organisation, with one
+> organisation per installation as the boundary (`CHAPTER3-MATERIAL.md` §3.5.89).
+
 **Recommendation: KEEP.** The M-series is six subtasks that are far easier to
 defend as one argument than as six features, and the reason is structural: each
 supplies a noun the next one needs. That dependency chain is exactly what a
@@ -1879,7 +1894,7 @@ flowchart LR
 | F9  | Four modules, one definition   | Cut                   | -               |
 | F10 | Prompt lifecycle               | Merge into F6         | -               |
 | F11 | Check-then-open window         | **Keep**              | Fig 3.6         |
-| F12 | Two groups on one installation | **Keep**              | Fig 3.7         |
+| F12 | Two groups on one installation | Cut (T49, 2026-09-15) | -               |
 | F13 | Two entry points, one gate     | Merge into F8         | -               |
 | F14 | Tool coverage before/after     | **Keep** (absorb F15) | Fig 4.1         |
 | F15 | Tool catalogue highlighted     | Merge into F14        | -               |
@@ -1893,7 +1908,7 @@ flowchart LR
 | F23 | "Always allow" after the card  | **Keep**              | Fig 3.12        |
 | F24 | A task's row and its slot      | **Keep**, small       | Fig 3.13        |
 
-**Fourteen figures: twelve in Chapter 3, two in Chapter 4**, plus one screenshot
+**Thirteen figures: eleven in Chapter 3, two in Chapter 4** (fourteen and twelve until 2026-09-15, when T49 cut F12; the Chapter 3 numbers after F11 close up by one), plus one screenshot
 pair for F16 if you want it. _(This read "Eleven figures: nine in Chapter 3" until
 2026-09-14: F22 was added on 2026-09-01 and F23 and F24 on 2026-09-11, all three
 as keeps, and the table was never extended. F22's proposed number also collided

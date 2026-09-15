@@ -6,7 +6,7 @@ ordinary language. What broke, why it mattered, and what was done about it.
 
 It began with **round six**, the multi-agent audit, because that round found the
 most and taught the most, and every pass since has been added to it, up to
-finding 368 and the independent review closed on 2026-09-13. Rounds one to five
+finding 374 and decision C13, built on 2026-09-15. Rounds one to five
 are summarised in §6.
 
 > **How to navigate this file. Added 2026-08-27, brought up to date 2026-09-14.** Sections are in the order
@@ -27,15 +27,17 @@ are summarised in §6.
 > `REMAINING-WORK.md`, so they have deliberately not been renumbered. Use the
 > numbers, not the position.
 >
-> **The newest material is §5.109–§5.115, at the end of the file** (2026-09-12
-> to 14): the dashboard driven through a real browser while things went wrong,
+> **The newest material is §5.109–§5.118, at the end of the file** (2026-09-12
+> to 15): the dashboard driven through a real browser while things went wrong,
 > including the emergency stop that missed a task started from the dashboard
 > (§5.109–§5.110); a User's way to ask for a change, and a record that said
 > "done" when nothing had changed (§5.111); the week checked a second time
 > (§5.112); the independent review closed item by item (§5.113); and the last
 > three days checked again, where a reused agent name let old questions be
 > answered yes for a new agent (§5.114); and the control an Administrator was missing
-> for one agent's escalation, built (§5.115). _(This line said "§5.86–5.91" until
+> for one agent's escalation, built (§5.115); and why one organisation per server is the
+> boundary, and the code for several stays (§5.116); and a test showing that a new agent
+> given a deleted agent's name gets everything the old one left behind (§5.117); and deleting an agent now asking which way, with what building it found (§5.118). _(This line said "§5.86–5.91" until
 > 2026-09-14, while twenty-one sections had been added past it, and "§5.42–5.44
 > (M5)" for four days before that: this document's own subject, arriving in its
 > navigation note twice.)_
@@ -8128,6 +8130,7 @@ approval settings, its session records, and, unless told not to, its files. The
 governance page does none of those. What is not yet known is whether a new agent created
 under the same name would pick any of them up; that needs testing on a real setup.
 Whether governance should delete those things, files included, is a decision for Kinan.
+_(Tested on 15 September: a new agent does pick all of them up. See §5.117.)_
 
 **The lesson:** a fix that closes a door for one kind of record has to be checked against
 every other record that holds the same name. The first fix handled requests; the same name
@@ -8156,3 +8159,109 @@ Each break made a test fail.
 
 **The lesson:** checking that the wrong person cannot do something is half the check. The
 other half is that the right person can actually do it from the page.
+
+## 5.116 One organisation per server, and why the code for several stays
+
+In late August the system was built so that one server could host several separate
+organisations, each walled off from the others: its own accounts, its own agents, its own
+rules and its own audit log, with every screen checking "does this belong to your
+organisation?"
+
+On 30 August a limit was added: **one organisation per server**. Some switches control the
+whole server, such as the one that lets agents run on Codex, and with two organisations an
+Administrator in one could flip it for the other, which they cannot even see. The sign-up
+screen on a new server also let anyone create an organisation and become its Root, again
+and again; the limit made that possible once. A second company gets a second server.
+
+So on a real server, the walls between two organisations that exist at the same time are
+never used. Only the automated tests, which switch the limit off, create a second
+organisation. Two gaps in those walls were found on 3 September, and nothing had noticed
+them, because there was never a second organisation for anything to leak into.
+
+**Kinan decided on 15 September how the report describes this: one organisation per
+server is the boundary**, and the report makes no claim about walls between organisations.
+
+He also asked whether the code for several organisations could simply be removed. We
+checked, and the answer is no, because almost none of it does only that job. The limit is
+one organisation _at a time_. When an organisation is deleted, its audit log is kept on
+purpose, and a new organisation can then start on the same server; the organisation label
+is what keeps the old log apart from the new organisation. The same checks that ask "is
+this agent in your organisation?" also refuse an agent that was never registered or was
+deleted. And the limit itself works by comparing organisation labels. What is truly unused
+is only the separation between two organisations that exist at once, and that is not a
+separate piece of code. Removing it would mean rewriting security checks across dozens of
+files and re-testing everything, for no change anyone using the system would see. The last
+large removal, the command line, left behind a gap that was only found a week later.
+
+**The lesson:** "unused" has to be checked piece by piece. Code that looks as if it serves
+a feature nobody uses may be doing a second job for one everybody uses.
+
+## 5.117 A new agent with an old name gets what the old one left behind (finding 372)
+
+§5.114 left a question open: when governance deletes an agent, OpenClaw's own delete would
+have removed more, but does anyone ever pick up what is left?
+
+We tested it on a real, temporary setup, with nothing faked. An Administrator created an
+agent called "scout" and gave it what a working agent collects: a file in its working
+folder, conversation history, a task scheduled to run every morning, and a saved list of
+commands it may run. Governance then deleted it. A **different** Administrator created a
+new agent, also called "scout".
+
+The new scout got all of it: the same working folder with the old file inside, the same
+history storage, the old morning task, and the old list of commands. That is because
+OpenClaw finds all of these things by the agent's name, and governance's delete removes
+only the agent from OpenClaw's list of agents.
+
+**How bad it is.** Governance still checks every action the new scout takes against its own
+rules, so the leftovers cannot let it do anything its rules forbid. But someone who owns
+the new scout can see the old scout's files and history, and the old morning task now
+runs as the new scout. It is recorded as finding 372, a medium problem, and Kinan decides
+what happens next: make governance's delete remove everything OpenClaw's delete removes,
+or leave it and say so in the report.
+
+**Two things were checked for that decision.** Making the delete remove everything would
+**not** erase the audit log's entries about the old agent: the log is kept in governance's
+own folder, which OpenClaw's delete never touches, and Mohammad's earlier decision already
+says a deletion never touches the log. It would remove things the log does not keep: the
+full conversations and the files. And of the choices, making the delete remove everything
+is the one closest to Mohammad's decision, that a reused name should start with nothing.
+
+**The lesson:** a decision about what a name carries is only as wide as what was checked
+when it was made. Mohammad's decision covered governance's own settings; OpenClaw kept four
+more things under the same name.
+
+_(Kinan decided on 15 September: deleting an agent asks which of the two ways to use, with
+both explained on screen. It was built the same day; §5.118.)_
+
+## 5.118 Deleting an agent now asks which way, and what building it found (findings 372, 373 and 374)
+
+Deleting an agent from the dashboard now opens a window with two choices, each explained.
+**Delete from OpenClaw's agent list only** keeps the agent's files, history, scheduled tasks
+and saved command approvals on the server. **Delete the way OpenClaw does** removes those
+and moves the files to a `.Trash` folder. If the first is chosen and somebody later creates
+an agent with the same name, the page tells them what the new agent picked up. That closes
+finding 372 (§5.117). The audit log is untouched either way.
+
+Building it meant running OpenClaw's real delete on a real, temporary setup, and that found
+things no earlier test could see.
+
+**OpenClaw's own delete did not work on Windows (finding 373).** Before moving a folder,
+OpenClaw notes the folder's identity number, so it can tell if somebody swaps the folder in
+the meantime. On Windows those numbers are often too large for the way the code kept them,
+so OpenClaw refused rather than risk mixing two folders up. Its own tests only ever used
+made-up numbers. The numbers are now kept exactly, so the check still works and the delete
+runs.
+
+**No refusal had ever shown what to do next (finding 374).** When the server refuses
+something it sends two pieces: what went wrong, and what to do about it. The dashboard only
+ever showed the first. "The agent is still working" arrived without "stop it first, then
+delete it". Every refusal now shows both.
+
+**And one refusal is OpenClaw's by design.** OpenClaw will not rewrite its settings file if a
+change would remove more than half of it, which guards against losing settings. On a nearly
+empty installation, deleting an agent the full way can trip that guard. Nothing is changed,
+and the page now says so and suggests the other choice.
+
+**The lesson:** running the real thing, on the machine where the work is done, finds what
+imitations cannot. OpenClaw's tests imitated the file system, and that is exactly where the
+Windows problem was.
