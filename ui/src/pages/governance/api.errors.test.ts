@@ -86,6 +86,43 @@ describe("a request that never reaches the Gateway", () => {
   });
 });
 
+describe("a refusal that says what to do next", () => {
+  // Finding 374: the Gateway sent `remedy` beside `message`, and every panel shows only
+  // `err.message`, so no refusal's next step ever reached the screen.
+  function refuse(status: number, error: Record<string, unknown>) {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error }), { status }),
+    );
+  }
+
+  it("carries the remedy with the message", async () => {
+    refuse(400, {
+      message: 'Agent "scout" is still working.',
+      code: "agent-busy",
+      remedy: "Nothing was changed. Stop it first, then delete it.",
+    });
+
+    const failure = await failureOf(
+      new GovernanceApi("", null).deprovisionAgent("scout", true, "full"),
+    );
+
+    expect(failure.message).toBe(
+      'Agent "scout" is still working. Nothing was changed. Stop it first, then delete it.',
+    );
+    expect(failure.status).toBe(400);
+  });
+
+  it("says only the message when there is no remedy", async () => {
+    refuse(404, { message: "no such agent", type: "not_found" });
+
+    const failure = await failureOf(
+      new GovernanceApi("", null).deprovisionAgent("scout", true, "roster"),
+    );
+
+    expect(failure.message).toBe("no such agent");
+  });
+});
+
 describe("the page's error after a refresh", () => {
   it("says the Gateway is back, and that the last press may not have landed, once a refresh reaches it", () => {
     // Not cleared: the message reported a press, and a lockdown sent during a

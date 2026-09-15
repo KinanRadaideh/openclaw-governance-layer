@@ -60,6 +60,33 @@ export type GovernanceDeprovisionResult = {
   auditError?: string;
   /** The agent is gone and what its id carried could not be cleared (T55). */
   clearError?: string;
+  /** Which deletion ran, when the agent was deleted from the host (decision C13). */
+  hostDeletion?: GovernanceHostDeletionMode;
+  /** Paths OpenClaw's own delete moved to its trash. The full delete only. */
+  movedToTrash?: string[];
+  /** Paths it could not move, with its reason; creating an agent of this id waits on them. */
+  notMoved?: string[];
+  /** Dashboard conversation turns removed with the agent. The full delete only. */
+  conversationTurnsRemoved?: number;
+  /** Attachments kept because a ledger entry names them. The full delete only. */
+  attachmentsKept?: number;
+  /** The agent is gone and governance's own copy of its conversations could not be removed. */
+  cleanupError?: string;
+};
+
+/**
+ * How an agent leaves the host (decision C13): only its entry in OpenClaw's agent list, or
+ * everything, the way OpenClaw's own delete removes it.
+ */
+export type GovernanceHostDeletionMode = "roster" | "full";
+
+/** What a deleted agent of the same id left on the server, and a new agent now has. */
+export type GovernanceHostLeftovers = {
+  workspaceFiles: boolean;
+  agentFolder: boolean;
+  sessionHistory: boolean;
+  scheduledJobs: number;
+  approvalSettings: boolean;
 };
 
 /**

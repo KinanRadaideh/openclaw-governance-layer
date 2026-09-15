@@ -70,6 +70,15 @@ import { formatErrorMessage } from "../infra/errors.js";
 import { normalizeAgentId } from "../routing/session-key.js";
 import { ADMIN_ACTIONS, recordAdminAction, type AuditActorInput } from "./admin-audit.js";
 import {
+  cleanUpGovernanceAfterFullDeletion,
+  describeHostDeletion,
+  detectHostLeftovers,
+  runFullHostDeletion,
+  type GovernanceCleanup,
+  type HostDeletionMode,
+  type HostLeftovers,
+} from "./agent-host-deletion.js";
+import {
   assertAgentOwnerEligible,
   DuplicateAgentError,
   findAgent,
@@ -126,6 +135,11 @@ export type ProvisionSuccess = {
   confirmWaitedMs: number;
   /** Present only when the agent was not seen; states what to do about it. */
   warning?: string;
+  /**
+   * What a deleted agent of the same id left on the host, which this agent now has
+   * (finding 372). Absent when there was nothing.
+   */
+  hostLeftovers?: HostLeftovers;
 };
 
 export type ProvisionFailure = {
@@ -394,6 +408,10 @@ export async function provisionAgent(
     subjectId: agentId,
   });
 
+  // What a deleted agent of this id left on the host (finding 372), read before the host
+  // creates anything, because creating the agent makes its folders.
+  const hostLeftovers = await detectHostLeftovers(agentId, input.workspace).catch(() => undefined);
+
   const created = await createAgent({
     entry: { id: agentId, name: displayName },
     // The Administrator typed this name into a form, so the agent must not
@@ -472,6 +490,7 @@ export async function provisionAgent(
     confirmed: seen.confirmed,
     confirmChecked,
     confirmWaitedMs: seen.waitedMs,
+    ...(hostLeftovers ? { hostLeftovers } : {}),
     ...(confirmChecked && !seen.confirmed
       ? {
           warning: `The agent was created and recorded, but OpenClaw had not picked it up after ${Math.round(
@@ -560,6 +579,21 @@ export type DeprovisionResult =
        * cleanup to do by hand.
        */
       clearError?: string;
+      /** Which deletion ran, when the agent was deleted from the host (decision C13). */
+      hostDeletion?: HostDeletionMode;
+      /** Paths OpenClaw's own delete moved to its trash. The full delete only. */
+      movedToTrash?: string[];
+      /** Paths it could not move, with its reason. Its deletion journal stays open for them. */
+      notMoved?: string[];
+      /** Dashboard conversation turns removed with the agent. The full delete only. */
+      conversationTurnsRemoved?: number;
+      /** Attachments kept because a ledger entry names them. The full delete only. */
+      attachmentsKept?: number;
+      /**
+       * Why governance's own copies could not be removed, when they could not. Reported, not
+       * thrown, for `auditError`'s reason: the agent is already gone.
+       */
+      cleanupError?: string;
     }
   | {
       ok: false;
@@ -611,7 +645,17 @@ export type DeprovisionResult =
  * inert, visible in the panel, and fixed by removing it again.
  */
 export async function deprovisionAgent(
-  input: { agentId: string; groupId: string; deleteFromHost: boolean },
+  input: {
+    agentId: string;
+    groupId: string;
+    deleteFromHost: boolean;
+    /**
+     * How the agent leaves the host when `deleteFromHost` is set (decision C13): its roster
+     * entry only, or OpenClaw's own delete. Defaults to the roster-only delete for callers
+     * that predate the choice; both routes require it.
+     */
+    hostDeletion?: HostDeletionMode;
+  },
   actor: AuditActorInput,
 ): Promise<DeprovisionResult> {
   const agentId = normalizeAgentId(input.agentId);
@@ -626,7 +670,23 @@ export async function deprovisionAgent(
     };
   }
 
-  if (input.deleteFromHost) {
+  const hostDeletion: HostDeletionMode = input.hostDeletion ?? "roster";
+  let hostOutcome: { movedToTrash: string[]; notMoved: string[] } | undefined;
+  if (input.deleteFromHost && hostDeletion === "full") {
+    // OpenClaw's own delete (decision C13). Its refusals all come before governance changes
+    // anything, so a refused agent is still registered and still governed.
+    const full = await runFullHostDeletion(agentId);
+    if (!full.ok) {
+      return {
+        ok: false,
+        stage: "host",
+        code: full.code,
+        message: full.message,
+        remedy: full.remedy,
+      };
+    }
+    hostOutcome = full;
+  } else if (input.deleteFromHost) {
     try {
       await deleteAgentConfigEntry({ agentId, allowMissing: true, allowConfigSizeDrop: true });
     } catch (err) {
@@ -700,6 +760,12 @@ export async function deprovisionAgent(
     // operator is told, because they now have a cleanup to do by hand.
     clearError = formatErrorMessage(err);
   }
+  // Governance's own copies go with the full delete: the agent's dashboard conversations and
+  // its unsent attachments. Sent attachments stay, as the evidence ledger entries name.
+  const cleanup: GovernanceCleanup | undefined =
+    hostDeletion === "full"
+      ? await cleanUpGovernanceAfterFullDeletion(input.groupId, agentId)
+      : undefined;
 
   // Past the point of no return: the agent is gone from the host *and* from
   // governance, and neither can be put back by failing here (finding 229).
@@ -721,6 +787,7 @@ export async function deprovisionAgent(
       action: ADMIN_ACTIONS.agentDeprovision,
       target:
         `agent ${agentId} ("${removed.displayName}") deleted from the host` +
+        describeHostDeletion(hostDeletion, hostOutcome, cleanup) +
         // Named on the deletion entry as well as on its own, so a reader
         // following the deletion does not have to find the second entry to
         // learn that permissions went with it.
@@ -738,6 +805,17 @@ export async function deprovisionAgent(
     agentId,
     displayName: removed.displayName,
     deletedFromHost: true,
+    hostDeletion,
+    ...(hostOutcome
+      ? { movedToTrash: hostOutcome.movedToTrash, notMoved: hostOutcome.notMoved }
+      : {}),
+    ...(cleanup
+      ? {
+          conversationTurnsRemoved: cleanup.conversationTurnsRemoved,
+          attachmentsKept: cleanup.attachmentsKept,
+          ...(cleanup.error ? { cleanupError: cleanup.error } : {}),
+        }
+      : {}),
     ...(cleared && !holdsNothing(cleared) ? { clearedPolicy: cleared } : {}),
     ...(clearError ? { clearError } : {}),
     ...(auditError ? { auditError } : {}),

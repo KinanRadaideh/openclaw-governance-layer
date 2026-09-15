@@ -39,6 +39,19 @@ export function clearActiveSessionsSupplier(): void {
   registeredSupplier = undefined;
 }
 
+/**
+ * The agent ids with a live Gateway session, unscoped, for one question only: whether an
+ * agent is still working before OpenClaw's own delete removes its files (decision C13). Not
+ * for display; `listActiveSessions` is the scoped view.
+ */
+export function activeSessionAgentIds(): string[] {
+  try {
+    return registeredSupplier ? registeredSupplier().map((session) => session.agentId) : [];
+  } catch {
+    return [];
+  }
+}
+
 export type ActiveSessionsView = {
   /** False when no supplier is registered. Visibility is unavailable, not empty. */
   supported: boolean;

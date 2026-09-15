@@ -45,6 +45,7 @@ import type {
 } from "../api.ts";
 import { canAdminister } from "../identity.ts";
 import type { PanelEffects } from "./account-panels.ts";
+import { chooseHostDeletion, deletionNotice, leftoversClause } from "./agent-delete-choice.ts";
 
 export type AgentRegistryDrafts = {
   /** The new agent's name. The host derives an id from it unless one is given. */
@@ -259,40 +260,27 @@ function renderRemoveChoice(
         class="btn danger"
         ?disabled=${props.busy}
         @click=${() =>
-          void props.confirmThen(
-            {
-              message: t("governance.agents.confirmDelete", { name }),
-              // The confirmation states irreversibility in words rather than
-              // relying on the button being red. A colour is not a sentence,
-              // and the operator reading this one is about to destroy a
-              // workspace.
-              details: t("governance.agents.confirmDeleteDetails"),
-              confirmLabel: t("governance.agents.delete"),
-              danger: true,
-            },
-            async () => {
-              const result = await props.api().deprovisionAgent(agent.agentId, true);
-              // **Both, not the first.** They are independent: the ledger can
-              // refuse the entry while the rules clear cleanly, and the reverse.
-              // Joined rather than ranked, because an operator meeting either
-              // has a different thing to go and do.
-              const notice = [
-                result.auditError
-                  ? t("governance.agents.removeAuditFailed", { reason: result.auditError })
-                  : "",
-                result.clearError
-                  ? t("governance.agents.removeClearFailed", { reason: result.clearError })
-                  : "",
-              ]
-                .filter(Boolean)
-                .join(" ");
-              props.onDraft({
-                removeChoiceFor: "",
-                rowNotice: notice,
-                rowNoticeWarning: Boolean(notice),
-              });
-              await props.refresh();
-            },
+          // **Which deletion, chosen in a dialog** (decision C13). The two leave very
+          // different things on the server, so each option says in words what it removes,
+          // what it leaves and what the audit ledger keeps; neither is the default.
+          void chooseHostDeletion(t("governance.agents.deleteChoiceMessage", { name })).then(
+            (hostDeletion) =>
+              hostDeletion === null
+                ? undefined
+                : props.run(async () => {
+                    const result = await props
+                      .api()
+                      .deprovisionAgent(agent.agentId, true, hostDeletion);
+                    // What happened, then every problem, not the first: the ledger can
+                    // refuse its entry while the rules clear cleanly, and the reverse.
+                    const notice = deletionNotice(result);
+                    props.onDraft({
+                      removeChoiceFor: "",
+                      rowNotice: notice.text,
+                      rowNoticeWarning: notice.warning,
+                    });
+                    await props.refresh();
+                  }),
           )}
       >
         ${t("governance.agents.delete")}
@@ -577,6 +565,7 @@ function renderProvisionForm(props: AgentRegistryPanelProps): TemplateResult {
               provisionNotice: [
                 result.warning ?? t("governance.agents.created", { id: result.agent.id }),
                 inheritedClause(result.inheritedPolicy),
+                leftoversClause(result.hostLeftovers),
               ]
                 .filter(Boolean)
                 .join(" "),

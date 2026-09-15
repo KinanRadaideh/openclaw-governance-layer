@@ -287,6 +287,8 @@ import type {
   GovernanceAgentEntry,
   GovernanceAgentPolicyHoldings,
   GovernanceDeprovisionResult,
+  GovernanceHostDeletionMode,
+  GovernanceHostLeftovers,
 } from "./api.agents.ts";
 
 // Escalations waiting for a person: live ones from dashboard prompts (T68), and the
@@ -437,12 +439,16 @@ export class GovernanceApi {
       }
     }
     if (!response.ok) {
+      const error =
+        typeof parsed === "object" && parsed !== null && "error" in parsed
+          ? (parsed as { error?: { message?: unknown; remedy?: unknown } }).error
+          : undefined;
+      // The remedy rides on the message because every panel shows `err.message`, and a refusal
+      // without its next step is a dead end (finding 374).
+      const remedy = typeof error?.remedy === "string" ? error.remedy : "";
       const message =
-        typeof parsed === "object" &&
-        parsed !== null &&
-        "error" in parsed &&
-        typeof (parsed as { error?: { message?: unknown } }).error?.message === "string"
-          ? (parsed as { error: { message: string } }).error.message
+        typeof error?.message === "string"
+          ? [error.message, remedy].filter(Boolean).join(" ")
           : `Request failed (${response.status})`;
       throw new GovernanceApiError(message, response.status, opts?.authenticating === true);
     }
@@ -832,6 +838,8 @@ export class GovernanceApi {
      * nobody expects a name they have just invented to be holding anything.
      */
     inheritedPolicy?: GovernanceAgentPolicyHoldings;
+    /** What a deleted agent of the same id left on the server, which this agent now has (372). */
+    hostLeftovers?: GovernanceHostLeftovers;
   }> {
     return this.request("agents/provision", { method: "POST", body: { ...input } });
   }
@@ -841,12 +849,17 @@ export class GovernanceApi {
    *
    * `deleteFromHost` is required by the server rather than defaulted: a missing
    * flag on a destructive route is a caller who has not decided, and guessing
-   * is how an irreversible act happens by omission.
+   * is how an irreversible act happens by omission. `hostDeletion`, which
+   * deletion to run, is required with it for the same reason (decision C13).
    */
-  deprovisionAgent(agentId: string, deleteFromHost: boolean): Promise<GovernanceDeprovisionResult> {
+  deprovisionAgent(
+    agentId: string,
+    deleteFromHost: boolean,
+    hostDeletion?: GovernanceHostDeletionMode,
+  ): Promise<GovernanceDeprovisionResult> {
     return this.request("agents/deprovision", {
       method: "POST",
-      body: { agentId, deleteFromHost },
+      body: { agentId, deleteFromHost, ...(hostDeletion ? { hostDeletion } : {}) },
     });
   }
 
@@ -1140,8 +1153,14 @@ export class GovernanceApi {
    * exists. The caller's next request is unauthenticated, which is correct and
    * is why the page treats success as a sign-out rather than as a refresh.
    */
-  deleteOrganisation(confirm: string): Promise<OrganisationDeletionResponse> {
-    return this.request("organisation/delete", { method: "POST", body: { confirm } });
+  deleteOrganisation(
+    confirm: string,
+    hostDeletion: GovernanceHostDeletionMode,
+  ): Promise<OrganisationDeletionResponse> {
+    return this.request("organisation/delete", {
+      method: "POST",
+      body: { confirm, hostDeletion },
+    });
   }
 
   /**

@@ -444,14 +444,12 @@ export const enGovernance: TranslationMap = {
       title: "Organisation",
       deleteTitle: "Delete this organisation",
       deleteHint:
-        "Removes all {accounts} account(s), including your own Root account, {username}, and every agent in this organisation, from OpenClaw as well as from governance. You will be signed out and there is no way back in: there is no password reset. The audit ledger is kept: it is the record of what happened here and is not an operator's to delete. The next account created on this installation starts a new organisation.",
+        "Removes all {accounts} account(s), including your own Root account, {username}, and every agent in this organisation, from OpenClaw as well as from governance; you choose whether only their entries in OpenClaw's agent list go, or everything, the way OpenClaw's own delete removes it. You will be signed out and there is no way back in: there is no password reset. The audit ledger is kept: it is the record of what happened here and is not an operator's to delete. The next account created on this installation starts a new organisation.",
       confirmLabel: "Type {username} to confirm",
       typeToEnable: "Type {username} exactly to enable this",
       deleteButton: "Delete organisation",
-      confirmMessage: "Delete this organisation and everything in it?",
-      confirmDetails:
-        "Every account and every agent goes, your own Root account included. The agents are deleted from OpenClaw, not just unregistered. This cannot be undone.",
-      confirmAction: "Delete everything",
+      agentsChoiceMessage:
+        "Delete this organisation and everything in it? Every account and every agent goes, your own Root account included, and this cannot be undone. Choose how its agents are deleted from OpenClaw; the audit ledger is kept either way.",
       deleted:
         "Organisation deleted: {accounts} account(s) and {agents} agent(s) removed. Its audit ledger was kept on the server.",
       deletedWithEvidence:
@@ -510,9 +508,34 @@ export const enGovernance: TranslationMap = {
       unregister: "Remove from governance",
       unregisterExplain:
         "Stops governing it. The agent keeps running in OpenClaw and its workspace is untouched, but because unregistered agents are refused, it will stop being able to do anything until it is registered again. Reversible.",
-      delete: "Delete the agent",
+      delete: "Delete the agent…",
       deleteExplain:
-        "Removes it from governance AND deletes it from OpenClaw entirely, including its workspace and transcripts. Cannot be undone.",
+        "Removes it from governance and deletes it from OpenClaw. Cannot be undone. The next step asks how much goes: only its entry in OpenClaw's agent list, or everything, the way OpenClaw's own delete removes it.",
+      deleteChoiceMessage:
+        "Delete “{name}”? Both ways remove it from governance and clear its rules, posture and emergency stop, and neither can be undone from this page. They differ in what is left on the server.",
+      deleteRosterLabel: "Delete from OpenClaw's agent list only",
+      deleteRosterExplain:
+        "What it does: removes the agent from OpenClaw's list of agents, as this page always has. Its working folder and files, its conversation history, its scheduled tasks and its saved command approvals all stay on the server.\nWhen to choose it: to keep what the agent produced, to look at or recover later.\nThe catch: an agent created later with the same name picks all of that up. It opens the same folder, sees the same history, runs the old scheduled tasks and gets the old approvals. The page says so when that happens.\nAudit ledger: nothing in it is removed or changed. One new entry records this deletion and says what was left behind.",
+      deleteFullLabel: "Delete the way OpenClaw does",
+      deleteFullExplain:
+        "What it does: runs OpenClaw's own delete. The agent's scheduled tasks, saved command approvals and session records are removed, and its working folder, its own folder and its conversation files are moved to a .Trash folder in the home folder of the account the Gateway runs as. Governance's copy of its dashboard conversations goes too; attachments already sent in a prompt are kept.\nWhen to choose it: for a clean end. An agent created later with the same name starts with nothing.\nThe catch: the files leave the agent's folders. Nothing on this page brings them back: someone with access to the server has to move them out of .Trash by hand, and they use disk space until then. It is refused while the agent is still working, and when the governance folder is inside one of the folders it would move.\nAudit ledger: nothing in it is removed or changed. One new entry records this deletion and lists what was removed. The ledger never held whole conversations or the contents of files, so those leave with the files.",
+      deletedRoster:
+        "Deleted from OpenClaw's agent list. Its files, history, scheduled tasks and approvals are still on the server.",
+      deletedFull:
+        "Deleted the way OpenClaw does: {count} folder(s) moved to .Trash in the Gateway account's home folder.",
+      deletedFullKept:
+        "{attachments} sent attachment(s) were kept, because audit ledger entries name them.",
+      deletedFullIncomplete:
+        "OpenClaw could not move some of its files: {paths}. Creating an agent with this name waits until that clean-up finishes.",
+      removeCleanupFailed:
+        "Deleted, but its dashboard conversations could not be removed: {reason}",
+      leftovers:
+        "This name belonged to a deleted agent, and the new agent has what that agent left on the server: {what}.",
+      leftoverWorkspace: "files in its working folder",
+      leftoverHistory: "its conversation history",
+      leftoverJobs: "{count} scheduled task(s)",
+      leftoverApprovals: "its saved command approvals",
+      leftoverAgentFolder: "its agent folder",
       confirmUnregister: "Stop governing “{name}”?",
       confirmUnregisterDetails:
         "The agent and its workspace stay exactly as they are. It will be refused on every tool call until it is registered again, and you can register it again at any time.",
@@ -521,9 +544,6 @@ export const enGovernance: TranslationMap = {
       // startup bundle (finding 321).
       removeAuditFailed: "Deleted, but NOT written to the audit ledger: {reason}",
       removeClearFailed: "Deleted, but its rules could not be cleared: {reason}",
-      confirmDelete: "Permanently delete “{name}”?",
-      confirmDeleteDetails:
-        "This deletes the agent from OpenClaw, not just from governance. Its workspace and transcripts go with it. This cannot be undone.",
       idLabelHelp: "Identifier",
       workspaceLabelHelp: "Working directory",
       modelLabel: "Model",

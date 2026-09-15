@@ -14,6 +14,7 @@
 // and not a rewrite.
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { guardDeletion, guardRoleChange } from "../governance/account-guards.js";
+import { isHostDeletionMode } from "../governance/agent-host-deletion.js";
 import { AgentNotAssignableError, assignAgentsToAccount } from "../governance/agent-registry.js";
 import { deleteOrganisation } from "../governance/organisation-deletion.js";
 import { canAssignAgents, type GovernanceActor } from "../governance/permissions.js";
@@ -466,9 +467,15 @@ export async function handleGovernanceAccountRoutes(
     if (body === undefined) {
       return true;
     }
-    const confirm = (body as { confirm?: unknown }).confirm;
+    const { confirm, hostDeletion } = body as { confirm?: unknown; hostDeletion?: unknown };
     if (typeof confirm !== "string") {
       sendInvalidRequest(res, "confirm is required and must be the Root username");
+      return true;
+    }
+    // Required, never defaulted (decision C13): how every agent leaves the host is part of
+    // what the Root is consenting to.
+    if (!isHostDeletionMode(hostDeletion)) {
+      sendInvalidRequest(res, 'hostDeletion is required and must be "roster" or "full"');
       return true;
     }
     // The group comes from the session and never from the body. The one write
@@ -481,7 +488,7 @@ export async function handleGovernanceAccountRoutes(
       return true;
     }
     const result = await deleteOrganisation(
-      { groupId, actingUserId: session.userId, confirmation: confirm },
+      { groupId, actingUserId: session.userId, confirmation: confirm, hostDeletion },
       auditActor(session),
     );
     if (!result.ok) {

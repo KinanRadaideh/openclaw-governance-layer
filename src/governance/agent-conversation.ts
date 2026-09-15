@@ -370,6 +370,37 @@ export async function forgetAccountConversations(
   });
 }
 
+/**
+ * Removes every account's dashboard conversation with one agent (decision C13, the full
+ * delete).
+ *
+ * Without it, a new agent given a deleted agent's id opens each account onto its old thread,
+ * which is finding 372's shape in governance's own store. The prompts themselves stay in the
+ * ledger, where they were recorded when they were sent; this is only the readable copy.
+ */
+export async function forgetAgentConversations(
+  groupId: string,
+  rawAgentId: string,
+): Promise<number> {
+  await ensureHomeDir(groupId);
+  const agentId = normalizeAgentId(rawAgentId);
+  return await withFileLock(conversationsFilePath(groupId), async () => {
+    const file = await readConversations(groupId);
+    const doomed = file.conversations.filter(
+      (entry) => normalizeAgentId(entry.agentId) === agentId,
+    );
+    if (doomed.length === 0) {
+      return 0;
+    }
+    const turns = doomed.reduce((total, entry) => total + entry.turns.length, 0);
+    file.conversations = file.conversations.filter(
+      (entry) => normalizeAgentId(entry.agentId) !== agentId,
+    );
+    await writeGovernanceJson(conversationsFilePath(groupId), file);
+    return turns;
+  });
+}
+
 export type PromptOutcome = {
   ok: boolean;
   runId: string;

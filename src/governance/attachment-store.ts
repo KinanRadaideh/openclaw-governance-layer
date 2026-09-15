@@ -76,6 +76,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { redactToolPayloadText } from "../logging/redact.js";
+import { normalizeAgentId } from "../routing/session-key.js";
 import { canonicalAccountName } from "./account-name.js";
 import { withFileLock } from "./file-lock.js";
 import { attachmentsDir } from "./paths.js";
@@ -657,6 +658,46 @@ export async function retainSentAttachments(groupId: string): Promise<number> {
     await rm(dir, { recursive: true, force: true });
   }
   return kept;
+}
+
+/**
+ * Releases one agent's attachments that no prompt ever sent, and keeps the ones a ledger
+ * entry names (decision C13, the full delete).
+ *
+ * The rule `retainSentAttachments` applies to a whole organisation (finding 211), narrowed
+ * to one agent: an attachment with `usedAt` is evidence behind a ledger entry and stays; one
+ * without is a pick nobody sent. Index first, then bytes, for the reason `releaseAttachment`
+ * gives.
+ */
+export async function releaseUnsentAgentAttachments(
+  groupId: string,
+  rawAgentId: string,
+): Promise<{ released: number; kept: number }> {
+  try {
+    await stat(attachmentsDir(groupId));
+  } catch {
+    return { released: 0, kept: 0 };
+  }
+  const agentId = normalizeAgentId(rawAgentId);
+  const outcome = await withIndex(groupId, (index) => {
+    const mine = index.attachments.filter((entry) => normalizeAgentId(entry.agentId) === agentId);
+    const release = new Set(mine.filter((entry) => !entry.usedAt).map((entry) => entry.sha256));
+    return {
+      ...(release.size === 0
+        ? {}
+        : {
+            next: {
+              version: 1 as const,
+              attachments: index.attachments.filter((entry) => !release.has(entry.sha256)),
+            },
+          }),
+      result: { release: [...release], kept: mine.length - release.size },
+    };
+  });
+  for (const sha256 of outcome.release) {
+    await rm(join(attachmentsDir(groupId), sha256), { force: true });
+  }
+  return { released: outcome.release.length, kept: outcome.kept };
 }
 
 /** True when the store directory exists. Used by the deployment report. */

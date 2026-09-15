@@ -24,6 +24,7 @@ import {
   installGovernanceActiveSessions,
   installGovernanceAgentTerminator,
 } from "./governance-agent-termination.js";
+import { installGovernanceHostAgentDeleter } from "./governance-host-agent-deletion.js";
 import type { HooksConfigResolved } from "./hooks.js";
 import type { AuthorizedGatewayHttpRequest } from "./http-auth-utils.js";
 import { createSandboxHostHttpServer } from "./mcp-app-sandbox-http.js";
@@ -555,6 +556,10 @@ export async function createGatewayRuntimeState(params: {
   // kind of thing: a capability the Gateway owns and the governance layer
   // reaches through a seam, so governance stays runnable without a Gateway.
   installGovernanceAgentRunner();
+  // Give governance's "delete the way OpenClaw does" OpenClaw's own `agents.delete`
+  // (decision C13). Beside the kill switch for the same reason: a Gateway capability the
+  // governance layer reaches through a seam, read per call from the live context.
+  installGovernanceHostAgentDeleter(() => params.getGatewayRequestContext?.());
 
   return {
     httpServer,

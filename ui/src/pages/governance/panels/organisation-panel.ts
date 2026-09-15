@@ -37,6 +37,7 @@ import {
 import { t } from "../../../i18n/index.ts";
 import type { GovernanceIdentity } from "../api.ts";
 import type { AccountDrafts, PanelEffects } from "./account-panels.ts";
+import { chooseHostDeletion } from "./agent-delete-choice.ts";
 
 export type OrganisationPanelProps = PanelEffects & {
   identity: GovernanceIdentity | null;
@@ -102,53 +103,54 @@ export function renderOrganisationSection(
                   username: rootUsername,
                 })}
             @click=${() =>
-              void props.confirmThen(
-                {
-                  message: t("governance.organisation.confirmMessage"),
-                  details: t("governance.organisation.confirmDetails"),
-                  confirmLabel: t("governance.organisation.confirmAction"),
-                },
-                async () => {
-                  const result = await props.api().deleteOrganisation(typed);
-                  // Handed to the page rather than kept here, because after the
-                  // sign-out this panel is not rendered: `identity` is null and
-                  // the whole section returns `nothing`. A notice shown only on
-                  // a screen that no longer exists is the silent-outcome bug
-                  // this project ranks worst, arriving through the UI.
-                  props.onDraft({ orgConfirmName: "", orgNotice: "" });
-                  // What was *kept* is stated as well as what went, and both
-                  // messages say it (finding 212). The command line has always
-                  // printed where the ledger was left; this surface reported
-                  // only the counts, so the operator who used the dashboard was
-                  // the one who could not find out that anything survived, and
-                  // now something more than the ledger does.
-                  props.onDeleted(
-                    // Checked before `residue`, because a step that did not
-                    // finish is the more consequential of the two: leftover
-                    // files are inert, an un-revoked session is not (finding
-                    // 229).
-                    result.incomplete.length > 0
-                      ? t("governance.organisation.deletedIncomplete", {
-                          accounts: String(result.accountsDeleted),
-                          agents: String(result.agentsDeleted),
-                          steps: result.incomplete.join("; "),
-                        })
-                      : result.residue.length > 0
-                        ? t("governance.organisation.deletedResidue", {
-                            residue: result.residue.join(", "),
-                          })
-                        : result.attachmentsRetained > 0
-                          ? t("governance.organisation.deletedWithEvidence", {
-                              accounts: String(result.accountsDeleted),
-                              agents: String(result.agentsDeleted),
-                              attachments: String(result.attachmentsRetained),
-                            })
-                          : t("governance.organisation.deleted", {
-                              accounts: String(result.accountsDeleted),
-                              agents: String(result.agentsDeleted),
-                            }),
-                  );
-                },
+              // The confirmation asks how every agent leaves OpenClaw (decision C13), in
+              // the same words as deleting one agent: after the organisation is gone, a
+              // new one can be set up and its agents given the same names.
+              void chooseHostDeletion(t("governance.organisation.agentsChoiceMessage")).then(
+                (hostDeletion) =>
+                  hostDeletion === null
+                    ? undefined
+                    : props.run(async () => {
+                        const result = await props.api().deleteOrganisation(typed, hostDeletion);
+                        // Handed to the page rather than kept here, because after the
+                        // sign-out this panel is not rendered: `identity` is null and
+                        // the whole section returns `nothing`. A notice shown only on
+                        // a screen that no longer exists is the silent-outcome bug
+                        // this project ranks worst, arriving through the UI.
+                        props.onDraft({ orgConfirmName: "", orgNotice: "" });
+                        // What was *kept* is stated as well as what went, and both
+                        // messages say it (finding 212). The command line has always
+                        // printed where the ledger was left; this surface reported
+                        // only the counts, so the operator who used the dashboard was
+                        // the one who could not find out that anything survived, and
+                        // now something more than the ledger does.
+                        props.onDeleted(
+                          // Checked before `residue`, because a step that did not
+                          // finish is the more consequential of the two: leftover
+                          // files are inert, an un-revoked session is not (finding
+                          // 229).
+                          result.incomplete.length > 0
+                            ? t("governance.organisation.deletedIncomplete", {
+                                accounts: String(result.accountsDeleted),
+                                agents: String(result.agentsDeleted),
+                                steps: result.incomplete.join("; "),
+                              })
+                            : result.residue.length > 0
+                              ? t("governance.organisation.deletedResidue", {
+                                  residue: result.residue.join(", "),
+                                })
+                              : result.attachmentsRetained > 0
+                                ? t("governance.organisation.deletedWithEvidence", {
+                                    accounts: String(result.accountsDeleted),
+                                    agents: String(result.agentsDeleted),
+                                    attachments: String(result.attachmentsRetained),
+                                  })
+                                : t("governance.organisation.deleted", {
+                                    accounts: String(result.accountsDeleted),
+                                    agents: String(result.agentsDeleted),
+                                  }),
+                        );
+                      }),
               )}
           >
             ${t("governance.organisation.deleteButton")}

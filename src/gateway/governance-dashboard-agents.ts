@@ -15,6 +15,7 @@
 // across two modules, which costs a reader more than the move saves.
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { listActiveSessions } from "../governance/active-sessions.js";
+import { isHostDeletionMode } from "../governance/agent-host-deletion.js";
 import { deprovisionAgent, provisionAgent } from "../governance/agent-provisioning.js";
 import {
   AgentNotAssignableError,
@@ -449,6 +450,7 @@ export async function handleGovernanceAgentRoutes(
       confirmWaitedMs: result.confirmWaitedMs,
       ...(result.warning ? { warning: result.warning } : {}),
       ...(holdsNothing(provisionedHoldings) ? {} : { inheritedPolicy: provisionedHoldings }),
+      ...(result.hostLeftovers ? { hostLeftovers: result.hostLeftovers } : {}),
     });
     return true;
   }
@@ -474,9 +476,10 @@ export async function handleGovernanceAgentRoutes(
     if (body === undefined) {
       return true;
     }
-    const { agentId, deleteFromHost } = body as {
+    const { agentId, deleteFromHost, hostDeletion } = body as {
       agentId?: unknown;
       deleteFromHost?: unknown;
+      hostDeletion?: unknown;
     };
     if (typeof agentId !== "string" || !agentId.trim()) {
       sendInvalidRequest(res, "agentId is required");
@@ -487,6 +490,16 @@ export async function handleGovernanceAgentRoutes(
     // irreversible act happens by omission.
     if (typeof deleteFromHost !== "boolean") {
       sendInvalidRequest(res, "deleteFromHost must be true or false");
+      return true;
+    }
+    // **Which deletion, required for the same reason** (decision C13). The roster-only delete
+    // and OpenClaw's own delete leave very different things on the server, and guessing
+    // between them for an operator who did not choose is the omission the flag above refuses.
+    if (deleteFromHost && !isHostDeletionMode(hostDeletion)) {
+      sendInvalidRequest(
+        res,
+        'hostDeletion must be "roster" or "full" when deleteFromHost is true',
+      );
       return true;
     }
     const existing = await findAgent(agentId.trim());
@@ -501,7 +514,12 @@ export async function handleGovernanceAgentRoutes(
       return true;
     }
     const result = await deprovisionAgent(
-      { agentId: agentId.trim(), groupId, deleteFromHost },
+      {
+        agentId: agentId.trim(),
+        groupId,
+        deleteFromHost,
+        ...(deleteFromHost && isHostDeletionMode(hostDeletion) ? { hostDeletion } : {}),
+      },
       auditActor(session),
     );
     if (!result.ok) {
@@ -523,6 +541,14 @@ export async function handleGovernanceAgentRoutes(
       agentId: result.agentId,
       displayName: result.displayName,
       deletedFromHost: result.deletedFromHost,
+      ...(result.hostDeletion ? { hostDeletion: result.hostDeletion } : {}),
+      ...(result.movedToTrash ? { movedToTrash: result.movedToTrash } : {}),
+      ...(result.notMoved?.length ? { notMoved: result.notMoved } : {}),
+      ...(result.conversationTurnsRemoved !== undefined
+        ? { conversationTurnsRemoved: result.conversationTurnsRemoved }
+        : {}),
+      ...(result.attachmentsKept !== undefined ? { attachmentsKept: result.attachmentsKept } : {}),
+      ...(result.cleanupError ? { cleanupError: result.cleanupError } : {}),
       // ------------------------------------------------------------------
       // **Both failures travel, and `auditError` had not been** (finding 325).
       //

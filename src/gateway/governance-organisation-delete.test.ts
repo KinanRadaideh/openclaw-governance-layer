@@ -165,7 +165,7 @@ describe("POST organisation/delete", () => {
 
     const deleted = await call("POST", `${PREFIX}organisation/delete`, {
       cookie: rootCookie,
-      body: { confirm: "alpha-root" },
+      body: { hostDeletion: "roster", confirm: "alpha-root" },
     });
 
     expect(deleted.status).toBe(200);
@@ -178,7 +178,7 @@ describe("POST organisation/delete", () => {
 
     const refused = await call("POST", `${PREFIX}organisation/delete`, {
       cookie: adminCookie,
-      body: { confirm: "beta-root" },
+      body: { hostDeletion: "roster", confirm: "beta-root" },
     });
 
     // 403 from `requireRole`, not the domain module's 409: the tier question is
@@ -193,11 +193,24 @@ describe("POST organisation/delete", () => {
 
     const refused = await call("POST", `${PREFIX}organisation/delete`, {
       cookie: rootCookie,
-      body: { confirm: "gamma" },
+      body: { hostDeletion: "roster", confirm: "gamma" },
     });
 
     expect(refused.status).toBe(409);
     expect(refused.body).toMatchObject({ error: { type: "conflict", stage: "preflight" } });
+    expect(await listUsers()).toHaveLength(2);
+  });
+
+  it("requires the choice of how agents leave OpenClaw rather than picking one (C13)", async () => {
+    const { rootCookie } = await seedOrganisation("epsilon-root");
+
+    const refused = await call("POST", `${PREFIX}organisation/delete`, {
+      cookie: rootCookie,
+      body: { confirm: "epsilon-root" },
+    });
+
+    expect(refused.status).toBe(400);
+    expect(JSON.stringify(refused.body)).toContain("hostDeletion");
     expect(await listUsers()).toHaveLength(2);
   });
 
@@ -233,7 +246,7 @@ describe("POST organisation/delete", () => {
       // The one write the tenant model exists to prevent. The route reads the
       // group from the session, so this field is inert, and the assertion is
       // that it is inert, not merely unused by today's code.
-      body: { confirm: "attacker-root", groupId: victim.groupId },
+      body: { hostDeletion: "roster", confirm: "attacker-root", groupId: victim.groupId },
     });
 
     expect(deleted.status).toBe(200);
@@ -246,7 +259,7 @@ describe("POST organisation/delete", () => {
 
     await call("POST", `${PREFIX}organisation/delete`, {
       cookie: rootCookie,
-      body: { confirm: "epsilon-root" },
+      body: { hostDeletion: "roster", confirm: "epsilon-root" },
     });
 
     // The cookie is still in the browser; it names nothing. Sessions were

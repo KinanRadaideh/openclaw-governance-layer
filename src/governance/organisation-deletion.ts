@@ -83,6 +83,7 @@ import { join } from "node:path";
 import { formatErrorMessage } from "../infra/errors.js";
 import { guardOrganisationDeletion } from "./account-guards.js";
 import { ADMIN_ACTIONS, recordAdminAction, type AuditActorInput } from "./admin-audit.js";
+import type { HostDeletionMode } from "./agent-host-deletion.js";
 import { deprovisionAgent } from "./agent-provisioning.js";
 import { listAgents } from "./agent-registry.js";
 import { retainSentAttachments } from "./attachment-store.js";
@@ -190,9 +191,19 @@ export async function summariseOrganisation(groupId: string): Promise<Organisati
  * defect class this project finds most often.
  */
 export async function deleteOrganisation(
-  input: { groupId: string; actingUserId: string; confirmation: string },
+  input: {
+    groupId: string;
+    actingUserId: string;
+    confirmation: string;
+    /**
+     * How every agent is deleted from the host (decision C13). Defaults to the roster-only
+     * delete for callers that predate the choice; the route requires it.
+     */
+    hostDeletion?: HostDeletionMode;
+  },
   actor: AuditActorInput,
 ): Promise<OrganisationDeletionResult> {
+  const hostDeletion = input.hostDeletion ?? "roster";
   const accounts = await listUsers(input.groupId);
   const guard = guardOrganisationDeletion(accounts, input.actingUserId, input.confirmation);
   if (!guard.allowed) {
@@ -211,7 +222,8 @@ export async function deleteOrganisation(
     action: ADMIN_ACTIONS.organisationDeleteRequest,
     target:
       `organisation ${input.groupId} deletion requested: ` +
-      `${accounts.length} account(s), ${agents.length} agent(s)`,
+      `${accounts.length} account(s), ${agents.length} agent(s), agents deleted ` +
+      (hostDeletion === "full" ? "the way OpenClaw does" : "from OpenClaw's agent list only"),
     subjectId: input.groupId,
   });
 
@@ -220,7 +232,7 @@ export async function deleteOrganisation(
   const unrecordedAgents: string[] = [];
   for (const agent of agents) {
     const removed = await deprovisionAgent(
-      { agentId: agent.id, groupId: input.groupId, deleteFromHost: true },
+      { agentId: agent.id, groupId: input.groupId, deleteFromHost: true, hostDeletion },
       actor,
     );
     if (!removed.ok) {
