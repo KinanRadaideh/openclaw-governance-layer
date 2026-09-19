@@ -28,7 +28,9 @@ Cross-references: `GOVERNANCE.md` (operator-facing overview + QA defect table),
 > found on the way; and §3.5.92 (2026-09-18), the fortnight's work checked by driving the
 > dashboard live, which found 375 and 376; and §3.5.93 (2026-09-19), the same with a model
 > connected, which found 377–379, opened decision C15, and measured the kill switch's
-> confirmed stop above one second on the laptop (quote it with §3.5.93's qualification).
+> confirmed stop above one second on the laptop (quote it with §3.5.93's qualification); and §3.5.94,
+> C15 and A13 built: a request names the account that answered, and agents are renamed and re-owned
+> from the registry.
 > §3.1's status column was brought up to date
 > against the code on 2026-09-14.
 >
@@ -10796,7 +10798,7 @@ still name an unregistered agent, deliberately: rule requests may name agents th
 does not manage, and refusing an unregistered name at filing would tell a User which agent ids
 exist — the existence-oracle argument §3.5 already makes for `requireAgentInGroup`.
 
-**Decision C15, for Kinan: who a request filed by "Always allow" is from.** It is recorded as
+**Decision C15: who a request filed by "Always allow" is from** _(decided by Kinan and built the same day, §3.5.94)_. It is recorded as
 `hitl-approval`, a label meaning _a proposal no account authored_, which was true when approval
 cards were answered in the Control UI by whoever held the Gateway credential. Since T68 a
 dashboard escalation is answered by a named governance account, and the ledger records that
@@ -10817,3 +10819,47 @@ is taken (§3.5.10).
 **For Chapter 5:** all three findings are about what the product _says_, a log line, a
 sentence and a refusal. None of them could be seen without a second account, a model, or the
 Gateway's own log, which is the case for testing an oversight tool from each seat it has.
+
+### 3.5.94 Who asked, and who owns: C15 and A13 built (2026-09-19)
+
+Both were Kinan's decisions, taken on 2026-09-19 as recommended.
+
+**C15: a request filed by answering an escalation names the account that answered.** Since
+T68 an escalation raised by a dashboard prompt is answered by a signed-in governance account,
+and the ledger recorded that account in the answer's own entry, while the request the answer
+filed said _requested by hitl-approval_, a label meaning "no account authored this". The
+request now carries **`answeredBy`**, shown in the queue as _"lina, answering an escalation"_
+and used as the actor of the request's ledger entry and in the decision's sentence.
+
+Two design choices are worth recording. **The origin label stays** in `requestedBy`, because
+it is also what gives escalation requests their shared queue budget (40, plus 20 per account)
+and their de-duplication; re-labelling the author would have moved a User's presses into that
+User's own 20-request cap, a behaviour change nobody asked for. And **the account reaches the
+request by an internal context, not by the plugin API.** _Always allow_ files its request in
+the policy's approval callback, in the agent's run, which the host calls with the decision
+alone, and that callback's type is part of the public plugin SDK. So the approvals route notes
+the answering account under the approval's id before resolving it, and the host runs the
+callback inside that id (`approval-answerers.ts`, an `AsyncLocalStorage`); the public type is
+unchanged. _Would allow_ files from its own route, which passes the session directly. An
+approval answered anywhere else, a chat run's in the Control UI or on a channel, has no note,
+and keeps the anonymous label honestly.
+
+**A13: renaming and re-owning from the registry.** The routes existed, ownership-checked and
+audited, and nothing on the page called them, so re-homing the agents of an Administrator who
+leaves took hand-written HTTP, although that job is the stated reason Root is exempt from the
+ownership rule. The registry row now offers **Edit…** to whoever `administersAgent` admits (the
+owner and Root): a display-name field, the id stated as fixed because every rule and ledger
+entry uses it, and **for Root** a picker of the organisation's Administrators and Root with a
+confirmation that says, before it happens, that Users and Viewers answering to the previous
+owner lose the agent (the registry revokes them, `revokeHoldersOutsideOwner`). **The owner is
+not offered the picker**, though the route admits the owner: an Administrator cannot list the
+other Administrators, so the page tells it to ask Root rather than offer a choice it cannot
+fill. Built in a module of its own (`panels/agent-edit-controls.ts`), as the registry panel is
+near the 700-line limit.
+
+**How it was checked.** Tests written first and run red, then ten mutations (six of C15's
+pieces, four of A13's), each caught by the test meant to catch it; and both driven live on the
+QA Gateway: an _Always allow_ pressed on the page produced a request naming the account that
+pressed it, which is the proof that the note crosses from the route to the agent's callback in
+the running process; and Root's re-own revoked the previous owner's User in the same act, as its
+confirmation said it would.

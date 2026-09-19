@@ -28,7 +28,7 @@ are summarised in §6.
 > numbers, not the position.
 >
 > **The newest material is §5.109–§5.120, at the end of the file** (2026-09-12
-> to 19; §5.120 is the check with a model connected, findings 377–379): the dashboard driven through a real browser while things went wrong,
+> to 19; §5.120 is the check with a model connected, findings 377–379, and §5.121 the two decisions built after it): the dashboard driven through a real browser while things went wrong,
 > including the emergency stop that missed a task started from the dashboard
 > (§5.109–§5.110); a User's way to ask for a change, and a record that said
 > "done" when nothing had changed (§5.111); the week checked a second time
@@ -8323,7 +8323,7 @@ saying the agent had been deleted, which it had not; it had never been registere
 registered agents are offered, the request is refused straight away with the reason and what to
 do, and the message says "deleted, or never registered".
 
-**One question for Kinan (decision C15).** When someone presses "Always allow" on an approval,
+**One question for Kinan (decision C15), answered the same day (§5.121).** When someone presses "Always allow" on an approval,
 the system files a request to make it permanent, and records it as coming from nobody in
 particular. That made sense when anyone holding the server's password could press the button.
 Today the person pressing it on the governance page is a named account, and the audit trail
@@ -8335,3 +8335,22 @@ system took 2.2 and 2.8 seconds to _confirm_ the task had fully stopped, on a la
 visibly struggling at the time. The stop itself takes effect at once; it is the confirmation
 that took longer. The report should give both numbers and take the confirmed one from the proper
 server, not the laptop.
+
+## 5.121 Two things Kinan decided the same day (C15 and A13)
+
+**Saying who asked (C15).** When a person answers a request for approval with "Always allow",
+the system files a request to make it permanent, for an Administrator to approve. It used to
+record that request as coming from nobody in particular, a leftover from when anyone holding the
+server's password could press the button. Today the person pressing it on the governance page is
+a named account, and the request now says so: "requested by lina, answering an escalation". The
+same goes for "Would allow" on a question that ran out of time. Nothing about how many such
+requests can wait, or who may approve them, changed.
+
+**Renaming an agent and handing it to someone else (A13).** The server could already do both, but
+nothing on the page offered them, so it took a hand-written web request. The agent list now has an
+**Edit…** button for the agent's owner and for Root. Anyone who manages the agent can change the
+name people see; the agent's id stays the same, because every rule and every audit record uses it.
+Root can also give the agent to another Administrator, which is how the agents of someone who
+leaves are looked after. Before it happens, the page warns that the people who answer to the
+previous owner lose access to the agent, since an agent can only be assigned to people under its
+own Administrator.
