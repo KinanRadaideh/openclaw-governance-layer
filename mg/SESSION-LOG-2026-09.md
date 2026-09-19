@@ -5597,3 +5597,33 @@ caught by the test meant to catch it, and driven on the live QA Gateway.
 **The lesson.** A decision recorded as "attribute it to the account" hid a second decision about
 queue budgets, and the recommendation only held because the two were separated: who asked, and
 which allowance it counts against, are different facts, and one field had been carrying both.
+
+## 2026-09-20: the handoff documents finished, and a prompt for whoever is next
+
+Kinan asked for the handoff documentation to be brought ready and for a prompt introducing
+the next agent to the project. This finished the eighteen-document update order agreed on
+2026-09-13: `FIRST-RUN` (16), `HANDOFF` (17) and this log (18) were the three still owed.
+
+**`FIRST-RUN.md` was re-run rather than re-read.** Its rehearsal script really does report
+20 of 20 checks, the `dashboard` command exists, and Root genuinely cannot be the
+Administrator answerable for an account, so those claims stand. One did not: a paragraph
+still sent the reader to `governance deployment` over a plain SSH session, a command removed
+on 2026-09-07. That is the clearest place the removal costs something — the deployment
+report is now Root's, on the dashboard, which means you see it through the tunnel — so the
+page says that instead, and says what was lost. The bootstrap sentence was corrected to
+match finding 205, and the newest operator-facing controls were added to the first five
+minutes.
+
+**`HANDOFF.md`** gained the current reading order, the newest modules, a re-derived backlog
+count (nine unstruck, one of them T1, so eight open, unchanged since 2026-09-15) and a state
+table whose every cell was re-derived. §8 still says rebuild the VPS, now naming the
+fortnight of work it lacks.
+
+**`mg/NEXT-AGENT.md`** is new: the whole handover in two pages — what the layer is, where it
+has reached, what is left and whose it is, how Kinan wants the work done, and the traps that
+cost the most time. It exists because the previous handovers were assembled by hand each
+time from a 6,500-line file, and the thing a newcomer needs first is short.
+
+**The lesson, and it is the same one this project keeps learning.** A document is only true
+on the day somebody re-runs what it claims. Everything in the new prompt names the command
+or the file that settles it, so the next reader can check rather than trust.

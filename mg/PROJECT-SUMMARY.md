@@ -1,6 +1,6 @@
 # Project summary: Policy-Based Secure Governance Layer for OS-Level Agents
 
-**Current as of 2026-09-19.** A single place to understand what this
+**Current as of 2026-09-20.** A single place to understand what this
 project is, where everything lives, what has been built, and how it was arrived
 at. Written for someone joining the work or picking it up after a break.
 
@@ -17,11 +17,11 @@ at. Written for someone joining the work or picking it up after a break.
 > an agent cannot be renamed or re-owned from the dashboard, though the routes exist. `mg/HANDOFF.md`
 > opens with it.
 >
-> **Three things to know before anything else (2026-09-14).** **The project is in its
-> documentation phase**, and `docs-notes/WRITING-GUIDE.md` is where writing starts;
-> fifteen of the eighteen documents in the agreed update order have been rewritten
-> against the code, and the last three are `docs-notes/FIRST-RUN.md`, `mg/HANDOFF.md`
-> and `mg/SESSION-LOG-2026-09.md`. **Whether the tree is committed and pushed is not
+> **Three things to know before anything else (2026-09-20).** **The project is in its
+> documentation phase**, and `docs-notes/WRITING-GUIDE.md` is where writing starts; **all
+> eighteen documents in the agreed update order have now been rewritten against the code**,
+> the last three (`docs-notes/FIRST-RUN.md`, `mg/HANDOFF.md`, `mg/SESSION-LOG-2026-09.md`)
+> on 2026-09-20, and **`mg/NEXT-AGENT.md` is the handover in two pages**. **Whether the tree is committed and pushed is not
 > stated here**: `git status --porcelain` and
 > `git log --oneline personal/governance-layer..HEAD` answer it, and a sentence here
 > would not stay true (finding 227). And the
@@ -312,7 +312,8 @@ ls src/governance/*.ts | grep -v '\.test\.ts' | wc -l
 | `mg/PROJECT-SUMMARY.md`                | This file, what the project is and where everything lives                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `mg/REMAINING-WORK.md`                 | The long-form backlog, T1–T64 with T68 and T69, and the M-series; A12 and the other A-tasks are in the sweep register. Count `mg/HANDOFF.md` §6's rows for what is open                                                                                                                                                                                                                                                                                                         |
 | `old-docs/SESSION-LOG-2026-08.md`      | What the August 2026 session changed, and why                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `mg/SESSION-LOG-2026-09.md`            | What September 2026 changed, and why, through 2026-09-14                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `mg/NEXT-AGENT.md`                     | The handover prompt: what the project is, where it has reached, what is left and what to do next (2026-09-20)                                                                                                                                                                                                                                                                                                                                                                   |
+| `mg/SESSION-LOG-2026-09.md`            | What September 2026 changed, and why, through 2026-09-20                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `mg/REMAINING-WORK-DASHBOARD-SWEEP.md` | What is left, sorted by who has to move first, including A12; the full records of T60, T63, T64, T68, T69, the QA passes of 2026-09-12 to 14 and A11                                                                                                                                                                                                                                                                                                                            |
 
 ### Runtime state (created on first use, not in the repo)

@@ -1,8 +1,9 @@
 # Start here: from a clean machine to a governed agent
 
-**Written 2026-09-03 (T45).** For somebody meeting this project for the first
-time: what it is, what it needs, and the shortest honest path to watching it
-refuse an agent.
+**Written 2026-09-03 (T45). Checked against the code on 2026-09-20**, when every
+command, count and claim on this page was re-run or re-read. For somebody meeting
+this project for the first time: what it is, what it needs, and the shortest honest
+path to watching it refuse an agent.
 
 `LINUX-INSTALL.md` is the deployment runbook. It is thorough and it assumes you
 already know what you are installing and why the ordinary install cannot deliver
@@ -255,9 +256,11 @@ the dashboard through the tunnel and read three panels:
 | **Policy**            | The core denials and the baseline allowances actually in force                    |
 | **Audit ledger**      | Entries appearing as things happen                                                |
 
-`governance deployment` is written to run over a plain SSH session, before any
-tunnel exists, which is the moment you most need to know whether the listener is
-exposed.
+**The deployment report is Root's, on the dashboard**, which means you see it
+through the tunnel. _(Until 2026-09-07 there was a `governance deployment` command
+that answered the same question over a plain SSH session, before any tunnel existed,
+which is the moment you most want to know whether the listener is exposed. Removing
+the command line cost that, and this is the clearest place the loss shows.)_
 
 Then rehearse the whole sequence against real modules:
 
@@ -275,8 +278,10 @@ entry and confirms verification catches it.
 
 ## 7. Your first five minutes as an operator
 
-1. **Create the first Root** in the dashboard. This creates the organisation. It
-   is a one-time bootstrap. The form refuses once an account exists.
+1. **Create the first Root** in the dashboard. This creates the organisation, and
+   the page offers the form only while the installation is unclaimed: once an
+   organisation exists the route answers 409 and you get the sign-in form instead
+   (finding 205).
 2. **Create an Administrator.** Root manages people; Administrators own agents.
    Root deliberately cannot be the Administrator answerable for an account, which
    keeps one statable rule instead of two.
@@ -284,6 +289,12 @@ entry and confirms verification catches it.
    mandatory: an agent with no record is refused at the gate on every call.
 4. **Assign the agent to a User.** That is how a User comes to hold one.
 5. **Prompt the agent to read a credential file**, for example `~/.aws/credentials`.
+
+Three more an operator meets early, all on the agent's row in the registry:
+**Edit…** renames an agent, and lets Root give it to another Administrator when its
+owner leaves (A13); **Remove…** asks which of two deletions to run, and says what each
+one leaves behind (C13); and a request raised by answering an approval names the
+account that answered it (C15).
 
 Step 5 is the demonstration. That path is a **core denial**: Root cannot switch
 it off, so the refusal is not an artefact of a rule written for the demo. Then:
