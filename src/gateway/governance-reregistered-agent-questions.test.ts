@@ -156,6 +156,9 @@ describe("a held decision that outlives its agent", () => {
     });
 
     expect(answered.status).toBe(200);
+    // C15: the proposal "Would allow" files names the account that answered.
+    const [proposal] = await listRuleRequests(groupId);
+    expect(proposal).toMatchObject({ requestedBy: "hitl-approval", answeredBy: "ada" });
   });
 });
 

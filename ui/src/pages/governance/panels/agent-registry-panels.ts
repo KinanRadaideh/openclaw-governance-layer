@@ -46,6 +46,7 @@ import type {
 import { administersAgent } from "../identity.ts";
 import type { PanelEffects } from "./account-panels.ts";
 import { chooseHostDeletion, deletionNotice, leftoversClause } from "./agent-delete-choice.ts";
+import { renderAgentEditor, renderEditButton } from "./agent-edit-controls.ts";
 
 export type AgentRegistryDrafts = {
   /** The new agent's name. The host derives an id from it unless one is given. */
@@ -82,6 +83,10 @@ export type AgentRegistryDrafts = {
   provisionAdminId: string;
   /** Which row currently has its remove chooser open, or "" for none. */
   removeChoiceFor: string;
+  /** Which row has its editor open (A13), or "" for none; and what is typed and chosen there. */
+  editFor: string;
+  editName: string;
+  editOwnerId: string;
   /**
    * The outcome of the last **per-row** verb, which has nowhere else to go.
    *
@@ -158,6 +163,9 @@ export function emptyAgentRegistryDrafts(): AgentRegistryDrafts {
     provisionModel: "",
     provisionAdminId: "",
     removeChoiceFor: "",
+    editFor: "",
+    editName: "",
+    editOwnerId: "",
     rowNotice: "",
     rowNoticeWarning: false,
     provisionNotice: "",
@@ -319,6 +327,7 @@ function renderAgentRow(
 ): TemplateResult {
   const owner = props.administrators.find((account) => account.id === agent.adminId);
   const open = props.drafts.removeChoiceFor === agent.agentId;
+  const editing = !open && props.drafts.editFor === agent.agentId;
   return renderSettingsRow({
     title: html`${agent.displayName || agent.agentId} <code>${agent.agentId}</code>`,
     // An unregistered agent is listed and labelled rather than hidden. After M5
@@ -345,90 +354,95 @@ function renderAgentRow(
         })}
         ${renderEngineState(agent)}`
       : t("governance.agents.unregisteredHint"),
-    stacked: open,
+    stacked: open || editing,
     control: open
       ? renderRemoveChoice(agent, props)
-      : html`<div class="settings-row__control" style="gap:0.5rem">
-          ${agent.registered && administersAgent(props.identity, agent)
-            ? html`<button
-                class="btn"
-                ?disabled=${props.busy}
-                title="Whether this agent may run on the Codex backend"
-                @click=${() =>
-                  // Confirmed in the permissive direction only. Permitting
-                  // accepts a stated enforcement gap for this agent; withdrawing
-                  // is the safe direction and needs no caution, and a dialog on
-                  // both would train an operator to dismiss the one that matters
-                  //. Finding 87's lesson, applied to a second control.
-                  agent.codexAllowed
-                    ? void props.run(async () => {
-                        await props.api().setAgentCodexAllowed(agent.agentId, false);
-                        await props.refresh();
-                      })
-                    : void props.confirmThen(
-                        {
-                          message: `Allow "${agent.displayName || agent.agentId}" to run on the Codex backend?`,
-                          details:
-                            "On that backend a recursive search that reaches a file your rules " +
-                            "deny is recorded but cannot be prevented: its results are not " +
-                            "withheld from the model, because the Codex hook protocol has no " +
-                            "field for substituting a tool result. Denials, the audit ledger " +
-                            "and the kill switch all still apply there. This decision is " +
-                            "recorded in the ledger against your account and tier. The agent " +
-                            "still cannot use Codex unless Root has enabled the backend for " +
-                            "this installation.",
-                          confirmLabel: "Allow on Codex",
-                          danger: true,
-                        },
-                        async () => {
-                          await props.api().setAgentCodexAllowed(agent.agentId, true);
-                          await props.refresh();
-                        },
-                      )}
-              >
-                ${agent.codexAllowed ? "Disallow Codex" : "Allow Codex"}
-              </button>`
-            : nothing}
-          ${agent.registered && administersAgent(props.identity, agent)
-            ? html`<button
-                class="btn"
-                ?disabled=${props.busy}
-                @click=${() => props.onDraft({ removeChoiceFor: agent.agentId })}
-              >
-                ${t("governance.agents.remove")}
-              </button>`
-            : agent.registered
-              ? // Registered, but somebody else's: the row names the owner and offers nothing.
-                nothing
-              : html`<button
+      : editing
+        ? renderAgentEditor(agent, props, agentOwners(props.administrators))
+        : html`<div class="settings-row__control" style="gap:0.5rem">
+            ${agent.registered && administersAgent(props.identity, agent)
+              ? renderEditButton(agent, props)
+              : nothing}
+            ${agent.registered && administersAgent(props.identity, agent)
+              ? html`<button
                   class="btn"
                   ?disabled=${props.busy}
+                  title="Whether this agent may run on the Codex backend"
                   @click=${() =>
-                    void props.run(async () => {
-                      // Registering an existing agent is the *other* verb, and
-                      // the one an operator migrating an installation needs. It
-                      // claims an id the host already has; it never creates one.
-                      const registered = await props
-                        .api()
-                        .registerAgent(agent.agentId, agent.displayName || agent.agentId);
-                      // **The other half of T55 part b′** (finding 326). The
-                      // route has computed `inheritedPolicy` for this verb since
-                      // T55 landed, and this call site awaited the response and
-                      // threw it away — so "registering an agent onto a loaded id
-                      // says so" was true of the create form and of nothing else.
-                      // Registering is the *more* likely of the two to meet rules
-                      // it did not write: the id comes from the host, already
-                      // named, and may have been governed here before.
-                      props.onDraft({
-                        rowNotice: inheritedClause(registered.inheritedPolicy) ?? "",
-                        rowNoticeWarning: false,
-                      });
-                      await props.refresh();
-                    })}
+                    // Confirmed in the permissive direction only. Permitting
+                    // accepts a stated enforcement gap for this agent; withdrawing
+                    // is the safe direction and needs no caution, and a dialog on
+                    // both would train an operator to dismiss the one that matters
+                    //. Finding 87's lesson, applied to a second control.
+                    agent.codexAllowed
+                      ? void props.run(async () => {
+                          await props.api().setAgentCodexAllowed(agent.agentId, false);
+                          await props.refresh();
+                        })
+                      : void props.confirmThen(
+                          {
+                            message: `Allow "${agent.displayName || agent.agentId}" to run on the Codex backend?`,
+                            details:
+                              "On that backend a recursive search that reaches a file your rules " +
+                              "deny is recorded but cannot be prevented: its results are not " +
+                              "withheld from the model, because the Codex hook protocol has no " +
+                              "field for substituting a tool result. Denials, the audit ledger " +
+                              "and the kill switch all still apply there. This decision is " +
+                              "recorded in the ledger against your account and tier. The agent " +
+                              "still cannot use Codex unless Root has enabled the backend for " +
+                              "this installation.",
+                            confirmLabel: "Allow on Codex",
+                            danger: true,
+                          },
+                          async () => {
+                            await props.api().setAgentCodexAllowed(agent.agentId, true);
+                            await props.refresh();
+                          },
+                        )}
                 >
-                  ${t("governance.agents.register")}
-                </button>`}
-        </div>`,
+                  ${agent.codexAllowed ? "Disallow Codex" : "Allow Codex"}
+                </button>`
+              : nothing}
+            ${agent.registered && administersAgent(props.identity, agent)
+              ? html`<button
+                  class="btn"
+                  ?disabled=${props.busy}
+                  @click=${() => props.onDraft({ removeChoiceFor: agent.agentId, editFor: "" })}
+                >
+                  ${t("governance.agents.remove")}
+                </button>`
+              : agent.registered
+                ? // Registered, but somebody else's: the row names the owner and offers nothing.
+                  nothing
+                : html`<button
+                    class="btn"
+                    ?disabled=${props.busy}
+                    @click=${() =>
+                      void props.run(async () => {
+                        // Registering an existing agent is the *other* verb, and
+                        // the one an operator migrating an installation needs. It
+                        // claims an id the host already has; it never creates one.
+                        const registered = await props
+                          .api()
+                          .registerAgent(agent.agentId, agent.displayName || agent.agentId);
+                        // **The other half of T55 part b′** (finding 326). The
+                        // route has computed `inheritedPolicy` for this verb since
+                        // T55 landed, and this call site awaited the response and
+                        // threw it away — so "registering an agent onto a loaded id
+                        // says so" was true of the create form and of nothing else.
+                        // Registering is the *more* likely of the two to meet rules
+                        // it did not write: the id comes from the host, already
+                        // named, and may have been governed here before.
+                        props.onDraft({
+                          rowNotice: inheritedClause(registered.inheritedPolicy) ?? "",
+                          rowNoticeWarning: false,
+                        });
+                        await props.refresh();
+                      })}
+                  >
+                    ${t("governance.agents.register")}
+                  </button>`}
+          </div>`,
   });
 }
 

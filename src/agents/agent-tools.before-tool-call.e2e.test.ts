@@ -11,6 +11,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { GatewayClientRequestError } from "../gateway/client.js";
 import {
+  noteApprovalAnswerer,
+  takeResolvingApprovalAnswerer,
+} from "../governance/approval-answerers.js";
+import {
   onInternalDiagnosticEvent,
   onDiagnosticEvent,
   onTrustedInternalDiagnosticEvent,
@@ -2666,6 +2670,33 @@ describe("before_tool_call requireApproval handling", () => {
       expect(reported).toBe(reports);
     },
   );
+
+  // C15: a callback learns only the decision, so the governance route notes who answered
+  // under the approval's id, and the hook runs the callback inside that id.
+  it("runs the resolution callback inside the approval's id", async () => {
+    let answerer: unknown;
+    hookRunner.runBeforeToolCall.mockResolvedValue({
+      params: { command: "safe-command" },
+      requireApproval: {
+        title: "Attributed",
+        description: "Who answered",
+        onResolution: () => {
+          answerer = takeResolvingApprovalAnswerer();
+        },
+      },
+    });
+    noteApprovalAnswerer("server-id-c15", { name: "lina", role: "user" });
+    mockCallGateway.mockResolvedValueOnce({ id: "server-id-c15", status: "accepted" });
+    mockCallGateway.mockResolvedValueOnce({ id: "server-id-c15", decision: "allow-always" });
+    mockCallGateway.mockResolvedValue({ ok: true });
+
+    await runBeforeToolCallHook({
+      toolName: "bash",
+      params: { command: "safe-command" },
+      ctx: { agentId: "main", sessionKey: "main" },
+    });
+    await vi.waitFor(() => expect(answerer).toEqual({ name: "lina", role: "user" }));
+  });
 
   it("blocks exact allow decisions excluded by the request", async () => {
     const onResolution = vi.fn();

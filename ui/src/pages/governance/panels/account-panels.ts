@@ -96,6 +96,13 @@ const ASSIGNABLE_ROLE_OPTIONS: ReadonlyArray<{ value: GovernanceRole; label: str
  * choice is visible in the confirmation and changeable afterwards through the
  * ordinary manager field.
  */
+/** Who a request is from: the account that answered an escalation, when one did (C15). */
+function requester(request: GovernanceRuleRequest): string {
+  return request.answeredBy
+    ? t("governance.requests.answeredEscalation", { name: request.answeredBy })
+    : request.requestedBy;
+}
+
 function successorFor(
   user: GovernanceUserRecord,
   props: AccountsPanelProps,
@@ -761,7 +768,7 @@ export function renderRuleRequestsSection(
             ? ` (${request.access === "read" ? t("governance.policy.readOnlyBadge") : t("governance.policy.writeOnlyBadge")})`
             : ""
         }
-        · ${t("governance.requests.by")} ${request.requestedBy}, ${request.reason}
+        · ${t("governance.requests.by")} ${requester(request)}, ${request.reason}
         ${renderRuleRequestPreview(request)}${request.agentRegistered === false
           ? html`<div class="governance-request-preview" role="note">
               ${t("governance.requests.agentGone")}
@@ -805,7 +812,7 @@ export function renderRuleRequestsSection(
                 value: request.value ?? "",
               })}`
             : html`<code>${request.pattern}</code>`,
-        description: `${t("governance.requests.by")} ${request.requestedBy} · ${t("governance.requests.decidedBy")} ${request.decidedBy ?? "-"}`,
+        description: `${t("governance.requests.by")} ${requester(request)} · ${t("governance.requests.decidedBy")} ${request.decidedBy ?? "-"}`,
         control: renderSettingsStatus({
           kind: request.status === "approved" ? "ok" : "warn",
           label: request.status,

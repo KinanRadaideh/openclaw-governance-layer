@@ -23,6 +23,7 @@ import { parseGovernanceSessionKey } from "./agent-conversation.js";
 import { resolveAgentGroup } from "./agent-group.js";
 import { readAgentIntent } from "./agent-intent.js";
 import { findAgent } from "./agent-registry.js";
+import { takeResolvingApprovalAnswerer, type ApprovalAnswerer } from "./approval-answerers.js";
 import {
   appendLedgerEntry,
   MAX_LEDGER_RESOURCE_LENGTH,
@@ -427,6 +428,8 @@ export async function proposeRuleFromEscalation(
     resource: string;
     toolName: string;
     access?: "read" | "write";
+    /** The signed-in account whose answer filed this, when one did (C15). */
+    answeredBy?: ApprovalAnswerer;
   },
 ): Promise<EscalationProposalOutcome> {
   const pattern = escapeRegExp(input.resource);
@@ -456,6 +459,9 @@ export async function proposeRuleFromEscalation(
       // The direction, on the request rather than only in the sentence below.
       ...(input.access ? { access: input.access } : {}),
       requestedBy: HITL_ACTOR,
+      ...(input.answeredBy
+        ? { answeredBy: input.answeredBy.name, answeredByRole: input.answeredBy.role }
+        : {}),
       reason:
         `Requested after an escalation: agent "${agentId}" requested ` +
         `"${input.toolName}" against ${input.resourceKind} "${input.resource}"` +
@@ -1072,7 +1078,10 @@ export async function evaluateGovernancePolicy(
         // The request itself is filed under `HITL_ACTOR`, a labelled origin
         // rather than an invented account, for the same reason `host-prompt`
         // exists (T57): an entry that announces attribution is missing invites
-        // the question, and one naming an account answers it wrongly.
+        // the question, and one naming an account answers it wrongly. **Unless an
+        // account did answer (C15, 2026-09-19):** since T68 a dashboard escalation
+        // is answered by a signed-in governance account, and the request then
+        // names it in `answeredBy` while keeping this origin for its queue budget.
         // ---------------------------------------------------------------
         allowedDecisions: ["allow-once", "allow-always", "deny"],
         onResolution: async (resolutionDecision) => {
@@ -1119,6 +1128,9 @@ export async function evaluateGovernancePolicy(
                   resource,
                   toolName: event.toolName,
                   ...(spec.access ? { access: spec.access } : {}),
+                  // Named when a signed-in governance account answered (C15); the
+                  // approval hook runs this callback inside that approval's id.
+                  answeredBy: takeResolvingApprovalAnswerer(),
                 })
               : undefined;
           const finalDecision: LedgerDecision = resolutionDecision === "deny" ? "deny" : "allow";

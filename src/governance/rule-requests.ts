@@ -84,6 +84,14 @@ export type RuleRequest = {
   agentId?: string;
   reason: string;
   requestedBy: string;
+  /**
+   * The governance account whose answer to an escalation filed this request (C15).
+   *
+   * `requestedBy` stays `HITL_ACTOR` on such a request, because it is also what gives
+   * escalation requests their shared queue budget and their de-duplication; this says
+   * who asked. Absent when nobody with an account answered: a chat run's approval.
+   */
+  answeredBy?: string;
   requestedAt: string;
   status: RuleRequestStatus;
   decidedBy?: string;
@@ -215,6 +223,9 @@ export type SubmitRuleRequestInput = ActorTier &
         agentId?: string;
         /** See `RuleRequest.access`. Only meaningful for `path`. */
         access?: RuleAccess;
+        /** See `RuleRequest.answeredBy`, with the tier that account held. */
+        answeredBy?: string;
+        answeredByRole?: GovernanceRole;
       }
     | {
         kind: "agent-setting";
@@ -298,6 +309,9 @@ export async function submitRuleRequest(
           }),
       reason: input.reason,
       requestedBy: input.requestedBy,
+      ...(input.kind !== "agent-setting" && input.answeredBy
+        ? { answeredBy: input.answeredBy }
+        : {}),
       requestedAt: new Date().toISOString(),
       status: "pending",
     };
@@ -317,9 +331,13 @@ export async function submitRuleRequest(
     // problem to work around. A bare string is how this codebase has always
     // written "an origin that holds no tier", and for a named account with no
     // role it is what `splitAuditActor` produced anyway.
-    actor: input.requestedByRole
-      ? { name: request.requestedBy, role: input.requestedByRole }
-      : request.requestedBy,
+    // The account that answered, when one did (C15), at the tier it held.
+    actor:
+      input.kind !== "agent-setting" && input.answeredBy && input.answeredByRole
+        ? { name: input.answeredBy, role: input.answeredByRole }
+        : input.requestedByRole
+          ? { name: request.requestedBy, role: input.requestedByRole }
+          : request.requestedBy,
     action: ADMIN_ACTIONS.ruleRequestSubmit,
     target: describeRequest(request),
     subjectId: request.id,
@@ -386,7 +404,7 @@ export async function decideRuleRequest(
     // the ledger and an Administrator reading the review list see the same
     // words. Two descriptions of one request is how the two drift." There were
     // two descriptions, and one of them had drifted into nonsense.
-    target: `${params.approve ? "approved" : "rejected"} ${decided.requestedBy}'s request: ${describeRequest(decided)}`,
+    target: `${params.approve ? "approved" : "rejected"} ${decided.answeredBy ?? decided.requestedBy}'s request: ${describeRequest(decided)}`,
     subjectId: decided.id,
     ...(decided.agentId ? { agentId: decided.agentId } : {}),
   });

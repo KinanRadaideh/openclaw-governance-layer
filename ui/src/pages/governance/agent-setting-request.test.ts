@@ -290,6 +290,40 @@ async function mountPage(who: GovernanceIdentity): Promise<PageState> {
   return page;
 }
 
+// C15: a request filed by answering an escalation names the account that answered it.
+describe("who a request from an escalation is from", () => {
+  const fromEscalation = (answeredBy?: string, status: "pending" | "approved" = "pending") =>
+    ({
+      id: `request-${answeredBy ?? "anonymous"}-${status}`,
+      resourceKind: "command",
+      pattern: "^hostname$",
+      reason: "Requested after an escalation",
+      requestedBy: "hitl-approval",
+      ...(answeredBy ? { answeredBy } : {}),
+      requestedAt: "2026-09-19T10:00:00.000Z",
+      status,
+      agentId: "mine",
+      ...(status === "approved" ? { decidedBy: "ada" } : {}),
+    }) as GovernanceRuleRequest;
+
+  it("names the account that answered, on pending and decided rows alike", () => {
+    const queue = mountQueue(identity("administrator"), {
+      ruleRequests: [fromEscalation("lina"), fromEscalation("lina", "approved")],
+    });
+    const text = readable(queue.container);
+
+    expect(text).toContain("requested by lina, answering an escalation, Requested after");
+    expect(text).toContain("requested by lina, answering an escalation · decided by ada");
+    expect(text).not.toContain("hitl-approval");
+  });
+
+  it("keeps the labelled origin when no account answered (a chat run)", () => {
+    const queue = mountQueue(identity("administrator"), { ruleRequests: [fromEscalation()] });
+
+    expect(readable(queue.container)).toContain("requested by hitl-approval");
+  });
+});
+
 describe("the page", () => {
   it("carries the form's choices between renders", async () => {
     const page = await mountPage(identity("user", ["mine"]));

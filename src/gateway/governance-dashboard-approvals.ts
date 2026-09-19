@@ -8,6 +8,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ADMIN_ACTIONS, recordAdminAction } from "../governance/admin-audit.js";
 import { findAgent, registrationPredates } from "../governance/agent-registry.js";
+import { forgetApprovalAnswerer, noteApprovalAnswerer } from "../governance/approval-answerers.js";
 import { canManageAgent, type GovernanceActor } from "../governance/permissions.js";
 import { readAgentPolicyHoldings } from "../governance/policy-store.js";
 import type { GovernanceSession } from "../governance/session-tokens.js";
@@ -152,6 +153,12 @@ export async function handleGovernanceApprovalRoutes(
       });
       return true;
     }
+    // **Who answered, for the request "Always allow" files (C15).** That request is
+    // written by the policy's callback in the agent's run, which learns the decision
+    // and not the person; noted before resolving, because resolving is what runs it.
+    if (decision === "allow-always") {
+      noteApprovalAnswerer(id, { name: session.username, role: session.role });
+    }
     let answer: Awaited<ReturnType<typeof answerGovernanceApproval>>;
     try {
       answer = await answerGovernanceApproval({
@@ -161,6 +168,9 @@ export async function handleGovernanceApprovalRoutes(
       });
     } catch {
       answer = "unavailable";
+    }
+    if (answer !== "answered") {
+      forgetApprovalAnswerer(id);
     }
     if (answer === "gone") {
       sendJson(res, 404, { error: { message: NOT_WAITING_MESSAGE, type: "not_found" } });

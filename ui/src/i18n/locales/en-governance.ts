@@ -508,6 +508,23 @@ export const enGovernance: TranslationMap = {
       register: "Register",
       remove: "Remove…",
       cancelRemove: "Keep this agent",
+      // A13: renaming an agent and giving it to another owner, from its row.
+      edit: "Edit…",
+      editName: "Display name",
+      editNameHint:
+        "The name shown on this page. The id, {id}, never changes: every rule and ledger entry uses it.",
+      saveName: "Save name",
+      renamed: "Renamed {id} to “{name}”.",
+      newOwner: "New owner",
+      changeOwner: "Change owner",
+      changeOwnerHint:
+        "Root gives an agent to another Administrator, for instance when its owner leaves.",
+      changeOwnerAskRoot: "To give this agent to another Administrator, ask Root.",
+      confirmOwner: "Give “{name}” to {owner}?",
+      confirmOwnerDetails:
+        "Users and Viewers who answer to {previous} lose this agent, because an agent is assigned only to accounts under its own Administrator; {owner} can assign it again. The change is recorded in the audit ledger.",
+      reowned: "“{name}” is now owned by {owner}.",
+      closeEdit: "Close",
       unregister: "Remove from governance",
       unregisterExplain:
         "Stops governing it. The agent keeps running in OpenClaw and its workspace is untouched, but because unregistered agents are refused, it will stop being able to do anything until it is registered again. Reversible.",
@@ -700,6 +717,8 @@ export const enGovernance: TranslationMap = {
     requests: {
       title: "Rule requests",
       by: "requested by",
+      // C15: a request filed by answering an escalation, named for who answered.
+      answeredEscalation: "{name}, answering an escalation",
       decidedBy: "decided by",
       approve: "Approve",
       reject: "Reject",

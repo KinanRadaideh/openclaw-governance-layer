@@ -1,11 +1,12 @@
+import { addTimerTimeoutGraceMs } from "@openclaw/normalization-core/number-coercion";
+import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { GatewayClientRequestError } from "../gateway/client.js";
 /**
  * Approval transport for before_tool_call policy decisions.
  * Owns request/wait routing, embedded approval bridging, deferred approvals,
  * timeout classification, and owner-provided approval outcomes.
  */
-import { addTimerTimeoutGraceMs } from "@openclaw/normalization-core/number-coercion";
-import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
-import { GatewayClientRequestError } from "../gateway/client.js";
+import { runForResolvedApproval } from "../governance/approval-answerers.js";
 import { isEmbeddedMode } from "../infra/embedded-mode.js";
 import { getEmbeddedPluginApprovalBroker } from "../infra/embedded-plugin-approval-broker.js";
 import { formatErrorMessage } from "../infra/errors.js";
@@ -102,7 +103,9 @@ function notifyPluginApprovalResolution(
   void (async () => {
     let outcome;
     try {
-      outcome = await onResolution(resolution);
+      // Inside the approval's id, so a governance callback can learn which signed-in
+      // account answered it (C15); the public callback type is unchanged.
+      outcome = await runForResolvedApproval(approvalId, () => onResolution(resolution));
     } catch (err) {
       log.warn(`plugin onResolution callback failed: ${String(err)}`);
       outcome = {

@@ -326,6 +326,8 @@ export async function handleGovernanceOversightRoutes(
             resourceKind: decided.resourceKind,
             resource: decided.resource,
             toolName: decided.toolName,
+            // The account that pressed Would allow, named on the proposal (C15).
+            answeredBy: { name: session.username, role: session.role },
           })
         : undefined;
     sendJson(res, 200, { ...(decided ?? { ok: true }), ...(proposal ? { proposal } : {}) });

@@ -11,6 +11,10 @@ import { Readable } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ADMIN_ACTIONS } from "../governance/admin-audit.js";
 import { governanceSessionKey } from "../governance/agent-conversation.js";
+import {
+  runForResolvedApproval,
+  takeResolvingApprovalAnswerer,
+} from "../governance/approval-answerers.js";
 import { tailLedger } from "../governance/audit-ledger.js";
 import { lockDownAgent } from "../governance/kill-switch.js";
 import { savePolicy } from "../governance/policy-store.js";
@@ -487,6 +491,28 @@ describe("the governance approval routes", () => {
     });
     expect(refused.status).toBe(400);
     expect(manager.getSnapshot(payload.id)?.resolvedAtMs).toBeUndefined();
+  });
+
+  // C15: the request "Always allow" files is written in the agent's run, which learns only
+  // the decision. The route notes who answered under the approval's id before resolving it.
+  it("notes the account that answered Always allow, for that approval only (C15)", async () => {
+    release = installGovernanceApprovalRoute(createRuntime());
+    const { payload, pending } = await escalate();
+    const id = payload.id as string;
+
+    expect(
+      (await call("POST", "approvals/decide", omar(), { id, decision: "allow-always" })).status,
+    ).toBe(403);
+    expect(runForResolvedApproval(id, takeResolvingApprovalAnswerer)).toBeUndefined();
+
+    await call("POST", "approvals/decide", lina(), { id, decision: "allow-always" });
+    await pending;
+
+    expect(runForResolvedApproval(id, takeResolvingApprovalAnswerer)).toEqual({
+      name: "lina",
+      role: "user",
+    });
+    expect(runForResolvedApproval("plugin:another", takeResolvingApprovalAnswerer)).toBeUndefined();
   });
 
   it("brings the agent's follow-up to the accounts that manage it (T60)", async () => {

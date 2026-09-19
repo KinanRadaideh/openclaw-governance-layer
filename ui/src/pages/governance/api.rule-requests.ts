@@ -17,6 +17,8 @@ export type GovernanceRuleRequest = {
   pattern: string;
   reason: string;
   requestedBy: string;
+  /** The account whose answer to an escalation filed this (C15); see the server's `RuleRequest`. */
+  answeredBy?: string;
   requestedAt: string;
   status: "pending" | "approved" | "rejected";
   decidedBy?: string;
